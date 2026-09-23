@@ -1,0 +1,10 @@
+{
+  "name": "speklone",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Spectral forensics for lossless and hi-res audio, with tempo, key and in-browser stem separation",
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs"
+  }
+}
