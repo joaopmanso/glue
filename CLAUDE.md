@@ -39,8 +39,15 @@ After working:
 ## Code
 - TypeScript 6 + Svelte 5 + Vite 8. `npm run dev` · `npm run check` · `npm test` · `npx playwright test`
   (uses the installed Edge) · `STEMS=1 npx playwright test e2e/stems.spec.ts` (slow).
-- `src/core/` pure logic (no DOM) · `src/workers/` module workers · `src/lib/` state + orchestration
-  (`app.svelte.ts`, `player.svelte.ts`, `stems.svelte.ts`) · `src/ui/` components + canvas renderers.
+- `src/core/` pure logic (no DOM): `audio/`, `formats/`, `stems/`, `interop/` (DJ-library parsers),
+  `library/` (scan, tags, path matching, analysis summary) · `src/store/` JSON store (home, collection,
+  merge of imports/scans, migrations) · `src/platform/` folder access + IndexedDB handles ·
+  `src/workers/` module workers · `src/lib/` state + orchestration (`library.svelte.ts` library,
+  `pool.ts` background analysis, `app.svelte.ts` analyze-a-file, `player`, `stems`, `route`, `view`) ·
+  `src/ui/` components (`ui/library/` for the library) + canvas renderers.
+- Routes: `#/` library, `#/track/<id>` track page, `#/analyze` analyze a file.
+- E2E library tests use a temporary persistent browser profile and fake the folder pickers with OPFS
+  folders (`e2e/library.spec.ts`); Playwright's default contexts crash when reading a stored handle.
 - `legacy/index.html`: original Speklone page, frozen; `tests/parity.test.ts` compares against it
   (ADR 0016). Change a parity expectation only on purpose, with a changelog note.
 - Push to `main` = checks, tests, build and deploy to https://joaopmanso.github.io/mco/.

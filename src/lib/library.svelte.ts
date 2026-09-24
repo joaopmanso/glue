@@ -1,0 +1,443 @@
+/* The library: MCO folder → profile → collection, kept in memory and written back to JSON files.
+   Components read `lib.version` to re-derive views after any change. */
+import { HomeStore } from '../store/home';
+import { CollectionStore } from '../store/collection';
+import { applyImport, applyScan, type ImportReport } from '../store/merge';
+import { fileAt, removePath } from '../store/fsx';
+import { ANALYSIS_VERSION, SCHEMA, newId, type List, type Profile, type Root, type Track } from '../store/types';
+import type { ImportedLibrary } from '../core/interop/types';
+import { scanFolder, type FoundLibrary } from '../core/library/scan';
+import { formatOf, nameFields, tagFields } from '../core/library/tags';
+import { failed } from '../core/library/summary';
+import { blankInfo, parseContainer } from '../core/formats/parse';
+import * as platform from '../platform';
+import { AnalysisPool } from './pool';
+import { player } from './player.svelte';
+
+type Phase = 'boot' | 'welcome' | 'reconnect' | 'profiles' | 'collections' | 'library' | 'error';
+export interface RootState { root: Root; dir: FileSystemDirectoryHandle | null; granted: boolean }
+export interface Job { text: string; done: number; total: number | null }
+
+const now = () => new Date().toISOString();
+
+class Library {
+  phase = $state<Phase>('boot');
+  error = $state('');
+  homeKind = $state<'folder' | 'private'>('folder');
+  homeName = $state('');
+  home = $state.raw<HomeStore | null>(null);
+  profile = $state.raw<Profile | null>(null);
+  store = $state.raw<CollectionStore | null>(null);
+  roots = $state.raw<RootState[]>([]);
+  found = $state.raw<(FoundLibrary & { rootId: string })[]>([]);
+  version = $state(0);
+  job = $state<Job | null>(null);
+  notice = $state('');
+  readOnly = $state(false);
+  saving = $state(false);
+  unsaved = $state(false);           // changes not on disk yet
+  analysis = $state({ running: 0, done: 0, failed: 0, paused: false });
+  private homeDir: FileSystemDirectoryHandle | null = null;
+  private flushTimer = 0;
+  private pool: AnalysisPool | null = null;
+  private queue: string[] = [];
+  private active = new Set<string>();
+
+  constructor() {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void this.flush(); });
+      window.addEventListener('pagehide', () => void this.flush());
+    }
+  }
+
+  // ─── MCO folder ────────────────────────────────────────────────────────────
+  async boot() {
+    try {
+      const h = await platform.restoreHome();
+      if (!h) { this.phase = 'welcome'; return; }
+      this.homeKind = h.kind; this.homeName = h.dir.name;
+      if (!h.granted) { this.homeDir = h.dir; this.phase = 'reconnect'; return; }
+      await this.openHome(h.dir, h.kind);
+    } catch (e) { this.fail(e); }
+  }
+  async chooseHome() {
+    try { await this.openHome(await platform.pickHome(), 'folder'); }
+    catch (e) { if ((e as DOMException).name !== 'AbortError') this.fail(e); }
+  }
+  async usePrivateHome() { try { await this.openHome(await platform.privateHome(), 'private'); } catch (e) { this.fail(e); } }
+  async reconnect() {
+    if (!this.homeDir) return this.chooseHome();
+    if (await platform.permission(this.homeDir, 'readwrite', true)) await this.openHome(this.homeDir, 'folder');
+  }
+  async changeHome() {
+    await this.closeCollection();
+    this.home = null; this.profile = null;
+    await platform.forgetHome();
+    this.phase = 'welcome';
+  }
+  private async openHome(dir: FileSystemDirectoryHandle, kind: 'folder' | 'private') {
+    this.homeDir = dir; this.homeKind = kind; this.homeName = kind === 'private' ? 'browser storage' : dir.name;
+    await this.takeLock();
+    this.home = await HomeStore.open(dir);
+    const last = this.home.index.lastProfile;
+    if (last && this.home.index.profiles.some(p => p.id === last)) await this.openProfile(last);
+    else this.phase = 'profiles';
+  }
+  /** Only one tab writes to the MCO folder; others open read-only. */
+  private async takeLock() {
+    const locks = (navigator as Navigator & { locks?: LockManager }).locks;
+    if (!locks) return;
+    await new Promise<void>(resolve => {
+      void locks.request('mco-writer', { ifAvailable: true }, lock => {
+        this.readOnly = !lock;
+        resolve();
+        return lock ? new Promise<void>(() => {}) : undefined;   // hold it for the life of the tab
+      });
+    });
+  }
+
+  // ─── Profiles and collections ──────────────────────────────────────────────
+  async createProfile(name: string) {
+    if (!this.home) return;
+    const p = await this.home.createProfile(name);
+    this.profile = p;
+    this.phase = 'collections';
+    await this.createCollection('My collection');
+  }
+  async openProfile(pid: string) {
+    if (!this.home) return;
+    await this.closeCollection();
+    const p = await this.home.loadProfile(pid);
+    await this.home.setLastProfile(pid);
+    this.profile = p;
+    if (p.lastCollection && p.collections.some(c => c.id === p.lastCollection)) await this.openCollection(p.lastCollection);
+    else if (p.collections[0]) await this.openCollection(p.collections[0].id);
+    else this.phase = 'collections';
+  }
+  async renameProfile(pid: string, name: string) {
+    const home = this.home;
+    if (!home || !name.trim()) return;
+    const p = { ...(this.profile?.id === pid ? this.profile : await home.loadProfile(pid)), name: name.trim() };
+    await home.saveProfile(p);
+    if (this.profile?.id === pid) this.profile = p;
+    this.home = null; this.home = home;   // the profile list lives in home.index
+  }
+  async deleteProfile(pid: string) {
+    if (!this.home) return;
+    if (this.profile?.id === pid) { await this.closeCollection(); this.profile = null; }
+    await this.home.deleteProfile(pid);
+    this.phase = 'profiles';
+  }
+  switchProfile() { void this.closeCollection().then(() => { this.profile = null; this.phase = 'profiles'; }); }
+
+  async createCollection(name: string) {
+    if (!this.home || !this.profile) return;
+    const c = await this.home.createCollection(this.profile, name);
+    this.profile = { ...this.profile };
+    await this.openCollection(c.id);
+  }
+  async openCollection(cid: string) {
+    if (!this.home || !this.profile || !this.homeDir) return;
+    await this.closeCollection();
+    const s = await CollectionStore.load(this.homeDir, this.profile.id, cid);
+    s.onChange = () => { this.version++; };
+    s.onDirty = () => this.scheduleFlush();
+    this.store = s;
+    if (this.profile.lastCollection !== cid) { this.profile = { ...this.profile, lastCollection: cid }; await this.home.saveProfile(this.profile); }
+    this.found = [];
+    if (s.damaged.length) this.notice = 'Some files in your MCO folder couldn’t be read and were set aside (' + s.damaged.join(', ') + ', saved as .damaged). Anything they held may need re-importing or re-scanning.';
+    await this.loadRoots();
+    this.phase = 'library';
+    this.version++;
+    this.enqueueAll();
+  }
+  async renameCollection(name: string) {
+    const s = this.store;
+    if (!s || !this.home || !this.profile || !name.trim()) return;
+    s.meta.name = name.trim(); s.saveMeta();
+    const ref = this.profile.collections.find(c => c.id === s.meta.id);
+    if (ref) { ref.name = s.meta.name; this.profile = { ...this.profile }; await this.home.saveProfile(this.profile); }
+  }
+  async deleteCollection(cid: string) {
+    if (!this.home || !this.profile) return;
+    if (this.store?.meta.id === cid) { await this.closeCollection(); }
+    await this.home.deleteCollection(this.profile, cid);
+    this.profile = { ...this.profile };
+    if (this.profile.collections[0]) await this.openCollection(this.profile.collections[0].id);
+    else this.phase = 'collections';
+  }
+  private async closeCollection() {
+    this.stopAnalysis();
+    await this.flush();
+    this.store = null; this.roots = [];
+  }
+
+  // ─── Saving ────────────────────────────────────────────────────────────────
+  private scheduleFlush() {
+    if (this.readOnly) return;
+    this.unsaved = true;
+    clearTimeout(this.flushTimer);
+    this.flushTimer = window.setTimeout(() => void this.flush(), 800);
+  }
+  async flush() {
+    const s = this.store;
+    if (!s || this.readOnly || !s.hasPending) { this.unsaved = false; return; }
+    clearTimeout(this.flushTimer);
+    this.saving = true;
+    try { await s.flush(); } catch (e) { console.error(e); this.notice = 'Couldn’t save to your MCO folder: ' + ((e as Error).message || e); }
+    finally { this.saving = false; this.unsaved = s.hasPending; if (s.hasPending) this.scheduleFlush(); }
+  }
+
+  // ─── Music folders ─────────────────────────────────────────────────────────
+  private async loadRoots() {
+    const out: RootState[] = [];
+    for (const r of this.store?.meta.roots ?? []) {
+      const dir = await platform.folderHandle(r.handleKey);
+      out.push({ root: r, dir, granted: dir ? await platform.permission(dir, 'read', false) : false });
+    }
+    this.roots = out;
+  }
+  rootState(id: string | null) { return this.roots.find(r => r.root.id === id) ?? null; }
+
+  async addFolder(dropped?: FileSystemDirectoryHandle) {
+    const s = this.store;
+    if (!s) return;
+    let picked;
+    try { picked = dropped ? await platform.rememberFolder(dropped) : await platform.pickMusicFolder(); }
+    catch (e) { if ((e as DOMException).name !== 'AbortError') this.notice = (e as Error).message; return; }
+    if (dropped && !(await platform.permission(dropped, 'read', true))) { await platform.forgetFolder(picked.key); return; }
+    const same = await Promise.all(this.roots.map(async r => r.dir ? r.dir.isSameEntry(picked.dir) : false));
+    if (same.some(Boolean)) { this.notice = '“' + picked.dir.name + '” is already one of this collection’s music folders.'; await platform.forgetFolder(picked.key); return; }
+    const root: Root = { id: newId(), name: picked.dir.name, absPath: null, handleKey: picked.key, addedAt: now() };
+    s.meta.roots.push(root); s.saveMeta();
+    this.roots = [...this.roots, { root, dir: picked.dir, granted: true }];
+    await this.scanRoot(root.id);
+  }
+  async reconnectFolder(id: string) {
+    const r = this.rootState(id);
+    if (!r?.dir) return;
+    if (await platform.permission(r.dir, 'read', true)) { this.roots = this.roots.map(x => x.root.id === id ? { ...x, granted: true } : x); this.enqueueAll(); }
+  }
+  async removeFolder(id: string) {
+    const s = this.store, r = this.rootState(id);
+    if (!s || !r) return;
+    s.meta.roots = s.meta.roots.filter(x => x.id !== id); s.saveMeta();
+    s.putTracks([...s.tracks.values()].filter(t => t.rootId === id).map(t => ({ ...t, status: 'unlinked' as const, rootId: null, relPath: null })));
+    await platform.forgetFolder(r.root.handleKey);
+    this.roots = this.roots.filter(x => x.root.id !== id);
+    this.found = this.found.filter(f => f.rootId !== id);
+  }
+  async setRootPath(id: string, absPath: string) {
+    const s = this.store, r = s?.meta.roots.find(x => x.id === id);
+    if (!s || !r) return;
+    r.absPath = absPath.trim() || null; s.saveMeta();
+    this.roots = this.roots.map(x => x.root.id === id ? { ...x, root: r } : x);
+  }
+
+  async scanRoot(id: string) {
+    const s = this.store, r = this.rootState(id);
+    if (!s || !r?.dir || this.job) return;
+    this.job = { text: 'Scanning ' + r.root.name + '…', done: 0, total: null };
+    try {
+      const { files, libraries } = await scanFolder(r.dir, n => { this.job = { text: 'Scanning ' + r.root.name + '…', done: n, total: null }; });
+      this.found = [...this.found.filter(f => f.rootId !== id), ...libraries.map(l => ({ ...l, rootId: id }))];
+      this.job = { text: 'Reading file details…', done: 0, total: files.length };
+      const entries = [], handles = new Map<string, FileSystemFileHandle>();
+      for (let i = 0; i < files.length; i++) {
+        const f = await files[i].handle.getFile();
+        entries.push({ relPath: files[i].relPath, size: f.size, mtime: f.lastModified, fileName: f.name });
+        handles.set(files[i].relPath, files[i].handle);
+        if (i % 100 === 0) this.job = { text: 'Reading file details…', done: i, total: files.length };
+      }
+      const { added, linked, missing } = applyScan(s, id, entries);
+      // Quick tags from the start of each new file; the background analysis fills in the rest.
+      this.job = { text: 'Reading tags…', done: 0, total: added.length };
+      const batch: Track[] = [];
+      for (let i = 0; i < added.length; i++) {
+        const t = added[i], h = handles.get(t.relPath!);
+        if (h) batch.push(await quickTags(t, await h.getFile()));
+        if (batch.length >= 200 || i === added.length - 1) { s.putTracks(batch.splice(0)); this.job = { text: 'Reading tags…', done: i + 1, total: added.length }; }
+      }
+      const bits = [added.length + ' new track' + (added.length === 1 ? '' : 's')];
+      if (linked) bits.push(linked + ' imported track' + (linked === 1 ? '' : 's') + ' linked');
+      if (missing) bits.push(missing + ' missing');
+      if (libraries.length) bits.push(libraries.length + ' DJ librar' + (libraries.length === 1 ? 'y' : 'ies') + ' found');
+      this.notice = r.root.name + ': ' + bits.join(', ') + '.';
+    } catch (e) { console.error(e); this.notice = 'Couldn’t scan ' + r.root.name + ': ' + ((e as Error).message || e); }
+    finally { this.job = null; }
+    this.enqueueAll();
+  }
+
+  // ─── Imports ───────────────────────────────────────────────────────────────
+  importLibrary(lib: ImportedLibrary, fileName: string): ImportReport | null {
+    const s = this.store;
+    if (!s) return null;
+    const r = applyImport(s, lib, fileName);
+    this.enqueueAll();
+    return r;
+  }
+  deleteSource(id: string) {
+    const s = this.store, src = s?.sources.get(id);
+    if (!s || !src) return;
+    for (const l of [...s.lists.values()]) if (l.origin?.sourceId === id && !l.parentId) s.deleteList(l.id);
+    for (const l of [...s.lists.values()]) if (l.origin?.sourceId === id) s.deleteList(l.id);
+    const drop: string[] = [], keep: Track[] = [];
+    for (const st of src.tracks) {
+      const t = s.tracks.get(st.trackId);
+      if (!t) continue;
+      const sources = t.sources.filter(x => x !== id);
+      if (!sources.length && t.status === 'unlinked') drop.push(t.id); else keep.push({ ...t, sources });
+    }
+    s.putTracks(keep);
+    for (const t of drop) s.removeTrack(t);
+    s.sources.delete(id);
+    void this.removeSourceFile(id);
+  }
+  private async removeSourceFile(id: string) {
+    const s = this.store;
+    if (!s) return;
+    await removePath(s.root, `${s.base}/sources/${id}.json`);
+    this.version++;
+  }
+
+  // ─── Playlists ─────────────────────────────────────────────────────────────
+  childLists(parentId: string | null): List[] {
+    return [...(this.store?.lists.values() ?? [])].filter(l => l.parentId === parentId).sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+  }
+  createList(kind: 'folder' | 'playlist', name: string, parentId: string | null = null, items: string[] = []): List | null {
+    const s = this.store;
+    if (!s) return null;
+    const l: List = { schemaVersion: SCHEMA, id: newId(), kind, name: name.trim() || (kind === 'folder' ? 'New folder' : 'New playlist'), parentId, position: this.childLists(parentId).length, notes: '', items, origin: null, createdAt: now() };
+    s.putList(l);
+    return l;
+  }
+  updateList(id: string, patch: Partial<Pick<List, 'name' | 'notes' | 'items' | 'parentId' | 'position'>>) {
+    const s = this.store, l = s?.lists.get(id);
+    if (s && l) s.putList({ ...l, ...patch });
+  }
+  deleteList(id: string) { this.store?.deleteList(id); }
+  addToList(id: string, trackIds: string[], at?: number) {
+    const l = this.store?.lists.get(id);
+    if (!l || l.kind !== 'playlist') return 0;
+    const add = trackIds.filter(t => !l.items.includes(t));
+    const items = [...l.items];
+    items.splice(at ?? items.length, 0, ...add);
+    this.updateList(id, { items });
+    return add.length;
+  }
+  removeFromList(id: string, trackIds: string[]) {
+    const l = this.store?.lists.get(id);
+    if (l) this.updateList(id, { items: l.items.filter(t => !trackIds.includes(t)) });
+  }
+  moveInList(id: string, trackIds: string[], to: number) {
+    const l = this.store?.lists.get(id);
+    if (!l) return;
+    const moving = l.items.filter(t => trackIds.includes(t));
+    const before = l.items.slice(0, to).filter(t => !trackIds.includes(t)).length;
+    const rest = l.items.filter(t => !trackIds.includes(t));
+    rest.splice(before, 0, ...moving);
+    this.updateList(id, { items: rest });
+  }
+  /** Move a list into a folder (or to the top level), at the end. Refuses to nest a folder in itself. */
+  moveList(id: string, parentId: string | null) {
+    const s = this.store;
+    if (!s) return;
+    for (let p = parentId; p; p = s.lists.get(p)?.parentId ?? null) if (p === id) return;
+    this.updateList(id, { parentId, position: this.childLists(parentId).length });
+  }
+  listsContaining(trackId: string): List[] { return [...(this.store?.lists.values() ?? [])].filter(l => l.items.includes(trackId)); }
+  listPath(l: List): string {
+    const names = [l.name];
+    for (let p = l.parentId; p; p = this.store?.lists.get(p)?.parentId ?? null) names.unshift(this.store?.lists.get(p)?.name ?? '');
+    return names.join(' › ');
+  }
+
+  // ─── Files and background analysis ─────────────────────────────────────────
+  async fileFor(t: Track): Promise<File> {
+    const r = this.rootState(t.rootId);
+    if (!r?.dir || !t.relPath) throw new Error('This track isn’t linked to a file yet. Add the music folder it lives in.');
+    if (!r.granted) {
+      if (!(await platform.permission(r.dir, 'read', true))) throw new Error('MCO needs access to “' + r.root.name + '” again.');
+      this.roots = this.roots.map(x => x.root.id === r.root.id ? { ...x, granted: true } : x);
+    }
+    return fileAt(r.dir, t.relPath);
+  }
+  needsAnalysis(t: Track) {
+    if (t.status !== 'linked') return false;
+    const a = this.store?.analysis.get(t.id);
+    return !a || a.v < ANALYSIS_VERSION || a.fileSize !== t.size || a.fileMtime !== t.mtime;
+  }
+  pendingCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (this.needsAnalysis(t)) n++; return n; }
+  enqueueAll() {
+    const s = this.store;
+    if (!s) return;
+    const granted = new Set(this.roots.filter(r => r.granted).map(r => r.root.id));
+    this.queue = [...s.tracks.values()].filter(t => granted.has(t.rootId ?? '') && this.needsAnalysis(t) && !this.active.has(t.id))
+      .sort((a, b) => a.addedAt.localeCompare(b.addedAt)).map(t => t.id);
+    this.pump();
+  }
+  /** Analyse this one next (the user is looking at it). */
+  prioritize(id: string) { this.queue = [id, ...this.queue.filter(x => x !== id)]; }
+  pauseAnalysis(p: boolean) { this.analysis = { ...this.analysis, paused: p }; if (!p) this.pump(); }
+  private stopAnalysis() { this.queue = []; this.pool?.stop(); this.pool = null; this.active.clear(); this.analysis = { running: 0, done: 0, failed: 0, paused: this.analysis.paused }; }
+
+  private pump() {
+    if (this.analysis.paused || this.readOnly) return;
+    this.pool ??= new AnalysisPool();
+    // One at a time while music is playing, so playback and the live view stay smooth.
+    const limit = player.paused ? this.pool.size : 1;
+    while (this.active.size < limit && this.queue.length) {
+      const id = this.queue.shift()!;
+      const t = this.store?.tracks.get(id);
+      if (!t || !this.needsAnalysis(t)) continue;
+      this.active.add(id);
+      this.analysis = { ...this.analysis, running: this.active.size };
+      void this.analyseOne(t).finally(() => {
+        this.active.delete(id);
+        this.analysis = { ...this.analysis, running: this.active.size };
+        this.pump();
+      });
+    }
+  }
+  private async analyseOne(t: Track) {
+    const s = this.store, pool = this.pool;
+    if (!s || !pool) return;
+    let file: File;
+    try { file = await fileAt(this.rootState(t.rootId)!.dir!, t.relPath!); }
+    catch { s.putTrack({ ...t, status: 'missing' }); return; }
+    try {
+      const r = await pool.analyze(file, file.lastModified);
+      if (this.store !== s) return;
+      s.putAnalysis(t.id, r.summary);
+      const cur = s.tracks.get(t.id) ?? t;
+      const f = tagFields(r.info.tags);
+      const upd: Track = { ...cur, size: file.size, mtime: file.lastModified, format: formatOf(r.info), duration: r.duration || cur.duration };
+      for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year'] as const) if (!upd[k] && f[k]) upd[k] = f[k];
+      s.putTrack(upd);
+      this.analysis = { ...this.analysis, done: this.analysis.done + 1 };
+    } catch (e) {
+      if (this.store !== s) return;
+      s.putAnalysis(t.id, failed(String((e as Error)?.message || 'The browser couldn’t decode it.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'The browser couldn’t decode it.'), { size: file.size, mtime: file.lastModified }));
+      this.analysis = { ...this.analysis, done: this.analysis.done + 1, failed: this.analysis.failed + 1 };
+    }
+  }
+
+  private fail(e: unknown) { console.error(e); this.error = String((e as Error)?.message || e); this.phase = 'error'; }
+}
+
+async function quickTags(t: Track, file: File): Promise<Track> {
+  const out = { ...t };
+  try {
+    const head = new Uint8Array(await file.slice(0, 512 * 1024).arrayBuffer());
+    let info = blankInfo();
+    try { info = parseContainer(head); } catch { /* partial file: tags may still be there */ }
+    const f = tagFields(info.tags);
+    for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year'] as const) if (!out[k] && f[k]) out[k] = f[k];
+    if (info.container !== 'Unknown') out.format = formatOf(info);
+    if (info.duration && !out.duration) out.duration = info.duration;
+  } catch { /* unreadable: fall back to the name */ }
+  if (!out.title) { const n = nameFields(out.fileName); out.title = n.title; if (!out.artist) out.artist = n.artist; }
+  return out;
+}
+
+export const lib = new Library();

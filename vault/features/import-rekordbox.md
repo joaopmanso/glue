@@ -1,6 +1,6 @@
 ---
-status: planned
-milestone: M5
+status: shipped
+milestone: M2
 updated: 2026-09-24
 adrs: [0010, 0012]
 ---
@@ -29,3 +29,15 @@ as a read-only source, and lets the user copy its playlists into MCO lists.
 - [ ] Imported absolute paths infer each root's abs_path.
 
 See [research/dj-library-formats.md](../research/dj-library-formats.md#rekordbox).
+
+## Shipped in M2 (2026-09-24)
+- Import from the sidebar ("+ Import", several files at once) or from a library found while scanning
+  a music folder. The format is recognised from the content, not the name.
+- Each import becomes a source (kept read-only with the DJ app's BPM, key, rating, plays, cues and date
+  added per track) plus a folder of its playlists. Tracks are matched to known ones by path first, then
+  linked to files in music folders by trailing path segments ([ADR 0020](../adr/0020-imports-then-link-folders.md)),
+  which also infers each folder's location on disk. Re-importing the same file refreshes it without
+  duplicating tracks.
+- Tested: unit tests per format (`tests/interop.test.ts`), merge rules (`tests/merge.test.ts`), and the
+  browser flow in `e2e/library.spec.ts`.
+- rekordbox: File › Export Collection in xml format; playlists by TrackID or by Location.

@@ -15,7 +15,8 @@ function getWorker(): Worker | null {
       const d = e.data, p = pending.get(d.id);
       if (!p) return;
       if (d.kind === 'progress') p.progress(d.stage, d.p);
-      else { pending.delete(d.id); if (d.kind === 'done') p.resolve(d.out); else p.reject(new Error(d.message)); }
+      else if (d.kind === 'done') { pending.delete(d.id); p.resolve(d.out); }
+      else if (d.kind === 'error') { pending.delete(d.id); p.reject(new Error(d.message)); }
     };
     worker.onerror = e => {
       e.preventDefault();

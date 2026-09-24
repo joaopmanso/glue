@@ -6,7 +6,7 @@ test.skip(!process.env.STEMS, 'set STEMS=1 to run the stem separation test');
 test.setTimeout(900_000);
 
 test('separates a short clip into four stems and cancel works', async ({ page }) => {
-  await page.goto('./');
+  await page.goto('./#/analyze');
   await page.setInputFiles('#file-input', fileURLToPath(new URL('../tests/fixtures/wav-44k-24.wav', import.meta.url)));
   await expect(page.locator('#stems-run')).toBeVisible({ timeout: 30_000 });
   // Cancel while the engine loads must stick (it used to be lost).

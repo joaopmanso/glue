@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0017
 date: 2026-09-24
 ---
 # 0015. Make MCO an installable PWA

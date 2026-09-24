@@ -54,7 +54,7 @@ describe('parity with the legacy page', () => {
     expect(Array.from(ra.ltas.subarray(0, 4000))).toEqual(Array.from(rb.ltas.subarray(0, 4000)));
     const info = { container: 'FLAC', codec: 'FLAC', lossless: true, sampleRate: 96000, bits: 24, channels: 2, clues: [], tags: {}, notes: [] } as unknown as FileInfo;
     expect(summary(classify(info, ra), ra.music)).toEqual(summary(legacy.classify(info, rb), rb.music));
-  });
+  }, 30_000);   // synthesises and analyses ~10 s of 96 kHz audio twice
   const real = join(homedir(), 'Downloads', '7th Pyramid - Linguistics.aiff');
   it.runIf(existsSync(real))('analyses the real 48 kHz AIFF identically', () => {
     const { va, vb, ra, rb } = analyzeBoth(new Uint8Array(readFileSync(real)));

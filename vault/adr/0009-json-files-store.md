@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (layout amended by 0018)
 date: 2026-09-24
 ---
 # 0009. JSON files in the MCO folder are the store; no database
@@ -42,3 +42,11 @@ MCO/backups/<date>.zip  ·  MCO/imports/  ·  MCO/exports/  ·  MCO/stems/
   parse). Revisit (e.g. lazy-load analysis shards) if startup exceeds ~3 s.
 - Engine DJ's own library is SQLite, so its importer still needs a read-only SQLite reader (sql.js,
   lazy-loaded, import only).
+
+## Amendment (2026-09-24, M2): interrupted writes
+Writes through `createWritable()` are atomic, but `getFileHandle(name, { create: true })` creates an
+empty file before the first write commits. A reload or crash in between leaves a 0-byte file. So:
+- an empty file reads as "not there" (it can only come from an interrupted first write);
+- a file that doesn't parse is copied aside as `<name>.damaged`, listed in a notice, and skipped, so one
+  bad shard never locks the user out of the rest of the library;
+- writes are debounced 0.8 s and flushed when the tab is hidden; the header shows "Saving…" until done.

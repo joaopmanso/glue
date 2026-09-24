@@ -17,10 +17,14 @@
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.13.6",
+    "@types/sql.js": "^1.4.11",
     "svelte": "^5.57.1",
     "svelte-check": "^4.7.6",
     "typescript": "^6.0.3",
     "vite": "^8.3.1",
     "vitest": "^5.0.1"
+  },
+  "dependencies": {
+    "sql.js": "^1.14.2"
   }
 }

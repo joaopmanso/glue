@@ -10,14 +10,14 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(() => expect(errors).toEqual([]));
 
 test('start page shows the drop zone and example button', async ({ page }) => {
-  await page.goto('./');
+  await page.goto('./#/analyze');
   await expect(page.locator('#dropzone')).toBeVisible();
   await expect(page.locator('#try-example')).toBeVisible();
   await expect(page).toHaveTitle(/MCO/);
 });
 
 test('the example track is judged a transcode with padded bits', async ({ page }) => {
-  await page.goto('./');
+  await page.goto('./#/analyze');
   await page.click('#try-example');
   await expect(page.locator('#v-pill')).toHaveText('Transcoded', { timeout: 30_000 });
   await expect(page.locator('#example-note')).toBeVisible();
@@ -26,7 +26,7 @@ test('the example track is judged a transcode with padded bits', async ({ page }
 });
 
 test('an AIFF analyses, plays and pauses with real clicks', async ({ page }) => {
-  await page.goto('./');
+  await page.goto('./#/analyze');
   await page.setInputFiles('#file-input', fixture('aiff-44k-24.aiff'));
   await expect(page.locator('#v-head')).not.toHaveText('', { timeout: 30_000 });
   await expect(page.locator('#readouts')).toContainText('AIFF');
@@ -43,7 +43,7 @@ test('an AIFF analyses, plays and pauses with real clicks', async ({ page }) => 
 });
 
 test('a second file dropped mid-analysis wins (no result swap)', async ({ page }) => {
-  await page.goto('./');
+  await page.goto('./#/analyze');
   await page.click('#try-example');                                // slow job first
   await page.setInputFiles('#file-input', fixture('wav-44k-24.wav'));   // then a real file
   await expect(page.locator('#readouts')).toContainText('WAV', { timeout: 30_000 });
@@ -54,7 +54,7 @@ test('a second file dropped mid-analysis wins (no result swap)', async ({ page }
 });
 
 test('MP3 and M4A decode through the browser', async ({ page }) => {
-  await page.goto('./');
+  await page.goto('./#/analyze');
   await page.setInputFiles('#file-input', fixture('mp3-128k.mp3'));
   await expect(page.locator('#v-pill')).toHaveText(/Lossy|Caution|Suspect/, { timeout: 30_000 });
   await expect(page.locator('#readouts')).toContainText('MP3');
@@ -63,7 +63,7 @@ test('MP3 and M4A decode through the browser', async ({ page }) => {
 });
 
 test('live view and key notation toggles', async ({ page }) => {
-  await page.goto('./');
+  await page.goto('./#/analyze');
   await page.click('#try-example');
   await expect(page.locator('#v-pill')).toHaveText('Transcoded', { timeout: 30_000 });
   await page.check('#live-toggle');

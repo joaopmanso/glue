@@ -1,5 +1,5 @@
 ---
-status: planned
+status: shipped
 milestone: M2
 updated: 2026-09-24
 adrs: [0007, 0009, 0012, 0014]
@@ -38,3 +38,18 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
 ## Limits & open questions
 - iCloud Drive placeholders (not downloaded) are detected on read failure and flagged.
 - Very large libraries: tag parsing reads only the first 256 KB (and last 128 KB for ID3v1) per file.
+
+## Shipped in M2 (2026-09-24)
+- Music folders: "+ Add" (picker, starts in Music) or drop a folder onto the library; handles kept in
+  IndexedDB; "Allow" re-grants access after a reload; rescan and remove per folder; the folder's
+  location on disk can be typed in (or is inferred from imports).
+- Scan: audio files by extension; skips hidden, system, `Engine Library` and `_Serato_` folders but
+  reports any DJ libraries found in them (Engine m.db, Serato, iTunes XML, rekordbox XML, Traktor
+  NML) with an Import button. Quick tags come from the first 512 KB of each new file; the background
+  analysis fills in the rest from the whole file. Vanished files are marked missing.
+- Track table: virtualised rows, sort by every column, word search, click / Ctrl / Shift selection,
+  keyboard (arrows, Enter opens, Delete removes from playlist, Ctrl+A), drag to playlists. BPM and key
+  show MCO's analysis, or the imported DJ library's value (dimmed) until MCO has one.
+- Code: `src/core/library/scan.ts`, `src/store/merge.ts` (`applyScan`), `src/ui/library/TrackTable.svelte`.
+- Not yet: quick hash / rename detection, FileSystemObserver, column chooser, a player bar in the
+  table view (play from the track page), session-only folder drops on Safari/Firefox.

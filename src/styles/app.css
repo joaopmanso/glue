@@ -247,3 +247,4 @@
     .facts > div { grid-template-columns: 110px minmax(0, 1fr); }
   }
   @media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
+  a.btn-ghost { text-decoration: none; display: inline-flex; align-items: center; }
