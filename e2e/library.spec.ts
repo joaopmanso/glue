@@ -724,16 +724,29 @@ test('the playlist builder fits smaller windows: nothing cut off, everything rea
   await page.getByRole('button', { name: 'Create profile' }).click();
   await page.click('#onb-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
-  for (const [w, h] of [[1366, 768], [1280, 620], [1024, 560], [760, 900], [390, 700]]) {
+  // Many playlists make the options column long.
+  for (let i = 0; i < 30; i++) { await page.click('#new-playlist'); await page.keyboard.type('Set ' + i); await page.keyboard.press('Enter'); }
+  // Scroll like a person: the mouse wheel over the options (scrollIntoView can move clipped content and hide the bug).
+  const onScreen = (sel: string) => page.locator(sel).evaluate(el => {
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    return y > 0 && y < innerHeight && document.elementFromPoint(x, y)?.closest('#' + el.id) != null;
+  });
+  const wheelTo = async (sel: string, over: string) => {
+    for (let i = 0; i < 40 && !(await onScreen(sel)); i++) {
+      const b = (await page.locator(over).boundingBox())!;
+      await page.mouse.move(b.x + b.width / 2, Math.max(b.y + 10, Math.min(b.y + b.height - 10, page.viewportSize()!.height - 10)));
+      await page.mouse.wheel(0, 300);
+    }
+    expect(await onScreen(sel), sel + ' reachable by scrolling').toBe(true);   // no automatic scroll-into-view
+  };
+  for (const [w, h] of [[1920, 1080], [1366, 768], [1280, 620], [1024, 560], [760, 900], [390, 700]]) {
     await page.setViewportSize({ width: w, height: h });
     await page.click('#new-auto');
     const head = (await page.locator('#auto-h').boundingBox())!;
     expect(head.y, `title visible at ${w}x${h}`).toBeGreaterThanOrEqual(0);
-    await page.locator('#auto-go').scrollIntoViewIfNeeded();
-    await expect(page.locator('#auto-go')).toBeInViewport();
+    await wheelTo('#auto-go', '#auto-dialog form');
     await page.click('#auto-go');
-    await page.locator('#auto-save').scrollIntoViewIfNeeded();
-    await expect(page.locator('#auto-save')).toBeInViewport();
+    await wheelTo('#auto-save', '#auto-dialog .res');
     await page.keyboard.press('Escape');
   }
 });

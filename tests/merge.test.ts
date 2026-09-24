@@ -13,7 +13,7 @@ async function fresh() {
   return { mem, s, pid: p.id, cid: c.id };
 }
 function library(): ImportedLibrary {
-  const a = Object.assign(blankTrack('1', 'C:/Users/j/Music/House/a.flac'), { title: 'A', artist: 'X', bpm: 124, key: '8A', size: 100 });
+  const a = Object.assign(blankTrack('1', 'C:/Users/j/Music/House/a.flac'), { title: 'A', artist: 'X', bpm: 124, key: '8A', size: 100, rating: 4 });
   const b = Object.assign(blankTrack('2', 'C:/Users/j/Music/Techno/b.mp3'), { title: 'B', size: 50 });
   return {
     app: 'rekordbox', name: 'rekordbox (rekordbox.xml)', tracks: [a, b],
@@ -33,6 +33,7 @@ describe('bringing libraries and folders into a collection (ADR 0020)', () => {
     expect(gigs.parentId).toBe(top.id);
     expect(fri.parentId).toBe(gigs.id);
     expect(fri.items.map(id => s.tracks.get(id)!.title)).toEqual(['B', 'A']);
+    expect(s.tracks.get(fri.items[1])!.rating).toBe(4);   // the DJ app's rating becomes the track's own
 
     const scan = applyScan(s, 'r1', [
       { relPath: 'House/a.flac', size: 100, mtime: 5, fileName: 'a.flac' },

@@ -51,7 +51,7 @@
       <button type="button" class="x" aria-label="Close" onclick={() => auto.close()}>×</button>
     </header>
 
-    <div class="cols">
+    <div class="ap-cols">
       <form class="opts" onsubmit={e => { e.preventDefault(); auto.run(); }}>
         <fieldset>
           <legend>Start from</legend>
@@ -154,7 +154,7 @@
             {/each}
           </ol>
         {:else}
-          <div class="empty" id="auto-empty">
+          <div class="ap-empty" id="auto-empty">
             {#if auto.empty}<p class="warnt">{auto.empty}</p>{:else}<p>Set the shape on the left and press <b>Generate</b>.</p>{/if}
             <p class="hint">Tracks need BPM and key from the analysis to follow a tempo ramp and mix harmonically. Ratings: your stars first, then your DJ app’s.</p>
           </div>
@@ -173,8 +173,9 @@
   header h2 { font-size: 22px; }
   header p { color: var(--ink-2); font-size: 13.5px; }
   .x { position: absolute; right: 14px; top: 12px; background: none; border: 0; color: var(--muted); font-size: 24px; cursor: pointer; line-height: 1; }
-  /* Flex, not grid: each column is held to the dialog's height and scrolls on its own. */
-  .cols { display: flex; min-height: 0; overflow: hidden; }
+  /* Flex, not grid: each column is held to the dialog's height and scrolls on its own.
+     (Class names are prefixed: the global .cols of the analysis page set align-items: start.) */
+  .ap-cols { display: flex; min-height: 0; overflow: hidden; }
   .opts { flex: 0 0 400px; min-height: 0; overflow-y: auto; padding: 14px 18px 18px 22px; display: grid; gap: 12px; align-content: start; border-right: 1px solid var(--line); }
   fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
   legend { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 4px; font-family: var(--font-sans); }
@@ -226,11 +227,11 @@
   .pbtn { width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--raised); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; padding: 0; }
   .pbtn:hover { background: var(--accent); color: var(--accent-ink); }
   .pbtn svg { width: 9px; height: 9px; }
-  .empty { display: grid; gap: 8px; place-content: center; text-align: center; color: var(--ink-2); padding: 40px 20px; }
+  .ap-empty { display: grid; gap: 8px; place-content: center; text-align: center; color: var(--ink-2); padding: 40px 20px; }
   /* Narrow or short windows: one column, and the whole dialog scrolls with the page. */
   @media (max-width: 900px), (max-height: 600px) {
     .dlg { height: auto; }
-    .cols { flex-direction: column; overflow: visible; }
+    .ap-cols { flex-direction: column; overflow: visible; }
     .opts { flex: none; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); }
     .res, .list { overflow: visible; }
   }

@@ -36,7 +36,13 @@ export function parseTraktorNml(xml: string, fileName = 'collection.nml'): Impor
     const mk = num(child(e, 'MUSICAL_KEY')?.attrs.VALUE);
     t.key = info.KEY || (mk != null ? traktorKey(mk) : null);
     t.size = info.FILESIZE ? (num(info.FILESIZE) || 0) * 1024 : null;   // FILESIZE is in kB
-    t.cues = childrenNamed(e, 'CUE_V2').filter(c => c.attrs.TYPE !== '4').length;   // 4 = beat grid marker
+    // CUE_V2: TYPE 0 cue · 1 fade-in · 2 fade-out · 3 load · 4 beat grid (skipped) · 5 loop; START / LEN in ms; HOTCUE −1 none.
+    t.cueList = childrenNamed(e, 'CUE_V2').filter(c => c.attrs.TYPE !== '4').map(c => {
+      const a = c.attrs, type = a.TYPE ?? '0', hc = num(a.HOTCUE), start = (num(a.START) ?? 0) / 1000, len = (num(a.LEN) ?? 0) / 1000;
+      return { t: start, kind: type === '5' ? 'loop' as const : type === '3' ? 'load' as const : type === '1' || type === '2' ? 'fade' as const : 'cue' as const,
+        num: hc != null && hc >= 0 ? hc : null, name: a.NAME && a.NAME !== 'n.n.' ? a.NAME : '', color: null, end: type === '5' && len > 0 ? start + len : null };
+    }).sort((a, b) => a.t - b.t);
+    t.cues = t.cueList.length;
     tracks.push(t);
   }
   const lists: ImportedList[] = [];

@@ -1,6 +1,9 @@
 /* What every library importer produces; the app turns it into tracks, playlists and a source. */
 import type { SourceApp } from '../../store/types';
 
+/** A cue point or loop from a DJ app (seconds). num: hot cue slot 0–7 (A–H), null for a memory cue. */
+export interface CuePoint { t: number; kind: 'cue' | 'loop' | 'load' | 'fade'; num: number | null; name: string; color: string | null; end: number | null }
+
 export interface ImportedTrack {
   externalId: string;
   path: string;              // absolute (or library-relative) path, '/'-separated
@@ -11,7 +14,8 @@ export interface ImportedTrack {
   rating: number | null;     // 0–5
   playCount: number | null;
   dateAdded: string | null;  // ISO date when known
-  cues: number;              // cue / hot cue / loop markers, count only
+  cues: number;              // cue / hot cue / loop markers (count)
+  cueList: CuePoint[];       // the markers themselves, where the format has them
   size: number | null;
 }
 export interface ImportedList {
@@ -25,7 +29,7 @@ export interface ImportedLibrary { app: SourceApp; name: string; tracks: Importe
 
 export const blankTrack = (externalId: string, path: string): ImportedTrack => ({
   externalId, path, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '',
-  duration: null, bpm: null, key: null, rating: null, playCount: null, dateAdded: null, cues: 0, size: null,
+  duration: null, bpm: null, key: null, rating: null, playCount: null, dateAdded: null, cues: 0, cueList: [], size: null,
 });
 
 /** file://localhost/C:/Users/x/a%20b.mp3 → C:/Users/x/a b.mp3 ; file:///Users/x → /Users/x */

@@ -5,6 +5,16 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Playlist builder scrolls again; cue points and ratings imported
+- Fixed: with many playlists the builder's Generate button was unreachable. A global `.cols` rule
+  (the analysis page's columns, `align-items: start`) stopped the dialog's columns from fitting, so
+  they couldn't scroll; the earlier test passed because scroll-into-view moves clipped content. The
+  dialog's classes are now prefixed, and the e2e scrolls with the mouse wheel and checks the button is
+  really on screen (it fails on the old code).
+- Imports: rekordbox (POSITION_MARK) and Traktor (CUE_V2) cue points and loops are kept (position,
+  hot-cue slot, name, colour); an imported rating becomes the track's own rating when it has none.
+  Engine DJ and Serato cues are not read yet (Engine's quickCues blob and Serato's in-file tags).
+
 ## 2026-09-24 · Fix: "Couldn't save to your MCO folder … not of type 'WriteParams'"
 - A playlist or import deleted while a save was running (constant during a 10k-track analysis) was
   still written as "nothing"; the write failed, was retried every second, and — because one failure

@@ -41,4 +41,4 @@ See [research/dj-library-formats.md](../research/dj-library-formats.md#engine-dj
 
 ## Detected automatically (2026-09-24)
 - Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
-
+- Not yet: cue points (PerformanceData.quickCues, a compressed binary structure) **[UNVERIFIED format]**.

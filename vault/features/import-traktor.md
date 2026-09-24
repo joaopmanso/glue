@@ -35,4 +35,4 @@ Reads Traktor's `collection.nml` (tracks, playlists, cues, key, BPM, ratings) as
 
 ## Detected automatically (2026-09-24)
 - Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
-
+- Cue points: CUE_V2 (beat-grid markers skipped) → position, hot cue, name, loops (LEN); rating likewise.

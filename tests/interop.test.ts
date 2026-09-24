@@ -42,6 +42,10 @@ describe('rekordbox XML', () => {
     expect(lib.tracks).toHaveLength(2);
     expect(lib.tracks[0]).toMatchObject({ title: 'Linguistics', artist: '7th Pyramid', bpm: 124, key: 'Fm', rating: 4, playCount: 3, cues: 2, path: 'C:/Users/joao/Music/Deep House/Linguistics.aiff' });
     expect(lib.tracks[1]).toMatchObject({ title: 'Other & Co', path: '/Users/joao/Music/b.mp3' });
+    expect(lib.tracks[0].cueList).toEqual([
+      { t: 1, kind: 'cue', num: 0, name: '', color: null, end: null },
+      { t: 30, kind: 'cue', num: null, name: '', color: null, end: null },
+    ]);
     expect(lib.lists.map(l => [l.kind, l.name, l.items])).toEqual([['folder', 'Gigs', []], ['playlist', 'Friday', ['2', '1']], ['playlist', 'By location', ['2']]]);
     expect(lib.lists[1].parent).toBe(lib.lists[0].externalId);
   });
@@ -57,6 +61,7 @@ describe('Traktor NML', () => {
     const lib = parseTraktorNml(nml);
     expect(lib.tracks[0]).toMatchObject({ title: 'Track A', album: 'Alb', genre: 'Techno', bpm: 128, key: '10m', rating: 3, playCount: 5, duration: 300, cues: 1, path: 'C:/Users/joao/Music/a.flac' });
     expect(lib.lists).toEqual([{ externalId: expect.any(String), kind: 'playlist', name: 'Peak', parent: null, items: ['C:/:Users/:joao/:Music/:a.flac'] }]);
+    expect(lib.tracks[0].cueList).toEqual([{ t: 1, kind: 'cue', num: 0, name: 'Drop', color: null, end: null }]);   // the grid marker is skipped
     expect(nmlPath({ VOLUME: 'Macintosh HD', DIR: '/:Users/:x/:', FILE: 'b.mp3' })).toBe('/Users/x/b.mp3');
     expect(nmlPath({ VOLUME: 'USB', DIR: '/:DJ/:', FILE: 'c.mp3' })).toBe('/Volumes/USB/DJ/c.mp3');
   });

@@ -44,4 +44,4 @@ See [research/dj-library-formats.md](../research/dj-library-formats.md#rekordbox
 
 ## Detected automatically (2026-09-24)
 - Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
-
+- Cue points: POSITION_MARK → position, hot-cue slot (Num), name, colour (Red/Green/Blue), loops (End); the rating becomes the track's own when unrated in MCO.

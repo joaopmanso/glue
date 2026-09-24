@@ -49,4 +49,4 @@ and crates as MCO playlists.
 
 ## Detected automatically (2026-09-24)
 - Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
-
+- Not yet: cue points (stored in each audio file's Serato tags, not in database V2).
