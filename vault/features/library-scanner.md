@@ -51,8 +51,8 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
   keyboard (arrows, Enter opens, Delete removes from playlist, Ctrl+A), drag to playlists. BPM and key
   show MCO's analysis, or the imported DJ library's value (dimmed) until MCO has one.
 - Code: `src/core/library/scan.ts`, `src/store/merge.ts` (`applyScan`), `src/ui/library/TrackTable.svelte`.
-- Not yet: quick hash / rename detection, FileSystemObserver, column chooser, a player bar in the
-  table view (play from the track page), session-only folder drops on Safari/Firefox.
+- Not yet: quick hash / rename detection, FileSystemObserver, column chooser, session-only folder
+  drops on Safari/Firefox.
 
 ## Single songs (2026-09-24)
 - "+ Songs" in the sidebar's Music section, or drop songs anywhere on the library; mixed drops of
@@ -60,3 +60,10 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
 - Kept by file handle (Chromium) or as a copy in the MCO folder (Safari/Firefox). Songs inside a
   linked folder, or matching an imported track, don't create duplicates; adding the folder later adopts
   them. "Added songs" lists them; "Remove from collection" takes tracks out.
+
+## Library player (2026-09-24)
+- A player bar along the bottom of the library: previous / play-pause / next, seek, volume, the
+  track's BPM, key and quality; the title opens the track page. ▶ on each row (on hover) plays it;
+  Space plays the selected track or pauses. The queue is the view the track was started from and
+  advances at the end of a track. AIFF is rewrapped as WAV to play in Chrome/Firefox.
+- One audio element is shared with the track page; opening a track page loads that track.

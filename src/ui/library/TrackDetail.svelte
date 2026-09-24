@@ -9,6 +9,7 @@
   import { fmtBytes, fmtTime } from '../../core/format';
   import { keyLabel } from '../../core/audio/keys';
   import Results from '../Results.svelte';
+  import { nowPlaying } from '../../lib/nowPlaying.svelte';
 
   let { id }: { id: string } = $props();
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
@@ -44,6 +45,7 @@
       if (id !== t.id) return;
       loaded = t.id;
       await analyzeFile(file);
+      nowPlaying.adopt(t.id);   // the shared player now holds this track
       phase = app.error ? 'error' : 'ready';
       if (app.error) message = app.error.message;
     } catch (e) { phase = 'error'; message = (e as Error).message || String(e); }

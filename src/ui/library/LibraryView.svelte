@@ -74,7 +74,7 @@
     </div>
   {/if}
   {#if lib.notice}
-    <div class="notice" role="status"><span>{lib.notice}</span><button type="button" aria-label="Dismiss" onclick={() => (lib.notice = '')}>×</button></div>
+    <div class="notice toast" role="status"><span>{lib.notice}</span><button type="button" aria-label="Dismiss" onclick={() => (lib.notice = '')}>×</button></div>
   {/if}
   {#if lib.readOnly}
     <div class="notice warn">MCO is open in another tab, so this one is read-only. Close the other tab and reload to make changes here.</div>
@@ -106,7 +106,9 @@
 </div>
 
 <style>
-  .lib { display: grid; grid-template-rows: auto auto auto auto auto 1fr; gap: 10px; height: calc(100vh - 110px); min-height: 480px; }
+  .lib { display: grid; grid-template-rows: auto auto auto auto 1fr; gap: 10px; height: calc(100vh - 110px - 64px); min-height: 440px; }
+  /* Floats above the player bar: an in-flow banner would shift the table (and cancel a drag). */
+  .toast { position: fixed; right: clamp(16px, 3vw, 32px); bottom: 76px; z-index: 25; max-width: min(560px, calc(100vw - 32px)); box-shadow: 0 8px 28px rgb(0 0 0 / .45); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
   .colbar { display: flex; gap: 6px; align-items: center; }
   .colbar select, .selbar select { background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; font-size: 13px; }
   .colbar select { font-weight: 700; }

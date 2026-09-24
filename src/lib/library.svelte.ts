@@ -35,7 +35,15 @@ class Library {
   found = $state.raw<(FoundLibrary & { rootId: string })[]>([]);
   version = $state(0);
   job = $state<Job | null>(null);
-  notice = $state('');
+  private noticeText = $state('');
+  private noticeTimer = 0;
+  /** A short message; clears itself after a while. */
+  get notice() { return this.noticeText; }
+  set notice(v: string) {
+    this.noticeText = v;
+    clearTimeout(this.noticeTimer);
+    if (v && typeof window !== 'undefined') this.noticeTimer = window.setTimeout(() => { this.noticeText = ''; }, Math.min(15000, 5000 + v.length * 40));
+  }
   readOnly = $state(false);
   saving = $state(false);
   unsaved = $state(false);           // changes not on disk yet

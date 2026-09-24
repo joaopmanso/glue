@@ -24,6 +24,8 @@
     return { all, pending, unlinked, attention };
   });
   const top = $derived.by(() => { void lib.version; return lib.childLists(null); });
+  // Takes the version so nested folders re-render when any list changes (the store's maps aren't reactive).
+  const childrenOf = (id: string, _version: number) => lib.childLists(id);
   const loose = $derived.by(() => { void lib.version; let n = 0; for (const t of lib.store?.tracks.values() ?? []) if (t.fileKey) n++; return n; });
   let songInput: HTMLInputElement;
   async function addSongs() {
@@ -49,12 +51,38 @@
     editing = l.id;
     if (kind === 'playlist') view.select({ kind: 'list', id: l.id });
   }
+  // Hovering a drag of tracks over a closed folder opens it, so its playlists can be reached.
+  let openTimer = 0, openFor: string | null = null;
   function onDragOver(e: DragEvent, l: List | null) {
     const types = [...(e.dataTransfer?.types ?? [])];
+    if (types.includes(TRACKS) && l?.kind === 'folder' && !open[l.id] && openFor !== l.id) {
+      clearTimeout(openTimer); openFor = l.id;
+      const id = l.id;
+      openTimer = window.setTimeout(() => { open[id] = true; openFor = null; }, 500);
+    }
     const ok = types.includes(TRACKS) ? l?.kind === 'playlist' : types.includes(LIST) ? !l || l.kind === 'folder' : false;
     if (!ok) return;
     e.preventDefault(); e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = types.includes(TRACKS) ? 'copy' : 'move';
     dropTarget = l?.id ?? 'top';
+  }
+  /** dragleave also fires when the pointer moves onto a child element: only clear on a real exit. */
+  function onDragLeave(e: DragEvent, id: string) {
+    if ((e.currentTarget as Node).contains(e.relatedTarget as Node | null)) return;
+    if (dropTarget === id) dropTarget = null;
+    if (openFor === id) { clearTimeout(openTimer); openFor = null; }
+  }
+  /** Dropping tracks on "+ Playlist" makes a new playlist with them. */
+  function dropOnNew(e: DragEvent) {
+    const ids = e.dataTransfer?.getData(TRACKS);
+    dropTarget = null;
+    if (!ids) return;
+    e.preventDefault(); e.stopPropagation();
+    const items: string[] = JSON.parse(ids);
+    const l = lib.createList('playlist', '', null, items);
+    if (!l) return;
+    editing = l.id;
+    lib.notice = 'New playlist with ' + items.length + ' track' + (items.length === 1 ? '' : 's') + '. Type a name.';
   }
   function onDrop(e: DragEvent, l: List | null) {
     const dt = e.dataTransfer;
@@ -76,12 +104,12 @@
 </script>
 
 {#snippet node(l: List, depth: number)}
-  {@const kids = l.kind === 'folder' ? lib.childLists(l.id) : []}
+  {@const kids = l.kind === 'folder' ? childrenOf(l.id, lib.version) : []}
   <li>
     <div class="item" class:sel={isSel({ kind: 'list', id: l.id })} class:drop={dropTarget === l.id} style:padding-left={8 + depth * 14 + 'px'}
       draggable={editing !== l.id} role="treeitem" aria-selected={isSel({ kind: 'list', id: l.id })} aria-expanded={l.kind === 'folder' ? !!open[l.id] : undefined} tabindex="-1"
       ondragstart={e => { e.dataTransfer?.setData(LIST, l.id); }}
-      ondragover={e => onDragOver(e, l)} ondragleave={() => { if (dropTarget === l.id) dropTarget = null; }} ondrop={e => onDrop(e, l)}>
+      ondragenter={e => onDragOver(e, l)} ondragover={e => onDragOver(e, l)} ondragleave={e => onDragLeave(e, l.id)} ondrop={e => onDrop(e, l)}>
       {#if l.kind === 'folder'}
         <button type="button" class="twist" aria-label={open[l.id] ? 'Collapse' : 'Expand'} onclick={() => (open[l.id] = !open[l.id])}>{open[l.id] ? '▾' : '▸'}</button>
       {:else}<span class="twist">♪</span>{/if}
@@ -120,11 +148,13 @@
     <div class="head">
       <h3 class="label">Playlists</h3>
       <span class="add">
-        <button type="button" id="new-playlist" title="New playlist" onclick={() => newList('playlist')}>+ Playlist</button>
+        <button type="button" id="new-playlist" title="New playlist (or drop tracks here)" class:drop={dropTarget === 'new'} onclick={() => newList('playlist')}
+          ondragover={e => { if ([...(e.dataTransfer?.types ?? [])].includes(TRACKS)) { e.preventDefault(); dropTarget = 'new'; } }}
+          ondragleave={() => { if (dropTarget === 'new') dropTarget = null; }} ondrop={dropOnNew}>+ Playlist</button>
         <button type="button" title="New folder" onclick={() => newList('folder')}>+ Folder</button>
       </span>
     </div>
-    <ul class="tree" role="tree" class:drop={dropTarget === 'top'} ondragover={e => onDragOver(e, null)} ondrop={e => onDrop(e, null)} ondragleave={() => { if (dropTarget === 'top') dropTarget = null; }}>
+    <ul class="tree" role="tree" class:drop={dropTarget === 'top'} ondragover={e => onDragOver(e, null)} ondrop={e => onDrop(e, null)} ondragleave={e => onDragLeave(e, 'top')}>
       {#each top as l (l.id)}{@render node(l, 0)}{/each}
       {#if !top.length}<li class="empty">No playlists yet. Create one, or import a DJ library.</li>{/if}
     </ul>
@@ -208,6 +238,7 @@
   button.item { background: none; border: 0; text-align: left; cursor: pointer; padding: 0 8px; }
   .item:hover { background: var(--raised); }
   .item.sel { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .add button.drop { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .item.drop, .tree.drop { outline: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .name { flex: 1; min-width: 0; background: none; border: 0; text-align: left; cursor: pointer; padding: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; justify-content: space-between; gap: 6px; }
   div.item > .name { padding-left: 2px; }

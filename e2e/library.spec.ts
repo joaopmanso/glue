@@ -99,7 +99,7 @@ test('profile, collection, import, link folder, background analysis, playlists, 
   await expect(page.locator('.notice')).toContainText('Added 1 track to Warm-up');
 
   // Everything is on disk: reload and it's all still there.
-  await expect(page.locator('#saving')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
   await page.reload();
   await expect(page.locator('.tr')).toHaveCount(5, { timeout: 20_000 });
   await page.locator('.lside .name', { hasText: 'Warm-up' }).click();
@@ -188,7 +188,7 @@ test('adds single songs, links them to imports, and keeps them across reloads', 
   await expect(page.locator('.tr')).toHaveCount(2);
 
   // Still there after a reload, and the track page can read the file.
-  await expect(page.locator('#saving')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
   await page.reload();
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
   await page.locator('.tr', { hasText: 'aiff-44k-24' }).dblclick();
@@ -210,4 +210,46 @@ test('adds single songs, links them to imports, and keeps them across reloads', 
   page.once('dialog', d => d.accept());
   await page.click('#remove-tracks');
   await expect(page.locator('.tr')).toHaveCount(4);
+});
+
+test('plays from the library and drops tracks onto playlists, new or in a closed folder', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(5, { timeout: 30_000 });
+
+  // Player bar: play a row, pause, next.
+  const row = page.locator('.tr', { hasText: 'aiff-44k-24' });
+  await row.hover();
+  await row.locator('.pbtn').click();
+  await expect(page.locator('#lib-now')).toHaveText('aiff-44k-24');
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
+  await page.click('#lib-play');
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Play');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.locator('#lib-now')).not.toHaveText('aiff-44k-24');
+  await expect(row).not.toHaveClass(/playing/);
+
+  // Drop onto "+ Playlist": a new playlist with that track.
+  await page.locator('.tr', { hasText: 'Fixture AAC' }).dragTo(page.locator('#new-playlist'));
+  await page.keyboard.type('Opener'); await page.keyboard.press('Enter');
+  await expect(page.locator('.lside .item', { hasText: 'Opener' })).toContainText('1');
+
+  // Hovering over the closed "rekordbox" folder opens it; drop onto its playlist.
+  const src = page.locator('.tr', { hasText: 'aiff-44k-24' });
+  await src.hover(); await page.mouse.down();
+  await page.locator('.lside .tree .name', { hasText: 'Rekordbox' }).hover();
+  await page.waitForTimeout(800);
+  const box = (await page.locator('.lside .name', { hasText: 'Friday' }).boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y + box.height / 2, { steps: 4 });   // a real move: drop needs a dragover first
+  await page.mouse.up();
+  await expect(page.locator('.lside .item', { hasText: 'Friday' })).toContainText('4');
+
+  // Repeated drops keep working.
+  for (const t of ['Lossy one', 'Hi-res claim']) await page.locator('.tr', { hasText: t }).dragTo(page.locator('.lside .item', { hasText: 'Opener' }));
+  await expect(page.locator('.lside .item', { hasText: 'Opener' })).toContainText('3');
 });

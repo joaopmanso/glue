@@ -34,3 +34,11 @@ track is used.
 - Imported playlists sit in a folder per source and are refreshed on re-import.
 - Track pages list the playlists a track is in.
 - Smart lists move to M3 with quality tiers.
+
+## Drag and drop fixes (2026-09-24)
+- Chromium cancels a drag when its source row moves or re-renders. The table now freezes while a
+  drag is under way, dragstart no longer changes the selection, and messages appear as a floating
+  toast instead of a banner that pushed the table down.
+- Nested playlists didn't re-render after changes (stale counts, drops looked lost): fixed.
+- Hovering a drag over a closed folder opens it; dropping tracks on "+ Playlist" creates a playlist
+  with them; the drop highlight no longer flickers over child elements.

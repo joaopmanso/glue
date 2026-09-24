@@ -1,6 +1,8 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
-  import { view, type SortKey } from '../../lib/view.svelte';
+  import { view, type Row, type SortKey } from '../../lib/view.svelte';
+  import { nowPlaying } from '../../lib/nowPlaying.svelte';
+  import { player } from '../../lib/player.svelte';
   import { app } from '../../lib/app.svelte';
   import { router } from '../../lib/route.svelte';
   import { keyLabel } from '../../core/audio/keys';
@@ -15,7 +17,11 @@
     { key: 'quality', label: 'Quality', cls: 'c-q' },
   ];
 
-  const rows = $derived(view.rows(app.keyNotation));
+  const live = $derived(view.rows(app.keyNotation));
+  // While a drag is under way the table must not change: Chromium cancels a drag whose source row
+  // moves or re-renders (background analysis updates rows all the time).
+  let frozen = $state.raw<Row[] | null>(null);
+  const rows = $derived(frozen ?? live);
   const order = $derived(rows.map(r => r.t.id));
   const list = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   const isPlaylist = $derived(list?.kind === 'playlist');
@@ -36,9 +42,17 @@
   const showBpm = (b: number) => Math.abs(b - Math.round(b)) < 0.05 ? String(Math.round(b)) : b.toFixed(1);
 
   function open(id: string) { router.go('#/track/' + id); }
+  function play(id: string) {
+    if (nowPlaying.trackId === id && player.url) player.toggle();
+    else void nowPlaying.play(id, order);
+  }
   function onKey(e: KeyboardEvent) {
     const ids = [...view.selected];
     if (e.key === 'Enter' && ids.length === 1) { e.preventDefault(); open(ids[0]); }
+    else if (e.code === 'Space') {   // plays the selected track, or pauses / resumes the current one
+      e.preventDefault();
+      if (ids.length === 1 && ids[0] !== nowPlaying.trackId) play(ids[0]); else nowPlaying.toggle(ids[0], order);
+    }
     else if ((e.key === 'Delete' || e.key === 'Backspace') && isPlaylist && ids.length && list) { e.preventDefault(); lib.removeFromList(list.id, ids); view.selected = new Set(); }
     else if (e.key === 'a' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); view.selected = new Set(order); }
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -53,13 +67,14 @@
     }
   }
   function dragStart(e: DragEvent, id: string) {
-    if (!view.selected.has(id)) { view.selected = new Set([id]); view.anchor = id; }
-    const ids = order.filter(x => view.selected.has(x));
+    // Nothing on the page may change here (no selection update): see `frozen`.
+    const ids = view.selected.has(id) ? order.filter(x => view.selected.has(x)) : [id];
+    frozen = rows;
     e.dataTransfer!.setData('application/x-mco-tracks', JSON.stringify(ids));
     e.dataTransfer!.effectAllowed = 'copyMove';
     const n = ids.length, ghost = document.createElement('div');
     ghost.className = 'drag-ghost'; ghost.textContent = n === 1 ? (lib.store?.tracks.get(ids[0])?.title || '1 track') : n + ' tracks';
-    document.body.appendChild(ghost); e.dataTransfer!.setDragImage(ghost, 10, 10); setTimeout(() => ghost.remove());
+    document.body.appendChild(ghost); e.dataTransfer!.setDragImage(ghost, -12, -8); setTimeout(() => ghost.remove());
   }
   // Reorder inside a playlist (only when it's shown in playlist order, without a search filter).
   const canReorder = $derived(isPlaylist && view.sort.key === 'order' && view.sort.dir === 1 && !view.search.trim());
@@ -82,6 +97,7 @@
 
 <div class="table" role="grid" aria-rowcount={rows.length} aria-multiselectable="true">
   <div class="thead" role="row">
+    <span class="c-play" aria-hidden="true"></span>
     {#each COLS as c (c.key)}
       {#if c.key !== 'order' || isPlaylist}
         <button type="button" role="columnheader" class={c.cls} class:on={view.sort.key === c.key} onclick={() => view.sortBy(c.key)}
@@ -102,7 +118,20 @@
         <div class="tr" role="row" aria-selected={view.selected.has(r.t.id)} class:sel={view.selected.has(r.t.id)} class:dim={r.t.status !== 'linked'}
           class:drop-before={dropAt === i} class:drop-after={dropAt === i + 1 && i === rows.length - 1}
           style:transform={'translateY(' + i * ROW + 'px)'} draggable="true" tabindex="-1"
-          onclick={e => view.click(r.t.id, e, order)} ondblclick={() => open(r.t.id)} ondragstart={e => dragStart(e, r.t.id)} ondragover={e => rowDragOver(e, i)}>
+          class:playing={nowPlaying.trackId === r.t.id}
+          onclick={e => view.click(r.t.id, e, order)} ondblclick={() => open(r.t.id)} ondragstart={e => dragStart(e, r.t.id)} ondragend={() => { frozen = null; dropAt = null; }} ondragover={e => rowDragOver(e, i)}>
+          <span class="c-play">
+            {#if r.t.status === 'linked'}
+              <button type="button" class="pbtn" aria-label={nowPlaying.trackId === r.t.id && !player.paused ? 'Pause' : 'Play'} draggable="false"
+                onclick={e => { e.stopPropagation(); play(r.t.id); }} ondblclick={e => e.stopPropagation()}>
+                {#if nowPlaying.trackId === r.t.id && !player.paused}
+                  <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 1.5h3.2v11H2.5zM8.3 1.5h3.2v11H8.3z" fill="currentColor"/></svg>
+                {:else}
+                  <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9.5-5.5z" fill="currentColor"/></svg>
+                {/if}
+              </button>
+            {/if}
+          </span>
           {#if isPlaylist}<span class="c-n mono">{r.n + 1}</span>{/if}
           <span class="c-title" title={r.t.fileName}>{r.t.title || r.t.fileName}</span>
           <span class="c-artist">{r.t.artist}</span>
@@ -139,8 +168,8 @@
 <style>
   .table { display: grid; grid-template-rows: auto 1fr; min-height: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 13px; }
   .thead, .tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 10px; padding: 0 10px; }
-  .table { --cols: minmax(160px, 3fr) minmax(110px, 2fr) minmax(90px, 1.4fr) minmax(70px, 1fr) 52px 44px 50px 96px 150px; }
-  .table:has(.thead .c-n) { --cols: 36px minmax(160px, 3fr) minmax(110px, 2fr) minmax(90px, 1.4fr) minmax(70px, 1fr) 52px 44px 50px 96px 150px; }
+  .table { --cols: 26px minmax(160px, 3fr) minmax(110px, 2fr) minmax(90px, 1.4fr) minmax(70px, 1fr) 52px 44px 50px 96px 150px; }
+  .table:has(.thead .c-n) { --cols: 26px 36px minmax(160px, 3fr) minmax(110px, 2fr) minmax(90px, 1.4fr) minmax(70px, 1fr) 52px 44px 50px 96px 150px; }
   .thead { border-bottom: 1px solid var(--line); height: 32px; }
   .thead button { background: none; border: 0; padding: 0; text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; }
   .thead button.on { color: var(--ink); }
@@ -155,6 +184,12 @@
   .tr.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
   .tr.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
   .c-title { color: var(--ink); font-weight: 550; }
+  .pbtn { width: 22px; height: 22px; border-radius: 50%; border: 0; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0; opacity: 0; }
+  .pbtn svg { width: 10px; height: 10px; }
+  .tr:hover .pbtn, .tr.playing .pbtn, .pbtn:focus-visible { opacity: 1; }
+  .pbtn:hover { background: var(--accent); color: var(--accent-ink); }
+  .tr.playing .c-title, .tr.playing .pbtn { color: var(--accent); }
+  .tr.playing .pbtn:hover { color: var(--accent-ink); }
   .c-artist, .c-album, .c-genre { color: var(--ink-2); }
   .c-n, .c-bpm, .c-key, .c-time, .c-fmt { color: var(--ink-2); font-size: 12px; }
   .from-dj { color: var(--muted); font-style: italic; }
@@ -164,6 +199,6 @@
   .q[data-grade="bad"], .q.bad { color: var(--bad); }
   .q[data-grade="info"], .q.muted { color: var(--muted); border-color: transparent; }
   .empty { position: absolute; inset: 40px 0 auto; text-align: center; color: var(--muted); padding: 0 20px; }
-  @media (max-width: 1100px) { .table, .table:has(.thead .c-n) { --cols: minmax(140px, 3fr) minmax(100px, 2fr) 52px 44px 50px 130px; } .c-album, .c-genre, .c-fmt, .c-n { display: none; } }
+  @media (max-width: 1100px) { .table, .table:has(.thead .c-n) { --cols: 26px minmax(140px, 3fr) minmax(100px, 2fr) 52px 44px 50px 130px; } .c-album, .c-genre, .c-fmt, .c-n { display: none; } }
   :global(.drag-ghost) { position: fixed; top: -100px; left: 0; background: var(--accent); color: var(--accent-ink); font: 600 13px var(--font-sans); padding: 4px 10px; border-radius: 4px; }
 </style>

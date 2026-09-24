@@ -5,6 +5,12 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Library player, drag-and-drop fixes
+- Player bar at the bottom of the library (play from any row, queue = current view, auto-advance).
+- Drag to playlists fixed: the table no longer changes under a drag, notices are a toast, nested
+  playlists re-render, closed folders open on hover, drop on "+ Playlist" creates one.
+- Tests: e2e for the player bar and for drops onto new, nested and repeated playlists.
+
 ## 2026-09-24 · Add single songs
 - Drop songs onto the library or use "+ Songs": kept by file handle in Chrome/Edge, copied into the MCO
   folder elsewhere ([ADR 0021](../adr/0021-single-songs.md)). No duplicates with music folders or

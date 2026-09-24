@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { app, analyzeFile } from './lib/app.svelte';
   import { player } from './lib/player.svelte';
   import { lib } from './lib/library.svelte';
@@ -13,6 +13,8 @@
   import Welcome from './ui/library/Welcome.svelte';
   import LibraryView from './ui/library/LibraryView.svelte';
   import TrackDetail from './ui/library/TrackDetail.svelte';
+  import LibPlayer from './ui/library/LibPlayer.svelte';
+  import { nowPlaying } from './lib/nowPlaying.svelte';
 
   onMount(() => { void lib.boot(); });
 
@@ -30,7 +32,11 @@
   function onKey(e: KeyboardEvent) {
     const t = e.target as HTMLElement;
     if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(t.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (app.phase !== 'result' || route.name === 'library') return;
+    if (route.name === 'library') {
+      if (e.code === 'Space' && inLibrary && nowPlaying.trackId) { e.preventDefault(); nowPlaying.toggle(); }
+      return;
+    }
+    if (app.phase !== 'result') return;
     if (e.code === 'Space') { e.preventDefault(); player.toggle(); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); player.seek(player.time + 5); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); player.seek(player.time - 5); }
@@ -61,8 +67,15 @@
     else void dropIntoLibrary(dt);
   }
 
-  // Leaving "analyze a file" for the library stops its playback.
-  $effect(() => { if (route.name === 'library') { if (!player.paused) player.toggle(); } });
+  // A file from "Analyze a file" isn't a library track: stop it when going to the library, and stop
+  // library playback when going to "Analyze a file".
+  $effect(() => {
+    const name = route.name;
+    untrack(() => {
+      if (name === 'library' && !nowPlaying.trackId && !player.paused) player.toggle();
+      if (name === 'analyze' && nowPlaying.trackId) { if (!player.paused) player.toggle(); nowPlaying.clear(); player.setSource(null); }
+    });
+  });
   $effect(() => { document.body.classList.toggle('dragging', app.dragging); });
   $effect(() => { document.body.classList.toggle('live-on', app.liveOn && app.phase === 'result' && route.name !== 'library'); });
 </script>
@@ -92,7 +105,7 @@
           Open audio file
         </button>
       {:else if lib.profile}
-        {#if lib.saving || lib.unsaved}<small id="saving">Saving…</small>{/if}
+        <small id="saving" class:hidden={!(lib.saving || lib.unsaved)} aria-hidden={!(lib.saving || lib.unsaved)}>Saving…</small>
         <small title={'Your library is stored in ' + lib.homeName}>📂 {lib.homeName}</small>
         <button type="button" class="who" title="Switch profile" onclick={() => lib.switchProfile()}>
           <span class="dot" style:background={lib.profile.color}>{lib.profile.name.slice(0, 1).toUpperCase()}</span>{lib.profile.name}
@@ -123,12 +136,14 @@
     <LibraryView />
   {/if}
 </div>
+{#if inLibrary && route.name === 'library'}<LibPlayer />{/if}
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}
   <div class="drop" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>
 {/if}
 
 <style>
+  .hidden { visibility: hidden; }
   .brand h1 a { color: inherit; text-decoration: none; }
   .tabs { display: flex; gap: 4px; }
   .tabs a { color: var(--muted); text-decoration: none; font-size: 13.5px; font-weight: 600; padding: 4px 10px; border-radius: 4px; }

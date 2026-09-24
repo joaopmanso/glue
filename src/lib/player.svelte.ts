@@ -136,6 +136,7 @@ class Player {
   liveOn = false;
   fileSr = 48000;
   onFrame: ((ts: number) => void) | null = null;
+  onEnded: (() => void) | null = null;   // the library player moves to the next track
   private raf = 0;
 
   private bind(el: HTMLAudioElement) {
@@ -144,7 +145,7 @@ class Player {
     el.addEventListener('loadedmetadata', () => { this.ready = true; if (!this.duration) this.duration = el.duration || 0; });
     el.addEventListener('play', () => { this.paused = false; this.startLoop(); });
     el.addEventListener('pause', () => { this.paused = true; this.live.last = 0; this.stopLoop(); this.sync(); });
-    el.addEventListener('ended', () => { this.paused = true; this.stopLoop(); this.sync(); });
+    el.addEventListener('ended', () => { this.paused = true; this.stopLoop(); this.sync(); if (el === this.el) this.onEnded?.(); });
     el.addEventListener('timeupdate', () => this.sync());
     el.addEventListener('error', () => { if (this.url) this.message = CANT_PLAY; });
   }
