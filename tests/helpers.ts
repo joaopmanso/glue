@@ -27,6 +27,27 @@ export function bandLimitedNoise(sr: number, secs: number, cutHz: number, level 
   return out;
 }
 
+/** Stereo noise (pink tilt) that rolls off gently: flat to `startHz`, then `dbPerKHz` lower per kHz,
+    all the way up (a mastering lowpass or a dark master, not an encoder's wall). */
+export function rolledOff(sr: number, secs: number, startHz: number, dbPerKHz: number, level = 0.25): Float32Array[] {
+  const N = 4096, hop = N / 2, len = Math.floor(sr * secs), fft = makeFFT(N);
+  const win = new Float64Array(N); for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+  const gain = new Float64Array(N / 2);
+  for (let k = 1; k < N / 2; k++) { const f = k * sr / N; gain[k] = Math.pow(10, -(f > startHz ? dbPerKHz * (f - startHz) / 1000 : 0) / 20) / Math.sqrt(Math.sqrt(f / 100)); }
+  const out = [new Float32Array(len), new Float32Array(len)], re = new Float64Array(N), im = new Float64Array(N);
+  for (let s = 0; s + N <= len; s += hop) for (const o of out) {
+    re.fill(0); im.fill(0);
+    for (let k = 1; k < N / 2; k++) { re[k] = rnd() * gain[k]; im[k] = rnd() * gain[k]; }
+    for (let k = 1; k < N / 2; k++) { re[N - k] = re[k]; im[N - k] = -im[k]; }
+    for (let k = 0; k < N; k++) im[k] = -im[k];
+    fft(re, im);
+    for (let i = 0; i < N; i++) o[s + i] += re[i] * win[i];
+  }
+  let peak = 0; for (const o of out) for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(o[i]));
+  for (const o of out) for (let i = 0; i < len; i++) o[i] = o[i] / peak * level;
+  return out;
+}
+
 /**
  * Music-like stereo test signal: many sine partials up to `cutHz` with a pink (1/√f) tilt, so the
  * spectrum has a natural slope and a perfectly sharp edge (no window leakage past the cutoff).

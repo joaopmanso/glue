@@ -94,6 +94,11 @@ export function lossyGuess(fc: number, yt: boolean): { short: string; text: stri
   return { short: '320 kbps MP3', text: 'MP3 at 320 kbps (LAME lowpasses at about 20.5 kHz) or high-quality AAC/Vorbis' };
 }
 
+/** A lossless CD / 48 kHz file whose top end fades out (no wall) from here up is fine (ADR 0033). */
+export const ROLL_OFF_OK = 17000;
+/** A "wall" this high and this shallow can be a steep mastering filter: never called a transcode on its own. */
+export const SOFT_WALL = { hz: 18500, drop: 30 };
+
 export function findResample(cut: Cutoff, sr: number): number | null {
   if (cut.full) return null;
   let best: { r: number; d: number } | null = null;
@@ -134,7 +139,7 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
 
   const lossySig = cut.wall && !cut.full && fc < 20800;
   const resampledFrom = findResample(cut, sr);
-  const edge = fc >= 19600 && cut.drop < 35;
+  const edge = (fc >= 19600 && cut.drop < 35) || (fc >= SOFT_WALL.hz && cut.drop < SOFT_WALL.drop);
 
   if (lossless) {
     if (lossySig) {
@@ -166,6 +171,11 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
     } else if (fc >= 20800) {
       origin = sr === 44100 ? 'CD-quality master' : 'Full-band master';
       add('ok', 'Full bandwidth, to ' + kHz, 'Normal for a lossless ' + fmtRate(sr) + ' file: the top end reaches the converter’s anti-alias filter.');
+    } else if (fc >= ROLL_OFF_OK) {
+      // A gentle roll-off in the last few kHz is a mastering choice (a lowpass, dark synths, limiting),
+      // common on artist and label downloads; lossy encoders leave a wall instead (2026-09-25).
+      origin = 'Rolled-off master';
+      add('info', 'Top end rolls off from about ' + kHz, 'The highest frequencies fade out gradually instead of stopping at a wall. Many masters are made this way (a gentle lowpass, dark sounds, heavy limiting). It is not a lossy fingerprint.');
     } else {
       bwTone = 'warn';
       origin = 'Band-limited source';
@@ -258,6 +268,7 @@ function finishVerdict(head: Head | null, F: Finding[], cut: Cutoff, info: FileI
     else if (info.lossless == null) head = { grade: 'info', label: 'Unverified', headline: 'No lossy fingerprint, format unknown', sub: 'Content reaches ' + fmtKHz(Math.max(cut.fc, cut.fade)) + ' with no encoder wall, but the codec couldn’t be identified, so this isn’t proof the file is lossless.' };
     else if (info.lossless === false) head = { grade: 'warn', label: 'Lossy · not hi-res', headline: 'Lossy ' + info.codec + ', not hi-res', sub: 'Content stops at ' + kHz + '. The bandwidth matches what ' + info.codec + (info.bitrate ? ' at ' + Math.round(info.bitrate) + ' kbps' : '') + ' should give, so it isn’t a fake, but the encoder has removed detail and no sample rate can make it hi-res.' };
     else if (hiRes) head = { grade: 'ok', label: 'Genuine hi-res', headline: 'Real hi-res: content to ' + fmtKHz(Math.max(cut.fc, cut.fade)), sub: 'The spectrum extends well past what a CD or 48 kHz master can hold' + (depth && depth.eff >= 20 ? ', and the low bits carry signal.' : '.') };
+    else if (!cut.full && cut.fc < 20800) head = { grade: 'ok', label: 'Lossless', headline: 'Genuine ' + fmtRate(sr) + ' lossless', sub: 'No lossy fingerprints. The top end rolls off gently from about ' + kHz + ', as many masters do.' };
     else head = { grade: 'ok', label: 'Lossless', headline: 'Genuine ' + fmtRate(sr) + ' lossless', sub: 'Full bandwidth with no lossy fingerprints: what you’d expect from a proper CD rip or a lossless download.' };
   }
   const expected = info.lossless === true ? { hz: sr / 2, why: 'Nyquist limit' } : info.lossless === false ? expectedCutoff(info) : null;

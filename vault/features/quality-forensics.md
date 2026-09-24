@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: Speklone
-updated: 2026-09-24
-adrs: [0002]
+updated: 2026-09-25
+adrs: [0002, 0033]
 ---
 # Quality forensics
 
@@ -19,7 +19,11 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
   depth, Likely origin.
 - **Origin clues** from strings in the file: YouTube URLs / DASH brand / yt-dlp, WebM, LAME / FFmpeg /
   Fraunhofer / Nero, CD rippers (EAC, XLD, dBpoweramp, CUETools…), stores and stream recorders.
-- A lossy wall at 19.6–20.8 kHz with < 35 dB drop is a Caution, not a Fail (mastering lowpasses).
+- A lossy wall at 19.6–20.8 kHz with < 35 dB drop, or from 18.5 kHz with < 30 dB, is a Caution, not a
+  Fail (mastering lowpasses).
+- A lossless CD / 48 kHz file whose top end fades out gently (no wall) from 17 kHz up is Lossless,
+  with a Note; below 17 kHz it's a Caution ([ADR 0033](../adr/0033-tolerate-gentle-roll-offs.md)).
+  Stored verdicts are re-checked from stored analyses when these rules change.
 - "Fake bitrate" is a Fail only for MP3 (LAME's lowpass per bitrate is reliable); for AAC/Vorbis/Opus
   a low cutoff is a Caution.
 - Unknown format + lossy wall → "Lossy audio: content stops at X"; unknown without a wall →

@@ -5,6 +5,14 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · Gentle roll-offs are no longer "Caution"
+- Lossless files whose top end fades out gently from 17 kHz up (common on artist / Bandcamp /
+  SoundCloud downloads) now read Lossless with a Note; shallow high "walls" (≥ 18.5 kHz, < 30 dB)
+  are a Caution at most ([ADR 0033](../adr/0033-tolerate-gentle-roll-offs.md)).
+- Existing verdicts are re-checked in the background from the stored analyses (no decoding), with a
+  notice of how many changed. `VERDICT_VERSION` 2.
+- Parity fixtures unchanged (their 5 kHz band limit is still a Caution).
+
 ## 2026-09-25 · Tags, playlist insights, column filters, the player keeps playing
 - Tags on tracks and playlists, made in MCO or found in files (Grouping, rekordbox My Tag,
   #hashtags): Tags column, editor, sidebar section (drop tracks on a tag), track page, rename /

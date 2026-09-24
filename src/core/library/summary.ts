@@ -1,7 +1,7 @@
 /* The small record kept per analysed track (ADR 0019); the detail page recomputes everything else. */
 import type { AnalysisResult, FileInfo, Verdict } from '../types';
 import type { AnalysisSummary } from '../../store/types';
-import { ANALYSIS_VERSION } from '../../store/types';
+import { ANALYSIS_VERSION, VERDICT_VERSION } from '../../store/types';
 
 export function summarize(info: FileInfo, res: AnalysisResult, v: Verdict, file: { size: number; mtime: number }): AnalysisSummary {
   const k = res.music.key;
@@ -14,7 +14,7 @@ export function summarize(info: FileInfo, res: AnalysisResult, v: Verdict, file:
     bpm: res.music.bpm ? Math.round(res.music.bpm * 100) / 100 : null,
     key: k ? { tonic: k.tonic, mode: k.mode, margin: Math.round(k.margin * 1000) / 1000, tuning: Math.round(k.tuning) } : null,
     findings: v.findings.map(f => ({ sev: f.sev, title: f.title })),
-    fileSize: file.size, fileMtime: file.mtime,
+    fileSize: file.size, fileMtime: file.mtime, vv: VERDICT_VERSION,
   };
 }
 

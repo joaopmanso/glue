@@ -3,7 +3,7 @@ import { runJob } from '../src/core/audio/analyze';
 import { classify } from '../src/core/audio/verdict';
 import { blankInfo } from '../src/core/formats/parse';
 import type { FileInfo } from '../src/core/types';
-import { bandLimitedTones as bandLimitedNoise, quantize } from './helpers';
+import { bandLimitedTones as bandLimitedNoise, bandLimitedNoise as wallNoise, quantize, rolledOff } from './helpers';
 
 const noop = () => {};
 const lossless = (sr: number, bits: number): FileInfo => Object.assign(blankInfo(), { container: 'FLAC', codec: 'FLAC', lossless: true, sampleRate: sr, bits, channels: 2, clues: [] });
@@ -39,6 +39,28 @@ describe('verdicts on synthetic signals', () => {
     const v = verdictOf(quantize(bandLimitedNoise(44100, 6, 16000), 16), 44100, info);
     expect(v.label).toBe('Transcoded');
     expect(v.headline).toBe('Lossy audio in a WAV wrapper');   // article follows the word ("a WAV")
+  });
+  // ADR 0033: many masters (artist / label downloads) roll off gently near the top; that isn't lossy.
+  it('a 44.1 kHz AIFF whose top end fades out gently (no wall) is lossless', () => {
+    const info = Object.assign(lossless(44100, 16), { container: 'AIFF', codec: 'PCM' });
+    for (const [start, slope] of [[12000, 8], [16000, 8]]) {
+      const v = verdictOf(quantize(rolledOff(44100, 4, start, slope), 16), 44100, info);
+      expect(v.cut.wall).toBe(false);
+      expect(v.cut.fc).toBeLessThan(20800);            // the old rule called this "Caution: band-limited"
+      expect(v.label).toBe('Lossless');
+      expect(v.findings.find(f => f.sev === 'warn' || f.sev === 'bad')).toBeUndefined();
+      expect(v.findings.map(f => f.title).join()).toContain('Top end rolls off');
+    }
+  });
+  it('a fade that ends far lower is still worth a look', () => {
+    const v = verdictOf(quantize(rolledOff(44100, 4, 3000, 9), 16), 44100, lossless(44100, 16));
+    expect(v.cut.fc).toBeLessThan(17000);
+    expect(v.label).toBe('Caution');
+  });
+  it('real encoder walls near the top are still transcodes; shallow high "walls" are only a caution', () => {
+    for (const f of [18600, 19400]) expect(verdictOf(quantize(wallNoise(44100, 4, f), 16), 44100, lossless(44100, 16)).label).toBe('Transcoded');
+    const steep = verdictOf(quantize(rolledOff(44100, 4, 17000, 20), 16), 44100, lossless(44100, 16));
+    expect(steep.label).not.toBe('Transcoded');
   });
   it('unknown format with a lossy wall is never called lossless', () => {
     const info = Object.assign(blankInfo(), { sampleRate: 48000, clues: [] });

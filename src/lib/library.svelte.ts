@@ -5,13 +5,14 @@ import { CollectionStore } from '../store/collection';
 import { LOOSE, applyImport, applyScan, blankLibTrack, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
-import { ANALYSIS_VERSION, SCHEMA, newId, type List, type Profile, type Root, type Track } from '../store/types';
+import { ANALYSIS_VERSION, SCHEMA, VERDICT_VERSION, newId, type List, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { findLibraries, type Detected } from '../core/library/detect';
 import { makeThumb } from '../core/library/thumb';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
-import { failed } from '../core/library/summary';
+import { failed, summarize } from '../core/library/summary';
+import { classify } from '../core/audio/verdict';
 import { addTags, cleanTag, removeTags, tagKey, tagsOf, uniqTags } from '../core/library/tagging';
 import { encodeDetails, loadDetails, removeDetails, writeDetails, type DetailsHeader } from '../store/details';
 import { removeFingerprint, writeFingerprint } from '../store/fingerprints';
@@ -248,6 +249,7 @@ class Library {
     this.enqueueAll();
     this.onOpened?.();
     void this.detectLibraries();
+    void this.recheckVerdicts();
   }
   async renameCollection(name: string) {
     const s = this.store;
@@ -726,6 +728,29 @@ class Library {
     if (linked) bits.push(linked + ' linked to imported track' + (linked === 1 ? '' : 's'));
     if (already) bits.push(already + ' already in the collection');
     this.notice = (bits.join(', ') || 'Nothing added') + '.';
+  }
+  /** After a verdict rule change: judge stored analyses again (no decoding), one at a time in the
+      background. Only warnings and failures can change, so only those are re-read. */
+  private async recheckVerdicts() {
+    const s = this.store, dir = await platform.cacheDir();
+    if (!s || !dir) return;
+    const todo = [...s.analysis].filter(([, a]) => (a.vv ?? 1) < VERDICT_VERSION && !a.error && (a.grade === 'warn' || a.grade === 'bad')).map(([id]) => id);
+    let cleared = 0;
+    for (const id of todo) {
+      if (this.store !== s) return;
+      const t = s.tracks.get(id), prev = s.analysis.get(id);
+      if (!t || !prev || (prev.vv ?? 1) >= VERDICT_VERSION) continue;
+      try {
+        const d = await loadDetails(dir, s.meta.id, id, { size: t.size, mtime: t.mtime });
+        if (this.store !== s) return;
+        if (!d) continue;   // no stored analysis: the next full analysis brings the new rules
+        const next = summarize(d.info, d.res, classify(d.info, d.res), { size: prev.fileSize, mtime: prev.fileMtime });
+        s.putAnalysis(id, { ...next, at: prev.at, fp: prev.fp });
+        if (next.grade === 'ok' && prev.grade !== 'ok') cleared++;
+      } catch (e) { console.warn('Couldn’t re-check the verdict of', id, e); }
+      await new Promise(r => setTimeout(r, 0));   // stay out of the way of the page
+    }
+    if (cleared && this.store === s) this.notice = 'Quality verdicts updated: ' + cleared + ' track' + (cleared === 1 ? '' : 's') + ' with a gently rolled-off top end now count as lossless.';
   }
   /** The full analysis stored for a track's page, if it's still valid for the file. */
   async trackDetails(t: Track) {
