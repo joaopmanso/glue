@@ -74,3 +74,11 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
   Label, Year, Added, Notes.
 - Notes: the Notes column shows an icon (highlighted when a track has a note); clicking it opens a
   small editor that saves as you type. The track page has the same notes. `Track.notes` in the shards.
+
+## Overview column, quality and format filters (2026-09-24)
+- "Overview": a mini spectrogram per row next to ▶; click or drag to play / scrub from that spot;
+  playhead and played part on the playing row; imported cue points as ticks ([ADR 0031](../adr/0031-row-thumbnails.md)).
+- **Filter** next to the search: Quality (MCO's verdicts, "Not analysed", "No file") and Format (MP3,
+  FLAC, WAV, AIFF, AAC…), with counts for the current view; any within a group, groups combined.
+  Clicking a row's quality badge filters by it.
+

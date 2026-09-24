@@ -16,7 +16,8 @@ class NowPlaying {
   get track(): Track | null { void lib.version; return this.trackId ? lib.store?.tracks.get(this.trackId) ?? null : null; }
 
   /** Start a track from a list; `queue` is the order Previous / Next walk. */
-  async play(id: string, queue: string[] = this.queue) {
+  /** `startAt`: seconds to start from (clicking a spot in a row's mini spectrogram). */
+  async play(id: string, queue: string[] = this.queue, startAt = 0) {
     const t = lib.store?.tracks.get(id);
     if (!t) return;
     this.queue = queue.length ? queue : [id];
@@ -27,6 +28,7 @@ class NowPlaying {
       const file = await lib.fileFor(t);   // may ask for permission: still inside the click
       if (this.trackId !== id) return;
       player.setSource(await playable(file), { duration: t.duration ?? undefined, sampleRate: t.format?.sampleRate || undefined, key: 'track:' + id });
+      if (startAt > 0) { const a = player.el, go = () => player.seek(startAt); if (a.readyState >= 1) go(); else a.addEventListener('loadedmetadata', go, { once: true }); }
       player.toggle();
     } catch (e) { if (this.trackId === id) { this.error = (e as Error).message || String(e); player.setSource(null); } }
     finally { if (this.trackId === id) this.loading = false; }

@@ -9,6 +9,7 @@ import { ANALYSIS_VERSION, SCHEMA, newId, type List, type Profile, type Root, ty
 import type { ImportedLibrary } from '../core/interop/types';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { findLibraries, type Detected } from '../core/library/detect';
+import { makeThumb } from '../core/library/thumb';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
 import { failed } from '../core/library/summary';
 import { encodeDetails, loadDetails, removeDetails, writeDetails, type DetailsHeader } from '../store/details';
@@ -72,6 +73,8 @@ class Library {
   /** Hooks for derived views (duplicates): a collection opened / closed, the background analysis went quiet. */
   onOpened: (() => void) | null = null;
   onSettled: (() => void) | null = null;
+  /** A track's mini spectrogram is ready (the thumbnail cache stores it). */
+  onThumb: ((id: string, data: Uint8Array) => void) | null = null;
   /** First run: after the profile, a step that explains how to add music. */
   onboarding = $state<null | 'music'>(null);
   /** A backup chosen on the start screen, restored once the MCO folder is chosen. */
@@ -681,7 +684,7 @@ class Library {
   }
   async saveTrackDetails(t: Track, info: FileInfo, res: AnalysisResult) {
     if (t.size == null || t.mtime == null) return;
-    try { await this.putDetails(t.id, await encodeDetails(info, res, { size: t.size, mtime: t.mtime })); }
+    try { await this.putDetails(t.id, await encodeDetails(info, res, { size: t.size, mtime: t.mtime })); this.onThumb?.(t.id, makeThumb(res)); }
     catch (e) { console.warn('Couldn’t store the track analysis', e); }
   }
   private async putDetails(id: string, d: { header: DetailsHeader; bin: Uint8Array }) {
@@ -772,6 +775,7 @@ class Library {
       if (r.details) await this.putDetails(t.id, r.details).catch(e => console.warn('Couldn’t store the track analysis', e));
       if (r.fp) { const d = await platform.cacheDir(); if (d) await writeFingerprint(d, s.meta.id, t.id, r.fp).catch(e => console.warn('Couldn’t store the fingerprint', e)); }
       if (this.store !== s) return;
+      if (r.thumb) this.onThumb?.(t.id, r.thumb);
       s.putAnalysis(t.id, r.summary);
       const cur = s.tracks.get(t.id) ?? t;
       const f = tagFields(r.info.tags);

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
-  import { view, type Row } from '../../lib/view.svelte';
+  import { view, qualityOf, type Row } from '../../lib/view.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { player } from '../../lib/player.svelte';
   import { app } from '../../lib/app.svelte';
@@ -11,6 +11,7 @@
   import { fmtTime } from '../../core/format';
   import type { TrackFormat } from '../../store/types';
   import Stars from './Stars.svelte';
+  import WaveCell from './WaveCell.svelte';
   import { dupes } from '../../lib/dupes.svelte';
   import { canDragOut, prepareTrack, startTrackDrag } from '../../lib/dragout';
   const dragOut = canDragOut();
@@ -84,7 +85,8 @@
 </script>
 
 {#snippet cell(k: ColKey, r: Row)}
-  {#if k === 'title'}
+  {#if k === 'wave'}<WaveCell t={r.t} {order} />
+  {:else if k === 'title'}
     {@const g = dupes.groupOf.get(r.t.id)}
     <span class="c-title" title={r.t.fileName}>{r.t.title || r.t.fileName}</span>
     {#if g?.kind === 'same'}<button type="button" class="dup" title={'Same recording as ' + (g.ids.length - 1) + ' other track' + (g.ids.length > 2 ? 's' : '') + ': show duplicates'}
@@ -119,7 +121,7 @@
     <span class="c-q">
       {#if r.t.status === 'unlinked'}<span class="q muted" title="No file linked: add the folder it lives in">no file</span>
       {:else if r.t.status === 'missing'}<span class="q bad" title="The file wasn’t found at its last location">missing</span>
-      {:else if r.a}<span class="q" data-grade={r.a.grade} title={r.a.headline}>{r.a.label}</span>
+      {:else if r.a}<button type="button" class="q qbtn" data-grade={r.a.grade} title={r.a.headline + ' · click to show only these'} onclick={e => { e.stopPropagation(); view.toggleFilter('quality', qualityOf(r)); }} ondblclick={e => e.stopPropagation()}>{r.a.label}</button>
       {:else}<span class="q muted">…</span>{/if}
     </span>
   {/if}
@@ -206,7 +208,8 @@
     </div>
     {#if !rows.length}
       <div class="empty">
-        {#if view.search.trim()}No tracks match “{view.search}”.
+        {#if view.search.trim()}No tracks match “{view.search}”{view.filtering ? ' with these filters' : ''}.
+        {:else if view.filtering}No tracks match the filters. <button type="button" class="linkish" onclick={() => view.clearFilters()}>Clear filters</button>
         {:else if view.sel.kind === 'list'}{isPlaylist ? 'Empty playlist. Drag tracks onto it in the sidebar.' : 'Nothing in this folder yet.'}
         {:else if view.sel.kind === 'all'}No tracks yet. Drop songs or a music folder here, or use the sidebar to add them or import a DJ library.
         {:else}Nothing here.{/if}
@@ -276,9 +279,12 @@
   .note:hover { background: var(--surface); color: var(--ink) !important; }
   .from-dj { color: var(--muted); font-style: italic; }
   .q { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; }
+  .qbtn { background: none; cursor: pointer; }
+  .qbtn:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
   .q[data-grade="ok"] { color: var(--ok); }
   .q[data-grade="warn"] { color: var(--warn); }
   .q[data-grade="bad"], .q.bad { color: var(--bad); }
   .q[data-grade="info"], .q.muted { color: var(--muted); border-color: transparent; }
+  .linkish { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
   .empty { position: absolute; inset: 40px 0 auto; text-align: center; color: var(--muted); padding: 0 20px; }
 </style>

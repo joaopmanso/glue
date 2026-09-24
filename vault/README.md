@@ -90,6 +90,7 @@ Planned (MCO):
 | [0022](adr/0022-pointer-drag-inside-mco.md) | Drags inside MCO use pointer events, not HTML drag-and-drop | accepted |
 | [0023](adr/0023-store-track-page-analysis.md) | Track pages store their full analysis (amends 0019) | superseded in part by 0024 |
 | [0024](adr/0024-background-stores-full-analysis.md) | Background analysis stores the full analysis, in the browser's storage | accepted |
+| [0031](adr/0031-row-thumbnails.md) | Mini spectrograms in the track table: tiny, per track, loaded on demand | accepted |
 | [0030](adr/0030-detect-dj-libraries.md) | DJ libraries are detected in folders the user has allowed | accepted |
 | [0029](adr/0029-automatic-playlists.md) | Automatic playlists: a greedy walk along a BPM ramp with weighted randomness | accepted |
 | [0028](adr/0028-themes.md) | Themes: one token table, dark and light for each | accepted |

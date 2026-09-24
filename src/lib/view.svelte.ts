@@ -29,7 +29,16 @@ class View {
   noteFor = $state<{ id: string; x: number; y: number } | null>(null);
 
   /** The rows for the current selection (depends on lib.version). */
-  rows(notation: KeyNotation): Row[] {
+  /** Quality and format filters: any of the chosen within a group, all groups together. */
+  filters = $state<{ quality: string[]; format: string[] }>({ quality: [], format: [] });
+  get filtering() { return this.filters.quality.length + this.filters.format.length > 0; }
+  toggleFilter(group: 'quality' | 'format', value: string) {
+    const cur = this.filters[group];
+    this.filters = { ...this.filters, [group]: cur.includes(value) ? cur.filter(x => x !== value) : [...cur, value] };
+  }
+  clearFilters() { this.filters = { quality: [], format: [] }; }
+
+  rows(notation: KeyNotation, opts: { unfiltered?: boolean } = {}): Row[] {
     void lib.version;
     const s = lib.store;
     if (!s) return [];
@@ -60,6 +69,10 @@ class View {
       else { cur.bpm ??= st.bpm; cur.key ??= st.key; cur.rating ??= st.rating || null; }
     }
     let rows: Row[] = tracks.map((t, n) => ({ t, a: s.analysis.get(t.id) ?? null, n, dj: dj.get(t.id) ?? null }));
+    if (!opts.unfiltered && this.filtering) {
+      const { quality, format } = this.filters;
+      rows = rows.filter(r => (!quality.length || quality.includes(qualityOf(r))) && (!format.length || format.includes(formatOf(r.t))));
+    }
     const q = this.search.trim().toLowerCase();
     if (q) {
       const words = q.split(/\s+/);
@@ -93,3 +106,18 @@ class View {
   }
 }
 export const view = new View();
+
+/** What the Quality filter groups by: MCO's verdict, or why there's none. */
+export function qualityOf(r: Row): string {
+  if (r.t.status === 'unlinked') return 'No file';
+  if (r.t.status === 'missing') return 'Missing';
+  if (!r.a) return 'Not analysed';
+  return r.a.error ? 'Couldn’t analyse' : r.a.label;
+}
+/** What the Format filter groups by: the codec, e.g. MP3, FLAC, WAV, AIFF, AAC. */
+export function formatOf(t: Track): string {
+  const f = t.format;
+  if (!f || f.codec === 'Unknown') return (t.fileName.split('.').pop() ?? '?').toUpperCase();
+  if (/^PCM/i.test(f.codec)) return /AIFF/i.test(f.container) ? 'AIFF' : /WAV|RIFF|W64/i.test(f.container) ? 'WAV' : f.container.replace(/ .*/, '');
+  return f.codec.replace(/-LC$|\s.*$/i, '').replace(/^MPEG.*Layer ?3$/i, 'MP3');
+}

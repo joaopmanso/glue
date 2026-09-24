@@ -6,6 +6,7 @@
   import TrackTable from './TrackTable.svelte';
   import NoteEditor from './NoteEditor.svelte';
   import DuplicatesView from './DuplicatesView.svelte';
+  import FilterMenu from './FilterMenu.svelte';
   import { auto } from '../../lib/auto.svelte';
   import { app } from '../../lib/app.svelte';
   import { LOOSE } from '../../store/merge';
@@ -69,6 +70,7 @@
   <div class="headbar">
     <h2>{title}<small>{count} track{count === 1 ? '' : 's'}</small></h2>
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks">
+    <FilterMenu />
     <div class="an" title="Tracks are analysed in the background, several at a time">
       {#if lib.analysis.running}
         <span class="spin"></span> Analysing · {pending} left
@@ -116,6 +118,9 @@
           {#if lib.analysis.paused}<button type="button" class="mini" id="analyse-selected" title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
           <button type="button" class="mini" id="remove-tracks" onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>
           <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
+        {:else if view.filtering}
+          <span class="hint">Filtered: {[...view.filters.quality, ...view.filters.format].join(', ')}</span>
+          <button type="button" class="mini" id="clear-filters" onclick={() => view.clearFilters()}>Clear filters</button>
         {:else if sortedPlaylist}
           <span class="hint">Sorted by {view.sort.key}. Drag to rearrange works in playlist order.</span>
           <button type="button" class="mini" id="keep-order" onclick={keepOrder}>Keep this order</button>

@@ -3,6 +3,7 @@ import { runJob } from '../core/audio/analyze';
 import { classify } from '../core/audio/verdict';
 import { summarize } from '../core/library/summary';
 import { encodeDetails, type DetailsHeader } from '../store/details';
+import { makeThumb } from '../core/library/thumb';
 import type { AnalysisJob, AnalysisResult, FileInfo } from '../core/types';
 import type { AnalysisSummary } from '../store/types';
 
@@ -13,7 +14,7 @@ export type AnalysisRequest =
 export type AnalysisReply =
   | { id: number; kind: 'progress'; stage: string; p: number }
   | { id: number; kind: 'done'; out: AnalysisResult }
-  | { id: number; kind: 'summary'; out: AnalysisSummary; duration: number; sr: number; channels: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null }
+  | { id: number; kind: 'summary'; out: AnalysisSummary; duration: number; sr: number; channels: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null }
   | { id: number; kind: 'error'; message: string };
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
@@ -35,7 +36,8 @@ scope.onmessage = async (e: MessageEvent<AnalysisRequest>) => {
       try { details = await encodeDetails(info, out, { size, mtime }); } catch { details = null; }
       const fp = out.fp ?? null, transfer: Transferable[] = details ? [details.bin.buffer] : [];
       if (fp) transfer.push(fp.words.buffer, fp.loud.buffer);
-      scope.postMessage({ id, kind: 'summary', out: { ...s, fp: !!fp }, duration: out.duration, sr: out.sr, channels: out.channels, details, fp } satisfies AnalysisReply, transfer);
+      const thumb = makeThumb(out); transfer.push(thumb.buffer);
+      scope.postMessage({ id, kind: 'summary', out: { ...s, fp: !!fp }, duration: out.duration, sr: out.sr, channels: out.channels, details, fp, thumb } satisfies AnalysisReply, transfer);
       return;
     }
     const transfer: Transferable[] = [out.spec.buffer, out.ltas.buffer];

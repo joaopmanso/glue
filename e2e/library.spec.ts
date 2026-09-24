@@ -302,7 +302,7 @@ test('organises playlists (drag, menu, colours) and rates tracks in half stars',
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
   const row = page.locator('.tr', { hasText: 'aiff-44k-24' });
   const r = (await row.boundingBox())!, t = (await item('A').boundingBox())!;
-  await page.mouse.move(r.x + 200, r.y + r.height / 2); await page.mouse.down();
+  await page.mouse.move(r.x + 340, r.y + r.height / 2); await page.mouse.down();   // on the title (the overview plays)
   await page.mouse.move(t.x + 60, t.y + t.height / 2, { steps: 8 });
   await expect(item('A').locator('.plus')).toBeVisible();
   await expect(page.locator('.tag')).toContainText('Add aiff-44k-24 to A');
@@ -385,7 +385,7 @@ test('drops on folders and "+ Playlist", reorders playlist rows, columns and not
   await page.mouse.move(a.x + 10, a.y + a.height / 2); await page.mouse.down();
   await page.mouse.move(t.x + 5, t.y + t.height / 2, { steps: 6 }); await page.mouse.up();
   const heads = () => page.locator('.thead [data-col]').evaluateAll(els => els.map(e => (e as HTMLElement).dataset.col));
-  expect((await heads()).slice(0, 2)).toEqual(['artist', 'title']);
+  { const h = await heads(); expect(h.indexOf('artist')).toBeLessThan(h.indexOf('title')); }
 
   // Notes: an icon opens the editor; the text isn't shown in the table.
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
@@ -400,7 +400,7 @@ test('drops on folders and "+ Playlist", reorders playlist rows, columns and not
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
   await page.reload();
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
-  expect((await heads()).slice(0, 2)).toEqual(['artist', 'title']);
+  { const h = await heads(); expect(h.indexOf('artist')).toBeLessThan(h.indexOf('title')); }
   await expect(page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.note')).toHaveClass(/has/);
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
   await expect(page.locator('#track-notes')).toHaveValue('Mix out at the breakdown');
@@ -432,6 +432,7 @@ test('track pages keep their analysis, and the playing track keeps playing', asy
   await expect(page.locator('.detail .src')).toHaveText('Stored analysis', { timeout: 10_000 });
   await expect(page.locator('#v-pill')).toHaveText('Upsampled');
   await expect(page.locator('#evidence')).toContainText('Content stops at 11.0 kHz');
+  expect(await page.evaluate(() => [...document.querySelectorAll('.detail *')].filter(e => { const cs = getComputedStyle(e); return /(auto|scroll)/.test(cs.overflowY) && e.scrollHeight > e.clientHeight && e.tagName !== 'TEXTAREA'; }).length)).toBe(0);
   await expect(page.locator('.detail .status')).toHaveCount(0);   // no "Computing spectrum…"
   // Re-analyse on demand.
   await page.click('#reanalyse');
@@ -623,16 +624,12 @@ test('themes: pick a theme and dark / light on the profile screen; it sticks', a
     await page.click('#theme-' + id); await page.click('#mode-' + mode);
     await expect(html).toHaveAttribute('data-theme', id);
     await expect(html).toHaveAttribute('data-mode', mode);
-    if (process.env.SHOTS && mode === 'dark') await page.screenshot({ path: `${process.env.SHOTS}/th-picker-${id}.png` });
     await page.locator('.profile', { hasText: 'DJ Test' }).click();
     await expect(page.locator('.tr')).toHaveCount(4);
-    if (process.env.SHOTS) {
       await page.locator('.tr', { hasText: 'Fixture FLAC' }).click();
-      await page.screenshot({ path: `${process.env.SHOTS}/th-lib-${id}-${mode}.png` });
       await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
       await expect(page.locator('#v-pill')).not.toHaveText('', { timeout: 30_000 });
       await page.waitForTimeout(700);
-      await page.screenshot({ path: `${process.env.SHOTS}/th-detail-${id}-${mode}.png` });
       await page.locator('.crumbs a').click();
     }
   }
@@ -673,7 +670,6 @@ test('builds a playlist from a track: seed first, included tracks kept, saved as
   await page.click('#auto-again');
   await expect(rows).toHaveCount(3);
   await expect(rows.first()).toContainText('Fixture FLAC');
-  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/auto.png' });
   await page.fill('#auto-name', 'Warm-up auto');
   await page.click('#auto-save');
   await expect(page.locator('#auto-dialog')).toHaveCount(0);
@@ -832,4 +828,59 @@ test('finds DJ libraries in allowed folders and adds / updates them with one cli
   await expect(libs.locator('.found', { hasText: 'Traktor collection' })).toBeVisible();   // the place was remembered
   await upd.click();
   await expect(upd).toHaveCount(0, { timeout: 15_000 });
+});
+
+test('rows show a mini spectrogram: click plays from that spot; imported ratings become the track’s own', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
+  await page.click('#add-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  const wave = (t: string) => page.locator('.tr', { hasText: t }).locator('[data-c="wave"] .wave');
+  await expect(wave('Hi-res claim').locator('canvas')).toBeVisible({ timeout: 10_000 });
+  expect(await page.locator('.tr [data-c="wave"] canvas').count()).toBe(4);   // the unlinked import has none
+  // Drawn: not all black.
+  const lit = await wave('Hi-res claim').locator('canvas').evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 60) n++; return n; });
+  expect(lit).toBeGreaterThan(100);
+  // Click the middle: that track plays from about 2 s of 4.
+  const b = (await wave('Hi-res claim').boundingBox())!;
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+  await expect(page.locator('#lib-now')).toHaveText('Hi-res claim');
+  await expect(wave('Hi-res claim').locator('.head')).toBeVisible();
+  await page.click('#lib-play');   // pause, so the position stays put
+  await expect(page.locator('#lib-player .seek .mono').first()).toHaveText(/^0:0[1-3]$/, { timeout: 5000 });
+  // rekordbox Rating 255 → 5 stars, as the track's own (not dimmed).
+  await expect(page.locator('.tr', { hasText: 'Hi-res claim' }).locator('.stars')).toHaveAttribute('aria-valuenow', '5');
+  await expect(page.locator('.tr', { hasText: 'Hi-res claim' }).locator('.stars')).not.toHaveClass(/dim/);
+});
+
+test('filters the table by quality and format', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  await page.click('#filter-btn');
+  const menu = page.locator('#filter-menu');
+  await expect(menu).toContainText('Caution');
+  for (const f of ['MP3', 'FLAC', 'AIFF', 'AAC']) await expect(menu).toContainText(f);
+  await menu.locator('label', { hasText: 'Caution' }).click();
+  await expect(page.locator('.tr')).toHaveCount(2);                      // the MP3 and the AIFF
+  await menu.locator('label', { hasText: 'MP3' }).click();               // and MP3: both groups together
+  await expect(page.locator('.tr')).toHaveCount(1);
+  await expect(page.locator('.tr')).toContainText('Fixture MP3');
+  await expect(page.locator('#filter-btn')).toContainText('2');
+  await page.keyboard.press('Escape');
+  await page.click('#clear-filters');
+  await expect(page.locator('.tr')).toHaveCount(4);
+  // A row's quality badge filters by it.
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.qbtn').click();
+  await expect(page.locator('.tr')).toHaveCount(1);
+  await expect(page.locator('.selbar')).toContainText('Upsampled');
 });

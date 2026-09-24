@@ -2,10 +2,11 @@
 import { readPref, writePref } from './prefs';
 import type { SortKey } from './view.svelte';
 
-export type ColKey = 'title' | 'artist' | 'album' | 'genre' | 'label' | 'year' | 'bpm' | 'key' | 'duration' | 'rating' | 'notes' | 'format' | 'quality' | 'added';
+export type ColKey = 'wave' | 'title' | 'artist' | 'album' | 'genre' | 'label' | 'year' | 'bpm' | 'key' | 'duration' | 'rating' | 'notes' | 'format' | 'quality' | 'added';
 export interface ColDef { label: string; width: string; sort: SortKey | null; mono?: boolean; fixed?: boolean }
 
 export const COLUMNS: Record<ColKey, ColDef> = {
+  wave: { label: 'Overview', width: '150px', sort: null },
   title: { label: 'Title', width: 'minmax(160px, 3fr)', sort: 'title', fixed: true },
   artist: { label: 'Artist', width: 'minmax(110px, 2fr)', sort: 'artist' },
   album: { label: 'Album', width: 'minmax(90px, 1.4fr)', sort: 'album' },
@@ -21,7 +22,7 @@ export const COLUMNS: Record<ColKey, ColDef> = {
   quality: { label: 'Quality', width: '150px', sort: 'quality' },
   added: { label: 'Added', width: '84px', sort: 'added', mono: true },
 };
-const DEFAULT_ORDER: ColKey[] = ['title', 'artist', 'album', 'genre', 'label', 'year', 'bpm', 'key', 'duration', 'rating', 'notes', 'format', 'quality', 'added'];
+const DEFAULT_ORDER: ColKey[] = ['wave', 'title', 'artist', 'album', 'genre', 'label', 'year', 'bpm', 'key', 'duration', 'rating', 'notes', 'format', 'quality', 'added'];
 const DEFAULT_HIDDEN: ColKey[] = ['label', 'year', 'added'];
 
 function load(): { order: ColKey[]; hidden: ColKey[] } {
@@ -29,6 +30,7 @@ function load(): { order: ColKey[]; hidden: ColKey[] } {
     const v = JSON.parse(readPref('columns', 'null')) as { order: ColKey[]; hidden: ColKey[] } | null;
     if (v && Array.isArray(v.order)) {
       const order = v.order.filter(k => k in COLUMNS);
+      if (!order.includes('wave')) order.unshift('wave');   // the overview goes next to the play button
       for (const k of DEFAULT_ORDER) if (!order.includes(k)) order.push(k);   // columns added in later versions
       return { order, hidden: (v.hidden ?? []).filter(k => k in COLUMNS && !COLUMNS[k].fixed) };
     }

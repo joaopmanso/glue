@@ -126,7 +126,9 @@
   .side { display: grid; gap: 14px; min-width: 0; }
   @media (min-width: 1100px) {
     .workspace { grid-template-columns: 296px minmax(0, 1fr); }
-    .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); max-height: calc(100vh - 100px); overflow-y: auto; scrollbar-width: thin; }
+    /* Sticky beside the spectrogram, but never its own scroller: a cap on its height gave it a
+       one- or two-pixel scrollbar whenever the tempo/key card made it just too tall. */
+    .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
     /* one line per readout: value, then its note */
     .side .readouts > div { display: block; padding-block: 7px; }
     .side .readouts .label { display: block; margin-bottom: 1px; }

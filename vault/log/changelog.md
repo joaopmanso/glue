@@ -5,6 +5,14 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Overview column, quality / format filters, track page scrollbar
+- Mini spectrogram per row, playable and scrubbable, with a playhead and imported cue points
+  ([ADR 0031](../adr/0031-row-thumbnails.md)).
+- Filter the table by quality verdict and format; click a quality badge to filter by it.
+- Fixed: the track page's verdict sidebar had a height cap and scrolled by a pixel or two whenever
+  the tempo/key card made it just too tall (seen at 1080p and with display scaling); it's no longer
+  its own scroller. e2e checks no element on the track page scrolls.
+
 ## 2026-09-24 · Playlist builder scrolls again; cue points and ratings imported
 - Fixed: with many playlists the builder's Generate button was unreachable. A global `.cols` rule
   (the analysis page's columns, `align-items: start`) stopped the dialog's columns from fitting, so
