@@ -70,13 +70,18 @@
     <h2>{title}<small>{count} track{count === 1 ? '' : 's'}</small></h2>
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks">
     <div class="an" title="Tracks are analysed in the background, several at a time">
-      {#if lib.analysis.running || pending}
-        <span class="spin" class:paused={lib.analysis.paused}></span>
-        {lib.analysis.paused ? 'Analysis paused' : 'Analysing'} · {pending} left
-        <button type="button" class="mini" onclick={() => lib.pauseAnalysis(!lib.analysis.paused)}>{lib.analysis.paused ? 'Resume' : 'Pause'}</button>
+      {#if lib.analysis.running}
+        <span class="spin"></span> Analysing · {pending} left
+      {:else if pending && lib.analysis.paused}
+        <span class="spin paused"></span> {pending} not analysed
+      {:else if pending}
+        <span class="spin"></span> Analysing · {pending} left
       {:else if lib.store?.tracks.size}
         <span class="ok">✓</span> All analysed
       {/if}
+      <label class="switch" title="Analyse new and changed tracks in the background. Turn off for big imports; analyse chosen tracks with “Analyse” instead.">
+        <input type="checkbox" id="auto-analyse" checked={!lib.analysis.paused} onchange={e => lib.pauseAnalysis(!e.currentTarget.checked)}><span class="knob" aria-hidden="true"></span> Background analysis
+      </label>
     </div>
   </div>
 
@@ -108,6 +113,7 @@
             <option value="__new">+ New playlist…</option>
           </select>
           {#if current?.kind === 'playlist'}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from playlist</button>{/if}
+          {#if lib.analysis.paused}<button type="button" class="mini" id="analyse-selected" title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
           <button type="button" class="mini" id="remove-tracks" onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>
           <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
         {:else if sortedPlaylist}
@@ -140,6 +146,13 @@
   .ok { color: var(--ok); }
   .spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: spin .9s linear infinite; }
   .spin.paused { animation: none; border-color: var(--muted); }
+  .switch { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; margin-left: 6px; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .knob { width: 30px; height: 17px; border-radius: 9px; background: var(--line-2); position: relative; transition: background .15s; flex: none; }
+  .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--ink); transition: transform .15s; }
+  .switch input:checked + .knob { background: var(--accent); }
+  .switch input:checked + .knob::after { transform: translateX(13px); background: var(--accent-ink); }
+  .switch input:focus-visible + .knob { outline: 2px solid var(--accent); outline-offset: 2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini:hover { border-color: var(--accent); color: var(--accent); }

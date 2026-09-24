@@ -5,6 +5,10 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Background analysis on / off
+- A per-collection switch replaces the session-only Pause; with it off, "Analyse" analyses selected
+  tracks on demand ([background analysis](../features/background-analysis.md)).
+
 ## 2026-09-24 · Automatic playlists, full-name logo
 - [Automatic playlists](../features/auto-playlists.md): build a set from a track along a BPM ramp,
   harmonic mixing, highest rated first, must-include tracks, avoid playlists, randomness; preview with

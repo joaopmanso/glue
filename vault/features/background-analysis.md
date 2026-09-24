@@ -54,3 +54,8 @@ the UI stuttering.
   ([ADR 0024](../adr/0024-background-stores-full-analysis.md)), so track pages open with no analysis.
 - `ANALYSIS_VERSION` 2: existing libraries are analysed once more to fill that store.
 
+## On / off per collection (2026-09-24)
+- "Background analysis" switch in the library header, saved in the collection (`autoAnalyse`), so a
+  big import needn't all be analysed. Off: the header shows how many aren't analysed; "Analyse" in the
+  selection bar analyses chosen tracks; opening a track's page still analyses it.
+

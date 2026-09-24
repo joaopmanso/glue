@@ -12,7 +12,7 @@ export interface Profile { schemaVersion: number; id: string; name: string; colo
 
 /** A music folder the user granted (handle lives in IndexedDB under `handleKey`). */
 export interface Root { id: string; name: string; absPath: string | null; handleKey: string; addedAt: string }
-export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[] }
+export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; autoAnalyse?: boolean }
 
 export type TrackStatus = 'linked' | 'unlinked' | 'missing';
 export interface TrackFormat { container: string; codec: string; lossless: boolean | null; sampleRate: number; bits: number; bitrate: number; channels: number }

@@ -685,3 +685,33 @@ test('builds a playlist from a track: seed first, included tracks kept, saved as
   await page.keyboard.press('Escape');
   await expect(page.locator('#auto-dialog')).toHaveCount(0);
 });
+
+test('background analysis can be switched off per collection; chosen tracks can still be analysed', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.locator('label.switch').click();                        // off before any music arrives
+  await expect(page.locator('#auto-analyse')).not.toBeChecked();
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.waitForTimeout(2500);
+  await expect(page.locator('.an')).toContainText('4 not analysed');
+  await expect(page.locator('.tr .q', { hasText: '…' })).toHaveCount(4);
+
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).click();
+  await page.click('#analyse-selected');
+  await expect(page.locator('.an')).toContainText('3 not analysed', { timeout: 30_000 });
+  await expect(page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.q')).toHaveText('Upsampled');
+
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
+  await expect(page.locator('#auto-analyse')).not.toBeChecked();
+  await page.waitForTimeout(2000);
+  await expect(page.locator('.an')).toContainText('3 not analysed');
+  await page.locator('label.switch').click();
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+});

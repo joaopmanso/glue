@@ -229,6 +229,7 @@ class Library {
     this.store = s;
     if (this.profile.lastCollection !== cid) { this.profile = { ...this.profile, lastCollection: cid }; await this.home.saveProfile(this.profile); }
     this.found = [];
+    this.analysis = { ...this.analysis, paused: s.meta.autoAnalyse === false };
     if (s.damaged.length) this.notice = 'Some files in your MCO folder couldn’t be read and were set aside (' + s.damaged.join(', ') + ', saved as .damaged). Anything they held may need re-importing or re-scanning.';
     await this.loadRoots();
     await this.loadLoose();
@@ -660,16 +661,34 @@ class Library {
   }
   /** Analyse this one next (the user is looking at it). */
   prioritize(id: string) { this.queue = [id, ...this.queue.filter(x => x !== id)]; }
-  pauseAnalysis(p: boolean) { this.analysis = { ...this.analysis, paused: p }; if (!p) this.pump(); }
-  private stopAnalysis() { this.queue = []; this.pool?.stop(); this.pool = null; this.active.clear(); this.analysis = { running: 0, done: 0, failed: 0, paused: this.analysis.paused }; }
+  /** Background analysis on or off, kept per collection (a big import needn't all be analysed). */
+  pauseAnalysis(p: boolean) {
+    const s = this.store;
+    if (s) { s.meta.autoAnalyse = !p; s.saveMeta(); }
+    this.analysis = { ...this.analysis, paused: p };
+    if (!p) this.enqueueAll();
+  }
+  /** Analyse these tracks now, even with background analysis off. */
+  analyseNow(ids: string[]) {
+    const s = this.store;
+    if (!s) return 0;
+    const want = ids.filter(id => { const t = s.tracks.get(id); return !!t && this.canRead(t) && this.needsAnalysis(t) && !this.active.has(id); });
+    this.manual = [...want, ...this.manual.filter(x => !want.includes(x))];
+    this.pump();
+    return want.length;
+  }
+  private manual: string[] = [];
+  private stopAnalysis() { this.queue = []; this.manual = []; this.pool?.stop(); this.pool = null; this.active.clear(); this.analysis = { running: 0, done: 0, failed: 0, paused: this.analysis.paused }; }
 
   private pump() {
-    if (this.analysis.paused || this.readOnly) return;
+    if (this.readOnly) return;
+    // With background analysis off, only tracks asked for explicitly are analysed.
+    if (this.analysis.paused && !this.manual.length) return;
     this.pool ??= new AnalysisPool();
     // One at a time while music is playing, so playback and the live view stay smooth.
     const limit = player.paused ? this.pool.size : 1;
-    while (this.active.size < limit && this.queue.length) {
-      const id = this.queue.shift()!;
+    while (this.active.size < limit && (this.manual.length || (!this.analysis.paused && this.queue.length))) {
+      const id = this.manual.length ? this.manual.shift()! : this.queue.shift()!;
       const t = this.store?.tracks.get(id);
       if (!t || !this.needsAnalysis(t)) continue;
       this.active.add(id);
@@ -678,7 +697,7 @@ class Library {
         this.active.delete(id);
         this.analysis = { ...this.analysis, running: this.active.size };
         this.pump();
-        if (!this.active.size && !this.queue.length) this.onSettled?.();
+        if (!this.active.size && !this.manual.length && (this.analysis.paused || !this.queue.length)) this.onSettled?.();
       });
     }
   }
