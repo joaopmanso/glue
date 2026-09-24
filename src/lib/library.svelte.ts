@@ -59,6 +59,7 @@ class Library {
   readOnly = $state(false);
   saving = $state(false);
   unsaved = $state(false);           // changes not on disk yet
+  private saveError = '';
   analysis = $state({ running: 0, done: 0, failed: 0, paused: false });
   private homeDir: FileSystemDirectoryHandle | null = null;
   private flushTimer = 0;
@@ -278,7 +279,13 @@ class Library {
     if (!s || this.readOnly || !s.hasPending) { this.unsaved = false; return; }
     clearTimeout(this.flushTimer);
     this.saving = true;
-    try { await s.flush(); } catch (e) { console.error(e); this.notice = 'Couldn’t save to your MCO folder: ' + ((e as Error).message || e); }
+    try { await s.flush(); this.saveError = ''; }
+    catch (e) {
+      console.error(e);
+      // Say it once (the save is retried quietly), and again only if the problem changes.
+      const msg = 'Couldn’t save some changes to your MCO folder: ' + ((e as Error).message || e) + ' MCO keeps retrying.';
+      if (msg !== this.saveError) { this.saveError = msg; this.notice = msg; }
+    }
     finally { this.saving = false; this.unsaved = s.hasPending; if (s.hasPending) this.scheduleFlush(); }
   }
 
@@ -456,14 +463,7 @@ class Library {
     }
     s.putTracks(keep);
     for (const t of drop) s.removeTrack(t);
-    s.sources.delete(id);
-    void this.removeSourceFile(id);
-  }
-  private async removeSourceFile(id: string) {
-    const s = this.store;
-    if (!s) return;
-    await removePath(s.root, `${s.base}/sources/${id}.json`);
-    this.version++;
+    s.deleteSource(id);
   }
 
   // ─── Playlists ─────────────────────────────────────────────────────────────

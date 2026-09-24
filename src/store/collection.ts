@@ -78,6 +78,11 @@ export class CollectionStore {
     this.onDirty?.(); this.changed();
   }
   putSource(s: Source) { this.sources.set(s.id, s); this.mark(`sources/${s.id}.json`); this.changed(); }
+  deleteSource(id: string) {
+    this.sources.delete(id);
+    this.dirty.delete(`sources/${id}.json`); this.deleted.add(`sources/${id}.json`);
+    this.onDirty?.(); this.changed();
+  }
 
   get hasPending() { return this.dirty.size > 0 || this.deleted.size > 0; }
 
@@ -88,14 +93,23 @@ export class CollectionStore {
     const paths = [...this.dirty], gone = [...this.deleted];
     this.dirty.clear(); this.deleted.clear();
     this.writing = (async () => {
+      // Each file on its own: one failure must not hold back every other change.
+      let first: unknown = null;
       try {
-        for (const p of gone) await removePath(this.root, `${this.base}/${p}`);
-        for (const p of paths) await writeJSON(this.root, `${this.base}/${p}`, this.serialize(p));
-      } catch (e) {
-        for (const p of paths) this.dirty.add(p);   // retry next time
-        for (const p of gone) this.deleted.add(p);
-        throw e;
+        for (const p of gone) {
+          try { await removePath(this.root, `${this.base}/${p}`); }
+          catch (e) { this.deleted.add(p); first ??= e; }
+        }
+        for (const p of paths) {
+          const value = this.serialize(p);
+          try {
+            // Gone since it was marked (deleted before the save ran): remove its file instead.
+            if (value === undefined) await removePath(this.root, `${this.base}/${p}`);
+            else await writeJSON(this.root, `${this.base}/${p}`, value);
+          } catch (e) { if (!this.deleted.has(p)) this.dirty.add(p); first ??= e; }   // retried next time
+        }
       } finally { this.writing = null; }
+      if (first) throw first;
     })();
     return this.writing;
   }

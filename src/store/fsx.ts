@@ -41,7 +41,11 @@ export async function writeText(root: Dir, path: string, text: string): Promise<
   try { await w.write(text); await w.close(); }
   catch (e) { try { await w.abort(); } catch { /* already closed */ } throw e; }
 }
-export const writeJSON = (root: Dir, path: string, data: unknown) => writeText(root, path, JSON.stringify(data));
+export function writeJSON(root: Dir, path: string, data: unknown) {
+  const text = JSON.stringify(data);
+  if (typeof text !== 'string') return Promise.reject(new Error('Nothing to save for ' + path));
+  return writeText(root, path, text);
+}
 export async function writeBlob(root: Dir, path: string, blob: Blob): Promise<void> {
   const { dirs, name } = split(path);
   const d = (await subdir(root, dirs, true))!;

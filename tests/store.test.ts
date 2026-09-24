@@ -98,3 +98,22 @@ describe('surviving interrupted writes', () => {
     expect(mem.paths()).toContain(`${base}/tracks/cc.damaged`);
   });
 });
+
+describe('deleting while a save is running (10k-track libraries hit this constantly)', () => {
+  it('a list or import deleted mid-save is removed, not written, and other changes still save', async () => {
+    const mem = new MemDir(), home = await HomeStore.open(asDir(mem));
+    const p = await home.createProfile('A'), c = await home.createCollection(p, 'C');
+    const s = await CollectionStore.load(asDir(mem), p.id, c.id);
+    const base = `profiles/${p.id}/collections/${c.id}`;
+    s.putList({ schemaVersion: SCHEMA, id: 'l1', kind: 'playlist', name: 'Doomed', parentId: null, position: 0, notes: '', items: [], origin: null, createdAt: '' });
+    s.putSource({ schemaVersion: SCHEMA, id: 's1', app: 'rekordbox', name: 'r', fileName: 'r.xml', importedAt: '', tracks: [], lists: 0 });
+    s.putTrack(track({ id: 'ab00000000000000' }));
+    const saving = s.flush();          // the save has taken its list of files…
+    s.deleteList('l1'); s.deleteSource('s1');   // …and these go before it writes them
+    await expect(saving).resolves.toBeUndefined();
+    await expect(s.flush()).resolves.toBeUndefined();
+    expect(mem.paths().filter(x => x.includes('/lists/') || x.includes('/sources/'))).toEqual([]);
+    expect(mem.paths()).toContain(`${base}/tracks/ab.json`);
+    expect(s.hasPending).toBe(false);
+  });
+});

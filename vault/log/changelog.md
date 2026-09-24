@@ -5,6 +5,13 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Fix: "Couldn't save to your MCO folder … not of type 'WriteParams'"
+- A playlist or import deleted while a save was running (constant during a 10k-track analysis) was
+  still written as "nothing"; the write failed, was retried every second, and — because one failure
+  aborted the whole save — held back every other change. Now each file saves on its own, a deleted
+  item's file is removed instead, imports are removed through the store, and the error shows once.
+- Test: the mid-save delete race.
+
 ## 2026-09-24 · DJ libraries detected automatically
 - Sidebar › DJ libraries: libraries found in music folders, the MCO folder and remembered places, with
   Add / Update; "Look in…" allows another place (e.g. Traktor's); "Where are my libraries?" guide;

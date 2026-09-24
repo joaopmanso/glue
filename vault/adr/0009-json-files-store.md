@@ -50,3 +50,8 @@ empty file before the first write commits. A reload or crash in between leaves a
 - a file that doesn't parse is copied aside as `<name>.damaged`, listed in a notice, and skipped, so one
   bad shard never locks the user out of the rest of the library;
 - writes are debounced 0.8 s and flushed when the tab is hidden; the header shows "Saving…" until done.
+
+## Amendment (2026-09-24, later): saving is per file
+- A flush writes each file independently; a failure is retried for that file only and never blocks
+  the others. An item deleted after it was marked is removed rather than written.
+
