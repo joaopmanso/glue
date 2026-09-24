@@ -624,12 +624,16 @@ test('themes: pick a theme and dark / light on the profile screen; it sticks', a
     await page.click('#theme-' + id); await page.click('#mode-' + mode);
     await expect(html).toHaveAttribute('data-theme', id);
     await expect(html).toHaveAttribute('data-mode', mode);
+    if (process.env.SHOTS && mode === 'dark') await page.screenshot({ path: `${process.env.SHOTS}/th-picker-${id}.png` });
     await page.locator('.profile', { hasText: 'DJ Test' }).click();
     await expect(page.locator('.tr')).toHaveCount(4);
+    if (process.env.SHOTS) {
       await page.locator('.tr', { hasText: 'Fixture FLAC' }).click();
+      await page.screenshot({ path: `${process.env.SHOTS}/th-lib-${id}-${mode}.png` });
       await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
       await expect(page.locator('#v-pill')).not.toHaveText('', { timeout: 30_000 });
       await page.waitForTimeout(700);
+      await page.screenshot({ path: `${process.env.SHOTS}/th-detail-${id}-${mode}.png` });
       await page.locator('.crumbs a').click();
     }
   }
@@ -670,6 +674,7 @@ test('builds a playlist from a track: seed first, included tracks kept, saved as
   await page.click('#auto-again');
   await expect(rows).toHaveCount(3);
   await expect(rows.first()).toContainText('Fixture FLAC');
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/auto.png' });
   await page.fill('#auto-name', 'Warm-up auto');
   await page.click('#auto-save');
   await expect(page.locator('#auto-dialog')).toHaveCount(0);
