@@ -17,6 +17,8 @@ class Auto {
   slots = $state.raw<Slot[]>([]);
   relaxed = $state.raw<string[]>([]);
   pool = $state(0);
+  /** Set when a run found nothing: why. */
+  empty = $state('');
   name = $state('');
   private seed = Math.floor(Math.random() * 1e9);
 
@@ -81,6 +83,7 @@ class Auto {
   run() {
     const pool = this.candidates(), r = generate(pool, this.form.seedId, this.form.include, this.options());
     this.slots = r.slots; this.relaxed = r.relaxed; this.pool = r.pool;
+    this.empty = r.slots.length ? '' : pool.length ? 'No track fits these settings. Try a wider tempo range, harmonic mixing “Prefer”, or a lower minimum rating.' : 'No tracks can be used yet: they need a file and an analysis. Wait for the analysis, turn it on, or allow tracks not analysed yet.';
   }
   /** A different playlist with the same options. */
   again() { this.seed = (this.seed + 0x9e3779b9) >>> 0; this.run(); }

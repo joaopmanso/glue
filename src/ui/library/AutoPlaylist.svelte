@@ -37,7 +37,8 @@
   const fitCls = (k: number | null) => k == null ? 'unk' : k >= 0.85 ? 'good' : k >= 0.5 ? 'ok' : 'clash';
   const fitTitle = (k: number | null) => k == null ? 'Key unknown' : k === 1 ? 'Same key' : k >= 0.85 ? 'Harmonic: next to it on the wheel' : k >= 0.5 ? 'Energy boost (+2)' : 'Key clash';
   const total = $derived(auto.slots.reduce((n, s) => n + (tr(s.id)?.duration ?? 0), 0));
-  const focus = (el: HTMLElement) => el.focus();
+  // Focus without scrolling: a focus scrolls even overflow-hidden boxes and would hide the dialog's top.
+  const focus = (el: HTMLElement) => el.focus({ preventScroll: true });
 </script>
 
 <svelte:window onkeydown={e => { if (e.key === 'Escape') auto.close(); }} />
@@ -153,8 +154,8 @@
             {/each}
           </ol>
         {:else}
-          <div class="empty">
-            <p>Set the shape on the left and press <b>Generate</b>.</p>
+          <div class="empty" id="auto-empty">
+            {#if auto.empty}<p class="warnt">{auto.empty}</p>{:else}<p>Set the shape on the left and press <b>Generate</b>.</p>{/if}
             <p class="hint">Tracks need BPM and key from the analysis to follow a tempo ramp and mix harmonically. Ratings: your stars first, then your DJ app’s.</p>
           </div>
         {/if}
@@ -164,14 +165,17 @@
 </div>
 
 <style>
-  .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; }
-  .dlg { width: min(1180px, 100%); max-height: calc(100vh - 32px); display: grid; grid-template-rows: auto 1fr; background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); overflow: hidden; }
+  /* The scrim scrolls when the dialog is taller than the window; auto margins centre it when it fits
+     (a plain centred grid would push the top out of view). */
+  .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; justify-items: center; align-items: start; overflow-y: auto; padding: 16px; }
+  .dlg { margin-block: auto; width: min(1180px, 100%); height: min(860px, calc(100dvh - 32px)); display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); overflow: clip; }
   header { position: relative; padding: 18px 56px 12px 22px; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
   header h2 { font-size: 22px; }
   header p { color: var(--ink-2); font-size: 13.5px; }
   .x { position: absolute; right: 14px; top: 12px; background: none; border: 0; color: var(--muted); font-size: 24px; cursor: pointer; line-height: 1; }
-  .cols { display: grid; grid-template-columns: 400px 1fr; min-height: 0; }
-  .opts { overflow-y: auto; padding: 14px 18px 18px 22px; display: grid; gap: 12px; align-content: start; border-right: 1px solid var(--line); }
+  /* Flex, not grid: each column is held to the dialog's height and scrolls on its own. */
+  .cols { display: flex; min-height: 0; overflow: hidden; }
+  .opts { flex: 0 0 400px; min-height: 0; overflow-y: auto; padding: 14px 18px 18px 22px; display: grid; gap: 12px; align-content: start; border-right: 1px solid var(--line); }
   fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
   legend { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 4px; font-family: var(--font-sans); }
   .grid2 { grid-template-columns: 1fr 1fr; gap: 8px 12px; align-items: start; }
@@ -197,7 +201,7 @@
   .seg.three { grid-template-columns: repeat(3, 1fr); }
   .avoid { display: grid; gap: 3px; max-height: 110px; overflow-y: auto; }
   .opts > .btn { justify-self: stretch; justify-content: center; margin-top: 4px; }
-  .res { display: grid; grid-template-rows: auto auto 1fr; min-height: 0; padding: 14px 22px 18px 18px; gap: 8px; }
+  .res { flex: 1 1 auto; min-width: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding: 14px 22px 18px 18px; gap: 8px; }
   .res-head { display: flex; gap: 8px; align-items: center; }
   .res-head input { flex: 1; font-size: 15px; font-weight: 600; padding: 7px 10px; }
   .meta { color: var(--muted); font-size: 12.5px; }
@@ -223,5 +227,11 @@
   .pbtn:hover { background: var(--accent); color: var(--accent-ink); }
   .pbtn svg { width: 9px; height: 9px; }
   .empty { display: grid; gap: 8px; place-content: center; text-align: center; color: var(--ink-2); padding: 40px 20px; }
-  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; overflow-y: auto; } .opts { border-right: 0; border-bottom: 1px solid var(--line); } }
+  /* Narrow or short windows: one column, and the whole dialog scrolls with the page. */
+  @media (max-width: 900px), (max-height: 600px) {
+    .dlg { height: auto; }
+    .cols { flex-direction: column; overflow: visible; }
+    .opts { flex: none; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); }
+    .res, .list { overflow: visible; }
+  }
 </style>

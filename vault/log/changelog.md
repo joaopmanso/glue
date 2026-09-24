@@ -5,6 +5,12 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Playlist builder fits smaller windows
+- The dialog's top was cut off below ~1080p: it was centred in a box that couldn't scroll, its
+  columns didn't scroll (nested grid sizing), and focusing the Generate button scrolled the clipped
+  dialog. Now: columns scroll on their own (flex), the page scrolls for very short windows, focus
+  doesn't scroll, and an empty result explains why. e2e checks five window sizes.
+
 ## 2026-09-24 · Background analysis on / off
 - A per-collection switch replaces the session-only Pause; with it off, "Analyse" analyses selected
   tracks on demand ([background analysis](../features/background-analysis.md)).

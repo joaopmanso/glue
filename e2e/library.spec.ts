@@ -715,3 +715,25 @@ test('background analysis can be switched off per collection; chosen tracks can 
   await page.locator('label.switch').click();
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
 });
+
+test('the playlist builder fits smaller windows: nothing cut off, everything reachable', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  for (const [w, h] of [[1366, 768], [1280, 620], [1024, 560], [760, 900], [390, 700]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.click('#new-auto');
+    const head = (await page.locator('#auto-h').boundingBox())!;
+    expect(head.y, `title visible at ${w}x${h}`).toBeGreaterThanOrEqual(0);
+    await page.locator('#auto-go').scrollIntoViewIfNeeded();
+    await expect(page.locator('#auto-go')).toBeInViewport();
+    await page.click('#auto-go');
+    await page.locator('#auto-save').scrollIntoViewIfNeeded();
+    await expect(page.locator('#auto-save')).toBeInViewport();
+    await page.keyboard.press('Escape');
+  }
+});
