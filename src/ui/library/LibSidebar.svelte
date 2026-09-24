@@ -10,6 +10,8 @@
   import { dupes } from '../../lib/dupes.svelte';
   import { auto } from '../../lib/auto.svelte';
   import { canDragOut, startPlaylistDrag } from '../../lib/dragout';
+  import { allTags, tagColorOf } from '../../lib/tags.svelte';
+  import { cleanTag } from '../../core/library/tagging';
   const dragOut = canDragOut();
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
@@ -44,6 +46,26 @@
   let fileInput: HTMLInputElement;
   let pathEdit = $state<string | null>(null);
   let menuFor = $state<string | null>(null);   // the list whose ⋯ menu is open
+  let tagMenu = $state<string | null>(null);   // the tag whose ⋯ menu is open
+  let allShown = $state(false);
+  const TAGS_SHOWN = 12;
+  const tags = $derived.by(() => { void lib.version; return allTags(); });
+  function newTag() {
+    const name = cleanTag(prompt(view.selected.size ? 'New tag for the ' + view.selected.size + ' selected track' + (view.selected.size === 1 ? '' : 's') : 'New tag') ?? '');
+    if (!name) return;
+    if (view.selected.size) lib.tagTracks([...view.selected], [name]); else lib.rememberTags([name]);
+  }
+  function renameTag(name: string) {
+    tagMenu = null;
+    const to = cleanTag(prompt('Rename the tag “' + name + '” (on every track and playlist)', name) ?? '');
+    if (to && to !== name) { lib.renameTag(name, to); if (view.sel.kind === 'tag' && view.sel.name.toLowerCase() === name.toLowerCase()) view.select({ kind: 'tag', name: to }); }
+  }
+  function deleteTag(name: string, n: number) {
+    tagMenu = null;
+    if (!confirm('Delete the tag “' + name + '”?' + (n ? ' It comes off ' + n + ' track' + (n === 1 ? '' : 's') + '; the tracks stay.' : ''))) return;
+    lib.deleteTag(name);
+    if (view.sel.kind === 'tag' && view.sel.name.toLowerCase() === name.toLowerCase()) view.select({ kind: 'all' });
+  }
 
   const isSel = (s: ViewSel) => JSON.stringify(s) === JSON.stringify(view.sel);
   drag.onOpenFolder = id => { open[id] = true; };
@@ -130,6 +152,7 @@
           {#each LIST_COLORS as c (c)}<button type="button" class="sw" class:on={l.color === c} style:background={c} title="Colour" aria-label="Colour" onclick={() => lib.setListColor(l.id, c)}></button>{/each}
         </div>
         <button type="button" role="menuitem" onclick={() => { menuFor = null; view.editing = l.id; }}>Rename</button>
+        <button type="button" role="menuitem" data-tags-open onclick={e => { const el = e.currentTarget.closest('.menu')!.previousElementSibling ?? e.currentTarget; menuFor = null; view.editTags(el, { listId: l.id }); }}>Tags…{#if l.tags?.length}<small class="ltags"> {l.tags.join(', ')}</small>{/if}</button>
         {#if l.kind === 'folder'}<button type="button" role="menuitem" onclick={() => { menuFor = null; newList('playlist', l.id); }}>New playlist inside</button>{/if}
         <button type="button" role="menuitem" disabled={siblings[0]?.id === l.id} onclick={() => lib.nudgeList(l.id, -1)}>Move up</button>
         <button type="button" role="menuitem" disabled={siblings[siblings.length - 1]?.id === l.id} onclick={() => lib.nudgeList(l.id, 1)}>Move down</button>
@@ -148,7 +171,7 @@
   </li>
 {/snippet}
 
-<svelte:window onpointerdown={e => { if (menuFor && !(e.target as HTMLElement).closest('.menu, .more')) menuFor = null; }} onkeydown={e => { if (e.key === 'Escape') menuFor = null; }} />
+<svelte:window onpointerdown={e => { const el = e.target as HTMLElement; if (menuFor && !el.closest('.menu, .more')) menuFor = null; if (tagMenu && !el.closest('.menu, .more')) tagMenu = null; }} onkeydown={e => { if (e.key === 'Escape') { menuFor = null; tagMenu = null; } }} />
 
 <nav class="lside" aria-label="Library">
   <section>
@@ -173,6 +196,37 @@
       {#each top as l (l.id)}{@render node(l, 0)}{/each}
       {#if !top.length}<li class="empty">No playlists yet. Create one, or import a DJ library.</li>{/if}
       {#if drag.active && drag.payload?.kind === 'list'}<li class="topzone" class:on={drag.target?.type === 'top'} data-drop="top">Move to the top level</li>{/if}
+    </ul>
+  </section>
+
+  <section class="tags-sec">
+    <div class="head">
+      <h3 class="label">Tags</h3>
+      <span class="add"><button type="button" id="new-tag" title={view.selected.size ? 'Make a tag and put it on the selected tracks' : 'Make a tag'} onclick={newTag}>+ Tag</button></span>
+    </div>
+    <ul>
+      {#each allShown ? tags : tags.slice(0, TAGS_SHOWN) as t (t.name)}
+        {@const hot = drag.active && drag.target?.type === 'tag' && drag.target.name === t.name}
+        <li>
+          <div class="item tagitem" class:sel={view.sel.kind === 'tag' && view.sel.name.toLowerCase() === t.name.toLowerCase()} class:drop-add={hot} data-drop="tag" data-tag={t.name} style:--tc={tagColorOf(t.name)}>
+            <i class="tdot" aria-hidden="true"></i>
+            <button type="button" class="name" onclick={() => view.select({ kind: 'tag', name: t.name })}>{t.name}</button>
+            {#if hot}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n" title={t.lists ? 'On ' + t.lists + ' playlist' + (t.lists === 1 ? '' : 's') + ' too' : ''}>{t.tracks}</span>{/if}
+            <span class="tools" class:open={tagMenu === t.name}>
+              <button type="button" class="more" title="More" aria-haspopup="menu" aria-expanded={tagMenu === t.name} onclick={() => (tagMenu = tagMenu === t.name ? null : t.name)}>⋯</button>
+            </span>
+          </div>
+          {#if tagMenu === t.name}
+            <div class="menu" role="menu">
+              <button type="button" role="menuitem" onclick={() => renameTag(t.name)}>Rename…</button>
+              <button type="button" role="menuitem" class="danger" onclick={() => deleteTag(t.name, t.tracks)}>Delete…</button>
+            </div>
+          {/if}
+        </li>
+      {:else}
+        <li class="empty">No tags yet. Tag tracks from the Tags column, or drag tracks onto a tag here.</li>
+      {/each}
+      {#if tags.length > TAGS_SHOWN}<li><button type="button" class="inline more-tags" onclick={() => (allShown = !allShown)}>{allShown ? 'Show fewer' : 'Show all ' + tags.length + ' tags'}</button></li>{/if}
     </ul>
   </section>
 
@@ -290,6 +344,10 @@
   .item.colored:hover { background: color-mix(in srgb, var(--lc) 22%, transparent); }
   .item.colored.sel { background: color-mix(in srgb, var(--lc) 30%, transparent); }
   .tools.open { display: flex; }
+  .tdot { width: 9px; height: 9px; border-radius: 50%; background: var(--tc); flex: none; margin-right: 4px; }
+  .tagitem { padding-left: 10px !important; }
+  .ltags { color: var(--muted); }
+  .more-tags { padding: 4px 8px; font-size: 12px; }
   .more { font-size: 13px !important; line-height: 1; padding: 0 6px 2px !important; }
   .menu { display: grid; gap: 2px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; margin: 2px 4px 6px; box-shadow: 0 8px 24px rgb(0 0 0 / .4); font-size: 13px; }
   .menu > button { background: none; border: 0; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer; color: var(--ink); }

@@ -12,6 +12,7 @@ import { findLibraries, type Detected } from '../core/library/detect';
 import { makeThumb } from '../core/library/thumb';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
 import { failed } from '../core/library/summary';
+import { addTags, cleanTag, removeTags, tagKey, tagsOf, uniqTags } from '../core/library/tagging';
 import { encodeDetails, loadDetails, removeDetails, writeDetails, type DetailsHeader } from '../store/details';
 import { removeFingerprint, writeFingerprint } from '../store/fingerprints';
 import { buildBackup, readBackup, writeBackup, type BackupManifest } from '../store/backup';
@@ -507,6 +508,55 @@ class Library {
     const t = this.store?.tracks.get(id);
     if (t && (t.notes ?? '') !== notes) this.store!.putTrack({ ...t, notes: notes || undefined });
   }
+  /** Add and remove tags on tracks (ADR 0032). Tags new to the collection join its tag list. */
+  tagTracks(ids: string[], add: string[], remove: string[] = []) {
+    const s = this.store;
+    if (!s) return;
+    const plus = uniqTags(add), out: Track[] = [];
+    for (const id of ids) {
+      const t = s.tracks.get(id);
+      if (!t) continue;
+      const cur = tagsOf(t), next = removeTags(addTags(cur, plus), remove);
+      if (t.tags == null || next.length !== cur.length || next.some((x, i) => x !== cur[i])) out.push({ ...t, tags: next });
+    }
+    if (out.length) s.putTracks(out);
+    this.rememberTags(plus);
+  }
+  setListTags(id: string, tags: string[]) {
+    const l = this.store?.lists.get(id);
+    if (!l) return;
+    const next = uniqTags(tags);
+    this.store!.putList({ ...l, tags: next.length ? next : undefined });
+    this.rememberTags(next);
+  }
+  /** Keep tags in the collection's list, so a tag made in MCO stays offered while nothing uses it. */
+  rememberTags(tags: string[]) {
+    const s = this.store;
+    if (!s || !tags.length) return;
+    const all = s.meta.tags ?? [], next = uniqTags([...all, ...tags]);
+    if (next.length !== all.length) { s.meta.tags = next; s.saveMeta(); }
+  }
+  /** Rename a tag everywhere (tracks, playlists, the tag list); renaming onto another tag merges them. */
+  renameTag(from: string, to: string) {
+    const s = this.store, name = cleanTag(to);
+    if (!s || !name || tagKey(from) === '') return;
+    const k = tagKey(from), swap = (tags: string[]) => tags.some(t => t.toLowerCase() === k) ? uniqTags(tags.map(t => t.toLowerCase() === k ? name : t)) : null;
+    const ts: Track[] = [];
+    for (const t of s.tracks.values()) { const n = swap(tagsOf(t)); if (n) ts.push({ ...t, tags: n }); }
+    if (ts.length) s.putTracks(ts);
+    for (const l of s.lists.values()) { const n = l.tags && swap(l.tags); if (n) s.putList({ ...l, tags: n }); }
+    s.meta.tags = uniqTags((s.meta.tags ?? []).map(t => t.toLowerCase() === k ? name : t).concat(name)); s.saveMeta();
+  }
+  /** Remove a tag from every track and playlist, and from the tag list. */
+  deleteTag(tag: string) {
+    const s = this.store, k = tagKey(tag);
+    if (!s || !k) return;
+    const ts: Track[] = [];
+    for (const t of s.tracks.values()) { const cur = tagsOf(t); if (cur.some(x => x.toLowerCase() === k)) ts.push({ ...t, tags: cur.filter(x => x.toLowerCase() !== k) }); }
+    if (ts.length) s.putTracks(ts);
+    for (const l of s.lists.values()) if (l.tags?.some(x => x.toLowerCase() === k)) s.putList({ ...l, tags: l.tags.filter(x => x.toLowerCase() !== k) });
+    if (s.meta.tags?.some(x => x.toLowerCase() === k)) { s.meta.tags = s.meta.tags.filter(x => x.toLowerCase() !== k); s.saveMeta(); }
+  }
   /** Make a playlist's stored order the order it's shown in (e.g. after sorting by BPM). */
   setListOrder(id: string, items: string[]) {
     const l = this.store?.lists.get(id);
@@ -780,7 +830,7 @@ class Library {
       const cur = s.tracks.get(t.id) ?? t;
       const f = tagFields(r.info.tags);
       const upd: Track = { ...cur, size: file.size, mtime: file.lastModified, format: formatOf(r.info), duration: r.duration || cur.duration };
-      for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year'] as const) if (!upd[k] && f[k]) upd[k] = f[k];
+      for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year', 'grouping'] as const) if (!upd[k] && f[k]) upd[k] = f[k];
       s.putTrack(upd);
       this.analysis = { ...this.analysis, done: this.analysis.done + 1 };
     } catch (e) {
@@ -800,7 +850,7 @@ async function quickTags(t: Track, file: File): Promise<Track> {
     let info = blankInfo();
     try { info = parseContainer(head); } catch { /* partial file: tags may still be there */ }
     const f = tagFields(info.tags);
-    for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year'] as const) if (!out[k] && f[k]) out[k] = f[k];
+    for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year', 'grouping'] as const) if (!out[k] && f[k]) out[k] = f[k];
     if (info.container !== 'Unknown') out.format = formatOf(info);
     if (info.duration && !out.duration) out.duration = info.duration;
   } catch { /* unreadable: fall back to the name */ }

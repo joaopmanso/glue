@@ -32,13 +32,13 @@
   // Redraw on anything visible changing (player.frame ticks every animation frame while playing).
   $effect(() => {
     const r = app.res;
-    void imgVersion; void size; void player.frame; void player.time; void app.liveMode; void themes.version;
+    void imgVersion; void size; void player.frame; void player.pending; void player.time; void app.liveMode; void themes.version;
     if (!r || !specCv) return;
     rect = drawSpec(specCv, {
       res: r, verdict: app.verdict, img, lut: app.lut, dbFloor: app.dbFloor, markers: app.markers,
-      playhead: player.ready && (player.started || !player.paused) ? player.time : null, hover,
+      playhead: !player.pending && player.ready && (player.started || !player.paused) ? player.time : null, hover,
     });
-    if (app.liveOn && liveCv) player.live.draw(liveCv, rect.r, !!player.url, app.verdict?.cut ?? null, app.markers, app.liveMode, app.lut);
+    if (app.liveOn && liveCv) player.live.draw(liveCv, rect.r, !!player.url && !player.pending, app.verdict?.cut ?? null, app.markers, app.liveMode, app.lut);
   });
 
   $effect(() => {
@@ -50,7 +50,7 @@
 
   $effect(() => {
     player.setLive(app.liveOn);
-    player.onFrame = ts => { if (app.liveOn) player.live.capture(ts, app.lut, app.dbFloor); };
+    player.onFrame = ts => { if (app.liveOn && !player.pending) player.live.capture(ts, app.lut, app.dbFloor); };
     return () => { player.onFrame = null; };
   });
 

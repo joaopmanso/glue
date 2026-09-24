@@ -17,6 +17,8 @@
     untrack(() => {
       // Coming back to the track that's already playing: keep it playing.
       if (app.playKey && app.playKey === player.sourceKey && player.url) return;
+      // Another track is playing: don't cut it off; this one loads when it's played here.
+      if (player.url && !player.el.paused) { player.defer(blob, { duration: res.duration, sampleRate: res.sr, key: app.playKey }); return; }
       stems.reset();
       player.setSource(blob, { duration: res.duration, sampleRate: res.sr, key: app.playKey });
     });

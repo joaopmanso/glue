@@ -1,6 +1,9 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
-  import { view, qualityOf, type Row } from '../../lib/view.svelte';
+  import { view, qualityOf, type Row, type FilterGroup, type SortKey } from '../../lib/view.svelte';
+  import { tagsOf } from '../../core/library/tagging';
+  import { tagColorOf } from '../../lib/tags.svelte';
+  import FilterList from './FilterList.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { player } from '../../lib/player.svelte';
   import { app } from '../../lib/app.svelte';
@@ -32,6 +35,16 @@
   const last = $derived(Math.min(rows.length, Math.ceil((scrollTop + height) / ROW) + OVERSCAN));
   const visible = $derived(rows.slice(first, last));
   let colMenu = $state(false);
+  /** A column's value filter, opened from ▾ in its header. */
+  let headFilter = $state<{ group: FilterGroup; key: ColKey; sort: SortKey | null; x: number; y: number } | null>(null);
+  function openHeadFilter(e: MouseEvent, k: ColKey) {
+    const c = COLUMNS[k];
+    if (!c.filter) return;
+    if (headFilter?.key === k) { headFilter = null; return; }
+    const r = (e.currentTarget as HTMLElement).closest('[role="columnheader"]')!.getBoundingClientRect();
+    headFilter = { group: c.filter, key: k, sort: c.sort, x: Math.max(8, Math.min(window.innerWidth - 268, r.left)), y: r.bottom + 4 };
+  }
+  const tagIds = (id: string) => view.selected.has(id) ? [...view.selected] : [id];
 
   function fmt(f: TrackFormat | null) {
     if (!f) return '';
@@ -94,6 +107,12 @@
   {:else if k === 'artist'}<span class="c-artist">{r.t.artist}</span>
   {:else if k === 'album'}<span class="c-soft">{r.t.album}</span>
   {:else if k === 'genre'}<span class="c-soft">{r.t.genre}</span>
+  {:else if k === 'tags'}
+    {@const tg = tagsOf(r.t)}
+    <button type="button" class="c-tags" data-tags-open title={tg.length ? tg.join(', ') + ' · click to edit' : 'Add tags'} aria-label={tg.length ? 'Tags: ' + tg.join(', ') : 'Add tags'}
+      onclick={e => { e.stopPropagation(); view.editTags(e.currentTarget, { ids: tagIds(r.t.id) }); }} ondblclick={e => e.stopPropagation()}>
+      {#each tg as g (g)}<span class="tg" style:--c={tagColorOf(g)}>{g}</span>{:else}<span class="tadd">+ tag</span>{/each}
+    </button>
   {:else if k === 'label'}<span class="c-soft">{r.t.label}</span>
   {:else if k === 'year'}<span class="c-num">{r.t.year}</span>
   {:else if k === 'bpm'}
@@ -136,15 +155,25 @@
     {/if}
     {#each cols as k (k)}
       {@const c = COLUMNS[k]}
-      <button type="button" role="columnheader" class:on={view.sort.key === c.sort} data-drop="col" data-col={k}
+      {@const filtered = c.filter ? view.filters[c.filter].length : 0}
+      <!-- svelte-ignore a11y_interactive_supports_focus -->
+      <div role="columnheader" class="th" class:on={view.sort.key === c.sort} data-drop="col" data-col={k}
         class:col-before={colDrop?.key === k && colDrop.at === 'before'} class:col-after={colDrop?.key === k && colDrop.at === 'after'}
         class:lifted={drag.active && drag.payload?.kind === 'column' && drag.payload.key === k}
-        title={c.sort ? 'Sort by ' + c.label.toLowerCase() + ' · drag to move the column' : 'Drag to move the column'}
-        onpointerdown={e => drag.begin(e, { kind: 'column', key: k, label: c.label })}
-        onclick={() => { if (!drag.suppressClick && c.sort) view.sortBy(c.sort); }}
+        onpointerdown={e => { if (!(e.target as HTMLElement).closest('.hf')) drag.begin(e, { kind: 'column', key: k, label: c.label }); }}
         aria-sort={view.sort.key === c.sort ? (view.sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
-        {c.label}{#if view.sort.key === c.sort}<span class="arrow">{view.sort.dir === 1 ? '▲' : '▼'}</span>{/if}
-      </button>
+        <button type="button" class="sortb" title={c.sort ? 'Sort by ' + c.label.toLowerCase() + ' · drag to move the column' : 'Drag to move the column'}
+          onclick={() => { if (!drag.suppressClick && c.sort) view.sortBy(c.sort); }}>
+          {c.label}{#if view.sort.key === c.sort}<span class="arrow">{view.sort.dir === 1 ? '▲' : '▼'}</span>{/if}
+        </button>
+        {#if c.filter}
+          <button type="button" class="hf" class:active={filtered > 0} class:open={headFilter?.key === k} data-hf={k} aria-haspopup="dialog" aria-expanded={headFilter?.key === k}
+            aria-label={'Filter by ' + c.label.toLowerCase()} title={filtered ? 'Filtered: ' + view.filters[c.filter].join(', ') : 'Show only some ' + c.label.toLowerCase() + ' values'}
+            onclick={e => openHeadFilter(e, k)}>
+            <svg viewBox="0 0 10 10" aria-hidden="true">{#if filtered}<path d="M1 2h8L6 5.5V9L4 8V5.5z" fill="currentColor"/>{:else}<path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.4"/>{/if}</svg>
+          </button>
+        {/if}
+      </div>
     {/each}
     <span class="cm">
       <button type="button" class="cmbtn" id="columns-btn" title="Choose columns" aria-haspopup="menu" aria-expanded={colMenu} onclick={() => (colMenu = !colMenu)}>
@@ -218,17 +247,49 @@
   </div>
 </div>
 
-<svelte:window onpointerdown={e => { if (colMenu && !(e.target as HTMLElement).closest('.cm')) colMenu = false; }} onkeydown={e => { if (e.key === 'Escape') colMenu = false; }} />
+{#if headFilter}
+  {@const hf = headFilter}
+  <div class="hfpop" id="head-filter" role="dialog" aria-label={'Filter by ' + COLUMNS[hf.key].label} style:left={hf.x + 'px'} style:top={hf.y + 'px'}>
+    {#if hf.sort}
+      {@const s = hf.sort}
+      <div class="hsort">
+        <button type="button" class:on={view.sort.key === s && view.sort.dir === 1} onclick={() => (view.sort = { key: s, dir: 1 })}>▲ Sort ascending</button>
+        <button type="button" class:on={view.sort.key === s && view.sort.dir === -1} onclick={() => (view.sort = { key: s, dir: -1 })}>▼ Sort descending</button>
+      </div>
+    {/if}
+    <FilterList group={hf.group} title={'Show only · ' + COLUMNS[hf.key].label} search />
+  </div>
+{/if}
+
+<svelte:window onpointerdown={e => { const el = e.target as HTMLElement; if (colMenu && !el.closest('.cm')) colMenu = false; if (headFilter && !el.closest('.hfpop, .hf')) headFilter = null; }}
+  onkeydown={e => { if (e.key === 'Escape') { colMenu = false; headFilter = null; } }} />
 
 <style>
   .table { display: grid; grid-template-rows: auto 1fr; min-height: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 13px; }
   .thead, .tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 10px; padding: 0 6px 0 10px; }
   .thead { border-bottom: 1px solid var(--line); height: 32px; position: relative; z-index: 2; }
+  .th { display: flex; align-items: center; min-width: 0; height: 100%; gap: 2px; }
+  .th .sortb { flex: 1; min-width: 0; background: none; border: 0; padding: 0; text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 100%; }
+  .th.on .sortb { color: var(--ink); }
+  .hf { flex: none; width: 18px; height: 18px; display: grid; place-items: center; border: 0; border-radius: 3px; background: none; color: var(--muted); cursor: pointer; padding: 0; opacity: .55; }
+  .hf svg { width: 10px; height: 10px; }
+  .th:hover .hf, .hf.open, .hf:focus-visible { opacity: 1; }
+  .hf:hover, .hf.open { background: var(--raised); color: var(--ink); }
+  .hf.active { opacity: 1; color: var(--accent); }
+  .thead .th.lifted { opacity: .35; }
+  .thead .th.col-before { box-shadow: inset 2px 0 0 var(--accent); }
+  .thead .th.col-after { box-shadow: inset -2px 0 0 var(--accent); }
+  .hfpop { position: fixed; z-index: 45; width: 260px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; box-shadow: 0 12px 32px rgb(0 0 0 / .45); display: grid; gap: 8px; }
+  .hsort { display: grid; gap: 2px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .hsort button { text-align: left; background: none; border: 0; border-radius: 4px; padding: 4px 6px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+  .hsort button:hover { background: var(--surface); }
+  .hsort button.on { color: var(--accent); }
+  .c-tags { display: flex; gap: 3px; align-items: center; min-width: 0; width: 100%; height: 22px; overflow: hidden; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  .tg { flex: none; font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--c) 20%, transparent); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); color: var(--ink); white-space: nowrap; }
+  .tadd { font-size: 11px; color: var(--muted); opacity: 0; }
+  .tr:hover .tadd { opacity: 1; }
   .thead button[role="columnheader"] { background: none; border: 0; padding: 0; text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; height: 100%; }
   .thead button[role="columnheader"].on { color: var(--ink); }
-  .thead button.lifted { opacity: .35; }
-  .thead button.col-before { box-shadow: inset 2px 0 0 var(--accent); }
-  .thead button.col-after { box-shadow: inset -2px 0 0 var(--accent); }
   .arrow { font-size: 8px; margin-left: 4px; }
   .cm { position: relative; display: flex; justify-content: flex-end; }
   .cmbtn { background: none; border: 0; color: var(--muted); cursor: pointer; width: 24px; height: 24px; border-radius: 4px; display: grid; place-items: center; padding: 0; }

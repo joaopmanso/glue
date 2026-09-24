@@ -11,6 +11,7 @@ export interface Candidate {
   rating: number | null;   // 0–5 (the user's own, else the DJ app's), null = unrated
   genre: string;
   duration: number | null;
+  tags?: string[];         // lower-case tag names
 }
 export type Harmonic = 'off' | 'prefer' | 'strict';
 export interface AutoOptions {
@@ -24,10 +25,19 @@ export interface AutoOptions {
   minRating: number;             // 0 = any
   sameGenre: string | null;      // only this genre (case-insensitive)
   randomness: number;            // 0 = always the best fit … 1 = adventurous
+  tags?: string[];               // lower-case: tracks with these tags score higher
   seed: number;                  // RNG seed: the same seed and options give the same playlist
 }
 export interface Slot { id: string; bpmTarget: number | null; fixed: boolean; keyFit: number | null; bpmFit: number | null }
 export interface AutoResult { slots: Slot[]; relaxed: string[]; pool: number }
+
+/** How well a track's tags match the wanted ones: 1 when it has two of them (or all, if fewer), 0 none. */
+export function tagFit(have: string[] | undefined, want: string[] | undefined): number {
+  if (!want?.length || !have?.length) return 0;
+  let n = 0;
+  for (const t of want) if (have.includes(t)) n++;
+  return Math.min(1, n / Math.min(2, want.length));
+}
 
 /** Deterministic PRNG (mulberry32). */
 export function rng(seed: number) {
@@ -100,6 +110,8 @@ export function generate(pool: Candidate[], seedId: string | null, include: stri
     }
     // Ratings weigh most: among tracks that fit, the highest rated comes first (unrated counts as 2 stars).
     if (o.useRatings) s += 4 * ((c.rating ?? 2) / 5);
+    // Tags: sharing the wanted tags counts nearly as much as a good key match.
+    s += 3 * tagFit(c.tags, o.tags);
     return s;
   };
 
@@ -153,7 +165,7 @@ export function replaceSlot(pool: Candidate[], current: string[], index: number,
   if (!ok.length) return null;
   const s = (c: Candidate) => (bpmFit(c.bpm, targetBpm, o.bpmTolerance * 1.5, o.halfDouble) ?? 0.5) * 2
     + (o.harmonic !== 'off' ? 2.5 * (((prev ? keyFit(prev.key, c.key) : 0.5) ?? 0.3) + ((next ? keyFit(c.key, next.key) : 0.5) ?? 0.3)) / 2 : 0)
-    + (o.useRatings ? 4 * ((c.rating ?? 2) / 5) : 0);
+    + (o.useRatings ? 4 * ((c.rating ?? 2) / 5) : 0) + 3 * tagFit(c.tags, o.tags);
   const top = ok.map(c => ({ c, v: s(c) + random() * (0.6 + o.randomness) })).sort((a, b) => b.v - a.v);
   return top[0].c.id;
 }

@@ -7,6 +7,8 @@
   import NoteEditor from './NoteEditor.svelte';
   import DuplicatesView from './DuplicatesView.svelte';
   import FilterMenu from './FilterMenu.svelte';
+  import PlaylistInsights from './PlaylistInsights.svelte';
+  import { readPref, writePref } from '../../lib/prefs';
   import { auto } from '../../lib/auto.svelte';
   import { app } from '../../lib/app.svelte';
   import { LOOSE } from '../../store/merge';
@@ -24,6 +26,7 @@
       case 'dupes': return 'Duplicates';
       case 'list': { const l = st?.lists.get(s.id); return l ? lib.listPath(l) : 'Playlist'; }
       case 'source': { const x = st?.sources.get(s.id); return x ? (APP_NAMES[x.app] ?? x.app) + ' import' : 'Import'; }
+      case 'tag': return 'Tagged “' + s.name + '”';
       case 'root': return s.id === LOOSE ? 'Added songs' : lib.rootState(s.id)?.root.name ?? 'Folder';
     }
   });
@@ -32,6 +35,10 @@
   const playlists = $derived.by(() => { void lib.version; return [...(lib.store?.lists.values() ?? [])].filter(l => l.kind === 'playlist').sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b))); });
   const current = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   const sel = $derived([...view.selected]);
+  // Playlist insights (length, tempo, keys, tags): shown under a playlist's header; hideable.
+  let showInsights = $state(readPref('insights', '1') === '1');
+  function toggleInsights() { showInsights = !showInsights; writePref('insights', showInsights ? '1' : '0'); }
+  const insightIds = $derived.by(() => { void lib.version; void view.filters; void view.search; void view.sort; return current ? view.rows(app.keyNotation).map(r => r.t.id) : []; });
   // A playlist shown sorted by another column can adopt that order as its own.
   const sortedPlaylist = $derived(current?.kind === 'playlist' && view.sort.key !== 'order' && !view.search.trim());
   function keepOrder() {
@@ -71,6 +78,7 @@
     <h2>{title}<small>{count} track{count === 1 ? '' : 's'}</small></h2>
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks">
     <FilterMenu />
+    {#if current}<button type="button" class="ibtn" class:on={showInsights} id="insights-btn" aria-pressed={showInsights} title="Length, tempo, keys and tags of this playlist" onclick={toggleInsights}>Insights</button>{/if}
     <div class="an" title="Tracks are analysed in the background, several at a time">
       {#if lib.analysis.running}
         <span class="spin"></span> Analysing · {pending} left
@@ -108,6 +116,7 @@
         {#if sel.length}
           <span>{sel.length} selected</span>
           {#if sel.length === 1}<button type="button" class="mini" onclick={() => router.go('#/track/' + sel[0])}>Open details</button>{/if}
+          <button type="button" class="mini" id="tag-selected" data-tags-open onclick={e => view.editTags(e.currentTarget, { ids: sel })}>Tags…</button>
           <button type="button" class="mini accent" id="auto-from" title={sel.length === 1 ? 'Generate a playlist that starts from this track' : 'Generate a playlist that includes all the selected tracks'} onclick={() => { const ordered = view.rows(app.keyNotation).map(r => r.t.id).filter(id => view.selected.has(id)); auto.show(ordered[0], ordered.slice(1)); }}>{sel.length === 1 ? 'Build playlist from this' : 'Build playlist with these ' + sel.length}</button>
           <select aria-label="Add to playlist" onchange={addTo}>
             <option value="">Add to playlist…</option>
@@ -119,7 +128,7 @@
           <button type="button" class="mini" id="remove-tracks" onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>
           <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
         {:else if view.filtering}
-          <span class="hint">Filtered: {[...view.filters.quality, ...view.filters.format].join(', ')}</span>
+          <span class="hint">Filtered: {view.filterValues.join(', ')}</span>
           <button type="button" class="mini" id="clear-filters" onclick={() => view.clearFilters()}>Clear filters</button>
         {:else if sortedPlaylist}
           <span class="hint">Sorted by {view.sort.key}. Drag to rearrange works in playlist order.</span>
@@ -129,6 +138,7 @@
           <span class="hint">Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection.</span>
         {/if}
       </div>
+      {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
       {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else}<TrackTable />{/if}
       <NoteEditor />
     </div>
@@ -172,7 +182,10 @@
   .notice.warn { background: color-mix(in srgb, var(--warn) 9%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
   .notice button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; }
   .main { display: grid; grid-template-columns: 270px 1fr; gap: 16px; min-height: 0; }
-  .right { display: grid; grid-template-rows: auto 1fr; gap: 8px; min-height: 0; }
+  .right { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .right > :global(.table), .right > :global(.dv) { flex: 1; }
+  .ibtn { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .ibtn:hover, .ibtn.on { border-color: var(--accent); color: var(--accent); }
   .selbar { min-height: 28px; display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--ink-2); flex-wrap: wrap; }
   .hint { color: var(--muted); font-size: 12.5px; }
   @media (max-width: 800px) { .main { grid-template-columns: 1fr; } .lib { height: auto; } }

@@ -205,9 +205,19 @@ class Player {
   /** Replace the source. keepPosition carries time and play state over (stem switching). */
   /** What the source is ('track:<id>' for a library track), so pages can tell it's already loaded. */
   sourceKey = $state<string | null>(null);
+  /** A page's own source waiting while another track keeps playing: it loads on this page's first play or seek. */
+  pending = $state.raw<{ blob: Blob; opts: SourceOpts } | null>(null);
+  /** Told whenever a new source is loaded (the library player follows the track page this way). */
+  onSource: ((key: string | null) => void) | null = null;
 
-  setSource(blob: Blob | null, opts: { duration?: number; sampleRate?: number; keepPosition?: boolean; key?: string | null } = {}) {
+  /** Keep `blob` for later instead of interrupting what's playing (null forgets it). */
+  defer(blob: Blob | null, opts: SourceOpts = {}) { this.pending = blob ? { blob, opts } : null; }
+  private claim() { const p = this.pending; if (!p) return false; this.setSource(p.blob, p.opts); return true; }
+
+  setSource(blob: Blob | null, opts: SourceOpts = {}) {
+    this.pending = null;
     if (opts.key !== undefined) this.sourceKey = opts.key; else if (!opts.keepPosition) this.sourceKey = null;
+    this.onSource?.(this.sourceKey);
     const t = this.el.currentTime, wasPlaying = !this.el.paused;
     this.el.pause();
     this.stopLoop();
@@ -234,14 +244,22 @@ class Player {
     }
   }
 
-  toggle() {
+  /** Play / pause. A waiting page source is loaded first, unless `own` is false (the track that's playing). */
+  toggle(own = true) {
+    if (own && this.claim()) { this.play(); return; }
     if (!this.url) return;
     if (this.el.paused) {
       if (this.liveOn) this.live.start(this.el, this.fileSr);   // inside the click, so the AudioContext may start
       this.el.play().catch(() => { this.message = CANT_PLAY; });
     } else this.el.pause();
   }
+  private play() { if (this.liveOn) this.live.start(this.el, this.fileSr); this.el.play().catch(() => { this.message = CANT_PLAY; }); }
   seek(t: number, play = false) {
+    if (this.claim()) {
+      const a = this.el, go = () => { this.seek(t); if (play) this.play(); };
+      if (a.readyState >= 1) go(); else a.addEventListener('loadedmetadata', go, { once: true });
+      return;
+    }
     if (!this.url) return;
     this.el.currentTime = Math.max(0, Math.min(this.duration || this.el.duration || 0, t));
     this.sync(); this.started = true;
@@ -251,4 +269,5 @@ class Player {
   setLive(on: boolean) { this.liveOn = on; if (on && !this.el.paused) this.live.start(this.el, this.fileSr); }
 }
 
+export interface SourceOpts { duration?: number; sampleRate?: number; keepPosition?: boolean; key?: string | null }
 export const player = new Player();

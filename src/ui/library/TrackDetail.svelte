@@ -13,6 +13,8 @@
   import { nowPlaying, playable } from '../../lib/nowPlaying.svelte';
   import Stars from './Stars.svelte';
   import { auto } from '../../lib/auto.svelte';
+  import { tagsOf } from '../../core/library/tagging';
+  import { tagColorOf } from '../../lib/tags.svelte';
 
   let { id }: { id: string } = $props();
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
@@ -55,7 +57,6 @@
         if (!playing && lib.canRead(t)) { try { blob = await playable(await lib.fileFor(t)); } catch { blob = null; } }
         if (id !== t.id) return;
         showResult(kept.info, kept.res, blob);
-        if (playing || blob) nowPlaying.adopt(t.id);
         canPlay = playing || !!blob;
         stored = true; phase = 'ready';
         return;
@@ -69,7 +70,6 @@
       if (id !== t.id) return;
       await analyzeFile(file, key);
       if (app.error) { phase = 'error'; message = app.error.message; return; }
-      nowPlaying.adopt(t.id);   // the shared player now holds this track
       stored = false; canPlay = true; phase = 'ready';
       if (app.info && app.res) void lib.saveTrackDetails(lib.store?.tracks.get(t.id) ?? t, app.info, app.res);
     } catch (e) { phase = 'error'; message = (e as Error).message || String(e); }
@@ -80,7 +80,7 @@
     if (!t) return;
     try {
       app.playBlob = await playable(await lib.fileFor(t));
-      nowPlaying.adopt(t.id); canPlay = true;
+canPlay = true;
     } catch (e) { message = (e as Error).message || String(e); }
   }
 
@@ -103,6 +103,7 @@
     untrack(() => { app.phase = 'start'; app.res = null; app.info = null; app.verdict = null; app.error = null; app.busy = null; });
     lib.prioritize(id);
     void load(false);
+    return () => player.defer(null);   // a waiting source belongs to this page only
   });
 
   function stars(n: number | null) { return n == null ? '—' : '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 - n)); }
@@ -145,6 +146,10 @@
         <div><dt class="label">Added</dt><dd>{new Date(track.addedAt).toLocaleDateString()}</dd></div>
         <div class="wide"><dt class="label">In playlists</dt><dd>
           {#each lists as l, i (l.id)}<a href="#/" onclick={() => view.select({ kind: 'list', id: l.id })}>{lib.listPath(l)}</a>{i < lists.length - 1 ? ', ' : ''}{:else}none{/each}
+        </dd></div>
+        <div class="wide"><dt class="label">Tags</dt><dd class="tagsdd">
+          {#each tagsOf(track) as g (g)}<span class="tg" style:--c={tagColorOf(g)}>{g}</span>{/each}
+          <button type="button" class="tedit" id="track-tags" data-tags-open onclick={e => view.editTags(e.currentTarget, { ids: [id] })}>{tagsOf(track).length ? 'Edit' : '+ Add tags'}</button>
         </dd></div>
         {#if track.comment}<div class="wide"><dt class="label">Comment</dt><dd>{track.comment}</dd></div>{/if}
         <div class="wide"><dt class="label"><label for="track-notes">Your notes</label></dt><dd class="notes">
@@ -214,6 +219,10 @@
   dd.notes textarea { width: 100%; resize: vertical; background: var(--ground); border: 1px solid var(--line-2); border-radius: 5px; padding: 6px 8px; font: 13px/1.45 var(--font-sans); color: var(--ink); }
   dd.notes textarea:focus { outline: none; border-color: var(--accent); }
   dd a { color: var(--accent); text-decoration: none; }
+  .tagsdd { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; white-space: normal; overflow: visible; }
+  .tg { font-size: 12px; line-height: 18px; padding: 0 8px; border-radius: 9px; background: color-mix(in srgb, var(--c) 20%, transparent); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); }
+  .tedit { background: none; border: 1px dashed var(--line-2); border-radius: 9px; color: var(--ink-2); font-size: 12px; padding: 0 8px; line-height: 18px; cursor: pointer; }
+  .tedit:hover { border-color: var(--accent); color: var(--accent); }
   .dj { border-collapse: collapse; font-size: 12.5px; align-self: start; width: 100%; }
   .dj th { text-align: left; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 8px 6px 0; }
   .dj td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line); color: var(--ink-2); }

@@ -16,6 +16,7 @@
   import LibPlayer from './ui/library/LibPlayer.svelte';
   import DragTag from './ui/library/DragTag.svelte';
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
+  import TagEditor from './ui/library/TagEditor.svelte';
   import { auto } from './lib/auto.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
   import { themes } from './lib/themes.svelte';
@@ -42,6 +43,7 @@
     }
     if (app.phase !== 'result') return;
     if (e.code === 'Space') { e.preventDefault(); player.toggle(); }
+    else if (player.pending) return;   // the arrows move what's playing, not this page's track
     else if (e.key === 'ArrowRight') { e.preventDefault(); player.seek(player.time + 5); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); player.seek(player.time - 5); }
   }
@@ -150,6 +152,7 @@
 {#if inLibrary && route.name === 'library' && lib.onboarding !== 'music'}<LibPlayer />{/if}
 <DragTag />
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
+{#if inLibrary}<TagEditor />{/if}
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}
   <div class="drop-overlay" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>

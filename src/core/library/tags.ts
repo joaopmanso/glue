@@ -8,6 +8,7 @@ const PICK: Record<string, string[]> = {
   genre: ['TCON', 'GENRE', '©gen'],
   label: ['TPUB', 'LABEL', 'ORGANIZATION', 'PUBLISHER'],
   comment: ['COMM', 'COMMENT', 'DESCRIPTION', '©cmt', 'Comment', 'ANNO'],
+  grouping: ['TIT1', 'GRP1', 'GROUPING', '©grp', 'CONTENTGROUP'],
   year: ['TDRC', 'TYER', 'DATE', 'YEAR', '©day'],
   bpm: ['TBPM', 'BPM', 'tmpo'],
   key: ['TKEY', 'INITIALKEY', 'KEY'],

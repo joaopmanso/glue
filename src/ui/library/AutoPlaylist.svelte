@@ -7,6 +7,9 @@
   import { keyLabel } from '../../core/audio/keys';
   import { fmtTime } from '../../core/format';
   import type { Track } from '../../store/types';
+  import WaveCell from './WaveCell.svelte';
+  import PlaylistInsights from './PlaylistInsights.svelte';
+  import { allTags, tagColorOf } from '../../lib/tags.svelte';
 
   const f = $derived(auto.form);
   const seed = $derived.by(() => { void lib.version; return f.seedId ? lib.store?.tracks.get(f.seedId) ?? null : null; });
@@ -28,10 +31,18 @@
     return out;
   });
   function pick(t: Track) {
-    if (pickFor === 'seed') { const keep = { include: f.include, avoidLists: f.avoidLists, count: f.count }; auto.form = { ...auto.defaults(t.id), ...keep }; }
+    if (pickFor === 'seed') { const keep = { include: f.include, avoidLists: f.avoidLists, count: f.count, useTags: f.useTags, tags: f.tags, tagMode: f.tagMode, avoidTags: f.avoidTags }; auto.form = { ...auto.defaults(t.id), ...keep }; }
     else if (!f.include.includes(t.id) && t.id !== f.seedId) auto.form.include = [...f.include, t.id];
     q = '';
   }
+  // Tags: the wanted ones (chosen, or the starting and included tracks' own) and the ones to avoid.
+  const tagList = $derived.by(() => { void lib.version; return allTags(); });
+  const wanted = $derived.by(() => { void lib.version; void f.seedId; void f.include; void f.tags; void f.useTags; return auto.wantedTags(); });
+  function addWanted(e: Event) { const el = e.currentTarget as HTMLSelectElement, v = el.value; el.value = ''; if (v && !wanted.includes(v)) auto.form.tags = [...wanted, v]; }
+  function dropWanted(t: string) { auto.form.tags = wanted.filter(x => x !== t); }
+  function addAvoid(e: Event) { const el = e.currentTarget as HTMLSelectElement, v = el.value; el.value = ''; if (v && !f.avoidTags.includes(v)) auto.form.avoidTags = [...f.avoidTags, v]; }
+  const slotIds = $derived(auto.slots.map(s => s.id));
+  let insightsOpen = $state(true);
   const tr = (id: string) => lib.store?.tracks.get(id);
   const an = (id: string) => lib.store?.analysis.get(id);
   const fitCls = (k: number | null) => k == null ? 'unk' : k >= 0.85 ? 'good' : k >= 0.5 ? 'ok' : 'clash';
@@ -99,6 +110,39 @@
           <p class="hint">{f.harmonic === 'strict' ? 'Only same key, one step round the Camelot wheel, the relative key or +2.' : f.harmonic === 'prefer' ? 'Compatible keys score higher; a clash is possible when nothing else fits.' : 'Keys are ignored.'}</p>
         </fieldset>
 
+        <fieldset class="tagset">
+          <legend>Tags</legend>
+          <label class="check"><input type="checkbox" id="auto-tags" bind:checked={auto.form.useTags}> Look at tags</label>
+          {#if f.useTags}
+            <div class="tagrow" id="auto-tag-list">
+              {#each wanted as t (t)}<span class="tg" style:--c={tagColorOf(t)}>{t}<button type="button" aria-label={'Don’t use ' + t} onclick={() => dropWanted(t)}>×</button></span>{/each}
+              {#if tagList.length}
+                <select class="tsel" aria-label="Add a tag to look for" onchange={addWanted}>
+                  <option value="">+ tag</option>
+                  {#each tagList.filter(t => !wanted.includes(t.name)) as t (t.name)}<option value={t.name}>{t.name} ({t.tracks})</option>{/each}
+                </select>
+              {/if}
+            </div>
+            <p class="hint">{!wanted.length ? (tagList.length ? 'The chosen tracks have no tags: add tags to look for.' : 'No tags in the collection yet.') : f.tags ? 'Tracks with these tags score higher.' : 'From the starting and included tracks: tracks sharing them score higher.'}{#if f.tags} <button type="button" class="linkish" onclick={() => (auto.form.tags = null)}>use the chosen tracks’ tags</button>{/if}</p>
+            {#if wanted.length}
+              <span class="seg two" role="radiogroup" aria-label="How to use the tags">
+                <button type="button" role="radio" id="tags-prefer" aria-checked={f.tagMode === 'prefer'} onclick={() => (auto.form.tagMode = 'prefer')}>Prefer these</button>
+                <button type="button" role="radio" id="tags-only" aria-checked={f.tagMode === 'only'} onclick={() => (auto.form.tagMode = 'only')}>Only these</button>
+              </span>
+            {/if}
+            <div class="tagrow">
+              <span class="hint">Avoid:</span>
+              {#each f.avoidTags as t (t)}<span class="tg avoid" style:--c={tagColorOf(t)}>{t}<button type="button" aria-label={'Stop avoiding ' + t} onclick={() => (auto.form.avoidTags = f.avoidTags.filter(x => x !== t))}>×</button></span>{/each}
+              {#if tagList.length}
+                <select class="tsel" aria-label="Avoid tracks with a tag" onchange={addAvoid}>
+                  <option value="">+ tag</option>
+                  {#each tagList.filter(t => !f.avoidTags.includes(t.name) && !wanted.includes(t.name)) as t (t.name)}<option value={t.name}>{t.name} ({t.tracks})</option>{/each}
+                </select>
+              {:else}<span class="hint">—</span>{/if}
+            </div>
+          {/if}
+        </fieldset>
+
         <fieldset class="grid2">
           <legend>Choosing</legend>
           <label class="check"><input type="checkbox" id="auto-ratings" bind:checked={auto.form.useRatings}> Prefer the highest rated</label>
@@ -130,7 +174,9 @@
             <button type="button" class="btn-ghost" id="auto-again" onclick={() => auto.again()} title="Same settings, different choices">↻ Another</button>
             <button type="button" class="btn" id="auto-save" onclick={() => auto.save()}>Save playlist</button>
           </div>
-          <p class="meta">{auto.slots.length} tracks · {fmtTime(total)}{#if auto.relaxed.length} · <span class="warnt">relaxed: {auto.relaxed.join(', ')}</span>{/if}</p>
+          <p class="meta">{auto.slots.length} tracks · {fmtTime(total)}{#if auto.relaxed.length} · <span class="warnt">relaxed: {auto.relaxed.join(', ')}</span>{/if}
+            <button type="button" class="linkish" id="auto-insights-toggle" aria-expanded={insightsOpen} onclick={() => (insightsOpen = !insightsOpen)}>{insightsOpen ? 'Hide insights' : 'Show insights'}</button></p>
+          {#if insightsOpen}<PlaylistInsights ids={slotIds} compact />{/if}
           <ol class="list" id="auto-list">
             {#each auto.slots as s, i (s.id)}
               {@const t = tr(s.id)}
@@ -142,6 +188,7 @@
                     {#if nowPlaying.trackId === s.id && !player.paused}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 1.5h3.2v11H2.5zM8.3 1.5h3.2v11H8.3z" fill="currentColor"/></svg>{:else}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9.5-5.5z" fill="currentColor"/></svg>{/if}
                   </button>
                   <span class="who"><b>{t.title || t.fileName}</b><small>{t.artist}{#if s.fixed} · <i>{s.id === f.seedId ? 'start' : 'included'}</i>{/if}</small></span>
+                  <span class="wv"><WaveCell {t} order={slotIds} /></span>
                   <span class="mono bpm" title={s.bpmTarget ? 'Target ' + Math.round(s.bpmTarget) + ' BPM' : ''}>{a?.bpm ? Math.round(a.bpm) : '—'}</span>
                   <span class="mono key">{#if i > 0}<i class={'fit ' + fitCls(s.keyFit)} title={fitTitle(s.keyFit)}></i>{/if}{a?.key ? keyLabel(a.key, app.keyNotation) : '—'}</span>
                   <span class="stars" aria-label={(t.rating ?? 0) + ' stars'}>{'★'.repeat(Math.round(t.rating ?? 0))}</span>
@@ -200,15 +247,23 @@
   .results button:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
   .results span { color: var(--muted); }
   .seg.three { grid-template-columns: repeat(3, 1fr); }
+  .seg.two { grid-template-columns: 1fr 1fr; }
+  .tagrow { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .tg { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; padding: 1px 2px 1px 8px; border-radius: 10px; background: color-mix(in srgb, var(--c) 22%, transparent); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); }
+  .tg.avoid { background: none; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ink) 50%, transparent); }
+  .tg button { background: none; border: 0; color: var(--ink-2); cursor: pointer; font-size: 13px; padding: 0 5px; }
+  .tsel { font-size: 12px !important; padding: 2px 6px !important; border-radius: 10px !important; }
+  .wv { min-width: 0; }
+  .meta .linkish { margin-left: 8px; }
   .avoid { display: grid; gap: 3px; max-height: 110px; overflow-y: auto; }
   .opts > .btn { justify-self: stretch; justify-content: center; margin-top: 4px; }
-  .res { flex: 1 1 auto; min-width: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding: 14px 22px 18px 18px; gap: 8px; }
+  .res { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 14px 22px 18px 18px; gap: 8px; }
   .res-head { display: flex; gap: 8px; align-items: center; }
   .res-head input { flex: 1; font-size: 15px; font-weight: 600; padding: 7px 10px; }
   .meta { color: var(--muted); font-size: 12.5px; }
   .warnt { color: var(--warn); }
-  .list { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 0; display: grid; align-content: start; }
-  .list li { display: grid; grid-template-columns: 26px 26px minmax(0, 1fr) 42px 64px 64px 56px; gap: 8px; align-items: center; padding: 4px 6px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
+  .list { flex: 1; list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 0; display: grid; align-content: start; }
+  .list li { display: grid; grid-template-columns: 26px 26px minmax(0, 1fr) minmax(90px, 170px) 42px 64px 64px 56px; gap: 8px; align-items: center; padding: 4px 6px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
   .list li.fixed { background: color-mix(in srgb, var(--accent) 7%, transparent); }
   .n, .bpm { color: var(--muted); font-size: 12px; }
   .mono { font-family: var(--font-mono); }
@@ -234,5 +289,13 @@
     .ap-cols { flex-direction: column; overflow: visible; }
     .opts { flex: none; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); }
     .res, .list { overflow: visible; }
+  }
+  /* Phones: fewer columns per track, and the name / buttons wrap. */
+  @media (max-width: 640px) {
+    .res-head { flex-wrap: wrap; }
+    .res-head input { flex: 1 1 100%; }
+    .res { padding: 12px; }
+    .list li { grid-template-columns: 20px 24px minmax(0, 1fr) 56px 46px 52px; gap: 6px; padding: 4px 2px; }
+    .list li .bpm, .list li .stars { display: none; }
   }
 </style>

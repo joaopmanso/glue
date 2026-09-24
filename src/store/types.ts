@@ -12,7 +12,8 @@ export interface Profile { schemaVersion: number; id: string; name: string; colo
 
 /** A music folder the user granted (handle lives in IndexedDB under `handleKey`). */
 export interface Root { id: string; name: string; absPath: string | null; handleKey: string; addedAt: string }
-export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; autoAnalyse?: boolean }
+/** tags: tags made in MCO, kept even while no track uses them (ADR 0032). */
+export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; autoAnalyse?: boolean; tags?: string[] }
 
 export type TrackStatus = 'linked' | 'unlinked' | 'missing';
 export interface TrackFormat { container: string; codec: string; lossless: boolean | null; sampleRate: number; bits: number; bitrate: number; channels: number }
@@ -34,6 +35,8 @@ export interface Track {
   addedAt: string;
   rating?: number | null;       // the user's own rating in MCO: 0.5–5 in half stars
   notes?: string;               // the user's own notes about the track
+  grouping?: string;            // the file's / DJ app's Grouping field
+  tags?: string[];              // the user's tags; absent until edited, then the found ones (tagsOf) stand in
   sources: string[];            // ids of imported sources that contain this track
 }
 
@@ -57,6 +60,7 @@ export interface List {
   origin: { sourceId: string; externalId: string } | null; // imported playlist / crate
   color?: string | null;                                   // one of LIST_COLORS, or none
   auto?: Record<string, unknown>;                          // how an automatic playlist was made (options, seed, date)
+  tags?: string[];                                         // the playlist's own tags
   createdAt: string;
 }
 

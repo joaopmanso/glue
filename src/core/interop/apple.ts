@@ -31,7 +31,7 @@ export function parseAppleLibrary(xml: string, fileName = 'Library.xml'): Import
     if (!t.Location || t['Track Type'] === 'URL' || t.Podcast || t['Movie'] || t['TV Show']) continue;
     const tr = blankTrack(id, fileUrlToPath(String(t.Location)));
     tr.title = String(t.Name ?? ''); tr.artist = String(t.Artist ?? ''); tr.album = String(t.Album ?? '');
-    tr.genre = String(t.Genre ?? ''); tr.comment = String(t.Comments ?? ''); tr.year = t.Year ? String(t.Year) : '';
+    tr.genre = String(t.Genre ?? ''); tr.comment = String(t.Comments ?? ''); tr.grouping = String(t.Grouping ?? ''); tr.year = t.Year ? String(t.Year) : '';
     tr.duration = typeof t['Total Time'] === 'number' ? t['Total Time'] / 1000 : null;
     tr.bpm = typeof t.BPM === 'number' && t.BPM > 0 ? t.BPM : null;
     tr.rating = typeof t.Rating === 'number' && !t['Rating Computed'] ? Math.round(t.Rating / 20) : null;

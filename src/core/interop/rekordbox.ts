@@ -14,7 +14,7 @@ export function parseRekordboxXml(xml: string, fileName = 'rekordbox.xml'): Impo
     if (!id || !a.Location) continue;
     const tr = blankTrack(id, fileUrlToPath(a.Location));
     tr.title = a.Name || ''; tr.artist = a.Artist || ''; tr.album = a.Album || ''; tr.genre = a.Genre || '';
-    tr.label = a.Label || ''; tr.comment = a.Comments || ''; tr.year = a.Year && a.Year !== '0' ? a.Year : '';
+    tr.label = a.Label || ''; tr.comment = a.Comments || ''; tr.grouping = a.Grouping || ''; tr.year = a.Year && a.Year !== '0' ? a.Year : '';
     tr.duration = num(a.TotalTime); tr.bpm = num(a.AverageBpm) || null; tr.key = a.Tonality || null;
     const r = num(a.Rating); tr.rating = r == null ? null : Math.round(r / 51);
     tr.playCount = num(a.PlayCount); tr.dateAdded = a.DateAdded || null; tr.size = num(a.Size);

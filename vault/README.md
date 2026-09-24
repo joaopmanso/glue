@@ -52,6 +52,7 @@ Planned (MCO):
 [ratings](features/ratings.md) ·
 [themes](features/themes.md) ·
 [automatic playlists](features/auto-playlists.md) ·
+[tags](features/tags.md) ·
 [shows & sessions](features/shows-sessions.md) ·
 [import: Rekordbox](features/import-rekordbox.md) ·
 [import: Engine DJ](features/import-engine.md) ·

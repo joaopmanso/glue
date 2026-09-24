@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: Speklone
-updated: 2026-09-24
+updated: 2026-09-25
 adrs: []
 ---
 # Player
@@ -17,6 +17,10 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
 - The play/pause icon is replaced only when the state flips. Replacing it every frame swallowed
   clicks that started on the old icon (the "pause doesn't work" bug, fixed 2026-09-23).
 - Stem selection swaps the source while keeping position and play state (`swapPlayerSource`).
+- One player for the library and track pages. Opening a track page while another track plays
+  doesn't interrupt it: the page's source waits (`player.defer`), the page's bar shows "Still
+  playing: …" with its own pause, and the page's track loads on its first play, seek or
+  spectrogram click (2026-09-25). The library's now-playing follows whatever was loaded last.
 
 ## Limits & open questions
 - Fixed in M1: a quick pause/play inside one frame could start a second play loop (now exactly one

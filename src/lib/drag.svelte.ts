@@ -12,6 +12,7 @@ export type Target =
   | { type: 'folder'; id: string }                          // a new playlist in this folder, with the tracks
   | { type: 'col'; key: ColKey; at: 'before' | 'after' }    // reorder the table's columns
   | { type: 'new' }                                         // "+ Playlist": a new playlist with them
+  | { type: 'tag'; name: string }                           // tag the tracks
   | { type: 'row'; listId: string; index: number }          // reorder / insert inside the open playlist
   | { type: 'list'; id: string; at: 'before' | 'after' | 'into' }
   | { type: 'top' };                                        // the end of the top level
@@ -84,6 +85,7 @@ class Drag {
     }
     if (p.kind === 'column') return null;
     if (kind === 'new') return p.kind === 'tracks' ? { type: 'new' } : null;
+    if (kind === 'tag') return p.kind === 'tracks' && el.dataset.tag ? { type: 'tag', name: el.dataset.tag } : null;
     if (kind === 'top') return p.kind === 'list' ? { type: 'top' } : null;
     if (kind === 'row') {
       if (p.kind !== 'tracks' || !el.dataset.list) return null;
@@ -116,6 +118,11 @@ class Drag {
       if (t.type === 'folder') {
         const l = lib.createList('playlist', '', t.id, p.ids);
         if (l) { this.onOpenFolder?.(t.id); view.editing = l.id; }
+        return;
+      }
+      if (t.type === 'tag') {
+        lib.tagTracks(p.ids, [t.name]);
+        lib.notice = 'Tagged ' + (p.ids.length === 1 ? '1 track' : p.ids.length + ' tracks') + ' “' + t.name + '”.';
         return;
       }
       if (t.type === 'playlist') {

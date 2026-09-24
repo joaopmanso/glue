@@ -1,9 +1,22 @@
 ---
-updated: 2026-09-24
+updated: 2026-09-25
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-09-25 · Tags, playlist insights, column filters, the player keeps playing
+- Tags on tracks and playlists, made in MCO or found in files (Grouping, rekordbox My Tag,
+  #hashtags): Tags column, editor, sidebar section (drop tracks on a tag), track page, rename /
+  delete everywhere ([ADR 0032](../adr/0032-tags.md), [tags](../features/tags.md)).
+- Filters: Tags and Genre groups; ▾ in the Quality, Format, Tags and Genre headers lists every
+  value to tick (and sorts).
+- Playlist insights: length, tempo flow, keys and harmonic mixes, quality, Venn of up to three tags;
+  under playlists and in the builder.
+- Playlist builder: "Look at tags" on by default (prefer / only / avoid); each proposed track shows
+  its overview to play and scrub; rows fit phone widths (e2e checks no sideways overflow).
+- Fixed: opening track B's page while A played stopped A. The page's source now waits until it's
+  played there ([player](../features/player.md)).
 
 ## 2026-09-24 · Overview column, quality / format filters, track page scrollbar
 - Mini spectrogram per row, playable and scrubbable, with a playhead and imported cue points

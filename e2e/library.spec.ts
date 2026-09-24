@@ -748,6 +748,9 @@ test('the playlist builder fits smaller windows: nothing cut off, everything rea
     await wheelTo('#auto-go', '#auto-dialog form');
     await page.click('#auto-go');
     await wheelTo('#auto-save', '#auto-dialog .res');
+    // Nothing wider than the dialog, and the track names get room.
+    expect(await page.locator('#auto-dialog').evaluate(el => el.scrollWidth - el.clientWidth), `no sideways overflow at ${w}x${h}`).toBeLessThanOrEqual(1);
+    expect((await page.locator('#auto-list .who').first().boundingBox())!.width, `names readable at ${w}x${h}`).toBeGreaterThan(80);
     await page.keyboard.press('Escape');
   }
 });
@@ -888,4 +891,146 @@ test('filters the table by quality and format', async ({ page }) => {
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.qbtn').click();
   await expect(page.locator('.tr')).toHaveCount(1);
   await expect(page.locator('.selbar')).toContainText('Upsampled');
+});
+
+test('tags: on tracks and playlists, in the sidebar, filters, insights and the playlist builder', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  const row = (t: string) => page.locator('.tr', { hasText: t });
+
+  // Tag one track from its Tags cell (new tags are made on Enter), then two at once from the selection bar.
+  await row('Fixture FLAC').hover();
+  await row('Fixture FLAC').locator('.c-tags').click();
+  const ed = page.locator('#tag-editor');
+  await expect(ed).toBeVisible();
+  await page.fill('#tag-input', 'Peak'); await page.keyboard.press('Enter');
+  await page.fill('#tag-input', '#vocal'); await page.keyboard.press('Enter');
+  await expect(ed.locator('.chips')).toContainText('Peak');
+  await expect(ed.locator('.chips')).toContainText('vocal');
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/tag-editor.png' });
+  await page.keyboard.press('Escape');
+  await expect(ed).toHaveCount(0);
+  await expect(row('Fixture FLAC').locator('.c-tags')).toContainText('Peak');
+  await row('Fixture FLAC').click();
+  await row('Fixture MP3').click({ modifiers: ['Control'] });
+  await page.click('#tag-selected');
+  await expect(ed.locator('label', { hasText: 'vocal' }).locator('input')).toHaveJSProperty('indeterminate', true);   // on one of the two
+  await ed.locator('.tag.part', { hasText: 'vocal' }).locator('.nm').click();                                          // "partly" → on both
+  await expect(ed.locator('label', { hasText: 'vocal' }).locator('input')).toBeChecked();
+  await page.keyboard.press('Escape');
+  await expect(row('Fixture MP3').locator('.c-tags')).toContainText('vocal');
+
+  // The sidebar lists tags with their counts; a tag shows its tracks; dropping tracks on a tag tags them.
+  const side = (t: string) => page.locator('.lside .tagitem', { hasText: t });
+  await expect(side('vocal').locator('.n')).toHaveText('2');
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  const r = (await row('aac').boundingBox())!, to = (await side('Peak').boundingBox())!;
+  await page.mouse.move(r.x + 300, r.y + r.height / 2); await page.mouse.down();
+  await page.mouse.move(to.x + 40, to.y + to.height / 2, { steps: 8 });
+  await expect(side('Peak').locator('.plus')).toBeVisible();
+  await page.mouse.up();
+  await expect(side('Peak').locator('.n')).toHaveText('2');
+  await side('Peak').locator('.name').click();
+  await expect(page.locator('.lib h2')).toContainText('Tagged “Peak”');
+  await expect(page.locator('.tr')).toHaveCount(2);
+
+  // Column headers open their value filters (every value listed, tick to show only those).
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await page.locator('.thead [data-col="quality"]').hover();
+  await page.click('[data-hf="quality"]');
+  const hf = page.locator('#head-filter');
+  await expect(hf).toContainText('Caution');
+  await expect(hf).toContainText('Upsampled');
+  await hf.locator('label', { hasText: 'Caution' }).click();
+  await expect(page.locator('.tr')).toHaveCount(2);
+  await hf.locator('label.all').click();
+  await expect(page.locator('.tr')).toHaveCount(4);
+  await page.click('[data-hf="tags"]');
+  await expect(hf).toContainText('No tags');
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/tags-filter.png' });
+  await hf.locator('label', { hasText: 'vocal' }).click();
+  await expect(page.locator('.tr')).toHaveCount(2);
+  await expect(page.locator('[data-hf="tags"]')).toHaveClass(/active/);
+  await page.keyboard.press('Escape');
+  await page.click('#clear-filters');
+  await expect(page.locator('.tr')).toHaveCount(4);
+
+  // A playlist shows its insights (length, tempo, keys, a Venn of its tags) and has tags of its own.
+  page.once('dialog', d => d.accept('Friday'));
+  await row('Fixture FLAC').click();
+  await row('Fixture MP3').click({ modifiers: ['Control'] });
+  await row('aac').click({ modifiers: ['Control'] });
+  await page.selectOption('.selbar select', '__new');
+  await page.locator('.lside .tree .name', { hasText: 'Friday' }).click();
+  const ins = page.locator('#playlist-insights');
+  await expect(ins).toBeVisible();
+  await expect(ins.locator('.venn')).toBeVisible();
+  // Peak: FLAC + AAC, vocal: FLAC + MP3 → Peak only 1, vocal only 1, both 1.
+  await expect(ins.locator('.venn text[data-region="3"]')).toHaveText('1');
+  await expect(ins.locator('.venn text[data-region="1"]')).toHaveText('1');
+  await expect(ins.locator('.venn text[data-region="2"]')).toHaveText('1');
+  await page.click('#list-tags');
+  await page.fill('#tag-input', 'Friday night'); await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  await expect(ins.locator('.ltags')).toContainText('Friday night');
+  await expect(side('Friday night')).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/insights.png' });
+  await page.click('#insights-btn');
+  await expect(ins).toHaveCount(0);
+  await page.click('#insights-btn');
+  await expect(ins).toBeVisible();
+
+  // The builder looks at tags by default: the starting track's own; "Only these" keeps just tracks with them.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await row('aiff-44k-24').click();
+  await page.click('#auto-from');
+  await expect(page.locator('#auto-tags')).toBeChecked();
+  await expect(page.locator('#auto-tag-list .tg')).toHaveCount(0);                 // the AIFF has no tags
+  await page.selectOption('#auto-tag-list select', 'vocal');
+  await page.click('#tags-only');
+  await page.fill('#auto-count', '4');
+  await page.click('#auto-go');
+  const items = page.locator('#auto-list li');
+  await expect(items).toHaveCount(3);                                               // the AIFF (start) + the two vocal tracks
+  await expect(page.locator('#auto-list')).not.toContainText('aac');
+  await expect(items.first().locator('.wave canvas')).toBeVisible();                // each track has its overview, to scrub
+  await expect(page.locator('#auto-insights')).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/auto-tags.png' });
+  // Clicking a row's overview plays it from there.
+  const w = (await items.nth(1).locator('.wave').boundingBox())!;
+  await page.mouse.click(w.x + w.width * 0.5, w.y + w.height / 2);
+  await expect(items.nth(1).locator('.wave.playing')).toBeVisible({ timeout: 10_000 });
+  await page.fill('#auto-name', 'Vocal auto');
+  await page.click('#auto-save');
+  await expect(page.locator('#playlist-insights .ltags')).toContainText('vocal');   // saved with the tags it looked for
+});
+
+test('opening another track’s page doesn’t stop what’s playing; playing there switches', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  const row = page.locator('.tr', { hasText: 'aiff-44k-24' });
+  await row.hover(); await row.locator('.pbtn').click();
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
+  await expect(page.locator('#v-pill')).toHaveText('Upsampled', { timeout: 30_000 });
+  // This page's player waits; the AIFF plays on (the fixtures are 4 s long, so it may have ended).
+  await expect(page.locator('#play-btn')).toHaveAttribute('aria-label', 'Play');
+  await expect(page.locator('#other-playing')).toContainText('aiff-44k-24');
+  await expect(page.locator('#other-playing')).toContainText(/Still playing|Paused/);
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/other-playing.png' });
+  await page.click('#play-btn');                                                    // play this track instead
+  await expect(page.locator('#play-btn')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
+  await expect(page.locator('#other-playing')).toHaveCount(0);
+  await page.locator('.crumbs a').click();
+  await expect(page.locator('#lib-now')).toHaveText('Fixture FLAC');
 });

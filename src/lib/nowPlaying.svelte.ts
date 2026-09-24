@@ -66,5 +66,7 @@ export async function playable(file: File): Promise<Blob> {
 }
 
 export const nowPlaying = new NowPlaying();
+// A track page that starts its own track makes it the library's now-playing track too.
+player.onSource = key => { const id = key?.startsWith('track:') ? key.slice(6) : null; if (id && id !== nowPlaying.trackId) nowPlaying.adopt(id); };
 // Auto-advance only in the library; the track page stays on its own track.
 player.onEnded = () => { if (router.current.name === 'library' && nowPlaying.trackId && nowPlaying.hasNext) nowPlaying.next(); };

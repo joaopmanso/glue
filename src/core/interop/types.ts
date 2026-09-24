@@ -8,6 +8,7 @@ export interface ImportedTrack {
   externalId: string;
   path: string;              // absolute (or library-relative) path, '/'-separated
   title: string; artist: string; album: string; genre: string; label: string; comment: string; year: string;
+  grouping: string;          // the Grouping field (used as tags)
   duration: number | null;   // seconds
   bpm: number | null;
   key: string | null;        // as the app shows it (e.g. "8A", "Am", "10m")
@@ -28,7 +29,7 @@ export interface ImportedList {
 export interface ImportedLibrary { app: SourceApp; name: string; tracks: ImportedTrack[]; lists: ImportedList[] }
 
 export const blankTrack = (externalId: string, path: string): ImportedTrack => ({
-  externalId, path, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '',
+  externalId, path, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', grouping: '',
   duration: null, bpm: null, key: null, rating: null, playCount: null, dateAdded: null, cues: 0, cueList: [], size: null,
 });
 

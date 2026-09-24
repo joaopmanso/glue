@@ -65,7 +65,7 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   for (const it of lib.tracks) {
     const t = { ...ext2track.get(it.externalId)! };
     if (!t.importPath) t.importPath = it.path;
-    for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year'] as const) if (!t[k] && it[k]) t[k] = it[k];
+    for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year', 'grouping'] as const) if (!t[k] && it[k]) t[k] = it[k];
     if (t.duration == null && it.duration) t.duration = it.duration;
     if (!t.sources.includes(sourceId)) t.sources = [...t.sources, sourceId];
     touched.set(t.id, t);
