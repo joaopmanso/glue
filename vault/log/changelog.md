@@ -5,6 +5,16 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Playlist organising, colours, ratings; new drag
+- In-app drags rebuilt on pointer events ([ADR 0022](../adr/0022-pointer-drag-inside-mco.md)): the
+  native drag kept failing with a real mouse and showed a stray blue drag image. Now: a tag at the
+  pointer, "+" on the target playlist, insertion lines, Escape to cancel.
+- Playlists: drag to reorder and to move into / out of folders; ⋯ menu with colours, move up/down,
+  move to folder, rename, delete.
+- [Ratings](../features/ratings.md): half-star ratings in the table and on the track page; imported
+  DJ-app ratings shown dimmed until you rate.
+- Tests: e2e for reordering, nesting, the menu, colours, drag feedback and half-star ratings.
+
 ## 2026-09-24 · Library player, drag-and-drop fixes
 - Player bar at the bottom of the library (play from any row, queue = current view, auto-advance).
 - Drag to playlists fixed: the table no longer changes under a drag, notices are a toast, nested

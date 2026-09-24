@@ -341,6 +341,31 @@ class Library {
     if (s && l) s.putList({ ...l, ...patch });
   }
   deleteList(id: string) { this.store?.deleteList(id); }
+  setListColor(id: string, color: string | null) { const l = this.store?.lists.get(id); if (l) this.store!.putList({ ...l, color }); }
+  /** Put a list at `index` among the children of `parentId` (moving it into / out of folders too). */
+  placeList(id: string, parentId: string | null, index: number) {
+    const s = this.store, l = s?.lists.get(id);
+    if (!s || !l) return;
+    for (let p = parentId; p; p = s.lists.get(p)?.parentId ?? null) if (p === id) return;   // never into itself
+    const sibs = this.childLists(parentId).filter(x => x.id !== id);
+    sibs.splice(Math.max(0, Math.min(index, sibs.length)), 0, { ...l, parentId });
+    sibs.forEach((x, i) => { if (x.id === id || x.position !== i) s.putList({ ...x, position: i }); });
+    if (l.parentId !== parentId) for (const [i, x] of this.childLists(l.parentId).entries()) if (x.position !== i) s.putList({ ...x, position: i });
+  }
+  /** One step up or down among its siblings. */
+  nudgeList(id: string, dir: -1 | 1) {
+    const l = this.store?.lists.get(id);
+    if (!l) return;
+    const i = this.childLists(l.parentId).findIndex(x => x.id === id);
+    this.placeList(id, l.parentId, i + dir);
+  }
+  /** The user's own rating, in half stars (0.5–5); null or 0 clears it. */
+  rateTracks(ids: string[], rating: number | null) {
+    const s = this.store;
+    if (!s) return;
+    const r = rating == null || rating <= 0 ? null : Math.min(5, Math.round(rating * 2) / 2);
+    s.putTracks(ids.map(id => s.tracks.get(id)).filter((t): t is Track => !!t).map(t => ({ ...t, rating: r })));
+  }
   addToList(id: string, trackIds: string[], at?: number) {
     const l = this.store?.lists.get(id);
     if (!l || l.kind !== 'playlist') return 0;

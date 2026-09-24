@@ -14,6 +14,7 @@
   import LibraryView from './ui/library/LibraryView.svelte';
   import TrackDetail from './ui/library/TrackDetail.svelte';
   import LibPlayer from './ui/library/LibPlayer.svelte';
+  import DragTag from './ui/library/DragTag.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
 
   onMount(() => { void lib.boot(); });
@@ -137,6 +138,7 @@
   {/if}
 </div>
 {#if inLibrary && route.name === 'library'}<LibPlayer />{/if}
+<DragTag />
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}
   <div class="drop" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>

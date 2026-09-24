@@ -5,10 +5,10 @@ import type { AnalysisSummary, Track } from '../store/types';
 import { keyLabel, type KeyNotation } from '../core/audio/keys';
 
 export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'root'; id: string };
-export type SortKey = 'title' | 'artist' | 'album' | 'genre' | 'bpm' | 'key' | 'duration' | 'format' | 'quality' | 'added' | 'order';
+export type SortKey = 'title' | 'artist' | 'album' | 'genre' | 'bpm' | 'key' | 'duration' | 'format' | 'quality' | 'rating' | 'added' | 'order';
 
 /** dj: what an imported DJ library said, shown when MCO's own analysis has no value. */
-export interface Row { t: Track; a: AnalysisSummary | null; n: number; dj: { bpm: number | null; key: string | null } | null }
+export interface Row { t: Track; a: AnalysisSummary | null; n: number; dj: { bpm: number | null; key: string | null; rating: number | null } | null }
 
 const QUALITY_RANK: Record<string, number> = { ok: 0, info: 1, warn: 2, bad: 3 };
 
@@ -17,6 +17,8 @@ class View {
   search = $state('');
   sort = $state<{ key: SortKey; dir: 1 | -1 }>({ key: 'order', dir: 1 });
   selected = $state.raw<Set<string>>(new Set());
+  /** The playlist whose name is being edited in the sidebar. */
+  editing = $state<string | null>(null);
   anchor: string | null = null;
 
   select(s: ViewSel) { this.sel = s; this.selected = new Set(); this.anchor = null; if (s.kind !== 'list' && this.sort.key === 'order') this.sort = { key: 'added', dir: -1 }; else if (s.kind === 'list') this.sort = { key: 'order', dir: 1 }; }
@@ -46,11 +48,11 @@ class View {
       else if (sel.kind === 'attention') tracks = tracks.filter(t => { const a = s.analysis.get(t.id); return a && (a.grade === 'bad' || a.grade === 'warn'); });
       else if (sel.kind === 'recent') { const cut = Date.now() - 30 * 864e5; tracks = tracks.filter(t => Date.parse(t.addedAt) >= cut); }
     }
-    const dj = new Map<string, { bpm: number | null; key: string | null }>();
+    const dj = new Map<string, { bpm: number | null; key: string | null; rating: number | null }>();
     for (const src of s.sources.values()) for (const st of src.tracks) {
       const cur = dj.get(st.trackId);
-      if (!cur) dj.set(st.trackId, { bpm: st.bpm, key: st.key });
-      else { cur.bpm ??= st.bpm; cur.key ??= st.key; }
+      if (!cur) dj.set(st.trackId, { bpm: st.bpm, key: st.key, rating: st.rating || null });
+      else { cur.bpm ??= st.bpm; cur.key ??= st.key; cur.rating ??= st.rating || null; }
     }
     let rows: Row[] = tracks.map((t, n) => ({ t, a: s.analysis.get(t.id) ?? null, n, dj: dj.get(t.id) ?? null }));
     const q = this.search.trim().toLowerCase();
@@ -67,6 +69,7 @@ class View {
         case 'duration': return r.t.duration ?? Infinity;
         case 'format': return r.t.format ? (r.t.format.lossless ? 0 : 1) * 1e7 - r.t.format.sampleRate * 10 - r.t.format.bits : Infinity;
         case 'quality': return r.a ? QUALITY_RANK[r.a.grade] * 100 + r.a.label.length : 999;
+        case 'rating': return -(r.t.rating ?? r.dj?.rating ?? 0);
         case 'added': return r.t.addedAt;
         default: return (r.t[key] || '￿').toLowerCase();
       }

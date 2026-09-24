@@ -253,3 +253,71 @@ test('plays from the library and drops tracks onto playlists, new or in a closed
   for (const t of ['Lossy one', 'Hi-res claim']) await page.locator('.tr', { hasText: t }).dragTo(page.locator('.lside .item', { hasText: 'Opener' }));
   await expect(page.locator('.lside .item', { hasText: 'Opener' })).toContainText('3');
 });
+
+test('organises playlists (drag, menu, colours) and rates tracks in half stars', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  for (const n of ['A', 'B', 'C']) { await page.click('#new-playlist'); await page.keyboard.type(n); await page.keyboard.press('Enter'); }
+  await page.click('#new-folder'); await page.keyboard.type('Gigs'); await page.keyboard.press('Enter');
+  const names = () => page.locator('.lside .tree .name').allTextContents().then(a => a.map(x => x.trim()));
+  expect(await names()).toEqual(['A', 'B', 'C', 'Gigs']);
+
+  // Drag C above A.
+  const item = (n: string) => page.locator('.lside .tree .item', { has: page.locator('.name', { hasText: new RegExp('^' + n + '$') }) });
+  const drop = async (from: string, to: string, frac: number) => {
+    const a = (await item(from).boundingBox())!, b = (await item(to).boundingBox())!;
+    await page.mouse.move(a.x + 40, a.y + a.height / 2); await page.mouse.down();
+    await page.mouse.move(b.x + 40, b.y + b.height * frac, { steps: 6 });
+    await page.mouse.up();
+  };
+  await drop('C', 'A', 0.15);
+  expect(await names()).toEqual(['C', 'A', 'B', 'Gigs']);
+  // Drag B into the folder (middle of the folder row).
+  await drop('B', 'Gigs', 0.5);
+  await expect(item('Gigs').locator('.twist')).toHaveAttribute('aria-label', 'Collapse');
+  expect(await names()).toEqual(['C', 'A', 'Gigs', 'B']);
+  // Menu: move B back to the top level, then up, and colour it.
+  await item('B').hover(); await item('B').locator('.more').click();
+  await page.locator('.menu select').selectOption('');
+  expect(await names()).toEqual(['C', 'A', 'Gigs', 'B']);   // top level, at the end
+  await item('B').hover(); await item('B').locator('.more').click();
+  await page.getByRole('menuitem', { name: 'Move up' }).click();
+  expect(await names()).toEqual(['C', 'A', 'B', 'Gigs']);
+  await page.locator('.menu .sw').nth(3).click();
+  await expect(item('B').locator('.icon')).toHaveClass(/colored/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.menu')).toHaveCount(0);
+
+  // Drag a track onto a playlist: highlight with "+", then added.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  const row = page.locator('.tr', { hasText: 'aiff-44k-24' });
+  const r = (await row.boundingBox())!, t = (await item('A').boundingBox())!;
+  await page.mouse.move(r.x + 200, r.y + r.height / 2); await page.mouse.down();
+  await page.mouse.move(t.x + 60, t.y + t.height / 2, { steps: 8 });
+  await expect(item('A').locator('.plus')).toBeVisible();
+  await expect(page.locator('.tag')).toContainText('Add aiff-44k-24 to A');
+  await page.mouse.up();
+  await expect(item('A')).toContainText('1');
+  await expect(page.locator('.tag')).toHaveCount(0);
+
+  // Half-star rating: the left half of the 4th star is 3.5.
+  const stars = row.locator('.c-rate button');
+  await stars.nth(3).click({ position: { x: 2, y: 6 } });
+  await expect(row.locator('.stars')).toHaveAttribute('aria-valuenow', '3.5');
+  await stars.nth(4).click({ position: { x: 10, y: 6 } });
+  await expect(row.locator('.stars')).toHaveAttribute('aria-valuenow', '5');
+  await stars.nth(4).click({ position: { x: 10, y: 6 } });   // same value again clears
+  await expect(row.locator('.stars')).toHaveAttribute('aria-valuenow', '0');
+  await stars.nth(2).click({ position: { x: 10, y: 6 } });
+  // Survives a reload, along with order and colour.
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.stars')).toHaveAttribute('aria-valuenow', '3', { timeout: 20_000 });
+  expect(await names()).toEqual(['C', 'A', 'B', 'Gigs']);
+  await expect(item('B').locator('.icon')).toHaveClass(/colored/);
+});

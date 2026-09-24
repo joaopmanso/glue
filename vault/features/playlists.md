@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-09-24
-adrs: [0009]
+adrs: [0009, 0022]
 ---
 # Playlists, folders & smart lists
 
@@ -42,3 +42,11 @@ track is used.
 - Nested playlists didn't re-render after changes (stale counts, drops looked lost): fixed.
 - Hovering a drag over a closed folder opens it; dropping tracks on "+ Playlist" creates a playlist
   with them; the drop highlight no longer flickers over child elements.
+
+## Organising and colours (2026-09-24)
+- Drags now use MCO's own pointer drag ([ADR 0022](../adr/0022-pointer-drag-inside-mco.md)): a tag by
+  the pointer says what will happen, the target playlist lights up with a "+", Escape cancels.
+- Playlists and folders: drag up / down (insertion line), onto the middle of a folder to move in,
+  onto another list's edge to move next to it (in or out of folders), or onto "Move to the top level".
+- ⋯ menu per list: colour (8 colours or none), rename, new playlist inside (folders), move up, move
+  down, move to (top level or any folder), delete.

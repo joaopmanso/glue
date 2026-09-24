@@ -10,6 +10,7 @@
   import { keyLabel } from '../../core/audio/keys';
   import Results from '../Results.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
+  import Stars from './Stars.svelte';
 
   let { id }: { id: string } = $props();
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
@@ -91,6 +92,8 @@
       <div>
         <h2>{track.title || track.fileName}</h2>
         <p class="who">{[track.artist, track.album, track.year].filter(Boolean).join(' · ')}</p>
+        <div class="rate"><Stars value={track.rating ?? imported.find(x => x.st.rating)?.st.rating ?? null} dim={track.rating == null && imported.some(x => x.st.rating)} size={18} onset={v => lib.rateTracks([id], v)} />
+          <span>{track.rating != null ? track.rating + ' / 5' : imported.some(x => x.st.rating) ? 'rating from your DJ library' : 'not rated'}</span></div>
       </div>
       {#if summary && !summary.error}<span class="q" data-grade={summary.grade}>{summary.label}</span>{/if}
     </header>
@@ -151,6 +154,7 @@
   .th { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
   h2 { font-size: 26px; font-stretch: 112%; }
   .who { color: var(--ink-2); }
+  .rate { display: flex; align-items: center; gap: 10px; margin-top: 6px; color: var(--muted); font-size: 12.5px; }
   .muted { color: var(--muted); }
   .q { font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; padding: 5px 11px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
   .q[data-grade="ok"] { color: var(--ok); } .q[data-grade="warn"] { color: var(--warn); } .q[data-grade="bad"] { color: var(--bad); } .q[data-grade="info"] { color: var(--muted); }

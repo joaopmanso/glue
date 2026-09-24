@@ -1,6 +1,6 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
-  import { view, type Row, type SortKey } from '../../lib/view.svelte';
+  import { view, type SortKey } from '../../lib/view.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { player } from '../../lib/player.svelte';
   import { app } from '../../lib/app.svelte';
@@ -8,20 +8,19 @@
   import { keyLabel } from '../../core/audio/keys';
   import { fmtTime } from '../../core/format';
   import type { TrackFormat } from '../../store/types';
+  import { drag } from '../../lib/drag.svelte';
+  import Stars from './Stars.svelte';
 
   const ROW = 30, OVERSCAN = 12;
   const COLS: { key: SortKey; label: string; cls: string }[] = [
     { key: 'order', label: '#', cls: 'c-n' }, { key: 'title', label: 'Title', cls: 'c-title' }, { key: 'artist', label: 'Artist', cls: 'c-artist' },
     { key: 'album', label: 'Album', cls: 'c-album' }, { key: 'genre', label: 'Genre', cls: 'c-genre' }, { key: 'bpm', label: 'BPM', cls: 'c-bpm' },
-    { key: 'key', label: 'Key', cls: 'c-key' }, { key: 'duration', label: 'Time', cls: 'c-time' }, { key: 'format', label: 'Format', cls: 'c-fmt' },
+    { key: 'key', label: 'Key', cls: 'c-key' }, { key: 'duration', label: 'Time', cls: 'c-time' }, { key: 'rating', label: 'Rating', cls: 'c-rate' },
+    { key: 'format', label: 'Format', cls: 'c-fmt' },
     { key: 'quality', label: 'Quality', cls: 'c-q' },
   ];
 
-  const live = $derived(view.rows(app.keyNotation));
-  // While a drag is under way the table must not change: Chromium cancels a drag whose source row
-  // moves or re-renders (background analysis updates rows all the time).
-  let frozen = $state.raw<Row[] | null>(null);
-  const rows = $derived(frozen ?? live);
+  const rows = $derived(view.rows(app.keyNotation));
   const order = $derived(rows.map(r => r.t.id));
   const list = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   const isPlaylist = $derived(list?.kind === 'playlist');
@@ -31,7 +30,6 @@
   const first = $derived(Math.max(0, Math.floor(scrollTop / ROW) - OVERSCAN));
   const last = $derived(Math.min(rows.length, Math.ceil((scrollTop + height) / ROW) + OVERSCAN));
   const visible = $derived(rows.slice(first, last));
-  let dropAt = $state<number | null>(null);
 
   function fmt(f: TrackFormat | null) {
     if (!f) return '';
@@ -66,33 +64,17 @@
       }
     }
   }
-  function dragStart(e: DragEvent, id: string) {
-    // Nothing on the page may change here (no selection update): see `frozen`.
+  /** Press on a row: a drag of the selection (or of this row) once the pointer moves. */
+  function press(e: PointerEvent, id: string) {
+    if ((e.target as HTMLElement).closest('button, input, .stars')) return;
     const ids = view.selected.has(id) ? order.filter(x => view.selected.has(x)) : [id];
-    frozen = rows;
-    e.dataTransfer!.setData('application/x-mco-tracks', JSON.stringify(ids));
-    e.dataTransfer!.effectAllowed = 'copyMove';
-    const n = ids.length, ghost = document.createElement('div');
-    ghost.className = 'drag-ghost'; ghost.textContent = n === 1 ? (lib.store?.tracks.get(ids[0])?.title || '1 track') : n + ' tracks';
-    document.body.appendChild(ghost); e.dataTransfer!.setDragImage(ghost, -12, -8); setTimeout(() => ghost.remove());
+    const t = lib.store?.tracks.get(ids[0]);
+    drag.begin(e, { kind: 'tracks', ids, label: ids.length === 1 ? (t?.title || t?.fileName || '1 track') : ids.length + ' tracks' });
   }
   // Reorder inside a playlist (only when it's shown in playlist order, without a search filter).
   const canReorder = $derived(isPlaylist && view.sort.key === 'order' && view.sort.dir === 1 && !view.search.trim());
-  function rowDragOver(e: DragEvent, i: number) {
-    if (!canReorder || ![...(e.dataTransfer?.types ?? [])].includes('application/x-mco-tracks')) return;
-    e.preventDefault();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    dropAt = e.clientY - r.top < r.height / 2 ? i : i + 1;
-  }
-  function rowDrop(e: DragEvent) {
-    const ids = e.dataTransfer?.getData('application/x-mco-tracks');
-    if (!canReorder || !ids || dropAt == null || !list) return;
-    e.preventDefault();
-    const moving: string[] = JSON.parse(ids);
-    if (moving.every(id => list.items.includes(id))) lib.moveInList(list.id, moving, dropAt);
-    else lib.addToList(list.id, moving, dropAt);
-    dropAt = null;
-  }
+  const dropAt = $derived(drag.target?.type === 'row' ? drag.target.index : null);
+  const dragging = $derived(drag.active && drag.payload?.kind === 'tracks' ? new Set(drag.payload.ids) : null);
 </script>
 
 <div class="table" role="grid" aria-rowcount={rows.length} aria-multiselectable="true">
@@ -109,20 +91,21 @@
   </div>
   <!-- The body takes keyboard focus for the whole grid (arrows, Enter, Delete, Ctrl+A). -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => (scrollTop = scroller.scrollTop)} tabindex="0" role="rowgroup" onkeydown={onKey}
-    ondragleave={() => (dropAt = null)} ondrop={rowDrop} ondragover={e => { if (canReorder) e.preventDefault(); }}>
+  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => (scrollTop = scroller.scrollTop)} tabindex="0" role="rowgroup" onkeydown={onKey}>
     <div class="spacer" style:height={rows.length * ROW + 'px'}>
       {#each visible as r, j (r.t.id)}
         {@const i = first + j}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div class="tr" role="row" aria-selected={view.selected.has(r.t.id)} class:sel={view.selected.has(r.t.id)} class:dim={r.t.status !== 'linked'}
           class:drop-before={dropAt === i} class:drop-after={dropAt === i + 1 && i === rows.length - 1}
-          style:transform={'translateY(' + i * ROW + 'px)'} draggable="true" tabindex="-1"
-          class:playing={nowPlaying.trackId === r.t.id}
-          onclick={e => view.click(r.t.id, e, order)} ondblclick={() => open(r.t.id)} ondragstart={e => dragStart(e, r.t.id)} ondragend={() => { frozen = null; dropAt = null; }} ondragover={e => rowDragOver(e, i)}>
+          style:transform={'translateY(' + i * ROW + 'px)'} tabindex="-1"
+          class:playing={nowPlaying.trackId === r.t.id} class:lifted={dragging?.has(r.t.id)}
+          data-drop={canReorder ? 'row' : undefined} data-list={canReorder ? list?.id : undefined} data-index={i}
+          onpointerdown={e => press(e, r.t.id)}
+          onclick={e => { if (!drag.suppressClick) view.click(r.t.id, e, order); }} ondblclick={() => open(r.t.id)}>
           <span class="c-play">
             {#if r.t.status === 'linked'}
-              <button type="button" class="pbtn" aria-label={nowPlaying.trackId === r.t.id && !player.paused ? 'Pause' : 'Play'} draggable="false"
+              <button type="button" class="pbtn" aria-label={nowPlaying.trackId === r.t.id && !player.paused ? 'Pause' : 'Play'}
                 onclick={e => { e.stopPropagation(); play(r.t.id); }} ondblclick={e => e.stopPropagation()}>
                 {#if nowPlaying.trackId === r.t.id && !player.paused}
                   <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 1.5h3.2v11H2.5zM8.3 1.5h3.2v11H8.3z" fill="currentColor"/></svg>
@@ -144,6 +127,8 @@
           {:else if r.dj?.key}<span class="c-key mono from-dj" title="From your imported DJ library">{r.dj.key}</span>
           {:else}<span class="c-key"></span>{/if}
           <span class="c-time mono">{r.t.duration ? fmtTime(r.t.duration) : ''}</span>
+          <span class="c-rate"><Stars value={r.t.rating ?? r.dj?.rating ?? null} dim={r.t.rating == null && !!r.dj?.rating} size={12}
+            onset={v => lib.rateTracks(view.selected.has(r.t.id) ? [...view.selected] : [r.t.id], v)} /></span>
           <span class="c-fmt mono">{fmt(r.t.format)}</span>
           <span class="c-q">
             {#if r.t.status === 'unlinked'}<span class="q muted" title="No file linked: add the folder it lives in">no file</span>
@@ -168,8 +153,8 @@
 <style>
   .table { display: grid; grid-template-rows: auto 1fr; min-height: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 13px; }
   .thead, .tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 10px; padding: 0 10px; }
-  .table { --cols: 26px minmax(160px, 3fr) minmax(110px, 2fr) minmax(90px, 1.4fr) minmax(70px, 1fr) 52px 44px 50px 96px 150px; }
-  .table:has(.thead .c-n) { --cols: 26px 36px minmax(160px, 3fr) minmax(110px, 2fr) minmax(90px, 1.4fr) minmax(70px, 1fr) 52px 44px 50px 96px 150px; }
+  .table { --cols: 26px minmax(160px, 3fr) minmax(110px, 2fr) minmax(90px, 1.4fr) minmax(70px, 1fr) 52px 44px 50px 70px 96px 150px; }
+  .table:has(.thead .c-n) { --cols: 26px 36px minmax(160px, 3fr) minmax(110px, 2fr) minmax(90px, 1.4fr) minmax(70px, 1fr) 52px 44px 50px 70px 96px 150px; }
   .thead { border-bottom: 1px solid var(--line); height: 32px; }
   .thead button { background: none; border: 0; padding: 0; text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; }
   .thead button.on { color: var(--ink); }
@@ -181,6 +166,7 @@
   .tr:hover { background: var(--raised); }
   .tr.sel { background: color-mix(in srgb, var(--accent) 18%, transparent); }
   .tr.dim .c-title, .tr.dim .c-artist { color: var(--muted); }
+  .tr.lifted { opacity: .45; }
   .tr.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
   .tr.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
   .c-title { color: var(--ink); font-weight: 550; }
@@ -199,6 +185,5 @@
   .q[data-grade="bad"], .q.bad { color: var(--bad); }
   .q[data-grade="info"], .q.muted { color: var(--muted); border-color: transparent; }
   .empty { position: absolute; inset: 40px 0 auto; text-align: center; color: var(--muted); padding: 0 20px; }
-  @media (max-width: 1100px) { .table, .table:has(.thead .c-n) { --cols: 26px minmax(140px, 3fr) minmax(100px, 2fr) 52px 44px 50px 130px; } .c-album, .c-genre, .c-fmt, .c-n { display: none; } }
-  :global(.drag-ghost) { position: fixed; top: -100px; left: 0; background: var(--accent); color: var(--accent-ink); font: 600 13px var(--font-sans); padding: 4px 10px; border-radius: 4px; }
+  @media (max-width: 1100px) { .table, .table:has(.thead .c-n) { --cols: 26px minmax(140px, 3fr) minmax(100px, 2fr) 52px 44px 50px 70px 130px; } .c-album, .c-genre, .c-fmt, .c-n { display: none; } }
 </style>

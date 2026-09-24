@@ -5,7 +5,8 @@
   import { IMPORT_ACCEPT } from '../../lib/imports';
   import { canKeepFiles, canPickFolders, pickAudioFiles } from '../../platform';
   import { LOOSE } from '../../store/merge';
-  import type { List } from '../../store/types';
+  import { LIST_COLORS, type List } from '../../store/types';
+  import { drag } from '../../lib/drag.svelte';
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
   const FOUND_NAMES: Record<string, string> = { engine: 'Engine DJ library', serato: 'Serato library', apple: 'iTunes / Apple Music library', rekordbox: 'rekordbox XML', traktor: 'Traktor collection' };
@@ -25,7 +26,7 @@
   });
   const top = $derived.by(() => { void lib.version; return lib.childLists(null); });
   // Takes the version so nested folders re-render when any list changes (the store's maps aren't reactive).
-  const childrenOf = (id: string, _version: number) => lib.childLists(id);
+  const childrenOf = (id: string, _version: number) => lib.childLists(id || null);
   const loose = $derived.by(() => { void lib.version; let n = 0; for (const t of lib.store?.tracks.values() ?? []) if (t.fileKey) n++; return n; });
   let songInput: HTMLInputElement;
   async function addSongs() {
@@ -35,104 +36,107 @@
   }
   const sources = $derived.by(() => { void lib.version; return [...(lib.store?.sources.values() ?? [])]; });
 
-  let editing = $state<string | null>(null);
-  let dropTarget = $state<string | null>(null);
   let open = $state<Record<string, boolean>>({});
   let fileInput: HTMLInputElement;
   let pathEdit = $state<string | null>(null);
+  let menuFor = $state<string | null>(null);   // the list whose ⋯ menu is open
 
   const isSel = (s: ViewSel) => JSON.stringify(s) === JSON.stringify(view.sel);
-  const TRACKS = 'application/x-mco-tracks', LIST = 'application/x-mco-list';
+  drag.onOpenFolder = id => { open[id] = true; };
 
   function newList(kind: 'folder' | 'playlist', parentId: string | null = null) {
     const l = lib.createList(kind, '', parentId);
     if (!l) return;
     if (parentId) open[parentId] = true;
-    editing = l.id;
+    view.editing = l.id;
     if (kind === 'playlist') view.select({ kind: 'list', id: l.id });
   }
-  // Hovering a drag of tracks over a closed folder opens it, so its playlists can be reached.
-  let openTimer = 0, openFor: string | null = null;
-  function onDragOver(e: DragEvent, l: List | null) {
-    const types = [...(e.dataTransfer?.types ?? [])];
-    if (types.includes(TRACKS) && l?.kind === 'folder' && !open[l.id] && openFor !== l.id) {
-      clearTimeout(openTimer); openFor = l.id;
-      const id = l.id;
-      openTimer = window.setTimeout(() => { open[id] = true; openFor = null; }, 500);
-    }
-    const ok = types.includes(TRACKS) ? l?.kind === 'playlist' : types.includes(LIST) ? !l || l.kind === 'folder' : false;
-    if (!ok) return;
-    e.preventDefault(); e.stopPropagation();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = types.includes(TRACKS) ? 'copy' : 'move';
-    dropTarget = l?.id ?? 'top';
-  }
-  /** dragleave also fires when the pointer moves onto a child element: only clear on a real exit. */
-  function onDragLeave(e: DragEvent, id: string) {
-    if ((e.currentTarget as Node).contains(e.relatedTarget as Node | null)) return;
-    if (dropTarget === id) dropTarget = null;
-    if (openFor === id) { clearTimeout(openTimer); openFor = null; }
-  }
-  /** Dropping tracks on "+ Playlist" makes a new playlist with them. */
-  function dropOnNew(e: DragEvent) {
-    const ids = e.dataTransfer?.getData(TRACKS);
-    dropTarget = null;
-    if (!ids) return;
-    e.preventDefault(); e.stopPropagation();
-    const items: string[] = JSON.parse(ids);
-    const l = lib.createList('playlist', '', null, items);
-    if (!l) return;
-    editing = l.id;
-    lib.notice = 'New playlist with ' + items.length + ' track' + (items.length === 1 ? '' : 's') + '. Type a name.';
-  }
-  function onDrop(e: DragEvent, l: List | null) {
-    const dt = e.dataTransfer;
-    dropTarget = null;
-    if (!dt) return;
-    e.preventDefault(); e.stopPropagation();
-    const ids = dt.getData(TRACKS), listId = dt.getData(LIST);
-    if (ids && l) {
-      const n = lib.addToList(l.id, JSON.parse(ids));
-      lib.notice = n ? 'Added ' + n + ' track' + (n === 1 ? '' : 's') + ' to ' + l.name + '.' : 'Already in ' + l.name + '.';
-    } else if (listId && listId !== l?.id) lib.moveList(listId, l?.id ?? null);
-  }
-  function rename(l: List, name: string) { editing = null; if (name.trim() && name.trim() !== l.name) lib.updateList(l.id, { name: name.trim() }); }
+  function rename(l: List, name: string) { view.editing = null; if (name.trim() && name.trim() !== l.name) lib.updateList(l.id, { name: name.trim() }); }
   function remove(l: List) {
+    menuFor = null;
     const what = l.kind === 'folder' ? 'the folder “' + l.name + '” and everything in it' : 'the playlist “' + l.name + '”';
     if (confirm('Delete ' + what + '? The tracks stay in your collection.')) { lib.deleteList(l.id); if (isSel({ kind: 'list', id: l.id })) view.select({ kind: 'all' }); }
+  }
+  function pressList(e: PointerEvent, l: List) {
+    if (view.editing === l.id || (e.target as HTMLElement).closest('.tools, .twist, input')) return;
+    drag.begin(e, { kind: 'list', id: l.id, label: l.name });
+  }
+  /** How the hovered list shows the pending drop. */
+  function dropCls(id: string): string {
+    const t = drag.active ? drag.target : null;
+    if (!t) return '';
+    if (t.type === 'playlist' && t.id === id) return 'drop-add';
+    if (t.type === 'list' && t.id === id) return 'drop-' + t.at;
+    return '';
+  }
+  /** Folders a list can move into (not itself or its own sub-folders). */
+  function moveTargets(l: List): List[] {
+    const all = [...(lib.store?.lists.values() ?? [])].filter(x => x.kind === 'folder' && x.id !== l.id);
+    const inside = (x: List) => { for (let p: string | null = x.parentId; p; p = lib.store?.lists.get(p)?.parentId ?? null) if (p === l.id) return true; return false; };
+    return all.filter(x => !inside(x)).sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b)));
+  }
+  function moveTo(l: List, parentId: string | null) {
+    menuFor = null;
+    lib.placeList(l.id, parentId, Infinity);
+    if (parentId) open[parentId] = true;
   }
   const focus = (el: HTMLInputElement) => { el.focus(); el.select(); };
 </script>
 
 {#snippet node(l: List, depth: number)}
   {@const kids = l.kind === 'folder' ? childrenOf(l.id, lib.version) : []}
+  {@const siblings = childrenOf(l.parentId ?? '', lib.version)}
   <li>
-    <div class="item" class:sel={isSel({ kind: 'list', id: l.id })} class:drop={dropTarget === l.id} style:padding-left={8 + depth * 14 + 'px'}
-      draggable={editing !== l.id} role="treeitem" aria-selected={isSel({ kind: 'list', id: l.id })} aria-expanded={l.kind === 'folder' ? !!open[l.id] : undefined} tabindex="-1"
-      ondragstart={e => { e.dataTransfer?.setData(LIST, l.id); }}
-      ondragenter={e => onDragOver(e, l)} ondragover={e => onDragOver(e, l)} ondragleave={e => onDragLeave(e, l.id)} ondrop={e => onDrop(e, l)}>
+    <div class={'item ' + dropCls(l.id)} class:sel={isSel({ kind: 'list', id: l.id })} class:lifted={drag.active && drag.payload?.kind === 'list' && drag.payload.id === l.id}
+      style:padding-left={8 + depth * 14 + 'px'} style:--lc={l.color ?? null}
+      role="treeitem" aria-selected={isSel({ kind: 'list', id: l.id })} aria-expanded={l.kind === 'folder' ? !!open[l.id] : undefined} tabindex="-1"
+      data-drop="list" data-id={l.id} onpointerdown={e => pressList(e, l)}>
       {#if l.kind === 'folder'}
         <button type="button" class="twist" aria-label={open[l.id] ? 'Collapse' : 'Expand'} onclick={() => (open[l.id] = !open[l.id])}>{open[l.id] ? '▾' : '▸'}</button>
-      {:else}<span class="twist">♪</span>{/if}
-      {#if editing === l.id}
-        <input class="rename" value={l.name} use:focus onblur={e => rename(l, e.currentTarget.value)}
-          onkeydown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') editing = null; }}>
+        <svg class="icon" class:colored={!!l.color} viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" fill="currentColor"/></svg>
       {:else}
-        <button type="button" class="name" onclick={() => { view.select({ kind: 'list', id: l.id }); if (l.kind === 'folder') open[l.id] = true; }} ondblclick={() => (editing = l.id)}>
+        <span class="twist"></span>
+        <svg class="icon" class:colored={!!l.color} viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5v8.2a2.3 2.3 0 1 0 1.5 2.1V5.5l5-1.3v5.4a2.3 2.3 0 1 0 1.5 2.1V1.2z" fill="currentColor"/></svg>
+      {/if}
+      {#if view.editing === l.id}
+        <input class="rename" value={l.name} use:focus onblur={e => rename(l, e.currentTarget.value)}
+          onkeydown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') view.editing = null; }}>
+      {:else}
+        <button type="button" class="name" onclick={() => { if (drag.suppressClick) return; view.select({ kind: 'list', id: l.id }); if (l.kind === 'folder') open[l.id] = true; }} ondblclick={() => (view.editing = l.id)}>
           {l.name}{#if l.origin}<span class="imp" title="Imported; refreshed when you import the library again">↓</span>{/if}
         </button>
-        <span class="n">{l.kind === 'playlist' ? l.items.length : ''}</span>
-        <span class="tools">
-          {#if l.kind === 'folder'}<button type="button" title="New playlist in this folder" onclick={() => newList('playlist', l.id)}>+</button>{/if}
-          <button type="button" title="Rename" onclick={() => (editing = l.id)}>✎</button>
-          <button type="button" title="Delete" onclick={() => remove(l)}>×</button>
+        {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' ? l.items.length : ''}</span>{/if}
+        <span class="tools" class:open={menuFor === l.id}>
+          <button type="button" class="more" title="More" aria-haspopup="menu" aria-expanded={menuFor === l.id} onclick={() => (menuFor = menuFor === l.id ? null : l.id)}>⋯</button>
         </span>
       {/if}
     </div>
+    {#if menuFor === l.id}
+      <div class="menu" role="menu" style:margin-left={8 + depth * 14 + 'px'}>
+        <div class="colors" role="group" aria-label="Colour">
+          <button type="button" class="sw none" class:on={!l.color} title="No colour" onclick={() => lib.setListColor(l.id, null)}>∅</button>
+          {#each LIST_COLORS as c (c)}<button type="button" class="sw" class:on={l.color === c} style:background={c} title="Colour" aria-label="Colour" onclick={() => lib.setListColor(l.id, c)}></button>{/each}
+        </div>
+        <button type="button" role="menuitem" onclick={() => { menuFor = null; view.editing = l.id; }}>Rename</button>
+        {#if l.kind === 'folder'}<button type="button" role="menuitem" onclick={() => { menuFor = null; newList('playlist', l.id); }}>New playlist inside</button>{/if}
+        <button type="button" role="menuitem" disabled={siblings[0]?.id === l.id} onclick={() => lib.nudgeList(l.id, -1)}>Move up</button>
+        <button type="button" role="menuitem" disabled={siblings[siblings.length - 1]?.id === l.id} onclick={() => lib.nudgeList(l.id, 1)}>Move down</button>
+        <label class="moveto">Move to
+          <select value={l.parentId ?? ''} onchange={e => moveTo(l, e.currentTarget.value || null)}>
+            <option value="">Top level</option>
+            {#each moveTargets(l) as f (f.id)}<option value={f.id}>{lib.listPath(f)}</option>{/each}
+          </select>
+        </label>
+        <button type="button" role="menuitem" class="danger" onclick={() => remove(l)}>Delete…</button>
+      </div>
+    {/if}
     {#if kids.length && open[l.id]}
       <ul role="group">{#each kids as k (k.id)}{@render node(k, depth + 1)}{/each}</ul>
     {/if}
   </li>
 {/snippet}
+
+<svelte:window onpointerdown={e => { if (menuFor && !(e.target as HTMLElement).closest('.menu, .more')) menuFor = null; }} onkeydown={e => { if (e.key === 'Escape') menuFor = null; }} />
 
 <nav class="lside" aria-label="Library">
   <section>
@@ -148,15 +152,14 @@
     <div class="head">
       <h3 class="label">Playlists</h3>
       <span class="add">
-        <button type="button" id="new-playlist" title="New playlist (or drop tracks here)" class:drop={dropTarget === 'new'} onclick={() => newList('playlist')}
-          ondragover={e => { if ([...(e.dataTransfer?.types ?? [])].includes(TRACKS)) { e.preventDefault(); dropTarget = 'new'; } }}
-          ondragleave={() => { if (dropTarget === 'new') dropTarget = null; }} ondrop={dropOnNew}>+ Playlist</button>
-        <button type="button" title="New folder" onclick={() => newList('folder')}>+ Folder</button>
+        <button type="button" id="new-playlist" title="New playlist (or drop tracks here)" class:drop={drag.active && drag.target?.type === 'new'} data-drop="new" onclick={() => newList('playlist')}>+ Playlist</button>
+        <button type="button" id="new-folder" title="New folder" onclick={() => newList('folder')}>+ Folder</button>
       </span>
     </div>
-    <ul class="tree" role="tree" class:drop={dropTarget === 'top'} ondragover={e => onDragOver(e, null)} ondrop={e => onDrop(e, null)} ondragleave={e => onDragLeave(e, 'top')}>
+    <ul class="tree" role="tree">
       {#each top as l (l.id)}{@render node(l, 0)}{/each}
       {#if !top.length}<li class="empty">No playlists yet. Create one, or import a DJ library.</li>{/if}
+      {#if drag.active && drag.payload?.kind === 'list'}<li class="topzone" class:on={drag.target?.type === 'top'} data-drop="top">Move to the top level</li>{/if}
     </ul>
   </section>
 
@@ -238,7 +241,32 @@
   button.item { background: none; border: 0; text-align: left; cursor: pointer; padding: 0 8px; }
   .item:hover { background: var(--raised); }
   .item.sel { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-  .add button.drop { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .item { position: relative; }
+  .item.lifted { opacity: .4; }
+  .item.drop-add, .item.drop-into { background: color-mix(in srgb, var(--accent) 20%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .item.drop-before::before, .item.drop-after::after { content: ''; position: absolute; left: 6px; right: 6px; height: 2px; background: var(--accent); border-radius: 1px; pointer-events: none; }
+  .item.drop-before::before { top: -1px; }
+  .item.drop-after::after { bottom: -1px; }
+  .plus { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 800; font-size: 14px; line-height: 1; flex: none; }
+  .icon { width: 13px; height: 13px; flex: none; color: var(--muted); }
+  .icon.colored { color: var(--lc); }
+  .tools.open { display: flex; }
+  .more { font-size: 13px !important; line-height: 1; padding: 0 6px 2px !important; }
+  .menu { display: grid; gap: 2px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; margin: 2px 4px 6px; box-shadow: 0 8px 24px rgb(0 0 0 / .4); font-size: 13px; }
+  .menu > button { background: none; border: 0; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer; color: var(--ink); }
+  .menu > button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+  .menu > button:disabled { color: var(--muted); cursor: default; }
+  .menu .danger { color: var(--bad); }
+  .colors { display: flex; gap: 5px; padding: 4px 6px 6px; flex-wrap: wrap; }
+  .sw { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+  .sw.on { border-color: var(--ink); }
+  .sw.none { background: none; border-color: var(--line-2); color: var(--muted); font-size: 10px; line-height: 1; }
+  .sw.none.on { border-color: var(--ink); }
+  .moveto { display: flex; align-items: center; gap: 8px; padding: 4px 8px; color: var(--ink-2); }
+  .moveto select { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 2px 4px; font-size: 12.5px; }
+  .topzone { margin-top: 4px; padding: 6px 8px; border: 1px dashed var(--line-2); border-radius: 4px; color: var(--muted); font-size: 12px; text-align: center; }
+  .topzone.on { border-color: var(--accent); color: var(--accent); }
+  .add button.drop { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); }
   .item.drop, .tree.drop { outline: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .name { flex: 1; min-width: 0; background: none; border: 0; text-align: left; cursor: pointer; padding: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; justify-content: space-between; gap: 6px; }
   div.item > .name { padding-left: 2px; }

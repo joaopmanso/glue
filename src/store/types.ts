@@ -32,6 +32,7 @@ export interface Track {
   duration: number | null;
   format: TrackFormat | null;
   addedAt: string;
+  rating?: number | null;       // the user's own rating in MCO: 0.5–5 in half stars
   sources: string[];            // ids of imported sources that contain this track
 }
 
@@ -52,6 +53,7 @@ export interface List {
   id: string; kind: 'folder' | 'playlist'; name: string; parentId: string | null; position: number;
   notes: string; items: string[];                          // track ids, in order
   origin: { sourceId: string; externalId: string } | null; // imported playlist / crate
+  color?: string | null;                                   // one of LIST_COLORS, or none
   createdAt: string;
 }
 
@@ -62,4 +64,5 @@ export interface Source { schemaVersion: number; id: string; app: SourceApp; nam
 
 export const newId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 export const shardOf = (id: string) => id.slice(0, 2);
+export const LIST_COLORS = ['#ff6b6b', '#ff9f5a', '#f2c14e', '#3ecf8e', '#4fd1c5', '#7cc7ff', '#a78bfa', '#f472b6'];
 export const PROFILE_COLORS = ['#7cc7ff', '#f472b6', '#4fd1c5', '#ff9f5a', '#a78bfa', '#f2c14e', '#3ecf8e', '#ff6b6b'];
