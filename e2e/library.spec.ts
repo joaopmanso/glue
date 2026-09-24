@@ -775,7 +775,7 @@ test('finds DJ libraries in allowed folders and adds / updates them with one cli
     const root = await navigator.storage.getDirectory();
     const put = async (dir: FileSystemDirectoryHandle, path: string[], data: Uint8Array | string) => {
       let d = dir; for (const p of path.slice(0, -1)) d = await d.getDirectoryHandle(p, { create: true });
-      const w = await (await d.getFileHandle(path[path.length - 1], { create: true })).createWritable(); await w.write(data); await w.close();
+      const w = await (await d.getFileHandle(path[path.length - 1], { create: true })).createWritable(); await w.write(new Blob([data as BlobPart])); await w.close();
     };
     const music = await root.getDirectoryHandle('Music');
     await put(music, ['Engine Library', 'Database2', 'm.db'], Uint8Array.from(atob(mdb), c => c.charCodeAt(0)));
