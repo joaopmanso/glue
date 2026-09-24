@@ -1,7 +1,7 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
   import { view, type ViewSel } from '../../lib/view.svelte';
-  import { importFiles, importFound, pickSeratoFolder } from '../../lib/importActions';
+  import { importDetected, importFiles, pickSeratoFolder } from '../../lib/importActions';
   import { IMPORT_ACCEPT } from '../../lib/imports';
   import { canKeepFiles, canPickFolders, pickAudioFiles } from '../../platform';
   import { LOOSE } from '../../store/merge';
@@ -216,30 +216,49 @@
 
   <section>
     <div class="head">
-      <h3 class="label">Imported libraries</h3>
-      <span class="add"><button type="button" id="import-lib" onclick={() => fileInput.click()} title="rekordbox XML, Engine DJ m.db, Traktor NML, iTunes / Apple Music XML, M3U">+ Import</button></span>
+      <h3 class="label">DJ libraries</h3>
+      <span class="add">
+        <button type="button" id="find-libs" title="Allow another folder for MCO to look for DJ libraries in" onclick={() => lib.addLibraryPlace('documents')}>Look in…</button>
+        <button type="button" id="import-lib" onclick={() => fileInput.click()} title="Choose a library file yourself: rekordbox XML, Engine DJ m.db, Traktor NML, iTunes / Apple Music XML, M3U">+ Import</button>
+      </span>
     </div>
     <input type="file" multiple accept={IMPORT_ACCEPT} bind:this={fileInput} hidden id="import-input"
       onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; void importFiles(f); }}>
-    <ul>
+    <ul id="dj-libs">
       {#each sources as s (s.id)}
+        {@const d = lib.detected.find(x => x.sourceId === s.id)}
         <li>
           <div class="item" class:sel={isSel({ kind: 'source', id: s.id })}>
-            <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + s.fileName}>{APP_NAMES[s.app] ?? s.app}<small> {s.fileName}</small></button>
-            <span class="n">{s.tracks.length}</span>
+            <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}<small> {s.fileName}</small></button>
+            {#if d?.status === 'changed'}<button type="button" class="update" title={'Changed since you imported it (' + new Date(d.modified).toLocaleString() + ')'} onclick={() => importDetected(d)}>Update</button>
+            {:else}<span class="n">{s.tracks.length}</span>{/if}
             <span class="tools"><button type="button" title="Remove this import" onclick={() => { if (confirm('Remove the ' + (APP_NAMES[s.app] ?? s.app) + ' import and its playlists? Tracks with a linked file stay.')) lib.deleteSource(s.id); }}>×</button></span>
           </div>
         </li>
       {/each}
-      {#each lib.found.filter(f => !sources.some(s => s.app === f.kind)) as f (f.rootId + f.relPath)}
-        <li class="found"><span>Found: {FOUND_NAMES[f.kind]}<small> {f.relPath}</small></span><button type="button" onclick={() => importFound(f)}>Import</button></li>
+      {#each lib.detected.filter(d => d.status === 'new') as d (d.place + d.relPath)}
+        <li class="found">
+          <span class="fwho"><b>{FOUND_NAMES[d.kind]}</b><small title={d.placeName + '/' + d.relPath}>{d.placeName}/{d.relPath}</small></span>
+          <button type="button" class="addlib" onclick={() => importDetected(d)}>Add</button>
+        </li>
       {/each}
+      {#each lib.places.filter(p => !p.granted) as p (p.key)}
+        <li class="found dim"><span class="fwho"><b>{p.name}</b><small>allow again to look for libraries</small></span>
+          <button type="button" onclick={() => lib.allowLibraryPlace(p.key)}>Allow</button>
+          <button type="button" title="Stop looking here" onclick={() => lib.forgetLibraryPlace(p.key)}>×</button></li>
+      {/each}
+      {#if lib.detecting}<li class="empty">Looking for DJ libraries…</li>
+      {:else if !sources.length && !lib.detected.length}<li class="empty">No DJ libraries found yet.</li>{/if}
     </ul>
-    <p class="hint">
-      rekordbox: File › Export Collection in xml format. Engine DJ: Music/Engine Library/Database2/m.db.
-      Serato: <button type="button" class="inline" onclick={pickSeratoFolder}>choose the _Serato_ folder</button>.
-      Traktor: collection.nml. Apple Music: File › Library › Export Library.
-    </p>
+    <details class="where">
+      <summary>Where are my libraries?</summary>
+      <ul class="howto">
+        <li><b>Engine DJ</b>, <b>Serato</b>, <b>iTunes</b>: inside your Music folder. Add Music under “Music” above and they show up here. Serato on an external drive: add the drive, or <button type="button" class="inline" onclick={pickSeratoFolder}>choose its _Serato_ folder</button>.</li>
+        <li><b>Traktor</b>: Documents › Native Instruments. <button type="button" class="inline" onclick={() => lib.addLibraryPlace('documents')}>Allow that folder once</button>.</li>
+        <li><b>rekordbox</b>: its library can’t be read by a web page. In rekordbox use File › Export Collection in xml format and save it in your MCO folder (<b>{lib.homeName}</b>); it appears here, with Update after each new export.</li>
+        <li><b>Apple Music</b> (Mac): File › Library › Export Library, saved in your MCO folder.</li>
+      </ul>
+    </details>
   </section>
 </nav>
 
@@ -301,6 +320,14 @@
   .path input { border-color: var(--line-2); font-family: var(--font-mono); font-size: 12px; }
   .reconnect { color: var(--warn); border-color: var(--warn); }
   .empty, .hint { color: var(--muted); font-size: 12.5px; padding: 4px 8px; }
+  .fwho { display: grid; min-width: 0; line-height: 1.3; flex: 1; }
+  .fwho b { font-weight: 600; }
+  .fwho small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .found.dim { opacity: .8; }
+  .addlib, .update { border-color: var(--accent) !important; color: var(--accent) !important; }
+  .update { background: none; border: 1px solid; border-radius: 4px; font-size: 11.5px; padding: 1px 7px; cursor: pointer; }
+  .where summary { cursor: pointer; color: var(--muted); font-size: 12.5px; padding: 4px 8px; }
+  .howto { display: grid; gap: 6px; padding: 4px 8px 4px 10px; color: var(--ink-2); font-size: 12.5px; }
   .found { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 4px 8px; background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 4px; font-size: 12.5px; }
   .inline { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font-size: inherit; }
 </style>

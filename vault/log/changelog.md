@@ -5,6 +5,12 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · DJ libraries detected automatically
+- Sidebar › DJ libraries: libraries found in music folders, the MCO folder and remembered places, with
+  Add / Update; "Look in…" allows another place (e.g. Traktor's); "Where are my libraries?" guide;
+  manual Import kept ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
+- Fixed: a search requested while one was running was dropped; it now runs right after.
+
 ## 2026-09-24 · Build a playlist with several selected tracks
 - With more than one track selected, the builder starts from the first and includes all the others.
 

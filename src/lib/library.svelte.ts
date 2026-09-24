@@ -8,6 +8,7 @@ import { matchTracks } from '../core/library/match';
 import { ANALYSIS_VERSION, SCHEMA, newId, type List, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
+import { findLibraries, type Detected } from '../core/library/detect';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
 import { failed } from '../core/library/summary';
 import { encodeDetails, loadDetails, removeDetails, writeDetails, type DetailsHeader } from '../store/details';
@@ -40,6 +41,10 @@ class Library {
   store = $state.raw<CollectionStore | null>(null);
   roots = $state.raw<RootState[]>([]);
   found = $state.raw<(FoundLibrary & { rootId: string })[]>([]);
+  /** DJ libraries found in allowed folders, with where they are and whether they're imported (ADR 0030). */
+  detected = $state.raw<(Detected & { place: string; placeName: string; status: 'new' | 'imported' | 'changed'; sourceId: string | null })[]>([]);
+  detecting = $state(false);
+  places = $state.raw<{ key: string; name: string; granted: boolean }[]>([]);
   version = $state(0);
   job = $state<Job | null>(null);
   private noticeText = $state('');
@@ -237,6 +242,7 @@ class Library {
     this.version++;
     this.enqueueAll();
     this.onOpened?.();
+    void this.detectLibraries();
   }
   async renameCollection(name: string) {
     const s = this.store;
@@ -371,9 +377,61 @@ class Library {
       if (missing) bits.push(missing + ' missing');
       if (libraries.length) bits.push(libraries.length + ' DJ librar' + (libraries.length === 1 ? 'y' : 'ies') + ' found');
       this.notice = r.root.name + ': ' + bits.join(', ') + '.';
+      void this.detectLibraries();
     } catch (e) { console.error(e); this.notice = 'Couldn’t scan ' + r.root.name + ': ' + ((e as Error).message || e); }
     finally { this.job = null; }
     this.enqueueAll();
+  }
+
+  // ─── Finding DJ libraries ──────────────────────────────────────────────────
+  /** Look for DJ libraries in every folder MCO may read: music folders, the MCO folder, remembered places. */
+  async detectLibraries() {
+    const s = this.store;
+    if (!s) return;
+    // A request while a search runs (a new place, an import) runs another search right after it.
+    if (this.detecting) { this.detectAgain = true; return; }
+    this.detecting = true;
+    try {
+      const where: { place: string; name: string; dir: FileSystemDirectoryHandle }[] = [];
+      for (const r of this.roots) if (r.dir && r.granted) where.push({ place: r.root.id, name: r.root.name, dir: r.dir });
+      if (this.homeDir && this.homeKind === 'folder') where.push({ place: 'home', name: this.homeName, dir: this.homeDir });
+      const places = await platform.libraryPlaces(), states: { key: string; name: string; granted: boolean }[] = [];
+      for (const p of places) {
+        const granted = await platform.permission(p.dir, 'read', false);
+        states.push({ key: p.key, name: p.dir.name, granted });
+        if (granted) where.push({ place: p.key, name: p.dir.name, dir: p.dir });
+      }
+      this.places = states;
+      const found: typeof this.detected = [];
+      for (const w of where) {
+        for (const d of await findLibraries(w.dir, w.place === 'home' ? 2 : 3)) {
+          if (found.some(x => x.place === w.place && x.relPath === d.relPath)) continue;
+          const src = [...s.sources.values()].find(x => x.origin?.place === w.place && x.origin.relPath === d.relPath)
+            ?? [...s.sources.values()].find(x => !x.origin && x.app === d.kind && x.fileName === (d.relPath.split('/').pop() ?? ''));
+          const status = !src ? 'new' : src.origin && d.modified > src.origin.modified + 1000 ? 'changed' : 'imported';
+          found.push({ ...d, place: w.place, placeName: w.name, status, sourceId: src?.id ?? null });
+        }
+      }
+      if (this.store === s) this.detected = found;
+    } catch (e) { console.warn('Library detection failed', e); }
+    finally { this.detecting = false; }
+    if (this.detectAgain) { this.detectAgain = false; await this.detectLibraries(); }
+  }
+  private detectAgain = false;
+  /** Allow another folder to look in (remembered), then look again. */
+  async addLibraryPlace(startIn: 'music' | 'documents' = 'documents') {
+    try { await platform.addLibraryPlace(startIn); } catch (e) { if ((e as DOMException).name !== 'AbortError') this.notice = (e as Error).message; return; }
+    await this.detectLibraries();
+  }
+  async allowLibraryPlace(key: string) {
+    const p = (await platform.libraryPlaces()).find(x => x.key === key);
+    if (p && await platform.permission(p.dir, 'read', true)) await this.detectLibraries();
+  }
+  async forgetLibraryPlace(key: string) { await platform.forgetLibraryPlace(key); await this.detectLibraries(); }
+  /** Remember where an import came from (so the panel can offer Update). */
+  markOrigin(sourceId: string, origin: { place: string; relPath: string; modified: number }) {
+    const src = this.store?.sources.get(sourceId);
+    if (src) this.store!.putSource({ ...src, origin });
   }
 
   // ─── Imports ───────────────────────────────────────────────────────────────

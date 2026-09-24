@@ -2,6 +2,7 @@
 import { lib } from './library.svelte';
 import { parseLibraryFiles, readSeratoFolder } from './imports';
 import type { FoundLibrary } from '../core/library/scan';
+import type { Detected } from '../core/library/detect';
 import type { ImportedLibrary } from '../core/interop/types';
 import type { ImportReport } from '../store/merge';
 
@@ -17,6 +18,7 @@ async function run(label: string, fn: () => Promise<{ lib: ImportedLibrary; file
   try {
     const libs = await fn();
     const lines = libs.map(({ lib: l, fileName }) => report(l.name, lib.importLibrary(l, fileName)));
+    void lib.detectLibraries();
     if (skipped.length) lines.push('Not recognised: ' + skipped.join(', ') + '.');
     lib.notice = lines.join(' ') || 'Nothing to import.';
   } catch (e) {
@@ -43,6 +45,28 @@ export async function importFound(f: FoundLibrary) {
   if (f.kind === 'serato') return importSeratoFolder(f.handle as FileSystemDirectoryHandle);
   const file = await (f.handle as FileSystemFileHandle).getFile();
   await importFiles([file]);
+}
+
+/** Add (or update) a library the finder detected, remembering where it came from. */
+export async function importDetected(d: Detected & { place: string }) {
+  lib.job = { text: 'Importing ' + d.relPath + '…', done: 0, total: null };
+  try {
+    let parsed: { lib: ImportedLibrary; fileName: string }[];
+    if (d.kind === 'serato') parsed = [{ lib: await readSeratoFolder(d.handle as FileSystemDirectoryHandle), fileName: 'database V2' }];
+    else {
+      const r = await parseLibraryFiles([await (d.handle as FileSystemFileHandle).getFile()]);
+      if (!r.libs.length) throw new Error(r.skipped.join(', ') || 'not recognised');
+      parsed = r.libs;
+    }
+    const lines: string[] = [];
+    for (const p of parsed) {
+      const r = lib.importLibrary(p.lib, p.fileName);
+      if (r) { lib.markOrigin(r.sourceId, { place: d.place, relPath: d.relPath, modified: d.modified }); lines.push(report(p.lib.name, r)); }
+    }
+    lib.notice = lines.join(' ');
+  } catch (e) { console.error(e); lib.notice = 'Couldn’t import ' + d.relPath + ': ' + ((e as Error).message || e); }
+  finally { lib.job = null; }
+  await lib.detectLibraries();
 }
 
 export async function pickSeratoFolder() {

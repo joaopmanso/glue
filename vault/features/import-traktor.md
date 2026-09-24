@@ -32,3 +32,7 @@ Reads Traktor's `collection.nml` (tracks, playlists, cues, key, BPM, ratings) as
 - Tested: unit tests per format (`tests/interop.test.ts`), merge rules (`tests/merge.test.ts`), and the
   browser flow in `e2e/library.spec.ts`.
 - Traktor: `collection.nml` (Documents/Native Instruments/Traktor x.y.z); playlists by PRIMARYKEY; key as Traktor shows it (INFO KEY, else MUSICAL_KEY).
+
+## Detected automatically (2026-09-24)
+- Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
+

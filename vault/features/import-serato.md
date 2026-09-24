@@ -46,3 +46,7 @@ and crates as MCO playlists.
 - Tested: unit tests per format (`tests/interop.test.ts`), merge rules (`tests/merge.test.ts`), and the
   browser flow in `e2e/library.spec.ts`.
 - Serato: choose the `_Serato_` folder, or pick `database V2` together with its `.crate` files; `%%` in crate names becomes nested folders.
+
+## Detected automatically (2026-09-24)
+- Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
+

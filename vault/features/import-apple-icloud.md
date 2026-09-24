@@ -39,3 +39,7 @@ Imports the Apple Music / iTunes library (tracks and playlists) and scans music 
   browser flow in `e2e/library.spec.ts`.
 - Apple Music / iTunes: the Library XML; Master and built-in playlists skipped; folders kept.
 - iCloud Drive: add it as a music folder like any other. Not yet: flagging not-downloaded placeholders.
+
+## Detected automatically (2026-09-24)
+- Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
+

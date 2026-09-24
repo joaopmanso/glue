@@ -63,7 +63,9 @@ export interface List {
 /** What an imported library said about a track (kept read-only, per source). */
 export interface SourceTrack { externalId: string; trackId: string; bpm: number | null; key: string | null; rating: number | null; playCount: number | null; cues: number; dateAdded: string | null; path: string }
 export type SourceApp = 'rekordbox' | 'engine' | 'serato' | 'traktor' | 'apple' | 'm3u';
-export interface Source { schemaVersion: number; id: string; app: SourceApp; name: string; fileName: string; importedAt: string; tracks: SourceTrack[]; lists: number }
+/** Where a detected library was imported from (place: a music folder id, 'home', or a remembered place), for Update. */
+export interface SourceOrigin { place: string; relPath: string; modified: number }
+export interface Source { schemaVersion: number; id: string; app: SourceApp; name: string; fileName: string; importedAt: string; tracks: SourceTrack[]; lists: number; origin?: SourceOrigin }
 
 export const newId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 export const shardOf = (id: string) => id.slice(0, 2);

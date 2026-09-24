@@ -38,3 +38,7 @@ See [research/dj-library-formats.md](../research/dj-library-formats.md#engine-dj
 - Tested: unit tests per format (`tests/interop.test.ts`), merge rules (`tests/merge.test.ts`), and the
   browser flow in `e2e/library.spec.ts`.
 - Engine DJ: `Music/Engine Library/Database2/m.db`, read with sql.js (SQLite in WebAssembly, loaded only for this import); playlists and entries follow Engine's linked-list order; keys converted to Camelot.
+
+## Detected automatically (2026-09-24)
+- Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
+

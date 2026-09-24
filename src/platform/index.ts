@@ -102,6 +102,22 @@ export async function folderHandle(key: string): Promise<Dir | null> {
 }
 export const forgetFolder = (key: string) => idbDel(key);
 
+/** Extra places where MCO looks for DJ libraries (e.g. Documents › Native Instruments), remembered. */
+export async function libraryPlaces(): Promise<{ key: string; dir: Dir }[]> {
+  try { return (await idbGet<{ key: string; dir: Dir }[]>('library-places')) ?? []; } catch { return []; }
+}
+export async function addLibraryPlace(startIn: 'music' | 'documents' | 'desktop' = 'documents'): Promise<{ key: string; dir: Dir }> {
+  const p = picker();
+  if (!p) throw new Error('This browser can’t open folders; use Import instead.');
+  const dir = await p({ id: 'mco-libraries', mode: 'read', startIn });
+  const places = await libraryPlaces();
+  for (const x of places) if (await x.dir.isSameEntry(dir)) return x;
+  const place = { key: 'place:' + crypto.randomUUID(), dir };
+  await idbSet('library-places', [...places, place]);
+  return place;
+}
+export async function forgetLibraryPlace(key: string) { await idbSet('library-places', (await libraryPlaces()).filter(p => p.key !== key)); }
+
 /** The browser's private storage for derived data (stored analyses): not synced, safe to lose. */
 export async function cacheDir(): Promise<Dir | null> {
   try { return await (await navigator.storage.getDirectory()).getDirectoryHandle('cache', { create: true }); } catch { return null; }

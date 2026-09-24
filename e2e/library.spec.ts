@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (window as unknown as { showDirectoryPicker: (o: { id?: string }) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker = async (o) => {
       const root = await navigator.storage.getDirectory();
-      return root.getDirectoryHandle(o.id === 'mco-home' ? ((window as unknown as { __home?: string }).__home ?? 'MCO') : 'Music', { create: true });
+      return root.getDirectoryHandle(o.id === 'mco-home' ? ((window as unknown as { __home?: string }).__home ?? 'MCO') : o.id === 'mco-libraries' ? 'NI' : 'Music', { create: true });
     };
     // "+ Songs": returns the files named in window.__pick from Music/Sets.
     (window as unknown as { showOpenFilePicker: () => Promise<FileSystemFileHandle[]> }).showOpenFilePicker = async () => {
@@ -758,4 +758,65 @@ test('with several tracks selected, the playlist builder includes them all', asy
   const list = page.locator('#auto-list');
   for (const t of ['Fixture MP3', 'aiff-44k-24', 'Fixture AAC']) await expect(list).toContainText(t);
   await expect(page.locator('#auto-list li')).toHaveCount(3);
+});
+
+test('finds DJ libraries in allowed folders and adds / updates them with one click', async ({ page }) => {
+  const initSqlJs = (await import('sql.js')).default;
+  const SQL = await initSqlJs(), db = new SQL.Database();
+  db.run(`CREATE TABLE Track (id INTEGER PRIMARY KEY, path TEXT, filename TEXT, title TEXT, artist TEXT, bpmAnalyzed REAL, key INTEGER, length INTEGER);
+    CREATE TABLE Playlist (id INTEGER PRIMARY KEY, title TEXT, parentListId INTEGER, nextListId INTEGER);
+    CREATE TABLE PlaylistEntity (id INTEGER PRIMARY KEY, listId INTEGER, trackId INTEGER, nextEntityId INTEGER);
+    INSERT INTO Track VALUES (1,'../Sets/flac-96k-24.flac','flac-96k-24.flac','Engine one','E',126,1,4);
+    INSERT INTO Playlist VALUES (1,'Peak time',0,0); INSERT INTO PlaylistEntity VALUES (1,1,1,0);`);
+  const mdb = Buffer.from(db.export()).toString('base64'); db.close();
+  const nml = `<?xml version="1.0" encoding="UTF-8"?><NML VERSION="19"><COLLECTION ENTRIES="1"><ENTRY TITLE="Traktor one" ARTIST="T"><LOCATION DIR="/:Users/:dj/:Music/:Sets/:" FILE="mp3-128k.mp3" VOLUME="C:"/></ENTRY></COLLECTION><PLAYLISTS><NODE TYPE="FOLDER" NAME="$ROOT"><SUBNODES COUNT="0"></SUBNODES></NODE></PLAYLISTS></NML>`;
+  await seed(page);
+  await page.evaluate(async ({ mdb, rb, nml }) => {
+    const root = await navigator.storage.getDirectory();
+    const put = async (dir: FileSystemDirectoryHandle, path: string[], data: Uint8Array | string) => {
+      let d = dir; for (const p of path.slice(0, -1)) d = await d.getDirectoryHandle(p, { create: true });
+      const w = await (await d.getFileHandle(path[path.length - 1], { create: true })).createWritable(); await w.write(data); await w.close();
+    };
+    const music = await root.getDirectoryHandle('Music');
+    await put(music, ['Engine Library', 'Database2', 'm.db'], Uint8Array.from(atob(mdb), c => c.charCodeAt(0)));
+    await put(await root.getDirectoryHandle('MCO', { create: true }), ['rekordbox.xml'], rb);
+    await root.removeEntry('NI', { recursive: true }).catch(() => {});
+    await put(await root.getDirectoryHandle('NI', { create: true }), ['Traktor 3.11.0', 'collection.nml'], nml);
+  }, { mdb, rb: REKORDBOX, nml });
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.click('#use-anyway');   // the export is already in it, so it isn't empty
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+
+  // Found without browsing: Engine DJ in Music, rekordbox exported into the MCO folder.
+  const libs = page.locator('#dj-libs');
+  await expect(libs.locator('.found', { hasText: 'Engine DJ library' })).toBeVisible({ timeout: 15_000 });
+  await expect(libs.locator('.found', { hasText: 'rekordbox XML' })).toContainText('MCO/rekordbox.xml');
+  await libs.locator('.found', { hasText: 'rekordbox XML' }).getByRole('button', { name: 'Add' }).click();
+  await expect(page.locator('.notice')).toContainText('3 tracks', { timeout: 15_000 });
+  await expect(libs.locator('.found', { hasText: 'rekordbox XML' })).toHaveCount(0);
+  await libs.locator('.found', { hasText: 'Engine DJ library' }).getByRole('button', { name: 'Add' }).click();
+  await expect(libs.locator('.item', { hasText: 'Engine DJ' })).toBeVisible({ timeout: 15_000 });
+
+  // Traktor lives elsewhere: "Look in…" once, and it's found (and remembered).
+  await page.click('#find-libs');
+  await expect(libs.locator('.found', { hasText: 'Traktor collection' })).toBeVisible({ timeout: 15_000 });
+
+  // A new rekordbox export: Update.
+  await page.waitForTimeout(1200);
+  await page.evaluate(async rb => {
+    const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('MCO');
+    const w = await (await d.getFileHandle('rekordbox.xml')).createWritable(); await w.write(rb.replace('Lossy one', 'Lossy one (edit)')); await w.close();
+  }, REKORDBOX);
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(5, { timeout: 20_000 });
+  const upd = libs.locator('.item', { hasText: 'rekordbox' }).getByRole('button', { name: 'Update' });
+  await expect(upd).toBeVisible({ timeout: 15_000 });
+  await expect(libs.locator('.found', { hasText: 'Traktor collection' })).toBeVisible();   // the place was remembered
+  await upd.click();
+  await expect(upd).toHaveCount(0, { timeout: 15_000 });
 });

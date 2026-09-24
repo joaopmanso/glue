@@ -41,3 +41,7 @@ See [research/dj-library-formats.md](../research/dj-library-formats.md#rekordbox
 - Tested: unit tests per format (`tests/interop.test.ts`), merge rules (`tests/merge.test.ts`), and the
   browser flow in `e2e/library.spec.ts`.
 - rekordbox: File › Export Collection in xml format; playlists by TrackID or by Location.
+
+## Detected automatically (2026-09-24)
+- Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
+
