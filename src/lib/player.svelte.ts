@@ -3,6 +3,7 @@
 import { fmtKHz, freqLabel, niceStep } from '../core/format';
 import { MONO, fitCanvas, theme } from '../ui/render/canvas';
 import type { Cutoff } from '../core/types';
+import { WF_BANDS, WF_DEPTH, WF_FPS, bandBins, drawWaterfall, type WaterfallFrame } from '../ui/render/waterfall';
 
 // AnalyserNode scales by 1/N with a Blackman window (coherent gain 0.42); lift it so a
 // full-scale sine reads 0 dB, matching the main spectrogram.
@@ -22,11 +23,16 @@ class Live {
   ictx: CanvasRenderingContext2D | null = null;
   col: ImageData | null = null;
   rows = 0; drawn = false; last = 0; acc = 0; error = '';
+  // 3D mode: recent spectra in log-spaced bands (frames[0] oldest).
+  bands: Int32Array | null = null;
+  frames: WaterfallFrame[] = [];
+  wfAcc = 0;
   note = $state('What’s sounding now, scrolling right to left.');
 
   reset() {
     if (this.ctx) { try { void this.ctx.close(); } catch { /* already closed */ } }
     this.ctx = null; this.an = null; this.el = null; this.drawn = false; this.last = 0; this.acc = 0; this.error = '';
+    this.frames = []; this.wfAcc = 0;
   }
 
   /** Attach to the player's element. Must run inside a user gesture so the context may start. */
@@ -56,6 +62,8 @@ class Live {
     this.col = this.ictx.createImageData(1, this.rows);
     this.buf = new Float32Array(chain.an.frequencyBinCount);
     this.peak = new Float32Array(this.rows);
+    this.bands = bandBins(chain.an.frequencyBinCount, chain.ctx.sampleRate);
+    this.frames = []; this.wfAcc = 0;
     this.ctx = chain.ctx; this.an = chain.an; this.el = el; this.drawn = false; this.error = '';
     const nyq = chain.ctx.sampleRate / 2, fileNyq = fileSr / 2;
     this.note = nyq < fileNyq * 0.99
@@ -66,12 +74,16 @@ class Live {
 
   capture(ts: number, lut: Uint8ClampedArray, floor: number) {
     if (!this.an || !this.buf || !this.peak || !this.col || !this.ictx || !this.img) return;
-    this.acc += (this.last ? Math.min(250, ts - this.last) : 1000 / LIVE_COLS_PER_SEC) * LIVE_COLS_PER_SEC / 1000;
+    const dt = this.last ? Math.min(250, ts - this.last) : 1000 / LIVE_COLS_PER_SEC;
     this.last = ts;
-    const steps = Math.floor(this.acc);
+    this.acc += dt * LIVE_COLS_PER_SEC / 1000;
+    this.wfAcc += dt * WF_FPS / 1000;
+    const steps = Math.floor(this.acc), push = this.wfAcc >= 1;
+    if (steps < 1 && !push) return;
+    this.an.getFloatFrequencyData(this.buf);
+    if (push) { this.wfAcc -= Math.floor(this.wfAcc); this.pushFrame(floor); }
     if (steps < 1) return;
     this.acc -= steps;
-    this.an.getFloatFrequencyData(this.buf);
     const { buf, peak, rows, col, ictx } = this, n = buf.length, d = col.data;
     peak.fill(-Infinity);
     for (let k = 0; k < n; k++) { const r = Math.floor(k * rows / n), v = buf[k]; if (v > peak[r]) peak[r] = v; }
@@ -86,7 +98,24 @@ class Live {
     this.drawn = true;
   }
 
-  draw(cv: HTMLCanvasElement, rightMargin: number, hasSource: boolean, cut: Cutoff | null, markers: boolean) {
+  /** One 3D frame: the loudest bin of each log band, scaled 0–1 against the floor. */
+  private pushFrame(floor: number) {
+    const { buf, bands } = this;
+    if (!buf || !bands) return;
+    const f = this.frames.length >= WF_DEPTH ? this.frames.shift()! : { t: new Float32Array(WF_BANDS) };
+    for (let b = 0; b < WF_BANDS; b++) {
+      let m = -Infinity;
+      for (let k = bands[b]; k < Math.max(bands[b] + 1, bands[b + 1]); k++) if (buf[k] > m) m = buf[k];
+      const v = (m + LIVE_OFFSET - floor) / -floor;
+      f.t[b] = v > 0 ? (v < 1 ? v : 1) : 0;
+    }
+    // A light 3-band smoothing, for the look of the ridges only (the scrolling view is untouched).
+    let prev = f.t[0];
+    for (let b = 1; b < WF_BANDS - 1; b++) { const cur = f.t[b]; f.t[b] = Math.max(cur, (prev + 2 * cur + f.t[b + 1]) / 4); prev = cur; }
+    this.frames.push(f);
+  }
+
+  draw(cv: HTMLCanvasElement, rightMargin: number, hasSource: boolean, cut: Cutoff | null, markers: boolean, mode: 'scroll' | '3d' = 'scroll', lut?: Uint8ClampedArray) {
     const { ctx, w, h } = fitCanvas(cv);
     ctx.clearRect(0, 0, w, h);
     const C = theme();
@@ -98,9 +127,13 @@ class Live {
       ctx.fillText(this.error || (hasSource ? 'Press play to see what’s sounding right now' : 'Open a file to use the live view'), m.l + pw / 2, m.t + ph / 2);
       return;
     }
+    const nyq = this.ctx.sampleRate / 2;
+    if (mode === '3d' && lut) {
+      drawWaterfall(ctx, { l: m.l, t: m.t, w: pw, h: ph }, this.frames, lut, nyq, C, markers && cut && (!cut.full || cut.wall) ? cut.fc : null, WF_DEPTH / WF_FPS);
+      return;
+    }
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(this.img, m.l, m.t, pw, ph);
-    const nyq = this.ctx.sampleRate / 2;
     ctx.fillStyle = C.muted; ctx.strokeStyle = C.line2; ctx.lineWidth = 1;
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     const fs = niceStep(nyq, Math.max(2, Math.floor(ph / 40)));

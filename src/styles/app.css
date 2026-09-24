@@ -248,3 +248,6 @@
   }
   @media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
   a.btn-ghost { text-decoration: none; display: inline-flex; align-items: center; }
+  .live-head .live-mode { grid-template-columns: repeat(2, auto); align-self: center; }
+  .live-head .live-mode button { padding: 2px 12px; }
+  .live-on #live-box.tall, #live-box.tall { height: clamp(220px, calc((100vh - 346px) * .5), 440px); }

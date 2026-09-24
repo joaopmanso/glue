@@ -5,6 +5,10 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · 3D live view
+- The live view can switch between the scrolling spectrogram and a 3D view where recent spectra run
+  into the horizon ([live view](../features/live-view.md)).
+
 ## 2026-09-24 · Track pages never analyse after the background pass
 - The background workers now store each track's full analysis (compressed, ≤512 spectrogram rows) in
   the browser's storage ([ADR 0024](../adr/0024-background-stores-full-analysis.md)); track pages

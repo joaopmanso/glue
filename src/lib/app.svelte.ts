@@ -30,11 +30,13 @@ class AppState {
   markers = $state(true);
   keyNotation = $state<KeyNotation>(readPref('keyNotation', 'camelot') as KeyNotation);
   liveOn = $state(readPref('live', '0') === '1');
+  liveMode = $state<'scroll' | '3d'>(readPref('liveMode', 'scroll') === '3d' ? '3d' : 'scroll');
   dragging = $state(false);
 
   setPalette(p: PaletteName) { this.palette = p; this.lut = buildLut(p); }
   setNotation(n: KeyNotation) { this.keyNotation = n; writePref('keyNotation', n); }
   setLive(on: boolean) { this.liveOn = on; writePref('live', on ? '1' : '0'); }
+  setLiveMode(m: 'scroll' | '3d') { this.liveMode = m; writePref('liveMode', m); }
 }
 export const app = new AppState();
 

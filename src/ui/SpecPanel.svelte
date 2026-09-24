@@ -31,13 +31,13 @@
   // Redraw on anything visible changing (player.frame ticks every animation frame while playing).
   $effect(() => {
     const r = app.res;
-    void imgVersion; void size; void player.frame; void player.time;
+    void imgVersion; void size; void player.frame; void player.time; void app.liveMode;
     if (!r || !specCv) return;
     rect = drawSpec(specCv, {
       res: r, verdict: app.verdict, img, lut: app.lut, dbFloor: app.dbFloor, markers: app.markers,
       playhead: player.ready && (player.started || !player.paused) ? player.time : null, hover,
     });
-    if (app.liveOn && liveCv) player.live.draw(liveCv, rect.r, !!player.url, app.verdict?.cut ?? null, app.markers);
+    if (app.liveOn && liveCv) player.live.draw(liveCv, rect.r, !!player.url, app.verdict?.cut ?? null, app.markers, app.liveMode, app.lut);
   });
 
   $effect(() => {
@@ -103,8 +103,15 @@
     </div>
     {#if app.liveOn}
       <div class="live" id="live-wrap">
-        <div class="live-head"><span class="label">Live</span><span class="readout" id="live-note">{player.live.note}</span></div>
-        <div class="canvas-box" id="live-box" bind:this={liveBox}><canvas id="live" bind:this={liveCv} aria-label="Live spectrogram of the audio currently playing"></canvas></div>
+        <div class="live-head">
+          <span class="label">Live</span>
+          <span class="seg live-mode" role="radiogroup" aria-label="Live view style">
+            <button type="button" role="radio" id="live-scroll" aria-checked={app.liveMode === 'scroll'} onclick={() => app.setLiveMode('scroll')}>Scrolling</button>
+            <button type="button" role="radio" id="live-3d" aria-checked={app.liveMode === '3d'} onclick={() => app.setLiveMode('3d')}>3D</button>
+          </span>
+          <span class="readout" id="live-note">{app.liveMode === '3d' ? 'Recent spectra running into the distance; frequency across on a log scale, level as height.' : player.live.note}</span>
+        </div>
+        <div class="canvas-box" id="live-box" class:tall={app.liveMode === '3d'} bind:this={liveBox}><canvas id="live" bind:this={liveCv} aria-label={app.liveMode === '3d' ? 'Live 3D spectrum of the audio currently playing' : 'Live spectrogram of the audio currently playing'}></canvas></div>
       </div>
     {/if}
   </div>

@@ -21,3 +21,13 @@ using the same colours and floor, with the detected cutoff as a dashed line. Tog
 
 ## Limits & open questions
 - Firefox may refuse a non-default-rate context for media elements → limited to the device range.
+
+## 3D mode (2026-09-24)
+- A "Scrolling | 3D" switch in the live view (remembered per browser). 3D shows the last ~3 s of
+  spectra as ridges running from "now" at the front to a vanishing point on the horizon: frequency
+  across on a log scale (20 Hz to Nyquist), level as height and colour (same palette and floor as the
+  spectrogram), older frames fading with distance, the detected cutoff as a dashed line into the
+  distance. Ridges get a light 3-band smoothing for looks; the scrolling view is unchanged.
+- Code: `src/ui/render/waterfall.ts`; frames captured in `Live.pushFrame` (36 per second, 220 bands).
+- Cost: measured the same frame time as the scrolling view (≈7 ms per frame, headless Edge).
+
