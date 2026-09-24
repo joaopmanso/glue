@@ -1,0 +1,77 @@
+---
+updated: 2026-09-24
+---
+# MCO vault
+
+The project's memory: what MCO is, what it does, why it's built the way it is, and what comes next.
+Written for both people and AI agents. Plain Markdown with relative links, so it reads on GitHub and
+opens as an [Obsidian](https://obsidian.md) vault.
+
+## Start here
+- [Vision](product/vision.md): what MCO is for and the principles it keeps.
+- [Roadmap](product/roadmap.md): milestones and their status.
+- [Glossary](product/glossary.md): the words we use (collection, root, source, show, session…).
+- [Changelog](log/changelog.md): what changed, newest first.
+
+## Sections
+| Folder | Holds | One file per |
+|---|---|---|
+| [product/](product/) | vision, roadmap, glossary | topic |
+| [features/](features/) | what each feature does, its status, how it works, how it's tested | feature |
+| [adr/](adr/) | architecture decision records: context, decision, consequences | decision |
+| [research/](research/) | sourced findings (browser APIs, DJ library formats, performance) | subject |
+| [log/](log/) | changelog and session write-ups | release / session |
+
+## Conventions
+- **Status** (front matter `status:`): `idea` · `planned` · `in-progress` · `shipped` · `superseded`.
+- **Features** follow [features/_template.md](features/_template.md); name files by slug
+  (`import-rekordbox.md`). Link the ADRs that shaped them.
+- **ADRs** follow [adr/_template.md](adr/_template.md) (MADR-style), numbered `NNNN-slug.md`, never
+  renumbered. A changed decision gets a new ADR that supersedes the old one; the old one stays.
+- **Research** always cites sources and marks anything unverified as **[UNVERIFIED]**.
+- Dates are absolute (`2026-09-24`), never "last week".
+- Every change to the app updates: the feature's status/notes, the roadmap if a milestone moves, and
+  the changelog. Every new architectural choice gets an ADR.
+
+## Feature index
+Shipped (from Speklone):
+[quality forensics](features/quality-forensics.md) ·
+[tempo & key](features/tempo-key.md) ·
+[player](features/player.md) ·
+[live view](features/live-view.md) ·
+[stem separation](features/stem-separation.md) ·
+[start page](features/start-page.md) ·
+[deployment](features/deployment.md)
+
+Planned (MCO):
+[MCO folder & backups](features/mco-folder-backups.md) ·
+[library & scanner](features/library-scanner.md) ·
+[background analysis](features/background-analysis.md) ·
+[quality tiers & filters](features/quality-tiers.md) ·
+[playlists](features/playlists.md) ·
+[shows & sessions](features/shows-sessions.md) ·
+[import: Rekordbox](features/import-rekordbox.md) ·
+[import: Engine DJ](features/import-engine.md) ·
+[import: Traktor](features/import-traktor.md) ·
+[import: Apple Music & iCloud](features/import-apple-icloud.md) ·
+[exports](features/exports.md) ·
+[duplicates](features/duplicates.md)
+
+## ADR index
+| # | Decision | Status |
+|---|---|---|
+| [0001](adr/0001-record-architecture-decisions.md) | Record decisions as ADRs in this vault | accepted |
+| [0002](adr/0002-static-client-only-app.md) | Static, client-only web app; no server | accepted |
+| [0003](adr/0003-client-side-stems-webgpu.md) | Stem separation runs in the browser on WebGPU (HT-Demucs) | accepted |
+| [0004](adr/0004-float64-model-patch.md) | Rewrite the model's float64 tensors to float32 at load | accepted |
+| [0005](adr/0005-model-from-huggingface.md) | Load the model from Hugging Face, cache it in Cache Storage | accepted |
+| [0006](adr/0006-tempo-key-algorithms.md) | Tempo and key detection algorithms | accepted |
+| [0007](adr/0007-web-first-platform-layer.md) | Web first; OS access only through a platform layer | accepted |
+| [0008](adr/0008-typescript-svelte-vite.md) | TypeScript + Svelte + Vite | accepted |
+| [0009](adr/0009-json-files-store.md) | JSON files in the MCO folder are the store; no database | accepted |
+| [0010](adr/0010-import-export-before-write-back.md) | Read-only import and file export before any write-back | accepted |
+| [0011](adr/0011-rekordbox-xml-shared-export.md) | One rekordbox XML file serves Rekordbox and Engine DJ | accepted |
+| [0012](adr/0012-absolute-path-strategy.md) | How exports get absolute file paths | accepted |
+| [0013](adr/0013-duplicate-tiers.md) | Three tiers of duplicate detection | accepted |
+| [0014](adr/0014-chromium-full-others-reduced.md) | Chrome/Edge full, Safari/Firefox reduced | accepted |
+| [0015](adr/0015-installable-pwa.md) | MCO is an installable PWA | accepted |
