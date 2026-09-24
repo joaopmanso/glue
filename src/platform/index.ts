@@ -71,3 +71,23 @@ export async function folderHandle(key: string): Promise<Dir | null> {
   try { return (await idbGet<Dir>(key)) ?? null; } catch { return null; }
 }
 export const forgetFolder = (key: string) => idbDel(key);
+
+type FilePicker = (o: { id?: string; multiple?: boolean; startIn?: string; types?: { description: string; accept: Record<string, string[]> }[] }) => Promise<FileSystemFileHandle[]>;
+const filePicker = (): FilePicker | null => (window as unknown as { showOpenFilePicker?: FilePicker }).showOpenFilePicker ?? null;
+/** Can single files be kept across visits (a handle per file)? Otherwise MCO keeps a copy. */
+export const canKeepFiles = () => !!filePicker() && window.isSecureContext;
+
+export async function pickAudioFiles(): Promise<FileSystemFileHandle[]> {
+  const p = filePicker();
+  if (!p) throw new Error('This browser can’t open files by handle.');
+  return p({ id: 'mco-songs', multiple: true, startIn: 'music', types: [{ description: 'Audio', accept: { 'audio/*': ['.flac', '.wav', '.aif', '.aiff', '.aifc', '.m4a', '.mp4', '.alac', '.mp3', '.aac', '.ogg', '.oga', '.opus', '.webm', '.mka'] } }] });
+}
+/** Keep a single file's handle (picked or dropped) for later visits. */
+export async function rememberFile(h: FileSystemFileHandle): Promise<string> {
+  const key = 'file:' + crypto.randomUUID();
+  await idbSet(key, h);
+  return key;
+}
+export async function fileHandle(key: string): Promise<FileSystemFileHandle | null> {
+  try { return (await idbGet<FileSystemFileHandle>(key)) ?? null; } catch { return null; }
+}

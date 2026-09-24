@@ -2,12 +2,13 @@
    Components read `lib.version` to re-derive views after any change. */
 import { HomeStore } from '../store/home';
 import { CollectionStore } from '../store/collection';
-import { applyImport, applyScan, type ImportReport } from '../store/merge';
-import { fileAt, removePath } from '../store/fsx';
+import { LOOSE, applyImport, applyScan, blankLibTrack, type ImportReport } from '../store/merge';
+import { fileAt, removePath, writeBlob } from '../store/fsx';
+import { matchTracks } from '../core/library/match';
 import { ANALYSIS_VERSION, SCHEMA, newId, type List, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
-import { formatOf, nameFields, tagFields } from '../core/library/tags';
+import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
 import { failed } from '../core/library/summary';
 import { blankInfo, parseContainer } from '../core/formats/parse';
 import * as platform from '../platform';
@@ -17,6 +18,8 @@ import { player } from './player.svelte';
 type Phase = 'boot' | 'welcome' | 'reconnect' | 'profiles' | 'collections' | 'library' | 'error';
 export interface RootState { root: Root; dir: FileSystemDirectoryHandle | null; granted: boolean }
 export interface Job { text: string; done: number; total: number | null }
+/** A song being added: its file, where it lives (a music folder, or on its own), how to remember it. */
+type SongInput = { file: File; rootId: string | null; relPath: string | null; handle: FileSystemFileHandle | null; key: (() => Promise<string>) | null };
 
 const now = () => new Date().toISOString();
 
@@ -42,6 +45,9 @@ class Library {
   private pool: AnalysisPool | null = null;
   private queue: string[] = [];
   private active = new Set<string>();
+  /** Songs added on their own: their handles, and which ones we may read without asking. */
+  private looseHandles = new Map<string, FileSystemFileHandle>();
+  looseGranted = $state.raw<Set<string>>(new Set());
 
   constructor() {
     if (typeof document !== 'undefined') {
@@ -147,6 +153,7 @@ class Library {
     this.found = [];
     if (s.damaged.length) this.notice = 'Some files in your MCO folder couldn’t be read and were set aside (' + s.damaged.join(', ') + ', saved as .damaged). Anything they held may need re-importing or re-scanning.';
     await this.loadRoots();
+    await this.loadLoose();
     this.phase = 'library';
     this.version++;
     this.enqueueAll();
@@ -170,6 +177,7 @@ class Library {
     this.stopAnalysis();
     await this.flush();
     this.store = null; this.roots = [];
+    this.looseHandles.clear(); this.looseGranted = new Set();
   }
 
   // ─── Saving ────────────────────────────────────────────────────────────────
@@ -248,6 +256,15 @@ class Library {
         entries.push({ relPath: files[i].relPath, size: f.size, mtime: f.lastModified, fileName: f.name });
         handles.set(files[i].relPath, files[i].handle);
         if (i % 100 === 0) this.job = { text: 'Reading file details…', done: i, total: files.length };
+      }
+      // Songs added on their own that live in this folder become ordinary folder tracks.
+      for (const t of [...s.tracks.values()]) {
+        const h = this.looseHandles.get(t.id);
+        const inside = h ? await r.dir.resolve(h) : null;
+        if (!inside) continue;
+        s.putTrack({ ...t, rootId: id, relPath: inside.join('/'), fileKey: null });
+        await platform.forgetFolder(t.fileKey!);
+        this.looseHandles.delete(t.id);
       }
       const { added, linked, missing } = applyScan(s, id, entries);
       // Quick tags from the start of each new file; the background analysis fills in the rest.
@@ -354,6 +371,7 @@ class Library {
 
   // ─── Files and background analysis ─────────────────────────────────────────
   async fileFor(t: Track): Promise<File> {
+    if (t.fileKey) return this.looseFile(t, true);
     const r = this.rootState(t.rootId);
     if (!r?.dir || !t.relPath) throw new Error('This track isn’t linked to a file yet. Add the music folder it lives in.');
     if (!r.granted) {
@@ -362,6 +380,131 @@ class Library {
     }
     return fileAt(r.dir, t.relPath);
   }
+  /** Can this track's file be read right now without asking the user? */
+  canRead(t: Track) {
+    if (t.status !== 'linked') return false;
+    if (t.fileKey) return t.fileKey.startsWith('copy:') || this.looseGranted.has(t.id);
+    return !!this.rootState(t.rootId)?.granted;
+  }
+  private async loadLoose() {
+    const granted = new Set<string>();
+    for (const t of this.store?.tracks.values() ?? []) {
+      if (!t.fileKey?.startsWith('file:')) continue;
+      const h = await platform.fileHandle(t.fileKey);
+      if (!h) continue;
+      this.looseHandles.set(t.id, h);
+      if (await platform.permission(h, 'read', false)) granted.add(t.id);
+    }
+    this.looseGranted = granted;
+  }
+  private async looseFile(t: Track, ask: boolean): Promise<File> {
+    const key = t.fileKey!;
+    if (key.startsWith('copy:')) return fileAt(this.homeDir!, key.slice(5));
+    const h = this.looseHandles.get(t.id) ?? await platform.fileHandle(key);
+    if (!h) throw Object.assign(new Error('MCO lost track of this file. Add it again.'), { name: 'NotFoundError' });
+    this.looseHandles.set(t.id, h);
+    if (!this.looseGranted.has(t.id)) {
+      if (!(await platform.permission(h, 'read', ask))) throw new Error('MCO needs your permission to read “' + t.fileName + '” again.');
+      this.looseGranted = new Set([...this.looseGranted, t.id]);
+    }
+    return h.getFile();
+  }
+
+  // ─── Songs added on their own ──────────────────────────────────────────────
+  /** Add songs by handle (picked or dropped; Chromium). A song inside a music folder uses that folder. */
+  async addFiles(handles: FileSystemFileHandle[]) {
+    const s = this.store;
+    if (!s || this.job) return;
+    handles = handles.filter(h => AUDIO_EXT.test(h.name));
+    if (!handles.length) { this.notice = 'Those aren’t audio files MCO can read.'; return; }
+    this.job = { text: 'Adding songs…', done: 0, total: handles.length };
+    let already = 0;
+    const fresh: SongInput[] = [];
+    try {
+      for (const [i, h] of handles.entries()) {
+        this.job = { text: 'Adding songs…', done: i, total: handles.length };
+        let rootId: string | null = null, relPath: string | null = null;
+        for (const r of this.roots) {
+          const inside = r.dir && r.granted ? await r.dir.resolve(h) : null;
+          if (inside) { rootId = r.root.id; relPath = inside.join('/'); break; }
+        }
+        let known = false;
+        for (const t of s.tracks.values()) {
+          const lh = this.looseHandles.get(t.id);
+          if (rootId ? t.rootId === rootId && t.relPath === relPath : lh && await lh.isSameEntry(h)) { known = true; break; }
+        }
+        if (known) { already++; continue; }
+        fresh.push({ file: await h.getFile(), rootId, relPath, handle: rootId ? null : h, key: rootId ? null : () => platform.rememberFile(h) });
+      }
+      const r = await this.createSongTracks(fresh);
+      this.report(r.added, r.linked, already);
+    } catch (e) { console.error(e); this.notice = 'Couldn’t add those songs: ' + ((e as Error).message || e); }
+    finally { this.job = null; }
+    this.enqueueAll();
+  }
+  /** Browsers without file handles: keep a copy of each song in the MCO folder. */
+  async addFileCopies(files: File[]) {
+    const s = this.store, home = this.homeDir;
+    if (!s || !home || this.job) return;
+    files = files.filter(f => AUDIO_EXT.test(f.name));
+    if (!files.length) { this.notice = 'Those aren’t audio files MCO can read.'; return; }
+    this.job = { text: 'Copying songs into MCO…', done: 0, total: files.length };
+    const copies = [...s.tracks.values()].filter(t => t.fileKey?.startsWith('copy:'));
+    const fresh = files.filter(f => !copies.some(t => t.fileName === f.name && t.size === f.size));
+    try {
+      const r = await this.createSongTracks(fresh.map(file => ({
+        file, rootId: null, relPath: null, handle: null,
+        key: async () => { const path = `files/${newId()}-${file.name}`; await writeBlob(home, path, file); return 'copy:' + path; },
+      })));
+      this.report(r.added, r.linked, files.length - fresh.length);
+    } catch (e) { console.error(e); this.notice = 'Couldn’t copy those songs: ' + ((e as Error).message || e); }
+    finally { this.job = null; }
+    this.enqueueAll();
+  }
+  private async createSongTracks(items: SongInput[]) {
+    const s = this.store!;
+    // A song matching an imported track that has no file yet is linked to it rather than added again.
+    const unlinked = [...s.tracks.values()].filter(t => t.status === 'unlinked');
+    const entries = items.map(it => ({ rootId: it.rootId ?? LOOSE, relPath: it.relPath ?? it.file.name, size: it.file.size, mtime: it.file.lastModified }));
+    const { links } = matchTracks(unlinked.map(t => ({ id: t.id, importPath: t.importPath, fileName: t.fileName, size: t.size })), entries);
+    const byEntry = new Map([...links].map(([tid, e]) => [e, tid]));
+    let linked = 0;
+    const out: Track[] = [], granted = new Set(this.looseGranted);
+    for (const [i, it] of items.entries()) {
+      const matchId = byEntry.get(entries[i]);
+      if (matchId) linked++;
+      const base = matchId ? s.tracks.get(matchId)! : blankLibTrack(it.file.name);
+      const fileKey = it.key ? await it.key() : null;
+      const t: Track = { ...base, status: 'linked', rootId: it.rootId, relPath: it.relPath, fileKey, fileName: it.file.name, size: it.file.size, mtime: it.file.lastModified };
+      if (it.handle) { this.looseHandles.set(t.id, it.handle); granted.add(t.id); }
+      out.push(await quickTags(t, it.file));
+      this.job = { text: this.job?.text ?? 'Adding songs…', done: i + 1, total: items.length };
+    }
+    this.looseGranted = granted;
+    s.putTracks(out);
+    return { added: out.length - linked, linked };
+  }
+  private report(added: number, linked: number, already: number) {
+    const bits: string[] = [];
+    if (added) bits.push('Added ' + added + ' song' + (added === 1 ? '' : 's'));
+    if (linked) bits.push(linked + ' linked to imported track' + (linked === 1 ? '' : 's'));
+    if (already) bits.push(already + ' already in the collection');
+    this.notice = (bits.join(', ') || 'Nothing added') + '.';
+  }
+  /** Take tracks out of the collection. Files on disk are never touched (copies MCO made are). */
+  async removeTracks(ids: string[]) {
+    const s = this.store;
+    if (!s) return;
+    for (const id of ids) {
+      const t = s.tracks.get(id);
+      if (!t) continue;
+      if (t.fileKey?.startsWith('file:')) await platform.forgetFolder(t.fileKey);
+      else if (t.fileKey?.startsWith('copy:') && this.homeDir) await removePath(this.homeDir, t.fileKey.slice(5));
+      this.looseHandles.delete(id);
+      s.removeTrack(id);
+    }
+  }
+
   needsAnalysis(t: Track) {
     if (t.status !== 'linked') return false;
     const a = this.store?.analysis.get(t.id);
@@ -371,8 +514,7 @@ class Library {
   enqueueAll() {
     const s = this.store;
     if (!s) return;
-    const granted = new Set(this.roots.filter(r => r.granted).map(r => r.root.id));
-    this.queue = [...s.tracks.values()].filter(t => granted.has(t.rootId ?? '') && this.needsAnalysis(t) && !this.active.has(t.id))
+    this.queue = [...s.tracks.values()].filter(t => this.canRead(t) && this.needsAnalysis(t) && !this.active.has(t.id))
       .sort((a, b) => a.addedAt.localeCompare(b.addedAt)).map(t => t.id);
     this.pump();
   }
@@ -403,8 +545,8 @@ class Library {
     const s = this.store, pool = this.pool;
     if (!s || !pool) return;
     let file: File;
-    try { file = await fileAt(this.rootState(t.rootId)!.dir!, t.relPath!); }
-    catch { s.putTrack({ ...t, status: 'missing' }); return; }
+    try { file = t.fileKey ? await this.looseFile(t, false) : await fileAt(this.rootState(t.rootId)!.dir!, t.relPath!); }
+    catch (e) { if ((e as DOMException).name === 'NotFoundError') s.putTrack({ ...t, status: 'missing' }); return; }
     try {
       const r = await pool.analyze(file, file.lastModified);
       if (this.store !== s) return;

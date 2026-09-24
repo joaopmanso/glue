@@ -3,7 +3,8 @@
   import { view, type ViewSel } from '../../lib/view.svelte';
   import { importFiles, importFound, pickSeratoFolder } from '../../lib/importActions';
   import { IMPORT_ACCEPT } from '../../lib/imports';
-  import { canPickFolders } from '../../platform';
+  import { canKeepFiles, canPickFolders, pickAudioFiles } from '../../platform';
+  import { LOOSE } from '../../store/merge';
   import type { List } from '../../store/types';
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
@@ -23,6 +24,13 @@
     return { all, pending, unlinked, attention };
   });
   const top = $derived.by(() => { void lib.version; return lib.childLists(null); });
+  const loose = $derived.by(() => { void lib.version; let n = 0; for (const t of lib.store?.tracks.values() ?? []) if (t.fileKey) n++; return n; });
+  let songInput: HTMLInputElement;
+  async function addSongs() {
+    if (!canKeepFiles()) { songInput.click(); return; }
+    try { await lib.addFiles(await pickAudioFiles()); }
+    catch (e) { if ((e as DOMException).name !== 'AbortError') lib.notice = (e as Error).message; }
+  }
   const sources = $derived.by(() => { void lib.version; return [...(lib.store?.sources.values() ?? [])]; });
 
   let editing = $state<string | null>(null);
@@ -124,9 +132,14 @@
 
   <section>
     <div class="head">
-      <h3 class="label">Music folders</h3>
-      {#if canPickFolders()}<span class="add"><button type="button" id="add-folder" onclick={() => lib.addFolder()}>+ Add</button></span>{/if}
+      <h3 class="label">Music</h3>
+      <span class="add">
+        {#if canPickFolders()}<button type="button" id="add-folder" title="Add a folder of music" onclick={() => lib.addFolder()}>+ Folder</button>{/if}
+        <button type="button" id="add-songs" title="Add individual songs" onclick={addSongs}>+ Songs</button>
+      </span>
     </div>
+    <input type="file" multiple accept="audio/*,.flac,.wav,.aif,.aiff,.aifc,.m4a,.mp4,.alac,.mp3,.aac,.ogg,.oga,.opus,.webm,.mka" bind:this={songInput} hidden id="songs-input"
+      onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; void lib.addFileCopies(f); }}>
     <ul>
       {#each lib.roots as r (r.root.id)}
         <li>
@@ -147,7 +160,10 @@
           {/if}
         </li>
       {/each}
-      {#if !lib.roots.length}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in; MCO only reads them.' : 'Linking music folders needs Chrome or Edge.'}</li>{/if}
+      {#if loose}
+        <li><button type="button" class="item name" class:sel={isSel({ kind: 'root', id: LOOSE })} onclick={() => view.select({ kind: 'root', id: LOOSE })} title="Songs added one by one">🎵 Added songs<span class="n">{loose}</span></button></li>
+      {/if}
+      {#if !lib.roots.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). MCO only reads them.' : 'Add songs, or drop them onto MCO: they’re copied into MCO’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
     </ul>
   </section>
 

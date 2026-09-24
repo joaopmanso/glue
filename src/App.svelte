@@ -6,6 +6,7 @@
   import { router } from './lib/route.svelte';
   import { importFiles } from './lib/importActions';
   import { AUDIO_EXT } from './core/library/tags';
+  import { canKeepFiles } from './platform';
   import Start from './ui/Start.svelte';
   import Results from './ui/Results.svelte';
   import Reference from './ui/Reference.svelte';
@@ -39,17 +40,18 @@
   async function dropIntoLibrary(dt: DataTransfer) {
     const items = [...dt.items].filter(i => i.kind === 'file');
     type WithHandle = DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> };
-    const handles = await Promise.all(items.map(i => (i as WithHandle).getAsFileSystemHandle?.() ?? Promise.resolve(null)));
+    // Everything must be taken from the DataTransfer before the first await: it's emptied after the event.
     const files = [...dt.files];
+    const handles = await Promise.all(items.map(i => (i as WithHandle).getAsFileSystemHandle?.() ?? Promise.resolve(null)));
     const dirs = handles.filter((h): h is FileSystemDirectoryHandle => h?.kind === 'directory');
     for (const d of dirs) await lib.addFolder(d);
     const libFiles = files.filter(f => !AUDIO_EXT.test(f.name) && f.size > 0);
     if (libFiles.length && !dirs.length) await importFiles(libFiles);
-    const audio = files.filter(f => AUDIO_EXT.test(f.name));
-    if (audio.length && !dirs.length && !libFiles.length) {
-      if (audio.length === 1) { router.go('#/analyze'); void analyzeFile(audio[0]); }
-      else lib.notice = 'To add tracks to the collection, drop the folder they’re in (or use Music folders › Add).';
-    }
+    // Songs: kept by handle where the browser allows it, otherwise copied into MCO's storage.
+    const songHandles = handles.filter((h): h is FileSystemFileHandle => h?.kind === 'file' && AUDIO_EXT.test(h.name));
+    const songs = files.filter(f => AUDIO_EXT.test(f.name));
+    if (songHandles.length && canKeepFiles()) await lib.addFiles(songHandles);
+    else if (songs.length) await lib.addFileCopies(songs);
   }
   function onDrop(e: DragEvent) {
     e.preventDefault(); dragDepth = 0; app.dragging = false;
@@ -123,7 +125,7 @@
 </div>
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}
-  <div class="drop" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop a music folder to add it, or a DJ library file to import it'}</div></div>
+  <div class="drop" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>
 {/if}
 
 <style>

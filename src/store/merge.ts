@@ -8,6 +8,8 @@ import type { CollectionStore } from './collection';
 import { type List, type Source, type SourceTrack, type Track, SCHEMA, newId } from './types';
 
 const now = () => new Date().toISOString();
+/** Pseudo root id for songs added on their own (never a real root). */
+export const LOOSE = '__files';
 const pathKey = (p: string) => normPath(p).toLowerCase();
 
 export function blankLibTrack(fileName: string): Track {
@@ -19,8 +21,9 @@ export function blankLibTrack(fileName: string): Track {
 
 function linkedFiles(store: CollectionStore) {
   const files: FileEntry[] = [], byFile = new Map<FileEntry, Track>();
-  for (const t of store.tracks.values()) if (t.rootId && t.relPath) {
-    const f = { rootId: t.rootId, relPath: t.relPath, size: t.size ?? 0, mtime: t.mtime ?? 0 };
+  for (const t of store.tracks.values()) if ((t.rootId && t.relPath) || t.fileKey) {
+    // Songs added on their own match by file name (and size) only.
+    const f = { rootId: t.rootId ?? LOOSE, relPath: t.relPath ?? t.fileName, size: t.size ?? 0, mtime: t.mtime ?? 0 };
     files.push(f); byFile.set(f, t);
   }
   return { files, byFile };

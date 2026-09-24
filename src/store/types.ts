@@ -21,6 +21,9 @@ export interface Track {
   status: TrackStatus;
   rootId: string | null;        // where the file is (linked tracks)
   relPath: string | null;       // path inside the root, '/'-separated
+  /** A song added on its own: 'file:…' = its handle's key in IndexedDB, 'copy:<path>' = a copy in the
+      MCO folder (browsers without file handles). Absent for folder and imported tracks. */
+  fileKey?: string | null;
   importPath: string | null;    // absolute path as an imported library saw it
   fileName: string;
   size: number | null;

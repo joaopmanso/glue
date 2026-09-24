@@ -129,7 +129,7 @@
       <div class="empty">
         {#if view.search.trim()}No tracks match “{view.search}”.
         {:else if view.sel.kind === 'list'}{isPlaylist ? 'Empty playlist. Drag tracks here, or onto the playlist in the sidebar.' : 'Nothing in this folder yet.'}
-        {:else if view.sel.kind === 'all'}No tracks yet. Add a music folder or import a DJ library from the sidebar.
+        {:else if view.sel.kind === 'all'}No tracks yet. Drop songs or a music folder here, or use the sidebar to add them or import a DJ library.
         {:else}Nothing here.{/if}
       </div>
     {/if}

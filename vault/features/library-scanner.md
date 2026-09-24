@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-09-24
-adrs: [0007, 0009, 0012, 0014]
+adrs: [0007, 0009, 0012, 0014, 0021]
 ---
 # Library & scanner
 
@@ -53,3 +53,10 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
 - Code: `src/core/library/scan.ts`, `src/store/merge.ts` (`applyScan`), `src/ui/library/TrackTable.svelte`.
 - Not yet: quick hash / rename detection, FileSystemObserver, column chooser, a player bar in the
   table view (play from the track page), session-only folder drops on Safari/Firefox.
+
+## Single songs (2026-09-24)
+- "+ Songs" in the sidebar's Music section, or drop songs anywhere on the library; mixed drops of
+  folders, songs and DJ-library files each do the right thing. [ADR 0021](../adr/0021-single-songs.md).
+- Kept by file handle (Chromium) or as a copy in the MCO folder (Safari/Firefox). Songs inside a
+  linked folder, or matching an imported track, don't create duplicates; adding the folder later adopts
+  them. "Added songs" lists them; "Remove from collection" takes tracks out.

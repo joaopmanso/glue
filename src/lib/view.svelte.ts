@@ -1,5 +1,6 @@
 /* What the library view shows: the selected sidebar entry, search, sort and row selection. */
 import { lib } from './library.svelte';
+import { LOOSE } from '../store/merge';
 import type { AnalysisSummary, Track } from '../store/types';
 import { keyLabel, type KeyNotation } from '../core/audio/keys';
 
@@ -37,7 +38,7 @@ class View {
         tracks = [...ids].map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
       } else tracks = l.items.map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
     } else if (sel.kind === 'source') tracks = [...s.tracks.values()].filter(t => t.sources.includes(sel.id));
-    else if (sel.kind === 'root') tracks = [...s.tracks.values()].filter(t => t.rootId === sel.id);
+    else if (sel.kind === 'root') tracks = [...s.tracks.values()].filter(t => sel.id === LOOSE ? !!t.fileKey : t.rootId === sel.id);
     else {
       tracks = [...s.tracks.values()];
       if (sel.kind === 'pending') tracks = tracks.filter(t => lib.needsAnalysis(t));

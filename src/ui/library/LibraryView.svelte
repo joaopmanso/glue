@@ -4,6 +4,7 @@
   import { router } from '../../lib/route.svelte';
   import LibSidebar from './LibSidebar.svelte';
   import TrackTable from './TrackTable.svelte';
+  import { LOOSE } from '../../store/merge';
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
   const title = $derived.by(() => {
@@ -17,7 +18,7 @@
       case 'unlinked': return 'No file linked';
       case 'list': { const l = st?.lists.get(s.id); return l ? lib.listPath(l) : 'Playlist'; }
       case 'source': { const x = st?.sources.get(s.id); return x ? (APP_NAMES[x.app] ?? x.app) + ' import' : 'Import'; }
-      case 'root': return lib.rootState(s.id)?.root.name ?? 'Folder';
+      case 'root': return s.id === LOOSE ? 'Added songs' : lib.rootState(s.id)?.root.name ?? 'Folder';
     }
   });
   const count = $derived.by(() => { void lib.version; void view.search; return view.rows('camelot').length; });
@@ -93,9 +94,10 @@
             <option value="__new">+ New playlist…</option>
           </select>
           {#if current?.kind === 'playlist'}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from playlist</button>{/if}
+          <button type="button" class="mini" id="remove-tracks" onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>
           <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
         {:else}
-          <span class="hint">Double-click a track for its full analysis. Drag tracks onto a playlist to add them.</span>
+          <span class="hint">Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection.</span>
         {/if}
       </div>
       <TrackTable />

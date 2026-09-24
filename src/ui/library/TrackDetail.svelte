@@ -23,7 +23,7 @@
     return out;
   });
   const root = $derived(track ? lib.rootState(track.rootId) : null);
-  const location = $derived(track?.relPath ? (root?.root.absPath ? root.root.absPath + (root.root.absPath.includes('\\') ? '\\' + track.relPath.replace(/\//g, '\\') : '/' + track.relPath) : (root?.root.name ?? '') + '/' + track.relPath) : track?.importPath ?? '');
+  const location = $derived(track?.fileKey ? track.fileName + (track.fileKey.startsWith('copy:') ? ' (a copy kept in MCO)' : ' (added on its own)') : track?.relPath ? (root?.root.absPath ? root.root.absPath + (root.root.absPath.includes('\\') ? '\\' + track.relPath.replace(/\//g, '\\') : '/' + track.relPath) : (root?.root.name ?? '') + '/' + track.relPath) : track?.importPath ?? '');
 
   // Neighbours in the current library view, for previous / next.
   const order = $derived(view.rows(app.keyNotation).map(r => r.t.id));
@@ -37,8 +37,7 @@
     const t = untrack(() => track);
     if (!t) return;
     if (t.status !== 'linked') { phase = 'no-file'; return; }
-    const r = lib.rootState(t.rootId);
-    if (!r?.granted && !ask) { phase = 'need-access'; return; }
+    if (!lib.canRead(t) && !ask) { phase = 'need-access'; return; }
     phase = 'loading';
     try {
       const file = await lib.fileFor(t);
@@ -123,7 +122,7 @@
     </section>
 
     {#if phase === 'need-access'}
-      <div class="notice">MCO needs your permission to read “{root?.root.name}” again. <button type="button" class="btn" onclick={() => load(true)}>Allow and analyse</button></div>
+      <div class="notice">MCO needs your permission to read “{track.fileKey ? track.fileName : root?.root.name}” again. <button type="button" class="btn" onclick={() => load(true)}>Allow and analyse</button></div>
     {:else if phase === 'no-file'}
       <div class="notice">{track.status === 'missing' ? 'The file wasn’t found where it was last seen. Scan its music folder again, or add the folder it moved to.' : 'This track came from an imported library and isn’t linked to a file yet. Add the music folder it lives in (sidebar › Music folders) and MCO links it automatically.'}</div>
     {:else if phase === 'error'}

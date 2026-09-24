@@ -29,6 +29,11 @@ test.beforeEach(async ({ page }) => {
       const root = await navigator.storage.getDirectory();
       return root.getDirectoryHandle(o.id === 'mco-home' ? 'MCO' : 'Music', { create: true });
     };
+    // "+ Songs": returns the files named in window.__pick from Music/Sets.
+    (window as unknown as { showOpenFilePicker: () => Promise<FileSystemFileHandle[]> }).showOpenFilePicker = async () => {
+      const sets = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('Music')).getDirectoryHandle('Sets');
+      return Promise.all(((window as unknown as { __pick: string[] }).__pick ?? []).map(n => sets.getFileHandle(n)));
+    };
   });
 });
 test.afterEach(() => expect(errors).toEqual([]));
@@ -157,4 +162,52 @@ test('imports an Engine DJ m.db and a Serato database with crates', async ({ pag
   await page.locator('.lside .tree .name', { hasText: 'Warm' }).click();
   await page.locator('.lside .name', { hasText: 'Opening' }).click();
   await expect(page.locator('.tr')).toHaveCount(1);
+});
+
+test('adds single songs, links them to imports, and keeps them across reloads', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
+  await expect(page.locator('.tr')).toHaveCount(3);
+
+  // Two songs on their own: one matches an imported track (linked, not duplicated), one is new.
+  await page.evaluate(() => { (window as unknown as { __pick: string[] }).__pick = ['mp3-128k.mp3', 'aiff-44k-24.aiff']; });
+  await page.click('#add-songs');
+  await expect(page.locator('.notice')).toContainText('Added 1 song, 1 linked to imported track');
+  await expect(page.locator('.tr')).toHaveCount(4);
+  await expect(page.locator('.tr', { hasText: 'Lossy one' })).not.toContainText('no file');
+  await page.click('#add-songs');
+  await expect(page.locator('.notice')).toContainText('2 already in the collection');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  await expect(page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.q')).toHaveText('Caution');
+
+  await page.locator('.lside .name', { hasText: 'Added songs' }).click();
+  await expect(page.locator('.tr')).toHaveCount(2);
+
+  // Still there after a reload, and the track page can read the file.
+  await expect(page.locator('#saving')).toHaveCount(0, { timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
+  await page.locator('.tr', { hasText: 'aiff-44k-24' }).dblclick();
+  const allow = page.getByRole('button', { name: 'Allow and analyse' });
+  await expect(page.locator('#v-pill').or(allow)).toBeVisible({ timeout: 30_000 });
+  if (await allow.isVisible()) await allow.click();
+  await expect(page.locator('#v-pill')).not.toHaveText('', { timeout: 30_000 });
+  await expect(page.locator('.detail')).toContainText('added on its own');
+
+  // Adding the whole folder later adopts the loose songs instead of duplicating them.
+  await page.locator('.crumbs a').click();
+  await page.click('#add-folder');
+  await expect(page.locator('.notice')).toContainText('1 new track, 1 imported track linked', { timeout: 30_000 });   // the other 2 were adopted
+  await expect(page.locator('.tr')).toHaveCount(5);
+  await expect(page.locator('.lside .name', { hasText: 'Added songs' })).toHaveCount(0);
+
+  // Remove one from the collection.
+  await page.locator('.tr', { hasText: 'aiff-44k-24' }).click();
+  page.once('dialog', d => d.accept());
+  await page.click('#remove-tracks');
+  await expect(page.locator('.tr')).toHaveCount(4);
 });

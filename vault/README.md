@@ -83,3 +83,4 @@ Planned (MCO):
 | [0018](adr/0018-local-profiles.md) | Local profiles, no password; profiles own collections | accepted |
 | [0019](adr/0019-background-analysis-decoding.md) | Background analysis: browser decoding + analysis worker pool | accepted |
 | [0020](adr/0020-imports-then-link-folders.md) | Imports bring metadata first; music folders linked afterwards | accepted |
+| [0021](adr/0021-single-songs.md) | Songs can be added one by one, kept by file handle | accepted |

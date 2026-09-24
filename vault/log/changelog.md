@@ -5,6 +5,13 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Add single songs
+- Drop songs onto the library or use "+ Songs": kept by file handle in Chrome/Edge, copied into the MCO
+  folder elsewhere ([ADR 0021](../adr/0021-single-songs.md)). No duplicates with music folders or
+  imports; "Added songs" view; "Remove from collection" for selected tracks.
+- Fixed: drops read `dataTransfer.files` after an `await`, when the browser has already emptied it.
+- Tests: new e2e for single songs (link to import, reload, track page, folder adoption, removal).
+
 ## 2026-09-24 · M2 shipped: the library
 - **Profiles** without passwords, **collections**, and the **MCO folder** as a JSON store
   ([ADR 0018](../adr/0018-local-profiles.md), [ADR 0009](../adr/0009-json-files-store.md)); browser
