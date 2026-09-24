@@ -1,3 +1,4 @@
+import { fingerprint } from './fingerprint';
 import { makeFFT } from './fft';
 import type { AnalysisJob, AnalysisResult, MusicResult, KeyResult, PcmLayout, ProgressFn, SampleStats, Spectrum } from '../types';
 
@@ -303,7 +304,7 @@ export function synthDemo(): { channels: Float32Array[]; sr: number; bits: numbe
 }
 
 /** Full analysis of one job: samples → spectrum → tempo/key. Runs in the worker (or main thread as fallback). */
-export function runJob(input: AnalysisJob, progress: ProgressFn): AnalysisResult {
+export function runJob(input: AnalysisJob, progress: ProgressFn, opts: { fingerprint?: boolean } = {}): AnalysisResult {
   let job = input, demoPcm: Int16Array | null = null;
   if (job.type === 'demo') {
     progress('Generating example', 0);
@@ -333,7 +334,9 @@ export function runJob(input: AnalysisJob, progress: ProgressFn): AnalysisResult
   const a = analyzeSamples(nch, len, bits, isInt, floatFmt, read, progress);
   const s = computeSpectrum(a.mono, sr, { cols: 1600, rows: 1024 }, progress);
   const music = analyzeMusic(a.mono, sr, progress);
+  const fp = opts.fingerprint ? fingerprint(a.mono, sr) : undefined;
   return {
+    fp,
     music,
     spec: s.spec, cols: s.cols, rows: s.rows, ltas: s.ltas, N: s.N, binHz: s.binHz,
     stats: a.stats, sr, duration: len / sr, channels: nch, containerBits: bits, demoPcm,

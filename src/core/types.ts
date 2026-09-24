@@ -90,6 +90,7 @@ export interface AnalysisResult extends Spectrum {
   channels: number;
   containerBits: number;
   demoPcm: Int16Array | null;
+  fp?: { words: Uint32Array; loud: Uint8Array };   // acoustic fingerprint (background analysis only)
 }
 
 export type AnalysisJob =

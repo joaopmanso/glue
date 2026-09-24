@@ -5,6 +5,17 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Duplicate detection by sound
+- Acoustic fingerprints (Philips-style band-energy bits) computed in the background analysis and kept
+  in the browser's cache ([ADR 0025](../adr/0025-band-energy-fingerprints.md)); `ANALYSIS_VERSION` 3.
+- [Duplicates](../features/duplicates.md) view: same-recording groups across names and formats (a WAV
+  and its MP3 rip), plus "check these" by artist/title; best copy, "Use in playlists", "Not duplicates";
+  "2×" badge in the table.
+- Fixed: a track counted as analysed before its stored analysis was written, so opening it right away
+  re-analysed; the stored analysis and fingerprint are now written first.
+- Tests: fingerprint unit tests (synthetic rips, unrelated audio), a real WAV vs 128 kbps MP3 check
+  (BER 0.04), e2e with an ffmpeg-made MP3 rip under another name.
+
 ## 2026-09-24 · 3D live view
 - The live view can switch between the scrolling spectrogram and a 3D view where recent spectra run
   into the horizon ([live view](../features/live-view.md)).

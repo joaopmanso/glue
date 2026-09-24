@@ -67,7 +67,7 @@ test('profile, collection, import, link folder, background analysis, playlists, 
   await page.click('#choose-home');
   await page.fill('#profile-name', 'DJ Test');
   await page.getByRole('button', { name: 'Create profile' }).click();
-  await expect(page.locator('.who')).toContainText('DJ Test');
+  await expect(page.locator('.top .who')).toContainText('DJ Test');
 
   // Import first: tracks arrive unlinked, with their playlist.
   await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
@@ -445,4 +445,64 @@ test('track pages keep their analysis, and the playing track keeps playing', asy
   await row.dblclick();   // second visit: stored analysis, still playing
   await expect(page.locator('.detail .src')).toHaveText('Stored analysis', { timeout: 10_000 });
   await expect(page.locator('#play-btn')).toHaveAttribute('aria-label', 'Pause');
+});
+
+test('finds the same recording under different names and formats', async ({ page }) => {
+  const { execFileSync } = await import('node:child_process');
+  const { writeFileSync: wf, readFileSync: rf, mkdtempSync: md } = await import('node:fs');
+  const ff = process.env.FFMPEG || 'ffmpeg';
+  try { execFileSync(ff, ['-version'], { stdio: 'ignore' }); } catch { test.skip(true, 'needs ffmpeg to make an MP3 rip'); }
+  // A 40 s synthetic track as WAV, the same audio as a 48 kHz MP3 with 1.3 s of extra lead-in, and a different track.
+  const make = (seed: number) => {
+    let s = seed; const r = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+    const sr = 44100, x = new Float32Array(sr * 40);
+    for (let t0 = 0; t0 < 40; t0 += 0.25) {
+      const f = 110 * Math.pow(2, Math.floor(r() * 36) / 12), amp = 0.1 + r() * 0.2, a = Math.floor(t0 * sr);
+      for (let i = a; i < Math.min(x.length, a + sr * 0.6); i++) { const t = (i - a) / sr; x[i] += amp * Math.exp(-t * 6) * (Math.sin(2 * Math.PI * f * t) + 0.5 * Math.sin(4 * Math.PI * f * t)); }
+    }
+    const wav = Buffer.alloc(44 + x.length * 2);
+    wav.write('RIFF', 0); wav.writeUInt32LE(36 + x.length * 2, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(sr, 24); wav.writeUInt32LE(sr * 2, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(x.length * 2, 40);
+    for (let i = 0; i < x.length; i++) wav.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(x[i] * 32767))), 44 + i * 2);
+    return wav;
+  };
+  const dir = md(join(tmpdir(), 'mco-dup-'));
+  wf(join(dir, 'a.wav'), make(11)); wf(join(dir, 'c.wav'), make(99));
+  execFileSync(ff, ['-loglevel', 'error', '-y', '-i', join(dir, 'a.wav'), '-af', 'adelay=1300', '-ar', '48000', '-b:a', '128k', join(dir, 'b.mp3')]);
+  const files = [['HHH 04 RADIX.wav', 'a.wav'], ['HHH-Bebida.mp3', 'b.mp3'], ['Something else.wav', 'c.wav']].map(([n, f]) => ({ n, b: rf(join(dir, f)).toString('base64') }));
+  await page.goto('./#/analyze');
+  await page.evaluate(async files => {
+    const root = await navigator.storage.getDirectory();
+    for (const name of ['MCO', 'Music', 'cache']) await root.removeEntry(name, { recursive: true }).catch(() => {});
+    const d = await root.getDirectoryHandle('Music', { create: true });
+    for (const f of files) { const w = await (await d.getFileHandle(f.n, { create: true })).createWritable(); await w.write(Uint8Array.from(atob(f.b), c => c.charCodeAt(0))); await w.close(); }
+  }, files);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+
+  // The two rips are one group; the WAV is the best copy; the other track isn't involved.
+  const dupItem = page.locator('.lside .name', { hasText: 'Duplicates' });
+  await expect(dupItem).toContainText('1', { timeout: 20_000 });
+  await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×');
+  await expect(page.locator('.tr', { hasText: 'Something else' }).locator('.dup')).toHaveCount(0);
+  await dupItem.click();
+  const grp = page.locator('#dupes .grp');
+  await expect(grp).toHaveCount(1);
+  await expect(grp).toContainText('Same recording');
+  await expect(grp.locator('li')).toHaveCount(2);
+  await expect(grp.locator('li.best')).toContainText('HHH 04 RADIX');
+
+  // "Not duplicates" hides the group, also after a reload.
+  await grp.getByRole('button', { name: 'Not duplicates' }).click();
+  await expect(page.locator('#dupes .grp')).toHaveCount(0);
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(3, { timeout: 20_000 });
+  await page.waitForTimeout(2500);
+  await expect(page.locator('.tr .dup')).toHaveCount(0);
 });

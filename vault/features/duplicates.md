@@ -1,8 +1,8 @@
 ---
-status: planned
-milestone: M7
+status: in-progress
+milestone: M5
 updated: 2026-09-24
-adrs: [0013]
+adrs: [0013, 0025]
 ---
 # Duplicates
 
@@ -38,3 +38,13 @@ them at the best copy.
   as tier 2.
 - [ ] 50,000 tracks grouped in under a minute after fingerprints exist.
 - [ ] "Use preferred copy in all lists" updates every affected list and can be undone.
+
+## Shipped (2026-09-24)
+- Fingerprints from the background analysis ([ADR 0025](../adr/0025-band-energy-fingerprints.md));
+  groups recomputed when the analysis goes quiet and on "Check again".
+- Sidebar › Library › **Duplicates**: "Same recording" groups (matched by sound) and "Check these"
+  (same artist + title and length). Each copy: play, format, length, BPM/key, quality verdict, how many
+  playlists use it, the best copy marked. Actions: "Use in playlists", "Not duplicates".
+- Tracks with a same-recording duplicate show a "2×" badge in the table (click to open the view).
+- Not yet: undo for "Use in playlists", "exclude others from exports" (M4), a separate exact tier.
+

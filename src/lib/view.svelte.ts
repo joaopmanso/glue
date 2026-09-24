@@ -1,10 +1,11 @@
 /* What the library view shows: the selected sidebar entry, search, sort and row selection. */
 import { lib } from './library.svelte';
 import { LOOSE } from '../store/merge';
+import { dupes } from './dupes.svelte';
 import type { AnalysisSummary, Track } from '../store/types';
 import { keyLabel, type KeyNotation } from '../core/audio/keys';
 
-export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'root'; id: string };
+export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'root'; id: string };
 export type SortKey = 'title' | 'artist' | 'album' | 'genre' | 'bpm' | 'key' | 'duration' | 'format' | 'quality' | 'rating' | 'added' | 'label' | 'year' | 'order';
 
 /** dj: what an imported DJ library said, shown when MCO's own analysis has no value. */
@@ -46,7 +47,8 @@ class View {
     else if (sel.kind === 'root') tracks = [...s.tracks.values()].filter(t => sel.id === LOOSE ? !!t.fileKey : t.rootId === sel.id);
     else {
       tracks = [...s.tracks.values()];
-      if (sel.kind === 'pending') tracks = tracks.filter(t => lib.needsAnalysis(t));
+      if (sel.kind === 'dupes') tracks = dupes.groups.flatMap(g => g.ids).map(id => s.tracks.get(id)).filter((t): t is Track => !!t);
+      else if (sel.kind === 'pending') tracks = tracks.filter(t => lib.needsAnalysis(t));
       else if (sel.kind === 'unlinked') tracks = tracks.filter(t => t.status !== 'linked');
       else if (sel.kind === 'attention') tracks = tracks.filter(t => { const a = s.analysis.get(t.id); return a && (a.grade === 'bad' || a.grade === 'warn'); });
       else if (sel.kind === 'recent') { const cut = Date.now() - 30 * 864e5; tracks = tracks.filter(t => Date.parse(t.addedAt) >= cut); }

@@ -5,6 +5,7 @@
   import LibSidebar from './LibSidebar.svelte';
   import TrackTable from './TrackTable.svelte';
   import NoteEditor from './NoteEditor.svelte';
+  import DuplicatesView from './DuplicatesView.svelte';
   import { app } from '../../lib/app.svelte';
   import { LOOSE } from '../../store/merge';
 
@@ -18,6 +19,7 @@
       case 'pending': return 'Not analysed yet';
       case 'attention': return 'Needs attention';
       case 'unlinked': return 'No file linked';
+      case 'dupes': return 'Duplicates';
       case 'list': { const l = st?.lists.get(s.id); return l ? lib.listPath(l) : 'Playlist'; }
       case 'source': { const x = st?.sources.get(s.id); return x ? (APP_NAMES[x.app] ?? x.app) + ' import' : 'Import'; }
       case 'root': return s.id === LOOSE ? 'Added songs' : lib.rootState(s.id)?.root.name ?? 'Folder';
@@ -114,7 +116,7 @@
           <span class="hint">Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection.</span>
         {/if}
       </div>
-      <TrackTable />
+      {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else}<TrackTable />{/if}
       <NoteEditor />
     </div>
   </div>

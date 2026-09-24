@@ -23,7 +23,7 @@ async function pipe(data: Uint8Array, t: CompressionStream | DecompressionStream
 
 /** Build the stored form. Also runs in the analysis workers. */
 export async function encodeDetails(info: FileInfo, res: AnalysisResult, file: { size: number; mtime: number }): Promise<{ header: DetailsHeader; bin: Uint8Array }> {
-  const { spec, ltas, demoPcm: _demo, ...rest } = res;
+  const { spec, ltas, demoPcm: _demo, fp: _fp, ...rest } = res;
   const { pcm: _pcm, ...slimInfo } = info;
   // Fewer rows: keep the louder of each group, so thin lines (a lowpass edge, a pilot tone) survive.
   const f = Math.max(1, Math.ceil(res.rows / MAX_ROWS)), rows = Math.ceil(res.rows / f), cols = res.cols;

@@ -7,6 +7,7 @@
   import { LOOSE } from '../../store/merge';
   import { LIST_COLORS, type List } from '../../store/types';
   import { drag } from '../../lib/drag.svelte';
+  import { dupes } from '../../lib/dupes.svelte';
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
   const FOUND_NAMES: Record<string, string> = { engine: 'Engine DJ library', serato: 'Serato library', apple: 'iTunes / Apple Music library', rekordbox: 'rekordbox XML', traktor: 'Traktor collection' };
@@ -142,7 +143,7 @@
   <section>
     <h3 class="label">Library</h3>
     <ul>
-      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['unlinked', 'No file linked', counts.unlinked]] as [k, label, n] (k)}
+      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length]] as [k, label, n] (k)}
         <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} onclick={() => view.select({ kind: k } as ViewSel)}>{label}<span class="n">{n ?? ''}</span></button></li>
       {/each}
     </ul>

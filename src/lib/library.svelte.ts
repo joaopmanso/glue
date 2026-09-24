@@ -11,6 +11,7 @@ import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
 import { failed } from '../core/library/summary';
 import { encodeDetails, loadDetails, removeDetails, writeDetails, type DetailsHeader } from '../store/details';
+import { removeFingerprint, writeFingerprint } from '../store/fingerprints';
 import type { AnalysisResult, FileInfo } from '../core/types';
 import { blankInfo, parseContainer } from '../core/formats/parse';
 import * as platform from '../platform';
@@ -58,6 +59,9 @@ class Library {
   /** Songs added on their own: their handles, and which ones we may read without asking. */
   private looseHandles = new Map<string, FileSystemFileHandle>();
   looseGranted = $state.raw<Set<string>>(new Set());
+  /** Hooks for derived views (duplicates): a collection opened / closed, the background analysis went quiet. */
+  onOpened: (() => void) | null = null;
+  onSettled: (() => void) | null = null;
 
   constructor() {
     if (typeof document !== 'undefined') {
@@ -167,6 +171,7 @@ class Library {
     this.phase = 'library';
     this.version++;
     this.enqueueAll();
+    this.onOpened?.();
   }
   async renameCollection(name: string) {
     const s = this.store;
@@ -561,7 +566,7 @@ class Library {
       this.looseHandles.delete(id);
       s.removeTrack(id);
       const cache = await platform.cacheDir();
-      if (cache) await removeDetails(cache, s.meta.id, id).catch(() => {});
+      if (cache) { await removeDetails(cache, s.meta.id, id).catch(() => {}); await removeFingerprint(cache, s.meta.id, id).catch(() => {}); }
     }
   }
 
@@ -598,6 +603,7 @@ class Library {
         this.active.delete(id);
         this.analysis = { ...this.analysis, running: this.active.size };
         this.pump();
+        if (!this.active.size && !this.queue.length) this.onSettled?.();
       });
     }
   }
@@ -610,8 +616,11 @@ class Library {
     try {
       const r = await pool.analyze(file, file.lastModified);
       if (this.store !== s) return;
+      // The stored analysis and fingerprint go first: once a track shows as analysed, its page opens instantly.
+      if (r.details) await this.putDetails(t.id, r.details).catch(e => console.warn('Couldn’t store the track analysis', e));
+      if (r.fp) { const d = await platform.cacheDir(); if (d) await writeFingerprint(d, s.meta.id, t.id, r.fp).catch(e => console.warn('Couldn’t store the fingerprint', e)); }
+      if (this.store !== s) return;
       s.putAnalysis(t.id, r.summary);
-      if (r.details) void this.putDetails(t.id, r.details).catch(e => console.warn('Couldn’t store the track analysis', e));
       const cur = s.tracks.get(t.id) ?? t;
       const f = tagFields(r.info.tags);
       const upd: Track = { ...cur, size: file.size, mtime: file.lastModified, format: formatOf(r.info), duration: r.duration || cur.duration };

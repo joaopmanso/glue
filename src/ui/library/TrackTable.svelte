@@ -11,6 +11,7 @@
   import { fmtTime } from '../../core/format';
   import type { TrackFormat } from '../../store/types';
   import Stars from './Stars.svelte';
+  import { dupes } from '../../lib/dupes.svelte';
 
   const ROW = 30, OVERSCAN = 12;
 
@@ -81,7 +82,11 @@
 </script>
 
 {#snippet cell(k: ColKey, r: Row)}
-  {#if k === 'title'}<span class="c-title" title={r.t.fileName}>{r.t.title || r.t.fileName}</span>
+  {#if k === 'title'}
+    {@const g = dupes.groupOf.get(r.t.id)}
+    <span class="c-title" title={r.t.fileName}>{r.t.title || r.t.fileName}</span>
+    {#if g?.kind === 'same'}<button type="button" class="dup" title={'Same recording as ' + (g.ids.length - 1) + ' other track' + (g.ids.length > 2 ? 's' : '') + ': show duplicates'}
+      onclick={e => { e.stopPropagation(); view.select({ kind: 'dupes' }); }}>{g.ids.length}×</button>{/if}
   {:else if k === 'artist'}<span class="c-artist">{r.t.artist}</span>
   {:else if k === 'album'}<span class="c-soft">{r.t.album}</span>
   {:else if k === 'genre'}<span class="c-soft">{r.t.genre}</span>
@@ -237,7 +242,9 @@
   .tr.lifted { opacity: .45; }
   .tr.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
   .tr.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
-  .c-title { color: var(--ink); font-weight: 550; }
+  .c-title { color: var(--ink); font-weight: 550; overflow: hidden; text-overflow: ellipsis; }
+  .dup { flex: none; margin-left: 6px; background: none; border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); border-radius: 3px; font: 600 10.5px var(--font-mono); padding: 0 4px; cursor: pointer; }
+  .dup:hover { background: color-mix(in srgb, var(--warn) 15%, transparent); }
   .c-artist, .c-soft { color: var(--ink-2); }
   .c-n, .c-num { color: var(--ink-2); font-size: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   .c-n.grip { cursor: grab; }

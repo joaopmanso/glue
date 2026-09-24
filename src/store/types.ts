@@ -2,7 +2,7 @@
 import type { Severity } from '../core/types';
 
 export const SCHEMA = 1;             // bump + add a migration when a file format changes
-export const ANALYSIS_VERSION = 2;   // bump to re-analyse every track after an algorithm change (2: also stores the full analysis)
+export const ANALYSIS_VERSION = 3;   // bump to re-analyse every track after an algorithm change (2: full analysis stored, 3: fingerprints)
 
 export interface ProfileRef { id: string; name: string; color: string }
 export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null }
@@ -12,7 +12,7 @@ export interface Profile { schemaVersion: number; id: string; name: string; colo
 
 /** A music folder the user granted (handle lives in IndexedDB under `handleKey`). */
 export interface Root { id: string; name: string; absPath: string | null; handleKey: string; addedAt: string }
-export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[] }
+export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[] }
 
 export type TrackStatus = 'linked' | 'unlinked' | 'missing';
 export interface TrackFormat { container: string; codec: string; lossless: boolean | null; sampleRate: number; bits: number; bitrate: number; channels: number }
@@ -47,6 +47,7 @@ export interface AnalysisSummary {
   findings: { sev: Severity; title: string }[];
   fileSize: number; fileMtime: number;   // to notice when the file changes
   error?: string;
+  fp?: boolean;                           // an acoustic fingerprint is stored for this analysis
 }
 
 export interface List {

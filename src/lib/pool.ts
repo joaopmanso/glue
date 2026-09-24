@@ -9,7 +9,7 @@ import { scanClues } from '../core/formats/clues';
 import { decodeAudio } from './analysis';
 
 import type { DetailsHeader } from '../store/details';
-export interface PoolResult { summary: AnalysisSummary; info: FileInfo; duration: number; details: { header: DetailsHeader; bin: Uint8Array } | null }
+export interface PoolResult { summary: AnalysisSummary; info: FileInfo; duration: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null }
 
 const MAX_BYTES = 1.2e9;
 export const poolSize = () => Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
@@ -76,7 +76,7 @@ export class AnalysisPool {
       if (!info.channels) info.channels = r.channels;
       if (!info.duration) info.duration = r.duration;
       if (!info.bitrate && info.duration && info.lossless === false) info.bitrate = file.size * 8 / info.duration / 1000;
-      return { summary: r.out, info, duration: info.duration, details: r.details };
+      return { summary: r.out, info, duration: info.duration, details: r.details, fp: r.fp };
     } finally { this.release(s); }
   }
   stop() { for (const s of this.slots) s.stop(); }

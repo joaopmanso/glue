@@ -1,5 +1,6 @@
 ---
 status: accepted
+amended-by: 0025
 date: 2026-09-24
 ---
 # 0013. Three tiers of duplicate detection
