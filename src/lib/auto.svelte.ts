@@ -42,13 +42,14 @@ class Auto {
     };
   }
 
-  show(seedId: string | null) {
-    this.form = this.defaults(seedId);
+  /** Open the dialog; `include`: more selected tracks, which must all be in the playlist. */
+  show(seedId: string | null, include: string[] = []) {
+    this.form = { ...this.defaults(seedId), include: include.filter(id => id !== seedId) };
     this.slots = []; this.relaxed = [];
     const t = seedId ? lib.store?.tracks.get(seedId) : null;
     this.name = t ? 'Auto · ' + (t.title || t.fileName) : 'Auto playlist';
     this.open = true;
-    this.form.count = Math.min(20, this.candidates().length || 20);
+    this.form.count = Math.max(1 + this.form.include.length, Math.min(20, this.candidates().length || 20));
   }
   close() { this.open = false; }
 

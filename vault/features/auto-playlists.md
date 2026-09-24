@@ -12,6 +12,8 @@ harmonically, favouring the highest rated tracks, with some chance so every run 
 
 ## Behaviour
 - Open from: a selected track ("Build playlist from this"), a track's page, or "+ Auto" in the sidebar.
+  With several tracks selected ("Build playlist with these N"), the first (in table order) starts it
+  and all the others are included.
 - Options: starting track; tracks that must be included (search); number of tracks (20, or fewer
   when the collection is smaller); start and end BPM (a ramp), tempo range, half/double time;
   harmonic mixing Off / Prefer / Strict; prefer highest rated; minimum rating; only the starting

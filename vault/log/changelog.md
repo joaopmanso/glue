@@ -5,6 +5,9 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Build a playlist with several selected tracks
+- With more than one track selected, the builder starts from the first and includes all the others.
+
 ## 2026-09-24 · Playlist builder fits smaller windows
 - The dialog's top was cut off below ~1080p: it was centred in a box that couldn't scroll, its
   columns didn't scroll (nested grid sizing), and focusing the Generate button scrolled the clipped

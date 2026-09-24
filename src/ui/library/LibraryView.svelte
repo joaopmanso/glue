@@ -105,8 +105,8 @@
       <div class="selbar">
         {#if sel.length}
           <span>{sel.length} selected</span>
-          {#if sel.length === 1}<button type="button" class="mini" onclick={() => router.go('#/track/' + sel[0])}>Open details</button>
-            <button type="button" class="mini accent" id="auto-from" title="Generate a playlist that starts from this track" onclick={() => auto.show(sel[0])}>Build playlist from this</button>{/if}
+          {#if sel.length === 1}<button type="button" class="mini" onclick={() => router.go('#/track/' + sel[0])}>Open details</button>{/if}
+          <button type="button" class="mini accent" id="auto-from" title={sel.length === 1 ? 'Generate a playlist that starts from this track' : 'Generate a playlist that includes all the selected tracks'} onclick={() => { const ordered = view.rows(app.keyNotation).map(r => r.t.id).filter(id => view.selected.has(id)); auto.show(ordered[0], ordered.slice(1)); }}>{sel.length === 1 ? 'Build playlist from this' : 'Build playlist with these ' + sel.length}</button>
           <select aria-label="Add to playlist" onchange={addTo}>
             <option value="">Add to playlist…</option>
             {#each playlists as p (p.id)}<option value={p.id}>{lib.listPath(p)}</option>{/each}

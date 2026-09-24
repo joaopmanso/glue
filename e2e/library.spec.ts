@@ -737,3 +737,25 @@ test('the playlist builder fits smaller windows: nothing cut off, everything rea
     await page.keyboard.press('Escape');
   }
 });
+
+test('with several tracks selected, the playlist builder includes them all', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  await page.locator('.tr', { hasText: 'Fixture MP3' }).click();
+  await page.locator('.tr', { hasText: 'aiff-44k-24' }).click({ modifiers: ['Control'] });
+  await page.locator('.tr', { hasText: 'Fixture AAC' }).click({ modifiers: ['Control'] });
+  await expect(page.locator('#auto-from')).toHaveText('Build playlist with these 3');
+  await page.click('#auto-from');
+  await expect(page.locator('#auto-dialog .tchip')).toHaveCount(3);   // one start + two to include
+  await expect(page.locator('#auto-count')).toHaveValue('4');
+  await page.fill('#auto-count', '3');
+  await page.click('#auto-go');
+  const list = page.locator('#auto-list');
+  for (const t of ['Fixture MP3', 'aiff-44k-24', 'Fixture AAC']) await expect(list).toContainText(t);
+  await expect(page.locator('#auto-list li')).toHaveCount(3);
+});
