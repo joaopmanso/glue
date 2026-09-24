@@ -6,6 +6,7 @@
   import TrackTable from './TrackTable.svelte';
   import NoteEditor from './NoteEditor.svelte';
   import DuplicatesView from './DuplicatesView.svelte';
+  import { auto } from '../../lib/auto.svelte';
   import { app } from '../../lib/app.svelte';
   import { LOOSE } from '../../store/merge';
 
@@ -99,7 +100,8 @@
       <div class="selbar">
         {#if sel.length}
           <span>{sel.length} selected</span>
-          {#if sel.length === 1}<button type="button" class="mini" onclick={() => router.go('#/track/' + sel[0])}>Open details</button>{/if}
+          {#if sel.length === 1}<button type="button" class="mini" onclick={() => router.go('#/track/' + sel[0])}>Open details</button>
+            <button type="button" class="mini accent" id="auto-from" title="Generate a playlist that starts from this track" onclick={() => auto.show(sel[0])}>Build playlist from this</button>{/if}
           <select aria-label="Add to playlist" onchange={addTo}>
             <option value="">Add to playlist…</option>
             {#each playlists as p (p.id)}<option value={p.id}>{lib.listPath(p)}</option>{/each}
@@ -141,6 +143,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini:hover { border-color: var(--accent); color: var(--accent); }
+  .mini.accent { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line-2)); }
   .status { display: grid; gap: 4px; font-size: 12.5px; color: var(--ink-2); }
   .status .row { display: flex; justify-content: space-between; }
   .bar-line { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }

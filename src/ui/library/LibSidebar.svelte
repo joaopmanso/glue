@@ -8,6 +8,7 @@
   import { LIST_COLORS, type List } from '../../store/types';
   import { drag } from '../../lib/drag.svelte';
   import { dupes } from '../../lib/dupes.svelte';
+  import { auto } from '../../lib/auto.svelte';
   import { canDragOut, startPlaylistDrag } from '../../lib/dragout';
   const dragOut = canDragOut();
 
@@ -164,6 +165,7 @@
       <h3 class="label">Playlists</h3>
       <span class="add">
         <button type="button" id="new-playlist" title="New playlist (or drop tracks here)" class:hot={drag.active && drag.target?.type === 'new'} data-drop="new" onclick={() => newList('playlist')}>+ Playlist</button>
+        <button type="button" id="new-auto" title="Generate a playlist from your collection" onclick={() => auto.show(null)}>+ Auto</button>
         <button type="button" id="new-folder" title="New folder" onclick={() => newList('folder')}>+ Folder</button>
       </span>
     </div>

@@ -24,3 +24,7 @@ sets with a time slot and targets. Sessions go to Rekordbox and Engine DJ as pla
 ## Acceptance
 - [ ] Create a show with two sessions, fill them, see running time and warnings.
 - [ ] Session appears in Rekordbox (via rekordbox XML) with the right order.
+
+## Note from automatic playlists (2026-09-24)
+- The automatic playlist builder should offer "avoid songs played in the last N shows / sessions";
+  its pool filter already takes a set of track ids to avoid ([ADR 0029](../adr/0029-automatic-playlists.md)).

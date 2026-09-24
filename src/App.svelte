@@ -15,6 +15,8 @@
   import TrackDetail from './ui/library/TrackDetail.svelte';
   import LibPlayer from './ui/library/LibPlayer.svelte';
   import DragTag from './ui/library/DragTag.svelte';
+  import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
+  import { auto } from './lib/auto.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
   import { themes } from './lib/themes.svelte';
 
@@ -93,7 +95,7 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <h1><a href="#/">M<span>CO</span></a></h1>
+      <h1><a href="#/" aria-label="MCO, Music Collection Organizer"><b>M</b><span>usic</span><b>C</b><span>ollection</span><b>O</b><span>rganizer</span></a></h1>
       <nav class="tabs" aria-label="Sections">
         <a href="#/" class:on={route.name !== 'analyze'}>Library</a>
         <a href="#/analyze" class:on={route.name === 'analyze'}>Analyze a file</a>
@@ -147,6 +149,7 @@
 </div>
 {#if inLibrary && route.name === 'library' && lib.onboarding !== 'music'}<LibPlayer />{/if}
 <DragTag />
+{#if auto.open && inLibrary}<AutoPlaylist />{/if}
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}
   <div class="drop-overlay" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>

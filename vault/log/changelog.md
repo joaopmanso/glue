@@ -5,6 +5,13 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Automatic playlists, full-name logo
+- [Automatic playlists](../features/auto-playlists.md): build a set from a track along a BPM ramp,
+  harmonic mixing, highest rated first, must-include tracks, avoid playlists, randomness; preview with
+  re-roll per slot; save as a playlist ([ADR 0029](../adr/0029-automatic-playlists.md)).
+- The logo reads "Music Collection Organizer" with the M, C and O emphasised (just "MCO" on narrow screens).
+- Tests: 8 unit tests for the generator; e2e for the dialog and saving.
+
 ## 2026-09-24 · Themes
 - [Themes](../features/themes.md): Classic (now with light mode), Studio, Riso and Moss, each dark and
   light, with their own fonts and small signatures; picker with live previews on the profile screen,

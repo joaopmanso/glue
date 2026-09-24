@@ -12,6 +12,7 @@
   import Results from '../Results.svelte';
   import { nowPlaying, playable } from '../../lib/nowPlaying.svelte';
   import Stars from './Stars.svelte';
+  import { auto } from '../../lib/auto.svelte';
 
   let { id }: { id: string } = $props();
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
@@ -113,6 +114,7 @@
     <span class="nav">
       {#if phase === 'ready'}
         <span class="src">{stored ? 'Stored analysis' : 'Just analysed'}</span>
+        <button type="button" class="mini" id="auto-from-page" onclick={() => auto.show(id)}>Build playlist from this</button>
         <button type="button" class="mini" id="reanalyse" title="Analyse the file again and replace the stored result" onclick={() => load(true, true)}>Re-analyse</button>
       {/if}
       <button type="button" class="mini" disabled={pos <= 0} onclick={() => router.go('#/track/' + order[pos - 1])}>‹ Previous</button>

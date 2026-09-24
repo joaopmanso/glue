@@ -51,6 +51,7 @@ Planned (MCO):
 [playlists](features/playlists.md) ·
 [ratings](features/ratings.md) ·
 [themes](features/themes.md) ·
+[automatic playlists](features/auto-playlists.md) ·
 [shows & sessions](features/shows-sessions.md) ·
 [import: Rekordbox](features/import-rekordbox.md) ·
 [import: Engine DJ](features/import-engine.md) ·
@@ -89,6 +90,7 @@ Planned (MCO):
 | [0022](adr/0022-pointer-drag-inside-mco.md) | Drags inside MCO use pointer events, not HTML drag-and-drop | accepted |
 | [0023](adr/0023-store-track-page-analysis.md) | Track pages store their full analysis (amends 0019) | superseded in part by 0024 |
 | [0024](adr/0024-background-stores-full-analysis.md) | Background analysis stores the full analysis, in the browser's storage | accepted |
+| [0029](adr/0029-automatic-playlists.md) | Automatic playlists: a greedy walk along a BPM ramp with weighted randomness | accepted |
 | [0028](adr/0028-themes.md) | Themes: one token table, dark and light for each | accepted |
 | [0027](adr/0027-drag-out-with-downloadurl.md) | Dragging out to other apps uses Chromium's DownloadURL | accepted |
 | [0026](adr/0026-profile-backups-and-wipe.md) | Profile backups are zips; "delete all" removes only what MCO made | accepted |

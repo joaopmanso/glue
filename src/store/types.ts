@@ -56,6 +56,7 @@ export interface List {
   notes: string; items: string[];                          // track ids, in order
   origin: { sourceId: string; externalId: string } | null; // imported playlist / crate
   color?: string | null;                                   // one of LIST_COLORS, or none
+  auto?: Record<string, unknown>;                          // how an automatic playlist was made (options, seed, date)
   createdAt: string;
 }
 

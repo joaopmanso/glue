@@ -646,3 +646,42 @@ test('themes: pick a theme and dark / light on the profile screen; it sticks', a
   const font = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
   expect(font).toContain('Geist');
 });
+
+test('builds a playlist from a track: seed first, included tracks kept, saved as a playlist', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  await expect(page.locator('.brand h1 a')).toHaveAccessibleName('MCO, Music Collection Organizer');
+
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).click();
+  await page.click('#auto-from');
+  await expect(page.locator('#auto-dialog')).toBeVisible();
+  await expect(page.locator('#auto-dialog .tchip.seed')).toContainText('Fixture FLAC');
+  await expect(page.locator('#auto-count')).toHaveValue('4');             // 20, or fewer when the collection is smaller
+  await page.fill('#auto-search', 'aiff');
+  await page.locator('#auto-dialog .results button', { hasText: 'aiff-44k-24' }).click();
+  await page.fill('#auto-count', '3');
+  await page.click('#auto-go');
+  const rows = page.locator('#auto-list li');
+  await expect(rows).toHaveCount(3);
+  await expect(rows.first()).toContainText('Fixture FLAC');
+  await expect(page.locator('#auto-list')).toContainText('aiff-44k-24');
+  await page.click('#auto-again');
+  await expect(rows).toHaveCount(3);
+  await expect(rows.first()).toContainText('Fixture FLAC');
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/auto.png' });
+  await page.fill('#auto-name', 'Warm-up auto');
+  await page.click('#auto-save');
+  await expect(page.locator('#auto-dialog')).toHaveCount(0);
+  await expect(page.locator('.lside .item', { hasText: 'Warm-up auto' })).toContainText('3');
+  await expect(page.locator('.tr').first()).toContainText('Fixture FLAC');
+  // "+ Auto" works without a starting track.
+  await page.click('#new-auto');
+  await expect(page.locator('#auto-dialog')).toContainText('No starting track');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#auto-dialog')).toHaveCount(0);
+});
