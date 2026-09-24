@@ -19,7 +19,8 @@ compressed: 10 GB for a 10,000-track library, too much for a Documents folder th
   writes it right away. Opening any analysed track's page shows it with no analysis.
 - Stored form: average spectrum as float32 (exact; the verdict uses it), spectrogram at ≤ 512
   frequency rows (the louder of each pair), one byte per cell in 0.8 dB steps, rows delta-coded,
-  deflate-compressed. Measured on a real 6-minute track: well under 1 MB.
+  deflate-compressed. Measured on a real 3:54 AIFF: 490 KB (the spectrogram has a fixed 1600
+  columns, so the size barely depends on length): about 5 GB for 10,000 tracks.
 - Location: the browser's own storage (OPFS) under `cache/details/<collection>/<shard>/<id>`, not the
   MCO folder. It's derived data: not synced, safe to lose, rebuilt by re-analysing.
 - `ANALYSIS_VERSION` 2 re-queues every track once so existing libraries get stored analyses.
