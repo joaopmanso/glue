@@ -359,6 +359,15 @@ class Library {
     const i = this.childLists(l.parentId).findIndex(x => x.id === id);
     this.placeList(id, l.parentId, i + dir);
   }
+  setTrackNotes(id: string, notes: string) {
+    const t = this.store?.tracks.get(id);
+    if (t && (t.notes ?? '') !== notes) this.store!.putTrack({ ...t, notes: notes || undefined });
+  }
+  /** Make a playlist's stored order the order it's shown in (e.g. after sorting by BPM). */
+  setListOrder(id: string, items: string[]) {
+    const l = this.store?.lists.get(id);
+    if (l && items.length === l.items.length) this.updateList(id, { items });
+  }
   /** The user's own rating, in half stars (0.5–5); null or 0 clears it. */
   rateTracks(ids: string[], rating: number | null) {
     const s = this.store;

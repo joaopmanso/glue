@@ -141,7 +141,7 @@
 <DragTag />
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}
-  <div class="drop" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>
+  <div class="drop-overlay" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>
 {/if}
 
 <style>

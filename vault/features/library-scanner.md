@@ -67,3 +67,10 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
   Space plays the selected track or pauses. The queue is the view the track was started from and
   advances at the end of a track. AIFF is rewrapped as WAV to play in Chrome/Firefox.
 - One audio element is shared with the track page; opening a track page loads that track.
+
+## Columns and notes (2026-09-24)
+- Columns can be shown or hidden and reordered: the ≡ button at the end of the header opens the list
+  (checkboxes, ↑ ↓, reset), or drag a header to move it. Kept per browser. New optional columns:
+  Label, Year, Added, Notes.
+- Notes: the Notes column shows an icon (highlighted when a track has a note); clicking it opens a
+  small editor that saves as you type. The track page has the same notes. `Track.notes` in the shards.

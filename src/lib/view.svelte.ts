@@ -5,7 +5,7 @@ import type { AnalysisSummary, Track } from '../store/types';
 import { keyLabel, type KeyNotation } from '../core/audio/keys';
 
 export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'root'; id: string };
-export type SortKey = 'title' | 'artist' | 'album' | 'genre' | 'bpm' | 'key' | 'duration' | 'format' | 'quality' | 'rating' | 'added' | 'order';
+export type SortKey = 'title' | 'artist' | 'album' | 'genre' | 'bpm' | 'key' | 'duration' | 'format' | 'quality' | 'rating' | 'added' | 'label' | 'year' | 'order';
 
 /** dj: what an imported DJ library said, shown when MCO's own analysis has no value. */
 export interface Row { t: Track; a: AnalysisSummary | null; n: number; dj: { bpm: number | null; key: string | null; rating: number | null } | null }
@@ -22,7 +22,10 @@ class View {
   anchor: string | null = null;
 
   select(s: ViewSel) { this.sel = s; this.selected = new Set(); this.anchor = null; if (s.kind !== 'list' && this.sort.key === 'order') this.sort = { key: 'added', dir: -1 }; else if (s.kind === 'list') this.sort = { key: 'order', dir: 1 }; }
-  sortBy(k: SortKey) { this.sort = this.sort.key === k ? { key: k, dir: this.sort.dir === 1 ? -1 : 1 } : { key: k, dir: k === 'added' ? -1 : 1 }; }
+  /** "#" (playlist order) always sorts ascending: it's the order you arrange by dragging. */
+  sortBy(k: SortKey) { this.sort = k === 'order' ? { key: k, dir: 1 } : this.sort.key === k ? { key: k, dir: this.sort.dir === 1 ? -1 : 1 } : { key: k, dir: k === 'added' ? -1 : 1 }; }
+  /** The track whose note editor is open, and where. */
+  noteFor = $state<{ id: string; x: number; y: number } | null>(null);
 
   /** The rows for the current selection (depends on lib.version). */
   rows(notation: KeyNotation): Row[] {

@@ -50,3 +50,10 @@ track is used.
   onto another list's edge to move next to it (in or out of folders), or onto "Move to the top level".
 - ⋯ menu per list: colour (8 colours or none), rename, new playlist inside (folders), move up, move
   down, move to (top level or any folder), delete.
+
+## Folder drops, playlist order, colours (2026-09-24)
+- Dropping tracks on a folder makes a new playlist inside it with those tracks (name it right away);
+  dropping on "+ Playlist" lights up only the button (a class-name clash made it cover the page).
+- A playlist opens in its own order ("#", always ascending) and rows can be dragged to rearrange it.
+  Sorted by another column, "Keep this order" saves that order as the playlist's own.
+- A colour tints the playlist's whole row, with a bar on the left.

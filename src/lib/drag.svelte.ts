@@ -3,11 +3,14 @@
    own drag image, cancels a drag when the page re-renders under it, and can't be styled. */
 import { lib } from './library.svelte';
 import { view } from './view.svelte';
+import { columns, type ColKey } from './columns.svelte';
 
-export type Payload = { kind: 'tracks'; ids: string[]; label: string } | { kind: 'list'; id: string; label: string };
+export type Payload = { kind: 'tracks'; ids: string[]; label: string } | { kind: 'list'; id: string; label: string } | { kind: 'column'; key: ColKey; label: string };
 /** Where a drop would land. */
 export type Target =
   | { type: 'playlist'; id: string }                        // add the tracks to a playlist
+  | { type: 'folder'; id: string }                          // a new playlist in this folder, with the tracks
+  | { type: 'col'; key: ColKey; at: 'before' | 'after' }    // reorder the table's columns
   | { type: 'new' }                                         // "+ Playlist": a new playlist with them
   | { type: 'row'; listId: string; index: number }          // reorder / insert inside the open playlist
   | { type: 'list'; id: string; at: 'before' | 'after' | 'into' }
@@ -74,6 +77,12 @@ class Drag {
     const el = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>('[data-drop]');
     if (!el) { this.hoverFolder(null); return null; }
     const kind = el.dataset.drop, id = el.dataset.id ?? '';
+    if (kind === 'col') {
+      if (p.kind !== 'column' || el.dataset.col === p.key) return null;
+      const r = el.getBoundingClientRect();
+      return { type: 'col', key: el.dataset.col as ColKey, at: x < r.left + r.width / 2 ? 'before' : 'after' };
+    }
+    if (p.kind === 'column') return null;
     if (kind === 'new') return p.kind === 'tracks' ? { type: 'new' } : null;
     if (kind === 'top') return p.kind === 'list' ? { type: 'top' } : null;
     if (kind === 'row') {
@@ -85,7 +94,7 @@ class Drag {
     const l = lib.store?.lists.get(id);
     if (!l) return null;
     if (p.kind === 'tracks') {
-      if (l.kind === 'folder') { this.hoverFolder(l.id); return null; }
+      if (l.kind === 'folder') { this.hoverFolder(l.id); return { type: 'folder', id }; }
       this.hoverFolder(null);
       return { type: 'playlist', id };
     }
@@ -102,7 +111,13 @@ class Drag {
   }
 
   private drop(p: Payload, t: Target) {
+    if (p.kind === 'column') { if (t.type === 'col') columns.place(p.key, t.key, t.at); return; }
     if (p.kind === 'tracks') {
+      if (t.type === 'folder') {
+        const l = lib.createList('playlist', '', t.id, p.ids);
+        if (l) { this.onOpenFolder?.(t.id); view.editing = l.id; }
+        return;
+      }
       if (t.type === 'playlist') {
         const l = lib.store?.lists.get(t.id), n = lib.addToList(t.id, p.ids);
         lib.notice = n ? 'Added ' + n + ' track' + (n === 1 ? '' : 's') + ' to ' + l?.name + '.' : 'Already in ' + l?.name + '.';

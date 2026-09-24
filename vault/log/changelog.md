@@ -5,6 +5,15 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Folder drops, playlist order, columns, notes
+- Fixed: dropping on "+ Playlist" covered the page in blue (its `drop` class clashed with the page's
+  drop overlay; both renamed).
+- Tracks dropped on a folder create a playlist inside it; playlist colours tint the whole row.
+- Playlists open in "#" order and can be rearranged by dragging; "Keep this order" saves a sorted order.
+- Track table columns: show / hide, reorder by dragging headers or from the column menu.
+- Track notes: an icon in the table opens a note editor; also on the track page.
+- Tests: e2e for all of the above.
+
 ## 2026-09-24 · Playlist organising, colours, ratings; new drag
 - In-app drags rebuilt on pointer events ([ADR 0022](../adr/0022-pointer-drag-inside-mco.md)): the
   native drag kept failing with a real mouse and showed a stray blue drag image. Now: a tag at the

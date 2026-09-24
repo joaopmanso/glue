@@ -9,9 +9,11 @@
     if (p.kind === 'tracks') {
       if (t?.type === 'playlist') return 'Add ' + p.label + ' to ' + (lib.store?.lists.get(t.id)?.name ?? 'playlist');
       if (t?.type === 'new') return 'New playlist with ' + p.label;
+      if (t?.type === 'folder') return 'New playlist in ' + (lib.store?.lists.get(t.id)?.name ?? 'folder') + ' with ' + p.label;
       if (t?.type === 'row') return 'Move ' + p.label + ' here';
       return p.label;
     }
+    if (p.kind === 'column') return 'Move the ' + p.label + ' column';
     if (t?.type === 'list' && t.at === 'into') return 'Move ' + p.label + ' into ' + (lib.store?.lists.get(t.id)?.name ?? 'folder');
     if (t?.type === 'top') return 'Move ' + p.label + ' to the top level';
     return p.label;

@@ -110,6 +110,10 @@
           {#each lists as l, i (l.id)}<a href="#/" onclick={() => view.select({ kind: 'list', id: l.id })}>{lib.listPath(l)}</a>{i < lists.length - 1 ? ', ' : ''}{:else}none{/each}
         </dd></div>
         {#if track.comment}<div class="wide"><dt class="label">Comment</dt><dd>{track.comment}</dd></div>{/if}
+        <div class="wide"><dt class="label"><label for="track-notes">Your notes</label></dt><dd class="notes">
+          <textarea id="track-notes" rows="2" placeholder="Cue ideas, mix-in points, where it works in a set…" value={track.notes ?? ''}
+            onchange={e => lib.setTrackNotes(id, e.currentTarget.value.trim() ? e.currentTarget.value : '')}></textarea>
+        </dd></div>
       </dl>
       {#if imported.length}
         <table class="dj">
@@ -165,6 +169,9 @@
   dt { display: block; }
   dd { margin: 0; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   dd.mono { font-size: 12px; }
+  dd.notes { white-space: normal; overflow: visible; }
+  dd.notes textarea { width: 100%; resize: vertical; background: var(--ground); border: 1px solid var(--line-2); border-radius: 5px; padding: 6px 8px; font: 13px/1.45 var(--font-sans); color: var(--ink); }
+  dd.notes textarea:focus { outline: none; border-color: var(--accent); }
   dd a { color: var(--accent); text-decoration: none; }
   .dj { border-collapse: collapse; font-size: 12.5px; align-self: start; width: 100%; }
   .dj th { text-align: left; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 8px 6px 0; }

@@ -4,6 +4,8 @@
   import { router } from '../../lib/route.svelte';
   import LibSidebar from './LibSidebar.svelte';
   import TrackTable from './TrackTable.svelte';
+  import NoteEditor from './NoteEditor.svelte';
+  import { app } from '../../lib/app.svelte';
   import { LOOSE } from '../../store/merge';
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
@@ -26,6 +28,14 @@
   const playlists = $derived.by(() => { void lib.version; return [...(lib.store?.lists.values() ?? [])].filter(l => l.kind === 'playlist').sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b))); });
   const current = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   const sel = $derived([...view.selected]);
+  // A playlist shown sorted by another column can adopt that order as its own.
+  const sortedPlaylist = $derived(current?.kind === 'playlist' && view.sort.key !== 'order' && !view.search.trim());
+  function keepOrder() {
+    if (!current) return;
+    lib.setListOrder(current.id, view.rows(app.keyNotation).map(r => r.t.id));
+    view.sortBy('order');
+    lib.notice = 'Saved this order as the order of ' + current.name + '.';
+  }
 
   function addTo(e: Event) {
     const el = e.currentTarget as HTMLSelectElement, v = el.value;
@@ -96,11 +106,16 @@
           {#if current?.kind === 'playlist'}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from playlist</button>{/if}
           <button type="button" class="mini" id="remove-tracks" onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>
           <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
+        {:else if sortedPlaylist}
+          <span class="hint">Sorted by {view.sort.key}. Drag to rearrange works in playlist order.</span>
+          <button type="button" class="mini" id="keep-order" onclick={keepOrder}>Keep this order</button>
+          <button type="button" class="mini" onclick={() => view.sortBy('order')}>Back to playlist order</button>
         {:else}
           <span class="hint">Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection.</span>
         {/if}
       </div>
       <TrackTable />
+      <NoteEditor />
     </div>
   </div>
 </div>

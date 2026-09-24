@@ -33,6 +33,7 @@ export interface Track {
   format: TrackFormat | null;
   addedAt: string;
   rating?: number | null;       // the user's own rating in MCO: 0.5–5 in half stars
+  notes?: string;               // the user's own notes about the track
   sources: string[];            // ids of imported sources that contain this track
 }
 

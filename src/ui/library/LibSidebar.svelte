@@ -65,7 +65,7 @@
   function dropCls(id: string): string {
     const t = drag.active ? drag.target : null;
     if (!t) return '';
-    if (t.type === 'playlist' && t.id === id) return 'drop-add';
+    if ((t.type === 'playlist' || t.type === 'folder') && t.id === id) return 'drop-add';
     if (t.type === 'list' && t.id === id) return 'drop-' + t.at;
     return '';
   }
@@ -87,7 +87,7 @@
   {@const kids = l.kind === 'folder' ? childrenOf(l.id, lib.version) : []}
   {@const siblings = childrenOf(l.parentId ?? '', lib.version)}
   <li>
-    <div class={'item ' + dropCls(l.id)} class:sel={isSel({ kind: 'list', id: l.id })} class:lifted={drag.active && drag.payload?.kind === 'list' && drag.payload.id === l.id}
+    <div class={'item ' + dropCls(l.id)} class:colored={!!l.color} class:sel={isSel({ kind: 'list', id: l.id })} class:lifted={drag.active && drag.payload?.kind === 'list' && drag.payload.id === l.id}
       style:padding-left={8 + depth * 14 + 'px'} style:--lc={l.color ?? null}
       role="treeitem" aria-selected={isSel({ kind: 'list', id: l.id })} aria-expanded={l.kind === 'folder' ? !!open[l.id] : undefined} tabindex="-1"
       data-drop="list" data-id={l.id} onpointerdown={e => pressList(e, l)}>
@@ -152,7 +152,7 @@
     <div class="head">
       <h3 class="label">Playlists</h3>
       <span class="add">
-        <button type="button" id="new-playlist" title="New playlist (or drop tracks here)" class:drop={drag.active && drag.target?.type === 'new'} data-drop="new" onclick={() => newList('playlist')}>+ Playlist</button>
+        <button type="button" id="new-playlist" title="New playlist (or drop tracks here)" class:hot={drag.active && drag.target?.type === 'new'} data-drop="new" onclick={() => newList('playlist')}>+ Playlist</button>
         <button type="button" id="new-folder" title="New folder" onclick={() => newList('folder')}>+ Folder</button>
       </span>
     </div>
@@ -250,6 +250,10 @@
   .plus { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 800; font-size: 14px; line-height: 1; flex: none; }
   .icon { width: 13px; height: 13px; flex: none; color: var(--muted); }
   .icon.colored { color: var(--lc); }
+  /* A colour tints the whole row, with a bar on the left. */
+  .item.colored { background: color-mix(in srgb, var(--lc) 14%, transparent); box-shadow: inset 3px 0 0 var(--lc); }
+  .item.colored:hover { background: color-mix(in srgb, var(--lc) 22%, transparent); }
+  .item.colored.sel { background: color-mix(in srgb, var(--lc) 30%, transparent); }
   .tools.open { display: flex; }
   .more { font-size: 13px !important; line-height: 1; padding: 0 6px 2px !important; }
   .menu { display: grid; gap: 2px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; margin: 2px 4px 6px; box-shadow: 0 8px 24px rgb(0 0 0 / .4); font-size: 13px; }
@@ -266,8 +270,7 @@
   .moveto select { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 2px 4px; font-size: 12.5px; }
   .topzone { margin-top: 4px; padding: 6px 8px; border: 1px dashed var(--line-2); border-radius: 4px; color: var(--muted); font-size: 12px; text-align: center; }
   .topzone.on { border-color: var(--accent); color: var(--accent); }
-  .add button.drop { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); }
-  .item.drop, .tree.drop { outline: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .add button.hot { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); }
   .name { flex: 1; min-width: 0; background: none; border: 0; text-align: left; cursor: pointer; padding: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; justify-content: space-between; gap: 6px; }
   div.item > .name { padding-left: 2px; }
   section > ul > li > div.item { padding-left: 8px; }

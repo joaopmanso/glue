@@ -237,8 +237,8 @@
   .checks span { font-size: 13.5px; color: var(--ink-2); }
   @media (prefers-reduced-motion: reduce) { .dropzone { transition: none; } }
 
-  .drop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: color-mix(in srgb, var(--ground) 82%, transparent); backdrop-filter: blur(2px); }
-  .drop div { border: 2px dashed var(--accent); border-radius: 12px; padding: 48px 56px; font-size: 20px; font-stretch: 115%; font-weight: 700; color: var(--accent); text-align: center; margin: 16px; }
+  .drop-overlay { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: color-mix(in srgb, var(--ground) 82%, transparent); backdrop-filter: blur(2px); }
+  .drop-overlay div { border: 2px dashed var(--accent); border-radius: 12px; padding: 48px 56px; font-size: 20px; font-stretch: 115%; font-weight: 700; color: var(--accent); text-align: center; margin: 16px; }
   footer { color: var(--muted); font-size: 12px; }
   @media (max-width: 560px) {
     .readouts > div { border-right: 0; border-bottom: 1px solid var(--line); }

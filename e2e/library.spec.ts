@@ -157,7 +157,7 @@ test('imports an Engine DJ m.db and a Serato database with crates', async ({ pag
   await page.locator('.lside .name', { hasText: 'Peak time' }).click();
   await expect(page.locator('.tr')).toHaveCount(2);
   await expect(page.locator('.tr .c-title').first()).toHaveAttribute('title', 'mp3-128k.mp3');   // Engine's linked-list order
-  await expect(page.locator('.tr .c-key').first()).not.toHaveText('');
+  await expect(page.locator('.tr [data-c="key"]').first()).not.toHaveText('');
   await page.locator('.lside .tree .name', { hasText: 'Serato' }).click();
   await page.locator('.lside .tree .name', { hasText: 'Warm' }).click();
   await page.locator('.lside .name', { hasText: 'Opening' }).click();
@@ -320,4 +320,82 @@ test('organises playlists (drag, menu, colours) and rates tracks in half stars',
   await expect(page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.stars')).toHaveAttribute('aria-valuenow', '3', { timeout: 20_000 });
   expect(await names()).toEqual(['C', 'A', 'B', 'Gigs']);
   await expect(item('B').locator('.icon')).toHaveClass(/colored/);
+});
+
+test('drops on folders and "+ Playlist", reorders playlist rows, columns and notes', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.click('#new-folder'); await page.keyboard.type('Gigs'); await page.keyboard.press('Enter');
+  const item = (n: string) => page.locator('.lside .tree .item', { has: page.locator('.name', { hasText: new RegExp('^' + n + '$') }) });
+  const dragRow = async (title: string, to: { x: number; y: number }, during?: () => Promise<void>) => {
+    const r = (await page.locator('.tr', { hasText: title }).boundingBox())!;
+    await page.mouse.move(r.x + 300, r.y + r.height / 2); await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 8 });
+    if (during) await during();
+    await page.mouse.up();
+  };
+  const centre = async (sel: import('@playwright/test').Locator, fy = 0.5) => { const b = (await sel.boundingBox())!; return { x: b.x + 40, y: b.y + b.height * fy }; };
+
+  // "+ Playlist" lights up (no full-page overlay) and makes a playlist with the track.
+  await dragRow('Fixture AAC', await centre(page.locator('#new-playlist')), async () => {
+    await expect(page.locator('#new-playlist')).toHaveClass(/hot/);
+    await expect(page.locator('#new-playlist')).toHaveCSS('position', 'static');
+  });
+  await page.keyboard.type('Warm'); await page.keyboard.press('Enter');
+  await expect(item('Warm')).toContainText('1');
+
+  // Dropping on a folder makes a playlist inside it.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await dragRow('Fixture MP3', await centre(item('Gigs')), async () => { await expect(item('Gigs').locator('.plus')).toBeVisible(); });
+  await page.keyboard.type('Friday'); await page.keyboard.press('Enter');
+  await expect(item('Friday')).toContainText('1');
+  expect(await page.locator('.lside .tree .name').allTextContents().then(a => a.map(x => x.trim()))).toEqual(['Gigs', 'Friday', 'Warm']);
+
+  // Playlist rows: add three, reorder by dragging (default order is "#"), then keep a sorted order.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  for (const t of ['Fixture FLAC', 'aiff-44k-24']) await dragRow(t, await centre(item('Warm')));
+  await item('Warm').locator('.name').click();
+  const titles = () => page.locator('.tr .c-title').allTextContents();
+  await expect(page.locator('.thead [role="columnheader"]').first()).toHaveAttribute('aria-sort', 'ascending');
+  expect(await titles()).toEqual(['Fixture AAC', 'Fixture FLAC', 'aiff-44k-24']);
+  await dragRow('aiff-44k-24', await centre(page.locator('.tr').first(), 0.2));
+  expect(await titles()).toEqual(['aiff-44k-24', 'Fixture AAC', 'Fixture FLAC']);
+  await page.locator('.thead [data-col="title"]').click();
+  await page.click('#keep-order');
+  expect(await titles()).toEqual(['aiff-44k-24', 'Fixture AAC', 'Fixture FLAC'].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())));
+  await expect(page.locator('.thead [role="columnheader"]').first()).toHaveAttribute('aria-sort', 'ascending');
+
+  // Columns: hide Album, drag Artist before Title.
+  await page.click('#columns-btn');
+  await page.locator('#columns-menu label', { hasText: 'Album' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.thead [data-col="album"]')).toHaveCount(0);
+  const a = (await page.locator('.thead [data-col="artist"]').boundingBox())!, t = (await page.locator('.thead [data-col="title"]').boundingBox())!;
+  await page.mouse.move(a.x + 10, a.y + a.height / 2); await page.mouse.down();
+  await page.mouse.move(t.x + 5, t.y + t.height / 2, { steps: 6 }); await page.mouse.up();
+  const heads = () => page.locator('.thead [data-col]').evaluateAll(els => els.map(e => (e as HTMLElement).dataset.col));
+  expect((await heads()).slice(0, 2)).toEqual(['artist', 'title']);
+
+  // Notes: an icon opens the editor; the text isn't shown in the table.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  const row = page.locator('.tr', { hasText: 'Fixture FLAC' });
+  await row.hover(); await row.locator('.note').click();
+  await page.locator('.noteed textarea').fill('Mix out at the breakdown');
+  await page.keyboard.press('Control+Enter');
+  await expect(page.locator('.noteed')).toHaveCount(0);
+  await expect(row.locator('.note')).toHaveClass(/has/);
+  await expect(page.locator('.tr', { hasText: 'Mix out' })).toHaveCount(0);
+
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
+  expect((await heads()).slice(0, 2)).toEqual(['artist', 'title']);
+  await expect(page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.note')).toHaveClass(/has/);
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
+  await expect(page.locator('#track-notes')).toHaveValue('Mix out at the breakdown');
 });
