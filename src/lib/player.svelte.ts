@@ -170,7 +170,11 @@ class Player {
   private stopLoop() { if (this.raf) cancelAnimationFrame(this.raf); this.raf = 0; }
 
   /** Replace the source. keepPosition carries time and play state over (stem switching). */
-  setSource(blob: Blob | null, opts: { duration?: number; sampleRate?: number; keepPosition?: boolean } = {}) {
+  /** What the source is ('track:<id>' for a library track), so pages can tell it's already loaded. */
+  sourceKey = $state<string | null>(null);
+
+  setSource(blob: Blob | null, opts: { duration?: number; sampleRate?: number; keepPosition?: boolean; key?: string | null } = {}) {
+    if (opts.key !== undefined) this.sourceKey = opts.key; else if (!opts.keepPosition) this.sourceKey = null;
     const t = this.el.currentTime, wasPlaying = !this.el.paused;
     this.el.pause();
     this.stopLoop();

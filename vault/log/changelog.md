@@ -5,6 +5,14 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Stored track analysis, uninterrupted playback, wide windows
+- Track pages store their full analysis on the first visit and reuse it; "Re-analyse" on demand
+  ([ADR 0023](../adr/0023-store-track-page-analysis.md)).
+- Opening the page of the playing track no longer restarts (and stops) playback.
+- Layout: the page grows to 2560 px wide (was 1760) and the library fills the window's height
+  (a grid row mismatch left the table short on tall windows).
+- Tests: unit tests for the stored format; e2e for stored pages, Re-analyse and continuous playback.
+
 ## 2026-09-24 · Folder drops, playlist order, columns, notes
 - Fixed: dropping on "+ Playlist" covered the page in blue (its `drop` class clashed with the page's
   drop overlay; both renamed).

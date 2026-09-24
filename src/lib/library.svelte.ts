@@ -10,6 +10,8 @@ import type { ImportedLibrary } from '../core/interop/types';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
 import { failed } from '../core/library/summary';
+import { loadDetails, removeDetails, saveDetails } from '../store/details';
+import type { AnalysisResult, FileInfo } from '../core/types';
 import { blankInfo, parseContainer } from '../core/formats/parse';
 import * as platform from '../platform';
 import { AnalysisPool } from './pool';
@@ -533,6 +535,17 @@ class Library {
     if (already) bits.push(already + ' already in the collection');
     this.notice = (bits.join(', ') || 'Nothing added') + '.';
   }
+  /** The full analysis stored for a track's page, if it's still valid for the file. */
+  async trackDetails(t: Track) {
+    const s = this.store;
+    return s ? loadDetails(s.root, s.base, t.id, { size: t.size, mtime: t.mtime }) : null;
+  }
+  async saveTrackDetails(t: Track, info: FileInfo, res: AnalysisResult) {
+    const s = this.store;
+    if (!s || this.readOnly || t.size == null || t.mtime == null) return;
+    try { await saveDetails(s.root, s.base, t.id, info, res, { size: t.size, mtime: t.mtime }); }
+    catch (e) { console.warn('Couldn’t store the track analysis', e); }
+  }
   /** Take tracks out of the collection. Files on disk are never touched (copies MCO made are). */
   async removeTracks(ids: string[]) {
     const s = this.store;
@@ -544,6 +557,7 @@ class Library {
       else if (t.fileKey?.startsWith('copy:') && this.homeDir) await removePath(this.homeDir, t.fileKey.slice(5));
       this.looseHandles.delete(id);
       s.removeTrack(id);
+      await removeDetails(s.root, s.base, id).catch(() => {});
     }
   }
 

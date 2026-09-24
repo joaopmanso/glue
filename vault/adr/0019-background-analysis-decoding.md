@@ -1,5 +1,6 @@
 ---
 status: accepted
+amended-by: 0023
 date: 2026-09-24
 ---
 # 0019. Background analysis: browser decoding feeding a pool of analysis workers

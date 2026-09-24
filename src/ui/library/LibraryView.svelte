@@ -121,7 +121,8 @@
 </div>
 
 <style>
-  .lib { display: grid; grid-template-rows: auto auto auto auto 1fr; gap: 10px; height: calc(100vh - 110px - 64px); min-height: 440px; }
+  .lib { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 110px - 64px); min-height: 440px; }
+  .lib > .main { flex: 1; }
   /* Floats above the player bar: an in-flow banner would shift the table (and cancel a drag). */
   .toast { position: fixed; right: clamp(16px, 3vw, 32px); bottom: 76px; z-index: 25; max-width: min(560px, calc(100vw - 32px)); box-shadow: 0 8px 28px rgb(0 0 0 / .45); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
   .colbar { display: flex; gap: 6px; align-items: center; }

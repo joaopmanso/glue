@@ -15,8 +15,10 @@
     const res = app.res, blob = app.playBlob;
     if (!res) return;
     untrack(() => {
+      // Coming back to the track that's already playing: keep it playing.
+      if (app.playKey && app.playKey === player.sourceKey && player.url) return;
       stems.reset();
-      player.setSource(blob, { duration: res.duration, sampleRate: res.sr });
+      player.setSource(blob, { duration: res.duration, sampleRate: res.sr, key: app.playKey });
     });
   });
 </script>

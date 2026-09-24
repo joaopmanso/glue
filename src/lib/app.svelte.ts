@@ -22,6 +22,8 @@ class AppState {
   res = $state.raw<AnalysisResult | null>(null);
   verdict = $state.raw<Verdict | null>(null);
   playBlob = $state.raw<Blob | null>(null);
+  /** The player source the result belongs to ('track:<id>'), or null for a one-off file. */
+  playKey = $state<string | null>(null);
   dbFloor = $state(-120);
   palette = $state<PaletteName>('spek');
   lut = $state.raw<Uint8ClampedArray>(buildLut('spek'));
@@ -46,6 +48,9 @@ function progress(token: number) {
   };
 }
 
+/** Show an analysis result (fresh, or stored from an earlier visit). */
+export function showResult(info: FileInfo, res: AnalysisResult, playBlob: Blob | null) { finish(info, res, playBlob); }
+
 function finish(info: FileInfo, res: AnalysisResult, playBlob: Blob | null) {
   const verdict = classify(info, res);
   app.info = info; app.res = res; app.verdict = verdict; app.playBlob = playBlob;
@@ -63,8 +68,10 @@ function errorMessage(info: FileInfo | null, err: unknown): string {
   return msg;
 }
 
-export async function analyzeFile(file: File) {
+/** Analyse one file. `playKey` names the library track it is, so the player can keep playing it. */
+export async function analyzeFile(file: File, playKey: string | null = null) {
   const token = ++current;
+  app.playKey = playKey;
   app.error = null;
   app.busy = { text: 'Reading file…', p: 0 };
   let info: FileInfo | null = null;
@@ -108,6 +115,7 @@ export async function analyzeFile(file: File) {
 
 export async function loadExample() {
   const token = ++current;
+  app.playKey = null;
   app.error = null;
   app.busy = { text: 'Generating example…', p: 0 };
   try {

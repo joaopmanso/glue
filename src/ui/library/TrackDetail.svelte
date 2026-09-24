@@ -1,7 +1,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { lib } from '../../lib/library.svelte';
-  import { app, analyzeFile } from '../../lib/app.svelte';
+  import { app, analyzeFile, showResult } from '../../lib/app.svelte';
+  import { player } from '../../lib/player.svelte';
   import { router } from '../../lib/route.svelte';
   import { view } from '../../lib/view.svelte';
   import { summarize } from '../../core/library/summary';
@@ -9,7 +10,7 @@
   import { fmtBytes, fmtTime } from '../../core/format';
   import { keyLabel } from '../../core/audio/keys';
   import Results from '../Results.svelte';
-  import { nowPlaying } from '../../lib/nowPlaying.svelte';
+  import { nowPlaying, playable } from '../../lib/nowPlaying.svelte';
   import Stars from './Stars.svelte';
 
   let { id }: { id: string } = $props();
@@ -33,23 +34,53 @@
 
   let phase = $state<'loading' | 'ready' | 'need-access' | 'no-file' | 'error'>('loading');
   let message = $state('');
+  let stored = $state(false);        // showing the analysis kept from an earlier visit
+  let canPlay = $state(true);        // false: a stored analysis is shown but the file isn't readable yet
   let loaded = '';
 
-  async function load(ask: boolean) {
+  /** Show the stored analysis if there is one; otherwise (or with `fresh`) analyse the file and store it. */
+  async function load(ask: boolean, fresh = false) {
     const t = untrack(() => track);
     if (!t) return;
+    const key = 'track:' + t.id;
+    loaded = t.id;
+    if (!fresh) {
+      const kept = await lib.trackDetails(t);
+      if (id !== t.id) return;
+      if (kept) {
+        app.playKey = key;
+        const playing = player.sourceKey === key && !!player.url;
+        let blob: Blob | null = null;
+        if (!playing && lib.canRead(t)) { try { blob = await playable(await lib.fileFor(t)); } catch { blob = null; } }
+        if (id !== t.id) return;
+        showResult(kept.info, kept.res, blob);
+        if (playing || blob) nowPlaying.adopt(t.id);
+        canPlay = playing || !!blob;
+        stored = true; phase = 'ready';
+        return;
+      }
+    }
     if (t.status !== 'linked') { phase = 'no-file'; return; }
     if (!lib.canRead(t) && !ask) { phase = 'need-access'; return; }
     phase = 'loading';
     try {
       const file = await lib.fileFor(t);
       if (id !== t.id) return;
-      loaded = t.id;
-      await analyzeFile(file);
+      await analyzeFile(file, key);
+      if (app.error) { phase = 'error'; message = app.error.message; return; }
       nowPlaying.adopt(t.id);   // the shared player now holds this track
-      phase = app.error ? 'error' : 'ready';
-      if (app.error) message = app.error.message;
+      stored = false; canPlay = true; phase = 'ready';
+      if (app.info && app.res) void lib.saveTrackDetails(lib.store?.tracks.get(t.id) ?? t, app.info, app.res);
     } catch (e) { phase = 'error'; message = (e as Error).message || String(e); }
+  }
+  /** A stored analysis is on screen but the file needs permission before it can play. */
+  async function allowPlay() {
+    const t = track;
+    if (!t) return;
+    try {
+      app.playBlob = await playable(await lib.fileFor(t));
+      nowPlaying.adopt(t.id); canPlay = true;
+    } catch (e) { message = (e as Error).message || String(e); }
   }
 
   // A fresh analysis on the detail page also refreshes the stored summary.
@@ -80,6 +111,10 @@
   <nav class="crumbs">
     <a href="#/">← Library</a>
     <span class="nav">
+      {#if phase === 'ready'}
+        <span class="src">{stored ? 'Stored analysis' : 'Just analysed'}</span>
+        <button type="button" class="mini" id="reanalyse" title="Analyse the file again and replace the stored result" onclick={() => load(true, true)}>Re-analyse</button>
+      {/if}
       <button type="button" class="mini" disabled={pos <= 0} onclick={() => router.go('#/track/' + order[pos - 1])}>‹ Previous</button>
       <button type="button" class="mini" disabled={pos < 0 || pos >= order.length - 1} onclick={() => router.go('#/track/' + order[pos + 1])}>Next ›</button>
     </span>
@@ -130,6 +165,9 @@
       {/if}
     </section>
 
+    {#if phase === 'ready' && !canPlay && track.status === 'linked'}
+      <div class="notice">This is the analysis stored earlier. To play the track, MCO needs your permission to read it again. <button type="button" class="btn" onclick={allowPlay}>Allow and play</button></div>
+    {/if}
     {#if phase === 'need-access'}
       <div class="notice">MCO needs your permission to read “{track.fileKey ? track.fileName : root?.root.name}” again. <button type="button" class="btn" onclick={() => load(true)}>Allow and analyse</button></div>
     {:else if phase === 'no-file'}
@@ -152,7 +190,8 @@
   .detail { display: grid; gap: 16px; }
   .crumbs { display: flex; justify-content: space-between; align-items: center; }
   .crumbs a { color: var(--accent); text-decoration: none; font-size: 13.5px; }
-  .nav { display: flex; gap: 6px; }
+  .nav { display: flex; gap: 6px; align-items: center; }
+  .src { color: var(--muted); font-size: 12px; margin-right: 4px; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini:disabled { opacity: .4; cursor: default; }
   .th { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }

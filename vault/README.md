@@ -86,3 +86,4 @@ Planned (MCO):
 | [0020](adr/0020-imports-then-link-folders.md) | Imports bring metadata first; music folders linked afterwards | accepted |
 | [0021](adr/0021-single-songs.md) | Songs can be added one by one, kept by file handle | accepted |
 | [0022](adr/0022-pointer-drag-inside-mco.md) | Drags inside MCO use pointer events, not HTML drag-and-drop | accepted |
+| [0023](adr/0023-store-track-page-analysis.md) | Track pages store their full analysis (amends 0019) | accepted |

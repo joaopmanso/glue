@@ -26,7 +26,7 @@ class NowPlaying {
     try {
       const file = await lib.fileFor(t);   // may ask for permission: still inside the click
       if (this.trackId !== id) return;
-      player.setSource(await playable(file), { duration: t.duration ?? undefined, sampleRate: t.format?.sampleRate || undefined });
+      player.setSource(await playable(file), { duration: t.duration ?? undefined, sampleRate: t.format?.sampleRate || undefined, key: 'track:' + id });
       player.toggle();
     } catch (e) { if (this.trackId === id) { this.error = (e as Error).message || String(e); player.setSource(null); } }
     finally { if (this.trackId === id) this.loading = false; }
@@ -55,7 +55,7 @@ class NowPlaying {
 }
 
 /** Chrome and Firefox can't play AIFF: rewrap its PCM as WAV (same samples). */
-async function playable(file: File): Promise<Blob> {
+export async function playable(file: File): Promise<Blob> {
   if (!/\.(aif|aiff|aifc)$/i.test(file.name)) return file;
   const u8 = new Uint8Array(await file.arrayBuffer());
   let info = blankInfo();

@@ -21,7 +21,7 @@
   [hidden] { display: none !important; }
   html, body { background: var(--ground); color: var(--ink); }
   body { font-family: var(--font-sans); font-size: 15px; line-height: 1.5; margin: 0; }
-  .wrap { max-width: 1760px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 32px); padding-block: 18px 56px; display: grid; gap: 20px; }
+  .wrap { max-width: 2560px; margin: 0 auto; padding-inline: clamp(16px, 2.5vw, 56px); padding-block: 18px 56px; display: grid; gap: 20px; }
   h1, h2, h3 { margin: 0; font-weight: 700; text-wrap: balance; }
   p { margin: 0; }
   button, select, input { font: inherit; color: inherit; }

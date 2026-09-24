@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-09-24
-adrs: [0019]
+adrs: [0019, 0023]
 ---
 # Track detail
 
@@ -32,3 +32,10 @@ libraries say about it (BPM, key, rating, play count, cue count, date added).
   spectrum, evidence, file details). A fresh analysis here also refreshes the stored summary.
 - Previous / Next walk the current library view. Unlinked and missing tracks explain how to link them.
 - Not yet: scroll position kept when going back.
+
+## Stored analysis and playback (2026-09-24)
+- The full analysis is computed on the first visit and stored ([ADR 0023](../adr/0023-store-track-page-analysis.md));
+  later visits open instantly ("Stored analysis"). "Re-analyse" recomputes it. A changed file is
+  re-analysed automatically.
+- Opening the page of the track that's playing keeps it playing (also on the way back to the library).
+

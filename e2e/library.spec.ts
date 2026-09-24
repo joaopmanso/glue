@@ -399,3 +399,46 @@ test('drops on folders and "+ Playlist", reorders playlist rows, columns and not
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
   await expect(page.locator('#track-notes')).toHaveValue('Mix out at the breakdown');
 });
+
+test('track pages keep their analysis, and the playing track keeps playing', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#add-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+
+  // First visit analyses and stores; the second shows the stored result without analysing.
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
+  await expect(page.locator('#v-pill')).toHaveText('Upsampled', { timeout: 30_000 });
+  await expect(page.locator('.detail .src')).toHaveText('Just analysed');
+  await page.locator('.crumbs a').click();
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
+  await expect(page.locator('.detail .src')).toHaveText('Stored analysis', { timeout: 10_000 });
+  await expect(page.locator('#v-pill')).toHaveText('Upsampled');
+  await expect(page.locator('#evidence')).toContainText('Content stops at 11.0 kHz');
+  await expect(page.locator('.detail .status')).toHaveCount(0);   // no "Computing spectrum…"
+  // Re-analyse on demand.
+  await page.click('#reanalyse');
+  await expect(page.locator('.detail .src')).toHaveText('Just analysed', { timeout: 30_000 });
+
+  // Play from the library, open that track's page, come back: playback never stops.
+  await page.locator('.crumbs a').click();
+  const row = page.locator('.tr', { hasText: 'aiff-44k-24' });
+  await row.hover(); await row.locator('.pbtn').click();
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
+  // The fixtures are 4 s long: loop them so "still playing" means something.
+  await page.evaluate(() => { const loopAll = () => document.querySelectorAll('audio').forEach(a => { a.loop = true; }); loopAll(); setInterval(loopAll, 200); });
+  await row.dblclick();
+  await expect(page.locator('#v-pill')).not.toHaveText('', { timeout: 30_000 });
+  await expect(page.locator('#play-btn')).toHaveAttribute('aria-label', 'Pause');
+  await page.locator('.crumbs a').click();
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause');
+  await row.dblclick();   // second visit: stored analysis, still playing
+  await expect(page.locator('.detail .src')).toHaveText('Stored analysis', { timeout: 10_000 });
+  await expect(page.locator('#play-btn')).toHaveAttribute('aria-label', 'Pause');
+});
