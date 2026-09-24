@@ -31,3 +31,6 @@ collections list. See [ADR 0018](../adr/0018-local-profiles.md).
 - The header chip switches profile; the profile screen renames and deletes (with confirmation).
 - Code: `src/store/home.ts`, `src/lib/library.svelte.ts`, `src/ui/library/Welcome.svelte`.
 - Not yet: changing a profile's colour.
+
+- 2026-09-24: per-profile Backup / Rename / Delete buttons, restore from a backup zip, and a three-step
+  first run ending with an "Add your music" step ([ADR 0026](../adr/0026-profile-backups-and-wipe.md)).

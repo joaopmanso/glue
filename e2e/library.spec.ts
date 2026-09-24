@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (window as unknown as { showDirectoryPicker: (o: { id?: string }) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker = async (o) => {
       const root = await navigator.storage.getDirectory();
-      return root.getDirectoryHandle(o.id === 'mco-home' ? 'MCO' : 'Music', { create: true });
+      return root.getDirectoryHandle(o.id === 'mco-home' ? ((window as unknown as { __home?: string }).__home ?? 'MCO') : 'Music', { create: true });
     };
     // "+ Songs": returns the files named in window.__pick from Music/Sets.
     (window as unknown as { showOpenFilePicker: () => Promise<FileSystemFileHandle[]> }).showOpenFilePicker = async () => {
@@ -67,6 +67,7 @@ test('profile, collection, import, link folder, background analysis, playlists, 
   await page.click('#choose-home');
   await page.fill('#profile-name', 'DJ Test');
   await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');   // the "add your music" step
   await expect(page.locator('.top .who')).toContainText('DJ Test');
 
   // Import first: tracks arrive unlinked, with their playlist.
@@ -141,6 +142,7 @@ test('imports an Engine DJ m.db and a Serato database with crates', async ({ pag
   await page.click('#choose-home');
   await page.fill('#profile-name', 'DJ Test');
   await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');   // the "add your music" step
   await page.click('#add-folder');
   await expect(page.locator('.notice')).toContainText('4 new tracks', { timeout: 30_000 });
 
@@ -170,6 +172,7 @@ test('adds single songs, links them to imports, and keeps them across reloads', 
   await page.click('#choose-home');
   await page.fill('#profile-name', 'DJ Test');
   await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');   // the "add your music" step
   await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
   await expect(page.locator('.tr')).toHaveCount(3);
 
@@ -218,6 +221,7 @@ test('plays from the library and drops tracks onto playlists, new or in a closed
   await page.click('#choose-home');
   await page.fill('#profile-name', 'DJ Test');
   await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');   // the "add your music" step
   await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
   await page.click('#add-folder');
   await expect(page.locator('.tr')).toHaveCount(5, { timeout: 30_000 });
@@ -260,6 +264,7 @@ test('organises playlists (drag, menu, colours) and rates tracks in half stars',
   await page.click('#choose-home');
   await page.fill('#profile-name', 'DJ Test');
   await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');   // the "add your music" step
   await page.click('#add-folder');
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
   for (const n of ['A', 'B', 'C']) { await page.click('#new-playlist'); await page.keyboard.type(n); await page.keyboard.press('Enter'); }
@@ -328,6 +333,7 @@ test('drops on folders and "+ Playlist", reorders playlist rows, columns and not
   await page.click('#choose-home');
   await page.fill('#profile-name', 'DJ Test');
   await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');   // the "add your music" step
   await page.click('#add-folder');
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
   await page.click('#new-folder'); await page.keyboard.type('Gigs'); await page.keyboard.press('Enter');
@@ -406,6 +412,7 @@ test('track pages keep their analysis, and the playing track keeps playing', asy
   await page.click('#choose-home');
   await page.fill('#profile-name', 'DJ Test');
   await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');   // the "add your music" step
   await page.click('#add-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
 
@@ -481,6 +488,7 @@ test('finds the same recording under different names and formats', async ({ page
   await page.click('#choose-home');
   await page.fill('#profile-name', 'DJ Test');
   await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');   // the "add your music" step
   await page.click('#add-folder');
   await expect(page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
@@ -505,4 +513,60 @@ test('finds the same recording under different names and formats', async ({ page
   await expect(page.locator('.tr')).toHaveCount(3, { timeout: 20_000 });
   await page.waitForTimeout(2500);
   await expect(page.locator('.tr .dup')).toHaveCount(0);
+});
+
+test('onboarding, backup, delete everything, restore on a fresh start', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  // Step 1 warns when the chosen folder looks like a music folder.
+  await page.evaluate(() => { (window as unknown as { __home?: string }).__home = 'Music'; });
+  await page.click('#choose-home');
+  await expect(page.locator('.card.warn')).toContainText('looks like a music folder');
+  await page.evaluate(() => { (window as unknown as { __home?: string }).__home = 'MCO'; });
+  await page.click('#choose-other');
+  // Step 2 and 3.
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await expect(page.locator('.stepper li.on')).toContainText('Add your music');
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.click('#new-playlist'); await page.keyboard.type('Keepers'); await page.keyboard.press('Enter');
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.c-rate button').nth(3).click({ position: { x: 10, y: 6 } });
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+
+  // Backup from "Who's using MCO?".
+  await page.locator('.top .who').click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('.pcard', { hasText: 'DJ Test' }).locator('.backup-btn').click()]);
+  expect(dl.suggestedFilename()).toMatch(/^MCO backup - DJ Test - \d{4}-\d\d-\d\d\.zip$/);
+  const zip = join(mkdtempSync(join(tmpdir(), 'mco-bk-')), dl.suggestedFilename());
+  await dl.saveAs(zip);
+
+  // Delete everything: back to step 1, MCO's files gone, the music untouched.
+  await page.click('#danger-toggle');
+  await expect(page.locator('#danger-go')).toBeDisabled();
+  await page.fill('#danger-confirm', 'delete');
+  await page.click('#danger-go');
+  await expect(page.locator('#choose-home')).toBeVisible({ timeout: 10_000 });
+  const left = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory(), names: string[] = [];
+    for await (const [n] of (await root.getDirectoryHandle('MCO') as unknown as { entries(): AsyncIterable<[string]> }).entries()) names.push(n);
+    let music = 0;
+    for await (const _ of (await (await root.getDirectoryHandle('Music')).getDirectoryHandle('Sets') as unknown as { entries(): AsyncIterable<unknown> }).entries()) music++;
+    return { names, music };
+  });
+  expect(left).toEqual({ names: [], music: 4 });
+
+  // Restore the zip on the start screen.
+  await page.setInputFiles('#restore-input', zip);
+  await expect(page.locator('.card.side')).toContainText('Backup of DJ Test');
+  await page.click('#choose-home');
+  await expect(page.locator('.top .who')).toContainText('DJ Test', { timeout: 15_000 });
+  await expect(page.locator('.lside .item', { hasText: 'Keepers' })).toBeVisible();
+  await expect(page.locator('.tr')).toHaveCount(4);
+  await expect(page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.stars')).toHaveAttribute('aria-valuenow', '4');
+  // The music folder has to be found again (its permission can't travel in a zip).
+  await page.getByRole('button', { name: 'Find folder' }).click();
+  await expect(page.getByRole('button', { name: 'Find folder' })).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator('.tr .q', { hasText: 'no file' })).toHaveCount(0);
 });

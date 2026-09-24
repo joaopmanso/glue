@@ -50,6 +50,19 @@ export class HomeStore {
     await this.saveIndex();
   }
 
+  /** A restored profile's files are in place: list it (replacing an entry with the same id). */
+  async adoptProfile(ref: { id: string; name: string; color: string }) {
+    this.index.profiles = [...this.index.profiles.filter(p => p.id !== ref.id), ref];
+    this.index.lastProfile = ref.id;
+    await this.saveIndex();
+  }
+
+  /** Remove everything MCO wrote in its folder (and nothing else the user keeps there). */
+  async wipe() {
+    for (const name of ['profiles', 'files', 'mco.json']) await removePath(this.root, name);
+    this.index = { schemaVersion: SCHEMA, profiles: [], lastProfile: null };
+  }
+
   async createCollection(p: Profile, name: string): Promise<Collection> {
     const c: Collection = { schemaVersion: SCHEMA, id: newId(), name: name.trim() || 'My collection', createdAt: now(), roots: [] };
     await writeJSON(this.root, `profiles/${p.id}/collections/${c.id}/collection.json`, c);

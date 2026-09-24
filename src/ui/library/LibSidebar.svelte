@@ -179,7 +179,8 @@
         <li>
           <div class="item" class:sel={isSel({ kind: 'root', id: r.root.id })}>
             <button type="button" class="name" onclick={() => view.select({ kind: 'root', id: r.root.id })} title={r.root.absPath ?? 'Location on disk not known yet'}>📁 {r.root.name}</button>
-            {#if !r.granted}<button type="button" class="reconnect" onclick={() => lib.reconnectFolder(r.root.id)}>Allow</button>{/if}
+            {#if !r.dir}<button type="button" class="reconnect" title="MCO lost its link to this folder (restored backup or cleared browser data): choose it again" onclick={() => lib.relinkFolder(r.root.id)}>Find folder</button>
+            {:else if !r.granted}<button type="button" class="reconnect" onclick={() => lib.reconnectFolder(r.root.id)}>Allow</button>{/if}
             <span class="tools">
               <button type="button" title="Scan again" onclick={() => lib.scanRoot(r.root.id)}>↻</button>
               <button type="button" title="Where is this folder on disk? (for exports)" onclick={() => (pathEdit = pathEdit === r.root.id ? null : r.root.id)}>⌖</button>

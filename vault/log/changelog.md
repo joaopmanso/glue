@@ -5,6 +5,13 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Backups, restore, delete all, clearer start
+- Profile backups as standard zips, restore (start screen or profile screen), "Delete all MCO data"
+  ([ADR 0026](../adr/0026-profile-backups-and-wipe.md)); "Find folder" to relink music folders.
+- Three-step first run; step 1 warns when the chosen folder looks like a music folder.
+- Tests: zip unit tests (checked with Python's zipfile too); e2e for warning → profile → music step →
+  backup → delete all → restore → Find folder.
+
 ## 2026-09-24 · Duplicate detection by sound
 - Acoustic fingerprints (Philips-style band-energy bits) computed in the background analysis and kept
   in the browser's cache ([ADR 0025](../adr/0025-band-energy-fingerprints.md)); `ANALYSIS_VERSION` 3.

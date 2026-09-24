@@ -129,7 +129,7 @@
     {#if app.phase === 'start'}<Start />{:else}<Results />{/if}
     <Reference />
     <footer>Decoding uses your browser’s audio engine (WAV and AIFF are read directly). Chrome and Firefox can’t decode ALAC or DSD; Safari handles ALAC.</footer>
-  {:else if !inLibrary}
+  {:else if !inLibrary || lib.onboarding === 'music'}
     <Welcome />
   {:else if route.name === 'track'}
     {#key route.id}<TrackDetail id={route.id} />{/key}
@@ -137,7 +137,7 @@
     <LibraryView />
   {/if}
 </div>
-{#if inLibrary && route.name === 'library'}<LibPlayer />{/if}
+{#if inLibrary && route.name === 'library' && lib.onboarding !== 'music'}<LibPlayer />{/if}
 <DragTag />
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}

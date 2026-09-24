@@ -30,9 +30,39 @@ export async function restoreHome(): Promise<HomeState> {
 export async function pickHome(): Promise<Dir> {
   const p = picker();
   if (!p) throw new Error('This browser can’t open folders.');
-  const dir = await p({ id: 'mco-home', mode: 'readwrite', startIn: 'documents' });
-  await idbSet(HOME_KEY, { dir, kind: 'folder' });
-  return dir;
+  return p({ id: 'mco-home', mode: 'readwrite', startIn: 'documents' });
+}
+/** Use this folder for MCO's data from now on. */
+export const rememberHome = (dir: Dir) => idbSet(HOME_KEY, { dir, kind: 'folder' });
+
+export interface FolderLook { hasMco: boolean; audio: number; folders: number; files: number }
+const AUDIO = /\.(flac|wav|aiff?|aifc|m4a|mp3|aac|ogg|opus|alac|wv)$/i;
+/** A quick look inside a folder (top level plus one level down) before MCO writes into it. */
+export async function lookInto(dir: Dir): Promise<FolderLook> {
+  const out: FolderLook = { hasMco: false, audio: 0, folders: 0, files: 0 };
+  type E = { entries(): AsyncIterable<[string, FileSystemHandle]> };
+  for await (const [name, h] of (dir as unknown as E).entries()) {
+    if (name === 'mco.json' && h.kind === 'file') out.hasMco = true;
+    if (h.kind === 'directory') {
+      out.folders++;
+      if (out.folders <= 20 && name !== 'profiles' && name !== 'files') {
+        let n = 0;
+        for await (const [child, ch] of (h as unknown as E).entries()) { if (ch.kind === 'file' && AUDIO.test(child)) out.audio++; if (++n > 200) break; }
+      }
+    } else { out.files++; if (AUDIO.test(name)) out.audio++; }
+  }
+  return out;
+}
+
+/** Forget everything MCO keeps in the browser: folder handles, stored analyses, preferences. */
+export async function wipeBrowserData(privateRoot: boolean) {
+  await new Promise<void>(res => { try { const r = indexedDB.deleteDatabase('mco'); r.onsuccess = r.onerror = r.onblocked = () => res(); } catch { res(); } });
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry('cache', { recursive: true }).catch(() => {});
+    if (privateRoot) for (const n of ['profiles', 'files', 'mco.json']) await root.removeEntry(n, { recursive: true }).catch(() => {});
+  } catch { /* no private storage */ }
+  try { for (const k of Object.keys(localStorage)) if (k.startsWith('mco.')) localStorage.removeItem(k); } catch { /* storage blocked */ }
 }
 
 /** The browser's private storage, for browsers without folder pickers. */

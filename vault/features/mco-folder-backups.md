@@ -48,3 +48,12 @@ See [ADR 0009](../adr/0009-json-files-store.md) for the full folder layout and f
   missing; an unreadable file is copied aside as `*.damaged`, reported, and the rest of the library
   still opens. Unit-tested in `tests/store.test.ts`.
 - Zip backups and restore move to M3.
+
+## Backups, restore, delete all, onboarding (2026-09-24)
+- Profile screen: **Backup** per profile downloads `MCO backup - <profile> - <date>.zip`;
+  **Restore a backup…** here or on the start screen; **Delete all MCO data…** with a typed
+  confirmation ([ADR 0026](../adr/0026-profile-backups-and-wipe.md)).
+- After a restore, music folders show **Find folder** (folder permissions can't travel in a zip).
+- The start is three steps; step 1 explains it's MCO's own data folder (not the music) and warns
+  when the chosen folder looks like a music folder or isn't empty.
+- Still to do: automatic daily backups inside the MCO folder.

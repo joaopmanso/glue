@@ -12,6 +12,9 @@ import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags
 import { failed } from '../core/library/summary';
 import { encodeDetails, loadDetails, removeDetails, writeDetails, type DetailsHeader } from '../store/details';
 import { removeFingerprint, writeFingerprint } from '../store/fingerprints';
+import { buildBackup, readBackup, writeBackup, type BackupManifest } from '../store/backup';
+import type { ZipEntry } from '../core/zip';
+import { downloadBlob } from './download';
 import type { AnalysisResult, FileInfo } from '../core/types';
 import { blankInfo, parseContainer } from '../core/formats/parse';
 import * as platform from '../platform';
@@ -62,6 +65,10 @@ class Library {
   /** Hooks for derived views (duplicates): a collection opened / closed, the background analysis went quiet. */
   onOpened: (() => void) | null = null;
   onSettled: (() => void) | null = null;
+  /** First run: after the profile, a step that explains how to add music. */
+  onboarding = $state<null | 'music'>(null);
+  /** A backup chosen on the start screen, restored once the MCO folder is chosen. */
+  pendingRestore = $state.raw<{ manifest: BackupManifest; entries: ZipEntry[] } | null>(null);
 
   constructor() {
     if (typeof document !== 'undefined') {
@@ -84,6 +91,14 @@ class Library {
     try { await this.openHome(await platform.pickHome(), 'folder'); }
     catch (e) { if ((e as DOMException).name !== 'AbortError') this.fail(e); }
   }
+  /** Step 1 of the first run: pick a folder and say what's in it, without using it yet. */
+  async pickHomeFolder(): Promise<{ dir: FileSystemDirectoryHandle; look: platform.FolderLook } | null> {
+    try { const dir = await platform.pickHome(); return { dir, look: await platform.lookInto(dir) }; }
+    catch (e) { if ((e as DOMException).name !== 'AbortError') this.fail(e); return null; }
+  }
+  async useHome(dir: FileSystemDirectoryHandle) {
+    try { await platform.rememberHome(dir); await this.openHome(dir, 'folder'); } catch (e) { this.fail(e); }
+  }
   async usePrivateHome() { try { await this.openHome(await platform.privateHome(), 'private'); } catch (e) { this.fail(e); } }
   async reconnect() {
     if (!this.homeDir) return this.chooseHome();
@@ -99,6 +114,7 @@ class Library {
     this.homeDir = dir; this.homeKind = kind; this.homeName = kind === 'private' ? 'browser storage' : dir.name;
     await this.takeLock();
     this.home = await HomeStore.open(dir);
+    if (this.pendingRestore) { const b = this.pendingRestore; this.pendingRestore = null; await this.applyBackup(b, true); return; }
     const last = this.home.index.lastProfile;
     if (last && this.home.index.profiles.some(p => p.id === last)) await this.openProfile(last);
     else this.phase = 'profiles';
@@ -123,6 +139,49 @@ class Library {
     this.profile = p;
     this.phase = 'collections';
     await this.createCollection('My collection');
+    this.onboarding = 'music';
+  }
+
+  // ─── Backups ───────────────────────────────────────────────────────────────
+  async downloadBackup(pid: string) {
+    const home = this.home, dir = this.homeDir;
+    if (!home || !dir) return;
+    if (this.profile?.id === pid) await this.flush();
+    const p = this.profile?.id === pid ? this.profile : await home.loadProfile(pid);
+    const blob = await buildBackup(dir, p);
+    const day = new Date().toISOString().slice(0, 10), safe = p.name.replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'profile';
+    downloadBlob(blob, `MCO backup - ${safe} - ${day}.zip`);
+    return blob.size;
+  }
+  /** Read a backup zip (checks it's an MCO backup a this version can open). */
+  async readBackupFile(file: File) { return readBackup(new Uint8Array(await file.arrayBuffer())); }
+  profileExists(pid: string) { return !!this.home?.index.profiles.some(p => p.id === pid); }
+  /** Put a backup's profile into the MCO folder and open it. `replace`: an existing copy is removed first. */
+  async applyBackup(b: { manifest: BackupManifest; entries: ZipEntry[] }, replace: boolean) {
+    const home = this.home, dir = this.homeDir;
+    if (!home || !dir) { this.pendingRestore = b; return; }
+    const pid = b.manifest.profile.id;
+    if (this.profileExists(pid)) {
+      if (!replace) return;
+      if (this.profile?.id === pid) { await this.closeCollection(); this.profile = null; }
+      await removePath(dir, `profiles/${pid}`);
+    }
+    await writeBackup(dir, b);
+    await home.adoptProfile(b.manifest.profile);
+    this.home = null; this.home = home;
+    await this.openProfile(pid);
+    const folders = this.roots.length;
+    this.notice = 'Restored ' + b.manifest.profile.name + '.' + (folders ? ' Link its music folder' + (folders === 1 ? '' : 's') + ' again with “Find folder” in the sidebar.' : '');
+  }
+  /** Delete every file MCO made (in its folder and in the browser) and start again. */
+  async deleteAllData() {
+    const home = this.home, kind = this.homeKind;
+    await this.closeCollection();
+    this.profile = null;
+    if (home) await home.wipe();
+    await platform.wipeBrowserData(kind === 'private');
+    this.home = null; this.homeDir = null; this.onboarding = null;
+    this.phase = 'welcome';
   }
   async openProfile(pid: string) {
     if (!this.home) return;
@@ -235,6 +294,17 @@ class Library {
     s.meta.roots.push(root); s.saveMeta();
     this.roots = [...this.roots, { root, dir: picked.dir, granted: true }];
     await this.scanRoot(root.id);
+  }
+  /** A folder whose handle is gone (restored backup, cleared browser data): choose it again. */
+  async relinkFolder(id: string) {
+    const s = this.store, r = s?.meta.roots.find(x => x.id === id);
+    if (!s || !r) return;
+    let picked;
+    try { picked = await platform.pickMusicFolder(); } catch (e) { if ((e as DOMException).name !== 'AbortError') this.notice = (e as Error).message; return; }
+    await platform.forgetFolder(r.handleKey);
+    r.handleKey = picked.key; s.saveMeta();
+    this.roots = this.roots.map(x => x.root.id === id ? { root: r, dir: picked.dir, granted: true } : x);
+    await this.scanRoot(id);
   }
   async reconnectFolder(id: string) {
     const r = this.rootState(id);
