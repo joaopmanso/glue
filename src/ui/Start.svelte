@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { themes } from '../lib/themes.svelte';
   import { loadExample } from '../lib/app.svelte';
   import { drawSplashArt } from './render/splashArt';
 
   let art: HTMLCanvasElement;
+  $effect(() => { void themes.version; if (art) drawSplashArt(art); });
   $effect(() => {
     const ro = new ResizeObserver(() => drawSplashArt(art));
     ro.observe(art);

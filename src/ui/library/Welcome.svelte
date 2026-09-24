@@ -5,6 +5,7 @@
   import { IMPORT_ACCEPT } from '../../lib/imports';
   import type { BackupManifest } from '../../store/backup';
   import type { ZipEntry } from '../../core/zip';
+  import ThemePicker from '../ThemePicker.svelte';
 
   let profileName = $state('');
   let collectionName = $state('My collection');
@@ -168,6 +169,7 @@
         <button type="submit" class="btn" disabled={!profileName.trim()}>Create profile</button>
       </div>
     </form>
+    <ThemePicker />
     <div class="more">
       <button type="button" class="btn-ghost sm" id="restore-btn" onclick={() => zipInput.click()}>Restore a backup…</button>
       <button type="button" class="link" onclick={() => lib.changeHome()}>Use a different MCO folder</button>

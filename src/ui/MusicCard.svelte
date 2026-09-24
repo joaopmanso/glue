@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { themes } from '../lib/themes.svelte';
   import { app } from '../lib/app.svelte';
   import { harmonicNeighbours, keyLabel, type KeyNotation } from '../core/audio/keys';
   import { wheelSvg } from './render/wheel';
@@ -13,7 +14,7 @@
     if (!b) return null;
     return { show: Math.abs(b - Math.round(b)) < 0.05 ? Math.round(b).toFixed(0) : b.toFixed(1), half: (b / 2).toFixed(1), double: (b * 2).toFixed(1) };
   });
-  const wheel = $derived(wheelSvg(key, n, theme()));
+  const wheel = $derived.by(() => { void themes.version; return wheelSvg(key, n, theme()); });
 </script>
 
 {#if music}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { themes } from '../lib/themes.svelte';
   import { app } from '../lib/app.svelte';
   import { drawLtas } from './render/ltas';
   import type { PlotRect } from './render/canvas';
@@ -10,7 +11,7 @@
   let rect: PlotRect | null = null;
 
   $effect(() => {
-    void size;
+    void size; void themes.version;
     const r = app.res, v = app.verdict;
     if (!r || !v || !cv) return;
     rect = drawLtas(cv, r, v, hoverX);

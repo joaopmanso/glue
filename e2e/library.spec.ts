@@ -607,3 +607,42 @@ test('drags a track out as a file copy and a playlist out as an M3U8', async ({ 
   expect(p.text).toContain('#EXTINF:4,Tester - Lossy one' + '\r\n' + String.raw`C:\Users\dj\Music\Sets\mp3-128k.mp3`);
   expect(p.text).toContain('D:/Elsewhere/gone.wav');   // not found on this computer: its imported path is kept
 });
+
+test('themes: pick a theme and dark / light on the profile screen; it sticks', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  const html = page.locator('html');
+  await expect(html).toHaveAttribute('data-theme', 'classic');
+  for (const id of ['classic', 'studio', 'riso', 'moss']) for (const mode of ['dark', 'light']) {
+    await page.locator('.top .who').click();
+    await page.click('#theme-' + id); await page.click('#mode-' + mode);
+    await expect(html).toHaveAttribute('data-theme', id);
+    await expect(html).toHaveAttribute('data-mode', mode);
+    if (process.env.SHOTS && mode === 'dark') await page.screenshot({ path: `${process.env.SHOTS}/th-picker-${id}.png` });
+    await page.locator('.profile', { hasText: 'DJ Test' }).click();
+    await expect(page.locator('.tr')).toHaveCount(4);
+    if (process.env.SHOTS) {
+      await page.locator('.tr', { hasText: 'Fixture FLAC' }).click();
+      await page.screenshot({ path: `${process.env.SHOTS}/th-lib-${id}-${mode}.png` });
+      await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
+      await expect(page.locator('#v-pill')).not.toHaveText('', { timeout: 30_000 });
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${process.env.SHOTS}/th-detail-${id}-${mode}.png` });
+      await page.locator('.crumbs a').click();
+    }
+  }
+  // The header button flips the mode; the choice survives a reload.
+  await page.click('#mode-toggle');
+  await expect(html).toHaveAttribute('data-mode', 'dark');
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(html).toHaveAttribute('data-theme', 'moss');
+  await expect(html).toHaveAttribute('data-mode', 'dark');
+  const font = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+  expect(font).toContain('Geist');
+});

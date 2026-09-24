@@ -50,6 +50,11 @@ export class HomeStore {
     await this.saveIndex();
   }
 
+  async setAppearance(a: { theme: string; mode: 'dark' | 'light' | 'system' }) {
+    if (this.index.appearance?.theme === a.theme && this.index.appearance?.mode === a.mode) return;
+    this.index.appearance = a; await this.saveIndex();
+  }
+
   /** A restored profile's files are in place: list it (replacing an entry with the same id). */
   async adoptProfile(ref: { id: string; name: string; color: string }) {
     this.index.profiles = [...this.index.profiles.filter(p => p.id !== ref.id), ref];

@@ -5,7 +5,7 @@ export const SCHEMA = 1;             // bump + add a migration when a file forma
 export const ANALYSIS_VERSION = 3;   // bump to re-analyse every track after an algorithm change (2: full analysis stored, 3: fingerprints)
 
 export interface ProfileRef { id: string; name: string; color: string }
-export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null }
+export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null; appearance?: { theme: string; mode: 'dark' | 'light' | 'system' } }
 
 export interface CollectionRef { id: string; name: string }
 export interface Profile { schemaVersion: number; id: string; name: string; color: string; createdAt: string; collections: CollectionRef[]; lastCollection: string | null }

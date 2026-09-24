@@ -1,4 +1,6 @@
-export const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
+/** The monospace font canvases draw text in; follows the theme (a live binding, set by themes). */
+export let MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
+export function setCanvasFonts(mono: string) { MONO = mono; }
 
 export interface Theme { ink: string; ink2: string; muted: string; line: string; line2: string; accent: string; accentInk: string; surface: string; raised: string }
 

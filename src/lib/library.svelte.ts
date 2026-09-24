@@ -15,6 +15,7 @@ import { removeFingerprint, writeFingerprint } from '../store/fingerprints';
 import { buildBackup, readBackup, writeBackup, type BackupManifest } from '../store/backup';
 import type { ZipEntry } from '../core/zip';
 import { downloadBlob } from './download';
+import { themes } from './themes.svelte';
 import type { AnalysisResult, FileInfo } from '../core/types';
 import { blankInfo, parseContainer } from '../core/formats/parse';
 import * as platform from '../platform';
@@ -114,6 +115,10 @@ class Library {
     this.homeDir = dir; this.homeKind = kind; this.homeName = kind === 'private' ? 'browser storage' : dir.name;
     await this.takeLock();
     this.home = await HomeStore.open(dir);
+    // The MCO folder's look wins over this browser's (another computer opens with the same theme).
+    const look = this.home.index.appearance;
+    if (look && (look.theme !== themes.theme || look.mode !== themes.mode)) themes.set(look.theme, look.mode);
+    themes.onChange = (theme, mode) => { if (!this.readOnly) void this.home?.setAppearance({ theme, mode }); };
     if (this.pendingRestore) { const b = this.pendingRestore; this.pendingRestore = null; await this.applyBackup(b, true); return; }
     const last = this.home.index.lastProfile;
     if (last && this.home.index.profiles.some(p => p.id === last)) await this.openProfile(last);

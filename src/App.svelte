@@ -16,6 +16,7 @@
   import LibPlayer from './ui/library/LibPlayer.svelte';
   import DragTag from './ui/library/DragTag.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
+  import { themes } from './lib/themes.svelte';
 
   onMount(() => { void lib.boot(); });
 
@@ -112,6 +113,13 @@
           <span class="dot" style:background={lib.profile.color}>{lib.profile.name.slice(0, 1).toUpperCase()}</span>{lib.profile.name}
         </button>
       {/if}
+      <button type="button" class="modebtn" id="mode-toggle" title={themes.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={themes.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} onclick={() => themes.toggleMode()}>
+        {#if themes.resolved === 'dark'}
+          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="currentColor"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        {:else}
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 10.2A5.8 5.8 0 0 1 5.8 2.5a5.8 5.8 0 1 0 7.7 7.7z" fill="currentColor"/></svg>
+        {/if}
+      </button>
       <input type="file" id="file-input" accept="audio/*,.flac,.wav,.aif,.aiff,.aifc,.m4a,.mp4,.alac,.mp3,.aac,.ogg,.oga,.opus,.webm,.mka" onchange={pick}>
     </div>
   </header>
@@ -146,6 +154,9 @@
 
 <style>
   .hidden { visibility: hidden; }
+  .modebtn { order: 10; background: none; border: 1px solid var(--line); border-radius: 50%; width: 30px; height: 30px; display: grid; place-items: center; color: var(--ink-2); cursor: pointer; padding: 0; }
+  .modebtn:hover { color: var(--accent); border-color: var(--accent); }
+  .modebtn svg { width: 15px; height: 15px; }
   .brand h1 a { color: inherit; text-decoration: none; }
   .tabs { display: flex; gap: 4px; }
   .tabs a { color: var(--muted); text-decoration: none; font-size: 13.5px; font-weight: 600; padding: 4px 10px; border-radius: 4px; }

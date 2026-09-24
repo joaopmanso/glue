@@ -5,6 +5,12 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Themes
+- [Themes](../features/themes.md): Classic (now with light mode), Studio, Riso and Moss, each dark and
+  light, with their own fonts and small signatures; picker with live previews on the profile screen,
+  sun/moon toggle in the header ([ADR 0028](../adr/0028-themes.md)).
+- Tests: e2e switches every theme and mode, checks they persist and the fonts load.
+
 ## 2026-09-24 · Drag out to other apps
 - Chrome/Edge: drag a track's grip out for a copy of the file, a playlist's icon out for a `.m3u8`
   with absolute paths ([ADR 0027](../adr/0027-drag-out-with-downloadurl.md)).

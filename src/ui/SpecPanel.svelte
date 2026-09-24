@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { themes } from '../lib/themes.svelte';
   import { untrack } from 'svelte';
   import { app } from '../lib/app.svelte';
   import { player } from '../lib/player.svelte';
@@ -31,7 +32,7 @@
   // Redraw on anything visible changing (player.frame ticks every animation frame while playing).
   $effect(() => {
     const r = app.res;
-    void imgVersion; void size; void player.frame; void player.time; void app.liveMode;
+    void imgVersion; void size; void player.frame; void player.time; void app.liveMode; void themes.version;
     if (!r || !specCv) return;
     rect = drawSpec(specCv, {
       res: r, verdict: app.verdict, img, lut: app.lut, dbFloor: app.dbFloor, markers: app.markers,
