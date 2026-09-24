@@ -2,6 +2,7 @@
 import { runJob } from '../core/audio/analyze';
 import { classify } from '../core/audio/verdict';
 import { summarize } from '../core/library/summary';
+import { encodeDetails, type DetailsHeader } from '../store/details';
 import type { AnalysisJob, AnalysisResult, FileInfo } from '../core/types';
 import type { AnalysisSummary } from '../store/types';
 
@@ -12,12 +13,12 @@ export type AnalysisRequest =
 export type AnalysisReply =
   | { id: number; kind: 'progress'; stage: string; p: number }
   | { id: number; kind: 'done'; out: AnalysisResult }
-  | { id: number; kind: 'summary'; out: AnalysisSummary; duration: number; sr: number; channels: number }
+  | { id: number; kind: 'summary'; out: AnalysisSummary; duration: number; sr: number; channels: number; details: { header: DetailsHeader; bin: Uint8Array } | null }
   | { id: number; kind: 'error'; message: string };
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
-scope.onmessage = (e: MessageEvent<AnalysisRequest>) => {
+scope.onmessage = async (e: MessageEvent<AnalysisRequest>) => {
   const { id, job } = e.data;
   try {
     let last = 0;
@@ -29,7 +30,10 @@ scope.onmessage = (e: MessageEvent<AnalysisRequest>) => {
       const { info, size, mtime } = e.data.summary;
       if (!info.sampleRate) info.sampleRate = out.sr;
       const s = summarize(info, out, classify(info, out), { size, mtime });
-      scope.postMessage({ id, kind: 'summary', out: s, duration: out.duration, sr: out.sr, channels: out.channels } satisfies AnalysisReply);
+      // The full result, in its stored form, so the track page never has to analyse again (ADR 0024).
+      let details: { header: DetailsHeader; bin: Uint8Array } | null = null;
+      try { details = await encodeDetails(info, out, { size, mtime }); } catch { details = null; }
+      scope.postMessage({ id, kind: 'summary', out: s, duration: out.duration, sr: out.sr, channels: out.channels, details } satisfies AnalysisReply, details ? [details.bin.buffer] : []);
       return;
     }
     const transfer: Transferable[] = [out.spec.buffer, out.ltas.buffer];

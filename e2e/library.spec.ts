@@ -409,10 +409,14 @@ test('track pages keep their analysis, and the playing track keeps playing', asy
   await page.click('#add-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
 
-  // First visit analyses and stores; the second shows the stored result without analysing.
+  // The background analysis stored the full result: even the first visit doesn't analyse.
+  let busySeen = false;
+  await page.exposeFunction('busySeen', () => { busySeen = true; });
+  await page.evaluate(() => new MutationObserver(() => { if (document.querySelector('.detail .status')) (window as unknown as { busySeen: () => void }).busySeen(); }).observe(document.body, { childList: true, subtree: true }));
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
   await expect(page.locator('#v-pill')).toHaveText('Upsampled', { timeout: 30_000 });
-  await expect(page.locator('.detail .src')).toHaveText('Just analysed');
+  await expect(page.locator('.detail .src')).toHaveText('Stored analysis');
+  expect(busySeen).toBe(false);
   await page.locator('.crumbs a').click();
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
   await page.reload();

@@ -2,7 +2,7 @@
 import type { Severity } from '../core/types';
 
 export const SCHEMA = 1;             // bump + add a migration when a file format changes
-export const ANALYSIS_VERSION = 1;   // bump to re-analyse every track after an algorithm change
+export const ANALYSIS_VERSION = 2;   // bump to re-analyse every track after an algorithm change (2: also stores the full analysis)
 
 export interface ProfileRef { id: string; name: string; color: string }
 export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null }

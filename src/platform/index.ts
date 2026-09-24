@@ -72,6 +72,11 @@ export async function folderHandle(key: string): Promise<Dir | null> {
 }
 export const forgetFolder = (key: string) => idbDel(key);
 
+/** The browser's private storage for derived data (stored analyses): not synced, safe to lose. */
+export async function cacheDir(): Promise<Dir | null> {
+  try { return await (await navigator.storage.getDirectory()).getDirectoryHandle('cache', { create: true }); } catch { return null; }
+}
+
 type FilePicker = (o: { id?: string; multiple?: boolean; startIn?: string; types?: { description: string; accept: Record<string, string[]> }[] }) => Promise<FileSystemFileHandle[]>;
 const filePicker = (): FilePicker | null => (window as unknown as { showOpenFilePicker?: FilePicker }).showOpenFilePicker ?? null;
 /** Can single files be kept across visits (a handle per file)? Otherwise MCO keeps a copy. */

@@ -5,6 +5,13 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Track pages never analyse after the background pass
+- The background workers now store each track's full analysis (compressed, ≤512 spectrogram rows) in
+  the browser's storage ([ADR 0024](../adr/0024-background-stores-full-analysis.md)); track pages
+  show it with no analysis steps, even on the first visit. `ANALYSIS_VERSION` 2 re-analyses existing
+  libraries once to fill it.
+- Tests: format round trip; e2e checks no analysis step is shown on a first visit.
+
 ## 2026-09-24 · Stored track analysis, uninterrupted playback, wide windows
 - Track pages store their full analysis on the first visit and reuse it; "Re-analyse" on demand
   ([ADR 0023](../adr/0023-store-track-page-analysis.md)).

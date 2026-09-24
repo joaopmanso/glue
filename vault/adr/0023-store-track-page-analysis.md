@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded in part
+superseded-by: 0024
 date: 2026-09-24
 amends: 0019
 ---

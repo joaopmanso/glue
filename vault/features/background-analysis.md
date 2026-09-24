@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-09-24
-adrs: [0006, 0009]
+adrs: [0006, 0009, 0019, 0024]
 ---
 # Background analysis
 
@@ -48,3 +48,9 @@ the UI stuttering.
   stored with their reason and not retried until the file changes.
 - Code: `src/lib/pool.ts`, `src/workers/analysis.worker.ts`, `src/core/library/summary.ts`.
 - Not yet: fingerprints (M5), time-left estimate.
+
+## Full analysis stored too (2026-09-24)
+- Each worker also returns the track's full analysis in its stored form, kept in the browser's storage
+  ([ADR 0024](../adr/0024-background-stores-full-analysis.md)), so track pages open with no analysis.
+- `ANALYSIS_VERSION` 2: existing libraries are analysed once more to fill that store.
+

@@ -8,7 +8,8 @@ import { blankInfo, parseContainer } from '../core/formats/parse';
 import { scanClues } from '../core/formats/clues';
 import { decodeAudio } from './analysis';
 
-export interface PoolResult { summary: AnalysisSummary; info: FileInfo; duration: number }
+import type { DetailsHeader } from '../store/details';
+export interface PoolResult { summary: AnalysisSummary; info: FileInfo; duration: number; details: { header: DetailsHeader; bin: Uint8Array } | null }
 
 const MAX_BYTES = 1.2e9;
 export const poolSize = () => Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
@@ -68,14 +69,14 @@ export class AnalysisPool {
         transfer = chs.map(c => c.buffer);
         if (!info.channels) info.channels = ab.numberOfChannels;
       }
-      const r = await s.run({ job, summary: { info: { ...info, tags: {}, notes: [], pcm: undefined }, size: file.size, mtime } }, transfer);
+      const r = await s.run({ job, summary: { info: { ...info, pcm: undefined }, size: file.size, mtime } }, transfer);
       if (r.kind === 'error') throw new Error(r.message);
       if (r.kind !== 'summary') throw new Error('Unexpected reply from the analysis worker');
       if (!info.sampleRate) info.sampleRate = r.sr;
       if (!info.channels) info.channels = r.channels;
       if (!info.duration) info.duration = r.duration;
       if (!info.bitrate && info.duration && info.lossless === false) info.bitrate = file.size * 8 / info.duration / 1000;
-      return { summary: r.out, info, duration: info.duration };
+      return { summary: r.out, info, duration: info.duration, details: r.details };
     } finally { this.release(s); }
   }
   stop() { for (const s of this.slots) s.stop(); }

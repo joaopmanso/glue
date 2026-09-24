@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-09-24
-adrs: [0019, 0023]
+adrs: [0019, 0023, 0024]
 ---
 # Track detail
 
@@ -38,4 +38,6 @@ libraries say about it (BPM, key, rating, play count, cue count, date added).
   later visits open instantly ("Stored analysis"). "Re-analyse" recomputes it. A changed file is
   re-analysed automatically.
 - Opening the page of the track that's playing keeps it playing (also on the way back to the library).
+- Since ADR 0024 the background analysis writes that stored analysis for every track, so even a first
+  visit is instant once the background pass has reached the track.
 

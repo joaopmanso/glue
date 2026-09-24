@@ -10,7 +10,7 @@ import type { ImportedLibrary } from '../core/interop/types';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
 import { failed } from '../core/library/summary';
-import { loadDetails, removeDetails, saveDetails } from '../store/details';
+import { encodeDetails, loadDetails, removeDetails, writeDetails, type DetailsHeader } from '../store/details';
 import type { AnalysisResult, FileInfo } from '../core/types';
 import { blankInfo, parseContainer } from '../core/formats/parse';
 import * as platform from '../platform';
@@ -537,14 +537,17 @@ class Library {
   }
   /** The full analysis stored for a track's page, if it's still valid for the file. */
   async trackDetails(t: Track) {
-    const s = this.store;
-    return s ? loadDetails(s.root, s.base, t.id, { size: t.size, mtime: t.mtime }) : null;
+    const s = this.store, dir = await platform.cacheDir();
+    return s && dir ? loadDetails(dir, s.meta.id, t.id, { size: t.size, mtime: t.mtime }) : null;
   }
   async saveTrackDetails(t: Track, info: FileInfo, res: AnalysisResult) {
-    const s = this.store;
-    if (!s || this.readOnly || t.size == null || t.mtime == null) return;
-    try { await saveDetails(s.root, s.base, t.id, info, res, { size: t.size, mtime: t.mtime }); }
+    if (t.size == null || t.mtime == null) return;
+    try { await this.putDetails(t.id, await encodeDetails(info, res, { size: t.size, mtime: t.mtime })); }
     catch (e) { console.warn('Couldn’t store the track analysis', e); }
+  }
+  private async putDetails(id: string, d: { header: DetailsHeader; bin: Uint8Array }) {
+    const s = this.store, dir = await platform.cacheDir();
+    if (s && dir) await writeDetails(dir, s.meta.id, id, d);
   }
   /** Take tracks out of the collection. Files on disk are never touched (copies MCO made are). */
   async removeTracks(ids: string[]) {
@@ -557,7 +560,8 @@ class Library {
       else if (t.fileKey?.startsWith('copy:') && this.homeDir) await removePath(this.homeDir, t.fileKey.slice(5));
       this.looseHandles.delete(id);
       s.removeTrack(id);
-      await removeDetails(s.root, s.base, id).catch(() => {});
+      const cache = await platform.cacheDir();
+      if (cache) await removeDetails(cache, s.meta.id, id).catch(() => {});
     }
   }
 
@@ -607,6 +611,7 @@ class Library {
       const r = await pool.analyze(file, file.lastModified);
       if (this.store !== s) return;
       s.putAnalysis(t.id, r.summary);
+      if (r.details) void this.putDetails(t.id, r.details).catch(e => console.warn('Couldn’t store the track analysis', e));
       const cur = s.tracks.get(t.id) ?? t;
       const f = tagFields(r.info.tags);
       const upd: Track = { ...cur, size: file.size, mtime: file.lastModified, format: formatOf(r.info), duration: r.duration || cur.duration };
