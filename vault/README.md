@@ -75,3 +75,4 @@ Planned (MCO):
 | [0013](adr/0013-duplicate-tiers.md) | Three tiers of duplicate detection | accepted |
 | [0014](adr/0014-chromium-full-others-reduced.md) | Chrome/Edge full, Safari/Firefox reduced | accepted |
 | [0015](adr/0015-installable-pwa.md) | MCO is an installable PWA | accepted |
+| [0016](adr/0016-keep-legacy-page-for-parity.md) | Keep the original Speklone page as the parity reference | accepted |

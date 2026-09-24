@@ -19,5 +19,6 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
 - Stem selection swaps the source while keeping position and play state (`swapPlayerSource`).
 
 ## Limits & open questions
-- Known bug to fix in M1: a quick pause/play inside one frame starts a second play loop.
+- Fixed in M1: a quick pause/play inside one frame could start a second play loop (now exactly one
+  animation-frame loop; `src/lib/player.svelte.ts`).
 - MCO: becomes a global player bar that plays any selected track (M2).

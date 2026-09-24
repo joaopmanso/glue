@@ -1,3 +1,6 @@
 backup.html
 node_modules/
+dist/
 models/
+test-results/
+*.local

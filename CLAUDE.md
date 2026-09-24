@@ -36,6 +36,11 @@ After working:
 - Testing in headless Edge: only close test browsers you started (match the scratch profile path);
   never kill all `msedge.exe`.
 
-## Current code (until M1 lands)
-- `index.html`: the whole Speklone app (HTML + CSS + one script).
-- `serve.mjs`: static preview server (`npm start` → http://localhost:5174).
+## Code
+- TypeScript 6 + Svelte 5 + Vite 8. `npm run dev` · `npm run check` · `npm test` · `npx playwright test`
+  (uses the installed Edge) · `STEMS=1 npx playwright test e2e/stems.spec.ts` (slow).
+- `src/core/` pure logic (no DOM) · `src/workers/` module workers · `src/lib/` state + orchestration
+  (`app.svelte.ts`, `player.svelte.ts`, `stems.svelte.ts`) · `src/ui/` components + canvas renderers.
+- `legacy/index.html`: original Speklone page, frozen; `tests/parity.test.ts` compares against it
+  (ADR 0016). Change a parity expectation only on purpose, with a changelog note.
+- Push to `main` = checks, tests, build and deploy to https://joaopmanso.github.io/mco/.

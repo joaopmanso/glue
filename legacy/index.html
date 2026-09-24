@@ -1,0 +1,2790 @@
+<meta charset="utf-8">
+<title>Speklone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #0b0e12;
+    --surface: #11161c;
+    --raised: #171d25;
+    --line: #232b36;
+    --line-2: #2f3a47;
+    --ink: #e6e9ee;
+    --ink-2: #b3bcc8;
+    --muted: #7d8898;
+    --accent: #7cc7ff;
+    --accent-ink: #06121d;
+    --ok: #3ecf8e;
+    --warn: #f2c14e;
+    --bad: #ff6b6b;
+    --font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, Consolas, "Cascadia Mono", monospace;
+    --radius: 6px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { background: var(--ground); color: var(--ink); }
+  body { font-family: var(--font-sans); font-size: 15px; line-height: 1.5; margin: 0; }
+  .wrap { max-width: 1760px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 32px); padding-block: 18px 56px; display: grid; gap: 20px; }
+  h1, h2, h3 { margin: 0; font-weight: 700; text-wrap: balance; }
+  p { margin: 0; }
+  button, select, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+  /* header */
+  .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .brand h1 { font-size: 24px; font-stretch: 125%; font-weight: 800; letter-spacing: .02em; }
+  .brand h1 span { color: var(--accent); }
+  .brand p { color: var(--muted); font-size: 13px; }
+  .open { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .open small { color: var(--muted); font-size: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: var(--radius); padding: 9px 16px; font-weight: 700; font-stretch: 110%; cursor: pointer; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn svg { width: 16px; height: 16px; }
+  #file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+  /* status */
+  .status { display: grid; gap: 6px; }
+  .status .row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--ink-2); }
+  .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s linear; }
+  .error { border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent); background: color-mix(in srgb, var(--bad) 9%, var(--surface)); border-radius: var(--radius); padding: 12px 14px; font-size: 14px; }
+  .error b { color: var(--bad); }
+  .example-note { font-size: 13px; color: var(--ink-2); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .example-note .tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); padding: 1px 7px; border-radius: 3px; }
+
+  /* verdict */
+  .verdict { display: grid; gap: 18px; }
+  .v-main { display: flex; gap: 16px 22px; align-items: flex-start; flex-wrap: wrap; }
+  .pill { font-family: var(--font-mono); font-weight: 600; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; padding: 6px 12px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; margin-top: 6px; }
+  .verdict[data-grade="ok"] .pill { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+  .verdict[data-grade="warn"] .pill { color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+  .verdict[data-grade="bad"] .pill { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
+  .verdict[data-grade="info"] .pill { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .v-text { flex: 1 1 420px; min-width: 0; display: grid; gap: 6px; }
+  .v-text h2 { font-size: clamp(22px, 3vw, 32px); font-stretch: 112%; line-height: 1.15; letter-spacing: -.005em; }
+  .v-text p { color: var(--ink-2); max-width: 72ch; }
+  .readouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .readouts > div { padding: 12px 14px; display: grid; gap: 3px; border-right: 1px solid var(--line); min-width: 0; }
+  .readouts > div:last-child { border-right: 0; }
+  .readouts .val { font-family: var(--font-mono); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .readouts .sub { font-size: 12px; color: var(--muted); }
+  .readouts [data-tone="bad"] .val { color: var(--bad); }
+  .readouts [data-tone="warn"] .val { color: var(--warn); }
+  .readouts [data-tone="ok"] .val { color: var(--ok); }
+
+  /* panels */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); display: grid; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px 18px; flex-wrap: wrap; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+  .panel-head h3 { font-size: 14px; font-stretch: 110%; letter-spacing: .01em; }
+  .panel-head .hint { font-size: 12px; color: var(--muted); }
+  .panel-body { padding: 14px; display: grid; gap: 12px; min-width: 0; }
+  .controls { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+  .controls label { display: inline-flex; align-items: center; gap: 7px; }
+  .controls select { background: var(--raised); border: 1px solid var(--line-2); border-radius: 4px; padding: 3px 6px; font-size: 12px; }
+  .controls input[type="range"] { width: 110px; accent-color: var(--accent); }
+  .controls input[type="checkbox"] { accent-color: var(--accent); }
+  .readout { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); min-height: 18px; font-variant-numeric: tabular-nums; }
+  .player { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+  .play { width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--accent); color: var(--accent-ink); border: 0; display: grid; place-items: center; cursor: pointer; }
+  .play:hover:not(:disabled) { filter: brightness(1.08); }
+  .play:disabled { opacity: .35; cursor: default; }
+  .play svg { width: 14px; height: 14px; pointer-events: none; }
+  .ptime { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 96px; }
+  #seek { flex: 1 1 160px; min-width: 0; accent-color: var(--accent); }
+  .vol { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .vol input { width: 84px; accent-color: var(--accent); }
+  .p-msg { font-size: 12px; color: var(--warn); flex-basis: 100%; }
+  #spec { cursor: crosshair; }
+  .canvas-box { position: relative; width: 100%; max-width: 100%; }
+  .canvas-box canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #spec-box { height: clamp(300px, 44vw, 500px); }
+  #ltas-box { height: 300px; }
+  #live-box { height: clamp(200px, 24vw, 280px); }
+  /* stems */
+  .stems-row { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; min-height: 32px; }
+  .stems .hint { font-size: 12px; color: var(--muted); }
+  .linkish { background: none; border: 0; padding: 0; color: var(--accent); font-size: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  .btn-ghost.sm { padding: 5px 11px; font-size: 12.5px; }
+  .stems-status { font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 260px; }
+  .stems-bar { flex: 1 1 160px; }
+  .stem-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stem { display: inline-flex; border: 1px solid var(--line-2); border-radius: 999px; overflow: hidden; }
+  .stem button { background: transparent; border: 0; color: var(--ink-2); font-size: 12.5px; cursor: pointer; }
+  .stem .tog { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px 5px 11px; }
+  .stem .tog::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--c); }
+  .stem .tog[aria-pressed="true"] { color: var(--ink); background: color-mix(in srgb, var(--c) 16%, transparent); }
+  .stem .tog[aria-pressed="true"]::before { background: var(--c); }
+  .stem .dl { padding: 5px 9px; border-left: 1px solid var(--line-2); display: grid; place-items: center; }
+  .stem .dl:hover { color: var(--accent); }
+  .stem .dl svg { width: 13px; height: 13px; pointer-events: none; }
+  .player .readout { margin-left: auto; min-width: 250px; text-align: right; color: var(--muted); }
+  .workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+  .side { display: grid; gap: 14px; min-width: 0; }
+  @media (min-width: 1100px) {
+    .workspace { grid-template-columns: 296px minmax(0, 1fr); }
+    .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); max-height: calc(100vh - 100px); overflow-y: auto; scrollbar-width: thin; }
+    /* one line per readout: value, then its note */
+    .side .readouts > div { display: block; padding-block: 7px; }
+    .side .readouts .label { display: block; margin-bottom: 1px; }
+    .side .readouts .val { display: inline; margin-right: 8px; }
+    .side .readouts .sub { display: inline; font-size: 11.5px; }
+    .side .v-main { flex-direction: column; gap: 12px; }
+    .side .v-text { flex: none; }
+    .side .v-text h2 { font-size: 22px; }
+    .side .v-text p { font-size: 14px; }
+    .side .pill { margin-top: 0; align-self: flex-start; }
+    .side .readouts { grid-template-columns: minmax(0, 1fr); }
+    .side .readouts > div { border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 14px; }
+    .side .readouts > div:last-child { border-bottom: 0; }
+    .side .readouts .val { font-size: 15px; }
+    /* Size the canvases from the window so the whole panel, live view included, fits on screen. */
+    #spec-box { height: clamp(300px, calc(100vh - 296px), 760px); }
+    .live-on #spec-box { height: clamp(220px, calc((100vh - 346px) * .62), 560px); }
+    .live-on #live-box { height: clamp(150px, calc((100vh - 346px) * .38), 340px); }
+  }
+  .live { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .live-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .live-head .label { color: var(--accent); }
+  .cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 920px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+
+  /* evidence */
+  .ev-list { list-style: none; margin: 0; padding: 0; display: grid; }
+  .ev { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .ev:first-child { border-top: 0; padding-top: 2px; }
+  .ev b { display: block; font-weight: 650; font-size: 14px; }
+  .ev p { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; height: 22px; align-self: start; }
+  .chip i { font-style: normal; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; border: 1.5px solid currentColor; }
+  .ev[data-sev="bad"] .chip { color: var(--bad); }
+  .ev[data-sev="warn"] .chip { color: var(--warn); }
+  .ev[data-sev="ok"] .chip { color: var(--ok); }
+  .ev[data-sev="info"] .chip { color: var(--accent); }
+  .clues { display: flex; flex-wrap: wrap; gap: 8px; }
+  .clue { border: 1px solid var(--line-2); background: var(--raised); border-radius: 4px; padding: 5px 9px; font-size: 12px; display: grid; gap: 1px; max-width: 100%; }
+  .clue code { font-family: var(--font-mono); color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+  .empty { color: var(--muted); font-size: 13px; }
+
+  /* details */
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 28px; margin: 0; }
+  .facts > div { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; font-family: var(--font-mono); font-size: 12.5px; overflow-wrap: anywhere; }
+  details.ref { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  details.ref summary { cursor: pointer; padding: 12px 14px; font-weight: 650; font-stretch: 110%; font-size: 14px; }
+  details.ref .inner { padding: 0 14px 16px; display: grid; gap: 14px; }
+  details.ref p { color: var(--ink-2); font-size: 13.5px; max-width: 80ch; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; font-size: 13px; min-width: 520px; width: 100%; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  td:first-child { font-family: var(--font-mono); white-space: nowrap; color: var(--accent); }
+
+  .results { display: grid; gap: 20px; }
+
+  /* tempo & key */
+  .music { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 12px 14px; display: grid; gap: 12px; }
+  .music-top { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .music-top > div { display: grid; gap: 2px; min-width: 0; }
+  .music .big { font-family: var(--font-mono); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
+  .music .big small { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .music .sub { font-size: 12px; color: var(--muted); }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line-2); border-radius: 5px; overflow: hidden; }
+  .seg button { background: transparent; border: 0; border-right: 1px solid var(--line-2); padding: 5px 4px; font-size: 12px; color: var(--ink-2); cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 650; }
+  .wheel-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; align-items: center; }
+  #wheel { width: 150px; height: 150px; display: block; }
+  #wheel text { font-family: var(--font-mono); font-size: 9.5px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .mix-note { font-size: 12.5px; color: var(--ink-2); line-height: 1.45; }
+  .mix-note b { color: var(--ink); font-family: var(--font-mono); font-weight: 600; }
+  /* The start page carries its own headline and buttons, so the header stays quiet until a file is open. */
+  body:has(#splash:not([hidden])) .top .open,
+  body:has(#splash:not([hidden])) .brand p { display: none; }
+
+  /* start page */
+  .splash { display: grid; gap: 22px; padding-block: clamp(4px, 2vh, 24px) 8px; }
+  .splash-copy { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 40px; }
+  .splash-copy h2 { font-size: clamp(28px, 3.4vw, 46px); font-stretch: 118%; font-weight: 800; line-height: 1.05; letter-spacing: -.015em; }
+  .splash-copy h2 em { font-style: normal; color: var(--accent); }
+  .lede { font-size: 15.5px; color: var(--ink-2); max-width: 62ch; line-height: 1.55; }
+
+  /* the drop zone is the page: big target, spectrogram as a dimmed backdrop */
+  .dropzone { position: relative; display: grid; place-items: center; min-height: clamp(320px, 54vh, 600px); border: 2px dashed var(--line-2); border-radius: 14px; background: #000; overflow: hidden; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+  .dropzone canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .42; transition: opacity .15s; }
+  .dropzone::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 46% 52% at 50% 50%, rgba(8, 11, 15, .9), rgba(8, 11, 15, .35) 70%, rgba(8, 11, 15, 0)); pointer-events: none; }
+  .dropzone:hover, .dropzone:focus-visible { border-color: var(--accent); }
+  .dragging .dropzone { border-color: var(--accent); border-style: solid; box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent), inset 0 0 80px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .dragging .dropzone canvas { opacity: .18; }
+  .dz-center { position: relative; z-index: 1; display: grid; justify-items: center; gap: 10px; text-align: center; padding: 24px; }
+  .dz-icon { width: 56px; height: 56px; color: var(--accent); transition: transform .15s; }
+  .dropzone:hover .dz-icon, .dragging .dz-icon { transform: translateY(4px); }
+  .dz-center b { font-size: clamp(28px, 3.6vw, 48px); font-stretch: 118%; font-weight: 800; letter-spacing: -.01em; line-height: 1.1; }
+  .dz-sub { font-size: 16px; color: var(--ink-2); }
+  .dz-sub u { color: var(--accent); text-underline-offset: 3px; }
+  .dz-center small { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: .02em; margin-top: 4px; }
+  .dz-active { display: none; }
+  .dragging .dz-idle { display: none; }
+  .dragging .dz-active { display: inline; color: var(--accent); }
+  .splash-actions { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; }
+  .btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 9px 16px; font-weight: 650; font-stretch: 110%; cursor: pointer; }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .fine { font-size: 12.5px; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { .dropzone, .dropzone canvas, .dz-icon { transition: none; } }
+  .checks { list-style: none; margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px 28px; }
+  .checks li { display: grid; gap: 4px; }
+  .checks b { font-size: 14px; font-stretch: 110%; }
+  .checks span { font-size: 13.5px; color: var(--ink-2); }
+  @media (prefers-reduced-motion: reduce) { .dropzone { transition: none; } }
+
+  .drop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: color-mix(in srgb, var(--ground) 82%, transparent); backdrop-filter: blur(2px); }
+  .drop div { border: 2px dashed var(--accent); border-radius: 12px; padding: 48px 56px; font-size: 20px; font-stretch: 115%; font-weight: 700; color: var(--accent); text-align: center; margin: 16px; }
+  footer { color: var(--muted); font-size: 12px; }
+  @media (max-width: 560px) {
+    .readouts > div { border-right: 0; border-bottom: 1px solid var(--line); }
+    .readouts > div:last-child { border-bottom: 0; }
+    .ev { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .facts > div { grid-template-columns: 110px minmax(0, 1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>SPEK<span>LONE</span></h1>
+      <p>Spectral forensics: is your hi-res actually hi-res?</p>
+    </div>
+    <div class="open">
+      <small>or drop a file anywhere · nothing leaves your computer</small>
+      <label class="btn" for="file-input" tabindex="0" id="open-btn">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 5v7h12V5M8 1.5v8M5 4.5l3-3 3 3"/></svg>
+        Open audio file
+      </label>
+      <input type="file" id="file-input" accept="audio/*,.flac,.wav,.aif,.aiff,.aifc,.m4a,.mp4,.alac,.mp3,.aac,.ogg,.oga,.opus,.webm,.mka">
+    </div>
+  </header>
+
+  <div id="status" class="status" hidden>
+    <div class="row"><span id="status-text">Working…</span><span id="status-pct" class="mono"></span></div>
+    <div class="bar"><span id="status-bar"></span></div>
+  </div>
+  <div id="error" class="error" hidden></div>
+
+  <section class="splash" id="splash" aria-label="Start">
+    <div class="splash-copy">
+      <h2>Is your hi-res <em>actually</em> hi-res?</h2>
+      <p class="lede">Speklone shows what’s really inside a track (where the spectrum stops, how many bits carry signal, which tools touched it) and tells you whether it’s genuine, upsampled, or a lossy rip in disguise.</p>
+    </div>
+    <label class="dropzone" for="file-input" tabindex="0" id="dropzone">
+      <canvas id="splash-art" aria-hidden="true"></canvas>
+      <span class="dz-center">
+        <svg class="dz-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 6v24M14 20l10 10 10-10"/><path d="M6 30v8a4 4 0 0 0 4 4h28a4 4 0 0 0 4-4v-8"/></svg>
+        <b><span class="dz-idle">Drop a track here</span><span class="dz-active">Release to analyze</span></b>
+        <span class="dz-sub">or <u>click to choose a file</u></span>
+        <small>FLAC · WAV · AIFF · ALAC · MP3 · AAC · Ogg · Opus · WebM</small>
+      </span>
+    </label>
+    <div class="splash-actions">
+      <button type="button" class="btn-ghost" id="try-example">No file handy? Try the example</button>
+      <p class="fine">Nothing is uploaded: the analysis runs in your browser.</p>
+    </div>
+    <ul class="checks">
+      <li><b>Lossy walls</b><span>A sharp cutoff at 16, 19 or 20 kHz is the fingerprint of an MP3, AAC or Opus encoder.</span></li>
+      <li><b>Upsampling</b><span>A 96 kHz file whose content stops at 22 kHz came from a CD-rate master.</span></li>
+      <li><b>Padded bits</b><span>A “24-bit” file whose lowest 8 bits are always zero is 16-bit underneath.</span></li>
+      <li><b>Rip fingerprints</b><span>YouTube DASH brands, yt-dlp tags, or a LAME header hiding inside a FLAC.</span></li>
+    </ul>
+  </section>
+
+  <div id="results" class="results" hidden>
+  <div class="workspace">
+  <aside class="side">
+    <p id="example-note" class="example-note" hidden><span class="tag">EXAMPLE</span> A synthetic track generated in your browser: a 16 kHz lossy-style cutoff and 16-bit samples, labelled as 96 kHz / 24-bit FLAC. Open one of your own files to analyze it.</p>
+    <section id="verdict" class="verdict" data-grade="info" aria-live="polite">
+      <div class="v-main">
+        <span class="pill" id="v-pill">Analyzing</span>
+        <div class="v-text">
+          <h2 id="v-head">Analyzing…</h2>
+          <p id="v-sub">Open a FLAC, WAV, AIFF, ALAC/M4A, MP3, AAC, Ogg or Opus file.</p>
+        </div>
+      </div>
+      <div class="readouts" id="readouts"></div>
+    </section>
+    <section class="music" id="music" aria-label="Tempo and key">
+      <div class="music-top">
+        <div><span class="label">Tempo</span><span class="big" id="m-bpm">—</span><span class="sub" id="m-bpm-sub"></span></div>
+        <div><span class="label">Key</span><span class="big" id="m-key">—</span><span class="sub" id="m-key-sub"></span></div>
+      </div>
+      <div class="seg" role="radiogroup" aria-label="Key notation">
+        <button type="button" role="radio" data-n="camelot" id="kn-camelot">Camelot</button>
+        <button type="button" role="radio" data-n="open" id="kn-open">Open Key</button>
+        <button type="button" role="radio" data-n="musical" id="kn-musical">Musical</button>
+      </div>
+      <div class="wheel-row">
+        <svg id="wheel" viewBox="0 0 200 200" role="img" aria-label="Circle of fifths"></svg>
+        <p class="mix-note" id="m-mix"></p>
+      </div>
+    </section>
+  </aside>
+
+  <section class="panel spec-panel" aria-label="Spectrogram">
+    <div class="panel-head">
+      <h3>Spectrogram</h3>
+      <div class="controls">
+        <label for="db-floor">Floor <input type="range" id="db-floor" min="-170" max="-60" step="5" value="-120"> <span id="db-floor-val" class="mono">−120 dB</span></label>
+        <label for="palette">Colors
+          <select id="palette">
+            <option value="spek">Spek</option>
+            <option value="inferno">Inferno</option>
+            <option value="ice">Ice</option>
+            <option value="gray">Grayscale</option>
+          </select>
+        </label>
+        <label for="markers"><input type="checkbox" id="markers" checked> Reference lines</label>
+        <label for="live-toggle"><input type="checkbox" id="live-toggle"> Live view</label>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="player" id="player">
+        <button type="button" class="play" id="play-btn" aria-label="Play" disabled></button>
+        <span class="ptime" id="p-time">0:00 / 0:00</span>
+        <input type="range" id="seek" min="0" max="1000" step="1" value="0" aria-label="Playback position" disabled>
+        <label class="vol" for="volume">Volume <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8"></label>
+        <span class="readout" id="spec-readout" title="Space plays or pauses · ← → skip 5 s">Hover to read values · click to play from there</span>
+        <span class="p-msg" id="p-msg" hidden></span>
+      </div>
+      <div class="stems" id="stems">
+        <div class="stems-row" id="stems-idle">
+          <button type="button" class="btn-ghost sm" id="stems-run">Separate stems</button>
+          <span class="hint" id="stems-hint">Split into drums, bass, other and vocals with HT-Demucs, right here in your browser.</span>
+        </div>
+        <div class="stems-row" id="stems-busy" hidden>
+          <span class="stems-status" id="stems-status">Loading…</span>
+          <div class="bar stems-bar"><span id="stems-bar"></span></div>
+          <button type="button" class="btn-ghost sm" id="stems-cancel">Cancel</button>
+        </div>
+        <div class="stems-row" id="stems-ready" hidden>
+          <span class="label">Stems</span>
+          <div class="stem-chips" id="stem-chips"></div>
+          <button type="button" class="btn-ghost sm" id="stems-all">All</button>
+          <button type="button" class="btn-ghost sm" id="stems-dl-mix">Download selection</button>
+        </div>
+      </div>
+      <audio id="audio" preload="auto"></audio>
+      <div class="canvas-box" id="spec-box"><canvas id="spec" aria-label="Spectrogram: time on the horizontal axis, frequency on the vertical axis, level as color"></canvas></div>
+      <div class="live" id="live-wrap" hidden>
+        <div class="live-head"><span class="label">Live</span><span class="readout" id="live-note">What’s sounding now, scrolling right to left.</span></div>
+        <div class="canvas-box" id="live-box"><canvas id="live" aria-label="Live spectrogram of the audio currently playing"></canvas></div>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <div class="cols">
+    <section class="panel" aria-label="Average spectrum">
+      <div class="panel-head">
+        <h3>Average spectrum</h3>
+        <span class="hint">Mean level per frequency across the whole track, dBFS</span>
+      </div>
+      <div class="panel-body">
+        <div class="canvas-box" id="ltas-box"><canvas id="ltas" aria-label="Average spectrum: frequency against mean level"></canvas></div>
+      </div>
+    </section>
+    <section class="panel" aria-label="Evidence">
+      <div class="panel-head"><h3>Evidence</h3><span class="hint" id="ev-count"></span></div>
+      <div class="panel-body">
+        <ul class="ev-list" id="evidence"></ul>
+        <div>
+          <div class="label" style="margin-bottom:8px">Origin clues in the file</div>
+          <div class="clues" id="clues"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-label="File details">
+    <div class="panel-head"><h3>File details</h3><span class="hint">Read from the container header and tags</span></div>
+    <div class="panel-body"><dl class="facts" id="facts"></dl></div>
+  </section>
+  </div>
+
+  <details class="ref">
+    <summary>How the verdict is reached</summary>
+    <div class="inner">
+      <p>Every lossy encoder throws away the top of the spectrum with a steep lowpass filter, and every sample-rate converter leaves nothing above the source’s Nyquist limit (half its sample rate). Converting to FLAC, WAV or a higher sample rate can’t bring that content back, so the wall stays visible. Speklone averages the spectrum over the whole track, finds where the content stops and how steeply, and compares that against what the declared format should hold. It also checks whether the low bits of 24-bit files carry anything, and reads the container for encoder and downloader fingerprints.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Where content stops</th><th>Usual source</th></tr></thead>
+          <tbody>
+            <tr><td>≈ 11 kHz</td><td>Very low bitrate lossy (≤ 64 kbps) or a 22 kHz source</td></tr>
+            <tr><td>≈ 15–16 kHz</td><td>128 kbps AAC/MP3: YouTube’s AAC stream (format 140), SoundCloud, older FhG MP3s</td></tr>
+            <tr><td>≈ 17 kHz</td><td>MP3 128–160 kbps (LAME)</td></tr>
+            <tr><td>≈ 18.6 kHz</td><td>MP3/AAC ≈ 192 kbps</td></tr>
+            <tr><td>≈ 19.5 kHz</td><td>MP3 224–256 kbps or LAME V0; AAC 256 (iTunes / Apple Music)</td></tr>
+            <tr><td>20.0 kHz, razor sharp</td><td>Opus: YouTube’s Opus stream (format 251)</td></tr>
+            <tr><td>≈ 20.5 kHz</td><td>MP3 320 kbps (LAME)</td></tr>
+            <tr><td>21–22 kHz</td><td>CD / 44.1 kHz master; in a 96 or 192 kHz file it means upsampled from 44.1</td></tr>
+            <tr><td>≈ 23–24 kHz</td><td>48 kHz master; in a hi-res file it means upsampled from 48</td></tr>
+            <tr><td>well past 24 kHz</td><td>Genuine hi-res content</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Limits: a steep 20 kHz lowpass can also come from mastering, and a 16-bit source that had gain or dither applied after conversion fills all 24 bits. Treat a Caution as “look closer”, and a Fail as strong evidence.</p>
+    </div>
+  </details>
+
+  <footer>Decoding uses your browser’s audio engine (WAV and AIFF are read directly). Chrome and Firefox can’t decode ALAC or DSD; Safari handles ALAC.</footer>
+</div>
+
+<div class="drop" id="drop" hidden><div>Drop the audio file to analyze it</div></div>
+
+<script>
+/* ============================================================
+   Analysis core — these functions also run inside a Web Worker,
+   so they must not reference anything outside themselves.
+   ============================================================ */
+
+function makeFFT(n) {
+  const levels = Math.round(Math.log2(n));
+  const rev = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    let r = 0, x = i;
+    for (let b = 0; b < levels; b++) { r = (r << 1) | (x & 1); x >>= 1; }
+    rev[i] = r;
+  }
+  const cos = new Float64Array(n / 2), sin = new Float64Array(n / 2);
+  for (let i = 0; i < n / 2; i++) { cos[i] = Math.cos(2 * Math.PI * i / n); sin[i] = Math.sin(2 * Math.PI * i / n); }
+  return function (re, im) {
+    for (let i = 0; i < n; i++) {
+      const j = rev[i];
+      if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let size = 2; size <= n; size <<= 1) {
+      const half = size >> 1, step = n / size;
+      for (let i = 0; i < n; i += size) {
+        for (let j = i, k = 0; j < i + half; j++, k += step) {
+          const l = j + half;
+          const tre = re[l] * cos[k] + im[l] * sin[k];
+          const tim = im[l] * cos[k] - re[l] * sin[k];
+          re[l] = re[j] - tre; im[l] = im[j] - tim;
+          re[j] += tre; im[j] += tim;
+        }
+      }
+    }
+  };
+}
+
+function makePcmReader(u8, pcm) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const B = pcm.blockAlign / pcm.ch, ch = pcm.ch, le = pcm.le, base = pcm.off, stride = pcm.blockAlign;
+  const isFloat = pcm.fmt === 'float', unsigned8 = !!pcm.unsigned8;
+  return function (i, f, iv) {
+    let p = base + i * stride;
+    for (let c = 0; c < ch; c++, p += B) {
+      if (isFloat) { f[c] = B === 8 ? dv.getFloat64(p, le) : dv.getFloat32(p, le); continue; }
+      let v;
+      if (B === 2) { v = dv.getInt16(p, le); f[c] = v / 32768; }
+      else if (B === 3) {
+        v = le ? (u8[p] | (u8[p + 1] << 8) | (u8[p + 2] << 16)) : ((u8[p] << 16) | (u8[p + 1] << 8) | u8[p + 2]);
+        v = (v << 8) >> 8; f[c] = v / 8388608;
+      }
+      else if (B === 4) { v = dv.getInt32(p, le); f[c] = v / 2147483648; }
+      else { v = unsigned8 ? u8[p] - 128 : (u8[p] << 24) >> 24; f[c] = v / 128; }
+      iv[c] = v;
+    }
+  };
+}
+
+function analyzeSamples(nch, len, bits, isInt, floatFmt, read, progress) {
+  const mono = new Float32Array(len);
+  const f = new Float64Array(nch), iv = new Int32Array(nch), run = new Int32Array(nch);
+  const scale = (!isInt && !floatFmt && bits >= 8 && bits <= 24) ? Math.pow(2, bits - 1) : 0;
+  let orBits = 0, nonInt = 0, peak = 0, clipRuns = 0, sumSq = 0, on16 = 0, on24 = 0;
+  let lrMax = 0, sLL = 0, sRR = 0, sLR = 0;
+  for (let i = 0; i < len; i++) {
+    read(i, f, iv);
+    let m = 0;
+    for (let c = 0; c < nch; c++) {
+      const v = f[c]; m += v;
+      const a = v < 0 ? -v : v;
+      if (a > peak) peak = a;
+      sumSq += v * v;
+      if (a >= 0.99995) { if (++run[c] === 3) clipRuns++; } else run[c] = 0;
+      if (isInt) orBits |= iv[c];
+      else if (scale) {
+        const x = v * scale, r = Math.round(x);
+        if (Math.abs(x - r) > 1e-4) nonInt++; else orBits |= r;
+      }
+      if (floatFmt) {
+        const x16 = v * 32768; if (x16 === Math.round(x16)) on16++;
+        const x24 = v * 8388608; if (x24 === Math.round(x24)) on24++;
+      }
+    }
+    mono[i] = m / nch;
+    if (nch >= 2) {
+      const L = f[0], R = f[1], d = L > R ? L - R : R - L;
+      if (d > lrMax) lrMax = d;
+      sLL += L * L; sRR += R * R; sLR += L * R;
+    }
+    if ((i & 0x3ffff) === 0) progress('Reading samples', i / len);
+  }
+  let wasted = null;
+  if (orBits !== 0) { wasted = 0; while (wasted < 32 && ((orBits >>> wasted) & 1) === 0) wasted++; }
+  const total = len * nch;
+  const assessed = (isInt || scale > 0) && nonInt <= total * 0.001;
+  return {
+    mono,
+    stats: {
+      peak, rms: Math.sqrt(sumSq / Math.max(1, total)), clipRuns, wasted, assessed, nonInt,
+      floatFmt, on16: floatFmt ? on16 / total : 0, on24: floatFmt ? on24 / total : 0,
+      lrIdentical: nch >= 2 && lrMax === 0 && peak > 0,
+      lrCorr: nch >= 2 && sLL > 0 && sRR > 0 ? sLR / Math.sqrt(sLL * sRR) : null,
+      silent: peak === 0
+    }
+  };
+}
+
+function computeSpectrum(mono, sr, opt, progress) {
+  const len = mono.length;
+  let N = sr <= 50000 ? 4096 : sr <= 100000 ? 8192 : 16384;
+  while (N > 512 && N > len) N >>= 1;
+  const fft = makeFFT(N), half = N / 2, bins = half + 1;
+  const win = new Float64Array(N);
+  let ws = 0;
+  for (let i = 0; i < N; i++) { win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)); ws += win[i]; }
+  const norm = (2 / ws) * (2 / ws);
+  const cols = len > N ? Math.max(1, Math.min(opt.cols || 1600, Math.floor((len - N) / (N / 8)) + 1)) : 1;
+  const hop = cols > 1 ? (len - N) / (cols - 1) : 0;
+  const rows = Math.min(opt.rows || 1024, half);
+  const rowOf = new Uint16Array(bins);
+  for (let k = 0; k < bins; k++) rowOf[k] = Math.min(rows - 1, Math.floor(k * rows / bins));
+  const spec = new Float32Array(cols * rows), ltasP = new Float64Array(bins);
+  const re = new Float64Array(N), im = new Float64Array(N), mA = new Float64Array(rows), mB = new Float64Array(rows);
+  for (let c = 0; c < cols; c += 2) {
+    const two = c + 1 < cols;
+    const s0 = Math.round(c * hop), s1 = two ? Math.round((c + 1) * hop) : 0;
+    for (let i = 0; i < N; i++) {
+      const a = s0 + i, b = s1 + i;
+      re[i] = a < len ? mono[a] * win[i] : 0;
+      im[i] = two && b < len ? mono[b] * win[i] : 0;
+    }
+    fft(re, im);
+    mA.fill(0); mB.fill(0);
+    for (let k = 0; k < bins; k++) {
+      const nk = (N - k) & (N - 1);
+      const zr = re[k], zi = im[k], wr = re[nk], wi = im[nk];
+      const ar = (zr + wr) * 0.5, ai = (zi - wi) * 0.5;
+      const pA = (ar * ar + ai * ai) * norm, r = rowOf[k];
+      ltasP[k] += pA; if (pA > mA[r]) mA[r] = pA;
+      if (two) {
+        const br = (zi + wi) * 0.5, bi = (wr - zr) * 0.5;
+        const pB = (br * br + bi * bi) * norm;
+        ltasP[k] += pB; if (pB > mB[r]) mB[r] = pB;
+      }
+    }
+    let o = c * rows;
+    for (let r = 0; r < rows; r++) spec[o + r] = 10 * Math.log10(mA[r] + 1e-30);
+    if (two) { o = (c + 1) * rows; for (let r = 0; r < rows; r++) spec[o + r] = 10 * Math.log10(mB[r] + 1e-30); }
+    if ((c & 31) === 0) progress('Computing spectrum', c / cols);
+  }
+  const ltas = new Float32Array(bins);
+  for (let k = 0; k < bins; k++) ltas[k] = 10 * Math.log10(ltasP[k] / cols + 1e-30);
+  return { spec, cols, rows, ltas, N, binHz: sr / N };
+}
+
+// Tempo and key from the mono mix. Both work on a ~11 kHz copy: nothing above that matters here.
+function analyzeMusic(mono, sr, progress) {
+  const dec = Math.max(1, Math.floor(sr / 11025)), fs = sr / dec, len = Math.floor(mono.length / dec);
+  const x = new Float32Array(len);
+  for (let i = 0, p = 0; i < len; i++) { let s = 0; for (let k = 0; k < dec; k++) s += mono[p++]; x[i] = s / dec; }
+  const out = { bpm: null, bpmConf: 0, key: null };
+  if (len < fs * 6) return out;   // too short to say anything
+
+  // --- tempo: spectral-flux onset envelope, then a comb over its autocorrelation ---
+  {
+    const N = 1024, hop = 128, fft = makeFFT(N), win = new Float64Array(N);
+    for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+    const frames = Math.floor((len - N) / hop), kMax = Math.min(N / 2, Math.round(8000 / fs * N));
+    const env = new Float32Array(frames), prev = new Float32Array(kMax), re = new Float64Array(N), im = new Float64Array(N);
+    for (let f = 0; f < frames; f++) {
+      const s = f * hop;
+      for (let i = 0; i < N; i++) { re[i] = x[s + i] * win[i]; im[i] = 0; }
+      fft(re, im);
+      let flux = 0;
+      for (let k = 1; k < kMax; k++) {
+        const v = Math.log(1 + 1000 * Math.sqrt(re[k] * re[k] + im[k] * im[k]) / N);
+        const d = v - prev[k]; if (d > 0) flux += d;
+        prev[k] = v;
+      }
+      env[f] = flux;
+      if ((f & 1023) === 0) progress('Detecting tempo and key', 0.5 * f / frames);
+    }
+    // remove the slow trend so only the pulses remain
+    const fr = fs / hop, w = Math.round(fr * 0.4), cs = new Float64Array(frames + 1);
+    for (let i = 0; i < frames; i++) cs[i + 1] = cs[i] + env[i];
+    const e = new Float32Array(frames);
+    for (let i = 0; i < frames; i++) { const a = Math.max(0, i - w), b = Math.min(frames, i + w + 1); e[i] = Math.max(0, env[i] - (cs[b] - cs[a]) / (b - a)); }
+    const maxLag = Math.min(Math.floor(frames / 2), Math.ceil(fr * 60 / 60) * 16 + 4), acf = new Float64Array(maxLag + 1);
+    for (let L = 1; L <= maxLag; L++) { let s = 0; for (let i = L; i < frames; i++) s += e[i] * e[i - L]; acf[L] = s / (frames - L); }
+    const at = L => { const i = Math.floor(L), t = L - i; return i + 1 > maxLag ? 0 : acf[i] * (1 - t) + acf[i + 1] * t; };
+    const score = b => { const L = fr * 60 / b; let s = 0; for (let k = 1; k <= 4; k++) s += at(k * L) / k; return s; };
+    const prior = b => Math.exp(-0.5 * Math.pow(Math.log2(b / 122) / 0.9, 2));
+    let best = 0, bestS = -Infinity, sum = 0, cnt = 0;
+    for (let b = 60; b <= 200; b += 0.05) { const s = score(b); sum += s; cnt++; const v = s * prior(b); if (v > bestS) { bestS = v; best = b; } }
+    // One frame of lag is ~0.3% at 128 BPM, so refine the period on far multiples of it,
+    // where a frame of error divides down: parabolic peaks at 2L, 4L … 16L.
+    {
+      const L0 = fr * 60 / best;
+      let num = 0, den = 0;
+      for (const k of [2, 4, 6, 8, 12, 16]) {
+        const c = k * L0;
+        if (c + 3 > maxLag) break;
+        let bi = Math.round(c);
+        for (let j = Math.round(c) - 2; j <= Math.round(c) + 2; j++) if (acf[j] > acf[bi]) bi = j;
+        const a = acf[bi - 1], b = acf[bi], d = acf[bi + 1], den2 = a - 2 * b + d;
+        const peak = bi + (den2 < 0 ? 0.5 * (a - d) / den2 : 0);
+        if (Math.abs(peak - c) < 2.5) { num += peak / k * k; den += k; }
+      }
+      if (den) best = fr * 60 / (num / den);
+    }
+    const mean = sum / cnt;
+    if (mean > 0) { out.bpm = best; out.bpmConf = Math.min(1, Math.max(0, (score(best) / mean - 1) / 2)); }
+  }
+
+  // --- key: tuning-corrected chroma, matched against major/minor key profiles ---
+  {
+    const N = 8192, hop = 4096, fft = makeFFT(N), win = new Float64Array(N);
+    for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+    const k0 = Math.ceil(55 * N / fs), k1 = Math.min(N / 2 - 1, Math.floor(4200 * N / fs));
+    const frames = Math.max(0, Math.floor((len - N) / hop));
+    const mags = [], re = new Float64Array(N), im = new Float64Array(N);
+    let tc = 0, ts = 0;   // circular mean of peak deviations from the 440 Hz grid
+    for (let f = 0; f < frames; f++) {
+      const s = f * hop;
+      for (let i = 0; i < N; i++) { re[i] = x[s + i] * win[i]; im[i] = 0; }
+      fft(re, im);
+      const m = new Float32Array(k1 + 2);
+      for (let k = k0 - 1; k <= k1 + 1; k++) m[k] = Math.sqrt(re[k] * re[k] + im[k] * im[k]);
+      for (let k = k0; k <= k1; k++) {
+        if (m[k] > m[k - 1] && m[k] >= m[k + 1] && m[k] > 1e-3 * N) {
+          const a = m[k - 1], b = m[k], c = m[k + 1], d = 0.5 * (a - c) / (a - 2 * b + c || 1e-12);
+          const cents = 1200 * Math.log2(((k + d) * fs / N) / 440), ang = 2 * Math.PI * cents / 100;
+          tc += b * Math.cos(ang); ts += b * Math.sin(ang);
+        }
+      }
+      mags.push(m);
+      if ((f & 31) === 0) progress('Detecting tempo and key', 0.5 + 0.4 * f / Math.max(1, frames));
+    }
+    const tuning = Math.atan2(ts, tc) / (2 * Math.PI) * 100;   // cents, −50…50
+    const ref = 440 * Math.pow(2, tuning / 1200);
+    const pcOf = new Int8Array(k1 + 1), wOf = new Float32Array(k1 + 1);
+    for (let k = k0; k <= k1; k++) {
+      const p = 12 * Math.log2(k * fs / N / ref) + 69, r = Math.round(p);
+      pcOf[k] = ((r % 12) + 12) % 12;
+      wOf[k] = Math.pow(Math.cos(Math.PI * (p - r)), 2);
+    }
+    const chroma = new Float64Array(12);
+    for (const m of mags) {
+      // Only tonal peaks vote (kick sweeps and noise don't), with square-root weighting so a
+      // note's fundamental outweighs its overtones (the 3rd harmonic of A is an E).
+      const c = new Float64Array(12);
+      for (let k = k0; k <= k1; k++) {
+        if (!(m[k] > m[k - 1] && m[k] >= m[k + 1])) continue;
+        let loc = 0; for (let j = -8; j <= 8; j++) loc += m[Math.min(k1 + 1, Math.max(k0 - 1, k + j))];
+        if (m[k] < 2.5 * loc / 17) continue;
+        c[pcOf[k]] += wOf[k] * Math.sqrt(m[k] / N);
+      }
+      let mx = 0; for (let i = 0; i < 12; i++) if (c[i] > mx) mx = c[i];
+      if (mx > 0) for (let i = 0; i < 12; i++) chroma[i] += c[i] / mx;   // each frame votes equally
+    }
+    // Temperley (Kostka–Payne) profiles, index 0 = tonic
+    const MAJ = [0.748, 0.060, 0.488, 0.082, 0.670, 0.460, 0.096, 0.715, 0.104, 0.366, 0.057, 0.400];
+    const MIN = [0.712, 0.084, 0.474, 0.618, 0.049, 0.460, 0.105, 0.747, 0.404, 0.067, 0.133, 0.330];
+    const corr = (prof, t) => {
+      let mx = 0, mp = 0; for (let i = 0; i < 12; i++) { mx += chroma[(i + t) % 12]; mp += prof[i]; }
+      mx /= 12; mp /= 12;
+      let sxy = 0, sxx = 0, syy = 0;
+      for (let i = 0; i < 12; i++) { const a = chroma[(i + t) % 12] - mx, b = prof[i] - mp; sxy += a * b; sxx += a * a; syy += b * b; }
+      return sxx > 0 ? sxy / Math.sqrt(sxx * syy) : 0;
+    };
+    const cands = [];
+    for (let t = 0; t < 12; t++) { cands.push({ tonic: t, mode: 'major', r: corr(MAJ, t) }); cands.push({ tonic: t, mode: 'minor', r: corr(MIN, t) }); }
+    cands.sort((a, b) => b.r - a.r);
+    if (cands[0].r > 0) out.key = { tonic: cands[0].tonic, mode: cands[0].mode, r: cands[0].r, margin: cands[0].r - cands[1].r, runnerUp: { tonic: cands[1].tonic, mode: cands[1].mode }, tuning };
+  }
+  progress('Detecting tempo and key', 1);
+  return out;
+}
+
+function synthDemo() {
+  const sr = 96000, secs = 12, len = sr * secs, N = 4096, hop = N / 2;
+  const fft = makeFFT(N), cutBin = Math.floor(16000 * N / sr), TAU = 6.283185307179586;
+  let seed = 0x2545F491;
+  function rnd() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
+  function gauss() { const u = rnd() || 1e-12, v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
+  const chords = [[110, 138.6, 164.8, 220], [98, 123.5, 146.8, 196], [87.3, 110, 130.8, 174.6], [82.4, 103.8, 123.5, 164.8]];
+  const win = new Float64Array(N);
+  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(TAU * i / N);
+  const out = [new Float32Array(len), new Float32Array(len)];
+  const re = new Float64Array(N), im = new Float64Array(N);
+  for (let s = 0; s + N <= len; s += hop) {
+    const t = (s + N / 2) / sr;
+    const beat = (t % 0.5) / 0.5, eighth = (t % 0.25) / 0.25;
+    const chord = chords[Math.floor(t / 2) % 4];
+    const hat = Math.exp(-eighth * 14), kick = Math.exp(-beat * 9), swell = 0.75 + 0.25 * Math.sin(t * 0.9);
+    for (let c = 0; c < 2; c++) {
+      re.fill(0); im.fill(0);
+      for (let k = 1; k <= cutBin; k++) {
+        const fr = k * sr / N, tilt = 1 / Math.sqrt(1 + fr / 180);
+        const a = 0.05 * tilt * (fr > 3500 ? (0.25 + 1.6 * hat) : 0.6 * swell);
+        re[k] = gauss() * a; im[k] = gauss() * a;
+      }
+      for (let k = 1; k <= 6; k++) { const a = 3.5 * kick * (1 - k / 7); re[k] += a * gauss(); im[k] += a * gauss(); }
+      for (const f0 of chord) {
+        for (let h = 1; f0 * h < 16000; h++) {
+          const k = Math.round(f0 * h * N / sr), a = 1.2 * swell / Math.pow(h, 0.9), ph = rnd() * TAU;
+          re[k] += a * Math.cos(ph); im[k] += a * Math.sin(ph);
+        }
+      }
+      re[0] = 0; im[0] = 0; re[N / 2] = 0; im[N / 2] = 0;
+      for (let k = 1; k < N / 2; k++) { re[N - k] = re[k]; im[N - k] = -im[k]; }
+      for (let k = 0; k < N; k++) im[k] = -im[k];
+      fft(re, im);
+      const o = out[c];
+      for (let i = 0; i < N; i++) o[s + i] += re[i] * win[i];
+    }
+  }
+  let peak = 0;
+  for (const o of out) for (let i = 0; i < len; i++) { const a = Math.abs(o[i]); if (a > peak) peak = a; }
+  const g = 0.89 / peak;
+  for (const o of out) for (let i = 0; i < len; i++) {
+    let q = Math.round(o[i] * g * 32767 + rnd() - rnd());
+    if (q > 32767) q = 32767; if (q < -32768) q = -32768;
+    o[i] = q / 32768;
+  }
+  return { channels: out, sr, bits: 24 };
+}
+
+function runJob(job, progress) {
+  let nch, len, bits, isInt = false, floatFmt = false, read, sr = job.sr, demoPcm = null;
+  if (job.type === 'demo') {
+    progress('Generating example', 0);
+    const d = synthDemo();
+    const L = d.channels[0], R = d.channels[1];
+    demoPcm = new Int16Array(L.length * 2);   // interleaved copy for the player
+    for (let i = 0; i < L.length; i++) {
+      demoPcm[2 * i] = Math.min(32767, Math.round(L[i] * 32768));
+      demoPcm[2 * i + 1] = Math.min(32767, Math.round(R[i] * 32768));
+    }
+    job = { type: 'float', channels: d.channels, sr: d.sr, bits: d.bits };
+    sr = d.sr;
+  }
+  if (job.type === 'pcm') {
+    const u8 = new Uint8Array(job.buffer), p = job.pcm;
+    nch = p.ch; len = Math.floor(p.len / p.blockAlign);
+    isInt = p.fmt === 'int'; floatFmt = p.fmt === 'float';
+    bits = (p.blockAlign / p.ch) * 8;
+    read = makePcmReader(u8, p);
+  } else {
+    const chs = job.channels;
+    nch = chs.length; len = chs[0].length; bits = job.bits || 0;
+    read = function (i, f) { for (let c = 0; c < nch; c++) f[c] = chs[c][i]; };
+  }
+  if (!len) throw new Error('The file contains no audio samples.');
+  const a = analyzeSamples(nch, len, bits, isInt, floatFmt, read, progress);
+  const s = computeSpectrum(a.mono, sr, { cols: 1600, rows: 1024 }, progress);
+  const music = analyzeMusic(a.mono, sr, progress);
+  return {
+    music,
+    spec: s.spec, cols: s.cols, rows: s.rows, ltas: s.ltas, N: s.N, binHz: s.binHz,
+    stats: a.stats, sr, duration: len / sr, channels: nch, containerBits: bits, demoPcm
+  };
+}
+
+function workerBoot() {
+  self.onmessage = function (e) {
+    if (e.data && e.data.kind === 'ping') { self.postMessage({ kind: 'pong' }); return; }
+    try {
+      let last = 0;
+      const out = runJob(e.data, function (stage, p) {
+        const now = Date.now();
+        if (now - last > 80) { last = now; self.postMessage({ kind: 'progress', stage, p }); }
+      });
+      self.postMessage({ kind: 'done', out }, [out.spec.buffer, out.ltas.buffer].concat(out.demoPcm ? [out.demoPcm.buffer] : []));
+    } catch (err) {
+      self.postMessage({ kind: 'error', message: String((err && err.message) || err) });
+    }
+  };
+}
+
+/* ============================================================
+   Container parsing — what the file claims to be
+   ============================================================ */
+
+const latin1Dec = new TextDecoder('latin1'), utf8Dec = new TextDecoder('utf-8');
+const readStr = (u8, o, n) => { let s = ''; for (let i = 0; i < n && o + i < u8.length; i++) s += String.fromCharCode(u8[o + i]); return s; };
+const utf8 = (u8, a, b) => utf8Dec.decode(u8.subarray(a, Math.min(b, u8.length))).replace(/\u0000+$/g, '');
+const latin1 = u8 => latin1Dec.decode(u8);
+const syncsafe = (u8, o) => ((u8[o] & 127) << 21) | ((u8[o + 1] & 127) << 14) | ((u8[o + 2] & 127) << 7) | (u8[o + 3] & 127);
+const addTag = (tags, k, v) => { v = String(v).trim(); if (!v) return; tags[k] = tags[k] ? tags[k] + ' · ' + v : v; };
+
+function blankInfo() {
+  return { container: 'Unknown', codec: 'Unknown', lossless: null, sampleRate: 0, bits: 0, channels: 0, duration: 0, bitrate: 0, bitrateMode: '', encoder: '', vendor: '', tags: {}, notes: [] };
+}
+
+function parseContainer(u8) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const info = blankInfo();
+  const s4 = readStr(u8, 0, 4);
+  if ((s4 === 'RIFF' || s4 === 'RF64') && readStr(u8, 8, 4) === 'WAVE') parseWav(u8, dv, info);
+  else if (s4 === 'FORM' && /^AIF[FC]$/.test(readStr(u8, 8, 4))) parseAiff(u8, dv, info);
+  else if (readStr(u8, 4, 4) === 'ftyp') parseMp4(u8, dv, info);
+  else if (s4 === 'OggS') parseOgg(u8, dv, info);
+  else if (u8[0] === 0x1A && u8[1] === 0x45 && u8[2] === 0xDF && u8[3] === 0xA3) parseWebm(u8, dv, info);
+  else if (s4 === 'DSD ' || s4 === 'FRM8') {
+    Object.assign(info, { container: s4 === 'DSD ' ? 'DSF' : 'DSDIFF', codec: 'DSD', lossless: true });
+    info.unsupported = 'DSD files can’t be decoded in a browser. Convert to 24-bit / 88.2 kHz FLAC or WAV first (foobar2000 or ffmpeg can do this).';
+  }
+  else if (s4 === 'wvpk') { Object.assign(info, { container: 'WavPack', codec: 'WavPack' }); info.unsupported = 'WavPack can’t be decoded in a browser. Convert to FLAC or WAV first.'; }
+  else if (s4 === 'MAC ') { Object.assign(info, { container: 'Monkey’s Audio', codec: 'APE' }); info.unsupported = 'Monkey’s Audio (APE) can’t be decoded in a browser. Convert to FLAC or WAV first.'; }
+  else {
+    let off = 0;
+    if (readStr(u8, 0, 3) === 'ID3') off = parseId3v2(u8, dv, info.tags);
+    if (readStr(u8, off, 4) === 'fLaC') parseFlac(u8, dv, info, off);
+    else if (u8[off] === 0xFF && (u8[off + 1] & 0xF6) === 0xF0) parseAdts(u8, dv, info, off);
+    else parseMp3(u8, dv, info, off);
+  }
+  return info;
+}
+
+function parseId3v2(u8, dv, tags) {
+  if (readStr(u8, 0, 3) !== 'ID3') return 0;
+  const ver = u8[3], flags = u8[5], size = syncsafe(u8, 6), end = Math.min(u8.length, 10 + size);
+  let p = 10;
+  if (flags & 0x40) p += ver === 4 ? syncsafe(u8, 10) : dv.getUint32(10) + 4;
+  if (ver >= 3) {
+    while (p + 10 <= end) {
+      const id = readStr(u8, p, 4);
+      if (!/^[A-Z0-9]{4}$/.test(id)) break;
+      const fs = ver === 4 ? syncsafe(u8, p + 4) : dv.getUint32(p + 4), b = p + 10;
+      if (fs <= 0 || b + fs > end) break;
+      if (id !== 'APIC' && (id[0] === 'T' || id[0] === 'W' || id === 'COMM')) {
+        try { addTag(tags, id, decodeId3Text(u8, b, fs, id)); } catch (e) { /* skip unreadable frame */ }
+      }
+      p = b + fs;
+    }
+  }
+  return 10 + size + ((flags & 0x10) ? 10 : 0);
+}
+
+function decodeId3Text(u8, b, len, id) {
+  if (id[0] === 'W' && id !== 'WXXX') return readStr(u8, b, len).replace(/\u0000/g, '');
+  const enc = u8[b];
+  let s = b + 1;
+  if (id === 'COMM') s += 3;
+  const bytes = u8.subarray(s, b + len);
+  let text;
+  if (enc === 1) {
+    const leBom = bytes[0] === 0xFF && bytes[1] === 0xFE;
+    text = new TextDecoder(leBom || !(bytes[0] === 0xFE) ? 'utf-16le' : 'utf-16be').decode(bytes.subarray(2));
+  } else if (enc === 2) text = new TextDecoder('utf-16be').decode(bytes);
+  else if (enc === 3) text = utf8Dec.decode(bytes);
+  else text = latin1Dec.decode(bytes);
+  return text.replace(/﻿/g, '').split('\u0000').map(x => x.trim()).filter(Boolean).join(id === 'TXXX' || id === 'WXXX' ? ': ' : ' · ');
+}
+
+function parseWav(u8, dv, info) {
+  Object.assign(info, { container: readStr(u8, 0, 4) === 'RF64' ? 'WAV (RF64)' : 'WAV', codec: 'PCM', lossless: true });
+  let off = 12, fmt = null, data = null, ds64 = null;
+  while (off + 8 <= u8.length) {
+    const id = readStr(u8, off, 4), size = dv.getUint32(off + 4, true), b = off + 8;
+    if (id === 'ds64') ds64 = dv.getUint32(b + 8, true) + dv.getUint32(b + 12, true) * 4294967296;
+    else if (id === 'fmt ') {
+      let tag = dv.getUint16(b, true);
+      const ch = dv.getUint16(b + 2, true), sr = dv.getUint32(b + 4, true), blockAlign = dv.getUint16(b + 12, true), bps = dv.getUint16(b + 14, true);
+      let valid = bps;
+      if (tag === 0xFFFE && size >= 40) { valid = dv.getUint16(b + 18, true) || bps; tag = dv.getUint16(b + 24, true); }
+      fmt = { tag, ch, sr, blockAlign, bps, valid };
+    } else if (id === 'data') {
+      let len = size;
+      if (size === 0xFFFFFFFF && ds64 != null) len = ds64;
+      len = Math.min(len, u8.length - b);
+      data = { off: b, len };
+      off = b + len + (len & 1);
+      continue;
+    } else if (id === 'LIST' && readStr(u8, b, 4) === 'INFO') {
+      let q = b + 4;
+      const names = { ISFT: 'Software', INAM: 'Title', IART: 'Artist', IPRD: 'Album', ICMT: 'Comment', IENG: 'Engineer', ISRC: 'Source' };
+      while (q + 8 <= b + size) {
+        const sid = readStr(u8, q, 4), ss = dv.getUint32(q + 4, true);
+        addTag(info.tags, names[sid] || sid, utf8(u8, q + 8, q + 8 + ss));
+        q += 8 + ss + (ss & 1);
+      }
+    } else if (id === 'bext') {
+      addTag(info.tags, 'BWF description', utf8(u8, b, b + 256));
+      addTag(info.tags, 'BWF originator', utf8(u8, b + 256, b + 288));
+    } else if (id === 'id3 ' || id === 'ID3 ') {
+      parseId3v2(u8.subarray(b, b + size), new DataView(u8.buffer, u8.byteOffset + b, Math.min(size, u8.length - b)), info.tags);
+    }
+    if (size === 0 && id !== 'data') break;
+    off = b + size + (size & 1);
+  }
+  if (!fmt) return;
+  info.sampleRate = fmt.sr; info.channels = fmt.ch; info.bits = fmt.valid;
+  const B = fmt.blockAlign / fmt.ch;
+  const names = { 1: 'PCM', 3: 'PCM (float)', 6: 'A-law', 7: 'µ-law', 0x11: 'IMA ADPCM', 0x55: 'MP3 (inside WAV)', 0xFF: 'AAC (inside WAV)', 0x2000: 'AC-3 (inside WAV)' };
+  info.codec = names[fmt.tag] || 'Format 0x' + fmt.tag.toString(16);
+  if (fmt.tag === 3) info.bitsLabel = fmt.bps + '-bit float';
+  if (fmt.tag === 0x55 || fmt.tag === 0xFF || fmt.tag === 0x2000 || fmt.tag === 0x11) info.lossless = false;
+  if (data) {
+    info.duration = data.len / fmt.blockAlign / fmt.sr;
+    if (fmt.tag === 1 && B >= 1 && B <= 4 && Number.isInteger(B))
+      info.pcm = { fmt: 'int', le: true, off: data.off, len: data.len, ch: fmt.ch, blockAlign: fmt.blockAlign, unsigned8: B === 1 };
+    else if (fmt.tag === 3 && (B === 4 || B === 8))
+      info.pcm = { fmt: 'float', le: true, off: data.off, len: data.len, ch: fmt.ch, blockAlign: fmt.blockAlign };
+  }
+  info.bitrate = fmt.sr * fmt.bps * fmt.ch / 1000;
+}
+
+function ext80(dv, o) {
+  const se = dv.getUint16(o), e = se & 0x7fff, hi = dv.getUint32(o + 2), lo = dv.getUint32(o + 6);
+  if (!e && !hi && !lo) return 0;
+  return (se >> 15 ? -1 : 1) * (hi * 4294967296 + lo) * Math.pow(2, e - 16383 - 63);
+}
+
+function parseAiff(u8, dv, info) {
+  const aifc = readStr(u8, 8, 4) === 'AIFC';
+  Object.assign(info, { container: aifc ? 'AIFF-C' : 'AIFF', codec: 'PCM', lossless: true });
+  let p = 12, comm = null, ssnd = null;
+  while (p + 8 <= u8.length) {
+    const id = readStr(u8, p, 4), size = dv.getUint32(p + 4), b = p + 8;
+    if (id === 'COMM') {
+      comm = { ch: dv.getInt16(b), frames: dv.getUint32(b + 2), ss: dv.getInt16(b + 6), sr: ext80(dv, b + 8), comp: aifc && size >= 22 ? readStr(u8, b + 18, 4) : 'NONE' };
+    } else if (id === 'SSND') {
+      const o = dv.getUint32(b), start = b + 8 + o;
+      ssnd = { off: start, len: Math.min(size - 8 - o, u8.length - start) };
+    } else if (id === 'NAME' || id === 'AUTH' || id === 'ANNO' || id === '(c) ') {
+      addTag(info.tags, { NAME: 'Title', AUTH: 'Author', ANNO: 'Annotation', '(c) ': 'Copyright' }[id], latin1(u8.subarray(b, b + size)));
+    } else if (id === 'ID3 ' || id === 'id3 ') {
+      parseId3v2(u8.subarray(b, b + size), new DataView(u8.buffer, u8.byteOffset + b, Math.min(size, u8.length - b)), info.tags);
+    }
+    if (size === 0 && id !== 'SSND') break;
+    p = b + size + (size & 1);
+  }
+  if (!comm) return;
+  info.sampleRate = Math.round(comm.sr); info.channels = comm.ch; info.bits = comm.ss;
+  info.duration = comm.frames / comm.sr;
+  info.bitrate = comm.sr * comm.ss * comm.ch / 1000;
+  const c = comm.comp;
+  let fmt = null, le = false, bytes = Math.ceil(comm.ss / 8);
+  if (c === 'NONE' || c === 'twos' || c === 'in24' || c === 'in32') fmt = 'int';
+  else if (c === 'sowt') { fmt = 'int'; le = true; }
+  else if (c === 'fl32' || c === 'FL32') { fmt = 'float'; bytes = 4; info.bitsLabel = '32-bit float'; }
+  else if (c === 'fl64' || c === 'FL64') { fmt = 'float'; bytes = 8; info.bitsLabel = '64-bit float'; }
+  else { info.codec = 'AIFF-C ' + c.trim(); if (/alaw|ulaw|ima4|MAC/i.test(c)) info.lossless = false; }
+  if (c === 'in24') bytes = 3; if (c === 'in32') bytes = 4;
+  if (fmt && ssnd && bytes >= 1 && bytes <= 8) info.pcm = { fmt, le, off: ssnd.off, len: ssnd.len, ch: comm.ch, blockAlign: comm.ch * bytes };
+}
+
+function parseStreamInfo(u8, dv, b, info) {
+  info.sampleRate = (u8[b + 10] << 12) | (u8[b + 11] << 4) | (u8[b + 12] >> 4);
+  info.channels = ((u8[b + 12] >> 1) & 7) + 1;
+  info.bits = (((u8[b + 12] & 1) << 4) | (u8[b + 13] >> 4)) + 1;
+  const total = (u8[b + 13] & 15) * 4294967296 + dv.getUint32(b + 14);
+  if (total && info.sampleRate) info.duration = total / info.sampleRate;
+}
+
+function parseVorbisComment(u8, dv, p, info) {
+  const vl = dv.getUint32(p, true);
+  if (vl > 4096 || p + 4 + vl > u8.length) return;
+  info.vendor = utf8(u8, p + 4, p + 4 + vl);
+  p += 4 + vl;
+  const n = dv.getUint32(p, true); p += 4;
+  for (let i = 0; i < Math.min(n, 300); i++) {
+    const L = dv.getUint32(p, true); p += 4;
+    if (L > 200000 || p + L > u8.length) break;
+    const s = utf8(u8, p, p + L); p += L;
+    const eq = s.indexOf('=');
+    if (eq > 0) {
+      const k = s.slice(0, eq).toUpperCase();
+      if (k !== 'METADATA_BLOCK_PICTURE' && k !== 'COVERART') addTag(info.tags, k, s.slice(eq + 1).slice(0, 400));
+    }
+  }
+}
+
+function parseFlac(u8, dv, info, off) {
+  Object.assign(info, { container: 'FLAC', codec: 'FLAC', lossless: true });
+  let p = off + 4;
+  while (p + 4 <= u8.length) {
+    const h = u8[p], type = h & 0x7f, len = (u8[p + 1] << 16) | (u8[p + 2] << 8) | u8[p + 3], b = p + 4;
+    try {
+      if (type === 0) parseStreamInfo(u8, dv, b, info);
+      else if (type === 4) parseVorbisComment(u8, dv, b, info);
+    } catch (e) { /* damaged block */ }
+    p = b + len;
+    if (h & 0x80) break;
+  }
+}
+
+const MP3_BR = {
+  V1L1: [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448],
+  V1L2: [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384],
+  V1L3: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
+  V2L1: [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256],
+  V2L23: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
+};
+function mp3Header(u8, p) {
+  if (p + 4 > u8.length || u8[p] !== 0xFF || (u8[p + 1] & 0xE0) !== 0xE0) return null;
+  const vb = (u8[p + 1] >> 3) & 3, lb = (u8[p + 1] >> 1) & 3, bi = u8[p + 2] >> 4, si = (u8[p + 2] >> 2) & 3, pad = (u8[p + 2] >> 1) & 1, mode = u8[p + 3] >> 6;
+  if (vb === 1 || lb === 0 || bi === 0 || bi === 15 || si === 3) return null;
+  const v1 = vb === 3, layer = 4 - lb;
+  const sr = [44100, 48000, 32000][si] / (vb === 3 ? 1 : vb === 2 ? 2 : 4);
+  const br = (v1 ? MP3_BR['V1L' + layer] : layer === 1 ? MP3_BR.V2L1 : MP3_BR.V2L23)[bi];
+  const spf = layer === 1 ? 384 : layer === 2 ? 1152 : (v1 ? 1152 : 576);
+  const len = layer === 1 ? (Math.floor(12 * br * 1000 / sr) + pad) * 4 : Math.floor(spf / 8 * br * 1000 / sr) + pad;
+  if (len < 16) return null;
+  return { v1, layer, br, sr, spf, len, mode, ch: mode === 3 ? 1 : 2 };
+}
+
+function parseMp3(u8, dv, info, start) {
+  let p = start, h = null;
+  const lim = Math.min(u8.length - 4, start + (1 << 20));
+  for (; p < lim; p++) {
+    h = mp3Header(u8, p);
+    if (h) { const n = mp3Header(u8, p + h.len); if (n && n.sr === h.sr && n.layer === h.layer) break; }
+    h = null;
+  }
+  if (!h) return;
+  Object.assign(info, { container: 'MPEG audio', codec: h.layer === 3 ? 'MP3' : 'MPEG Layer ' + h.layer, lossless: false, sampleRate: h.sr, channels: h.ch });
+  info.channelMode = ['Stereo', 'Joint stereo', 'Dual channel', 'Mono'][h.mode];
+  const side = h.v1 ? (h.ch === 1 ? 17 : 32) : (h.ch === 1 ? 9 : 17);
+  const x = p + 4 + side, tag = readStr(u8, x, 4);
+  let frames = 0, bytes = 0, firstIsTag = false;
+  if (tag === 'Xing' || tag === 'Info') {
+    firstIsTag = true;
+    const fl = dv.getUint32(x + 4);
+    let q = x + 8;
+    if (fl & 1) { frames = dv.getUint32(q); q += 4; }
+    if (fl & 2) { bytes = dv.getUint32(q); q += 4; }
+    if (fl & 4) q += 100;
+    if (fl & 8) q += 4;
+    const enc = readStr(u8, q, 9).replace(/[^\x20-\x7e]/g, '').trim();
+    if (/^(LAME|Lavc|Lavf|GOGO|L3\.9)/.test(enc)) {
+      info.encoder = enc;
+      info.lameMethod = { 1: 'CBR', 2: 'ABR', 3: 'VBR', 4: 'VBR', 5: 'VBR', 6: 'VBR', 8: 'CBR (2-pass)', 9: 'ABR (2-pass)' }[u8[q + 9] & 15] || '';
+      const lp = u8[q + 10] * 100;
+      if (lp) info.lameLowpass = lp;
+    }
+    info.bitrateMode = tag === 'Info' ? 'CBR' : 'VBR';
+  } else if (readStr(u8, p + 36, 4) === 'VBRI') {
+    firstIsTag = true;
+    bytes = dv.getUint32(p + 46); frames = dv.getUint32(p + 50);
+    info.bitrateMode = 'VBR'; info.encoder = 'Fraunhofer (VBRI header)';
+  }
+  let q = firstIsTag ? p + h.len : p, cnt = 0, sum = 0, minB = 1e9, maxB = 0;
+  while (q + 4 <= u8.length) {
+    const f = mp3Header(u8, q);
+    if (!f) break;
+    cnt++; sum += f.br; if (f.br < minB) minB = f.br; if (f.br > maxB) maxB = f.br;
+    q += f.len;
+  }
+  if (!frames) frames = cnt;
+  info.duration = frames * h.spf / h.sr;
+  if (bytes && info.duration) info.bitrate = bytes * 8 / info.duration / 1000;
+  else if (cnt) info.bitrate = sum / cnt;
+  if (!info.bitrateMode) info.bitrateMode = minB === maxB ? 'CBR' : 'VBR';
+  if (info.lameMethod) info.bitrateMode = info.lameMethod;
+}
+
+const AAC_SR = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+function parseAdts(u8, dv, info, off) {
+  const b2 = u8[off + 2], profile = b2 >> 6, sr = AAC_SR[(b2 >> 2) & 15] || 0;
+  Object.assign(info, { container: 'ADTS', codec: profile === 1 ? 'AAC-LC' : 'AAC', lossless: false, sampleRate: sr, channels: ((b2 & 1) << 2) | (u8[off + 3] >> 6) });
+  let q = off, frames = 0, bytes = 0;
+  while (q + 7 <= u8.length && u8[q] === 0xFF && (u8[q + 1] & 0xF6) === 0xF0) {
+    const len = ((u8[q + 3] & 3) << 11) | (u8[q + 4] << 3) | (u8[q + 5] >> 5);
+    if (len < 7) break;
+    frames++; bytes += len; q += len;
+  }
+  if (sr) {
+    info.duration = frames * 1024 / sr;
+    if (info.duration) info.bitrate = bytes * 8 / info.duration / 1000;
+    if (sr <= 24000) { info.decodeRate = sr * 2; info.notes.push('Low AAC core rate: probably HE-AAC (SBR), decoded at ' + fmtRate(sr * 2) + '.'); }
+  }
+}
+
+function parseMp4(u8, dv, info) {
+  info.container = 'MPEG-4';
+  const tags = info.tags, audio = {};
+  let lastMdhd = null, handler = null;
+  const u64 = o => dv.getUint32(o) * 4294967296 + dv.getUint32(o + 4);
+  function ilstItem(type, b, e) {
+    const key = type.replace('©', '©');
+    let q = b, name = key;
+    while (q + 8 <= e) {
+      const s = dv.getUint32(q), t = readStr(u8, q + 4, 4);
+      if (s < 8) break;
+      if (t === 'name') name = utf8(u8, q + 12, q + s);
+      if (t === 'data' && (dv.getUint32(q + 8) & 0xffffff) === 1) addTag(tags, name, utf8(u8, q + 16, q + s).slice(0, 400));
+      q += s;
+    }
+  }
+  function esds(p, e) {
+    const readLen = () => { let len = 0; for (let i = 0; i < 4; i++) { const c = u8[p++]; len = (len << 7) | (c & 0x7f); if (!(c & 0x80)) break; } return len; };
+    while (p < e) {
+      const tag = u8[p++], len = readLen();
+      if (tag === 3) { p += 2; const fl = u8[p++]; if (fl & 0x80) p += 2; if (fl & 0x40) p += 1 + u8[p]; if (fl & 0x20) p += 2; continue; }
+      if (tag === 4) { audio.oti = u8[p]; audio.maxBr = dv.getUint32(p + 5); audio.avgBr = dv.getUint32(p + 9); p += 13; continue; }
+      if (tag === 5) { let aot = u8[p] >> 3; if (aot === 31) aot = 32 + (((u8[p] & 7) << 3) | (u8[p + 1] >> 5)); audio.aot = aot; p += len; continue; }
+      p += len;
+    }
+  }
+  function entryChild(type, b, e) {
+    if (type === 'esds') esds(b + 4, e);
+    else if (type === 'alac') { audio.bits = u8[b + 9]; audio.ch = u8[b + 13]; audio.avgBr = dv.getUint32(b + 20); audio.sr = dv.getUint32(b + 24); }
+    else if (type === 'dOps') audio.opusInput = dv.getUint32(b + 4);
+    else if (type === 'dfLa') { const tmp = {}; parseStreamInfo(u8, dv, b + 8, tmp); audio.sr = tmp.sampleRate; audio.bits = tmp.bits; }
+    else if (type === 'wave') walk(b, e, 'entry');
+  }
+  function sampleEntry(type, b, e) {
+    audio.fourcc = type;
+    const ver = dv.getUint16(b + 8);
+    audio.ch = audio.ch || dv.getUint16(b + 16);
+    audio.ss = dv.getUint16(b + 18);
+    audio.sr = dv.getUint32(b + 24) >>> 16;
+    let c = b + 28;
+    if (ver === 1) c += 16;
+    else if (ver === 2) { audio.sr = Math.round(dv.getFloat64(b + 32)); audio.ch = dv.getUint32(b + 40); audio.ss = dv.getUint32(b + 48); c += 36; }
+    walk(c, e, 'entry');
+  }
+  function walk(start, end, parent) {
+    let off = start;
+    while (off + 8 <= end) {
+      let size = dv.getUint32(off), hdr = 8;
+      const type = readStr(u8, off + 4, 4);
+      if (size === 1) { size = u64(off + 8); hdr = 16; } else if (size === 0) size = end - off;
+      if (size < hdr) break;
+      const b = off + hdr, e = Math.min(end, off + size);
+      if (parent === 'ilst') ilstItem(type, b, e);
+      else if (parent === 'stsd') sampleEntry(type, b, e);
+      else if (parent === 'entry') entryChild(type, b, e);
+      else switch (type) {
+        case 'ftyp':
+          info.brand = readStr(u8, b, 4).trim(); info.compatBrands = [];
+          for (let q = b + 8; q + 4 <= e; q += 4) info.compatBrands.push(readStr(u8, q, 4).trim());
+          break;
+        case 'trak': handler = null; walk(b, e, type); break;
+        case 'moov': case 'mdia': case 'minf': case 'stbl': case 'udta': case 'edts': walk(b, e, type); break;
+        case 'ilst': walk(b, e, 'ilst'); break;
+        case 'meta': walk(readStr(u8, b + 4, 4) === 'hdlr' ? b : b + 4, e, 'meta'); break;
+        case 'mdhd': { const v = u8[b]; lastMdhd = v === 1 ? { ts: dv.getUint32(b + 20), dur: u64(b + 24) } : { ts: dv.getUint32(b + 12), dur: dv.getUint32(b + 16) }; break; }
+        case 'hdlr':
+          if (parent === 'mdia') {
+            handler = readStr(u8, b + 8, 4);
+            if (handler === 'soun' && lastMdhd && !audio.ts) { audio.ts = lastMdhd.ts; audio.dur = lastMdhd.dur; }
+          }
+          break;
+        // Only the first sound track counts; video and subtitle tracks have their own stsd.
+        case 'stsd': if (handler === 'soun' && !audio.fourcc) walk(b + 8, e, 'stsd'); break;
+      }
+      off += size;
+    }
+  }
+  walk(0, u8.length, 'root');
+  const fc = audio.fourcc || '';
+  if (!fc && !audio.ts) { info.codec = 'No audio'; info.unsupported = 'This MP4 has no audio track, only video.'; return; }
+  const aotNames = { 1: 'AAC Main', 2: 'AAC-LC', 5: 'HE-AAC', 29: 'HE-AACv2', 42: 'xHE-AAC' };
+  if (fc === 'mp4a') {
+    if (audio.oti === 0x69 || audio.oti === 0x6B) info.codec = 'MP3';
+    else info.codec = aotNames[audio.aot] || 'AAC';
+    info.lossless = false;
+  } else if (fc === 'alac') { info.codec = 'ALAC'; info.lossless = true; }
+  else if (fc === 'fLaC') { info.codec = 'FLAC'; info.lossless = true; }
+  else if (fc === 'Opus') { info.codec = 'Opus'; info.lossless = false; }
+  else if (fc === 'ac-3' || fc === 'ec-3') { info.codec = fc === 'ac-3' ? 'Dolby Digital' : 'Dolby Digital Plus'; info.lossless = false; }
+  else if (/^(lpcm|sowt|twos|ipcm|fpcm|in24|in32|fl32)$/.test(fc)) { info.codec = 'PCM'; info.lossless = true; }
+  else if (fc) info.codec = fc;
+  let sr = Math.max(audio.sr || 0, audio.ts && audio.ts >= 8000 && audio.ts <= 768000 ? audio.ts : 0);
+  if ((audio.aot === 5 || audio.aot === 29) && sr && sr < 32000) sr *= 2;
+  if (info.codec === 'Opus') { sr = 48000; if (audio.opusInput) info.opusInputRate = audio.opusInput; }
+  info.sampleRate = sr;
+  info.channels = audio.ch || 0;
+  if (info.lossless) info.bits = audio.bits || audio.ss || 0;
+  if (audio.ts && audio.dur) info.duration = audio.dur / audio.ts;
+  if (audio.avgBr) info.bitrate = audio.avgBr / 1000;
+  info.encoder = tags['©too'] || tags['©enc'] || '';
+  info.container = info.brand === 'M4A' ? 'MPEG-4 (M4A)' : 'MPEG-4 (' + (info.brand || '?') + ')';
+}
+
+function parseOgg(u8, dv, info) {
+  info.container = 'Ogg';
+  const pk = 27 + u8[26];
+  let preskip = 0;
+  if (readStr(u8, pk, 7) === '\x01vorbis') {
+    Object.assign(info, { codec: 'Vorbis', lossless: false, channels: u8[pk + 11], sampleRate: dv.getUint32(pk + 12, true) });
+    const nom = dv.getInt32(pk + 20, true);
+    if (nom > 0) info.nominalBitrate = nom / 1000;
+  } else if (readStr(u8, pk, 8) === 'OpusHead') {
+    Object.assign(info, { codec: 'Opus', lossless: false, channels: u8[pk + 9], sampleRate: 48000 });
+    preskip = dv.getUint16(pk + 10, true);
+    info.opusInputRate = dv.getUint32(pk + 12, true);
+  } else if (readStr(u8, pk, 5) === '\x7fFLAC') {
+    Object.assign(info, { codec: 'FLAC', lossless: true });
+    parseStreamInfo(u8, dv, pk + 17, info);
+  }
+  const head = latin1(u8.subarray(0, Math.min(u8.length, 1 << 19)));
+  let i = head.indexOf('OpusTags');
+  try {
+    if (i >= 0) parseVorbisComment(u8, dv, i + 8, info);
+    else if ((i = head.indexOf('\x03vorbis')) >= 0) parseVorbisComment(u8, dv, i + 7, info);
+  } catch (e) { /* comment packet spans pages */ }
+  for (let q = u8.length - 14; q >= Math.max(0, u8.length - 131072); q--) {
+    if (u8[q] === 0x4F && u8[q + 1] === 0x67 && u8[q + 2] === 0x67 && u8[q + 3] === 0x53) {
+      const g = dv.getUint32(q + 6, true) + dv.getUint32(q + 10, true) * 4294967296;
+      if (info.codec === 'Opus') info.duration = (g - preskip) / 48000;
+      else if (info.sampleRate) info.duration = g / info.sampleRate;
+      break;
+    }
+  }
+}
+
+function parseWebm(u8, dv, info) {
+  info.webm = true;
+  const head = latin1(u8.subarray(0, Math.min(u8.length, 1 << 18)));
+  info.container = head.includes('webm') ? 'WebM' : 'Matroska';
+  const codecs = [['A_OPUS', 'Opus', false], ['A_VORBIS', 'Vorbis', false], ['A_AAC', 'AAC', false], ['A_FLAC', 'FLAC', true], ['A_MPEG/L3', 'MP3', false], ['A_PCM', 'PCM', true], ['A_ALAC', 'ALAC', true]];
+  let at = -1;
+  for (const [id, name, ll] of codecs) { at = head.indexOf(id); if (at >= 0) { info.codec = name; info.lossless = ll; break; } }
+  if (at >= 0) {
+    for (let i = at; i < Math.min(u8.length - 10, at + 600); i++) {
+      if (u8[i] === 0xB5 && u8[i + 1] === 0x88) { const v = dv.getFloat64(i + 2); if (v >= 8000 && v <= 768000) { info.sampleRate = Math.round(v); break; } }
+      if (u8[i] === 0xB5 && u8[i + 1] === 0x84) { const v = dv.getFloat32(i + 2); if (v >= 8000 && v <= 768000) { info.sampleRate = Math.round(v); break; } }
+    }
+    for (let i = at; i < Math.min(u8.length - 4, at + 600); i++) {
+      if (u8[i] === 0x62 && u8[i + 1] === 0x64 && u8[i + 2] === 0x81) { info.bits = u8[i + 3]; break; }
+    }
+  }
+  if (info.codec === 'Opus') info.sampleRate = 48000;
+  if (!info.lossless) info.bits = 0;
+}
+
+// Rewrap raw PCM (e.g. big-endian AIFF, which Chrome and Firefox won't play) as a playable WAV.
+function pcmToWav(u8, pcm, sr) {
+  const B = pcm.blockAlign / pcm.ch, n = pcm.len - (pcm.len % pcm.blockAlign);
+  const out = new Uint8Array(44 + n), dv = new DataView(out.buffer);
+  const put = (o, s) => { for (let i = 0; i < 4; i++) out[o + i] = s.charCodeAt(i); };
+  put(0, 'RIFF'); dv.setUint32(4, 36 + n, true); put(8, 'WAVE');
+  put(12, 'fmt '); dv.setUint32(16, 16, true);
+  dv.setUint16(20, pcm.fmt === 'float' ? 3 : 1, true); dv.setUint16(22, pcm.ch, true);
+  dv.setUint32(24, sr, true); dv.setUint32(28, sr * pcm.blockAlign, true);
+  dv.setUint16(32, pcm.blockAlign, true); dv.setUint16(34, B * 8, true);
+  put(36, 'data'); dv.setUint32(40, n, true);
+  const src = u8.subarray(pcm.off, pcm.off + n);
+  if (B === 1) { for (let i = 0; i < n; i++) out[44 + i] = pcm.unsigned8 ? src[i] : (src[i] + 128) & 255; }
+  else if (pcm.le) out.set(src, 44);
+  else for (let i = 0; i < n; i += B) for (let k = 0; k < B; k++) out[44 + i + k] = src[i + B - 1 - k];
+  return new Blob([out], { type: 'audio/wav' });
+}
+
+/* ============================================================
+   Fingerprints — strings rippers, encoders and downloaders leave
+   ============================================================ */
+
+const CLUES = [
+  { kind: 'yt', re: /(?:youtube\.com\/watch\?v=|youtu\.be\/|music\.youtube\.com)[\w\-=?&]{4,}/i, label: 'YouTube URL embedded in the tags' },
+  { kind: 'yt', re: /yt-dlp|youtube-dl/i, label: 'Downloaded with yt-dlp / youtube-dl' },
+  { kind: 'yt', re: /google\/video-file/i, label: 'Google video-file muxer (YouTube)' },
+  { kind: 'yt', re: /4K Video Downloader|ClipGrab|MediaHuman|Freemake|Any Video Converter|y2mate|ytmp3|savefrom|onlinevideoconverter/i, label: 'Video downloader / converter' },
+  { kind: 'stream', re: /soundcloud\.com|SoundCloud/, label: 'SoundCloud' },
+  { kind: 'stream', re: /Audials|Streamripper|Deezloader|deemix|spotdl|SpotDL|Soundiiz/, label: 'Stream recorder / downloader' },
+  { kind: 'store', re: /Qobuz|HDtracks|7digital|TIDAL|Tidal|Deezer|Beatport|Bandcamp|bandcamp\.com|Spotify|Amazon Music/, label: 'Store or streaming service' },
+  { kind: 'mp3', re: /LAME ?3\.\d{2,3}|LAME3\.\d+|Lame 3\.\d+/, label: 'LAME MP3 encoder' },
+  { kind: 'mp3', re: /Fraunhofer|FhG IIS/, label: 'Fraunhofer MP3/AAC encoder' },
+  { kind: 'lossy', re: /Xiph\.Org libVorbis|libvorbis/, label: 'libVorbis encoder' },
+  { kind: 'lossy', re: /libopus \d/, label: 'libopus encoder' },
+  { kind: 'lossy', re: /Nero AAC|Nero Digital/, label: 'Nero AAC encoder' },
+  { kind: 'ffmpeg', re: /Lavf\d+\.\d+\.\d+/, label: 'FFmpeg muxer (libavformat)' },
+  { kind: 'ffmpeg', re: /Lavc\d+\.\d+\.\d+/, label: 'FFmpeg encoder (libavcodec)' },
+  { kind: 'apple', re: /iTunes \d|iTunNORM|Apple Music/, label: 'iTunes / Apple Music' },
+  { kind: 'rip', re: /Exact Audio Copy|EAC V\d/, label: 'Exact Audio Copy (CD ripper)' },
+  { kind: 'rip', re: /X Lossless Decoder|XLD \d/, label: 'XLD (CD ripper)' },
+  { kind: 'rip', re: /CUERipper|CUETools|whipper|morituri|Rubyripper|cdparanoia/, label: 'CD ripper' },
+  { kind: 'rip', re: /dBpoweramp/, label: 'dBpoweramp (ripper / converter)' },
+  { kind: 'tool', re: /foobar2000/i, label: 'foobar2000' },
+  { kind: 'tool', re: /Audacity/, label: 'Audacity' },
+  { kind: 'tool', re: /\bSoX\b|libsoxr/, label: 'SoX resampler' },
+  { kind: 'tool', re: /Adobe Audition|iZotope|Sonic Studio|Saracon|Weiss/, label: 'Mastering / resampling software' },
+  { kind: 'flac', re: /reference libFLAC [\d.]+/, label: 'libFLAC encoder' }
+];
+
+function scanClues(u8, info) {
+  const H = 1 << 20;
+  const head = latin1(u8.subarray(0, Math.min(u8.length, H)));
+  const tail = u8.length > H ? latin1(u8.subarray(Math.max(H, u8.length - 262144))) : '';
+  const text = [head, tail, Object.values(info.tags).join('\n'), info.vendor, info.encoder].join('\n');
+  const found = [];
+  for (const c of CLUES) { const m = text.match(c.re); if (m) found.push({ kind: c.kind, label: c.label, match: m[0].replace(/[^\x20-\x7e]/g, '').slice(0, 70) }); }
+  if (info.brand === 'dash' || (info.compatBrands || []).includes('dash'))
+    found.push({ kind: 'yt', label: 'MP4 “dash” brand: DASH audio as YouTube streams it', match: 'ftyp dash' });
+  if (info.webm) found.push({ kind: 'web', label: 'WebM container, the way YouTube serves Opus', match: info.container + ' / ' + info.codec });
+  return found;
+}
+
+/* ============================================================
+   Verdict — compare what the file claims with what it holds
+   ============================================================ */
+
+function detectCutoff(ltas, binHz, sr) {
+  const n = ltas.length, nyq = sr / 2;
+  const pw = new Float64Array(n + 1);
+  for (let k = 0; k < n; k++) pw[k + 1] = pw[k] + Math.pow(10, ltas[k] / 10);
+  const w = Math.max(1, Math.round(75 / binHz)), sm = new Float32Array(n);
+  for (let k = 0; k < n; k++) {
+    const a = Math.max(0, k - w), b = Math.min(n - 1, k + w);
+    sm[k] = Math.max(-200, 10 * Math.log10((pw[b + 1] - pw[a]) / (b - a + 1) + 1e-30));
+  }
+  const ps = new Float64Array(n + 1);
+  for (let k = 0; k < n; k++) ps[k + 1] = ps[k] + sm[k];
+  const bin = f => Math.max(0, Math.min(n - 1, Math.round(f / binHz)));
+  const mean = (f0, f1) => { const a = bin(f0), b = bin(f1); return b < a ? NaN : (ps[b + 1] - ps[a]) / (b - a + 1); };
+  const pct = (f0, f1, q) => { const arr = Array.from(sm.subarray(bin(f0), bin(f1) + 1)).sort((x, y) => x - y); return arr[Math.floor(q * (arr.length - 1))]; };
+  const globalFloor = pct(1000, nyq * 0.995, 0.05);
+  const ref = pct(200, Math.min(nyq * 0.8, 12000), 0.5);
+
+  let wall = null;
+  const step = Math.max(1, Math.round(50 / binHz));
+  for (let k = bin(nyq - 950); k >= bin(2000); k -= step) {
+    const f = k * binHz, below = mean(f - 900, f - 300), above = mean(f + 300, f + 900);
+    if (below - above < 18) continue;
+    if (mean(f + 300, Math.min(nyq * 0.995, f + 4000)) > globalFloor + 12) continue;
+    const mid = (below + above) / 2;
+    let fc = f;
+    for (let j = bin(f + 900); j >= bin(f - 900); j--) if (sm[j] >= mid) { fc = j * binHz; break; }
+    const b2 = mean(fc - 1200, fc - 400), a2 = mean(fc + 400, Math.min(nyq * 0.995, fc + 1200));
+    wall = { fc, drop: b2 - a2 };
+    break;
+  }
+  // Natural roll-offs sink into the floor gently, so any sustained lift above it counts as content.
+  const thresh = globalFloor + 6, need = Math.max(2, Math.round(400 / binHz));
+  let run = 0, fade = 0;
+  for (let k = n - 1; k >= 0; k--) {
+    if (sm[k] > thresh) { if (++run >= need) { fade = (k + need - 1) * binHz; break; } } else run = 0;
+  }
+  const fc = wall ? wall.fc : fade;
+  const full = fc >= 0.93 * nyq;
+
+  let rising = false;
+  if (nyq > 40000) rising = mean(nyq * 0.75, nyq * 0.95) > mean(24000, 30000) + 6;
+
+  let imaging = null;
+  if (sr >= 88200 && !rising) {
+    for (const r of [44100, 48000]) {
+      const m = r / 2, span = Math.min(m * 0.7, nyq - m - 500);
+      if (span < 3000) continue;
+      let sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, cnt = 0, sad = 0;
+      const dstep = Math.max(binHz, span / 300);
+      for (let d = 1000; d <= span; d += dstep) {
+        const x = sm[bin(m - d)], y = sm[bin(m + d)];
+        sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y; sad += Math.abs(x - y); cnt++;
+      }
+      const cov = sxy / cnt - (sx / cnt) * (sy / cnt), vx = sxx / cnt - (sx / cnt) ** 2, vy = syy / cnt - (sy / cnt) ** 2;
+      const corr = vx > 0 && vy > 0 ? cov / Math.sqrt(vx * vy) : 0;
+      if (corr > 0.85 && sad / cnt < 8 && mean(m + 1000, m + span) > globalFloor + 10) { imaging = { r, corr }; break; }
+    }
+  }
+  return { fc, wall: !!wall, drop: wall ? wall.drop : 0, full, fade, globalFloor, ref, rising, imaging, sm };
+}
+
+const EXPECTED = {
+  MP3: [[64, 11000], [80, 13500], [96, 15100], [112, 15600], [128, 17000], [160, 17500], [192, 18600], [224, 19400], [256, 19700], [320, 20500]],
+  AAC: [[64, 13000], [96, 15000], [128, 16000], [160, 17000], [192, 18000], [256, 19500], [320, 20000]],
+  Vorbis: [[96, 15000], [128, 16500], [160, 18000], [192, 19000], [256, 20000], [320, 21000]],
+  Opus: [[24, 12000], [40, 20000]]
+};
+function expectedCutoff(info) {
+  if (info.lameLowpass) return { hz: info.lameLowpass, why: 'lowpass stored in the LAME header' };
+  const c = info.codec || '';
+  if (/HE-AAC/.test(c)) return null;
+  const fam = /^MP3/.test(c) ? 'MP3' : /^AAC/.test(c) ? 'AAC' : c === 'Vorbis' ? 'Vorbis' : c === 'Opus' ? 'Opus' : null;
+  const br = info.bitrate || info.nominalBitrate;
+  if (!fam || !br) return null;
+  const eff = info.channels === 1 ? br * 1.6 : br;
+  const t = EXPECTED[fam];
+  let hz = t[0][1];
+  for (const [b, f] of t) if (eff >= b * 0.93) hz = f;
+  return { hz: Math.min(hz, info.sampleRate / 2 || hz), why: 'typical for ' + fam + ' at ' + Math.round(br) + ' kbps' };
+}
+
+function lossyGuess(fc, yt) {
+  if (fc < 11500) return { short: 'Very low bitrate lossy', text: 'very low bitrate lossy audio (64 kbps or less), or a 22 kHz source' };
+  if (fc < 14500) return { short: 'Low bitrate MP3/AAC', text: 'low bitrate MP3 or AAC (about 64–96 kbps): old downloads, previews or voice-grade rips' };
+  if (fc < 16600) return { short: yt ? 'YouTube AAC rip' : '128 kbps MP3/AAC', text: '128 kbps AAC or MP3, the classic cutoff of YouTube’s AAC stream (format 140), SoundCloud MP3s and older Fraunhofer encoders' };
+  if (fc < 17600) return { short: '128–160 kbps MP3', text: 'MP3 at about 128–160 kbps (LAME lowpasses at 17.0–17.5 kHz for these rates)' };
+  if (fc < 18900) return { short: '~192 kbps MP3/AAC', text: 'MP3 or AAC at about 192 kbps (LAME lowpasses at 18.6 kHz)' };
+  if (fc < 19600) return { short: '224–256 kbps MP3/AAC', text: 'MP3 at 224–256 kbps or LAME V0, or 256 kbps AAC as sold by iTunes / Apple Music' };
+  if (fc < 20300) return { short: yt ? 'YouTube Opus rip' : 'Opus or MP3 320', text: 'Opus, which always stops at 20 kHz (as in YouTube’s Opus stream, format 251), or a 320 kbps MP3 / 256 kbps AAC' };
+  return { short: '320 kbps MP3', text: 'MP3 at 320 kbps (LAME lowpasses at about 20.5 kHz) or high-quality AAC/Vorbis' };
+}
+
+function findResample(cut, sr) {
+  if (cut.full) return null;
+  let best = null;
+  for (const r of [22050, 24000, 32000, 44100, 48000, 88200, 96000]) {
+    if (r > sr * 0.6) continue;
+    const ratio = cut.fc / (r / 2);
+    if (ratio >= 0.86 && ratio <= 1.01) {
+      const d = Math.abs(ratio - 0.955);
+      if (!best || d < best.d) best = { r, d };
+    }
+  }
+  return best ? best.r : null;
+}
+
+function classify(info, res) {
+  const sr = res.sr, nyq = sr / 2, st = res.stats;
+  const cut = detectCutoff(res.ltas, res.binHz, sr);
+  const F = [];
+  const add = (sev, title, detail) => F.push({ sev, title, detail });
+  const fc = cut.fc, kHz = fmtKHz(fc);
+  const lossless = info.lossless === true;
+  const hiRes = sr > 48000;
+  const kinds = new Set((info.clues || []).map(c => c.kind));
+  const yt = kinds.has('yt');
+  let head = null, origin = null, bwTone = 'ok';
+
+  if (st.silent) {
+    add('info', 'Digital silence', 'Every sample is zero, so there is nothing to measure.');
+    return finishVerdict({ grade: 'info', label: 'Silent', headline: 'This file is silent', sub: 'Every sample is zero.' }, F, cut, info, res, null, 'info');
+  }
+
+  const lossySig = cut.wall && !cut.full && fc < 20800;
+  const resampledFrom = findResample(cut, sr);
+  const edge = fc >= 19600 && cut.drop < 35;
+
+  if (lossless) {
+    if (lossySig) {
+      const g = lossyGuess(fc, yt);
+      origin = g.short;
+      bwTone = edge ? 'warn' : 'bad';
+      add(edge ? 'warn' : 'bad', 'Brick-wall cutoff at ' + kHz,
+        'A lossless ' + fmtRate(sr) + ' file can carry content up to ' + fmtKHz(nyq) + '. Here it drops ' + Math.round(cut.drop) + ' dB within about a kilohertz at ' + kHz + ', which is what a lossy encoder’s lowpass filter leaves behind. Most likely source: ' + g.text + '.' +
+        (edge ? ' Some masters are lowpassed near 20 kHz on purpose, so this one is not conclusive.' : ''));
+      if (!edge) head = { grade: 'bad', label: 'Transcoded', headline: 'Lossy audio in ' + (/^PCM/.test(info.codec) ? 'an ' + info.container.split(' ')[0] : 'a ' + info.codec) + ' wrapper', sub: 'The spectrum stops dead at ' + kHz + ', the signature of ' + g.short.replace(/^\w/, c => c.toLowerCase()) + (hiRes ? ', later upsampled to ' + fmtRate(sr) : '') + '. Converting to lossless can’t restore what the encoder removed.' };
+    } else if (cut.full) {
+      add('ok', 'Content reaches ' + fmtKHz(Math.max(fc, cut.fade)), hiRes ? 'Energy continues well past 24 kHz, beyond anything a CD (22.05 kHz) or 48 kHz master can hold.' : 'The spectrum runs all the way to the ' + fmtKHz(nyq) + ' limit of a ' + fmtRate(sr) + ' file.');
+      origin = hiRes ? 'Hi-res master' : 'Full-band master';
+    } else if (hiRes && resampledFrom) {
+      const bad = resampledFrom <= 48000;
+      bwTone = bad ? 'bad' : 'warn';
+      origin = fmtRate(resampledFrom) + ' source, upsampled';
+      add(bad ? 'bad' : 'warn', 'Content stops at ' + kHz,
+        'Nothing meaningful above ' + kHz + ', just under the ' + fmtKHz(resampledFrom / 2) + ' limit of ' + fmtRate(resampledFrom) + ' audio. The file was upsampled from a ' + fmtRate(resampledFrom) + ' source; the extra samples carry no extra information.' +
+        (bad ? '' : ' It is still hi-res, just not ' + fmtRate(sr) + ' hi-res.'));
+      head = { grade: bad ? 'bad' : 'warn', label: bad ? 'Upsampled' : 'Partly upsampled', headline: (bad ? 'Not hi-res: upsampled from ' : 'Upsampled from ') + fmtRate(resampledFrom), sub: 'The spectrum ends at ' + kHz + ', where a ' + fmtRate(resampledFrom) + ' recording has to stop. The ' + fmtRate(sr) + ' container adds size, not detail.' };
+    } else if (hiRes && fc < 24500) {
+      bwTone = 'warn';
+      origin = 'Band-limited source';
+      add('warn', 'Little content above ' + kHz, 'The spectrum fades out gradually before 24 kHz instead of hitting a wall. That fits an old or analog recording with limited bandwidth, or a CD-rate master converted with a gentle filter. Either way the hi-res sample rate adds nothing here.');
+    } else if (hiRes) {
+      origin = 'Hi-res master';
+      add('ok', 'Content reaches ' + kHz, 'Real content above 24 kHz, which no CD or 48 kHz source can supply.');
+    } else if (fc >= 20800) {
+      origin = sr === 44100 ? 'CD-quality master' : 'Full-band master';
+      add('ok', 'Full bandwidth, to ' + kHz, 'Normal for a lossless ' + fmtRate(sr) + ' file: the top end reaches the converter’s anti-alias filter.');
+    } else {
+      bwTone = 'warn';
+      origin = 'Band-limited source';
+      add('warn', 'Band-limited to about ' + kHz, 'The top end fades out gradually rather than stopping at a wall. That is typical of older recordings or dark masters, and is not a clear lossy fingerprint.');
+    }
+    if (cut.imaging) {
+      add('bad', 'Mirror image above ' + fmtKHz(cut.imaging.r / 2), 'The spectrum above ' + fmtKHz(cut.imaging.r / 2) + ' mirrors the spectrum below it, the mark of upsampling from ' + fmtRate(cut.imaging.r) + ' without a proper anti-imaging filter. That “content” is an artifact.');
+      if (!head) head = { grade: 'bad', label: 'Upsampled', headline: 'Not hi-res: poorly upsampled from ' + fmtRate(cut.imaging.r), sub: 'What looks like ultrasonic content is a mirror image of the audible band.' };
+      origin = fmtRate(cut.imaging.r) + ' source, upsampled';
+    }
+    if (hiRes && cut.rising) add('info', 'Rising ultrasonic noise', 'Noise climbs toward the top of the spectrum. That is typical of DSD-sourced or heavily noise-shaped material; the noise itself is not music.');
+  } else if (info.lossless === false) {
+    const exp = expectedCutoff(info);
+    const br = info.bitrate || info.nominalBitrate;
+    if (exp && !cut.full && fc < exp.hz - 1500 && cut.wall) {
+      const g = lossyGuess(fc, yt);
+      // LAME's lowpass per bitrate is well known; AAC/Vorbis/Opus bandwidth varies by encoder, so only caution there.
+      const sure = /^MP3/.test(info.codec) || !!info.lameLowpass;
+      bwTone = sure ? 'bad' : 'warn';
+      origin = sure ? 'Re-encode of ' + g.short.toLowerCase() : info.codec + ' encode';
+      add(sure ? 'bad' : 'warn', 'Cutoff too low for ' + Math.round(br) + ' kbps', 'An encode at this bitrate would normally keep content up to about ' + fmtKHz(exp.hz) + ' (' + exp.why + '). This one stops at ' + kHz + (sure ? ', so it was probably re-encoded from ' + g.text + '.' : '. That can mean a re-encode of a lower-quality file, or just a conservative encoder.'));
+      if (sure) head = { grade: 'bad', label: 'Fake bitrate', headline: 'Upconverted from a lower-quality file', sub: 'Labelled ' + info.codec + ' ' + Math.round(br) + ' kbps, but the content stops at ' + kHz + ', like ' + g.short.toLowerCase() + '. The extra bitrate stores nothing new.' };
+    } else {
+      origin = info.codec + ' encode';
+      add('ok', 'Bandwidth fits the format', 'Content stops at ' + kHz + (exp ? '; ' + fmtKHz(exp.hz) + ' is ' + exp.why + '.' : '.'));
+    }
+    add('info', 'Lossy by design', info.codec + ' discards information to save space, so it can’t be hi-res whatever its sample rate. Converting it to FLAC or WAV won’t change that.');
+  } else {
+    add('info', 'Format not identified', 'The codec couldn’t be read from the container, so the verdict rests on the spectrum alone.');
+    if (lossySig) {
+      const g = lossyGuess(fc, yt);
+      origin = g.short; bwTone = 'bad';
+      add('bad', 'Brick-wall cutoff at ' + kHz, 'Content drops ' + Math.round(cut.drop) + ' dB within about a kilohertz at ' + kHz + ', the fingerprint of a lossy encoder. Most likely source: ' + g.text + '.');
+      head = { grade: 'bad', label: 'Lossy', headline: 'Lossy audio: content stops at ' + kHz, sub: 'Whatever the container claims, this is ' + g.short.replace(/^\w/, c => c.toLowerCase()) + ' quality, nowhere near hi-res.' };
+    } else if (hiRes && resampledFrom && resampledFrom <= 48000) {
+      bwTone = 'bad'; origin = fmtRate(resampledFrom) + ' source, upsampled';
+      add('bad', 'Content stops at ' + kHz, 'Nothing meaningful above ' + kHz + ', the limit of ' + fmtRate(resampledFrom) + ' audio, so the ' + fmtRate(sr) + ' rate adds nothing.');
+    }
+  }
+
+  // Bit depth
+  const declared = info.bits || 0;
+  let depth = null;
+  if (st.assessed && st.wasted != null && declared) {
+    const eff = Math.min(declared, res.containerBits - st.wasted);
+    depth = { eff, declared };
+    if (eff < declared) {
+      const sev = declared >= 20 && eff <= 16 ? 'bad' : 'warn';
+      add(sev, 'Only ' + eff + ' of ' + declared + ' bits used', 'The lowest ' + (declared - eff) + ' bits are zero in every sample: this is ' + eff + '-bit audio padded out to ' + declared + ' bits. The padding carries nothing.');
+      if (!head && sev === 'bad') head = { grade: 'bad', label: 'Padded', headline: 'Not 24-bit: ' + eff + '-bit audio padded with zeros', sub: 'Every sample’s bottom ' + (declared - eff) + ' bits are empty. The bandwidth may be fine, but the depth is CD-grade.' };
+    } else if (declared >= 20) {
+      add('ok', 'All ' + declared + ' bits in use', 'The low-order bits carry signal. A 16-bit master that had gain or dither applied after conversion would also pass this test, so read it alongside the spectrum.');
+    }
+  } else if (st.floatFmt) {
+    if (st.on16 === 1) { depth = { eff: 16, declared: 32, float: true }; add('bad', '16-bit samples in a float file', 'Every sample lands exactly on the 16-bit grid, so this is 16-bit audio stored as 32-bit float.'); }
+    else if (st.on24 === 1) { depth = { eff: 24, declared: 32, float: true }; add('info', '24-bit samples in a float file', 'Every sample lands exactly on the 24-bit grid.'); }
+  } else if (lossless && declared && !st.assessed) {
+    add('info', 'Bit depth not checked', 'The decoder didn’t return bit-exact samples, so the low bits couldn’t be inspected.');
+  }
+
+  // Provenance clues
+  if (lossless && (kinds.has('mp3') || kinds.has('lossy'))) {
+    add('bad', 'Lossy-encoder tag in a lossless file', 'The file contains a lossy encoder’s signature (' + info.clues.filter(c => c.kind === 'mp3' || c.kind === 'lossy').map(c => c.match).join(', ') + '). The audio probably passed through that encoder before it was saved as ' + info.codec + '.');
+  }
+  if (yt) {
+    add(lossless ? 'bad' : 'warn', 'YouTube fingerprints', 'The container carries marks of a YouTube download (' + info.clues.filter(c => c.kind === 'yt').map(c => c.match).join(', ') + '). YouTube serves at best about 160 kbps Opus or 128 kbps AAC.');
+    if (!origin || lossless) origin = origin && lossySig ? origin : 'YouTube download';
+  }
+  if (hiRes && kinds.has('rip')) add('bad', 'CD-ripper tag in a hi-res file', 'A CD ripper wrote these tags. A CD holds 16-bit / 44.1 kHz audio, so this ' + fmtRate(sr) + ' file was upconverted from a CD.');
+  if (info.codec && /inside WAV/.test(info.codec)) add('bad', info.codec, 'The WAV container holds compressed audio, not PCM.');
+  if (info.opusInputRate && info.opusInputRate !== 48000) add('info', 'Encoder input was ' + fmtRate(info.opusInputRate), 'Opus always decodes at 48 kHz; its header records the rate that was fed into the encoder.');
+
+  // Channels and level
+  if (st.lrIdentical) add('warn', 'Left and right are identical', 'This is mono presented as stereo.');
+  else if (st.lrCorr != null && st.lrCorr > 0.999) add('info', 'Near-mono', 'The two channels are almost identical (correlation ' + st.lrCorr.toFixed(4) + ').');
+  if (st.clipRuns > 20) add('info', st.clipRuns.toLocaleString() + ' clipped passages', 'Runs of full-scale samples: a loud, clipped master. That is a mastering choice, not a sign of a bad source.');
+
+  return finishVerdict(head, F, cut, info, res, depth, bwTone, origin);
+}
+
+function finishVerdict(head, F, cut, info, res, depth, bwTone, origin) {
+  const order = { bad: 0, warn: 1, ok: 2, info: 3 };
+  F.sort((a, b) => order[a.sev] - order[b.sev]);
+  const sr = res.sr, hiRes = sr > 48000, kHz = fmtKHz(cut.fc);
+  if (!head) {
+    const bad = F.find(f => f.sev === 'bad'), warn = F.find(f => f.sev === 'warn');
+    if (bad) head = { grade: 'bad', label: 'Suspect', headline: bad.title, sub: bad.detail };
+    else if (warn) head = { grade: 'warn', label: 'Caution', headline: warn.title, sub: warn.detail };
+    else if (info.lossless == null) head = { grade: 'info', label: 'Unverified', headline: 'No lossy fingerprint, format unknown', sub: 'Content reaches ' + fmtKHz(Math.max(cut.fc, cut.fade)) + ' with no encoder wall, but the codec couldn’t be identified, so this isn’t proof the file is lossless.' };
+    else if (info.lossless === false) head = { grade: 'warn', label: 'Lossy · not hi-res', headline: 'Lossy ' + info.codec + ', not hi-res', sub: 'Content stops at ' + kHz + '. The bandwidth matches what ' + info.codec + (info.bitrate ? ' at ' + Math.round(info.bitrate) + ' kbps' : '') + ' should give, so it isn’t a fake, but the encoder has removed detail and no sample rate can make it hi-res.' };
+    else if (hiRes) head = { grade: 'ok', label: 'Genuine hi-res', headline: 'Real hi-res: content to ' + fmtKHz(Math.max(cut.fc, cut.fade)), sub: 'The spectrum extends well past what a CD or 48 kHz master can hold' + (depth && depth.eff >= 20 ? ', and the low bits carry signal.' : '.') };
+    else head = { grade: 'ok', label: 'Lossless', headline: 'Genuine ' + fmtRate(sr) + ' lossless', sub: 'Full bandwidth with no lossy fingerprints: what you’d expect from a proper CD rip or a lossless download.' };
+  }
+  const expected = info.lossless === true ? { hz: sr / 2, why: 'Nyquist limit' } : info.lossless === false ? expectedCutoff(info) : null;
+  return { ...head, findings: F, cut, depth, bwTone, origin: origin || '—', expected };
+}
+
+/* ============================================================
+   Formatting
+   ============================================================ */
+
+function fmtRate(sr) { return +(sr / 1000).toFixed(2) + ' kHz'; }
+function fmtKHz(hz) { return (hz / 1000).toFixed(1) + ' kHz'; }
+function fmtTime(s, frac) {
+  const m = Math.floor(s / 60), r = s - m * 60;
+  return m + ':' + (frac ? r.toFixed(1).padStart(4, '0') : String(Math.floor(r)).padStart(2, '0'));
+}
+function fmtBytes(b) { if (!b) return '—'; const u = ['B', 'KB', 'MB', 'GB']; let i = 0; while (b >= 1024 && i < 3) { b /= 1024; i++; } return b.toFixed(i ? 1 : 0) + ' ' + u[i]; }
+function fmtDb(v) { return (v < 0 ? '−' : '') + Math.abs(v).toFixed(0) + ' dB'; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+function niceStep(range, maxTicks) {
+  const raw = range / Math.max(1, maxTicks), mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * mag >= raw) return m * mag;
+  return 10 * mag;
+}
+function niceTimeStep(dur, maxTicks) {
+  for (const s of [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200]) if (dur / s <= maxTicks) return s;
+  return 1800;
+}
+function declaredLabel(info) {
+  const parts = [info.codec];
+  if (info.sampleRate) parts.push(fmtRate(info.sampleRate));
+  if (info.lossless) parts.push(info.bitsLabel || (info.bits ? info.bits + '-bit' : '?-bit'));
+  else if (info.bitrate) parts.push(Math.round(info.bitrate) + ' kbps');
+  return parts.join(' · ');
+}
+
+/* ============================================================
+   UI
+   ============================================================ */
+
+const $ = s => document.querySelector(s);
+const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
+const state = { info: null, res: null, verdict: null, img: null, lut: null, dbFloor: -120, palette: 'spek', markers: true, hover: null, ltasHover: null };
+
+const PALETTES = {
+  spek: [[0, '#000000'], [0.16, '#0b0a3c'], [0.33, '#3a0f7a'], [0.5, '#9a1a6e'], [0.66, '#e0402c'], [0.82, '#fca02a'], [0.93, '#fde56b'], [1, '#fffbe6']],
+  inferno: [[0, '#000004'], [0.11, '#1b0c41'], [0.22, '#4a0c6b'], [0.33, '#781c6d'], [0.44, '#a52c60'], [0.55, '#cf4446'], [0.66, '#ed6925'], [0.77, '#fb9b06'], [0.88, '#f7d13d'], [1, '#fcffa4']],
+  ice: [[0, '#000000'], [0.25, '#07203d'], [0.5, '#155a9c'], [0.72, '#3fa1e0'], [0.88, '#a5dcff'], [1, '#ffffff']],
+  gray: [[0, '#000000'], [1, '#ffffff']]
+};
+function buildLut(name) {
+  const stops = PALETTES[name] || PALETTES.spek, lut = new Uint8ClampedArray(256 * 3);
+  const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let j = 0; while (j < stops.length - 2 && t > stops[j + 1][0]) j++;
+    const [p0, c0] = stops[j], [p1, c1] = stops[j + 1], u = Math.min(1, Math.max(0, (t - p0) / (p1 - p0)));
+    const a = rgb(c0), b = rgb(c1);
+    for (let k = 0; k < 3; k++) lut[i * 3 + k] = a[k] + (b[k] - a[k]) * u;
+  }
+  return lut;
+}
+function colors() {
+  const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+  return { ink: g('--ink'), ink2: g('--ink-2'), muted: g('--muted'), line: g('--line'), line2: g('--line-2'), accent: g('--accent'), surface: g('--surface'), raised: g('--raised') };
+}
+
+function buildSpecImage() {
+  const r = state.res; if (!r) return;
+  const { cols, rows, spec } = r, lo = state.dbFloor, span = -lo, lut = state.lut;
+  const cv = state.img || (state.img = document.createElement('canvas'));
+  cv.width = cols; cv.height = rows;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(cols, rows), d = img.data;
+  for (let c = 0; c < cols; c++) {
+    const base = c * rows;
+    for (let y = 0; y < rows; y++) {
+      const v = spec[base + (rows - 1 - y)];
+      let t = (v - lo) / span; t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const li = Math.round(t * 255) * 3, p = (y * cols + c) * 4;
+      d[p] = lut[li]; d[p + 1] = lut[li + 1]; d[p + 2] = lut[li + 2]; d[p + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function fitCanvas(cv) {
+  const rect = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.max(1, Math.round(rect.width * dpr)), H = Math.max(1, Math.round(rect.height * dpr));
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+function freqLabel(f) { return f === 0 ? '0' : +(f / 1000).toFixed(2) + 'k'; }
+
+function drawSpec() {
+  const cv = $('#spec'), { ctx, w, h } = fitCanvas(cv);
+  ctx.clearRect(0, 0, w, h);
+  const r = state.res; if (!r) return;
+  const C = colors(), narrow = w < 560;
+  const m = { l: 46, r: narrow ? 8 : 64, t: 6, b: 24 }, pw = w - m.l - m.r, ph = h - m.t - m.b;
+  state.specRect = { ...m, pw, ph };
+  ctx.fillStyle = '#000'; ctx.fillRect(m.l, m.t, pw, ph);
+  if (state.img) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(state.img, m.l, m.t, pw, ph); }
+  const nyq = r.sr / 2, dur = r.duration;
+  ctx.font = '11px ' + MONO; ctx.fillStyle = C.muted; ctx.strokeStyle = C.line2; ctx.lineWidth = 1;
+  const fs = niceStep(nyq, Math.max(3, Math.floor(ph / 40)));
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let f = 0; f <= nyq + 1; f += fs) {
+    const y = Math.round(m.t + ph - f / nyq * ph) + 0.5;
+    ctx.fillText(freqLabel(f), m.l - 7, Math.min(m.t + ph - 4, Math.max(m.t + 5, y)));
+    ctx.beginPath(); ctx.moveTo(m.l - 4, y); ctx.lineTo(m.l, y); ctx.stroke();
+  }
+  const ts = niceTimeStep(dur, Math.max(2, Math.floor(pw / 80)));
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let t = 0; t <= dur + 1e-6; t += ts) {
+    const x = Math.round(m.l + t / dur * pw) + 0.5;
+    ctx.fillText(fmtTime(t, ts < 1), Math.min(w - m.r - 14, Math.max(m.l + 12, x)), m.t + ph + 7);
+    ctx.beginPath(); ctx.moveTo(x, m.t + ph); ctx.lineTo(x, m.t + ph + 4); ctx.stroke();
+  }
+  const v = state.verdict;
+  if (state.markers && v) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(m.l, m.t, pw, ph); ctx.clip();
+    ctx.setLineDash([2, 4]); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.font = '10px ' + MONO;
+    for (const ref of [16000, 20000, 22050, 24000, 44100, 48000]) {
+      if (ref >= nyq * 0.97) continue;
+      if (v.cut && Math.abs(ref - v.cut.fc) < nyq * 0.02) continue;
+      const y = Math.round(m.t + ph - ref / nyq * ph) + 0.5;
+      ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(m.l + pw, y); ctx.stroke();
+      ctx.fillText(freqLabel(ref), m.l + pw - 4, y - 2);
+    }
+    if (v.cut && (!v.cut.full || v.cut.wall)) {
+      const y = Math.round(m.t + ph - v.cut.fc / nyq * ph) + 0.5;
+      ctx.setLineDash([]); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(m.l + pw, y); ctx.stroke();
+      const label = (v.cut.wall ? 'wall ' : 'fades ') + fmtKHz(v.cut.fc);
+      ctx.font = '600 11px ' + MONO;
+      const tw = ctx.measureText(label).width;
+      const ly = y - 20 < m.t ? y + 4 : y - 20;
+      ctx.fillStyle = C.accent; ctx.fillRect(m.l + 6, ly, tw + 10, 16);
+      ctx.fillStyle = '#06121d'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, m.l + 11, ly + 8.5);
+    }
+    ctx.restore();
+  }
+  if (player.ready && (player.el.currentTime > 0 || !player.el.paused)) {
+    const px = Math.round(m.l + Math.min(1, player.el.currentTime / dur) * pw) + 0.5;
+    ctx.save();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(px, m.t); ctx.lineTo(px, m.t + ph); ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.moveTo(px - 5, m.t); ctx.lineTo(px + 5, m.t); ctx.lineTo(px, m.t + 6); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  if (state.hover) {
+    const { x, y } = state.hover;
+    ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, m.t); ctx.lineTo(Math.round(x) + 0.5, m.t + ph);
+    ctx.moveTo(m.l, Math.round(y) + 0.5); ctx.lineTo(m.l + pw, Math.round(y) + 0.5); ctx.stroke(); ctx.restore();
+  }
+  if (!narrow && state.lut) {
+    const bx = w - m.r + 12, bw = 10, lut = state.lut;
+    for (let i = 0; i < ph; i++) {
+      const li = Math.round((1 - i / (ph - 1)) * 255) * 3;
+      ctx.fillStyle = 'rgb(' + lut[li] + ',' + lut[li + 1] + ',' + lut[li + 2] + ')';
+      ctx.fillRect(bx, m.t + i, bw, 1);
+    }
+    ctx.font = '10px ' + MONO; ctx.fillStyle = C.muted; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const ds = niceStep(-state.dbFloor, Math.max(3, Math.floor(ph / 44)));
+    for (let db = 0; db >= state.dbFloor - 0.01; db -= ds) {
+      const y = m.t + (-db) / (-state.dbFloor) * ph;
+      ctx.fillText(db === 0 ? '0' : '−' + Math.abs(db), bx + bw + 5, Math.min(m.t + ph - 5, Math.max(m.t + 5, y)));
+    }
+  }
+}
+
+function drawLtas() {
+  const cv = $('#ltas'), { ctx, w, h } = fitCanvas(cv);
+  ctx.clearRect(0, 0, w, h);
+  const r = state.res, v = state.verdict; if (!r || !v) return;
+  const C = colors(), sm = v.cut.sm, n = sm.length, binHz = r.binHz, nyq = r.sr / 2;
+  const m = { l: 46, r: 12, t: 12, b: 24 }, pw = w - m.l - m.r, ph = h - m.t - m.b;
+  state.ltasRect = { ...m, pw, ph };
+  let mx = -Infinity;
+  for (let k = Math.max(1, Math.round(30 / binHz)); k < n; k++) if (sm[k] > mx) mx = sm[k];
+  const yMax = Math.ceil((mx + 6) / 10) * 10, yMin = Math.max(-190, Math.min(yMax - 40, Math.floor((v.cut.globalFloor - 12) / 10) * 10));
+  const Y = db => m.t + (yMax - Math.max(yMin, Math.min(yMax, db))) / (yMax - yMin) * ph;
+  const X = f => m.l + f / nyq * pw;
+  ctx.font = '11px ' + MONO; ctx.lineWidth = 1;
+  const ds = niceStep(yMax - yMin, Math.max(3, Math.floor(ph / 36)));
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let db = Math.ceil(yMin / ds) * ds; db <= yMax; db += ds) {
+    const y = Math.round(Y(db)) + 0.5;
+    ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(m.l + pw, y); ctx.stroke();
+    ctx.fillStyle = C.muted; ctx.fillText(db === 0 ? '0' : (db < 0 ? '−' : '') + Math.abs(db), m.l - 7, y);
+  }
+  const fs = niceStep(nyq, Math.max(3, Math.floor(pw / 60)));
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let f = 0; f <= nyq + 1; f += fs) {
+    const x = Math.round(X(f)) + 0.5;
+    ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(x, m.t + ph); ctx.lineTo(x, m.t + ph + 4); ctx.stroke();
+    ctx.fillStyle = C.muted; ctx.fillText(freqLabel(f), Math.min(w - m.r - 10, Math.max(m.l + 8, x)), m.t + ph + 7);
+  }
+  // reference Nyquists
+  ctx.save(); ctx.setLineDash([2, 4]); ctx.strokeStyle = C.line2;
+  for (const ref of [22050, 24000]) {
+    if (ref >= nyq * 0.97) continue;
+    const x = Math.round(X(ref)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, m.t); ctx.lineTo(x, m.t + ph); ctx.stroke();
+  }
+  ctx.restore();
+  // series
+  const pts = [];
+  for (let px = 0; px <= pw; px++) {
+    const k0 = Math.floor(px / pw * nyq / binHz), k1 = Math.max(k0, Math.floor((px + 1) / pw * nyq / binHz));
+    let best = -Infinity;
+    for (let k = k0; k <= Math.min(n - 1, k1); k++) if (sm[k] > best) best = sm[k];
+    pts.push([m.l + px, Y(best)]);
+  }
+  const grad = ctx.createLinearGradient(0, m.t, 0, m.t + ph);
+  grad.addColorStop(0, 'rgba(124,199,255,0.22)'); grad.addColorStop(1, 'rgba(124,199,255,0.02)');
+  ctx.beginPath(); ctx.moveTo(pts[0][0], m.t + ph);
+  for (const [x, y] of pts) ctx.lineTo(x, y);
+  ctx.lineTo(pts[pts.length - 1][0], m.t + ph); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+  ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+  // floor
+  const fy = Math.round(Y(v.cut.globalFloor)) + 0.5;
+  ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = C.muted; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(m.l, fy); ctx.lineTo(m.l + pw, fy); ctx.stroke(); ctx.restore();
+  ctx.fillStyle = C.ink2; ctx.font = '10px ' + MONO; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillText('noise floor ' + fmtDb(v.cut.globalFloor), m.l + pw - 4, fy - 3);
+  // cutoff
+  if (!v.cut.full || v.cut.wall) {
+    const x = Math.round(X(v.cut.fc)) + 0.5;
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x, m.t); ctx.lineTo(x, m.t + ph); ctx.stroke();
+    const label = (v.cut.wall ? 'wall ' : 'fades ') + fmtKHz(v.cut.fc);
+    ctx.font = '600 11px ' + MONO;
+    const tw = ctx.measureText(label).width, left = x + tw + 12 > m.l + pw;
+    ctx.fillStyle = C.ink; ctx.textAlign = left ? 'right' : 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(label, left ? x - 6 : x + 6, m.t + 4);
+  }
+  // hover
+  if (state.ltasHover != null) {
+    const px = Math.max(0, Math.min(pw, state.ltasHover - m.l));
+    const f = px / pw * nyq, k = Math.min(n - 1, Math.round(f / binHz)), y = Y(sm[k]), x = m.l + px;
+    ctx.strokeStyle = C.ink2; ctx.lineWidth = 1; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, m.t); ctx.lineTo(Math.round(x) + 0.5, m.t + ph); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fillStyle = C.accent; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.surface; ctx.stroke();
+    const t1 = (f / 1000).toFixed(2) + ' kHz', t2 = (sm[k] < 0 ? '−' : '') + Math.abs(sm[k]).toFixed(1) + ' dB';
+    ctx.font = '600 11px ' + MONO;
+    const bw = Math.max(ctx.measureText(t1).width, ctx.measureText(t2).width) + 16, bh = 38;
+    let bx = x + 10; if (bx + bw > m.l + pw) bx = x - 10 - bw;
+    let by = Math.min(m.t + ph - bh - 4, Math.max(m.t + 4, y - bh - 8));
+    ctx.fillStyle = C.raised; ctx.strokeStyle = C.line2; ctx.lineWidth = 1;
+    ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+    ctx.fillStyle = C.ink; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(t1, bx + 8, by + 6);
+    ctx.fillStyle = C.ink2; ctx.font = '11px ' + MONO; ctx.fillText(t2, bx + 8, by + 21);
+  }
+}
+
+let rafPending = false;
+function redraw() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; drawSpec(); drawLtas(); drawLive(); });
+}
+
+function renderAll() {
+  const info = state.info, res = state.res, v = state.verdict;
+  const vEl = $('#verdict');
+  vEl.dataset.grade = v.grade;
+  $('#v-pill').textContent = v.label;
+  $('#v-head').textContent = v.headline;
+  $('#v-sub').textContent = v.sub;
+
+  const cut = v.cut;
+  const bw = cut.full && !cut.wall ? fmtKHz(Math.max(cut.fc, cut.fade)) : fmtKHz(cut.fc);
+  const bwSub = cut.wall ? 'sharp wall, −' + Math.round(cut.drop) + ' dB' : cut.full ? 'reaches the top' : 'gradual fade';
+  let depthVal = '—', depthSub = info.lossless === false ? 'not meaningful for lossy' : 'not measured', depthTone = '';
+  if (v.depth) {
+    depthVal = v.depth.eff + '-bit';
+    depthSub = v.depth.float ? 'inside ' + (info.bitsLabel || 'float') : 'of ' + v.depth.declared + ' declared';
+    depthTone = v.depth.eff < v.depth.declared && !v.depth.float ? (v.depth.declared >= 20 && v.depth.eff <= 16 ? 'bad' : 'warn') : v.depth.float && v.depth.eff === 16 ? 'bad' : 'ok';
+  }
+  const exp = v.expected;
+  const cells = [
+    { k: 'Declared', val: declaredLabel(info), sub: info.container },
+    { k: 'Expected bandwidth', val: exp ? 'up to ' + fmtKHz(exp.hz) : '—', sub: exp ? exp.why : info.lossless == null ? 'format unknown' : 'unknown bitrate' },
+    { k: 'Measured bandwidth', val: bw, sub: bwSub, tone: v.bwTone },
+    { k: 'Effective depth', val: depthVal, sub: depthSub, tone: depthTone },
+    { k: 'Likely origin', val: v.origin, sub: info.example ? 'example track' : (info.encoder || info.vendor || 'from spectrum and tags').slice(0, 48) }
+  ];
+  $('#readouts').innerHTML = cells.map(c => `<div data-tone="${c.tone || ''}"><span class="label">${esc(c.k)}</span><span class="val">${esc(c.val)}</span><span class="sub">${esc(c.sub)}</span></div>`).join('');
+
+  const chip = { bad: ['✕', 'Fail'], warn: ['!', 'Caution'], ok: ['✓', 'Pass'], info: ['i', 'Note'] };
+  $('#evidence').innerHTML = v.findings.map(f => `<li class="ev" data-sev="${f.sev}"><span class="chip"><i aria-hidden="true">${chip[f.sev][0]}</i>${chip[f.sev][1]}</span><div><b>${esc(f.title)}</b><p>${esc(f.detail)}</p></div></li>`).join('');
+  const counts = ['bad', 'warn', 'ok'].map(s => [s, v.findings.filter(f => f.sev === s).length]).filter(x => x[1]);
+  $('#ev-count').textContent = counts.map(([s, n]) => n + ' ' + chip[s][1].toLowerCase()).join(' · ');
+  const clues = info.clues || [];
+  $('#clues').innerHTML = clues.length ? clues.map(c => `<span class="clue">${esc(c.label)}<code>${esc(c.match)}</code></span>`).join('') : '<span class="empty">No encoder, ripper or downloader strings found.</span>';
+
+  const facts = [
+    ['File', info.fileName + (info.fileSize ? ' · ' + fmtBytes(info.fileSize) : '')],
+    ['Container', info.container],
+    ['Codec', info.codec + (info.lossless === true ? ' (lossless)' : info.lossless === false ? ' (lossy)' : '')],
+    ['Sample rate', info.sampleRate ? fmtRate(info.sampleRate) : '—'],
+    ['Bit depth', info.bitsLabel || (info.bits ? info.bits + '-bit' : '—')],
+    ['Channels', (info.channels || res.channels) + (info.channelMode ? ' · ' + info.channelMode : '')],
+    ['Duration', fmtTime(info.duration || res.duration, true)],
+    ['Bitrate', info.bitrate ? Math.round(info.bitrate) + ' kbps' + (info.bitrateMode ? ' · ' + info.bitrateMode : '') : info.nominalBitrate ? Math.round(info.nominalBitrate) + ' kbps nominal' : '—'],
+    info.encoder && ['Encoder', info.encoder],
+    info.vendor && ['Vendor', info.vendor],
+    info.lameLowpass && ['LAME lowpass', fmtKHz(info.lameLowpass)],
+    info.opusInputRate && ['Opus input rate', fmtRate(info.opusInputRate)],
+    info.brand && ['MP4 brand', info.brand + (info.compatBrands ? ' (' + info.compatBrands.join(', ') + ')' : '')],
+    ['Peak level', res.stats.peak > 0 ? fmtDb(20 * Math.log10(res.stats.peak)) + 'FS' : '—'],
+    ['Analysis', 'FFT ' + res.N + ' pts · ' + res.binHz.toFixed(1) + ' Hz/bin · ' + res.cols + ' frames'],
+    ...Object.entries(info.tags).slice(0, 16).map(([k, val]) => [k, String(val).slice(0, 240)]),
+    ...info.notes.map(n => ['Note', n])
+  ].filter(Boolean);
+  $('#facts').innerHTML = facts.map(([k, val]) => `<div><dt>${esc(k)}</dt><dd>${esc(val)}</dd></div>`).join('');
+  renderMusic();
+  redraw();
+}
+
+/* tempo & key display */
+const MAJOR_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+const MINOR_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'B♭', 'B'];
+// Position on the circle of fifths, 0 = C major / A minor at the top, clockwise by fifths.
+function fifthsPos(key) { const t = key.mode === 'major' ? key.tonic : (key.tonic + 3) % 12; return (t * 7) % 12; }
+function camelotNum(pos) { return ((pos + 7) % 12) + 1; }          // C major = 8B
+function keyLabel(key, notation) {
+  const pos = fifthsPos(key), major = key.mode === 'major';
+  if (notation === 'camelot') return camelotNum(pos) + (major ? 'B' : 'A');
+  if (notation === 'open') return (pos + 1) + (major ? 'd' : 'm');  // C major = 1d
+  return (major ? MAJOR_NAMES : MINOR_NAMES)[key.tonic] + (major ? ' major' : ' minor');
+}
+function keyAt(pos, mode) {   // inverse of fifthsPos
+  const relMajor = (pos * 7) % 12;
+  return mode === 'major' ? { tonic: relMajor, mode } : { tonic: (relMajor + 9) % 12, mode };
+}
+function shortMusical(key) { return (key.mode === 'major' ? MAJOR_NAMES : MINOR_NAMES)[key.tonic] + (key.mode === 'minor' ? 'm' : ''); }
+state.keyNotation = (() => { try { return localStorage.getItem('speklone.keyNotation') || 'camelot'; } catch (e) { return 'camelot'; } })();
+
+function drawWheel(key) {
+  const svg = $('#wheel'), C = colors(), n = state.keyNotation;
+  const pos = key ? fifthsPos(key) : -1, ring = key ? key.mode : null;
+  const compatible = (p, mode) => key && ((mode === ring && (p === (pos + 1) % 12 || p === (pos + 11) % 12)) || (mode !== ring && p === pos));
+  const wedge = (r0, r1, a0, a1) => {
+    const pt = (r, a) => [100 + r * Math.sin(a), 100 - r * Math.cos(a)].map(v => v.toFixed(2)).join(' ');
+    return `M${pt(r1, a0)} A${r1} ${r1} 0 0 1 ${pt(r1, a1)} L${pt(r0, a1)} A${r0} ${r0} 0 0 0 ${pt(r0, a0)} Z`;
+  };
+  const label = k => n === 'musical' ? shortMusical(k) : keyLabel(k, n);
+  let out = '';
+  for (const [mode, r0, r1] of [['major', 64, 97], ['minor', 32, 63]]) {
+    for (let p = 0; p < 12; p++) {
+      const a0 = (p - 0.5) * Math.PI / 6 + 0.012, a1 = (p + 0.5) * Math.PI / 6 - 0.012, k = keyAt(p, mode);
+      const hit = key && p === pos && mode === ring, near = compatible(p, mode);
+      const fill = hit ? C.accent : near ? 'color-mix(in srgb, ' + C.accent + ' 30%, ' + C.raised + ')' : C.raised;
+      const ink = hit ? '#06121d' : near ? C.ink : C.muted;
+      const rm = (r0 + r1) / 2, am = p * Math.PI / 6;
+      out += `<path d="${wedge(r0, r1, a0, a1)}" fill="${fill}" stroke="${C.surface}" stroke-width="1"><title>${esc(keyLabel(k, 'musical'))} · ${keyLabel(k, 'camelot')} · ${keyLabel(k, 'open')}</title></path>`;
+      out += `<text x="${(100 + rm * Math.sin(am)).toFixed(1)}" y="${(100 - rm * Math.cos(am)).toFixed(1)}" fill="${ink}"${hit ? ' font-weight="700"' : ''}>${esc(label(k))}</text>`;
+    }
+  }
+  out += `<text x="100" y="94" fill="${C.muted}" style="font-size:8px">${n === 'camelot' ? 'CAMELOT' : n === 'open' ? 'OPEN KEY' : 'FIFTHS'}</text>`;
+  out += `<text x="100" y="106" fill="${C.ink}" style="font-size:11px;font-weight:700">${key ? esc(label(key)) : '—'}</text>`;
+  svg.innerHTML = out;
+  svg.setAttribute('aria-label', key ? 'Circle of fifths with ' + keyLabel(key, 'musical') + ' highlighted' : 'Circle of fifths');
+}
+
+function renderMusic() {
+  const m = state.res && state.res.music, n = state.keyNotation;
+  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.n === n)));
+  if (!m) { $('#music').hidden = true; return; }
+  $('#music').hidden = false;
+  if (m.bpm) {
+    const b = m.bpm, show = Math.abs(b - Math.round(b)) < 0.05 ? Math.round(b).toFixed(0) : b.toFixed(1);
+    $('#m-bpm').innerHTML = esc(show) + '<small> BPM</small>';
+    $('#m-bpm-sub').textContent = '½× ' + (b / 2).toFixed(1) + ' · 2× ' + (b * 2).toFixed(1);
+  } else { $('#m-bpm').textContent = '—'; $('#m-bpm-sub').textContent = 'no steady beat found'; }
+  const k = m.key;
+  if (k) {
+    $('#m-key').textContent = keyLabel(k, n);
+    const other = ['camelot', 'open', 'musical'].filter(x => x !== n).map(x => keyLabel(k, x)).join(' · ');
+    $('#m-key-sub').textContent = other;
+    const pos = fifthsPos(k), same = k.mode;
+    const mix = [keyAt((pos + 11) % 12, same), keyAt((pos + 1) % 12, same), keyAt(pos, same === 'major' ? 'minor' : 'major')];
+    $('#m-mix').innerHTML = 'Mixes with <b>' + mix.map(x => esc(keyLabel(x, n))).join('</b> <b>') + '</b>' +
+      (k.margin > 0.05 ? '' : '<br>Close call: could be <b>' + esc(keyLabel(k.runnerUp, n)) + '</b>') +
+      (Math.abs(k.tuning) >= 10 ? '<br>Tuned ' + (k.tuning > 0 ? '+' : '−') + Math.abs(Math.round(k.tuning)) + ' ¢ from A440' : '');
+    $('#m-mix').title = 'Harmonic mixing: one step either way round the wheel, or across to the relative ' + (same === 'major' ? 'minor' : 'major') + '.';
+  } else {
+    $('#m-key').textContent = '—'; $('#m-key-sub').textContent = 'not enough tonal content'; $('#m-mix').textContent = '';
+  }
+  drawWheel(k);
+}
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  state.keyNotation = b.dataset.n;
+  try { localStorage.setItem('speklone.keyNotation', state.keyNotation); } catch (e) { /* storage unavailable */ }
+  renderMusic();
+}));
+
+function setBusy(text, p) {
+  $('#status').hidden = false;
+  $('#status-text').textContent = text;
+  $('#status-pct').textContent = p != null ? Math.round(p * 100) + '%' : '';
+  $('#status-bar').style.width = (p != null ? p * 100 : 0) + '%';
+}
+function setIdle() { $('#status').hidden = true; }
+function progressCb(stage, p) {
+  const weights = { 'Generating example': [0, 0.25], 'Reading samples': [0.25, 0.45], 'Computing spectrum': [0.45, 0.75], 'Detecting tempo and key': [0.75, 1] };
+  const [a, b] = weights[stage] || [0, 1];
+  setBusy(stage + '…', a + (b - a) * p);
+}
+function showError(name, err) {
+  const info = state.pendingInfo;
+  let msg = (err && err.message) || String(err || 'Unknown error');
+  if (!err || (err && err.name === 'EncodingError') || /^(decode failed|null)$/i.test(msg) || /Unable to decode/i.test(msg)) msg = 'The browser couldn’t decode it.';
+  let hint = '';
+  if (info && info.codec === 'ALAC') hint = ' Chrome and Firefox can’t decode ALAC; open it in Safari, or convert it to FLAC.';
+  else if (info && info.container === 'Unknown') hint = ' The format wasn’t recognised. FLAC, WAV, AIFF, M4A, MP3, AAC, Ogg, Opus and WebM are supported.';
+  const el = $('#error');
+  el.innerHTML = '<b>Couldn’t analyze ' + esc(name) + '.</b> ' + esc(msg) + esc(hint);
+  el.hidden = false;
+}
+
+// Some contexts (e.g. file:// pages) refuse blob workers without telling us,
+// so confirm the worker answers before handing it any transferable buffers.
+const worker = { w: null, ready: null };
+function getWorker() {
+  if (worker.ready) return worker.ready;
+  worker.ready = new Promise(resolve => {
+    let w;
+    try {
+      const src = [makeFFT, makePcmReader, analyzeSamples, computeSpectrum, analyzeMusic, synthDemo, runJob].map(f => f.toString()).join('\n\n') + '\n(' + workerBoot.toString() + ')();';
+      w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    } catch (e) { resolve(null); return; }
+    const timer = setTimeout(() => { w.terminate(); resolve(null); }, 2000);
+    w.onmessage = e => { if (e.data && e.data.kind === 'pong') { clearTimeout(timer); resolve(w); } };
+    w.onerror = () => { clearTimeout(timer); resolve(null); };
+    w.postMessage({ kind: 'ping' });
+  });
+  return worker.ready;
+}
+async function runAnalysis(job, transfer) {
+  const w = await getWorker();
+  if (!w) return new Promise((res, rej) => setTimeout(() => { try { res(runJob(job, progressCb)); } catch (e) { rej(e); } }, 30));
+  return new Promise((res, rej) => {
+    w.onmessage = e => {
+      const d = e.data;
+      if (d.kind === 'progress') progressCb(d.stage, d.p);
+      else if (d.kind === 'done') res(d.out);
+      else rej(new Error(d.message));
+    };
+    w.onerror = e => { if (e.preventDefault) e.preventDefault(); worker.ready = null; rej(new Error('The analysis worker stopped: ' + (e.message || 'out of memory?'))); };
+    w.postMessage(job, transfer);
+  });
+}
+
+async function decodeAudio(buf, rate) {
+  const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  let ctx;
+  try { ctx = new Ctx(1, 1, rate); } catch (e) { ctx = new Ctx(1, 1, 48000); }
+  return await new Promise((resolve, reject) => {
+    const p = ctx.decodeAudioData(buf, resolve, e => reject(e || new Error('decode failed')));
+    if (p && p.then) p.then(resolve, e => reject(e || new Error('decode failed')));
+  });
+}
+
+function autoFloor() {
+  const gf = state.verdict.cut.globalFloor;
+  const f = Math.max(-170, Math.min(-80, Math.round((gf - 8) / 10) * 10));
+  state.dbFloor = f;
+  $('#db-floor').value = f;
+  $('#db-floor-val').textContent = fmtDb(f);
+}
+
+/* player */
+const ICON_PLAY = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9.5-5.5z" fill="currentColor"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 1.5h3.2v11H2.5zM8.3 1.5h3.2v11H8.3z" fill="currentColor"/></svg>';
+const player = { el: $('#audio'), url: null, ready: false, seeking: false };
+function playerDuration() { return (state.res && state.res.duration) || player.el.duration || 0; }
+function bindAudio(el) {
+  el.volume = +$('#volume').value;
+  el.addEventListener('loadedmetadata', () => { player.ready = true; updatePlayer(); });
+  el.addEventListener('play', () => { updatePlayer(); requestAnimationFrame(playLoop); });
+  el.addEventListener('pause', () => { live.last = 0; updatePlayer(); redraw(); });
+  el.addEventListener('ended', () => { updatePlayer(); redraw(); });
+  el.addEventListener('timeupdate', updatePlayer);
+  el.addEventListener('error', () => { if (player.url) playerMessage('This browser can’t play this format, but the analysis above is unaffected.'); });
+}
+function setPlayerSource(blob) {
+  player.el.pause();
+  // A media element can feed only one AudioContext, and the live view wants one at
+  // this file's sample rate, so every file gets a fresh element.
+  resetLive();
+  const a = document.createElement('audio');
+  a.id = 'audio'; a.preload = 'auto';
+  bindAudio(a);
+  player.el.replaceWith(a);
+  player.el = a;
+  if (player.url) URL.revokeObjectURL(player.url);
+  player.url = blob ? URL.createObjectURL(blob) : null;
+  player.ready = false;
+  $('#p-msg').hidden = true;
+  if (player.url) { a.src = player.url; a.load(); }
+  $('#play-btn').disabled = !player.url;
+  $('#seek').disabled = !player.url;
+  updatePlayer();
+}
+function updatePlayer() {
+  const a = player.el, d = playerDuration(), t = Math.min(a.currentTime || 0, d || Infinity);
+  $('#p-time').textContent = fmtTime(t) + ' / ' + fmtTime(d);
+  if (!player.seeking) $('#seek').value = d ? Math.round(t / d * 1000) : 0;
+  // Swap the icon only on a state change: replacing it every frame while playing
+  // swallows clicks that start on the old icon, so Pause never registered.
+  const btn = $('#play-btn'), label = a.paused ? 'Play' : 'Pause';
+  if (btn.getAttribute('aria-label') !== label || !btn.firstChild) {
+    btn.innerHTML = a.paused ? ICON_PLAY : ICON_PAUSE;
+    btn.setAttribute('aria-label', label);
+  }
+}
+function playerMessage(text) { const el = $('#p-msg'); el.textContent = text; el.hidden = false; }
+function togglePlay() {
+  const a = player.el;
+  if (!player.url) return;
+  if (a.paused) {
+    if (live.on) startLive();   // inside the click, so the AudioContext may start
+    a.play().catch(() => playerMessage('This browser can’t play this format, but the analysis above is unaffected.'));
+  } else a.pause();
+}
+function seekTo(t, play) {
+  if (!player.url) return;
+  player.el.currentTime = Math.max(0, Math.min(playerDuration(), t));
+  if (play && player.el.paused) togglePlay();
+  updatePlayer(); redraw();
+}
+function playLoop(ts) {
+  if (player.el.paused) return;
+  if (live.on && live.an) captureLive(ts);
+  updatePlayer(); redraw();
+  requestAnimationFrame(playLoop);
+}
+bindAudio(player.el);
+
+/* live view: the playing audio through an AnalyserNode, drawn as a scrolling spectrogram */
+const live = { on: false, ctx: null, an: null, el: null, buf: null, peak: null, img: null, ictx: null, col: null, W: 720, rows: 0, drawn: false, last: 0, acc: 0, error: '' };
+function resetLive() {
+  if (live.ctx) { try { live.ctx.close(); } catch (e) { /* already closed */ } }
+  Object.assign(live, { ctx: null, an: null, el: null, drawn: false, last: 0, acc: 0, error: '' });
+}
+function startLive() {
+  if (live.el === player.el && live.an) { if (live.ctx.state === 'suspended') live.ctx.resume(); return; }
+  if (!state.res || !player.url) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) { live.error = 'This browser has no Web Audio support.'; return; }
+  const build = rate => {
+    const ctx = rate ? new AC({ sampleRate: rate }) : new AC();
+    try {
+      const src = ctx.createMediaElementSource(player.el), an = ctx.createAnalyser();
+      an.fftSize = ctx.sampleRate > 100000 ? 16384 : ctx.sampleRate > 50000 ? 8192 : 4096;
+      an.smoothingTimeConstant = 0;
+      an.minDecibels = -190; an.maxDecibels = 10;
+      src.connect(an); an.connect(ctx.destination);
+      return { ctx, an };
+    } catch (e) { ctx.close(); throw e; }
+  };
+  let chain = null;
+  try { chain = build(state.res.sr); } catch (e) { try { chain = build(0); } catch (e2) { live.error = 'The live view couldn’t attach to the player: ' + e2.message; return; } }
+  const rows = Math.min(512, chain.an.frequencyBinCount);
+  const img = document.createElement('canvas');
+  img.width = live.W; img.height = rows;
+  const ictx = img.getContext('2d');
+  ictx.fillStyle = '#000'; ictx.fillRect(0, 0, live.W, rows);
+  Object.assign(live, chain, { el: player.el, rows, img, ictx, col: ictx.createImageData(1, rows), buf: new Float32Array(chain.an.frequencyBinCount), peak: new Float32Array(rows), drawn: false, error: '' });
+  const nyq = chain.ctx.sampleRate / 2, fileNyq = state.res.sr / 2;
+  $('#live-note').textContent = nyq < fileNyq * 0.99
+    ? 'Limited to ' + fmtKHz(nyq) + ' by your audio output; the file goes to ' + fmtKHz(fileNyq) + '.'
+    : 'What’s sounding now, scrolling right to left.';
+  if (chain.ctx.state === 'suspended') chain.ctx.resume();
+}
+// AnalyserNode scales by 1/N with a Blackman window (coherent gain 0.42); lift it so a
+// full-scale sine reads 0 dB, matching the main spectrogram.
+const LIVE_OFFSET = 20 * Math.log10(2 / 0.42);
+// Scroll by wall-clock time, not frames, so the window is the same on 60 and 120 Hz screens.
+const LIVE_COLS_PER_SEC = 60;
+function captureLive(ts) {
+  live.acc = (live.acc || 0) + (live.last ? Math.min(250, ts - live.last) : 1000 / LIVE_COLS_PER_SEC) * LIVE_COLS_PER_SEC / 1000;
+  live.last = ts;
+  const steps = Math.floor(live.acc);
+  if (steps < 1) return;
+  live.acc -= steps;
+  live.an.getFloatFrequencyData(live.buf);
+  const { buf, peak, rows, col, ictx, W } = live, n = buf.length, lo = state.dbFloor, lut = state.lut, d = col.data;
+  peak.fill(-Infinity);
+  for (let k = 0; k < n; k++) { const r = Math.floor(k * rows / n), v = buf[k]; if (v > peak[r]) peak[r] = v; }
+  for (let y = 0; y < rows; y++) {
+    let t = (peak[rows - 1 - y] + LIVE_OFFSET - lo) / -lo;
+    t = t > 0 ? (t < 1 ? t : 1) : 0;
+    const li = Math.round(t * 255) * 3, p = y * 4;
+    d[p] = lut[li]; d[p + 1] = lut[li + 1]; d[p + 2] = lut[li + 2]; d[p + 3] = 255;
+  }
+  ictx.drawImage(live.img, -steps, 0);
+  for (let s = 1; s <= steps; s++) ictx.putImageData(col, W - s, 0);
+  live.drawn = true;
+}
+function drawLive() {
+  if (!live.on) return;
+  const cv = $('#live'), { ctx, w, h } = fitCanvas(cv);
+  ctx.clearRect(0, 0, w, h);
+  const C = colors(), R = state.specRect;
+  const m = { l: 46, r: R ? R.r : 64, t: 6, b: 24 }, pw = w - m.l - m.r, ph = h - m.t - m.b;
+  ctx.fillStyle = '#000'; ctx.fillRect(m.l, m.t, pw, ph);
+  ctx.font = '11px ' + MONO;
+  if (!live.drawn) {
+    ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(live.error || (player.url ? 'Press play to see what’s sounding right now' : 'Open a file to use the live view'), m.l + pw / 2, m.t + ph / 2);
+    return;
+  }
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(live.img, m.l, m.t, pw, ph);
+  const nyq = live.ctx.sampleRate / 2;
+  ctx.fillStyle = C.muted; ctx.strokeStyle = C.line2; ctx.lineWidth = 1;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  const fs = niceStep(nyq, Math.max(2, Math.floor(ph / 40)));
+  for (let f = 0; f <= nyq + 1; f += fs) {
+    const y = Math.round(m.t + ph - f / nyq * ph) + 0.5;
+    ctx.fillText(freqLabel(f), m.l - 7, Math.min(m.t + ph - 4, Math.max(m.t + 5, y)));
+    ctx.beginPath(); ctx.moveTo(m.l - 4, y); ctx.lineTo(m.l, y); ctx.stroke();
+  }
+  const span = live.W / LIVE_COLS_PER_SEC;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left'; ctx.fillText('−' + span.toFixed(0) + ' s', m.l, m.t + ph + 7);
+  ctx.textAlign = 'right'; ctx.fillText('now', m.l + pw, m.t + ph + 7);
+  if (state.markers && state.verdict && state.verdict.cut && (!state.verdict.cut.full || state.verdict.cut.wall) && state.verdict.cut.fc < nyq) {
+    const y = Math.round(m.t + ph - state.verdict.cut.fc / nyq * ph) + 0.5;
+    ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = C.accent;
+    ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(m.l + pw, y); ctx.stroke(); ctx.restore();
+  }
+}
+function setLive(on) {
+  live.on = on;
+  $('#live-wrap').hidden = !on;
+  document.body.classList.toggle('live-on', on);
+  $('#live-toggle').checked = on;
+  try { localStorage.setItem('speklone.live', on ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+  if (on && !player.el.paused) startLive();
+  redraw();
+}
+$('#live-toggle').addEventListener('change', e => setLive(e.target.checked));
+try { if (localStorage.getItem('speklone.live') === '1') setLive(true); } catch (e) { /* storage unavailable */ }
+new ResizeObserver(redraw).observe($('#live-box'));
+
+/* stems: HT-Demucs (ONNX) through onnxruntime-web, 7.8 s chunks with overlap-add */
+const ORT_URL = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.webgpu.min.mjs';
+const MODEL_FILE = 'htdemucs_fp16weights.onnx';
+const MODEL_HF = 'https://huggingface.co/StemSplitio/htdemucs-onnx/resolve/main/' + MODEL_FILE;
+const STEM_SR = 44100, STEM_N = 343980, STEM_OVERLAP = Math.floor(STEM_N / 4), STEM_STRIDE = STEM_N - STEM_OVERLAP;
+const STEMS = [{ name: 'Drums', c: '#ff9f5a' }, { name: 'Bass', c: '#a78bfa' }, { name: 'Other', c: '#4fd1c5' }, { name: 'Vocals', c: '#f472b6' }];
+const stems = { data: null, sel: new Set([0, 1, 2, 3]), running: false, cancel: false, ort: null, session: null, ep: '' };
+const ICON_DL = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/></svg>';
+
+function showStems(which) {
+  for (const id of ['idle', 'busy', 'ready']) $('#stems-' + id).hidden = id !== which;
+}
+function stemStatus(text, p) {
+  $('#stems-status').textContent = text;
+  $('#stems-bar').style.width = (p == null ? 0 : Math.round(p * 1000) / 10) + '%';
+}
+function resetStems() {
+  stems.cancel = true;
+  if (stems.running && stemWorker) stemWorker.postMessage({ type: 'cancel' });
+  stems.data = null; stems.sel = new Set([0, 1, 2, 3]);
+  refreshStemHint();
+  showStems('idle');
+}
+function fmtEta(s) { return s < 60 ? Math.max(1, Math.round(s)) + ' s' : Math.floor(s / 60) + ' min ' + String(Math.round(s % 60)).padStart(2, '0') + ' s'; }
+
+// The whole separation (model download, session, chunk loop) runs in a module worker,
+// so the page stays responsive and GPU/CPU choice happens where the inference runs.
+const STEM_WORKER_SRC = `
+let ort = null, session = null, ep = '', cancel = false, modelBytes = null;
+const N = ${STEM_N}, OVERLAP = ${STEM_OVERLAP}, STRIDE = ${STEM_STRIDE};
+const post = (m, t) => self.postMessage(m, t || []);
+async function gpuUsable() {
+  try {
+    if (!self.navigator.gpu) return false;
+    const a = await navigator.gpu.requestAdapter();
+    if (!a) return false;
+    const info = a.info || {};
+    // A software adapter (SwiftShader) is far slower than multithreaded CPU inference.
+    return !(a.isFallbackAdapter || info.isFallbackAdapter || /swiftshader|llvmpipe|software/i.test((info.description || '') + (info.architecture || '') + (info.vendor || '')));
+  } catch (e) { return false; }
+}
+async function init(msg) {
+  if (session) return post({ type: 'ready', ep });
+  if (!ort) { ort = await import(msg.ortUrl); ort.env.wasm.numThreads = msg.threads; }
+  if (!modelBytes) modelBytes = patchFloat64(await download(msg)).bytes;
+  post({ type: 'progress', stage: 'prepare' });
+  const bytes = modelBytes, opts = { graphOptimizationLevel: 'all' };
+  const gpu = await gpuUsable();
+  // Without a GPU the browser can't fit this model in WebAssembly's 4 GB, so say so up front.
+  if (!gpu && msg.device !== 'cpu') throw new Error('no-gpu');
+  if (ep !== 'CPU-only' && msg.device !== 'cpu' && gpu) {
+    try { session = await ort.InferenceSession.create(bytes, { ...opts, executionProviders: ['webgpu', 'wasm'] }); ep = 'GPU'; }
+    catch (e) { session = null; }
+  }
+  // No arena / memory-pattern planning on the CPU path: both over-reserve, and WebAssembly has only 4 GB.
+  if (!session) { session = await ort.InferenceSession.create(bytes, { ...opts, enableCpuMemArena: false, enableMemPattern: false, executionMode: 'sequential', executionProviders: ['wasm'] }); ep = 'CPU'; }
+  post({ type: 'ready', ep });
+}
+// The model comes straight from Hugging Face (CORS-enabled) and is kept in Cache Storage,
+// so only the first separation on a device pays for the 166 MB download.
+async function download(msg) {
+  let cache = null;
+  try { cache = self.caches ? await caches.open(msg.cacheName) : null; } catch (e) { cache = null; }
+  if (cache) {
+    const hit = await cache.match(msg.modelUrl);
+    if (hit) { post({ type: 'progress', stage: 'cache' }); return new Uint8Array(await hit.arrayBuffer()); }
+  }
+  const res = await fetch(msg.modelUrl);
+  if (!res.ok) throw new Error('model download failed (' + res.status + ')');
+  const total = Number(res.headers.get('content-length')) || msg.size;
+  const reader = res.body.getReader(), parts = [];
+  let got = 0, last = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(value); got += value.length;
+    if (got - last > 2e6) { last = got; post({ type: 'progress', stage: 'download', got, total }); }
+    if (cancel) { reader.cancel(); throw new Error('cancelled'); }
+  }
+  if (got !== total) throw new Error('model download was cut short, try again');
+  const bytes = new Uint8Array(got);
+  for (let o = 0, i = 0; i < parts.length; o += parts[i].length, i++) bytes.set(parts[i], o);
+  if (cache) {
+    try { await cache.put(msg.modelUrl, new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(got) } })); }
+    catch (e) { /* storage full or refused: separation still works, it just downloads again next time */ }
+  }
+  return bytes;
+}
+// onnxruntime-web ships without float64 kernels, but the HT-Demucs export does its iSTFT
+// overlap-add in float64. Rewrite every float64 tensor attribute (Constant, ConstantOfShape
+// values) as float32 directly in the protobuf; float32 is plenty for that arithmetic.
+function patchFloat64(b) {
+  function varint(p) { let x = 0, s = 1, c; do { c = b[p++]; x += (c & 127) * s; s *= 128; } while (c & 128); return [x, p]; }
+  function enc(x) { const o = []; while (x >= 128) { o.push((x % 128) | 128); x = Math.floor(x / 128); } o.push(x); return o; }
+  function fields(s, e) {
+    const f = [];
+    for (let p = s; p < e;) {
+      const st = p; let key; [key, p] = varint(p);
+      const no = Math.floor(key / 8), wt = key & 7; let vs = p;
+      if (wt === 0) [, p] = varint(p);
+      else if (wt === 1) p += 8;
+      else if (wt === 5) p += 4;
+      else if (wt === 2) { let L; [L, p] = varint(p); vs = p; p += L; }
+      else throw new Error('unexpected protobuf wire type ' + wt);
+      f.push({ no, wt, st, vs, end: p });
+    }
+    return f;
+  }
+  const lenField = (no, bytes) => [Uint8Array.from(enc(no * 8 + 2)), Uint8Array.from(enc(bytes.length)), bytes];
+  const cat = parts => { let n = 0; for (const x of parts) n += x.length; const o = new Uint8Array(n); let p = 0; for (const x of parts) { o.set(x, p); p += x.length; } return o; };
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  function tensor(s, e) {
+    const f = fields(s, e);
+    const dt = f.find(x => x.no === 2 && x.wt === 0);
+    if (!dt || varint(dt.vs)[0] !== 11) return null;   // 11 = DOUBLE
+    const parts = [], doubles = [];
+    for (const x of f) {
+      if (x.no === 2) parts.push(Uint8Array.from([16, 1]));   // data_type = FLOAT
+      else if (x.no === 9) {                                   // raw_data: 8-byte doubles -> 4-byte floats
+        const n = (x.end - x.vs) / 8, out = new Uint8Array(n * 4), od = new DataView(out.buffer);
+        for (let i = 0; i < n; i++) od.setFloat32(i * 4, dv.getFloat64(x.vs + i * 8, true), true);
+        parts.push(...lenField(9, out));
+      } else if (x.no === 10) {                                // double_data, packed or not
+        if (x.wt === 2) for (let p = x.vs; p < x.end; p += 8) doubles.push(dv.getFloat64(p, true));
+        else doubles.push(dv.getFloat64(x.vs, true));
+      } else parts.push(b.subarray(x.st, x.end));
+    }
+    if (doubles.length) {
+      const out = new Uint8Array(doubles.length * 4), od = new DataView(out.buffer);
+      doubles.forEach((v, i) => od.setFloat32(i * 4, v, true));
+      parts.push(...lenField(9, out));
+    }
+    return cat(parts);
+  }
+  // Rebuild a message only where a child changed; untouched fields are copied as-is.
+  function message(s, e, childNo, child) {
+    const f = fields(s, e);
+    let changed = false;
+    const parts = f.map(x => {
+      if (x.no === childNo && x.wt === 2) {
+        const r = child(x.vs, x.end);
+        if (r) { changed = true; return cat(lenField(x.no, r)); }
+      }
+      return b.subarray(x.st, x.end);
+    });
+    return changed ? cat(parts) : null;
+  }
+  let count = 0;
+  const attr = (s, e) => { const r = message(s, e, 5, tensor); if (r) count++; return r; };   // AttributeProto.t
+  const node = (s, e) => message(s, e, 5, attr);                                              // NodeProto.attribute
+  const graph = (s, e) => message(s, e, 1, node);                                             // GraphProto.node
+  const model = message(0, b.length, 7, graph);                                               // ModelProto.graph
+  return { bytes: model || b, count };
+}
+async function separate(L, R) {
+  const total = L.length, nChunks = Math.max(1, Math.ceil(total / STRIDE));
+  const out = [0, 1, 2, 3].map(() => [new Float32Array(total), new Float32Array(total)]);
+  const weight = new Float32Array(total), win = new Float32Array(N).fill(1);
+  for (let i = 0; i < OVERLAP; i++) { const v = i / OVERLAP; win[i] = v; win[N - 1 - i] = v; }
+  const t0 = performance.now();
+  for (let i = 0; i < nChunks; i++) {
+    await new Promise(r => setTimeout(r, 0));   // let a cancel message in
+    if (cancel) throw new Error('cancelled');
+    post({ type: 'progress', stage: 'run', i, n: nChunks, elapsed: (performance.now() - t0) / 1000, ep });
+    const start = i * STRIDE, end = Math.min(start + N, total), len = end - start;
+    const input = new Float32Array(2 * N);
+    input.set(L.subarray(start, end), 0);
+    input.set(R.subarray(start, end), N);
+    let result;
+    try { result = await session.run({ mix: new ort.Tensor('float32', input, [1, 2, N]) }); }
+    catch (e) {
+      if (ep !== 'GPU' || i > 0) throw e;
+      // GPU session built but can't run this graph: rebuild on CPU once.
+      session = null; ep = 'CPU-only'; throw new Error('retry-cpu');
+    }
+    const y = result.stems.data;   // (1, 4, 2, N): drums, bass, other, vocals
+    for (let s = 0; s < 4; s++) for (let c = 0; c < 2; c++) {
+      const row = (s * 2 + c) * N, dst = out[s][c];
+      for (let k = 0; k < len; k++) dst[start + k] += y[row + k] * win[k];
+    }
+    for (let k = 0; k < len; k++) weight[start + k] += win[k];
+    if (result.stems.dispose) result.stems.dispose();
+  }
+  for (const st of out) for (const ch of st) for (let k = 0; k < total; k++) ch[k] /= Math.max(weight[k], 1e-8);
+  return out;
+}
+self.onmessage = async e => {
+  const m = e.data;
+  if (m.type === 'cancel') { cancel = true; return; }
+  cancel = false;
+  try {
+    if (m.type === 'init') await init(m);
+    else if (m.type === 'run') {
+      const out = await separate(m.L, m.R);
+      post({ type: 'done', out }, out.flat().map(a => a.buffer));
+    }
+  } catch (err) {
+    post({ type: 'error', message: String((err && err.message) || err) });
+  }
+};`;
+let stemWorker = null;
+function stemCall(msg, transfer) {
+  if (!stemWorker) stemWorker = new Worker(URL.createObjectURL(new Blob([STEM_WORKER_SRC], { type: 'text/javascript' })), { type: 'module' });
+  return new Promise((resolve, reject) => {
+    stemWorker.onmessage = e => {
+      const d = e.data;
+      if (d.type === 'progress') {
+        if (d.stage === 'download') stemStatus('Downloading the separation model… ' + Math.round(d.got / 1e6) + ' / ' + Math.round(d.total / 1e6) + ' MB', d.got / d.total);
+        else if (d.stage === 'prepare') stemStatus('Preparing the model on your graphics chip…', null);
+        else if (d.stage === 'cache') stemStatus('Loading the saved model…', null);
+        else stemStatus('Separating on ' + d.ep + ' · chunk ' + (d.i + 1) + ' of ' + d.n + (d.i ? ' · about ' + fmtEta(d.elapsed / d.i * (d.n - d.i)) + ' left' : ''), d.i / d.n);
+      } else if (d.type === 'error') reject(new Error(d.message));
+      else resolve(d);
+    };
+    stemWorker.onerror = e => { e.preventDefault(); stemWorker = null; reject(new Error(e.message || 'the separation worker stopped')); };
+    stemWorker.postMessage(msg, transfer || []);
+  });
+}
+const MODEL_CACHE = 'speklone-models-v1';
+async function loadStemModel() {
+  stemStatus('Loading the separation engine…', null);
+  // Ask once for persistent storage so the browser doesn't evict the cached model under pressure.
+  try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) { /* not granted: still works */ }
+  let device = 'auto';
+  try { device = localStorage.getItem('speklone.stemDevice') || 'auto'; } catch (e) { /* storage unavailable */ }
+  const r = await stemCall({ type: 'init', ortUrl: ORT_URL, modelUrl: MODEL_HF, cacheName: MODEL_CACHE, size: 165612636, device, threads: self.crossOriginIsolated ? Math.min(8, navigator.hardwareConcurrency || 4) : 1 });
+  stems.ep = r.ep;
+}
+async function modelCached() {
+  try { return !!(self.caches && await (await caches.open(MODEL_CACHE)).match(MODEL_HF)); } catch (e) { return false; }
+}
+async function refreshStemHint() {
+  const hint = $('#stems-hint'), cached = await modelCached();
+  hint.innerHTML = 'Split into drums, bass, other and vocals with HT-Demucs, right here in your browser. ' +
+    (cached ? 'Model saved on this device (166 MB) · <button type="button" class="linkish" id="stems-forget">Remove</button>'
+            : 'The first run downloads a 166 MB model and keeps it for next time.');
+  const f = $('#stems-forget');
+  if (f) f.addEventListener('click', async () => {
+    try { await caches.delete(MODEL_CACHE); } catch (e) { /* nothing to remove */ }
+    if (stemWorker) { stemWorker.terminate(); stemWorker = null; }
+    refreshStemHint();
+  });
+}
+
+async function decodeForStems(blob) {
+  // The model is bound to 44.1 kHz stereo; the browser resamples while decoding.
+  const ab = await decodeAudio(await blob.arrayBuffer(), STEM_SR);
+  const L = ab.getChannelData(0), R = ab.numberOfChannels > 1 ? ab.getChannelData(1) : L;
+  return [new Float32Array(L), new Float32Array(R)];
+}
+
+async function separateStems(mix) {
+  try {
+    const r = await stemCall({ type: 'run', L: mix[0], R: mix[1] });
+    return [[r.out[0][0], r.out[0][1]], [r.out[1][0], r.out[1][1]], [r.out[2][0], r.out[2][1]], [r.out[3][0], r.out[3][1]]];
+  } catch (e) {
+    if (e.message !== 'retry-cpu') throw e;
+    await loadStemModel();                           // the worker rebuilds on CPU
+    return separateStems(mix);
+  }
+}
+
+async function runSeparation() {
+  if (stems.running || !state.playBlob) return;
+  stems.running = true; stems.cancel = false;
+  const forFile = state.playBlob;
+  showStems('busy');
+  try {
+    await loadStemModel();
+    stemStatus('Preparing the audio…', null);
+    const mix = await decodeForStems(forFile);
+    const out = await separateStems([new Float32Array(mix[0]), new Float32Array(mix[1])]);
+    if (state.playBlob !== forFile) return;   // another file was opened meanwhile
+    stems.data = out; stems.sel = new Set([0, 1, 2, 3]);
+    renderStemChips();
+    showStems('ready');
+  } catch (e) {
+    console.error(e);
+    showStems('idle');
+    if (e.message === 'cancelled') refreshStemHint();
+    else $('#stems-hint').textContent = stemErrorText(e);
+  } finally {
+    stems.running = false;
+  }
+}
+function stemErrorText(e) {
+  const m = e.message || '';
+  if (m === 'no-gpu') return 'Stem separation needs a browser with WebGPU on a real graphics chip: current Chrome, Edge or Safari, or Firefox 141+ on Windows. This browser doesn’t offer one.';
+  if (/memory|allocation|bad_alloc|OOM/i.test(m)) return 'The graphics chip ran out of memory for the model. Close other tabs or apps and try again.';
+  if (/Failed to fetch|NetworkError|Load failed|download/i.test(m)) return 'Couldn’t download the separation model (' + m + '). Check the connection and try again. Some hosts, like the claude.ai preview, block the download; the deployed site doesn’t.';
+  if (/import|module|script/i.test(m)) return 'Couldn’t load the separation engine: this page’s host blocks it (the claude.ai preview does). Open the deployed site instead.';
+  return 'Stem separation failed: ' + m;
+}
+
+function renderStemChips() {
+  $('#stem-chips').innerHTML = STEMS.map((s, i) =>
+    `<span class="stem" style="--c:${s.c}"><button type="button" class="tog" data-i="${i}" aria-pressed="${stems.sel.has(i)}">${s.name}</button>` +
+    `<button type="button" class="dl" data-i="${i}" title="Download ${s.name.toLowerCase()} (24-bit WAV)" aria-label="Download ${s.name.toLowerCase()}">${ICON_DL}</button></span>`).join('');
+  $('#stems-all').disabled = stems.sel.size === 4;
+}
+function encodeWav(chs, sr, bits) {
+  const n = chs[0].length, nc = chs.length, B = bits / 8, size = n * nc * B;
+  const buf = new ArrayBuffer(44 + size), dv = new DataView(buf), u8 = new Uint8Array(buf);
+  const put = (o, s) => { for (let i = 0; i < 4; i++) u8[o + i] = s.charCodeAt(i); };
+  put(0, 'RIFF'); dv.setUint32(4, 36 + size, true); put(8, 'WAVE'); put(12, 'fmt ');
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, nc, true); dv.setUint32(24, sr, true);
+  dv.setUint32(28, sr * nc * B, true); dv.setUint16(32, nc * B, true); dv.setUint16(34, bits, true);
+  put(36, 'data'); dv.setUint32(40, size, true);
+  const scale = bits === 24 ? 8388607 : 32767;
+  let o = 44;
+  for (let i = 0; i < n; i++) for (let c = 0; c < nc; c++) {
+    let v = Math.round(Math.max(-1, Math.min(1, chs[c][i])) * scale);
+    if (bits === 24) { u8[o] = v & 255; u8[o + 1] = (v >> 8) & 255; u8[o + 2] = (v >> 16) & 255; o += 3; }
+    else { dv.setInt16(o, v, true); o += 2; }
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+function mixStems(idx) {
+  const n = stems.data[0][0].length, L = new Float32Array(n), R = new Float32Array(n);
+  for (const i of idx) { const [a, b] = stems.data[i]; for (let k = 0; k < n; k++) { L[k] += a[k]; R[k] += b[k]; } }
+  return [L, R];
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+function stemFileName(label) {
+  const base = ((state.info && state.info.fileName) || 'track').replace(/\.[^.]+$/, '');
+  return base + ' - ' + label + '.wav';
+}
+// Swap what the player plays, keeping position and play state.
+function swapPlayerSource(blob) {
+  const t = player.el.currentTime, playing = !player.el.paused;
+  setPlayerSource(blob);
+  const a = player.el;
+  const go = () => {
+    a.currentTime = Math.min(t, a.duration || t);
+    if (playing) { if (live.on) startLive(); a.play().catch(() => {}); }
+    updatePlayer(); redraw();
+  };
+  if (a.readyState >= 1) go(); else a.addEventListener('loadedmetadata', go, { once: true });
+}
+function applyStemSelection() {
+  renderStemChips();
+  if (stems.sel.size === 4 || stems.sel.size === 0) swapPlayerSource(state.playBlob);   // the full mix is the original file
+  else swapPlayerSource(encodeWav(mixStems([...stems.sel].sort()), STEM_SR, 16));
+}
+$('#stems-run').addEventListener('click', runSeparation);
+$('#stems-cancel').addEventListener('click', () => { stems.cancel = true; if (stemWorker) stemWorker.postMessage({ type: 'cancel' }); stemStatus('Stopping…', null); });
+$('#stems-all').addEventListener('click', () => { stems.sel = new Set([0, 1, 2, 3]); applyStemSelection(); });
+$('#stems-dl-mix').addEventListener('click', () => {
+  const idx = [...stems.sel].sort();
+  const label = idx.length === 4 ? 'Stems mix' : idx.map(i => STEMS[i].name).join(' + ');
+  downloadBlob(encodeWav(mixStems(idx), STEM_SR, 24), stemFileName(label));
+});
+$('#stem-chips').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !stems.data) return;
+  const i = +b.dataset.i;
+  if (b.classList.contains('dl')) { downloadBlob(encodeWav(stems.data[i], STEM_SR, 24), stemFileName(STEMS[i].name)); return; }
+  // Click toggles; Alt/Shift-click solos.
+  if (e.altKey || e.shiftKey) stems.sel = new Set([i]);
+  else if (stems.sel.has(i)) { if (stems.sel.size > 1) stems.sel.delete(i); } else stems.sel.add(i);
+  applyStemSelection();
+});
+
+$('#play-btn').innerHTML = ICON_PLAY;
+$('#play-btn').addEventListener('click', togglePlay);
+$('#seek').addEventListener('input', e => { player.seeking = true; const t = e.target.value / 1000 * playerDuration(); $('#p-time').textContent = fmtTime(t) + ' / ' + fmtTime(playerDuration()); });
+$('#seek').addEventListener('change', e => { player.seeking = false; seekTo(e.target.value / 1000 * playerDuration(), false); });
+$('#volume').addEventListener('input', e => { player.el.volume = +e.target.value; });
+document.addEventListener('keydown', e => {
+  if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(player.el.currentTime + 5, false); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(player.el.currentTime - 5, false); }
+});
+
+function finish(info, res, playBlob) {
+  // Unhide first so the canvases have a size when they draw.
+  $('#splash').hidden = true;
+  $('#results').hidden = false;
+  $('#example-note').hidden = !info.example;
+  state.playBlob = playBlob || null;
+  resetStems();
+  setPlayerSource(playBlob || null);
+  state.info = info; state.res = res;
+  state.verdict = classify(info, res);
+  autoFloor();
+  buildSpecImage();
+  renderAll();
+  setIdle();
+}
+
+async function analyzeFile(file) {
+  if (!file) return;
+  $('#error').hidden = true;
+  state.pendingInfo = null;
+  try {
+    setBusy('Reading file…', 0);
+    const buf = await file.arrayBuffer();
+    const u8 = new Uint8Array(buf);
+    let info;
+    try { info = parseContainer(u8); } catch (e) { console.warn(e); info = blankInfo(); }
+    info.fileName = file.name; info.fileSize = file.size;
+    state.pendingInfo = info;
+    info.clues = scanClues(u8, info);
+    if (info.unsupported) throw new Error(info.unsupported);
+    // Must happen before the buffer is handed to the worker.
+    const playBlob = info.pcm && /^AIFF/.test(info.container) ? pcmToWav(u8, info.pcm, info.sampleRate) : file;
+    let job, transfer = [];
+    if (info.pcm) { job = { type: 'pcm', buffer: buf, pcm: info.pcm, sr: info.sampleRate }; transfer = [buf]; }
+    else {
+      setBusy('Decoding audio…', null);
+      const rate = info.decodeRate || info.sampleRate || 48000;
+      if (!info.sampleRate) info.notes.push('Sample rate not found in the header; decoded at 48 kHz.');
+      const ab = await decodeAudio(buf, rate);
+      if (ab.sampleRate !== rate) info.notes.push('The browser resampled this file to ' + fmtRate(ab.sampleRate) + ' while decoding.');
+      const chs = [];
+      for (let c = 0; c < ab.numberOfChannels; c++) chs.push(new Float32Array(ab.getChannelData(c)));
+      job = { type: 'float', channels: chs, sr: ab.sampleRate, bits: info.lossless ? info.bits : 0 };
+      transfer = chs.map(c => c.buffer);
+      if (!info.channels) info.channels = ab.numberOfChannels;
+    }
+    const res = await runAnalysis(job, transfer);
+    if (!info.sampleRate) info.sampleRate = res.sr;
+    if (!info.duration) info.duration = res.duration;
+    if (!info.bitrate && info.duration && info.lossless === false) info.bitrate = info.fileSize * 8 / info.duration / 1000;
+    if (!info.channels) info.channels = res.channels;
+    finish(info, res, playBlob);
+  } catch (e) {
+    console.error(e);
+    showError(file.name, e);
+    setIdle();
+  }
+}
+
+async function loadExample() {
+  try {
+    const res = await runAnalysis({ type: 'demo' }, []);
+    if (state.info && !state.info.example) return;
+    const info = Object.assign(blankInfo(), {
+      fileName: 'example-96k-24bit.flac', container: 'FLAC', codec: 'FLAC', lossless: true, sampleRate: 96000, bits: 24, channels: 2,
+      duration: res.duration, vendor: 'reference libFLAC 1.4.3 20230623', example: true, clues: [],
+      tags: { TITLE: 'Synthetic example', COMMENT: 'Generated in your browser: 16 kHz wall, 16-bit samples, 96 kHz / 24-bit label' }
+    });
+    const pcm = new Uint8Array(res.demoPcm.buffer);
+    finish(info, res, pcmToWav(pcm, { fmt: 'int', le: true, off: 0, len: pcm.length, ch: 2, blockAlign: 4 }, res.sr));
+  } catch (e) {
+    console.error(e);
+    setIdle();
+    showError('the example', e);
+  }
+}
+
+/* start-page illustration: a stylised transcode, content up to a lossy wall and nothing above */
+function drawSplashArt() {
+  const cv = $('#splash-art');
+  if (!cv || $('#splash').hidden) return;
+  const { ctx, w, h } = fitCanvas(cv);
+  const C = colors(), lut = buildLut('spek');
+  const cols = 260, rows = 130, wall = 0.72, img = ctx.createImageData(cols, rows), d = img.data;
+  let seed = 7;
+  const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  for (let c = 0; c < cols; c++) {
+    const beat = Math.pow(Math.abs(Math.sin(c * 0.19)), 6), swell = 0.55 + 0.45 * Math.sin(c * 0.023 + 1);
+    const hush = c > 150 && c < 168 ? 0.25 : 1;
+    for (let r = 0; r < rows; r++) {
+      const f = 1 - r / (rows - 1);
+      let db;
+      if (f < wall) db = (-30 - 58 * Math.pow(f / wall, 0.7) + 18 * beat + 8 * swell - 16 * rnd()) * (hush < 1 ? 1.25 : 1) - (hush < 1 ? 18 : 0);
+      else db = -112 - 10 * rnd();
+      const t = Math.max(0, Math.min(1, (db + 120) / 120)), li = Math.round(t * 255) * 3, p = (r * cols + c) * 4;
+      d[p] = lut[li]; d[p + 1] = lut[li + 1]; d[p + 2] = lut[li + 2]; d[p + 3] = 255;
+    }
+  }
+  const off = document.createElement('canvas');
+  off.width = cols; off.height = rows;
+  off.getContext('2d').putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(off, 0, 0, w, h);
+  const y = Math.round(h * (1 - wall)) + 0.5;
+  ctx.save();
+  ctx.setLineDash([5, 5]); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  ctx.restore();
+}
+
+/* wiring */
+state.lut = buildLut(state.palette);
+$('#file-input').addEventListener('change', e => { analyzeFile(e.target.files[0]); e.target.value = ''; });
+document.querySelectorAll('label[for="file-input"][tabindex="0"]').forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#file-input').click(); } }));
+$('#try-example').addEventListener('click', () => { $('#error').hidden = true; setBusy('Generating example…', 0); loadExample(); });
+$('#db-floor').addEventListener('input', e => { state.dbFloor = +e.target.value; $('#db-floor-val').textContent = fmtDb(state.dbFloor); buildSpecImage(); redraw(); });
+$('#palette').addEventListener('change', e => { state.palette = e.target.value; state.lut = buildLut(state.palette); buildSpecImage(); redraw(); });
+$('#markers').addEventListener('change', e => { state.markers = e.target.checked; redraw(); });
+
+let dragDepth = 0;
+// On the start page the drop zone itself lights up; afterwards a full-page overlay shows instead.
+const showDrag = on => { const splash = !$('#splash').hidden; document.body.classList.toggle('dragging', on); $('#drop').hidden = !on || splash; };
+window.addEventListener('dragenter', e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { dragDepth++; showDrag(true); } });
+window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) showDrag(false); });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; showDrag(false); const f = e.dataTransfer?.files?.[0]; if (f) analyzeFile(f); });
+
+const specCv = $('#spec');
+specCv.addEventListener('pointermove', e => {
+  const r = state.res, R = state.specRect; if (!r || !R) return;
+  const b = specCv.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
+  if (x < R.l || x > R.l + R.pw || y < R.t || y > R.t + R.ph) { if (state.hover) { state.hover = null; redraw(); } return; }
+  const t = (x - R.l) / R.pw * r.duration, f = (1 - (y - R.t) / R.ph) * r.sr / 2;
+  const col = Math.min(r.cols - 1, Math.floor((x - R.l) / R.pw * r.cols)), row = Math.min(r.rows - 1, Math.max(0, Math.floor(f / (r.sr / 2) * r.rows)));
+  const db = r.spec[col * r.rows + row];
+  $('#spec-readout').textContent = fmtTime(t, true) + '  ·  ' + (f / 1000).toFixed(2) + ' kHz  ·  ' + (db < -199 ? '−∞ dB' : (db < 0 ? '−' : '') + Math.abs(db).toFixed(1) + ' dB');
+  state.hover = { x, y }; redraw();
+});
+specCv.addEventListener('pointerleave', () => { state.hover = null; redraw(); });
+specCv.addEventListener('pointerdown', e => {
+  const r = state.res, R = state.specRect; if (!r || !R) return;
+  const x = e.clientX - specCv.getBoundingClientRect().left;
+  if (x < R.l || x > R.l + R.pw) return;
+  seekTo((x - R.l) / R.pw * r.duration, true);
+});
+const ltasCv = $('#ltas');
+ltasCv.addEventListener('pointermove', e => {
+  const R = state.ltasRect; if (!R) return;
+  const x = e.clientX - ltasCv.getBoundingClientRect().left;
+  state.ltasHover = x >= R.l && x <= R.l + R.pw ? x : null; redraw();
+});
+ltasCv.addEventListener('pointerleave', () => { state.ltasHover = null; redraw(); });
+
+new ResizeObserver(redraw).observe($('#spec-box'));
+new ResizeObserver(redraw).observe($('#ltas-box'));
+new ResizeObserver(drawSplashArt).observe($('#splash-art'));
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { redraw(); drawSplashArt(); });
+getWorker();   // warm the analysis worker while the start page is up
+</script>

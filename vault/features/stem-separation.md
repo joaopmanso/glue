@@ -39,7 +39,10 @@ downloaded as 24-bit WAV, singly or as the selected mix.
 - [x] Deployed site: model downloads from Hugging Face (CORS ok), second visit uses the cache.
 
 ## Limits & open questions
-- Known bug to fix in M1: Cancel during model load / audio prep is lost (worker resets its cancel flag
-  on every message; `stems.cancel` is never read).
+- Fixed in M1: Cancel during model load / audio prep was lost. Each run now has a job id; Cancel marks
+  that id in the worker and the page ignores replies for old ids (`src/lib/stems.svelte.ts`,
+  `src/workers/stems.worker.ts`). Covered by `e2e/stems.spec.ts`.
+- The model cache (`mco-models-v1`) also reads the legacy page's `speklone-models-v1` copy: both pages
+  share the joaopmanso.github.io origin.
 - Stems are always 44.1 kHz (model's fixed rate).
 - MCO: optional saving to `MCO/stems/` (later).
