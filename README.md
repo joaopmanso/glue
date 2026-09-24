@@ -19,6 +19,7 @@ npm run dev        # http://localhost:5174/mco/
 npm run check      # svelte-check (TypeScript)
 npm test           # unit + parity tests (Vitest)
 npx playwright test               # browser tests against the production build (uses installed Edge)
+BASE_URL=https://joaopmanso.github.io/mco/ npx playwright test e2e/analyze.spec.ts   # same, against the live site
 STEMS=1 npx playwright test e2e/stems.spec.ts   # slow: real stem separation
 npm run build      # static site in dist/
 ```

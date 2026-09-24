@@ -22,7 +22,7 @@
       <div>
         <span class="label">Tempo</span>
         {#if bpm}
-          <span class="big" id="m-bpm">{bpm.show}<small> BPM</small></span>
+          <span class="big" id="m-bpm">{bpm.show}<small>&nbsp;BPM</small></span>
           <span class="sub" id="m-bpm-sub">½× {bpm.half} · 2× {bpm.double}</span>
         {:else}
           <span class="big" id="m-bpm">—</span><span class="sub" id="m-bpm-sub">no steady beat found</span>
