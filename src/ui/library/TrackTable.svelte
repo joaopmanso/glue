@@ -12,6 +12,8 @@
   import type { TrackFormat } from '../../store/types';
   import Stars from './Stars.svelte';
   import { dupes } from '../../lib/dupes.svelte';
+  import { canDragOut, prepareTrack, startTrackDrag } from '../../lib/dragout';
+  const dragOut = canDragOut();
 
   const ROW = 30, OVERSCAN = 12;
 
@@ -21,7 +23,7 @@
   const isPlaylist = $derived(list?.kind === 'playlist');
   const cols = $derived(columns.visible);
   // play button, "#" (playlists only), the chosen columns, the column menu button
-  const template = $derived(['26px', ...(isPlaylist ? ['36px'] : []), ...cols.map(k => COLUMNS[k].width), '28px'].join(' '));
+  const template = $derived([dragOut ? '42px' : '26px', ...(isPlaylist ? ['36px'] : []), ...cols.map(k => COLUMNS[k].width), '28px'].join(' '));
 
   let scroller: HTMLDivElement;
   let scrollTop = $state(0), height = $state(600);
@@ -65,7 +67,7 @@
   }
   /** Press on a row: a drag of the selection (or of this row) once the pointer moves. */
   function press(e: PointerEvent, id: string) {
-    if ((e.target as HTMLElement).closest('button, input, .stars')) return;
+    if ((e.target as HTMLElement).closest('button, input, .stars, .grip')) return;
     const ids = view.selected.has(id) ? order.filter(x => view.selected.has(x)) : [id];
     const t = lib.store?.tracks.get(ids[0]);
     drag.begin(e, { kind: 'tracks', ids, label: ids.length === 1 ? (t?.title || t?.fileName || '1 track') : ids.length + ' tracks' });
@@ -177,6 +179,14 @@
           onpointerdown={e => press(e, r.t.id)}
           onclick={e => { if (!drag.suppressClick) view.click(r.t.id, e, order); }} ondblclick={() => open(r.t.id)}>
           <span class="c-play">
+            {#if dragOut && r.t.status === 'linked'}
+              <span class="grip" draggable="true" role="button" tabindex="-1" aria-label="Drag out a copy of the file"
+                title="Drag to Explorer, the desktop or a USB stick to copy this file"
+                onpointerenter={() => void prepareTrack(r.t)}
+                ondragstart={e => { if (!startTrackDrag(e, r.t)) lib.notice = lib.canRead(r.t) ? 'Getting the file ready: drag again.' : 'MCO needs permission to read this file first: play it or open its page.'; }}>
+                <svg viewBox="0 0 6 14" aria-hidden="true"><circle cx="1.5" cy="2" r="1.1"/><circle cx="4.5" cy="2" r="1.1"/><circle cx="1.5" cy="7" r="1.1"/><circle cx="4.5" cy="7" r="1.1"/><circle cx="1.5" cy="12" r="1.1"/><circle cx="4.5" cy="12" r="1.1"/></svg>
+              </span>
+            {/if}
             {#if r.t.status === 'linked'}
               <button type="button" class="pbtn" aria-label={nowPlaying.trackId === r.t.id && !player.paused ? 'Pause' : 'Play'}
                 onclick={e => { e.stopPropagation(); play(r.t.id); }} ondblclick={e => e.stopPropagation()}>
@@ -248,6 +258,11 @@
   .c-artist, .c-soft { color: var(--ink-2); }
   .c-n, .c-num { color: var(--ink-2); font-size: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   .c-n.grip { cursor: grab; }
+  .c-play { display: flex; align-items: center; gap: 2px; }
+  .grip { width: 14px; height: 22px; display: grid; place-items: center; color: var(--muted); cursor: grab; opacity: 0; border-radius: 3px; }
+  .grip svg { width: 6px; height: 14px; fill: currentColor; }
+  .tr:hover .grip { opacity: .8; }
+  .grip:hover { opacity: 1; color: var(--ink); background: var(--surface); }
   .pbtn { width: 22px; height: 22px; border-radius: 50%; border: 0; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0; opacity: 0; }
   .pbtn svg { width: 10px; height: 10px; }
   .tr:hover .pbtn, .tr.playing .pbtn, .pbtn:focus-visible { opacity: 1; }

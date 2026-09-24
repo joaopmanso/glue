@@ -276,8 +276,8 @@ test('organises playlists (drag, menu, colours) and rates tracks in half stars',
   const item = (n: string) => page.locator('.lside .tree .item', { has: page.locator('.name', { hasText: new RegExp('^' + n + '$') }) });
   const drop = async (from: string, to: string, frac: number) => {
     const a = (await item(from).boundingBox())!, b = (await item(to).boundingBox())!;
-    await page.mouse.move(a.x + 40, a.y + a.height / 2); await page.mouse.down();
-    await page.mouse.move(b.x + 40, b.y + b.height * frac, { steps: 6 });
+    await page.mouse.move(a.x + 90, a.y + a.height / 2); await page.mouse.down();   // on the name (the icon drags out)
+    await page.mouse.move(b.x + 90, b.y + b.height * frac, { steps: 6 });
     await page.mouse.up();
   };
   await drop('C', 'A', 0.15);
@@ -569,4 +569,41 @@ test('onboarding, backup, delete everything, restore on a fresh start', async ({
   await page.getByRole('button', { name: 'Find folder' }).click();
   await expect(page.getByRole('button', { name: 'Find folder' })).toHaveCount(0, { timeout: 20_000 });
   await expect(page.locator('.tr .q', { hasText: 'no file' })).toHaveCount(0);
+});
+
+test('drags a track out as a file copy and a playlist out as an M3U8', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(5, { timeout: 30_000 });
+  // Record what each native drag carries.
+  await page.evaluate(() => document.addEventListener('dragstart', e => {
+    const dt = e.dataTransfer!;
+    (window as unknown as { __drag: Record<string, string> }).__drag = { url: dt.getData('DownloadURL'), text: dt.getData('text/plain') };
+  }));
+  const drag = async (el: import('@playwright/test').Locator) => {
+    const b = (await el.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(300);   // hover: the file gets ready
+    await page.mouse.down(); await page.mouse.move(b.x + 200, b.y + 40, { steps: 5 }); await page.mouse.up();
+    return page.evaluate(() => (window as unknown as { __drag: Record<string, string> }).__drag);
+  };
+  const row = page.locator('.tr', { hasText: 'Hi-res claim' });
+  await row.hover();
+  const t = await drag(row.locator('.grip'));
+  expect(t.url).toMatch(/^audio\/flac:flac-96k-24\.flac:blob:/);
+  expect(t.text).toBe(String.raw`C:\Users\dj\Music\Sets\flac-96k-24.flac`);
+  const size = await page.evaluate(async u => (await (await fetch(u)).blob()).size, t.url.split(':').slice(2).join(':'));
+  expect(size).toBe(968141);
+
+  await page.locator('.lside .tree .name', { hasText: 'Rekordbox' }).click();
+  const p = await drag(page.locator('.lside .item', { hasText: 'Friday' }).locator('.drag-out'));
+  expect(p.url).toMatch(/^audio\/x-mpegurl:Friday\.m3u8:blob:/);
+  expect(p.text).toContain('#EXTM3U');
+  expect(p.text).toContain('#EXTINF:4,Tester - Lossy one' + '\r\n' + String.raw`C:\Users\dj\Music\Sets\mp3-128k.mp3`);
+  expect(p.text).toContain('D:/Elsewhere/gone.wav');   // not found on this computer: its imported path is kept
 });

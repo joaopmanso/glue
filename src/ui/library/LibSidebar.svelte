@@ -8,6 +8,8 @@
   import { LIST_COLORS, type List } from '../../store/types';
   import { drag } from '../../lib/drag.svelte';
   import { dupes } from '../../lib/dupes.svelte';
+  import { canDragOut, startPlaylistDrag } from '../../lib/dragout';
+  const dragOut = canDragOut();
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
   const FOUND_NAMES: Record<string, string> = { engine: 'Engine DJ library', serato: 'Serato library', apple: 'iTunes / Apple Music library', rekordbox: 'rekordbox XML', traktor: 'Traktor collection' };
@@ -59,7 +61,7 @@
     if (confirm('Delete ' + what + '? The tracks stay in your collection.')) { lib.deleteList(l.id); if (isSel({ kind: 'list', id: l.id })) view.select({ kind: 'all' }); }
   }
   function pressList(e: PointerEvent, l: List) {
-    if (view.editing === l.id || (e.target as HTMLElement).closest('.tools, .twist, input')) return;
+    if (view.editing === l.id || (e.target as HTMLElement).closest('.tools, .twist, input, .drag-out')) return;
     drag.begin(e, { kind: 'list', id: l.id, label: l.name });
   }
   /** How the hovered list shows the pending drop. */
@@ -97,7 +99,15 @@
         <svg class="icon" class:colored={!!l.color} viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" fill="currentColor"/></svg>
       {:else}
         <span class="twist"></span>
-        <svg class="icon" class:colored={!!l.color} viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5v8.2a2.3 2.3 0 1 0 1.5 2.1V5.5l5-1.3v5.4a2.3 2.3 0 1 0 1.5 2.1V1.2z" fill="currentColor"/></svg>
+        {#if dragOut}
+          <span class="drag-out" draggable="true" role="button" tabindex="-1" aria-label={'Drag ' + l.name + ' out as a playlist file'}
+            title="Drag out as a playlist file (.m3u8) to Explorer or the desktop; rekordbox imports it with File › Import › Import Playlist"
+            ondragstart={e => startPlaylistDrag(e, l)}>
+            <svg class="icon" class:colored={!!l.color} viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5v8.2a2.3 2.3 0 1 0 1.5 2.1V5.5l5-1.3v5.4a2.3 2.3 0 1 0 1.5 2.1V1.2z" fill="currentColor"/></svg>
+          </span>
+        {:else}
+          <svg class="icon" class:colored={!!l.color} viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5v8.2a2.3 2.3 0 1 0 1.5 2.1V5.5l5-1.3v5.4a2.3 2.3 0 1 0 1.5 2.1V1.2z" fill="currentColor"/></svg>
+        {/if}
       {/if}
       {#if view.editing === l.id}
         <input class="rename" value={l.name} use:focus onblur={e => rename(l, e.currentTarget.value)}
@@ -252,6 +262,8 @@
   .plus { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 800; font-size: 14px; line-height: 1; flex: none; }
   .icon { width: 13px; height: 13px; flex: none; color: var(--muted); }
   .icon.colored { color: var(--lc); }
+  .drag-out { display: grid; place-items: center; cursor: grab; border-radius: 3px; padding: 2px; margin: -2px; }
+  .drag-out:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
   /* A colour tints the whole row, with a bar on the left. */
   .item.colored { background: color-mix(in srgb, var(--lc) 14%, transparent); box-shadow: inset 3px 0 0 var(--lc); }
   .item.colored:hover { background: color-mix(in srgb, var(--lc) 22%, transparent); }

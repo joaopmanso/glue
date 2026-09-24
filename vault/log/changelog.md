@@ -5,6 +5,12 @@ updated: 2026-09-24
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-24 · Drag out to other apps
+- Chrome/Edge: drag a track's grip out for a copy of the file, a playlist's icon out for a `.m3u8`
+  with absolute paths ([ADR 0027](../adr/0027-drag-out-with-downloadurl.md)).
+- Tests: e2e checks the drag data (file copy readable, M3U8 contents); real drops into other apps
+  can't be automated here.
+
 ## 2026-09-24 · Backups, restore, delete all, clearer start
 - Profile backups as standard zips, restore (start screen or profile screen), "Delete all MCO data"
   ([ADR 0026](../adr/0026-profile-backups-and-wipe.md)); "Find folder" to relink music folders.

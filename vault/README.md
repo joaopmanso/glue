@@ -88,5 +88,6 @@ Planned (MCO):
 | [0022](adr/0022-pointer-drag-inside-mco.md) | Drags inside MCO use pointer events, not HTML drag-and-drop | accepted |
 | [0023](adr/0023-store-track-page-analysis.md) | Track pages store their full analysis (amends 0019) | superseded in part by 0024 |
 | [0024](adr/0024-background-stores-full-analysis.md) | Background analysis stores the full analysis, in the browser's storage | accepted |
+| [0027](adr/0027-drag-out-with-downloadurl.md) | Dragging out to other apps uses Chromium's DownloadURL | accepted |
 | [0026](adr/0026-profile-backups-and-wipe.md) | Profile backups are zips; "delete all" removes only what MCO made | accepted |
 | [0025](adr/0025-band-energy-fingerprints.md) | Band-energy fingerprints for "same recording", kept in the browser's cache (amends 0013) | accepted |

@@ -39,3 +39,11 @@ reads M3U8) without touching their databases.
 ## Later
 - Dragging a playlist straight onto Rekordbox (Chromium `DownloadURL` drag-out) — experimental; hand
   copies a file, so only useful for playlist files, not audio. Direct database write-back: desktop era.
+
+## Drag out (2026-09-24, before the M4 exports)
+- Chrome/Edge: drag a track's grip (⋮⋮, left of ▶) out of MCO for a copy of the file; drag a playlist's
+  icon for a `.m3u8` with absolute paths ([ADR 0027](../adr/0027-drag-out-with-downloadurl.md)).
+- Works with Explorer, the desktop, USB sticks. rekordbox imports the `.m3u8` via File › Import ›
+  Import Playlist; direct drops into rekordbox / Engine DJ are unverified, and a dropped track would be
+  a copy. The rekordbox XML export (this feature) remains the proper route.
+
