@@ -43,6 +43,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     if (m === 'POST' && path === '/v1/auth/refresh') return reply(await refresh(env, await body(), now));
     if (m === 'POST' && path === '/v1/auth/device') return reply(await deviceSignIn(env, await body(), now));
     if (m === 'POST' && path === '/v1/pairing/claim') return reply(await claim(env, await body(), now, req.headers.get('CF-Connecting-IP') ?? 'local'));
+    if (m === 'POST' && path === '/v1/home/signin') return reply(await homeSignIn(env, await body(), now, req.headers.get('CF-Connecting-IP') ?? 'local'));
     if (m === 'POST' && path === '/v1/auth/logout') {
       const b = await body();
       if (typeof b.refresh === 'string') await env.DB.prepare('DELETE FROM credentials WHERE hash = ?').bind(await sha256(b.refresh)).run();
@@ -238,13 +239,27 @@ async function claim(env: Env, b: Record<string, unknown>, now: number, ip: stri
   if (!pc || pc.used_at || pc.expires_at < now) throw new HttpError(401, 'that code isn’t valid (codes work once, for 10 minutes)');
   const used = await env.DB.prepare('UPDATE pairing_codes SET used_at = ? WHERE hash = ? AND used_at IS NULL').bind(now, h).run();
   if (!used.meta.changes) throw new HttpError(401, 'that code was just used');
+  return newHome(env, pc.user_id, b, now);
+}
+/** A new GLUE Home device of the account, with its own long-lived credential. */
+async function newHome(env: Env, userId: string, b: Record<string, unknown>, now: number) {
   const id = randomId(), token = randomToken(), name = str(b.name, 60) || 'GLUE Home';
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO devices (id, user_id, kind, name, platform, public_key, created_at, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, pc.user_id, 'home', name, str(b.platform, 60) || null, str(b.publicKey, 2000) || null, now, now),
-    env.DB.prepare('INSERT INTO credentials (hash, user_id, device_id, kind, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)').bind(await sha256(token), pc.user_id, id, 'device', now, now + DEVICE_TTL),
+    env.DB.prepare('INSERT INTO devices (id, user_id, kind, name, platform, public_key, created_at, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, userId, 'home', name, str(b.platform, 60) || null, str(b.publicKey, 2000) || null, now, now),
+    env.DB.prepare('INSERT INTO credentials (hash, user_id, device_id, kind, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)').bind(await sha256(token), userId, id, 'device', now, now + DEVICE_TTL),
   ]);
-  const user = await env.DB.prepare('SELECT email, name FROM users WHERE id = ?').bind(pc.user_id).first<{ email: string | null; name: string | null }>();
+  const user = await env.DB.prepare('SELECT email, name FROM users WHERE id = ?').bind(userId).first<{ email: string | null; name: string | null }>();
   return { deviceId: id, token, name, user };
+}
+/** GLUE Home signs in with the account's email and password (ADR 0044): it becomes a GLUE Home
+    device straight away, without a code. The password is stretched in the app, as on the website. */
+async function homeSignIn(env: Env, b: Record<string, unknown>, now: number, ip: string) {
+  const email = str(b.email, 254).toLowerCase(), key = str(b.key, 60);
+  await limit(env, 'pw:' + email, 10, now);
+  await limit(env, 'pwip:' + ip, 30, now);
+  const row = email && KEY.test(key) ? await env.DB.prepare('SELECT user_id, salt, hash FROM password_logins WHERE email = ?').bind(email).first<{ user_id: string; salt: string; hash: string }>() : null;
+  if (!row || !same(await pwHash(row.salt, key), row.hash)) throw new HttpError(401, 'wrong email or password');
+  return newHome(env, row.user_id, b, now);
 }
 
 async function me(env: Env, a: Access) {

@@ -6,7 +6,7 @@ workers_dev = true
 
 [vars]
 GOOGLE_CLIENT_ID = "486502590189-93o8r488c7gst4bviqvbsuflke7ujd06.apps.googleusercontent.com"
-ALLOWED_ORIGINS = "https://joaopmanso.github.io,http://localhost:5174,http://localhost:5175"
+ALLOWED_ORIGINS = "https://joaopmanso.github.io,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://tauri.localhost,https://tauri.localhost,tauri://localhost"
 # Admin (ADR 0041): only through a Google-verified email on this list.
 ADMIN_EMAILS = "joao.pedro.manso@gmail.com"
 # SESSION_KEY is a secret: `wrangler secret put SESSION_KEY`.

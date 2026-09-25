@@ -20,6 +20,7 @@
   import GlueStick from './ui/GlueStick.svelte';
   import AccountButton from './ui/AccountButton.svelte';
   import AdminView from './ui/AdminView.svelte';
+  import ConnectHome from './ui/ConnectHome.svelte';
   import { account } from './lib/account.svelte';
   import './lib/sync.svelte';   // cloud sync hooks (ADR 0040)
   import { auto } from './lib/auto.svelte';
@@ -74,6 +75,7 @@
   }
   function onDrop(e: DragEvent) {
     e.preventDefault(); dragDepth = 0; app.dragging = false;
+    if ((e as DragEvent & { glueTaken?: boolean }).glueTaken) return;   // dropped on something that took it (a GLUE Home)
     const dt = e.dataTransfer;
     if (!dt || !hasFiles(e)) return;
     if (route.name === 'analyze' || !inLibrary) { const f = dt.files?.[0]; if (f) { router.go('#/analyze'); void analyzeFile(f); } }
@@ -152,6 +154,8 @@
     <footer>Decoding uses your browser’s audio engine (WAV and AIFF are read directly). Chrome and Firefox can’t decode ALAC or DSD; Safari handles ALAC.</footer>
   {:else if route.name === 'admin'}
     <AdminView />
+  {:else if route.name === 'connect-home'}
+    <ConnectHome />
   {:else if !inLibrary || lib.onboarding === 'music'}
     <Welcome />
   {:else if route.name === 'track'}

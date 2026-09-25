@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What GLUE Home's settings and service windows may use",
+  "windows": ["settings", "service"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "dialog:default",
+    "autostart:default",
+    "deep-link:default",
+    "opener:default",
+    { "identifier": "opener:allow-open-path", "allow": [{ "path": "$AUDIO/**" }, { "path": "$HOME/**" }] }
+  ]
+}

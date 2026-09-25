@@ -8,6 +8,28 @@
   import { lib } from '../../lib/library.svelte';
   import { view, devicesOf, manyDevices } from '../../lib/view.svelte';
   import { deviceColor } from '../../lib/devices';
+  import { sendToHome } from '../../lib/sendToHome.svelte';
+  import { HOME_DOWNLOADS, homeOs, homePairLink } from '../../lib/homeApp';
+  import { AUDIO_EXT } from '../../core/library/tags';
+
+  // Songs dropped on a GLUE Home, or picked from its menu, go to its incoming folder (ADR 0044).
+  let dropOn = $state<string | null>(null);
+  let picker = $state<HTMLInputElement>();
+  let pickFor = '';
+  const os = homeOs();
+  const send = (id: string, files: File[]) => {
+    const songs = files.filter(f => AUDIO_EXT.test(f.name));
+    if (!songs.length) { lib.notice = 'Only songs can be sent to GLUE Home.'; return; }
+    void sendToHome.send(id, songs).catch(e => (lib.notice = (e as Error).message));
+  };
+  function dropped(e: DragEvent, d: CloudDevice) {
+    dropOn = null;
+    if (d.kind !== 'home' || !e.dataTransfer?.files.length) return;
+    e.preventDefault();
+    (e as DragEvent & { glueTaken?: boolean }).glueTaken = true;
+    send(d.id, [...e.dataTransfer.files]);
+  }
+  function pickSongs(d: CloudDevice) { menu = null; pickFor = d.id; picker?.click(); }
 
   let menu = $state<{ id: string; x: number; y: number; up: boolean } | null>(null);
   let pairing = $state<{ code: string; expiresAt: number } | null>(null);
@@ -86,11 +108,13 @@
       {@const me = d.id === account.thisDevice}
       {@const loading = !!sync.busy && sync.busy.includes(d.name)}
       <li>
-        <div class="item dev" data-device={d.id} class:sel={only.includes(d.name)} style:--c={deviceColor(d.name)}>
+        <div class="item dev" data-device={d.id} class:sel={only.includes(d.name)} class:droppable={dropOn === d.id} style:--c={deviceColor(d.name)} role="group" aria-label={d.name}
+          ondragover={e => { if (d.kind === 'home' && [...(e.dataTransfer?.types ?? [])].includes('Files')) { e.preventDefault(); dropOn = d.id; } }}
+          ondragleave={() => { if (dropOn === d.id) dropOn = null; }} ondrop={e => dropped(e, d)}>
           <button type="button" class="dname" aria-pressed={only.includes(d.name)} title={only.includes(d.name) ? 'Show every device’s songs again' : 'Show only the songs on ' + d.name}
             onclick={() => view.toggleFilter('device', d.name)}>
             <i class="sw" class:on aria-hidden="true"></i>
-            <span class="txt"><b>{d.name}</b><small>{d.kind === 'home' ? 'GLUE Home · ' : ''}{seen(d)}{n != null ? ' · ' + n.toLocaleString() + ' song' + (n === 1 ? '' : 's') : ''}{!me && at ? ' · synced ' + ago(at) : ''}</small></span>
+            <span class="txt"><b>{d.name}</b><small>{d.kind === 'home' ? 'GLUE Home · ' : ''}{seen(d)}{d.kind === 'home' && on ? ' · drop songs to send' : ''}{n != null ? ' · ' + n.toLocaleString() + ' song' + (n === 1 ? '' : 's') : ''}{!me && at ? ' · synced ' + ago(at) : ''}</small></span>
           </button>
           {#if loading}<span class="spin" title={'Updating from ' + d.name + '…'}></span>
           {:else if !me}<span class="nostream" title={'Streaming from ' + d.name + ' is off: it comes with GLUE Home. Its songs show here and play on ' + d.name + '.'} aria-label="Streaming off">
@@ -105,9 +129,13 @@
   {#if pairError}<p class="err">{pairError}</p>{/if}
 </section>
 
+<input type="file" multiple hidden bind:this={picker} accept="audio/*,.flac,.wav,.aif,.aiff,.m4a,.alac,.mp3,.aac,.ogg,.opus" id="send-input"
+  onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; if (f.length && pickFor) send(pickFor, f); }}>
+
 {#if menu && menuDevice}
   {@const d = menuDevice}
   <div class="dmenu" role="menu" style:left={menu.x + 'px'} style:top={menu.up ? null : menu.y + 'px'} style:bottom={menu.up ? menu.y + 'px' : null}>
+    {#if d.kind === 'home'}<button type="button" role="menuitem" id="send-songs" disabled={!account.online.has(d.id)} title={account.online.has(d.id) ? 'Copy songs into its incoming folder' : d.name + ' is offline'} onclick={() => pickSongs(d)}>Send songs…</button>{/if}
     <button type="button" role="menuitem" onclick={() => rename(d)}>Rename…</button>
     <button type="button" role="menuitem" class="danger" onclick={() => remove(d)}>{d.id === account.thisDevice ? 'Remove (signs out)…' : 'Remove…'}</button>
   </div>
@@ -120,12 +148,10 @@
       <p>On the computer with your main collection, start GLUE Home and enter this code:</p>
       <p class="code" id="pair-code">{pairing.code}</p>
       <p class="fine">{left > 0 ? 'Works once, for ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + ' more.' : 'This code has expired.'} This window closes by itself when GLUE Home has joined.</p>
-      <details>
-        <summary>Running GLUE Home (preview)</summary>
-        <p>GLUE Home is in preview and runs from the GLUE source with Node.js 24:</p>
-        <pre>node home/src/main.ts pair {pairing.code}
-node home/src/main.ts run</pre>
-      </details>
+      <p><a class="btn" id="pair-open" href={homePairLink(pairing.code)}>Open GLUE Home on this computer</a></p>
+      <p class="fine">Don’t have it yet?
+        {#each Object.entries(HOME_DOWNLOADS).sort(([a], [b]) => Number(b === os) - Number(a === os)) as [k, dl], i (k)}{i ? ' · ' : ' '}<a href={dl.url} data-download={k} class:mine={k === os}>Download for {dl.label}</a>{/each}
+      </p>
       <div class="acts">
         {#if left <= 0}<button type="button" class="btn" onclick={startPairing}>New code</button>{/if}
         <button type="button" class="btn-ghost" onclick={() => (pairing = null)}>Close</button>
@@ -142,6 +168,7 @@ node home/src/main.ts run</pre>
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .dev { display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 6px; border-radius: 5px; min-height: 38px; border: 1px solid transparent; }
   .dev:hover { background: var(--raised); }
+  .dev.droppable { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .dev.sel { background: color-mix(in srgb, var(--c) 14%, transparent); border-color: color-mix(in srgb, var(--c) 45%, transparent); }
   .dname { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: pointer; font: inherit; }
   .sw { position: relative; width: 12px; height: 26px; border-radius: 3px; background: var(--c); flex: none; }
@@ -161,6 +188,10 @@ node home/src/main.ts run</pre>
   .dmenu button { background: none; border: 0; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer; color: var(--ink); }
   .dmenu button:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
   .dmenu .danger { color: var(--bad); }
+  .dmenu button:disabled { opacity: .45; cursor: default; }
+  .dlg a.mine { font-weight: 700; }
+  .dlg p a:not(.btn) { color: var(--accent); }
+  .dlg a.btn { text-decoration: none; display: inline-block; }
   .err { color: var(--bad); font-size: 12px; padding: 0 8px; }
   .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; overflow-y: auto; }
   .dlg { width: min(460px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 22px; display: grid; gap: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); }
@@ -168,7 +199,5 @@ node home/src/main.ts run</pre>
   .dlg p { color: var(--ink-2); font-size: 14px; }
   .code { font: 700 34px/1.2 var(--font-mono); letter-spacing: .12em; color: var(--accent) !important; text-align: center; padding: 10px; border: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 8px; user-select: all; }
   .dlg .fine { display: block; padding: 0; font-size: 12px !important; }
-  details summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
-  pre { background: var(--ground); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: 12px var(--font-mono); white-space: pre-wrap; margin: 6px 0 0; }
   .acts { display: flex; gap: 8px; justify-content: flex-end; }
 </style>

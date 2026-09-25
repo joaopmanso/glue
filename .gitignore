@@ -7,3 +7,7 @@ test-results/
 
 # Demo library for the homepage media (make with scripts/demo/make-audio.ts)
 scripts/demo/out/
+
+# GLUE Home's Rust build output (built on GitHub, ADR 0044)
+home/src-tauri/target/
+home/src-tauri/gen/

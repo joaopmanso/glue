@@ -2,6 +2,7 @@
    pairing codes for GLUE Home, and live presence over the signaling room. Nothing here touches the
    local library; signing out changes nothing on this computer. */
 import { readPref, writePref } from './prefs';
+import { passwordKey } from '../core/password';
 
 export const API_BASE = readPref('apiBase', 'https://glue-api.joaopmanso.workers.dev');
 export const GOOGLE_CLIENT_ID = '486502590189-93o8r488c7gst4bviqvbsuflke7ujd06.apps.googleusercontent.com';
@@ -10,14 +11,7 @@ const GIS_URL = 'https://accounts.google.com/gsi/client';
 export type Tier = 'free' | 'paid' | 'admin';
 export interface CloudUser { id: string; email: string | null; name: string | null; picture: string | null; tier?: Tier; providers?: string[] }
 
-/** The password never leaves the browser: it's stretched here (PBKDF2, salted with the email) and the
-    server keeps only a salted hash of the result (ADR 0041). */
-export async function passwordKey(email: string, password: string): Promise<string> {
-  const enc = new TextEncoder(), base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('glue-v1:' + email.trim().toLowerCase()), iterations: 300_000 }, base, 256));
-  let s = ''; for (const b of bits) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+export { passwordKey } from '../core/password';
 export interface CloudDevice { id: string; kind: 'browser' | 'home'; name: string; platform: string | null; createdAt: number; lastSeen: number | null }
 interface Session { access: string; refresh: string; deviceId: string }
 
@@ -182,6 +176,16 @@ class Account {
     return j;
   }
 
+  /** WebRTC handshakes with the account's other devices (sending songs to GLUE Home, ADR 0044). */
+  private signalListeners = new Set<(from: string, data: unknown) => void>();
+  onSignal(f: (from: string, data: unknown) => void) { this.signalListeners.add(f); return () => this.signalListeners.delete(f); }
+  signal(to: string, data: unknown): boolean {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== 1) return false;
+    ws.send(JSON.stringify({ type: 'signal', to, data }));
+    return true;
+  }
+
   /** The signaling room: presence now, WebRTC offers / answers later (ADR 0037). Reconnects with backoff. */
   private connect() {
     if (this.ws) return;
@@ -197,6 +201,7 @@ class Account {
         if (m.type === 'removed') { this.forget(); this.error = 'This browser was removed from your GLUE account.'; return; }
         // Another tab of this browser took over. Act now: the close handshake may never complete.
         if (m.type === 'replaced') { this.closing = true; ws.onclose = null; ws.close(); this.ws = null; this.connected = false; clearInterval(this.pingTimer); return; }
+        if (m.type === 'signal') { for (const f of this.signalListeners) f((m as unknown as { from: string }).from, (m as unknown as { data: unknown }).data); return; }
         if (m.type === 'presence' && m.online) {
           const before = this.online;
           this.online = new Set(m.online);

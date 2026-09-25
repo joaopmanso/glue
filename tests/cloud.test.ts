@@ -281,6 +281,17 @@ describe('GLUE Cloud: email + password, tiers, admin (ADR 0041)', () => {
     expect(me.json.user).toMatchObject({ tier: 'paid', providers: ['password'] });
     expect((await call('POST', '/v1/auth/register', { email: 'not-an-email', key: key('x') })).status).toBe(400);
   });
+  it('GLUE Home signs in with email and password and becomes a home device (ADR 0044)', async () => {
+    const key = 'k'.repeat(43);
+    await call('POST', '/v1/auth/register', { email: 'home@example.com', key, name: 'H', deviceName: 'Edge' });
+    expect((await call('POST', '/v1/home/signin', { email: 'home@example.com', key: 'x'.repeat(43), name: 'Studio' })).status).toBe(401);
+    const h = await call('POST', '/v1/home/signin', { email: 'HOME@example.com', key, name: 'Studio', platform: 'win32' });
+    expect(h.status).toBe(200);
+    expect(h.json).toMatchObject({ name: 'Studio', user: { email: 'home@example.com' } });
+    const acc = await call('POST', '/v1/auth/device', { deviceId: h.json.deviceId, token: h.json.token });
+    const me = await call('GET', '/v1/me', undefined, acc.json.access);
+    expect(me.json.devices.find((d: { id: string }) => d.id === h.json.deviceId)).toMatchObject({ kind: 'home', name: 'Studio' });
+  });
   it('limits password guesses per account', async () => {
     await call('POST', '/v1/auth/register', { email: 'dj@example.com', key: key('secret') });
     for (let i = 0; i < 10; i++) await call('POST', '/v1/auth/password', { email: 'dj@example.com', key: key('guess' + i) });

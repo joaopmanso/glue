@@ -1,0 +1,20 @@
+/* GLUE Home's settings window: the website's GLUE Stick theme, dark or light with the OS. */
+:root {
+  color-scheme: dark;
+  --ground: #0e0d0a; --surface: #17160f; --raised: #211f16; --line: #2c2a1f; --line-2: #3d3a2b;
+  --ink: #f6f3e8; --ink-2: #c9c4b0; --muted: #8f8a74; --accent: #ffd100; --accent-ink: #15140f;
+  --ok: #43c47f; --warn: #f0a93b; --bad: #ff6b5b;
+  --font-sans: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --ground: #fff9e6; --surface: #ffffff; --raised: #fbf1cc; --line: #ece0b6; --line-2: #dccb90;
+    --ink: #15140f; --ink-2: #433f30; --muted: #7a735d; --accent: #b58500; --accent-ink: #ffffff;
+    --ok: #16834f; --warn: #b35c00; --bad: #d32a1d;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.45 var(--font-sans); }
+button, input { font: inherit; color: inherit; }

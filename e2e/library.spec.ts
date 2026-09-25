@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TAURI_MOCK } from './tauri-mock';
 
 // A real (temporary) browser profile: in Playwright's default incognito-like contexts, reading a
 // stored folder handle back from IndexedDB after a reload closes the browser.
@@ -1411,4 +1412,83 @@ test('email + password account, and the admin panel only for admins', async ({ p
   await expect.poll(() => users[0].bytes).toBe(0);
   await page.locator('#admin-maint').getByRole('button', { name: /Pairing codes/ }).click();
   await expect(page.locator('.admin .ok')).toContainText('3 removed');
+});
+
+test('send songs to a GLUE Home: from its menu and from the selection, peer to peer, into its incoming folder', async ({ page }) => {
+  // The website (this laptop) and GLUE Home's real service page (home/ui, its Rust side stood in by
+  // e2e/tauri-mock.ts) talk over a real WebRTC data channel; the test relays the handshake the way
+  // the account's signaling room does.
+  const ctx = page.context();
+  await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+    window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+      renderButton(el) { const b = document.createElement('button'); b.id = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
+  const user = { id: 'u1', email: 'dj@example.com', name: 'DJ Test', picture: null };
+  const devices = [{ id: 'b1', kind: 'browser', name: 'Laptop', platform: '', createdAt: 1, lastSeen: 1 }, { id: 'h1', kind: 'home', name: 'Studio PC', platform: 'win32', createdAt: 2, lastSeen: 2 }];
+  await ctx.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+    const p = new URL(r.request().url()).pathname, m = r.request().method();
+    const json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
+    if (p === '/v1/health') return json({ ok: true });
+    if (p === '/v1/auth/google') return json({ access: 'a', refresh: 'r', deviceId: 'b1', user });
+    if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1' });
+    if (p === '/v1/auth/device') return json({ access: 'h' });
+    if (p === '/v1/me') return json({ user, thisDevice: 'b1', devices });
+    if (p === '/v1/sync' && m === 'GET') return json({ profiles: [] });
+    if (p === '/v1/sync/links') return json({ groups: [] });
+    if (p === '/v1/sync/manifest') return json({ need: [] });
+    if (p === '/v1/sync/ops') return json({ ops: [] });
+    return json({ error: 'not found' }, 404);
+  });
+  const socks: Record<string, import('@playwright/test').WebSocketRoute | null> = { b1: null, h1: null };
+  const presence = () => { const online = Object.keys(socks).filter(k => socks[k]); for (const w of Object.values(socks)) w?.send(JSON.stringify({ type: 'presence', online })); };
+  const room = (me: 'b1' | 'h1') => (ws: import('@playwright/test').WebSocketRoute) => {
+    socks[me] = ws; presence();
+    ws.onMessage(raw => { const j = JSON.parse(String(raw)); if (j.type === 'signal') socks[j.to]?.send(JSON.stringify({ type: 'signal', from: me, data: j.data })); });
+  };
+  await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('b1'));
+
+  // GLUE Home on the "desktop": paired as h1, online.
+  const home = await ctx.newPage();
+  await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('h1'));
+  await home.addInitScript(TAURI_MOCK);
+  await home.addInitScript(() => localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Studio PC', user: { email: 'dj@example.com', name: 'DJ' }, incoming: 'C:\In', running: true, askedAutostart: true })));
+  await home.goto('http://localhost:5176/service.html');
+  await expect(home.locator('#state')).toContainText('Online as Studio PC');
+
+  // The laptop: a library with music, signed in; Studio PC is online in Devices.
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.click('#account-btn');
+  await page.click('#fake-google');
+  const studio = page.locator('#devices [data-device="h1"]');
+  await expect(studio).toContainText('drop songs to send', { timeout: 15_000 });
+
+  // ⋯ › Send songs…: two files from this computer.
+  await studio.hover();
+  await studio.locator('.more').click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.click('#send-songs');
+  await (await chooser).setFiles([fixture('mp3-128k.mp3'), fixture('flac-96k-24.flac')]);
+  const panel = page.locator('#send-panel');
+  await expect(panel).toContainText('Sent to Studio PC', { timeout: 30_000 });
+  const got = async () => home.evaluate(() => (window as unknown as { __files: { name: string; chunks: number[][]; done: boolean }[] }).__files.map(f => ({ name: f.name, done: f.done, bytes: f.chunks.flat() })));
+  let files = await got();
+  expect(files.map(f => [f.name, f.done])).toEqual([['mp3-128k.mp3', true], ['flac-96k-24.flac', true]]);
+  expect(Buffer.from(files[0].bytes).equals(readFileSync(fixture('mp3-128k.mp3')))).toBe(true);
+  expect(Buffer.from(files[1].bytes).equals(readFileSync(fixture('flac-96k-24.flac')))).toBe(true);
+  await panel.getByRole('button', { name: 'Dismiss' }).click();
+
+  // From the library: select a track, "Send to Studio PC"; the name is taken there, so it's numbered.
+  await page.locator('.tr', { hasText: 'Fixture MP3' }).locator('.c-title').click();
+  await page.click('[data-send-home="h1"]');
+  await expect(panel).toContainText('saved as mp3-128k (2).mp3', { timeout: 30_000 });
+  files = await got();
+  expect(files[2]).toMatchObject({ name: 'mp3-128k (2).mp3', done: true });
+  // GLUE Home lists what it received.
+  await expect.poll(() => home.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).received?.length)).toBe(3);
+
 });

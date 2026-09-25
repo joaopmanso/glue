@@ -13,6 +13,9 @@
   import { app } from '../../lib/app.svelte';
   import { LOOSE } from '../../store/merge';
   import { sync } from '../../lib/sync.svelte';
+  import { account } from '../../lib/account.svelte';
+  import { sendToHome } from '../../lib/sendToHome.svelte';
+  import SendPanel from './SendPanel.svelte';
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
   const title = $derived.by(() => {
@@ -57,6 +60,15 @@
     if (v === '__new') { const name = prompt('Name of the new playlist'); if (!name) return; id = lib.createList('playlist', name)?.id ?? ''; }
     const n = lib.addToList(id, sel), l = lib.store?.lists.get(id);
     lib.notice = n ? 'Added ' + n + ' track' + (n === 1 ? '' : 's') + ' to ' + (l?.name ?? 'the playlist') + '.' : 'Already in ' + (l?.name ?? 'the playlist') + '.';
+  }
+  // Send the selected songs (this computer's files) to a GLUE Home that's online (ADR 0044).
+  const homes = $derived(account.devices.filter(d => d.kind === 'home' && account.online.has(d.id)));
+  async function sendSelected(home: string) {
+    const ts = sel.map(id => lib.store?.tracks.get(id)).filter((t): t is NonNullable<typeof t> => !!t && t.status === 'linked' && !t.remote && !lib.cloud);
+    const files: File[] = [];
+    for (const t of ts) { try { files.push(await lib.fileFor(t)); } catch { /* skipped: not readable here */ } }
+    if (!files.length) { lib.notice = 'None of the selected tracks has a file on this computer to send.'; return; }
+    await sendToHome.send(home, files).catch(e => (lib.notice = (e as Error).message));
   }
   function newCollection() { const n = prompt('Name of the new collection'); if (n) void lib.createCollection(n); }
   function renameCollection() { const n = prompt('Rename collection', lib.store?.meta.name); if (n) void lib.renameCollection(n); }
@@ -138,6 +150,7 @@
           </select>
           {#if current?.kind === 'playlist'}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from playlist</button>{/if}
           {#if lib.analysis.paused}<button type="button" class="mini" id="analyse-selected" title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
+          {#each homes as h (h.id)}<button type="button" class="mini" data-send-home={h.id} title={'Copy the selected songs into ' + h.name + '’s incoming folder'} onclick={() => sendSelected(h.id)}>Send to {h.name}</button>{/each}
           {#if !lib.cloud}<button type="button" class="mini" id="remove-tracks" onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>{/if}
           <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
         {:else if view.filtering}
@@ -154,6 +167,7 @@
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
       {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else}<TrackTable />{/if}
       <NoteEditor />
+      <SendPanel />
     </div>
   </div>
 </div>

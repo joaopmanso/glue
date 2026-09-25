@@ -1,0 +1,63 @@
+name: GLUE Home
+
+# Builds GLUE Home (home/, ADR 0044) for Windows and macOS. Every push that touches it checks that
+# it builds; a tag home-v<version> (the version in home/src-tauri/tauri.conf.json) publishes the
+# installers as a GitHub release, which the website's download links point at (releases/latest).
+on:
+  push:
+    branches: [main]
+    tags: ['home-v*']
+    paths: ['home/**', 'src/core/**', 'src/ui/GlueStick.svelte', '.github/workflows/home.yml', 'package.json', 'package-lock.json']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # publish the release (tags only)
+
+concurrency:
+  group: home-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: --bundles nsis
+            out: GLUE-Home-Setup.exe
+          - os: macos-latest
+            args: --bundles dmg --target universal-apple-darwin
+            out: GLUE-Home.dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Rust targets (macOS: one app for Apple silicon and Intel)
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - run: npm run home:ui
+      - name: Build
+        working-directory: home
+        run: npx tauri build ${{ matrix.args }}
+      - name: Collect the installer
+        shell: bash
+        run: |
+          mkdir -p out
+          if [ "$RUNNER_OS" = "Windows" ]; then f=$(ls home/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
+          else f=$(ls home/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1); fi
+          cp "$f" "out/${{ matrix.out }}"
+          ls -la out
+      - name: Publish (tags only)
+        if: startsWith(github.ref, 'refs/tags/home-v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "GLUE Home ${tag#home-v}" --notes-file home/RELEASE.md || true
+          gh release upload "$tag" "out/${{ matrix.out }}" --clobber
