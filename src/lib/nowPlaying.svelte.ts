@@ -1,6 +1,6 @@
 /* The library's player: which track is loaded, and the queue it came from (the view it was
    started in). Shares the one audio element with the track page (lib/player). */
-import { lib } from './library.svelte';
+import { lib, remoteFileMessage } from './library.svelte';
 import { player } from './player.svelte';
 import { router } from './route.svelte';
 import { blankInfo, parseContainer } from '../core/formats/parse';
@@ -23,6 +23,7 @@ class NowPlaying {
     this.queue = queue.length ? queue : [id];
     this.trackId = id; this.error = '';
     if (t.status !== 'linked') { this.error = 'No file linked for this track.'; player.setSource(null); return; }
+    if (t.remote) { this.error = remoteFileMessage(t.remote.name); player.setSource(null); return; }
     this.loading = true;
     try {
       const file = await lib.fileFor(t);   // may ask for permission: still inside the click
@@ -41,7 +42,7 @@ class NowPlaying {
     const i = this.trackId ? this.queue.indexOf(this.trackId) : -1;
     for (let j = i + dir; j >= 0 && j < this.queue.length; j += dir) {
       const t = lib.store?.tracks.get(this.queue[j]);
-      if (t && t.status === 'linked') return this.queue[j];
+      if (t && t.status === 'linked' && !t.remote) return this.queue[j];
     }
     return null;
   }

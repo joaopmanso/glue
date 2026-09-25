@@ -7,6 +7,7 @@ import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
 import { ANALYSIS_VERSION, SCHEMA, VERDICT_VERSION, newId, type List, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
+import type { Overlay } from '../core/library/overlay';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { findLibraries, type Detected } from '../core/library/detect';
 import { makeThumb } from '../core/library/thumb';
@@ -243,6 +244,49 @@ class Library {
     this.version++;
   }
   onCloudChange: (() => void) | null = null;
+  /** The open local collection changed (sync sends edits of a merged collection's shared data). */
+  onLocalChange: (() => void) | null = null;
+
+  /** The devices whose songs the open collection shows (this one first); empty when it's only this one. */
+  devicesShown = $state.raw<string[]>([]);
+  /** This device's playlists as saved, before other devices' songs were shown in them. */
+  private overlayBase = new Map<string, { before: string[]; shown: string[] }>();
+  /** Show (or take away) other devices' songs and playlists of a merged collection in the open local
+      collection (ADR 0042). Nothing of it is saved to this computer's collection files. */
+  applyOverlay(o: Overlay | null, devices: string[] = []) {
+    const s = this.store;
+    if (!s || this.cloud) return;
+    this.devicesShown = o ? devices : [];
+    for (const id of s.ephemeral) { s.tracks.delete(id); s.analysis.delete(id); s.lists.delete(id); }
+    s.ephemeral.clear();
+    for (const t of s.tracks.values()) if (t.onDevices) delete t.onDevices;
+    for (const [id, b] of this.overlayBase) {
+      const l = s.lists.get(id);   // unless it was edited meanwhile (then it's saved with them)
+      if (l && l.items.join() === b.shown.join()) s.lists.set(id, { ...l, items: b.before });
+    }
+    this.overlayBase.clear();
+    if (o) {
+      for (const t of o.tracks) { s.ephemeral.add(t.id); s.tracks.set(t.id, t); }
+      for (const [id, a] of o.analysis) s.analysis.set(id, a);
+      for (const l of o.lists) { s.ephemeral.add(l.id); s.lists.set(l.id, l); }
+      for (const [id, devs] of o.onDevices) { const t = s.tracks.get(id); if (t) t.onDevices = devs; }
+      for (const [id, extra] of o.extraItems) {
+        const l = s.lists.get(id);
+        if (!l) continue;
+        const shown = [...l.items, ...extra];
+        this.overlayBase.set(id, { before: l.items, shown });
+        s.lists.set(id, { ...l, items: shown });
+      }
+    }
+    this.version++;
+  }
+  /** This device's own tracks and playlists (without other devices' ones). */
+  ownTracks(): Track[] { const s = this.store; return s ? [...s.tracks.values()].filter(t => !s.ephemeral.has(t.id)) : []; }
+  ownLists(): List[] {
+    const s = this.store;
+    if (!s) return [];
+    return [...s.lists.values()].filter(l => !s.ephemeral.has(l.id)).map(l => { const b = this.overlayBase.get(l.id); return b && l.items.join() === b.shown.join() ? { ...l, items: b.before } : l; });
+  }
   /** Back to this computer's own library (or the profile list / start when there's none). */
   async leaveCloudView() {
     this.cloud = null; this.store = null;
@@ -254,11 +298,11 @@ class Library {
     this.phase = this.home ? 'profiles' : 'welcome';
     this.version++;
   }
-  /** Turn cloud sync on or off for a profile of this GLUE folder. */
+  /** Turn cloud sync on or off for a profile of this GLUE folder (it's on by default, ADR 0042). */
   async setProfileSync(pid: string, on: boolean) {
     const home = this.home;
     if (!home) return;
-    const p = { ...(this.profile?.id === pid ? this.profile : await home.loadProfile(pid)), cloudSync: on || undefined };
+    const p = { ...(this.profile?.id === pid ? this.profile : await home.loadProfile(pid)), cloudSync: on };
     await home.saveProfile(p);
     if (this.profile?.id === pid) this.profile = p;
     this.home = null; this.home = home;
@@ -276,9 +320,9 @@ class Library {
     if (!this.home || !this.profile || !this.homeDir) return;
     await this.closeCollection();
     const s = await CollectionStore.load(this.homeDir, this.profile.id, cid);
-    s.onChange = () => { this.version++; };
+    s.onChange = () => { this.version++; this.onLocalChange?.(); };
     s.onDirty = () => this.scheduleFlush();
-    this.store = s;
+    this.store = s; this.overlayBase.clear();
     if (this.profile.lastCollection !== cid) { this.profile = { ...this.profile, lastCollection: cid }; await this.home.saveProfile(this.profile); }
     this.found = [];
     this.analysis = { ...this.analysis, paused: s.meta.autoAnalyse === false };
@@ -311,8 +355,8 @@ class Library {
   private async closeCollection() {
     this.stopAnalysis();
     await this.flush();
-    this.cloud = null;
-    this.store = null; this.roots = [];
+    this.cloud = null; this.devicesShown = [];
+    this.store = null; this.roots = []; this.overlayBase.clear();
     this.looseHandles.clear(); this.looseGranted = new Set();
   }
 
@@ -652,7 +696,8 @@ class Library {
 
   // ─── Files and background analysis ─────────────────────────────────────────
   async fileFor(t: Track): Promise<File> {
-    if (this.cloud) throw new Error('This track’s file is on ' + (t.onDevices?.join(' and ') || this.cloud.title) + '. Playing it from another computer comes with GLUE Home streaming.');
+    if (t.remote) throw new Error(remoteFileMessage(t.remote.name));
+    if (this.cloud) throw new Error(remoteFileMessage(t.onDevices?.join(' and ') || this.cloud.title));
     if (t.fileKey) return this.looseFile(t, true);
     const r = this.rootState(t.rootId);
     if (!r?.dir || !t.relPath) throw new Error('This track isn’t linked to a file yet. Add the music folder it lives in.');
@@ -664,7 +709,7 @@ class Library {
   }
   /** Can this track's file be read right now without asking the user? */
   canRead(t: Track) {
-    if (t.status !== 'linked') return false;
+    if (t.status !== 'linked' || t.remote || this.cloud) return false;
     if (t.fileKey) return t.fileKey.startsWith('copy:') || this.looseGranted.has(t.id);
     return !!this.rootState(t.rootId)?.granted;
   }
@@ -746,7 +791,7 @@ class Library {
   private async createSongTracks(items: SongInput[]) {
     const s = this.store!;
     // A song matching an imported track that has no file yet is linked to it rather than added again.
-    const unlinked = [...s.tracks.values()].filter(t => t.status === 'unlinked');
+    const unlinked = [...s.tracks.values()].filter(t => t.status === 'unlinked' && !t.remote);
     const entries = items.map(it => ({ rootId: it.rootId ?? LOOSE, relPath: it.relPath ?? it.file.name, size: it.file.size, mtime: it.file.lastModified }));
     const { links } = matchTracks(unlinked.map(t => ({ id: t.id, importPath: t.importPath, fileName: t.fileName, size: t.size })), entries);
     const byEntry = new Map([...links].map(([tid, e]) => [e, tid]));
@@ -814,9 +859,11 @@ class Library {
   async removeTracks(ids: string[]) {
     const s = this.store;
     if (!s) return;
+    let others = 0;
     for (const id of ids) {
       const t = s.tracks.get(id);
       if (!t) continue;
+      if (t.remote) { others++; continue; }
       if (t.fileKey?.startsWith('file:')) await platform.forgetFolder(t.fileKey);
       else if (t.fileKey?.startsWith('copy:') && this.homeDir) await removePath(this.homeDir, t.fileKey.slice(5));
       this.looseHandles.delete(id);
@@ -824,10 +871,11 @@ class Library {
       const cache = await platform.cacheDir();
       if (cache) { await removeDetails(cache, s.meta.id, id).catch(() => {}); await removeFingerprint(cache, s.meta.id, id).catch(() => {}); }
     }
+    if (others) this.notice = others + ' of these track' + (others === 1 ? ' is' : 's are') + ' only on another device: remove ' + (others === 1 ? 'it' : 'them') + ' there.';
   }
 
   needsAnalysis(t: Track) {
-    if (t.status !== 'linked') return false;
+    if (t.status !== 'linked' || t.remote) return false;
     const a = this.store?.analysis.get(t.id);
     return !a || a.v < ANALYSIS_VERSION || a.fileSize !== t.size || a.fileMtime !== t.mtime;
   }
@@ -927,6 +975,11 @@ async function quickTags(t: Track, file: File): Promise<Track> {
   } catch { /* unreadable: fall back to the name */ }
   if (!out.title) { const n = nameFields(out.fileName); out.title = n.title; if (!out.artist) out.artist = n.artist; }
   return out;
+}
+
+/** Why another device's track can't be played or analysed here yet. */
+export function remoteFileMessage(device: string) {
+  return 'This track’s file is on ' + device + '. Playing and analysing it from another computer comes with GLUE Home streaming, which isn’t available yet.';
 }
 
 /** What a cloud view shows: one device's collection, or a merged collection (see lib/sync). */

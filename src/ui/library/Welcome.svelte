@@ -8,9 +8,8 @@
   import ThemePicker from '../ThemePicker.svelte';
   import CloudPanel from './CloudPanel.svelte';
   import Homepage from './Homepage.svelte';
-  import SyncSetup from './SyncSetup.svelte';
   import { account } from '../../lib/account.svelte';
-  import { sync } from '../../lib/sync.svelte';
+  import { sync, syncOn as profileSyncs } from '../../lib/sync.svelte';
 
   let profileName = $state('');
   let collectionName = $state('My collection');
@@ -69,19 +68,21 @@
     lib.onboarding = null;
   }
   // Cloud sync per profile (ADR 0040): read from each profile's file.
+  // On unless turned off (ADR 0042).
   let syncOn = $state<Record<string, boolean>>({});
-  let setupFor = $state<string | null>(null);
   $effect(() => {
     const ps = lib.home?.index.profiles ?? [];
-    void setupFor;
-    void Promise.all(ps.map(async p => [p.id, !!(await lib.profileInfo(p.id))?.cloudSync] as const)).then(r => { syncOn = Object.fromEntries(r); }).catch(() => {});
+    void Promise.all(ps.map(async p => [p.id, profileSyncs(await lib.profileInfo(p.id))] as const)).then(r => { syncOn = Object.fromEntries(r); }).catch(() => {});
   });
   async function toggleSync(pid: string) {
     if (!account.signedIn) { lib.notice = 'Sign in with Google (GLUE Cloud, below) to turn on Cloud sync.'; document.getElementById('cloud-panel')?.scrollIntoView({ behavior: 'smooth' }); return; }
     if (syncOn[pid]) {
       if (!confirm('Turn off Cloud sync for this profile? It stops uploading; its cloud copy stays until you delete it (GLUE Cloud, below).')) return;
       await lib.setProfileSync(pid, false); syncOn = { ...syncOn, [pid]: false };
-    } else setupFor = pid;
+    } else {
+      await lib.setProfileSync(pid, true); syncOn = { ...syncOn, [pid]: true };
+      void sync.push(pid).catch(() => {});
+    }
   }
   const ago = (t: number | null) => { if (!t) return ''; const m = Math.round((Date.now() - t) / 60e3); return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
   const tracks = (m: BackupManifest) => m.collections.reduce((n, c) => n + c.tracks, 0);
@@ -179,10 +180,10 @@
               <button type="button" class="backup-btn" title="Download a backup (.zip) of this profile" onclick={() => backup(p.id)}>
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5v1h11v-1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Backup
               </button>
-              <button type="button" class="syncbtn" class:on={syncOn[p.id]} data-sync={p.id} aria-pressed={!!syncOn[p.id]}
+              <button type="button" class="syncbtn" class:on={syncOn[p.id] && account.signedIn} data-sync={p.id} aria-pressed={!!syncOn[p.id] && account.signedIn}
                 title={sync.status[p.id]?.error ? 'Cloud sync: ' + sync.status[p.id].error : syncOn[p.id] ? 'Cloud sync is on: this profile’s data (not the music) is kept in GLUE Cloud' : 'Keep this profile’s data in GLUE Cloud, to see it from any browser'} onclick={() => toggleSync(p.id)}>
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7.2a3 3 0 0 0 .4-6 4.2 4.2 0 0 0-8.1 1.2 2.4 2.4 0 0 0 .5 4.8z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
-                {syncOn[p.id] ? (sync.status[p.id]?.busy ? 'Syncing…' : sync.status[p.id]?.error ? 'Sync problem' : sync.status[p.id]?.at ? 'Synced ' + ago(sync.status[p.id].at) : 'Cloud sync on') : 'Cloud sync'}
+                {syncOn[p.id] && account.signedIn ? (sync.status[p.id]?.busy ? 'Syncing…' : sync.status[p.id]?.error ? 'Sync problem' : sync.status[p.id]?.at ? 'Synced ' + ago(sync.status[p.id].at) : 'Cloud sync on') : 'Cloud sync'}
               </button>
               <button type="button" title="Rename" onclick={() => { const n = prompt('Rename profile', p.name); if (n?.trim()) void lib.renameProfile(p.id, n); }}>Rename</button>
               <button type="button" class="del" title="Delete this profile" onclick={() => { if (confirm('Delete the profile “' + p.name + '” with all its collections and playlists? Download a backup first if you might want it back. Your music files aren’t touched.')) void lib.deleteProfile(p.id); }}>Delete</button>
@@ -253,7 +254,6 @@
   {/if}
   {#if busy}<p class="muted" role="status">{busy}</p>{/if}
 </section>
-{#if setupFor}<SyncSetup pid={setupFor} onclose={() => (setupFor = null)} />{/if}
 
 <style>
   .welcome { max-width: 900px; margin: 5vh auto 0; display: grid; gap: 18px; }

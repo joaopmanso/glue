@@ -46,7 +46,7 @@
     {:else}<p class="fine">GLUE Cloud isn't reachable right now.</p>{/if}
   {:else}
     {#if sync.loading && !sync.remote.length}<p class="fine">Looking in your cloud…</p>
-    {:else if !sync.remote.length}<p class="fine" id="cloud-empty">Nothing in your cloud yet. Turn on <b>Cloud sync</b> for a profile above and its collections appear here, and on every browser you sign in to.</p>{/if}
+    {:else if !sync.remote.length}<p class="fine" id="cloud-empty">Nothing in your cloud yet. Open a profile and its collections sync by themselves (unless you turn <b>Cloud sync</b> off for it): they appear here, and on every browser you sign in to.</p>{/if}
 
     {#if sync.groups.length}
       <h4>Merged collections</h4>

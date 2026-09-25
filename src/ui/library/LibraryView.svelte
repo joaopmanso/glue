@@ -12,6 +12,7 @@
   import { auto } from '../../lib/auto.svelte';
   import { app } from '../../lib/app.svelte';
   import { LOOSE } from '../../store/merge';
+  import { sync } from '../../lib/sync.svelte';
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
   const title = $derived.by(() => {
@@ -87,6 +88,7 @@
     <h2>{title}<small>{count} track{count === 1 ? '' : 's'}</small></h2>
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks">
     <FilterMenu />
+    {#if sync.busy}<span class="cloudload" id="cloud-loading" role="status"><span class="spin"></span>{sync.busy}</span>{/if}
     {#if current}<button type="button" class="ibtn" class:on={showInsights} id="insights-btn" aria-pressed={showInsights} title="Length, tempo, keys and tags of this playlist" onclick={toggleInsights}>Insights</button>{/if}
     {#if !lib.cloud}
     <div class="an" title="Tracks are analysed in the background, several at a time">
@@ -174,6 +176,7 @@
   input[type="search"] { width: min(340px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 7px 12px; }
   .an { display: flex; gap: 8px; align-items: center; color: var(--ink-2); font-size: 12.5px; }
   .ok { color: var(--ok); }
+  .cloudload { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 999px; padding: 4px 12px 4px 10px; }
   .spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: spin .9s linear infinite; }
   .spin.paused { animation: none; border-color: var(--muted); }
   .switch { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; margin-left: 6px; }

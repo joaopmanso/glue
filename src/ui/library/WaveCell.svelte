@@ -15,7 +15,8 @@
   let { t, order }: { t: Track; order: string[] } = $props();
   let cv = $state<HTMLCanvasElement>();
   const data = $derived.by(() => { void thumbs.version; return thumbs.get(t.id); });
-  $effect(() => { if (data === undefined && t.status === 'linked') thumbs.request(t.id); });
+  const here = $derived(t.status === 'linked' && !t.remote);
+  $effect(() => { if (data === undefined && here) thumbs.request(t.id); });
 
   // Draw through the spectrogram palette (the same one as the track page).
   $effect(() => {
@@ -35,7 +36,7 @@
   function frac(e: PointerEvent) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); }
   function down(e: PointerEvent) {
     e.stopPropagation();   // not a row drag or selection
-    if (e.button !== 0 || t.status !== 'linked') return;
+    if (e.button !== 0 || !here) return;
     const f = frac(e);
     if (playing) { player.seek(f * (player.duration || dur)); scrubbing = true; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }
     else void nowPlaying.play(t.id, order, f * dur);
@@ -45,7 +46,7 @@
 
 <!-- Pointer-only extra: keyboard users have the row’s play button and the player bar. -->
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-<div class="wave" class:empty={!data} class:playing title={t.status === 'linked' ? 'Click to play from here' : ''}
+<div class="wave" class:empty={!data} class:playing title={here ? 'Click to play from here' : t.remote ? 'On ' + t.remote.name + ': plays there' : ''}
   onpointerdown={down} onpointermove={move} onpointerup={() => (scrubbing = false)} onclick={e => e.stopPropagation()} ondblclick={e => e.stopPropagation()}>
   {#if data}<canvas bind:this={cv} width={THUMB_W} height={THUMB_H} aria-hidden="true"></canvas>{/if}
   {#if playing}

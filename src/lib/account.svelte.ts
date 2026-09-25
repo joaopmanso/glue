@@ -114,12 +114,14 @@ class Account {
   async signOut() {
     const r = this.refreshToken;
     this.forget();
+    this.onSignedOut?.();
     try { (window as unknown as { google?: GoogleId }).google?.accounts.id.disableAutoSelect(); } catch { /* not loaded */ }
     if (r) await fetch(API_BASE + '/v1/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh: r }) }).catch(() => {});
   }
   async deleteAccount() {
     await this.call('DELETE', '/v1/me');
     this.forget();
+    this.onSignedOut?.();
   }
 
   /** A single-use code (10 minutes) that GLUE Home enters to join this account. */
@@ -128,6 +130,8 @@ class Account {
   async remove(id: string) { await this.call('DELETE', '/v1/devices/' + id); await this.loadMe(); }
   /** Told once per sign-in (sync starts then). */
   onSignedIn: (() => void) | null = null;
+  /** Told when the user signs out (or deletes the account): the other devices' data leaves the library. */
+  onSignedOut: (() => void) | null = null;
   async loadMe() {
     const r = await this.call<{ user: CloudUser; thisDevice: string; devices: CloudDevice[] }>('GET', '/v1/me');
     const first = this.phase !== 'signed-in';

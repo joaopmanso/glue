@@ -8,10 +8,10 @@ import { hasTag, tagsOf } from '../core/library/tagging';
 
 export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string };
 /** The table's value filters; each can also be opened from its column header. */
-export type FilterGroup = 'quality' | 'format' | 'tag' | 'genre';
-export const FILTER_GROUPS: { g: FilterGroup; title: string }[] = [{ g: 'quality', title: 'Quality' }, { g: 'format', title: 'Format' }, { g: 'tag', title: 'Tags' }, { g: 'genre', title: 'Genre' }];
-const NO_FILTERS = (): Record<FilterGroup, string[]> => ({ quality: [], format: [], tag: [], genre: [] });
-export type SortKey = 'title' | 'artist' | 'album' | 'genre' | 'bpm' | 'key' | 'duration' | 'format' | 'quality' | 'rating' | 'added' | 'label' | 'year' | 'order';
+export type FilterGroup = 'quality' | 'format' | 'tag' | 'genre' | 'device';
+export const FILTER_GROUPS: { g: FilterGroup; title: string }[] = [{ g: 'quality', title: 'Quality' }, { g: 'format', title: 'Format' }, { g: 'tag', title: 'Tags' }, { g: 'genre', title: 'Genre' }, { g: 'device', title: 'Device' }];
+const NO_FILTERS = (): Record<FilterGroup, string[]> => ({ quality: [], format: [], tag: [], genre: [], device: [] });
+export type SortKey = 'title' | 'artist' | 'album' | 'genre' | 'bpm' | 'key' | 'duration' | 'format' | 'quality' | 'rating' | 'added' | 'label' | 'year' | 'device' | 'order';
 
 /** dj: what an imported DJ library said, shown when GLUE's own analysis has no value. */
 export interface Row { t: Track; a: AnalysisSummary | null; n: number; dj: { bpm: number | null; key: string | null; rating: number | null } | null }
@@ -106,6 +106,7 @@ class View {
         case 'quality': return r.a ? QUALITY_RANK[r.a.grade] * 100 + r.a.label.length : 999;
         case 'rating': return -(r.t.rating ?? r.dj?.rating ?? 0);
         case 'added': return r.t.addedAt;
+        case 'device': return devicesOf(r.t).join(', ').toLowerCase();
         default: return (r.t[key] || '￿').toLowerCase();
       }
     };
@@ -130,9 +131,16 @@ export function valuesOf(g: FilterGroup, r: Row): string[] {
   if (g === 'quality') return [qualityOf(r)];
   if (g === 'format') return [formatOf(r.t)];
   if (g === 'genre') return [r.t.genre.trim() || NO_GENRE];
+  if (g === 'device') return devicesOf(r.t);
   const tags = tagsOf(r.t);
   return tags.length ? tags : [NO_TAGS];
 }
+/** The devices that have a track (a merged collection shows several; ADR 0042). */
+export function devicesOf(t: Track): string[] {
+  return t.onDevices?.length ? t.onDevices : [lib.devicesShown[0] ?? 'This computer'];
+}
+/** More than one device's songs on screen: the Device column and filter mean something. */
+export function manyDevices(): boolean { return lib.devicesShown.length > 1 || lib.cloud?.kind === 'group'; }
 /** What the Quality filter groups by: GLUE's verdict, or why there's none. */
 export function qualityOf(r: Row): string {
   if (r.t.status === 'unlinked') return 'No file';

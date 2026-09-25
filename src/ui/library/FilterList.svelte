@@ -4,6 +4,7 @@
   import { app } from '../../lib/app.svelte';
   import { lib } from '../../lib/library.svelte';
   import { tagColorOf } from '../../lib/tags.svelte';
+  import { deviceColor } from '../../lib/devices';
 
   let { group, title = '', search = false }: { group: FilterGroup; title?: string; search?: boolean } = $props();
   let q = $state('');
@@ -27,7 +28,7 @@
   <div class="vals">
     {#each shown as [value, count] (value)}
       <label><input type="checkbox" checked={chosen.includes(value)} onchange={() => view.toggleFilter(group, value)}>
-        {#if group === 'tag' && value !== 'No tags'}<i class="dot" style:background={tagColorOf(value)}></i>{/if}<span>{value}</span><small>{count}</small></label>
+        {#if group === 'tag' && value !== 'No tags'}<i class="dot" style:background={tagColorOf(value)}></i>{:else if group === 'device'}<i class="dot sq" style:background={deviceColor(value)}></i>{/if}<span>{value}</span><small>{count}</small></label>
     {:else}<p class="none">{q ? 'No match.' : 'Nothing here.'}</p>{/each}
   </div>
 </fieldset>
@@ -42,6 +43,7 @@
   label span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   label small { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.sq { border-radius: 2px; }
   .fq { background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; font-size: 12.5px; margin-bottom: 4px; }
   .none { color: var(--muted); font-size: 12.5px; padding: 3px 4px; }
 </style>

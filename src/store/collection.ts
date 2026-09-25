@@ -17,6 +17,9 @@ export class CollectionStore {
   private writing: Promise<void> | null = null;
   onChange: (() => void) | null = null;
   onDirty: (() => void) | null = null;
+  /** Tracks, analyses and lists shown here but owned by another device (ADR 0042): kept in memory,
+      never written to this collection's files. */
+  readonly ephemeral = new Set<string>();
 
   private constructor(readonly root: Dir, readonly base: string, public meta: Collection) {}
 
@@ -61,20 +64,21 @@ export class CollectionStore {
   private changed() { this.onChange?.(); }
 
   saveMeta() { this.mark('collection.json'); this.changed(); }
-  putTrack(t: Track) { this.tracks.set(t.id, t); this.mark(`tracks/${shardOf(t.id)}.json`); this.changed(); }
-  putTracks(ts: Track[]) { for (const t of ts) { this.tracks.set(t.id, t); this.mark(`tracks/${shardOf(t.id)}.json`); } this.changed(); }
+  putTrack(t: Track) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); this.changed(); }
+  putTracks(ts: Track[]) { for (const t of ts) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); } this.changed(); }
   removeTrack(id: string) {
+    if (this.ephemeral.has(id)) return;   // another device's track: removed there, not here
     this.tracks.delete(id); this.analysis.delete(id);
     this.mark(`tracks/${shardOf(id)}.json`); this.mark(`analysis/${shardOf(id)}.json`);
     for (const l of this.lists.values()) if (l.items.includes(id)) this.putList({ ...l, items: l.items.filter(x => x !== id) });
     this.changed();
   }
-  putAnalysis(id: string, a: AnalysisSummary) { this.analysis.set(id, a); this.mark(`analysis/${shardOf(id)}.json`); this.changed(); }
-  putList(l: List) { this.lists.set(l.id, l); this.mark(`lists/${l.id}.json`); this.changed(); }
+  putAnalysis(id: string, a: AnalysisSummary) { this.analysis.set(id, a); if (!this.ephemeral.has(id)) this.mark(`analysis/${shardOf(id)}.json`); this.changed(); }
+  putList(l: List) { this.lists.set(l.id, l); if (!this.ephemeral.has(l.id)) this.mark(`lists/${l.id}.json`); this.changed(); }
   deleteList(id: string) {
     const doomed = [id];
     for (let i = 0; i < doomed.length; i++) for (const l of this.lists.values()) if (l.parentId === doomed[i]) doomed.push(l.id);
-    for (const d of doomed) { this.lists.delete(d); this.dirty.delete(`lists/${d}.json`); this.deleted.add(`lists/${d}.json`); }
+    for (const d of doomed) { this.lists.delete(d); if (this.ephemeral.has(d)) continue; this.dirty.delete(`lists/${d}.json`); this.deleted.add(`lists/${d}.json`); }
     this.onDirty?.(); this.changed();
   }
   putSource(s: Source) { this.sources.set(s.id, s); this.mark(`sources/${s.id}.json`); this.changed(); }
@@ -120,7 +124,12 @@ export class CollectionStore {
     if (dir === 'tracks' || dir === 'analysis') {
       const src: Map<string, Track | AnalysisSummary> = dir === 'tracks' ? this.tracks : this.analysis;
       const items: Record<string, unknown> = {};
-      for (const [id, v] of src) if (shardOf(id) === key) items[id] = v;
+      for (const [id, v] of src) {
+        if (shardOf(id) !== key || this.ephemeral.has(id)) continue;
+        // What only a merged view knows (which devices have it) isn't saved.
+        if (dir === 'tracks' && ((v as Track).onDevices || (v as Track).remote)) { const { onDevices: _d, remote: _r, ...rest } = v as Track; items[id] = rest; }
+        else items[id] = v;
+      }
       return { schemaVersion: SCHEMA, items };
     }
     if (dir === 'lists') return this.lists.get(key);

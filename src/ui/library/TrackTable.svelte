@@ -1,6 +1,7 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
-  import { view, qualityOf, type Row, type FilterGroup, type SortKey } from '../../lib/view.svelte';
+  import { view, qualityOf, devicesOf, manyDevices, type Row, type FilterGroup, type SortKey } from '../../lib/view.svelte';
+  import { deviceColor } from '../../lib/devices';
   import { tagsOf } from '../../core/library/tagging';
   import { tagColorOf } from '../../lib/tags.svelte';
   import FilterList from './FilterList.svelte';
@@ -25,7 +26,9 @@
   const order = $derived(rows.map(r => r.t.id));
   const list = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   const isPlaylist = $derived(list?.kind === 'playlist');
-  const cols = $derived(columns.visible);
+  // The Device column only while more than one device's songs are on screen.
+  const cols = $derived(manyDevices() ? columns.visible : columns.visible.filter(k => k !== 'device'));
+  const here = (r: Row) => r.t.status === 'linked' && !r.t.remote && !lib.cloud;
   // play button, "#" (playlists only), the chosen columns, the column menu button
   const widths = $derived([dragOut ? '42px' : '26px', ...(isPlaylist ? ['36px'] : []), ...cols.map(k => COLUMNS[k].width), '28px']);
   const template = $derived(widths.join(' '));
@@ -105,7 +108,6 @@
   {:else if k === 'title'}
     {@const g = dupes.groupOf.get(r.t.id)}
     <span class="c-title" title={r.t.fileName}>{r.t.title || r.t.fileName}</span>
-    {#if r.t.onDevices?.length}<span class="ondev" title={'On ' + r.t.onDevices.join(', ')}>{r.t.onDevices.join(' · ')}</span>{/if}
     {#if g?.kind === 'same'}<button type="button" class="dup" title={'Same recording as ' + (g.ids.length - 1) + ' other track' + (g.ids.length > 2 ? 's' : '') + ': show duplicates'}
       onclick={e => { e.stopPropagation(); view.select({ kind: 'dupes' }); }}>{g.ids.length}×</button>{/if}
   {:else if k === 'artist'}<span class="c-artist">{r.t.artist}</span>
@@ -117,6 +119,11 @@
       onclick={e => { e.stopPropagation(); view.editTags(e.currentTarget, { ids: tagIds(r.t.id) }); }} ondblclick={e => e.stopPropagation()}>
       {#each tg as g (g)}<span class="tg" style:--c={tagColorOf(g)}>{g}</span>{:else}<span class="tadd">+ tag</span>{/each}
     </button>
+  {:else if k === 'device'}
+    <span class="c-dev">
+      {#each devicesOf(r.t) as d (d)}<button type="button" class="dv" style:--c={deviceColor(d)} title={'On ' + d + ' · click to show only this device'}
+        onclick={e => { e.stopPropagation(); view.toggleFilter('device', d); }} ondblclick={e => e.stopPropagation()}>{d}</button>{/each}
+    </span>
   {:else if k === 'label'}<span class="c-soft">{r.t.label}</span>
   {:else if k === 'year'}<span class="c-num">{r.t.year}</span>
   {:else if k === 'bpm'}
@@ -214,7 +221,7 @@
           onpointerdown={e => press(e, r.t.id)}
           onclick={e => { if (!drag.suppressClick) view.click(r.t.id, e, order); }} ondblclick={() => open(r.t.id)}>
           <span class="c-play">
-            {#if dragOut && r.t.status === 'linked'}
+            {#if dragOut && here(r)}
               <span class="grip" draggable="true" role="button" tabindex="-1" aria-label="Drag out a copy of the file"
                 title="Drag to Explorer, the desktop or a USB stick to copy this file"
                 onpointerenter={() => void prepareTrack(r.t)}
@@ -222,7 +229,7 @@
                 <svg viewBox="0 0 6 14" aria-hidden="true"><circle cx="1.5" cy="2" r="1.1"/><circle cx="4.5" cy="2" r="1.1"/><circle cx="1.5" cy="7" r="1.1"/><circle cx="4.5" cy="7" r="1.1"/><circle cx="1.5" cy="12" r="1.1"/><circle cx="4.5" cy="12" r="1.1"/></svg>
               </span>
             {/if}
-            {#if r.t.status === 'linked'}
+            {#if here(r)}
               <button type="button" class="pbtn" aria-label={nowPlaying.trackId === r.t.id && !player.paused ? 'Pause' : 'Play'}
                 onclick={e => { e.stopPropagation(); play(r.t.id); }} ondblclick={e => e.stopPropagation()}>
                 {#if nowPlaying.trackId === r.t.id && !player.paused}
@@ -321,7 +328,9 @@
   .tr.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
   .tr.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
   .c-title { color: var(--ink); font-weight: 550; overflow: hidden; text-overflow: ellipsis; }
-  .ondev { flex: none; margin-left: 6px; font-size: 10.5px; color: var(--muted); border: 1px solid var(--line-2); border-radius: 8px; padding: 0 6px; line-height: 15px; }
+  .c-dev { display: flex; gap: 3px; min-width: 0; overflow: hidden; }
+  .dv { flex: none; font-size: 11px; line-height: 16px; padding: 0 6px 0 5px; border-radius: 3px; background: color-mix(in srgb, var(--c) 14%, transparent); border: 0; border-left: 3px solid var(--c); color: var(--ink-2); white-space: nowrap; cursor: pointer; }
+  .dv:hover { background: color-mix(in srgb, var(--c) 26%, transparent); color: var(--ink); }
   .dup { flex: none; margin-left: 6px; background: none; border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); border-radius: 3px; font: 600 10.5px var(--font-mono); padding: 0 4px; cursor: pointer; }
   .dup:hover { background: color-mix(in srgb, var(--warn) 15%, transparent); }
   .c-artist, .c-soft { color: var(--ink-2); }

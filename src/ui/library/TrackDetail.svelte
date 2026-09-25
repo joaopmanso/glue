@@ -35,7 +35,9 @@
   const order = $derived(view.rows(app.keyNotation).map(r => r.t.id));
   const pos = $derived(order.indexOf(id));
 
-  let phase = $state<'loading' | 'ready' | 'need-access' | 'no-file' | 'error'>('loading');
+  let phase = $state<'loading' | 'ready' | 'need-access' | 'no-file' | 'remote' | 'error'>('loading');
+  // Another device's track (a merged collection or a cloud view): its file isn't on this computer.
+  const elsewhere = $derived(track?.remote?.name ?? (lib.cloud ? track?.onDevices?.join(' and ') || lib.cloud.title : null));
   let message = $state('');
   let stored = $state(false);        // showing the analysis kept from an earlier visit
   let canPlay = $state(true);        // false: a stored analysis is shown but the file isn't readable yet
@@ -47,6 +49,8 @@
     if (!t) return;
     const key = 'track:' + t.id;
     loaded = t.id;
+    // Nothing to ask for: streaming from another computer comes with GLUE Home (not available yet).
+    if (t.remote || lib.cloud) { phase = 'remote'; return; }
     if (!fresh) {
       const kept = await lib.trackDetails(t);
       if (id !== t.id) return;
@@ -175,7 +179,18 @@ canPlay = true;
     {#if phase === 'ready' && !canPlay && track.status === 'linked'}
       <div class="notice">This is the analysis stored earlier. To play the track, GLUE needs your permission to read it again. <button type="button" class="btn" onclick={allowPlay}>Allow and play</button></div>
     {/if}
-    {#if phase === 'need-access'}
+    {#if phase === 'remote'}
+      <div class="notice" id="track-elsewhere">
+        <span>This track’s file is on <b>{elsewhere}</b>. Its details and analysis come from there. Playing and analysing it on this computer comes with GLUE Home streaming, which isn’t available yet.</span>
+      </div>
+      {#if summary && !summary.error}
+        <section class="remote-sum">
+          <p><b>{summary.label}</b> · {summary.headline}</p>
+          <p class="mono">{summary.bpm ? 'BPM ' + summary.bpm : ''}{summary.bpm && summary.key ? ' · ' : ''}{summary.key ? 'Key ' + keyLabel(summary.key, app.keyNotation) : ''}</p>
+          {#if summary.findings.length}<ul>{#each summary.findings as f (f.title)}<li data-sev={f.sev}>{f.title}</li>{/each}</ul>{/if}
+        </section>
+      {/if}
+    {:else if phase === 'need-access'}
       <div class="notice">GLUE needs your permission to read “{track.fileKey ? track.fileName : root?.root.name}” again. <button type="button" class="btn" onclick={() => load(true)}>Allow and analyse</button></div>
     {:else if phase === 'no-file'}
       <div class="notice">{track.status === 'missing' ? 'The file wasn’t found where it was last seen. Scan its music folder again, or add the folder it moved to.' : 'This track came from an imported library and isn’t linked to a file yet. Add the music folder it lives in (sidebar › Music folders) and GLUE links it automatically.'}</div>
@@ -228,6 +243,10 @@ canPlay = true;
   .dj td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line); color: var(--ink-2); }
   .dj .mco td { color: var(--accent); }
   .stars { color: var(--warn); letter-spacing: 1px; }
+  .remote-sum { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 12px 16px; display: grid; gap: 6px; font-size: 13.5px; color: var(--ink-2); }
+  .remote-sum b { color: var(--ink); }
+  .remote-sum .mono { font-family: var(--font-mono); font-size: 12.5px; }
+  .remote-sum ul { margin: 2px 0 0; padding-left: 18px; }
   .notice { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; }
   @media (max-width: 1000px) { .info { grid-template-columns: 1fr; } }
 </style>

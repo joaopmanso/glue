@@ -1,6 +1,7 @@
 import { test as base, expect, chromium, type Page } from '@playwright/test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -445,12 +446,12 @@ test('track pages keep their analysis, and the playing track keeps playing', asy
   await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
   // The fixtures are 4 s long: loop them so "still playing" means something.
   await page.evaluate(() => { const loopAll = () => document.querySelectorAll('audio').forEach(a => { a.loop = true; }); loopAll(); setInterval(loopAll, 200); });
-  await row.dblclick();
+  await row.locator('.c-title').dblclick();
   await expect(page.locator('#v-pill')).not.toHaveText('', { timeout: 30_000 });
   await expect(page.locator('#play-btn')).toHaveAttribute('aria-label', 'Pause');
   await page.locator('.crumbs a').click();
   await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause');
-  await row.dblclick();   // second visit: stored analysis, still playing
+  await row.locator('.c-title').dblclick();   // second visit: stored analysis, still playing
   await expect(page.locator('.detail .src')).toHaveText('Stored analysis', { timeout: 10_000 });
   await expect(page.locator('#play-btn')).toHaveAttribute('aria-label', 'Pause');
 });
@@ -1079,7 +1080,7 @@ test('GLUE account: Google sign-in, devices, pairing a GLUE Home, staying signed
   const devs = page.locator('#devices');
   await expect(devs).toContainText('Edge on Windows');
   await expect(devs).toContainText('this browser');
-  await expect(devs.locator('[data-device="b1"] .dot')).toHaveClass(/on/);
+  await expect(devs.locator('[data-device="b1"] .sw')).toHaveClass(/on/);
 
   // Pair a GLUE Home: the code shows; when the new device comes online the dialog closes itself.
   await page.click('#pair-home');
@@ -1088,14 +1089,14 @@ test('GLUE account: Google sign-in, devices, pairing a GLUE Home, staying signed
   room!.send(JSON.stringify({ type: 'presence', online: ['b1', 'h1'] }));
   await expect(page.locator('#pair-dialog')).toHaveCount(0);
   await expect(devs.locator('[data-device="h1"]')).toContainText('GLUE Home · online');
-  await expect(devs.locator('[data-device="h1"] .dot')).toHaveClass(/on/);
+  await expect(devs.locator('[data-device="h1"] .sw')).toHaveClass(/on/);
   page.once('dialog', d => d.accept('Studio'));
   await devs.locator('[data-device="h1"]').hover();
   await devs.locator('[data-device="h1"] .more').click();
   await page.getByRole('menuitem', { name: 'Rename…' }).click();
   await expect(devs.locator('[data-device="h1"]')).toContainText('Studio');
   room!.send(JSON.stringify({ type: 'presence', online: ['b1'] }));
-  await expect(devs.locator('[data-device="h1"]')).toContainText('last seen');
+  await expect(devs.locator('[data-device="h1"]')).toContainText(/seen \d+ days ago/);
 
   // A reload stays signed in (the refresh token rotates); signing out forgets it.
   await page.reload();
@@ -1120,9 +1121,12 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   const cloud = new Map<string, Stored>();                          // 'device/profile'
   let ops: { seq: number; device: string; profile: string; collection: string; op: unknown }[] = [], seq = 0;
   let links: { id: string; name: string; members: { device: string; profile: string; collection: string }[] }[] = [];
+  let slow = false, offline = false;
   await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
     const req = r.request(), u = new URL(req.url()), m = req.method(), p = u.pathname;
     const json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
+    if (offline) return r.abort('internetdisconnected');
+    if (slow && /^\/v1\/sync\/desk\//.test(p)) await new Promise(res => setTimeout(res, 1500));
     if (p === '/v1/health') return json({ ok: true });
     if (p === '/v1/auth/google') return json({ access: 'a', refresh: 'r', deviceId: 'b1', user });
     if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1' });
@@ -1162,17 +1166,20 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await page.click('#onb-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
 
-  // Sign in on the profile screen, turn on Cloud sync (the first device: nothing to merge with).
+  // Sign in on the profile screen: Cloud sync is on by itself; opening the profile uploads it.
   await page.locator('.top .who').click();
   await page.locator('#cloud-panel .fake-google').click();
   await expect(page.locator('#cloud-panel')).toContainText('dj@example.com');
-  await page.locator('[data-sync]').click();
-  await expect(page.locator('[data-sync]')).toContainText(/Synced/, { timeout: 20_000 });
+  await expect(page.locator('[data-sync]')).toContainText('Cloud sync on');
+  await page.locator('.profile', { hasText: 'DJ Test' }).click();
+  await expect.poll(() => [...cloud.values()][0]?.files.size ?? 0, { timeout: 20_000 }).toBeGreaterThan(3);
   const mine = [...cloud.values()][0];
-  expect(mine.files.size).toBeGreaterThan(3);                                 // profile, collection, track and analysis shards
   expect([...mine.files.keys()].some(k => /tracks\/\w+\.json$/.test(k))).toBe(true);
+  await expect(page.locator('[data-col="device"]')).toHaveCount(0);            // one device: no Device column
 
   // Open this device's collection from the cloud: the same four tracks; a rating made here is queued for the device.
+  await page.locator('.top .who').click();
+  await expect(page.locator('[data-sync]')).toContainText(/Synced/, { timeout: 20_000 });
   const item = page.locator('#cloud-panel [data-cloud^="b1/"]');
   await expect(item).toContainText('4 tracks');
   await item.getByRole('button', { name: 'Open' }).click();
@@ -1184,6 +1191,11 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await row.locator('.c-rate button').nth(3).click({ position: { x: 10, y: 6 } });
   await expect.poll(() => ops.length, { timeout: 10_000 }).toBe(1);
   expect(ops[0]).toMatchObject({ device: 'b1', op: { t: 'track', rating: 4 } });
+  // Its track page says where the file is, without asking for permission first.
+  await row.locator('.c-title').dblclick();
+  await expect(page.locator('#track-elsewhere')).toContainText('Laptop');
+  await expect(page.getByRole('button', { name: 'Allow and analyse' })).toHaveCount(0);
+  await page.locator('.crumbs a').click();
 
   // Back on this computer, the waiting edit is applied to the local files and acknowledged.
   await page.click('#leave-cloud');                                            // opened from the profile screen: back there
@@ -1192,30 +1204,71 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await expect(page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.stars')).toHaveAttribute('aria-valuenow', '4', { timeout: 15_000 });
   await expect.poll(() => ops.length, { timeout: 10_000 }).toBe(0);
 
-  // A second device with its own copy: turning sync on again offers to merge; the merged view shows both.
+  // A second device with the same collection plus a song and a playlist of its own.
   devices.push({ id: 'desk', kind: 'browser', name: 'Desktop', platform: '', createdAt: 2, lastSeen: 2 });
-  const copy = [...cloud.entries()][0];
-  cloud.set('desk/' + copy[0].split('/')[1], { ...copy[1], files: new Map(copy[1].files) });
-  await page.locator('.top .who').click();
-  page.once('dialog', d => d.accept());
-  await page.locator('[data-sync]').click();                                   // off
-  await expect(page.locator('[data-sync]')).toHaveText(/Cloud sync/);
-  await page.locator('[data-sync]').click();                                   // on again: now there's something to merge with
-  const setup = page.locator('#sync-setup');
-  await expect(setup).toContainText('Merge with Desktop · My collection');
-  await expect(setup.locator('input[value^="m:desk/"]')).toBeChecked();       // same name: merging is suggested
-  await page.click('#sync-go');
-  await expect(setup).toHaveCount(0, { timeout: 20_000 });
-  expect(links[0].members.map(x => x.device).sort()).toEqual(['b1', 'desk']);
-  const merged = page.locator('#cloud-panel [data-group="g1"]');
-  await expect(merged).toContainText('My collection');
-  await merged.getByRole('button', { name: 'Open' }).click();
-  await expect(page.locator('#cloud-banner')).toContainText(/Merged from (Laptop, Desktop|Desktop, Laptop)/);
-  await expect(page.locator('.tr')).toHaveCount(4);                            // the same songs on both: one row each
-  await expect(page.locator('.tr').first().locator('.ondev')).toHaveText(/^(Laptop · Desktop|Desktop · Laptop)$/);
+  const [key, copy] = [...cloud.entries()][0], pid = key.split('/')[1];
+  const files = new Map(copy.files);
+  const gz = (o: unknown) => gzipSync(Buffer.from(JSON.stringify(o))).toString('base64');
+  const cid = [...files.keys()].find(k => /^collections\/\w+\/collection\.json$/.test(k))!.split('/')[1];
+  const song = { id: 'zzdesk01', status: 'linked', rootId: 'deskroot', relPath: 'Desk Only Song.flac', importPath: null, fileName: 'Desk Only Song.flac', size: 5, mtime: 1, title: 'Desk Only Song', artist: 'Someone Else', album: '', genre: 'House', label: '', comment: '', year: '', duration: 200, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] };
+  files.set(`collections/${cid}/tracks/zz.json`, { hash: 'h-zz', size: 1, data: gz({ schemaVersion: 1, items: { zzdesk01: song } }) });
+  files.set(`collections/${cid}/lists/dl1.json`, { hash: 'h-dl1', size: 1, data: gz({ schemaVersion: 1, id: 'dl1', kind: 'playlist', name: 'Desk list', parentId: null, position: 9, notes: '', items: ['zzdesk01'], origin: null, createdAt: '' }) });
+  cloud.set('desk/' + pid, { ...copy, files, updatedAt: Date.now(), stats: { collections: [{ id: cid, name: 'My collection', tracks: 5 }] } });
 
-  // Clean up the cloud.
-  await page.click('#leave-cloud');
+  // Opening the collection again merges it with the desktop's by itself (same name), with a loading signal.
+  slow = true;
+  await page.locator('.top .who').click();
+  await page.locator('.profile', { hasText: 'DJ Test' }).click();
+  await expect(page.locator('#cloud-loading')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.tr')).toHaveCount(5, { timeout: 20_000 });
+  slow = false;
+  expect(links[0].members.map(x => x.device).sort()).toEqual(['b1', 'desk']);
+  await expect(page.locator('[data-col="device"]')).toHaveCount(1);
+  const desk = page.locator('.tr', { hasText: 'Desk Only Song' });
+  await expect(desk.locator('[data-c="device"]')).toHaveText('Desktop');
+  await expect(page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('[data-c="device"] .dv')).toHaveText(['Laptop', 'Desktop']);
+  await expect(desk.locator('.pbtn')).toHaveCount(0);                          // plays where it is
+  await expect(page.locator('.lside')).toContainText('Desk list');
+  // Filter by device: from the column, and from the sidebar's Devices.
+  await desk.locator('.dv').click();
+  await expect(page.locator('.tr')).toHaveCount(5);                            // every song is on the desktop
+  await expect(page.locator('#filter-btn')).toContainText('1');
+  await desk.locator('.dv').click();                                           // again: off
+  await expect(page.locator('#filter-btn b')).toHaveCount(0);
+  const laptop = page.locator('#devices [data-device="b1"]');
+  await laptop.locator('.dname').click();
+  await expect(page.locator('.tr')).toHaveCount(4);
+  await expect(laptop).toHaveClass(/sel/);
+  await expect(page.locator('#devices [data-device="desk"]')).toContainText('5 songs');
+  await expect(page.locator('#devices [data-device="desk"] .nostream')).toBeVisible();
+  await laptop.locator('.dname').click();
+  await expect(page.locator('.tr')).toHaveCount(5);
+  // The ⋯ menu opens where it fits.
+  await page.locator('#devices [data-device="desk"]').hover();
+  await page.locator('#devices [data-device="desk"] .more').click();
+  await expect(page.getByRole('menuitem', { name: 'Rename…' })).toBeInViewport();
+  await page.keyboard.press('Escape');
+  // Another device's song: its page says where it is, no permission step; a rating goes to the desktop.
+  await desk.locator('.c-title').dblclick();
+  await expect(page.locator('#track-elsewhere')).toContainText('Desktop');
+  await expect(page.getByRole('button', { name: 'Allow and analyse' })).toHaveCount(0);
+  await page.locator('.crumbs a').click();
+  await desk.hover();
+  await desk.locator('.c-rate button').nth(4).click({ position: { x: 10, y: 6 } });
+  await expect.poll(() => ops.find(o => o.device === 'desk')?.op, { timeout: 10_000 }).toMatchObject({ t: 'track', id: 'zzdesk01', rating: 5 });
+  // Nothing of the desktop's is saved into this computer's collection.
+  expect([...cloud.get(key)!.files.keys()].some(k => k.endsWith('/zz.json') || k.endsWith('dl1.json'))).toBe(false);
+
+  // Offline: a reload shows the merged collection from the copy in the GLUE folder.
+  offline = true;
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(5, { timeout: 20_000 });
+  offline = false;
+
+  // Clean up the cloud: the desktop's songs leave the library.
+  await page.reload();
+  await expect(page.locator('#devices')).toContainText('Desktop', { timeout: 15_000 });
+  await page.locator('.top .who').click();
   await page.click('#cloud-clean');
   await page.click('#cloud-clean-go');
   await expect(page.locator('#cloud-empty')).toBeVisible();

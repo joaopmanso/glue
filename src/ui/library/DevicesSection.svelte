@@ -1,9 +1,15 @@
 <script lang="ts">
-  /* Sidebar › Devices (signed in only): this browser and each GLUE Home, online or when last seen;
-     rename or remove; "+ GLUE Home" shows a pairing code (ADR 0036). */
+  /* Sidebar › Devices (signed in only): this browser and the account's other devices, each in its
+     colour (the Device column's), with its songs, when it was last seen, and that streaming from it
+     is off until GLUE Home streaming exists. Clicking one shows only its songs (a merged collection,
+     ADR 0042). Rename or remove from ⋯; "+ GLUE Home" shows a pairing code (ADR 0036). */
   import { account, type CloudDevice } from '../../lib/account.svelte';
+  import { sync } from '../../lib/sync.svelte';
+  import { lib } from '../../lib/library.svelte';
+  import { view, devicesOf, manyDevices } from '../../lib/view.svelte';
+  import { deviceColor } from '../../lib/devices';
 
-  let menuFor = $state<string | null>(null);
+  let menu = $state<{ id: string; x: number; y: number; up: boolean } | null>(null);
   let pairing = $state<{ code: string; expiresAt: number } | null>(null);
   let pairError = $state('');
   let now = $state(Date.now());
@@ -11,6 +17,13 @@
   $effect(() => { if (!pairing) return; const t = setInterval(() => (now = Date.now()), 1000); return () => clearInterval(t); });
   // The dialog closes itself once the new GLUE Home has joined.
   $effect(() => { const n = account.devices.filter(d => d.kind === 'home').length; if (pairing && n > homesAtStart) { pairing = null; } });
+  // The menu floats over the page (the sidebar would cut it off): it goes away when anything scrolls.
+  $effect(() => {
+    if (!menu) return;
+    const close = () => (menu = null);
+    addEventListener('scroll', close, true); addEventListener('resize', close);
+    return () => { removeEventListener('scroll', close, true); removeEventListener('resize', close); };
+  });
 
   async function startPairing() {
     pairError = '';
@@ -18,26 +31,48 @@
     try { pairing = await account.pair(); now = Date.now(); }
     catch (e) { pairError = (e as Error).message; }
   }
+  const ago = (t: number) => { const m = Math.round((Date.now() - t) / 60e3); return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : m < 48 * 60 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
   function seen(d: CloudDevice): string {
     if (d.id === account.thisDevice) return 'this browser';
     if (account.online.has(d.id)) return 'online';
-    if (!d.lastSeen) return 'never connected';
-    const m = Math.round((Date.now() - d.lastSeen) / 60e3);
-    return 'last seen ' + (m < 2 ? 'just now' : m < 60 ? m + ' min ago' : m < 48 * 60 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago');
+    return d.lastSeen ? 'seen ' + ago(d.lastSeen) : 'never connected';
+  }
+  // Songs per device: in the open merged collection when there is one, else what the device uploaded.
+  const shown = $derived.by(() => {
+    void lib.version;
+    const m = new Map<string, number>();
+    if (manyDevices()) for (const t of lib.store?.tracks.values() ?? []) for (const d of devicesOf(t)) m.set(d, (m.get(d) ?? 0) + 1);
+    return m;
+  });
+  function songs(d: CloudDevice): number | null {
+    if (shown.has(d.name)) return shown.get(d.name)!;
+    const rs = sync.remote.filter(r => r.device.id === d.id);
+    if (!rs.length) return d.id === account.thisDevice && lib.store && !lib.cloud ? lib.ownTracks().length : null;
+    return rs.reduce((n, r) => n + (r.stats?.collections ?? []).reduce((a, c) => a + c.tracks, 0), 0);
+  }
+  const syncedAt = (d: CloudDevice) => Math.max(0, ...sync.remote.filter(r => r.device.id === d.id).map(r => r.updatedAt)) || null;
+  const filterable = $derived(manyDevices());
+  const only = $derived(view.filters.device);
+
+  function openMenu(e: MouseEvent, d: CloudDevice) {
+    if (menu?.id === d.id) { menu = null; return; }
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect(), up = r.bottom + 100 > innerHeight;
+    menu = { id: d.id, x: Math.max(8, Math.min(innerWidth - 188, r.right - 180)), y: up ? innerHeight - r.top + 4 : r.bottom + 4, up };
   }
   async function rename(d: CloudDevice) {
-    menuFor = null;
+    menu = null;
     const name = prompt('Name this device', d.name)?.trim();
     if (name && name !== d.name) await account.rename(d.id, name).catch(e => alert((e as Error).message));
   }
   async function remove(d: CloudDevice) {
-    menuFor = null;
+    menu = null;
     if (confirm('Remove “' + d.name + '” from your GLUE account? ' + (d.kind === 'home' ? 'It stops being reachable until you pair it again.' : 'It gets signed out.'))) await account.remove(d.id).catch(e => alert((e as Error).message));
   }
   const left = $derived(pairing ? Math.max(0, Math.round((pairing.expiresAt - now) / 1000)) : 0);
+  const menuDevice = $derived(menu ? account.devices.find(d => d.id === menu!.id) ?? null : null);
 </script>
 
-<svelte:window onpointerdown={e => { if (menuFor && !(e.target as HTMLElement).closest('.dmenu, .more')) menuFor = null; }} onkeydown={e => { if (e.key === 'Escape') { menuFor = null; pairing = null; } }} />
+<svelte:window onpointerdown={e => { if (menu && !(e.target as HTMLElement).closest('.dmenu, .more')) menu = null; }} onkeydown={e => { if (e.key === 'Escape') { menu = null; pairing = null; } }} />
 
 <section class="devs" id="devices">
   <div class="head">
@@ -47,25 +82,37 @@
   <ul>
     {#each account.devices as d (d.id)}
       {@const on = d.id === account.thisDevice ? account.connected : account.online.has(d.id)}
+      {@const n = songs(d)}
+      {@const at = syncedAt(d)}
+      {@const me = d.id === account.thisDevice}
+      {@const loading = !!sync.busy && sync.busy.includes(d.name)}
       <li>
-        <div class="item dev" data-device={d.id}>
-          <i class="dot" class:on aria-hidden="true"></i>
-          <span class="dname"><b>{d.name}</b><small>{d.kind === 'home' ? 'GLUE Home · ' : ''}{seen(d)}</small></span>
-          <span class="tools" class:open={menuFor === d.id}>
-            <button type="button" class="more" title="More" aria-haspopup="menu" aria-expanded={menuFor === d.id} onclick={() => (menuFor = menuFor === d.id ? null : d.id)}>⋯</button>
-          </span>
+        <div class="item dev" data-device={d.id} class:sel={only.includes(d.name)} style:--c={deviceColor(d.name)}>
+          <button type="button" class="dname" disabled={!filterable} title={filterable ? (only.includes(d.name) ? 'Show every device’s songs again' : 'Show only the songs on ' + d.name) : d.name}
+            onclick={() => view.toggleFilter('device', d.name)}>
+            <i class="sw" class:on aria-hidden="true"></i>
+            <span class="txt"><b>{d.name}</b><small>{d.kind === 'home' ? 'GLUE Home · ' : ''}{seen(d)}{n != null ? ' · ' + n.toLocaleString() + ' song' + (n === 1 ? '' : 's') : ''}{!me && at ? ' · synced ' + ago(at) : ''}</small></span>
+          </button>
+          {#if loading}<span class="spin" title={'Updating from ' + d.name + '…'}></span>
+          {:else if !me}<span class="nostream" title={'Streaming from ' + d.name + ' is off: it comes with GLUE Home. Its songs show here and play on ' + d.name + '.'} aria-label="Streaming off">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 9.5v-3M5 11V5M8 12.5v-9M11 11V5M14 9.5v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M2 14 14 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </span>{/if}
+          <button type="button" class="more" class:open={menu?.id === d.id} title="More" aria-haspopup="menu" aria-expanded={menu?.id === d.id} onclick={e => openMenu(e, d)}>⋯</button>
         </div>
-        {#if menuFor === d.id}
-          <div class="dmenu" role="menu">
-            <button type="button" role="menuitem" onclick={() => rename(d)}>Rename…</button>
-            <button type="button" role="menuitem" class="danger" onclick={() => remove(d)}>{d.id === account.thisDevice ? 'Remove (signs out)…' : 'Remove…'}</button>
-          </div>
-        {/if}
       </li>
     {/each}
   </ul>
+  {#if account.devices.length > 1}<p class="fine"><span class="nostream" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 9.5v-3M5 11V5M8 12.5v-9M11 11V5M14 9.5v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M2 14 14 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> Streaming off: other devices’ songs show here and play where they are.</p>{/if}
   {#if pairError}<p class="err">{pairError}</p>{/if}
 </section>
+
+{#if menu && menuDevice}
+  {@const d = menuDevice}
+  <div class="dmenu" role="menu" style:left={menu.x + 'px'} style:top={menu.up ? null : menu.y + 'px'} style:bottom={menu.up ? menu.y + 'px' : null}>
+    <button type="button" role="menuitem" onclick={() => rename(d)}>Rename…</button>
+    <button type="button" role="menuitem" class="danger" onclick={() => remove(d)}>{d.id === account.thisDevice ? 'Remove (signs out)…' : 'Remove…'}</button>
+  </div>
+{/if}
 
 {#if pairing}
   <div class="scrim" role="presentation" onpointerdown={e => { if (e.target === e.currentTarget) pairing = null; }}>
@@ -93,18 +140,26 @@ node home/src/main.ts run</pre>
   .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
   .add button { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 11.5px; padding: 2px 7px; cursor: pointer; }
   .add button:hover { border-color: var(--accent); color: var(--accent); }
-  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
-  .dev { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 10px; border-radius: 4px; min-height: 34px; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .dev { display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 6px; border-radius: 5px; min-height: 38px; border: 1px solid transparent; }
   .dev:hover { background: var(--raised); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-2); flex: none; }
-  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
-  .dname { flex: 1; min-width: 0; display: grid; line-height: 1.25; font-size: 13px; }
-  .dname b { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .dname small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tools { display: none; }
-  .dev:hover .tools, .tools.open { display: flex; }
-  .more { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 6px 2px; font-size: 13px; }
-  .dmenu { display: grid; gap: 2px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; margin: 2px 4px 6px; font-size: 13px; }
+  .dev.sel { background: color-mix(in srgb, var(--c) 14%, transparent); border-color: color-mix(in srgb, var(--c) 45%, transparent); }
+  .dname { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: pointer; font: inherit; }
+  .dname:disabled { cursor: default; }
+  .sw { position: relative; width: 12px; height: 26px; border-radius: 3px; background: var(--c); flex: none; }
+  .sw.on::after { content: ''; position: absolute; right: -3px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--ground); }
+  .txt { flex: 1; min-width: 0; display: grid; line-height: 1.25; font-size: 13px; }
+  .txt b { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .txt small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nostream { display: inline-grid; place-items: center; color: var(--muted); opacity: .75; flex: none; }
+  .nostream svg { width: 14px; height: 14px; }
+  .spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: spin .9s linear infinite; flex: none; margin: 0 2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .more { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 6px 2px; font-size: 13px; opacity: 0; border-radius: 4px; }
+  .dev:hover .more, .more.open, .more:focus-visible { opacity: 1; }
+  .more:hover, .more.open { background: var(--surface); color: var(--ink); }
+  .fine { display: flex; gap: 6px; align-items: flex-start; color: var(--muted); font-size: 11.5px; line-height: 1.35; padding: 2px 6px 0; }
+  .dmenu { position: fixed; z-index: 50; width: 180px; display: grid; gap: 2px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; font-size: 13px; box-shadow: 0 12px 30px rgb(0 0 0 / .45); }
   .dmenu button { background: none; border: 0; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer; color: var(--ink); }
   .dmenu button:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
   .dmenu .danger { color: var(--bad); }
@@ -114,7 +169,7 @@ node home/src/main.ts run</pre>
   .dlg h2 { font-size: 21px; }
   .dlg p { color: var(--ink-2); font-size: 14px; }
   .code { font: 700 34px/1.2 var(--font-mono); letter-spacing: .12em; color: var(--accent) !important; text-align: center; padding: 10px; border: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 8px; user-select: all; }
-  .fine { color: var(--muted) !important; font-size: 12px !important; }
+  .dlg .fine { display: block; padding: 0; font-size: 12px !important; }
   details summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
   pre { background: var(--ground); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: 12px var(--font-mono); white-space: pre-wrap; margin: 6px 0 0; }
   .acts { display: flex; gap: 8px; justify-content: flex-end; }

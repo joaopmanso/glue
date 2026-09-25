@@ -2,7 +2,7 @@
 import { readPref, writePref } from './prefs';
 import type { FilterGroup, SortKey } from './view.svelte';
 
-export type ColKey = 'wave' | 'title' | 'artist' | 'album' | 'genre' | 'tags' | 'label' | 'year' | 'bpm' | 'key' | 'duration' | 'rating' | 'notes' | 'format' | 'quality' | 'added';
+export type ColKey = 'wave' | 'title' | 'artist' | 'album' | 'genre' | 'tags' | 'device' | 'label' | 'year' | 'bpm' | 'key' | 'duration' | 'rating' | 'notes' | 'format' | 'quality' | 'added';
 /** filter: the value filter its header opens (▾). */
 export interface ColDef { label: string; width: string; sort: SortKey | null; mono?: boolean; fixed?: boolean; filter?: FilterGroup }
 
@@ -13,6 +13,8 @@ export const COLUMNS: Record<ColKey, ColDef> = {
   album: { label: 'Album', width: 'minmax(90px, 1.4fr)', sort: 'album' },
   genre: { label: 'Genre', width: 'minmax(70px, 1fr)', sort: 'genre', filter: 'genre' },
   tags: { label: 'Tags', width: 'minmax(90px, 1.3fr)', sort: null, filter: 'tag' },
+  // Only shown while a merged collection has more than one device's songs (ADR 0042).
+  device: { label: 'Device', width: 'minmax(96px, 1fr)', sort: 'device', filter: 'device' },
   label: { label: 'Label', width: 'minmax(70px, 1fr)', sort: 'label' },
   year: { label: 'Year', width: '46px', sort: 'year', mono: true },
   bpm: { label: 'BPM', width: '52px', sort: 'bpm', mono: true },
@@ -24,7 +26,7 @@ export const COLUMNS: Record<ColKey, ColDef> = {
   quality: { label: 'Quality', width: '150px', sort: 'quality', filter: 'quality' },
   added: { label: 'Added', width: '84px', sort: 'added', mono: true },
 };
-const DEFAULT_ORDER: ColKey[] = ['wave', 'title', 'artist', 'album', 'genre', 'tags', 'label', 'year', 'bpm', 'key', 'duration', 'rating', 'notes', 'format', 'quality', 'added'];
+const DEFAULT_ORDER: ColKey[] = ['wave', 'title', 'artist', 'album', 'genre', 'tags', 'device', 'label', 'year', 'bpm', 'key', 'duration', 'rating', 'notes', 'format', 'quality', 'added'];
 const DEFAULT_HIDDEN: ColKey[] = ['label', 'year', 'added'];
 
 function load(): { order: ColKey[]; hidden: ColKey[] } {

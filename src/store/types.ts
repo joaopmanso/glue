@@ -10,13 +10,15 @@ export interface ProfileRef { id: string; name: string; color: string }
 export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null; appearance?: { theme: string; mode: 'dark' | 'light' | 'system' } }
 
 export interface CollectionRef { id: string; name: string }
-/** cloudSync: this device keeps a copy of the profile's data in GLUE Cloud (ADR 0040). */
+/** cloudSync: this device keeps a copy of the profile's data in GLUE Cloud (ADR 0040). Absent = on
+    while signed in (ADR 0042); false = the user turned it off. */
 export interface Profile { schemaVersion: number; id: string; name: string; color: string; createdAt: string; collections: CollectionRef[]; lastCollection: string | null; cloudSync?: boolean }
 
 /** A music folder the user granted (handle lives in IndexedDB under `handleKey`). */
 export interface Root { id: string; name: string; absPath: string | null; handleKey: string; addedAt: string }
-/** tags: tags made in GLUE, kept even while no track uses them (ADR 0032). */
-export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; autoAnalyse?: boolean; tags?: string[] }
+/** tags: tags made in GLUE, kept even while no track uses them (ADR 0032). cloudMerged: it has been
+    merged with other devices once (ADR 0042), so an unmerge is kept rather than merged again. */
+export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean }
 
 export type TrackStatus = 'linked' | 'unlinked' | 'missing';
 export interface TrackFormat { container: string; codec: string; lossless: boolean | null; sampleRate: number; bits: number; bitrate: number; channels: number }
@@ -40,7 +42,9 @@ export interface Track {
   notes?: string;               // the user's own notes about the track
   grouping?: string;            // the file's / DJ app's Grouping field
   tags?: string[];              // the user's tags; absent until edited, then the found ones (tagsOf) stand in
-  onDevices?: string[];         // cloud views only: the devices that have this track (never saved)
+  onDevices?: string[];         // cloud views and merged collections: the devices that have this track (never saved)
+  /** A track from another device of a merged collection, shown here from the cloud (ADR 0042; never saved). */
+  remote?: { device: string; name: string };
   sources: string[];            // ids of imported sources that contain this track
 }
 

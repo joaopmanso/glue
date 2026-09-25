@@ -1,6 +1,6 @@
 <script lang="ts">
   /* The table's value filters (quality, format, tags, genre): ticks for what's in the current view, with counts. */
-  import { view, FILTER_GROUPS } from '../../lib/view.svelte';
+  import { view, FILTER_GROUPS, manyDevices } from '../../lib/view.svelte';
   import FilterList from './FilterList.svelte';
 
   let open = $state(false);
@@ -16,7 +16,7 @@
   </button>
   {#if open}
     <div class="pop" id="filter-menu" role="dialog" aria-label="Filter tracks">
-      {#each FILTER_GROUPS as { g, title } (g)}<FilterList group={g} {title} search />{/each}
+      {#each FILTER_GROUPS.filter(x => x.g !== 'device' || manyDevices()) as { g, title } (g)}<FilterList group={g} {title} search />{/each}
       <div class="foot">
         <span>Show only the ticked. Any of them within a group; all groups together.</span>
         <button type="button" disabled={!n} onclick={() => view.clearFilters()}>Clear all</button>

@@ -64,7 +64,7 @@ export class HomeStore {
 
   /** Remove everything GLUE wrote in its folder (and nothing else the user keeps there). */
   async wipe() {
-    for (const name of ['profiles', 'files', 'mco.json']) await removePath(this.root, name);
+    for (const name of ['profiles', 'files', 'cloud', 'mco.json']) await removePath(this.root, name);
     this.index = { schemaVersion: SCHEMA, profiles: [], lastProfile: null };
   }
 

@@ -21,7 +21,7 @@ export function blankLibTrack(fileName: string): Track {
 
 function linkedFiles(store: CollectionStore) {
   const files: FileEntry[] = [], byFile = new Map<FileEntry, Track>();
-  for (const t of store.tracks.values()) if ((t.rootId && t.relPath) || t.fileKey) {
+  for (const t of store.tracks.values()) if (!t.remote && ((t.rootId && t.relPath) || t.fileKey)) {
     // Songs added on their own match by file name (and size) only.
     const f = { rootId: t.rootId ?? LOOSE, relPath: t.relPath ?? t.fileName, size: t.size ?? 0, mtime: t.mtime ?? 0 };
     files.push(f); byFile.set(f, t);
@@ -41,7 +41,7 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   const existing = [...store.sources.values()].find(s => s.app === lib.app && s.fileName === fileName);
   const sourceId = existing?.id ?? newId();
   const byImportPath = new Map<string, Track>();
-  for (const t of store.tracks.values()) if (t.importPath) byImportPath.set(pathKey(t.importPath), t);
+  for (const t of store.tracks.values()) if (t.importPath && !t.remote) byImportPath.set(pathKey(t.importPath), t);
 
   const ext2track = new Map<string, Track>(), fresh: Track[] = [];
   const unmatched = lib.tracks.filter(it => {
@@ -102,7 +102,7 @@ export interface ScanEntry { relPath: string; size: number; mtime: number; fileN
 /** A folder was scanned: link unlinked tracks to its files, add the rest as new tracks, flag vanished ones. */
 export function applyScan(store: CollectionStore, rootId: string, entries: ScanEntry[]): { added: Track[]; linked: number; missing: number } {
   const known = new Map<string, Track>();
-  for (const t of store.tracks.values()) if (t.rootId === rootId && t.relPath) known.set(t.relPath, t);
+  for (const t of store.tracks.values()) if (t.rootId === rootId && t.relPath && !t.remote) known.set(t.relPath, t);
   const seen = new Set<string>(), updates: Track[] = [];
   const newFiles: ScanEntry[] = [];
   for (const e of entries) {
@@ -114,7 +114,8 @@ export function applyScan(store: CollectionStore, rootId: string, entries: ScanE
   let missing = 0;
   for (const [rel, t] of known) if (!seen.has(rel) && t.status !== 'missing') { updates.push({ ...t, status: 'missing' }); missing++; }
 
-  const unlinked = [...store.tracks.values()].filter(t => t.status === 'unlinked');
+  // Another device's tracks (a merged collection, ADR 0042) belong to that device.
+  const unlinked = [...store.tracks.values()].filter(t => t.status === 'unlinked' && !t.remote);
   const files = newFiles.map(e => ({ rootId, relPath: e.relPath, size: e.size, mtime: e.mtime }));
   const { links, rootPaths } = matchTracks(unlinked.map(t => ({ id: t.id, importPath: t.importPath, fileName: t.fileName, size: t.size })), files);
   const taken = new Set<string>();

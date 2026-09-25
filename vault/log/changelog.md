@@ -5,6 +5,19 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · One library across devices: sync by default, automatic merge, Device column
+- Signed in, Cloud sync is on for every profile (turn it off per profile). No setup dialog.
+- A collection is merged with the same one on your other devices by itself, and their songs and
+  playlists show in this computer's library, not in a separate cloud view. They come from a copy
+  kept in the GLUE folder (`cloud/`), so the library opens at once and offline, then refreshes with
+  an "Updating from …" signal ([ADR 0042](../adr/0042-merged-collection-in-the-local-library.md),
+  partly superseding 0040).
+- Device column with coloured chips and a Device filter; Sidebar › Devices shows each device's
+  colour, songs, last sync and that streaming is off, and filters on click.
+- Fixed: another device's track asked for file permission and then failed; its page now says where
+  the file is. Fixed: the device ⋯ menu was cut off at the bottom of the sidebar.
+- GLUE Home is on hold (user, 2026-09-25).
+
 ## 2026-09-25 · Homepage: colour behind the page, no numbers band, logo in the hero
 - The glue-stick logo stands large beside the headline (small on phones).
 - Removed the "0 bytes / 5 / 100% / Free" band, which didn't read well.

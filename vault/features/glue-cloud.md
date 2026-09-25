@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-09-25
-adrs: [0036, 0040, 0041, 0037, 0038]
+adrs: [0036, 0040, 0041, 0042, 0037, 0038]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -81,7 +81,28 @@ an account GLUE works exactly as today, all local.
   - `src/ui/EmailSignIn.svelte`, `src/ui/AdminView.svelte`;
   - `passwordKey` in `src/lib/account.svelte.ts`.
 
+## Merged collection in the library (built 2026-09-25, [ADR 0042](../adr/0042-merged-collection-in-the-local-library.md))
+- **Sync by default:** signed in, every profile syncs unless its Cloud sync button is turned off.
+- **Merges by itself:** a collection opens → it's merged with the same-named one on another device
+  (or the only one there is). Unmerge in the cloud panel sticks.
+- **One library:** the other devices' songs and playlists show in this computer's own library,
+  from a copy in the GLUE folder (`cloud/`): instant, and offline too. "Updating from Desktop…"
+  while the copy refreshes (only files that changed).
+- **Device column** (only with several devices' songs): coloured chips, click to filter; also in
+  Filter › Device. Sidebar › Devices: each device's colour, songs, when it synced, a streaming-off
+  mark, and click to show only its songs. The ⋯ menu floats where it fits.
+- **Other devices' songs:** no play button; the track page says where the file is (no permission
+  step) and shows the analysis summary from there. Ratings, notes, tags and shared playlists edited
+  here are sent to the device that has the song.
+- **Code:** `core/library/overlay.ts`, `lib.applyOverlay`, `CollectionStore.ephemeral`,
+  `lib/sync.svelte.ts` (`syncCollection`, `autoLink`, `mirror`), `lib/devices.ts`.
+- **Tests:** `tests/overlay.test.ts` (overlay, edits to owners, nothing saved); e2e "cloud sync…"
+  (default on, automatic merge, loading signal, Device column and filters, track page, offline
+  reload from the copy).
+
 ## Cloud sync and merged collections (built 2026-09-25, [ADR 0040](../adr/0040-cloud-sync-and-merged-collections.md))
+Parts of this were replaced by the section above (ADR 0042): sync is no longer opt-in, and the
+setup dialog is gone.
 - **Profile screen:**
   - **Cloud sync** per profile ("Synced 2 min ago"; a problem shows in the tooltip);
   - the **GLUE Cloud** panel: Google sign-in; every device's synced collections and the merged ones,
@@ -99,7 +120,7 @@ an account GLUE works exactly as today, all local.
   - `src/lib/sync.svelte.ts`: push, pull and views;
   - `core/library/cloudEdits.ts`, `core/library/mergeCollections.ts`;
   - `cloud/src/sync.ts`, `cloud/migrations/0002_sync.sql`;
-  - UI: `CloudPanel`, `SyncSetup`.
+  - UI: `CloudPanel` (`SyncSetup` was removed with ADR 0042).
 - **Tests:**
   - `tests/cloudsync.test.ts`: edits, merge, translate;
   - `tests/cloud.test.ts`: sync, links, ops, clean-up, on SQLite;
