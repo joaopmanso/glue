@@ -4,6 +4,7 @@
   import { stems, STEMS } from '../lib/stems.svelte';
   import { STEM_SR } from '../core/stems/constants';
   import { downloadBlob } from '../lib/download';
+  import { fmtEta } from '../core/format';
 
   const base = $derived(((app.info?.fileName) || 'track').replace(/\.[^.]+$/, ''));
 
@@ -32,6 +33,8 @@
         {#if stems.error}{stems.error}
         {:else}
           Split into drums, bass, other and vocals with HT-Demucs, right here in your browser.
+          {@const est = stems.estimate(app.res?.duration ?? 0)}
+          {#if est}<b id="stems-estimate">About {fmtEta(est)} for this track on this computer.</b>{/if}
           {#if stems.cached}Model saved on this device (166 MB) · <button type="button" class="linkish" id="stems-forget" onclick={() => stems.forgetModel()}>Remove</button>
           {:else}The first run downloads a 166 MB model and keeps it for next time.{/if}
         {/if}

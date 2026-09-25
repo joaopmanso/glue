@@ -15,6 +15,12 @@ Dev machine: Windows 11 laptop, 12 threads, Intel Iris Xe (gen-12lp). Measured 2
 | DirectML (onnxruntime-node) | — | — | Failed to initialise on this machine |
 Session creation: ~20 s first time (WebGPU and native). Model download ~8 s.
 
+Re-measured 2026-09-25 (headed Edge, real Iris Xe adapter "intel gen-12lp", 40 s test WAV = 7 chunks):
+the frozen Speklone page **37 s/chunk, 284 s total**; GLUE **38 s/chunk, 297 s total**, so the same
+engine at the same speed. A 4:25 track is 46 chunks, about 28 min on this laptop either way (a user
+remembered ~3 min in Speklone, which matches a clip of about 30 s). The first chunk is ~10 s slower
+(shader compilation).
+
 ## Analysis (Speklone pipeline)
 - 30 s 48 kHz/24-bit clip: full analysis < 1 s in Node.
 - 4-min 48 kHz/24-bit AIFF: parse + analysis ~0.8 s (Node), plus tempo/key ~4 s (tempo FFT pass

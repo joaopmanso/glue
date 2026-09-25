@@ -25,6 +25,7 @@ import { blankInfo, parseContainer } from '../core/formats/parse';
 import * as platform from '../platform';
 import { AnalysisPool } from './pool';
 import { player } from './player.svelte';
+import { stems } from './stems.svelte';
 
 type Phase = 'boot' | 'welcome' | 'reconnect' | 'profiles' | 'collections' | 'library' | 'error';
 export interface RootState { root: Root; dir: FileSystemDirectoryHandle | null; granted: boolean }
@@ -87,6 +88,7 @@ class Library {
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void this.flush(); });
       window.addEventListener('pagehide', () => void this.flush());
     }
+    stems.onBusy = busy => { this.stemsBusy = busy; if (!busy) this.pump(); };
   }
 
   // ─── GLUE folder ────────────────────────────────────────────────────────────
@@ -814,10 +816,12 @@ class Library {
     return want.length;
   }
   private manual: string[] = [];
+  /** Stem separation is running: no new analyses start (they'd compete for the processor and memory). */
+  private stemsBusy = false;
   private stopAnalysis() { this.queue = []; this.manual = []; this.pool?.stop(); this.pool = null; this.active.clear(); this.analysis = { running: 0, done: 0, failed: 0, paused: this.analysis.paused }; }
 
   private pump() {
-    if (this.readOnly) return;
+    if (this.readOnly || this.stemsBusy) return;
     // With background analysis off, only tracks asked for explicitly are analysed.
     if (this.analysis.paused && !this.manual.length) return;
     this.pool ??= new AnalysisPool();

@@ -27,7 +27,10 @@
   const isPlaylist = $derived(list?.kind === 'playlist');
   const cols = $derived(columns.visible);
   // play button, "#" (playlists only), the chosen columns, the column menu button
-  const template = $derived([dragOut ? '42px' : '26px', ...(isPlaylist ? ['36px'] : []), ...cols.map(k => COLUMNS[k].width), '28px'].join(' '));
+  const widths = $derived([dragOut ? '42px' : '26px', ...(isPlaylist ? ['36px'] : []), ...cols.map(k => COLUMNS[k].width), '28px']);
+  const template = $derived(widths.join(' '));
+  // The narrowest the columns can go (minimum widths, gaps, padding): below that the table scrolls sideways.
+  const minWidth = $derived(widths.reduce((a, w) => a + (Number(/(\d+)px/.exec(w)?.[1]) || 0), 0) + 10 * (widths.length - 1) + 16);
 
   let scroller: HTMLDivElement;
   let scrollTop = $state(0), height = $state(600);
@@ -147,7 +150,7 @@
 {/snippet}
 
 <div class="table" role="grid" aria-rowcount={rows.length} aria-multiselectable="true" style:--cols={template}>
-  <div class="thead" role="row">
+  <div class="thead" role="row" style:min-width={minWidth + 'px'}>
     <span aria-hidden="true"></span>
     {#if isPlaylist}
       <button type="button" role="columnheader" class:on={view.sort.key === 'order'} title="Playlist order: drag rows to rearrange" onclick={() => view.sortBy('order')}
@@ -197,7 +200,7 @@
   </div>
   <!-- The body takes keyboard focus for the whole grid (arrows, Enter, Delete, Ctrl+A). -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => (scrollTop = scroller.scrollTop)} tabindex="0" role="rowgroup" onkeydown={onKey}>
+  <div class="body" style:min-width={minWidth + 'px'} bind:this={scroller} bind:clientHeight={height} onscroll={() => (scrollTop = scroller.scrollTop)} tabindex="0" role="rowgroup" onkeydown={onKey}>
     <div class="spacer" style:height={rows.length * ROW + 'px'}>
       {#each visible as r, j (r.t.id)}
         {@const i = first + j}
@@ -265,7 +268,7 @@
   onkeydown={e => { if (e.key === 'Escape') { colMenu = false; headFilter = null; } }} />
 
 <style>
-  .table { display: grid; grid-template-rows: auto 1fr; min-height: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 13px; }
+  .table { display: grid; grid-template-rows: auto 1fr; min-height: 0; min-width: 0; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 13px; }
   .thead, .tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 10px; padding: 0 6px 0 10px; }
   .thead { border-bottom: 1px solid var(--line); height: 32px; position: relative; z-index: 2; }
   .th { display: flex; align-items: center; min-width: 0; height: 100%; gap: 2px; }

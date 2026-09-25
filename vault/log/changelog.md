@@ -5,6 +5,14 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · Header on smaller windows; stem separation speed
+- Fixed: below about 1,700 px wide the header's profile / theme buttons were pushed off screen. The
+  track table's column minimums (more since Overview and Tags) widened the whole page. The page
+  now stays window-wide and the table scrolls sideways; e2e checks 1590 / 1280 / 1024 px.
+- Stems: measured Speklone and GLUE on this laptop's Intel Iris Xe: same ~37–38 s per chunk, so not
+  a regression. The status now names the graphics chip. There's an estimate before starting, from
+  the last run's speed. Background analysis pauses while separating.
+
 ## 2026-09-25 · GLUE = Global Library Unified Exporter
 - The U is **Unified**, not Utility: header, title, description, docs and the /mco/ redirect page
   ([ADR 0039](../adr/0039-glue-unified.md)).

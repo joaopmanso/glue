@@ -4,7 +4,8 @@ import { LEGACY_MODEL_CACHE, MODEL_CACHE, MODEL_SIZE, MODEL_URL, ORT_URL, STEM_S
 import { encodeWav } from '../core/formats/wav';
 import { fmtEta } from '../core/format';
 import { decodeAudio } from './analysis';
-import { readPref } from './prefs';
+import { readPref, writePref } from './prefs';
+import { STEM_STRIDE } from '../core/stems/constants';
 
 type Phase = 'idle' | 'busy' | 'ready';
 const HINT = 'Split into drums, bass, other and vocals with HT-Demucs, right here in your browser.';
@@ -33,7 +34,12 @@ class Stems {
         if (d.stage === 'download') this.setStatus('Downloading the separation model… ' + Math.round(d.got / 1e6) + ' / ' + Math.round(d.total / 1e6) + ' MB', d.got / d.total);
         else if (d.stage === 'prepare') this.setStatus('Preparing the model on your graphics chip…', null);
         else if (d.stage === 'cache') this.setStatus('Loading the saved model…', null);
-        else this.setStatus('Separating on ' + d.ep + ' · chunk ' + (d.i + 1) + ' of ' + d.n + (d.i ? ' · about ' + fmtEta(d.elapsed / d.i * (d.n - d.i)) + ' left' : ''), d.i / d.n);
+        else {
+          // Remember this computer's speed (after the warm-up chunk) for the estimate shown before a run.
+          if (d.perChunk) writePref('stemSecPerChunk', d.perChunk.toFixed(1));
+          const left = d.perChunk ? d.perChunk * (d.n - d.i) : d.i ? d.elapsed / d.i * (d.n - d.i) : 0;
+          this.setStatus('Separating on ' + d.label + ' · chunk ' + (d.i + 1) + ' of ' + d.n + (left ? ' · about ' + fmtEta(left) + ' left' : ''), d.i / d.n);
+        }
         return;
       }
       const wt = this.waiters.get(d.job);
@@ -57,6 +63,13 @@ class Stems {
     });
   }
   private setStatus(text: string, p: number | null) { this.status = text; this.p = p; }
+  /** Told when a separation starts and ends (the library pauses background analysis meanwhile). */
+  onBusy: ((busy: boolean) => void) | null = null;
+  /** How long separating `seconds` of audio takes on this computer, from the last run; null before one. */
+  estimate(seconds: number): number | null {
+    const per = Number(readPref('stemSecPerChunk', '0'));
+    return per > 0 && seconds > 0 ? per * Math.max(1, Math.ceil(seconds * STEM_SR / STEM_STRIDE)) : null;
+  }
 
   async refreshCached() {
     try {
@@ -85,6 +98,7 @@ class Stems {
     if (this.phase === 'busy') return;
     const job = ++this.job;
     this.phase = 'busy'; this.error = '';
+    this.onBusy?.(true);
     this.setStatus('Loading the separation engine…', null);
     const stillMine = () => { if (job !== this.job || !isCurrent()) throw new Error('cancelled'); };
     try {
@@ -119,7 +133,7 @@ class Stems {
       const m = (e as Error).message;
       this.error = m === 'cancelled' ? '' : stemErrorText(m);
       void this.refreshCached();
-    }
+    } finally { if (job === this.job || this.phase !== 'busy') this.onBusy?.(false); }
   }
 
   async forgetModel() {

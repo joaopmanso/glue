@@ -874,6 +874,14 @@ test('filters the table by quality and format', async ({ page }) => {
   await page.getByRole('button', { name: 'Create profile' }).click();
   await page.click('#onb-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  // All columns at once never widen the page: the header's buttons stay on screen and the table scrolls sideways.
+  for (const w of [1590, 1280, 1024]) {
+    await page.setViewportSize({ width: w, height: 800 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), 'page fits at ' + w).toBeLessThanOrEqual(w);
+    const m = (await page.locator('#mode-toggle').boundingBox())!;
+    expect(m.x + m.width, 'mode toggle on screen at ' + w).toBeLessThanOrEqual(w);
+  }
+  await page.setViewportSize({ width: 1920, height: 960 });
   await page.click('#filter-btn');
   const menu = page.locator('#filter-menu');
   await expect(menu).toContainText('Caution');

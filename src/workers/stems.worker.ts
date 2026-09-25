@@ -11,7 +11,7 @@ export type StemReply =
   | { type: 'progress'; job: number; stage: 'download'; got: number; total: number }
   | { type: 'progress'; job: number; stage: 'prepare' }
   | { type: 'progress'; job: number; stage: 'cache' }
-  | { type: 'progress'; job: number; stage: 'run'; i: number; n: number; elapsed: number; ep: string }
+  | { type: 'progress'; job: number; stage: 'run'; i: number; n: number; elapsed: number; ep: string; label: string; perChunk: number | null }
   | { type: 'ready'; job: number; ep: string }
   | { type: 'done'; job: number; out: Float32Array[][] }
   | { type: 'error'; job: number; message: string };
@@ -19,7 +19,7 @@ export type StemReply =
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 // onnxruntime-web is loaded at runtime from the CDN; typed loosely on purpose.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let ort: any = null, session: any = null, ep = '', modelBytes: Uint8Array | null = null;
+let ort: any = null, session: any = null, ep = '', modelBytes: Uint8Array | null = null, gpuName = '';
 const cancelled = new Set<number>();
 const post = (m: StemReply, t: Transferable[] = []) => scope.postMessage(m, t);
 const check = (job: number) => { if (cancelled.has(job)) throw new Error('cancelled'); };
@@ -31,6 +31,7 @@ async function gpuUsable(): Promise<boolean> {
     const a = await gpu.requestAdapter();
     if (!a) return false;
     const info = (a.info || {}) as { isFallbackAdapter?: boolean; description?: string; architecture?: string; vendor?: string };
+    gpuName = (info.description || [info.vendor, info.architecture].filter(Boolean).join(' ')).trim();
     // A software adapter (SwiftShader) is far slower than anything useful.
     return !((a as { isFallbackAdapter?: boolean }).isFallbackAdapter || info.isFallbackAdapter || /swiftshader|llvmpipe|software/i.test((info.description || '') + (info.architecture || '') + (info.vendor || '')));
   } catch { return false; }
@@ -97,10 +98,15 @@ async function separate(job: number, L: Float32Array, R: Float32Array): Promise<
   const weight = new Float32Array(total), win = new Float32Array(N).fill(1);
   for (let i = 0; i < OVERLAP; i++) { const v = i / OVERLAP; win[i] = v; win[N - 1 - i] = v; }
   const t0 = performance.now();
+  // The first chunk also compiles the GPU shaders, so the speed is measured from the second on.
+  let t1 = 0;
+  const label = ep === 'GPU' && gpuName ? 'GPU (' + gpuName + ')' : ep;
   for (let i = 0; i < nChunks; i++) {
     await new Promise(r => setTimeout(r, 0));   // let a cancel message in
     check(job);
-    post({ type: 'progress', job, stage: 'run', i, n: nChunks, elapsed: (performance.now() - t0) / 1000, ep });
+    if (i === 1) t1 = performance.now();
+    const perChunk = i >= 2 ? (performance.now() - t1) / 1000 / (i - 1) : null;
+    post({ type: 'progress', job, stage: 'run', i, n: nChunks, elapsed: (performance.now() - t0) / 1000, ep, label, perChunk });
     const start = i * STRIDE, end = Math.min(start + N, total), len = end - start;
     const input = new Float32Array(2 * N);
     input.set(L.subarray(start, end), 0);

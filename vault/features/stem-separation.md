@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: Speklone
-updated: 2026-09-24
+updated: 2026-09-25
 adrs: [0003, 0004, 0005]
 ---
 # Stem separation
@@ -37,6 +37,17 @@ downloaded as 24-bit WAV, singly or as the selected mix.
 - [x] 30 s clip: stems sum back to the mix with residual 32.7 dB below it; plausible spectral balance
   (bass 95 % < 150 Hz).
 - [x] Deployed site: model downloads from Hugging Face (CORS ok), second visit uses the cache.
+
+## Speed
+- On a laptop without a separate graphics card it runs on the built-in graphics (e.g. Intel Iris Xe),
+  which is slow: about 37–38 s per 7.8 s chunk, the same in Speklone and GLUE (measured
+  2026-09-25, [performance](../research/performance.md)). The CPU path can't hold the model in
+  WebAssembly's 4 GB.
+- The status names the chip ("GPU (intel gen-12lp)"). The time left is measured after the first
+  chunk, which also compiles the GPU shaders. The speed is remembered, so the next track shows
+  "About N min for this track on this computer" before you start.
+- Background analysis starts no new tracks while stems separate; it resumes afterwards.
+- Faster later: GLUE Home could separate natively (about 11 s/chunk on this laptop's CPU).
 
 ## Limits & open questions
 - Fixed in M1: Cancel during model load / audio prep was lost. Each run now has a job id; Cancel marks

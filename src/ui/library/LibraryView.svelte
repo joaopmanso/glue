@@ -181,12 +181,12 @@
   .notice { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: var(--radius); padding: 7px 12px; font-size: 13px; }
   .notice.warn { background: color-mix(in srgb, var(--warn) 9%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
   .notice button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; }
-  .main { display: grid; grid-template-columns: 270px 1fr; gap: 16px; min-height: 0; }
-  .right { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .main { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 16px; min-height: 0; }
+  .right { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
   .right > :global(.table), .right > :global(.dv) { flex: 1; }
   .ibtn { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
   .ibtn:hover, .ibtn.on { border-color: var(--accent); color: var(--accent); }
   .selbar { min-height: 28px; display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--ink-2); flex-wrap: wrap; }
   .hint { color: var(--muted); font-size: 12.5px; }
-  @media (max-width: 800px) { .main { grid-template-columns: 1fr; } .lib { height: auto; } }
+  @media (max-width: 800px) { .main { grid-template-columns: minmax(0, 1fr); } .lib { height: auto; } }
 </style>
