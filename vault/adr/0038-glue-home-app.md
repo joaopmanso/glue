@@ -23,7 +23,7 @@ items (reading rekordbox's master.db, absolute paths, analysis without a browser
 - **What it serves:** only its GLUE folder, the music folders listed there, and the incoming folder,
   checked on every request (no `..`, no symlinks out). Read-only on the JSON store in the first
   release; it writes only uploaded files into the incoming folder, so the browser on that computer
-  stays the single writer ([ADR 0009](0009-json-files-in-mco-folder.md)).
+  stays the single writer ([ADR 0009](0009-json-files-store.md)).
 - **Incoming folder:** configurable, default `Music/GLUE Incoming`. The GLUE tab on that computer
   adds it as a music folder and picks new files up on its next scan.
 
