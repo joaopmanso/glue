@@ -3,8 +3,10 @@
    Restart come from the tray and the settings window. */
 import { API, bridge, type HomeConfig, type Received, type Status } from './bridge';
 import { stayOnline } from './cloud';
-import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, isHandshake, type Ctrl, type Handshake, type StreamCtrl } from '../../src/core/transfer';
-import { locateAll, trackPath } from './library';
+import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, isHandshake, type Ctrl, type Handshake, type HomeFolder, type StreamReply, type StreamReq } from '../../src/core/transfer';
+import type { DetailsHeader } from '../../src/store/details';
+import * as cache from './cache';
+import { describe, locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
 
 let cfg: HomeConfig | null = null;
@@ -18,7 +20,7 @@ const peers = new Map<string, RTCPeerConnection>();   // handshake id → connec
 const apiOf = (c: HomeConfig) => c.api || API;
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library };
+  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background } };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -122,32 +124,85 @@ const TYPES: Record<string, string> = { mp3: 'audio/mpeg', flac: 'audio/flac', w
 function serve(dc: RTCDataChannel) {
   dc.binaryType = 'arraybuffer';
   dc.bufferedAmountLowThreshold = HIGH_WATER / 4;
-  const send = (c: StreamCtrl) => { if (dc.readyState === 'open') dc.send(JSON.stringify(c)); };
+  const send = (c: StreamReply) => { if (dc.readyState === 'open') dc.send(JSON.stringify(c)); };
   const drained = () => new Promise<void>(res => { if (dc.bufferedAmount <= HIGH_WATER) return res(); const f = () => { dc.removeEventListener('bufferedamountlow', f); res(); }; dc.addEventListener('bufferedamountlow', f); });
+  /** An answer: `data`, then bytes (all at once, or read from a file in 1 MB steps), then the end. */
+  const answer = async (n: number, data: unknown, bytes: Uint8Array | { path: string; size: number } | null, extra: { name?: string; type?: string } = {}) => {
+    const size = bytes ? ('path' in bytes ? bytes.size : bytes.length) : 0;
+    send({ t: 'meta', n, size, data, ...extra });
+    const push = async (block: Uint8Array<ArrayBuffer>) => { for (let i = 0; i < block.length; i += CHUNK) { await drained(); if (dc.readyState !== 'open') return; dc.send(block.subarray(i, Math.min(block.length, i + CHUNK))); } };
+    if (bytes && 'path' in bytes) for (let at = 0; at < bytes.size;) { const b = new Uint8Array(await bridge.fileRead(bytes.path, at, 1024 * 1024)); if (!b.length) break; await push(b); at += b.length; }
+    else if (bytes) await push(new Uint8Array(bytes));
+    send({ t: 'eof', n, type: extra.type });
+  };
+  const need = () => { if (!cfg?.glue) throw new Error('GLUE Home doesn’t know this computer’s GLUE folder: choose it in its settings.'); return cfg; };
+  const typeOf = (name: string) => TYPES[name.split('.').pop()?.toLowerCase() ?? ''] ?? '';
+  // What the website on this computer hands over ('put'): its bytes arrive after the request.
+  let upload: { req: Extract<StreamReq, { t: 'put' }>; parts: Uint8Array[]; got: number } | null = null;
   let chain: Promise<void> = Promise.resolve();
+  const step = (f: () => Promise<void>, n: number) => {
+    chain = chain.then(async () => { serving++; try { await f(); } catch (err) { send({ t: 'error', n, error: (err as Error).message || String(err) }); } finally { serving--; } });
+  };
   dc.onmessage = e => {
-    if (typeof e.data !== 'string') return;
-    const c = JSON.parse(e.data) as StreamCtrl;
-    if (c.t !== 'get') return;
-    chain = chain.then(async () => {
-      serving++;
-      try {
-        if (!cfg?.glue) throw new Error('GLUE Home doesn’t know this computer’s GLUE folder: choose it in its settings.');
-        const f = await trackPath(c.profile, c.collection, c.track, cfg);
+    if (typeof e.data !== 'string') { if (upload) { upload.parts.push(new Uint8Array(e.data as ArrayBuffer)); upload.got += (e.data as ArrayBuffer).byteLength; } return; }
+    const c = JSON.parse(e.data) as StreamReq;
+    if (c.t === 'put') { upload = { req: c, parts: [], got: 0 }; return; }
+    if (c.t === 'end') {
+      const u = upload; upload = null;
+      if (!u || u.req.n !== c.n) return;
+      step(async () => {
+        const bytes = new Uint8Array(u.got); let at = 0;
+        for (const p of u.parts) { bytes.set(p, at); at += p.length; }
+        const r = u.req;
+        if (r.kind === 'thumb') await cache.putThumb(r.profile, r.collection, r.track, bytes);
+        else await cache.putDetails(r.profile, r.collection, r.track, r.header as DetailsHeader, bytes);
+        await answer(r.n, null, null);
+      }, c.n);
+      return;
+    }
+    step(async () => {
+      if (c.t === 'get') {
+        const f = await trackPath(c.profile, c.collection, c.track, need());
         // A music folder found by name: remember it (and GLUE Home may read it from now on).
         if (f.folder && cfg) { cfg = { ...cfg, folders: { ...(cfg.folders ?? {}), [f.folder.id]: f.folder.path } }; await bridge.saveConfig(cfg); }
-        const size = await bridge.fileSize(f.path), type = TYPES[f.name.split('.').pop()?.toLowerCase() ?? ''] ?? '';
-        send({ t: 'meta', n: c.n, name: f.name, size, type });
-        for (let at = 0; at < size;) {
-          const block = new Uint8Array(await bridge.fileRead(f.path, at, 1024 * 1024));
-          if (!block.length) break;
-          for (let i = 0; i < block.length; i += CHUNK) { await drained(); if (dc.readyState !== 'open') return; dc.send(block.subarray(i, Math.min(block.length, i + CHUNK))); }
-          at += block.length;
+        await answer(c.n, null, { path: f.path, size: await bridge.fileSize(f.path) }, { name: f.name, type: typeOf(f.name) });
+      } else if (c.t === 'thumbs') {
+        need();
+        const found: [string, number][] = [], parts: Uint8Array[] = [];
+        for (const id of c.tracks.slice(0, 200)) {
+          const b = await cache.thumb(c.profile, c.collection, id);
+          found.push([id, b?.length ?? 0]);
+          if (b) parts.push(b); else void cache.soon(c.profile, c.collection, id, () => cfg);   // made next, for the next ask
         }
-        send({ t: 'eof', n: c.n, type });
-      } catch (err) { send({ t: 'error', n: c.n, error: (err as Error).message || String(err) }); }
-      finally { serving--; }
-    });
+        const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
+        for (const p of parts) { all.set(p, at); at += p.length; }
+        await answer(c.n, found, all);
+      } else if (c.t === 'details') {
+        need();
+        let d = await cache.details(c.profile, c.collection, c.track);
+        if (!d && await cache.soon(c.profile, c.collection, c.track, () => cfg)) d = await cache.details(c.profile, c.collection, c.track);
+        if (!d) throw new Error('GLUE Home couldn’t analyse that song.');
+        await answer(c.n, d.header, d.bin);
+      } else if (c.t === 'have') {
+        await answer(c.n, await cache.kept(c.profile, c.collection), null);
+      } else if (c.t === 'incoming') {
+        const list = (await bridge.incomingList()).map(f => ({ name: f.name, size: f.size, mtime: f.mtime }));
+        await answer(c.n, list, null);
+      } else if (c.t === 'get-incoming') {
+        const f = (await bridge.incomingList()).find(x => x.name === c.name);
+        if (!f) throw new Error('That song isn’t in the incoming folder any more.');
+        await answer(c.n, null, { path: f.path, size: f.size }, { name: f.name, type: typeOf(f.name) });
+      } else if (c.t === 'folders') {
+        const lib = await describe(), out: HomeFolder[] = [];
+        for (const p of lib?.profiles ?? []) for (const col of p.collections) for (const r of col.roots) if (cfg?.folders?.[r.id] && !out.some(x => x.id === r.id)) out.push({ id: r.id, name: r.name, collection: p.name + ' · ' + col.name });
+        await answer(c.n, out, null);
+      } else if (c.t === 'move-incoming') {
+        const to = cfg?.folders?.[c.folder];
+        if (!to) throw new Error('GLUE Home doesn’t know that music folder.');
+        await answer(c.n, await bridge.incomingMove(c.name, to), null);
+        report(state, text);
+      }
+    }, c.n);
   };
 }
 
@@ -166,6 +221,8 @@ async function findFolders() {
       if (JSON.stringify(merged) !== JSON.stringify(cfg.folders ?? {})) { cfg = { ...cfg, folders: merged }; await bridge.saveConfig(cfg).catch(() => {}); }
       library = { searching: false, found: Object.keys(r.folders).length, missing: r.missing };
       report(state, text);
+      // Then the mini spectrograms and analyses it doesn't have yet, gently in the background.
+      void cache.background(() => cfg, () => !!receiving || serving > 0, () => report(state, text));
     } while (again);
   })().finally(() => { finding = null; });
 }

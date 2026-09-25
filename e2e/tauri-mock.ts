@@ -6,12 +6,14 @@ export const TAURI_MOCK = `(() => {
   const bc = new BroadcastChannel('glue-home-mock');
   const cbs = new Map(); let next = 1;
   const listeners = [];
-  const files = window.__files = []; const log = window.__calls = [];
+  const files = window.__files = []; const log = window.__calls = []; const cache = window.__cache = {};
   const deliver = m => { if (m.target && m.target !== label) return; for (const l of listeners) if (l.event === m.event) cbs.get(l.id)?.({ event: m.event, id: 0, payload: m.payload }); };
   // Like Tauri's IPC, everything crosses as JSON.
   const send = (event, payload, target) => { const m = { event, payload: payload === undefined ? null : JSON.parse(JSON.stringify(payload)), target }; bc.postMessage(m); deliver(m); };
   bc.onmessage = e => deliver(e.data);
   const cfg = () => JSON.parse(localStorage.getItem('home-config') || 'null');
+  // A file on "disk": window.__disk, or a song received into the incoming folder (C:\\In\\<name>).
+  const disk = p => (window.__disk ?? {})[p] ?? (p.startsWith('C:\\\\In\\\\') ? files.find(f => f.done && !f.moved && f.name === p.slice(6))?.chunks.flat() : undefined);
   window.__TAURI_INTERNALS__ = {
     metadata: { currentWindow: { label }, currentWebview: { windowLabel: label, label } },
     transformCallback(cb) { const id = next++; cbs.set(id, cb); return id; },
@@ -42,11 +44,17 @@ export const TAURI_MOCK = `(() => {
         case 'find_glue_folder': return window.__glueFolder ?? null;
         case 'known_folders': return { home: 'C:\\\\Users\\\\dj', music: 'C:\\\\Users\\\\dj\\\\Music', documents: 'C:\\\\Users\\\\dj\\\\Documents', desktop: null, downloads: null, sep: '\\\\' };
         case 'path_exists': return Object.keys(window.__disk ?? {}).some(p => p === args.path || p.startsWith(args.path + '\\\\'));
+        // GLUE Home's own cache (in memory) and the incoming folder (the songs received, above).
+        case 'cache_read': { const b = cache[args.rel]; if (!b) throw 'not found'; return new Uint8Array(b).buffer; }
+        case 'cache_write': cache[opts.headers['x-rel']] = Array.from(args); return;
+        case 'cache_list': return Object.keys(cache).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
+        case 'incoming_list': return files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, size: f.chunks.reduce((a, c) => a + c.length, 0), mtime: 1, path: 'C:\\\\In\\\\' + f.name }));
+        case 'incoming_move': { const f = files.find(x => x.name === args.name && x.done && !x.moved); if (!f) throw 'not found'; f.moved = args.to; return args.to + '\\\\' + f.name; }
         // window.__find: folder name → where the drive search finds it.
         case 'find_folder': return (window.__find ?? {})[args.name] ?? null;
         case 'glue_read': { const t = (window.__glue ?? {})[args.rel]; if (t === undefined) throw 'not found'; return t; }
-        case 'file_size': { const b = (window.__disk ?? {})[args.path]; if (!b) throw 'not found'; return b.length; }
-        case 'file_read': { const b = (window.__disk ?? {})[args.path]; if (!b) throw 'not found'; return new Uint8Array(b.slice(args.offset, args.offset + args.len)).buffer; }
+        case 'file_size': { const b = disk(args.path); if (!b) throw 'not found'; return b.length; }
+        case 'file_read': { const b = disk(args.path); if (!b) throw 'not found'; return new Uint8Array(b.slice(args.offset, args.offset + args.len)).buffer; }
         // ask() is a message dialog that answers with the clicked button's label.
         case 'plugin:dialog|message': { const b = args.buttons, labels = b && typeof b === 'object' ? Object.values(b)[0] : ['Yes', 'No']; return (window.__ask ?? true) ? labels[0] : labels[1]; }
         case 'plugin:dialog|open': return 'D:\\\\Incoming';

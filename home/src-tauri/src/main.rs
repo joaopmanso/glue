@@ -308,6 +308,87 @@ fn file_read(app: AppHandle, path: String, offset: u64, len: u32) -> Result<taur
     Ok(tauri::ipc::Response::new(buf))
 }
 
+// ---- GLUE Home's own cache: waveforms and full analyses of the shared songs (ADR 0046) --------------
+
+fn cache_path(app: &AppHandle, rel: &str) -> Result<PathBuf, String> {
+    if rel.split(['/', '\\']).any(|p| p == ".." || p.is_empty()) {
+        return Err("bad path".into());
+    }
+    Ok(app.path().app_cache_dir().map_err(|e| e.to_string())?.join("library").join(rel))
+}
+
+#[tauri::command]
+fn cache_read(app: AppHandle, rel: String) -> Result<tauri::ipc::Response, String> {
+    Ok(tauri::ipc::Response::new(fs::read(cache_path(&app, &rel)?).map_err(|e| e.to_string())?))
+}
+
+/// Write a cache file (a raw body; its path in the `x-rel` header).
+#[tauri::command]
+fn cache_write(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let rel = request.headers().get("x-rel").and_then(|v| v.to_str().ok()).ok_or("no path")?.to_string();
+    let tauri::ipc::InvokeBody::Raw(data) = request.body() else {
+        return Err("expected bytes".into());
+    };
+    let p = cache_path(&app, &rel)?;
+    if let Some(d) = p.parent() {
+        fs::create_dir_all(d).map_err(|e| e.to_string())?;
+    }
+    let tmp = p.with_extension("tmp");
+    fs::write(&tmp, data).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &p).map_err(|e| e.to_string())
+}
+
+/// The names of the files in a cache folder.
+#[tauri::command]
+fn cache_list(app: AppHandle, rel: String) -> Vec<String> {
+    let Ok(p) = cache_path(&app, &rel) else { return vec![] };
+    fs::read_dir(p).map(|d| d.flatten().filter(|e| e.path().is_file()).map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default()
+}
+
+// ---- the incoming folder: what's waiting to be sorted (ADR 0046) -----------------------------------
+
+/// The songs in the incoming folder (not the ones still arriving).
+#[tauri::command]
+fn incoming_list(app: AppHandle) -> Vec<serde_json::Value> {
+    let dir = incoming_dir(&app);
+    let Ok(d) = fs::read_dir(dir) else { return vec![] };
+    d.flatten()
+        .filter_map(|e| {
+            let m = e.metadata().ok()?;
+            let name = e.file_name().to_string_lossy().into_owned();
+            if !m.is_file() || name.ends_with(".part") || name.starts_with('.') {
+                return None;
+            }
+            let mtime = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_millis() as u64).unwrap_or(0);
+            Some(serde_json::json!({ "name": name, "size": m.len(), "mtime": mtime, "path": e.path().to_string_lossy() }))
+        })
+        .collect()
+}
+
+/// Move a song from the incoming folder into one of the music folders GLUE Home found (never
+/// overwriting); the website picks it up there on its next scan.
+#[tauri::command]
+fn incoming_move(app: AppHandle, name: String, to: String) -> Result<String, String> {
+    let from = incoming_dir(&app).join(safe_name(&name));
+    if !from.is_file() {
+        return Err("that song isn't in the incoming folder any more".into());
+    }
+    let dest = allowed(&app, &to)?;
+    let clean = safe_name(&name);
+    let (mut fin, mut i) = (clean.clone(), 2);
+    while dest.join(&fin).exists() {
+        fin = with_number(&clean, i);
+        i += 1;
+    }
+    let target = dest.join(&fin);
+    if fs::rename(&from, &target).is_err() {
+        // Another drive: copy, then remove.
+        fs::copy(&from, &target).map_err(|e| e.to_string())?;
+        fs::remove_file(&from).map_err(|e| e.to_string())?;
+    }
+    Ok(target.to_string_lossy().into_owned())
+}
+
 /// The service reports its state: the tray's first line, tooltip and Start / Stop follow it.
 #[tauri::command]
 fn set_status(app: AppHandle, tray: State<'_, Tray>, text: String, running: bool) {
@@ -353,7 +434,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

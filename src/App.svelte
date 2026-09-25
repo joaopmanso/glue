@@ -21,6 +21,8 @@
   import AccountButton from './ui/AccountButton.svelte';
   import AdminView from './ui/AdminView.svelte';
   import './lib/remoteFiles.svelte';   // another computer's songs through its GLUE Home (ADR 0045)
+  import './lib/homeHandover';         // this computer's analyses, handed to its GLUE Home (ADR 0046)
+  import { incoming } from './lib/incoming.svelte';
   import { account } from './lib/account.svelte';
   import './lib/sync.svelte';   // cloud sync hooks (ADR 0040)
   import { auto } from './lib/auto.svelte';
@@ -29,7 +31,7 @@
   import { tabs } from './lib/tabs.svelte';
 
   // Opened from GLUE Home's tray icon while a GLUE tab is open: that one comes forward instead.
-  onMount(() => { void account.init(); void tabs.fromHome().then(other => { if (!other) void lib.boot(); }); });
+  onMount(() => { incoming.start(); void account.init(); void tabs.fromHome().then(other => { if (!other) void lib.boot(); }); });
   // The admin panel is for admins only: anyone else is sent back to the library (the API checks too).
   $effect(() => { if (route.name === 'admin' && account.ready && account.phase !== 'working' && !account.isAdmin) router.go('#/'); });
 

@@ -16,6 +16,10 @@
   import { account } from '../../lib/account.svelte';
   import { sendToHome } from '../../lib/sendToHome.svelte';
   import SendPanel from './SendPanel.svelte';
+  import { drag } from '../../lib/drag.svelte';
+  import { incoming, TO_BE_SORTED } from '../../lib/incoming.svelte';
+  import { remoteFiles } from '../../lib/remoteFiles.svelte';
+  import type { HomeFolder } from '../../core/transfer';
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
   const title = $derived.by(() => {
@@ -63,12 +67,30 @@
   }
   // Send the selected songs (this computer's files) to a GLUE Home that's online (ADR 0044).
   const homes = $derived(account.devices.filter(d => d.kind === 'home' && account.online.has(d.id)));
-  async function sendSelected(home: string) {
-    const ts = sel.map(id => lib.store?.tracks.get(id)).filter((t): t is NonNullable<typeof t> => !!t && t.status === 'linked' && !t.remote && !lib.cloud);
+  async function sendSelected(home: string, ids = sel) {
+    const ts = ids.map(id => lib.store?.tracks.get(id)).filter((t): t is NonNullable<typeof t> => !!t && t.status === 'linked' && !t.remote && !lib.cloud);
     const files: File[] = [];
     for (const t of ts) { try { files.push(await lib.fileFor(t)); } catch { /* skipped: not readable here */ } }
     if (!files.length) { lib.notice = 'None of the selected tracks has a file on this computer to send.'; return; }
     await sendToHome.send(home, files).catch(e => (lib.notice = (e as Error).message));
+  }
+  // Tracks dragged from the table onto a computer with GLUE Home (Devices): send their files there.
+  drag.onHome = (home, ids) => void sendSelected(home, ids);
+  // TO BE SORTED: move the selected songs into a music folder on their computer.
+  const sorting = $derived(current?.id === TO_BE_SORTED);
+  let folders = $state<{ home: string; list: HomeFolder[] } | null>(null);
+  $effect(() => {
+    const ids = sel, home = sorting ? lib.store?.tracks.get(ids[0])?.remote?.home : undefined;
+    if (!home || !ids.every(id => lib.store?.tracks.get(id)?.remote?.home === home)) { folders = null; return; }
+    if (folders?.home === home) return;
+    void remoteFiles.folders(home).then(list => (folders = { home, list })).catch(() => (folders = null));
+  });
+  async function moveTo(e: Event) {
+    const el = e.currentTarget as HTMLSelectElement, folder = el.value;
+    el.value = '';
+    if (!folder) return;
+    try { const n = await incoming.move(sel, folder); view.selected = new Set(); lib.notice = 'Moved ' + n + ' song' + (n === 1 ? '' : 's') + '. GLUE on that computer adds ' + (n === 1 ? 'it' : 'them') + ' to the library on its next scan of the folder.'; }
+    catch (err) { lib.notice = (err as Error).message; }
   }
   function newCollection() { const n = prompt('Name of the new collection'); if (n) void lib.createCollection(n); }
   function renameCollection() { const n = prompt('Rename collection', lib.store?.meta.name); if (n) void lib.renameCollection(n); }
@@ -150,6 +172,12 @@
           </select>
           {#if current?.kind === 'playlist'}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from playlist</button>{/if}
           {#if lib.analysis.paused}<button type="button" class="mini" id="analyse-selected" title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
+          {#if sorting && folders}
+            <select id="move-to" aria-label="Move to a music folder" onchange={moveTo}>
+              <option value="">Move to music folder…</option>
+              {#each folders.list as f (f.id)}<option value={f.id}>{f.name} ({f.collection})</option>{/each}
+            </select>
+          {/if}
           {#each homes as h (h.id)}<button type="button" class="mini" data-send-home={h.id} title={'Copy the selected songs into ' + h.name + '’s incoming folder'} onclick={() => sendSelected(h.id)}>Send to {h.name}</button>{/each}
           {#if !lib.cloud}<button type="button" class="mini" id="remove-tracks" onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>{/if}
           <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>

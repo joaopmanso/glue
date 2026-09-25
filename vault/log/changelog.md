@@ -5,6 +5,18 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · GLUE Home 0.3.0: shares waveforms and analyses; TO BE SORTED
+- Another computer's songs now show their mini spectrograms, and their track page shows the full
+  analysis at once, from that computer's GLUE Home, without downloading the audio; "Play from
+  Desktop" gets the song ([ADR 0046](../adr/0046-glue-home-shares-analysis-and-sorts-incoming.md)).
+  GLUE Home keeps them in its own cache: the website on its computer hands over what it analysed,
+  and GLUE Home analyses the rest itself (on request first, then gently in the background).
+- Drag tracks from the table onto a computer with GLUE Home in Devices to send their files there
+  (dropping files from the desktop already worked).
+- **TO BE SORTED**: a playlist at the top with the songs waiting in every GLUE Home's incoming
+  folder (Device column shows where). They play from there; "Move to music folder…" moves them into
+  that computer's music folder, and they leave the list.
+
 ## 2026-09-25 · GLUE Home 0.2.1: finds every music folder by itself; install guide
 - On the user's desktop, streaming failed ("The system cannot find the path specified"): the
   music folders weren't where GLUE Home looked by name, and a folder chosen by hand wasn't checked.

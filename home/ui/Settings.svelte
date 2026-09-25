@@ -182,6 +182,9 @@
           </ul>
         </details>
       {/if}
+      {#if status?.analysis && (status.analysis.running || status.analysis.total)}
+        <p class="fine" id="analysis-state">Waveforms and analyses for your other computers: {status.analysis.running ? status.analysis.done.toLocaleString() + ' of ' + status.analysis.total.toLocaleString() + ' made here (the website on this computer hands over what it has)' : 'ready'}</p>
+      {/if}
       <button type="button" class="link" onclick={chooseGlue}>Use another GLUE folder…</button>
     {/if}
   </section>

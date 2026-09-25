@@ -1326,11 +1326,13 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await expect(page.locator('#lib-now')).toHaveText('Desk Only Song');
   await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
   await page.click('#lib-play');
-  // Its page: "Play and analyse from Desktop" gives the full analysis, from the file.
+  // Its mini spectrogram comes from the desktop's GLUE Home (made there: ADR 0046).
+  await expect(desk.locator('.wave canvas')).toBeVisible({ timeout: 45_000 });
+  // Its page: the full analysis from the desktop at once, without the audio; then it plays from there.
   await desk.locator('.c-title').dblclick();
-  await page.click('#remote-load');
   await expect(page.locator('#results')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#v-pill')).toHaveText(/\w/);
+  await expect(page.locator('#track-elsewhere')).toHaveCount(0);                     // not the summary: the analysis itself
   await page.locator('.crumbs a').click();
   await home.close();
 
@@ -1496,7 +1498,13 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   const home = await ctx.newPage();
   await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('h1'));
   await home.addInitScript(TAURI_MOCK);
-  await home.addInitScript(() => localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Studio PC', user: { email: 'dj@example.com', name: 'DJ' }, incoming: 'C:\In', running: true, askedAutostart: true })));
+  // Its GLUE folder: one collection with a music folder "Music" (D:\Music), where songs can be moved to.
+  await home.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__glue = { 'mco.json': JSON.stringify({ profiles: [{ id: 'pd', name: 'DJ' }] }), 'profiles/pd/profile.json': JSON.stringify({ id: 'pd', name: 'DJ', collections: [{ id: 'cd', name: 'My collection' }] }), 'profiles/pd/collections/cd/collection.json': JSON.stringify({ id: 'cd', name: 'My collection', roots: [{ id: 'rm', name: 'Music', absPath: 'D:\\Music' }] }) };
+    w.__disk = { 'D:\\Music\\x.mp3': [1] };
+    localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Studio PC', user: { email: 'dj@example.com', name: 'DJ' }, incoming: 'C:\\In', running: true, askedAutostart: true, glue: 'C:\\GLUE', folders: { rm: 'D:\\Music' } }));
+  });
   await home.goto('http://localhost:5176/service.html');
   await expect(home.locator('#state')).toContainText('Online as Studio PC');
 
@@ -1540,6 +1548,38 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   expect(files[2]).toMatchObject({ name: 'mp3-128k (2).mp3', done: true });
   // GLUE Home lists what it received.
   await expect.poll(() => home.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).received?.length)).toBe(3);
+  await panel.getByRole('button', { name: 'Dismiss' }).click();
+
+  // Tracks dragged from the table onto the desktop's row are sent there too.
+  const aiff = page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.c-title');
+  const from = (await aiff.boundingBox())!, to = (await studio.boundingBox())!;
+  await page.mouse.move(from.x + 20, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 60, from.y + 40, { steps: 5 });
+  await page.mouse.move(to.x + 40, to.y + to.height / 2, { steps: 10 });
+  await expect(studio).toHaveClass(/droppable/);
+  await page.mouse.up();
+  await expect(panel).toContainText('Sent to Studio PC', { timeout: 30_000 });
+  expect((await got()).map(f => f.name)).toContain('aiff-44k-24.aiff');
+  await panel.getByRole('button', { name: 'Dismiss' }).click();
+
+  // TO BE SORTED: what waits in the desktop's incoming folder, until it's moved into a music folder.
+  const sorted = page.locator('.lside', { hasText: 'TO BE SORTED' });
+  await expect(sorted).toBeVisible({ timeout: 40_000 });
+  await page.locator('.lside').getByText('TO BE SORTED').click();
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 40_000 });
+  await expect(page.locator('.tr').first().locator('[data-c="device"]')).toHaveText('Desktop');
+  // It plays from there.
+  const first = page.locator('.tr', { hasText: 'flac-96k-24' });
+  await first.hover();
+  await first.locator('.pbtn').click();
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
+  await page.click('#lib-play');
+  // Move it into the desktop's music folder "Music": it leaves TO BE SORTED.
+  await first.locator('.c-title').click();
+  await page.selectOption('#move-to', 'rm');
+  await expect(page.locator('.tr')).toHaveCount(3, { timeout: 20_000 });
+  expect(await home.evaluate(() => (window as unknown as { __files: { name: string; moved?: string }[] }).__files.find(f => f.name === 'flac-96k-24.flac')?.moved)).toBe('D:\\Music');
 
 });
 
@@ -1567,4 +1607,56 @@ test('GLUE Home opens the library: a GLUE tab that is open comes forward; "Use t
     await expect(page.locator('#tab-elsewhere')).toContainText('moved to another tab');
     await expect(second).toHaveURL(/\/glue\/#\/$/);                               // ?open=home is gone
   }
+});
+
+test('the website hands its mini spectrograms and analyses to this computer’s GLUE Home', async ({ page }) => {
+  test.setTimeout(180_000);
+  const ctx = page.context();
+  await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+    window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+      renderButton(el) { const b = document.createElement('button'); b.id = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
+  const user = { id: 'u1', email: 'dj@example.com', name: 'DJ Test', picture: null };
+  // This browser (b1) and its own GLUE Home (h1).
+  const devices = [{ id: 'b1', kind: 'browser', name: 'Desktop', platform: '', createdAt: 1, lastSeen: 1 }, { id: 'h1', kind: 'home', name: 'Desktop', platform: 'win32', createdAt: 2, lastSeen: 2, companionOf: 'b1' }];
+  await ctx.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+    const p = new URL(r.request().url()).pathname, m = r.request().method();
+    const json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
+    if (p === '/v1/health') return json({ ok: true });
+    if (p === '/v1/auth/google') return json({ access: 'a', refresh: 'r', deviceId: 'b1', user });
+    if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1' });
+    if (p === '/v1/auth/device') return json({ access: 'h' });
+    if (p === '/v1/me') return json({ user, thisDevice: 'b1', devices });
+    if (p === '/v1/sync' && m === 'GET') return json({ profiles: [] });
+    if (p === '/v1/sync/links') return json({ groups: [] });
+    if (p === '/v1/sync/manifest') return json({ need: [] });
+    if (p === '/v1/sync/ops') return json({ ops: [] });
+    return json({ error: 'not found' }, 404);
+  });
+  const socks: Record<string, import('@playwright/test').WebSocketRoute | null> = { b1: null, h1: null };
+  const presence = () => { const online = Object.keys(socks).filter(k => socks[k]); for (const w of Object.values(socks)) w?.send(JSON.stringify({ type: 'presence', online })); };
+  const room = (me: 'b1' | 'h1') => (ws: import('@playwright/test').WebSocketRoute) => {
+    socks[me] = ws; presence();
+    ws.onMessage(raw => { const j = JSON.parse(String(raw)); if (j.type === 'signal') socks[j.to]?.send(JSON.stringify({ type: 'signal', from: me, data: j.data })); });
+  };
+  await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('b1'));
+  const home = await ctx.newPage();
+  await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('h1'));
+  await home.addInitScript(TAURI_MOCK);
+  await home.addInitScript(() => localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true })));
+  await home.goto('http://localhost:5176/service.html');
+  await expect(home.locator('#state')).toContainText('Online as Desktop');
+
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  await page.click('#account-btn');
+  await page.click('#fake-google');
+  // Within a round (20 s): every track's mini spectrogram and full analysis, in GLUE Home's cache.
+  const kept = () => home.evaluate(() => Object.keys((window as unknown as { __cache: Record<string, number[]> }).__cache));
+  await expect.poll(async () => (await kept()).filter(k => k.startsWith('t/')).length, { timeout: 60_000 }).toBe(4);
+  await expect.poll(async () => (await kept()).filter(k => k.startsWith('d/') && k.endsWith('.json')).length, { timeout: 30_000 }).toBe(4);
 });

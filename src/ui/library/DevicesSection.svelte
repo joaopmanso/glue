@@ -15,6 +15,7 @@
   import { HOME_DOWNLOADS, homeOs, homePairLink } from '../../lib/homeApp';
   import { AUDIO_EXT } from '../../core/library/tags';
   import HomeInstallHelp from '../HomeInstallHelp.svelte';
+  import { drag } from '../../lib/drag.svelte';
 
   // Songs dropped on a GLUE Home, or picked from its menu, go to its incoming folder (ADR 0044).
   let dropOn = $state<string | null>(null);
@@ -119,7 +120,8 @@
       {@const me = d.id === account.thisDevice}
       {@const loading = !!sync.busy && sync.busy.includes(d.name)}
       <li>
-        <div class="item dev" data-device={d.id} class:sel={only.includes(d.name)} class:droppable={dropOn === d.id} style:--c={deviceColor(d.name)} role="group" aria-label={d.name}
+        <div class="item dev" data-device={d.id} class:sel={only.includes(d.name)} class:droppable={dropOn === d.id || (drag.target?.type === 'home' && drag.target.home === h?.id)} style:--c={deviceColor(d.name)} role="group" aria-label={d.name}
+          data-drop={hOn ? 'home' : undefined} data-home={hOn ? h?.id : undefined}
           ondragover={e => { if (hOn && [...(e.dataTransfer?.types ?? [])].includes('Files')) { e.preventDefault(); dropOn = d.id; } }}
           ondragleave={() => { if (dropOn === d.id) dropOn = null; }} ondrop={e => dropped(e, d)}>
           <button type="button" class="dname" aria-pressed={only.includes(d.name)} title={only.includes(d.name) ? 'Show every device’s songs again' : 'Show only the songs on ' + d.name}

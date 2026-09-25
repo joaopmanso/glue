@@ -268,18 +268,18 @@ class Library {
     if (!s || this.cloud) return;
     this.devicesShown = o ? devices : [];
     this.copies = o?.copies ?? new Map();
-    for (const id of s.ephemeral) { s.tracks.delete(id); s.analysis.delete(id); s.lists.delete(id); }
-    s.ephemeral.clear();
-    for (const t of s.tracks.values()) if (t.onDevices) delete t.onDevices;
+    this.dropGroup('overlay');
+    for (const t of s.tracks.values()) if (t.onDevices && !s.ephemeral.has(t.id)) delete t.onDevices;
     for (const [id, b] of this.overlayBase) {
       const l = s.lists.get(id);   // unless it was edited meanwhile (then it's saved with them)
       if (l && l.items.join() === b.shown.join()) s.lists.set(id, { ...l, items: b.before });
     }
     this.overlayBase.clear();
     if (o) {
-      for (const t of o.tracks) { s.ephemeral.add(t.id); s.tracks.set(t.id, t); }
+      const mine = this.group('overlay');
+      for (const t of o.tracks) { s.ephemeral.add(t.id); mine.add(t.id); s.tracks.set(t.id, t); }
       for (const [id, a] of o.analysis) s.analysis.set(id, a);
-      for (const l of o.lists) { s.ephemeral.add(l.id); s.lists.set(l.id, l); }
+      for (const l of o.lists) { s.ephemeral.add(l.id); mine.add(l.id); s.lists.set(l.id, l); }
       for (const [id, devs] of o.onDevices) { const t = s.tracks.get(id); if (t) t.onDevices = devs; }
       for (const [id, extra] of o.extraItems) {
         const l = s.lists.get(id);
@@ -289,6 +289,25 @@ class Library {
         s.lists.set(id, { ...l, items: shown });
       }
     }
+    this.version++;
+  }
+  /** Things shown but not saved, by who shows them ('overlay': other devices' songs; 'incoming': TO BE SORTED). */
+  private groups = new Map<string, Set<string>>();
+  private group(key: string) { let g = this.groups.get(key); if (!g) this.groups.set(key, g = new Set()); return g; }
+  private dropGroup(key: string) {
+    const s = this.store, g = this.groups.get(key);
+    if (!s || !g) return;
+    for (const id of g) { s.tracks.delete(id); s.analysis.delete(id); s.lists.delete(id); s.ephemeral.delete(id); }
+    g.clear();
+  }
+  /** Show tracks and lists that aren't this collection's own (never saved). */
+  showGroup(key: string, tracks: Track[], lists: List[]) {
+    const s = this.store;
+    if (!s || this.cloud) return;
+    this.dropGroup(key);
+    const g = this.group(key);
+    for (const t of tracks) { s.ephemeral.add(t.id); g.add(t.id); s.tracks.set(t.id, t); }
+    for (const l of lists) { s.ephemeral.add(l.id); g.add(l.id); s.lists.set(l.id, l); }
     this.version++;
   }
   /** This device's own tracks and playlists (without other devices' ones). */
@@ -367,7 +386,7 @@ class Library {
     this.stopAnalysis();
     await this.flush();
     this.cloud = null; this.devicesShown = []; this.copies = new Map();
-    this.store = null; this.roots = []; this.overlayBase.clear();
+    this.store = null; this.roots = []; this.overlayBase.clear(); this.groups.clear();
     this.looseHandles.clear(); this.looseGranted = new Set();
   }
 
@@ -670,6 +689,9 @@ class Library {
     s.putTracks(ids.map(id => s.tracks.get(id)).filter((t): t is Track => !!t).map(t => ({ ...t, rating: r })));
   }
   addToList(id: string, trackIds: string[], at?: number) {
+    // Songs waiting in an incoming folder (TO BE SORTED) move into a music folder first.
+    const waiting = trackIds.filter(t => this.store?.tracks.get(t)?.remote?.incoming);
+    if (waiting.length) { this.notice = 'Songs in TO BE SORTED go into a playlist once they’re in a music folder: select them there › Move to…'; trackIds = trackIds.filter(t => !waiting.includes(t)); if (!trackIds.length) return 0; }
     const l = this.store?.lists.get(id);
     if (!l || l.kind !== 'playlist') return 0;
     const add = trackIds.filter(t => !l.items.includes(t));

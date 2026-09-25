@@ -140,7 +140,10 @@ export function devicesOf(t: Track): string[] {
   return t.onDevices?.length ? t.onDevices : [lib.devicesShown[0] ?? 'This computer'];
 }
 /** More than one device's songs on screen: the Device column and filter mean something. */
-export function manyDevices(): boolean { return lib.devicesShown.length > 1 || lib.cloud?.kind === 'group'; }
+export function manyDevices(): boolean {
+  // TO BE SORTED (lib/incoming) always says which computer a song waits on.
+  return lib.devicesShown.length > 1 || lib.cloud?.kind === 'group' || (view.sel.kind === 'list' && view.sel.id === 'tobesorted');
+}
 /** What the Quality filter groups by: GLUE's verdict, or why there's none. */
 export function qualityOf(r: Row): string {
   if (r.t.status === 'unlinked') return 'No file';

@@ -23,13 +23,27 @@ export type Ctrl =
   | { t: 'saved'; n: number; name: string }                        // GLUE Home: written (final name)
   | { t: 'failed'; n: number; error: string };                     // GLUE Home: couldn't write it
 
-/** On a 'stream' channel: the website asks for a song of the GLUE Home's own library by its ids;
-    GLUE Home answers with its size, the bytes (binary messages), and the end. One at a time. */
-export type StreamCtrl =
-  | { t: 'get'; n: number; profile: string; collection: string; track: string }
-  | { t: 'meta'; n: number; name: string; size: number; type?: string }
+/** On a 'stream' channel (ADR 0045, 0046): the website asks a GLUE Home, one request at a time.
+    Every answer is a `meta` (with its `data`, and the size of the bytes that follow as binary
+    messages), then `eof`; or an `error`. */
+export type StreamReq =
+  | { t: 'get'; n: number; profile: string; collection: string; track: string }          // a song's file
+  | { t: 'thumbs'; n: number; profile: string; collection: string; tracks: string[] }   // mini spectrograms (data: [id, size][])
+  | { t: 'details'; n: number; profile: string; collection: string; track: string }     // the full analysis (data: its header)
+  | { t: 'incoming'; n: number }                                                        // what's in the incoming folder (data: IncomingFile[])
+  | { t: 'get-incoming'; n: number; name: string }                                      // a song there
+  | { t: 'move-incoming'; n: number; name: string; folder: string }                     // into a music folder (data: its new path)
+  | { t: 'folders'; n: number }                                                         // the music folders GLUE Home found (data: HomeFolder[])
+  | { t: 'have'; n: number; profile: string; collection: string }                       // what it keeps (data: { thumbs, details } ids)
+  | { t: 'put'; n: number; kind: 'thumb' | 'details'; profile: string; collection: string; track: string; size: number; header?: unknown }   // the bytes follow, then `end`
+  | { t: 'end'; n: number };
+export type StreamReply =
+  | { t: 'meta'; n: number; size: number; name?: string; type?: string; data?: unknown }
   | { t: 'eof'; n: number; type?: string }
   | { t: 'error'; n: number; error: string };
+export type StreamCtrl = StreamReq | StreamReply;
+export interface IncomingFile { name: string; size: number; mtime: number }
+export interface HomeFolder { id: string; name: string; collection: string }
 
 export const isHandshake = (d: unknown): d is Handshake => !!d && typeof d === 'object' && (d as { app?: unknown }).app === 'glue-send';
 

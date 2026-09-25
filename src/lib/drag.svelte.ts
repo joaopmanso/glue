@@ -15,7 +15,8 @@ export type Target =
   | { type: 'tag'; name: string }                           // tag the tracks
   | { type: 'row'; listId: string; index: number }          // reorder / insert inside the open playlist
   | { type: 'list'; id: string; at: 'before' | 'after' | 'into' }
-  | { type: 'top' };                                        // the end of the top level
+  | { type: 'top' }                                         // the end of the top level
+  | { type: 'home'; home: string };                         // send the tracks' files to a GLUE Home (ADR 0046)
 
 const THRESHOLD = 5;   // px of movement before a press becomes a drag
 
@@ -31,6 +32,8 @@ class Drag {
   suppressClick = false;
   /** Hovering a drag over a closed folder asks the sidebar to open it. */
   onOpenFolder: ((id: string) => void) | null = null;
+  /** Tracks dropped on a computer with GLUE Home (Devices): send their files there. */
+  onHome: ((home: string, ids: string[]) => void) | null = null;
 
   begin(e: PointerEvent, payload: Payload) {
     if (e.button !== 0) return;
@@ -87,6 +90,7 @@ class Drag {
     if (kind === 'new') return p.kind === 'tracks' ? { type: 'new' } : null;
     if (kind === 'tag') return p.kind === 'tracks' && el.dataset.tag ? { type: 'tag', name: el.dataset.tag } : null;
     if (kind === 'top') return p.kind === 'list' ? { type: 'top' } : null;
+    if (kind === 'home') return p.kind === 'tracks' && el.dataset.home ? { type: 'home', home: el.dataset.home } : null;
     if (kind === 'row') {
       if (p.kind !== 'tracks' || !el.dataset.list) return null;
       const r = el.getBoundingClientRect(), i = Number(el.dataset.index);
@@ -115,6 +119,7 @@ class Drag {
   private drop(p: Payload, t: Target) {
     if (p.kind === 'column') { if (t.type === 'col') columns.place(p.key, t.key, t.at); return; }
     if (p.kind === 'tracks') {
+      if (t.type === 'home') { this.onHome?.(t.home, p.ids); return; }
       if (t.type === 'folder') {
         const l = lib.createList('playlist', '', t.id, p.ids);
         if (l) { this.onOpenFolder?.(t.id); view.editing = l.id; }

@@ -83,6 +83,7 @@ class SendToHome {
       }
       set({ phase: st.files.every(x => x.state === 'saved') ? 'done' : 'failed', error: st.files.some(x => x.state === 'failed') ? 'Some songs couldn’t be saved.' : '' });
       done();
+      void import('./incoming.svelte').then(m => m.incoming.refresh());
     } catch (e) { fail(finished ? '' : ((e as Error).message === 'closed' ? homeName + ' closed the connection.' : (e as Error).message)); }
   }
   dismiss() { if (this.now && this.now.phase !== 'connecting' && this.now.phase !== 'sending') this.now = null; }

@@ -13,6 +13,8 @@
   import Sidebar from '../Sidebar.svelte';
   import Evidence from '../Evidence.svelte';
   import { fmtKHz } from '../../core/format';
+  import { remoteFiles } from '../../lib/remoteFiles.svelte';
+  import { decodeDetails } from '../../store/details';
   import type { MusicResult } from '../../core/types';
   import { nowPlaying, playable } from '../../lib/nowPlaying.svelte';
   import Stars from './Stars.svelte';
@@ -53,7 +55,16 @@
     if (!t) return;
     const key = 'track:' + t.id;
     loaded = t.id;
-    // Another computer's song: its summary; through its GLUE Home it can also be played and analysed here.
+    // Another computer's song: its full analysis from its GLUE Home (ADR 0046), else its summary.
+    if (t.remote && !ask && lib.canRead(t) && !t.remote.incoming) {
+      phase = 'loading';
+      try {
+        const d = await remoteFiles.details(t);
+        if (id !== t.id) return;
+        if (d) { const x = await decodeDetails(d.header, d.bin); if (id !== t.id) return; app.playKey = key; showResult(x.info, x.res, null); canPlay = player.sourceKey === key && !!player.url; stored = true; phase = 'ready'; return; }
+      } catch { /* the summary, then */ }
+      phase = 'remote'; return;
+    }
     if (t.remote || lib.cloud) { if (!ask) { phase = 'remote'; return; } }
     if (t.remote && lib.canRead(t)) {
       phase = 'loading';
@@ -207,7 +218,9 @@ canPlay = true;
       {/if}
     </section>
 
-    {#if phase === 'ready' && !canPlay && track.status === 'linked'}
+    {#if phase === 'ready' && !canPlay && track.remote}
+      <div class="notice" id="remote-analysis-note">The analysis made on <b>{elsewhere}</b>. The song itself is there too: <button type="button" class="btn" id="remote-play" onclick={allowPlay}>Play from {elsewhere}</button></div>
+    {:else if phase === 'ready' && !canPlay && track.status === 'linked'}
       <div class="notice">This is the analysis stored earlier. To play the track, GLUE needs your permission to read it again. <button type="button" class="btn" onclick={allowPlay}>Allow and play</button></div>
     {/if}
     {#if phase === 'remote'}

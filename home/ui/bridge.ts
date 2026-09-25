@@ -27,7 +27,9 @@ export interface Received { name: string; path: string; from: string; at: number
 /** What the service tells the settings window and the tray. */
 export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online' | 'offline' | 'removed'; text: string; running: boolean; receiving: { name: string; got: number; size: number } | null; received: Received[];
   /** Finding the music folders of the shared collections (by itself). */
-  library?: { searching: boolean; found: number; missing: { id: string; name: string; collection: string }[] } }
+  library?: { searching: boolean; found: number; missing: { id: string; name: string; collection: string }[] };
+  /** Making mini spectrograms and analyses of the shared songs (ADR 0046). */
+  analysis?: { done: number; total: number; running: boolean } }
 
 export const bridge = {
   config: () => invoke<HomeConfig | null>('get_config'),
@@ -45,6 +47,12 @@ export const bridge = {
   knownFolders: () => invoke<{ home: string | null; music: string | null; documents: string | null; desktop: string | null; downloads: string | null; sep: string }>('known_folders'),
   exists: (path: string) => invoke<boolean>('path_exists', { path }),
   findFolder: (name: string, sample: string) => invoke<string | null>('find_folder', { name, sample }),
+  // GLUE Home's own cache (mini spectrograms, analyses) and the incoming folder.
+  cacheRead: (rel: string) => invoke<ArrayBuffer>('cache_read', { rel }),
+  cacheWrite: (rel: string, bytes: Uint8Array) => invoke<void>('cache_write', bytes, { headers: { 'x-rel': rel } }),
+  cacheList: (rel: string) => invoke<string[]>('cache_list', { rel }),
+  incomingList: () => invoke<{ name: string; size: number; mtime: number; path: string }[]>('incoming_list'),
+  incomingMove: (name: string, to: string) => invoke<string>('incoming_move', { name, to }),
   glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
   fileSize: (path: string) => invoke<number>('file_size', { path }),
   fileRead: (path: string, offset: number, len: number) => invoke<ArrayBuffer>('file_read', { path, offset, len }),

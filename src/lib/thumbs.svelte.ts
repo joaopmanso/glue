@@ -5,7 +5,7 @@
 import { lib } from './library.svelte';
 import { cacheDir } from '../platform';
 import { writeBlob } from '../store/fsx';
-import { shardOf } from '../store/types';
+import { shardOf, type Track } from '../store/types';
 import { makeThumb, THUMB_H, THUMB_W } from '../core/library/thumb';
 
 const MAX_CACHED = 800, READERS = 6;
@@ -59,7 +59,33 @@ class Thumbs {
       void this.read(id).finally(() => { this.reading--; this.pump(); });
     }
   }
+  /** Another computer's songs: from its GLUE Home, a screenful at a time (ADR 0046). */
+  remote: ((ts: Track[]) => Promise<Map<string, Uint8Array>>) | null = null;
+  private wantRemote: Track[] = [];
+  private remoteTimer = 0;
+  private tries = new Map<string, number>();
+  private fromRemote(t: Track) {
+    this.wantRemote.push(t);
+    clearTimeout(this.remoteTimer);
+    this.remoteTimer = window.setTimeout(() => {
+      const batch = this.wantRemote.splice(0), cid = this.cid;
+      void (this.remote?.(batch) ?? Promise.resolve(new Map<string, Uint8Array>())).then(got => {
+        if (this.cid !== cid) return;
+        for (const t of batch) {
+          const b = got.get(t.id);
+          if (b && b.length === THUMB_W * THUMB_H) { this.remember(t.id, b); continue; }
+          // Not made there yet (GLUE Home makes it now): ask again in a while, a few times.
+          this.remember(t.id, null);
+          const n = (this.tries.get(t.id) ?? 0) + 1;
+          this.tries.set(t.id, n);
+          if (n < 4) setTimeout(() => { if (this.cid === cid) { this.cache.delete(t.id); this.request(t.id); } }, 12_000 * n);
+        }
+      }).catch(() => {});
+    }, 120);
+  }
   private async read(id: string) {
+    const rt = lib.store?.tracks.get(id);
+    if (rt?.remote) { if (lib.canRead(rt) && !rt.remote.incoming) this.fromRemote(rt); else this.remember(id, null); return; }
     const dir = await cacheDir(), cid = this.cid;
     if (!dir || !cid) return;
     try {

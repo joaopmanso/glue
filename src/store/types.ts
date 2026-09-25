@@ -45,7 +45,9 @@ export interface Track {
   onDevices?: string[];         // cloud views and merged collections: the devices that have this track (never saved)
   /** A track from another device of a merged collection, shown here from the cloud (ADR 0042; never saved):
       that device, and its own profile, collection and track ids (to stream it through GLUE Home, ADR 0045). */
-  remote?: { device: string; name: string; profile?: string; collection?: string; id?: string };
+  remote?: { device: string; name: string; profile?: string; collection?: string; id?: string;
+    /** A song waiting in a GLUE Home's incoming folder (TO BE SORTED, ADR 0046): that GLUE Home and the file's name. */
+    home?: string; incoming?: string };
   sources: string[];            // ids of imported sources that contain this track
 }
 

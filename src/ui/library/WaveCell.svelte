@@ -16,7 +16,7 @@
   let cv = $state<HTMLCanvasElement>();
   const data = $derived.by(() => { void thumbs.version; return thumbs.get(t.id); });
   const here = $derived(t.status === 'linked' && (!t.remote || lib.canRead(t)));
-  $effect(() => { if (data === undefined && t.status === 'linked' && !t.remote) thumbs.request(t.id); });
+  $effect(() => { if (data === undefined && t.status === 'linked' && (!t.remote || here)) thumbs.request(t.id); });
 
   // Draw through the spectrogram palette (the same one as the track page).
   $effect(() => {

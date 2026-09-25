@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-09-25
-adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0037, 0038]
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -94,6 +94,11 @@ an account GLUE works exactly as today, all local.
   comes over WebRTC, then plays and seeks; the track page can analyse it in full.
 - **Updates:** Settings › Updates (version, Check for updates, install by itself), plus a background
   check every six hours.
+- **Shared analyses** ([ADR 0046](../adr/0046-glue-home-shares-analysis-and-sorts-incoming.md)):
+  waveforms and full track pages of another computer's songs come from its GLUE Home's cache.
+  That cache is handed over by the website there, or analysed by GLUE Home itself.
+- **TO BE SORTED:** the songs in every GLUE Home's incoming folder, as a playlist, until "Move to music
+  folder…". Drag tracks or drop files on a computer with GLUE Home to send them there.
 - **Next:** analysis of new tracks by GLUE Home; streaming that starts before the whole file is in.
 
 ## GLUE Home app (built 2026-09-25, [ADR 0044](../adr/0044-glue-home-tauri-tray-app.md))
