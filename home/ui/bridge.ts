@@ -20,11 +20,14 @@ export interface HomeConfig {
   glue?: string | null;         // this computer's GLUE folder (the website's), read-only (ADR 0045)
   folders?: Record<string, string>;   // music folder id → where it is on this computer
   autoUpdate?: boolean;         // install updates by itself (on unless turned off)
+  serve?: Record<string, boolean>;    // 'profile/collection' → shared with other computers (on unless false)
 }
 export interface Received { name: string; path: string; from: string; at: number; size: number }
 
 /** What the service tells the settings window and the tray. */
-export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online' | 'offline' | 'removed'; text: string; running: boolean; receiving: { name: string; got: number; size: number } | null; received: Received[] }
+export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online' | 'offline' | 'removed'; text: string; running: boolean; receiving: { name: string; got: number; size: number } | null; received: Received[];
+  /** Finding the music folders of the shared collections (by itself). */
+  library?: { searching: boolean; found: number; missing: { id: string; name: string; collection: string }[] } }
 
 export const bridge = {
   config: () => invoke<HomeConfig | null>('get_config'),
@@ -41,6 +44,7 @@ export const bridge = {
   findGlue: () => invoke<string | null>('find_glue_folder'),
   knownFolders: () => invoke<{ home: string | null; music: string | null; documents: string | null; desktop: string | null; downloads: string | null; sep: string }>('known_folders'),
   exists: (path: string) => invoke<boolean>('path_exists', { path }),
+  findFolder: (name: string, sample: string) => invoke<string | null>('find_folder', { name, sample }),
   glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
   fileSize: (path: string) => invoke<number>('file_size', { path }),
   fileRead: (path: string, offset: number, len: number) => invoke<ArrayBuffer>('file_read', { path, offset, len }),

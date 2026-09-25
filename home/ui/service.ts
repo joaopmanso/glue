@@ -4,7 +4,7 @@
 import { API, bridge, type HomeConfig, type Received, type Status } from './bridge';
 import { stayOnline } from './cloud';
 import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, isHandshake, type Ctrl, type Handshake, type StreamCtrl } from '../../src/core/transfer';
-import { trackPath } from './library';
+import { locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
 
 let cfg: HomeConfig | null = null;
@@ -12,12 +12,13 @@ let room: ReturnType<typeof stayOnline> | null = null;
 let state: Status['state'] = 'stopped', text = 'Starting…';
 let receiving: Status['receiving'] = null;
 let serving = 0;   // songs being sent to another computer right now
+let library: Status['library'] = undefined;
 const peers = new Map<string, RTCPeerConnection>();   // handshake id → connection
 
 const apiOf = (c: HomeConfig) => c.api || API;
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [] };
+  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -150,6 +151,25 @@ function serve(dc: RTCDataChannel) {
   };
 }
 
+/** Find the shared collections' music folders by themselves (at start, and when the settings change);
+    what's found is remembered, so songs play at once. */
+let finding: Promise<void> | null = null, again = false;
+async function findFolders() {
+  if (finding) { again = true; return; }
+  finding = (async () => {
+    do {
+      again = false;
+      if (!cfg?.glue) { library = undefined; report(state, text); continue; }
+      library = { searching: true, found: 0, missing: [] }; report(state, text);
+      const r = await locateAll(cfg).catch(() => ({ folders: {}, missing: [] }));
+      const merged = { ...(cfg.folders ?? {}), ...r.folders };
+      if (JSON.stringify(merged) !== JSON.stringify(cfg.folders ?? {})) { cfg = { ...cfg, folders: merged }; await bridge.saveConfig(cfg).catch(() => {}); }
+      library = { searching: false, found: Object.keys(r.folders).length, missing: r.missing };
+      report(state, text);
+    } while (again);
+  })().finally(() => { finding = null; });
+}
+
 // ---- wiring ---------------------------------------------------------------------------------------
 async function boot() {
   cfg = await bridge.config();
@@ -167,10 +187,12 @@ async function boot() {
   await bridge.onConfig(c => {
     const before = cfg;
     cfg = c;
+    if (before?.glue !== c.glue || JSON.stringify(before?.serve ?? {}) !== JSON.stringify(c.serve ?? {}) || JSON.stringify(before?.folders ?? {}) !== JSON.stringify(c.folders ?? {})) void findFolders();
     if (!before || before.deviceId !== c.deviceId || before.token !== c.token || before.running !== c.running || (before.api ?? '') !== (c.api ?? '')) start();
     else report(state, text);
   });
   await bridge.onAskStatus(() => report(state, text));
+  void findFolders();
   // Updates by itself: a minute after starting, then every six hours, when nothing is being sent.
   const auto = async () => {
     if (cfg?.autoUpdate === false || receiving || serving) return;

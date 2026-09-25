@@ -6,7 +6,7 @@
   import { onMount } from 'svelte';
   import { API, WEBSITE, askYesNo, autostart, bridge, onPairLink, openFolder, openUrl, pickFolder, type HomeConfig, type Status } from './bridge';
   import { claim, type Joined } from './cloud';
-  import { describe, locate, type LibraryInfo } from './library';
+  import { collectionKey, describe, shared, type LibraryInfo } from './library';
   import { findUpdate, install, version } from './updates';
   import type { Update } from '@tauri-apps/plugin-updater';
   import GlueStick from '../../src/ui/GlueStick.svelte';
@@ -16,7 +16,6 @@
   let status = $state<Status | null>(null);
   let code = $state('');
   let lib = $state<LibraryInfo | null>(null);
-  let found = $state<Record<string, string | null>>({});
   let busy = $state(''), error = $state('');
   let atLogin = $state(false);
   // Updates: this version, a check on demand, installing (with progress).
@@ -58,13 +57,8 @@
   // Connecting again (a new code) replaces this GLUE Home's previous device in the account.
   const withCode = (c = code) => run('Connecting…', async () => joined(await claim(api, c, cfg?.name || 'GLUE Home', cfg?.deviceId && cfg?.token ? { deviceId: cfg.deviceId, token: cfg.token } : null)));
 
-  // This computer's GLUE library: its profiles and collections, and where their music folders are.
-  async function scan() {
-    lib = cfg?.glue ? await describe() : null;
-    const next: Record<string, string | null> = {};
-    for (const p of lib?.profiles ?? []) for (const c of p.collections) for (const r of c.roots) if (!(r.id in next)) next[r.id] = cfg ? await locate(r, null, cfg) : null;
-    found = next;
-  }
+  // This computer's GLUE library: every collection is shared, its music folders found by the service.
+  async function scan() { lib = cfg?.glue ? await describe() : null; }
   async function chooseGlue() {
     const f = await pickFolder(cfg?.glue ?? null);
     if (!f) return;
@@ -72,11 +66,13 @@
     await scan();
     if (!lib) error = 'That folder isn’t a GLUE folder (it has no mco.json). Choose the folder GLUE on the website uses.';
   }
+  async function setShared(p: string, c: string, on: boolean) { await save({ serve: { ...(cfg?.serve ?? {}), [collectionKey(p, c)]: on } }); }
+  /** Only if a music folder can't be found by itself (it's checked with one of its songs). */
   async function chooseFolder2(id: string) {
-    const f = await pickFolder(found[id]);
-    if (f) { await save({ folders: { ...(cfg?.folders ?? {}), [id]: f } }); await scan(); }
+    const f = await pickFolder(cfg?.folders?.[id] ?? null);
+    if (f) await save({ folders: { ...(cfg?.folders ?? {}), [id]: f } });
   }
-  const roots = $derived.by(() => { const m = new Map<string, { id: string; name: string; where: string }>(); for (const p of lib?.profiles ?? []) for (const c of p.collections) for (const r of c.roots) if (!m.has(r.id)) m.set(r.id, { id: r.id, name: r.name, where: p.name + ' · ' + c.name }); return [...m.values()]; });
+  const folderCount = (roots: { id: string }[]) => roots.filter(r => cfg?.folders?.[r.id]).length;
   async function disconnect() {
     if (!(await askYesNo('Disconnect this computer from ' + (cfg?.user?.email ?? 'the GLUE account') + '? Songs can’t be sent to it until you connect again. Remove it from the website’s device list too (sidebar › Devices › ⋯ › Remove).', 'GLUE Home', 'Disconnect', 'Cancel'))) return;
     await save({ deviceId: null, token: null, user: null });
@@ -161,22 +157,32 @@
 
   <section>
     <h2>This computer’s library</h2>
-    <p class="fine">GLUE Home reads the library the GLUE website uses on this computer (it never changes it), so its songs play on your other computers.</p>
-    <div class="folder"><code id="glue-folder" title={cfg?.glue ?? ''}>{cfg?.glue ?? 'GLUE folder not found yet'}</code></div>
-    <div class="row"><button type="button" id="choose-glue" onclick={chooseGlue}>{cfg?.glue ? 'Choose another…' : 'Choose the GLUE folder…'}</button></div>
-    {#if lib}
-      <ul id="profiles">
-        {#each lib.profiles as p (p.id)}<li><span><b>{p.name}</b> · {p.collections.map(c => c.name).join(', ')}</span></li>{/each}
-      </ul>
-      {#if roots.length}
-        <h3>Music folders</h3>
-        <ul id="music-folders">
-          {#each roots as r (r.id)}
-            <li data-root={r.id}><span title={found[r.id] ?? ''}><b>{r.name}</b> <small>{found[r.id] ?? 'not found on this computer'}</small></span>
-              <button type="button" class="mini" onclick={() => chooseFolder2(r.id)}>{found[r.id] ? 'Change…' : 'Choose…'}</button></li>
+    {#if !cfg?.glue || (cfg?.glue && !lib)}
+      <p class="fine">GLUE Home shares the library the GLUE website uses on this computer. It didn’t find it in the usual places: choose the website’s GLUE folder.</p>
+      <div class="row"><button type="button" id="choose-glue" onclick={chooseGlue}>Choose the GLUE folder…</button></div>
+    {:else}
+      <p class="fine">Every collection of this computer’s GLUE is shared with your other computers (read only: GLUE Home never changes it). <span class="path" id="glue-folder" title={cfg.glue}>{cfg.glue}</span></p>
+      <ul id="collections">
+        {#each lib?.profiles ?? [] as p (p.id)}
+          {#each p.collections as c (c.id)}
+            {@const n = folderCount(c.roots)}
+            <li data-collection={c.id}>
+              <label class="check"><input type="checkbox" checked={shared(cfg, p.id, c.id)} onchange={e => setShared(p.id, c.id, e.currentTarget.checked)}>
+                <span><b>{c.name}</b> <small>{p.name}{c.roots.length ? ' · ' + (status?.library?.searching && n < c.roots.length ? 'finding its music folders…' : n + ' of ' + c.roots.length + ' music folder' + (c.roots.length === 1 ? '' : 's') + ' found') : ''}</small></span></label>
+            </li>
           {/each}
-        </ul>
+        {/each}
+      </ul>
+      {#if status?.library?.missing.length && !status.library.searching}
+        <details id="missing-folders"><summary>{status.library.missing.length} music folder{status.library.missing.length === 1 ? '' : 's'} not found on this computer</summary>
+          <ul>
+            {#each status.library.missing as m (m.id)}
+              <li data-root={m.id}><span><b>{m.name}</b> <small>{m.collection}</small></span><button type="button" class="mini" onclick={() => chooseFolder2(m.id)}>Choose…</button></li>
+            {/each}
+          </ul>
+        </details>
       {/if}
+      <button type="button" class="link" onclick={chooseGlue}>Use another GLUE folder…</button>
     {/if}
   </section>
 
@@ -249,7 +255,7 @@
   li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   li small { color: var(--muted); white-space: nowrap; }
   .now { color: var(--accent); font-size: 13px; }
-  h3 { font-size: 12.5px; margin: 4px 0 0; color: var(--ink-2); }
+  .path { display: block; font: 11.5px var(--font-mono); color: var(--muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   li small { margin-left: 6px; }
   button.mini { padding: 2px 10px; font-size: 12px; flex: none; }
   li { align-items: center; }

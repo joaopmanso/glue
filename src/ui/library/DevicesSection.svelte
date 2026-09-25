@@ -14,6 +14,7 @@
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import { HOME_DOWNLOADS, homeOs, homePairLink } from '../../lib/homeApp';
   import { AUDIO_EXT } from '../../core/library/tags';
+  import HomeInstallHelp from '../HomeInstallHelp.svelte';
 
   // Songs dropped on a GLUE Home, or picked from its menu, go to its incoming folder (ADR 0044).
   let dropOn = $state<string | null>(null);
@@ -167,6 +168,7 @@
       <p class="fine">Don’t have it yet?
         {#each Object.entries(HOME_DOWNLOADS).sort(([a], [b]) => Number(b === os) - Number(a === os)) as [k, dl], i (k)}{i ? ' · ' : ' '}<a href={dl.url} data-download={k} class:mine={k === os}>Download for {dl.label}</a>{/each}
       </p>
+      <HomeInstallHelp />
       <div class="acts">
         {#if left <= 0}<button type="button" class="btn" onclick={startPairing}>New code</button>{/if}
         <button type="button" class="btn-ghost" onclick={() => (pairing = null)}>Close</button>

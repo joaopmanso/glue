@@ -8,7 +8,12 @@ const GLUE = 'C:\\Users\\dj\\Documents\\GLUE';
 const LIBRARY = {
   'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'Nova', color: '#fff' }], lastProfile: 'p1' }),
   'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'Nova', color: '#fff', createdAt: '', collections: [{ id: 'c1', name: 'My collection' }], lastCollection: 'c1' }),
-  'profiles/p1/collections/c1/collection.json': JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'My collection', createdAt: '', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'x', addedAt: '' }, { id: 'r2', name: 'Promos', absPath: null, handleKey: 'y', addedAt: '' }] }),
+  'profiles/p1/collections/c1/collection.json': JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'My collection', createdAt: '', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'x', addedAt: '' }, { id: 'r2', name: 'Promos', absPath: null, handleKey: 'y', addedAt: '' }, { id: 'r3', name: 'Crates', absPath: null, handleKey: 'z', addedAt: '' }] }),
+  // A song in each music folder (GLUE Home checks where a folder is with one of its songs).
+  'profiles/p1/collections/c1/tracks/ab.json': JSON.stringify({ schemaVersion: 1, items: {
+    ab01: { id: 'ab01', rootId: 'r1', relPath: 'Sets/a.mp3', importPath: null, fileName: 'a.mp3' },
+    ab02: { id: 'ab02', rootId: 'r2', relPath: 'x.mp3', importPath: null, fileName: 'x.mp3' },
+    ab03: { id: 'ab03', rootId: 'r3', relPath: 'y.mp3', importPath: null, fileName: 'y.mp3' } } }),
 };
 
 test('GLUE Home settings: asks about starting with the computer; connects with a code as this computer’s companion; finds the GLUE folder and music folders', async ({ page }) => {
@@ -23,7 +28,8 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   });
   await ctx.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { ws.send(JSON.stringify({ type: 'presence', online: ['h1'] })); ws.onMessage(() => {}); });
   await ctx.addInitScript(TAURI_MOCK);
-  await ctx.addInitScript(({ glue, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = lib; w.__disk = { 'C:\\Users\\dj\\Music\\Sets\\a.mp3': [1] }; }, { glue: GLUE, lib: LIBRARY });
+  // On disk: Music (found in the usual place), Promos (found by the drive search), Crates (nowhere to be found).
+  await ctx.addInitScript(({ glue, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = lib; w.__find = { Promos: 'E:\\DJ\\Promos' }; w.__disk = { 'C:\\Users\\dj\\Music\\Sets\\a.mp3': [1], 'E:\\DJ\\Promos\\x.mp3': [1], 'D:\\Incoming\\y.mp3': [1] }; }, { glue: GLUE, lib: LIBRARY });
   await page.goto(HOME + 'index.html');
   // The service window runs next to it (the tray's Start / Stop go there).
   const service = await ctx.newPage();
@@ -37,13 +43,23 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   await expect(page.locator('#device-name')).toHaveValue('Studio PC');
   // Codes only: no email or Google sign-in.
   await expect(page.locator('#email, #password, #google')).toHaveCount(0);
-  // The website's GLUE folder is found, with its profile, collection and music folders.
+  // The website's GLUE folder is found; every collection is shared, its music folders found by themselves.
   await expect(page.locator('#glue-folder')).toHaveText(GLUE);
-  await expect(page.locator('#profiles')).toContainText('Nova · My collection');
-  await expect(page.locator('#music-folders [data-root="r1"]')).toContainText('C:\\Users\\dj\\Music');     // found by its name
-  await expect(page.locator('#music-folders [data-root="r2"]')).toContainText('not found on this computer');
-  await page.locator('#music-folders [data-root="r2"] button').click();                                    // the stand-in picks D:\Incoming
-  await expect(page.locator('#music-folders [data-root="r2"]')).toContainText('D:\\Incoming');
+  await expect(page.locator('#choose-glue')).toHaveCount(0);
+  const coll = page.locator('#collections [data-collection="c1"]');
+  await expect(coll).toContainText('My collection');
+  await expect(coll).toContainText('2 of 3 music folders found', { timeout: 10_000 });
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).folders)).toEqual({ r1: 'C:\\Users\\dj\\Music', r2: 'E:\\DJ\\Promos' });
+  // Only a folder that can't be found is asked for (and checked with its song).
+  await page.locator('#missing-folders summary').click();
+  await expect(page.locator('#missing-folders')).toContainText('Crates');
+  await page.locator('#missing-folders [data-root="r3"] button').click();                                  // the stand-in picks D:\Incoming
+  await expect(coll).toContainText('3 of 3 music folders found');
+  await expect(page.locator('#missing-folders')).toHaveCount(0);
+  // A collection can be kept to this computer.
+  await coll.locator('input').uncheck();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).serve)).toEqual({ 'p1/c1': false });
+  await coll.locator('input').check();
 
   // A wrong code, then the right one: connected, and the service goes online.
   await page.fill('#code', 'WRONG-CODE');

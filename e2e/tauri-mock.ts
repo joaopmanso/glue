@@ -42,6 +42,8 @@ export const TAURI_MOCK = `(() => {
         case 'find_glue_folder': return window.__glueFolder ?? null;
         case 'known_folders': return { home: 'C:\\\\Users\\\\dj', music: 'C:\\\\Users\\\\dj\\\\Music', documents: 'C:\\\\Users\\\\dj\\\\Documents', desktop: null, downloads: null, sep: '\\\\' };
         case 'path_exists': return Object.keys(window.__disk ?? {}).some(p => p === args.path || p.startsWith(args.path + '\\\\'));
+        // window.__find: folder name → where the drive search finds it.
+        case 'find_folder': return (window.__find ?? {})[args.name] ?? null;
         case 'glue_read': { const t = (window.__glue ?? {})[args.rel]; if (t === undefined) throw 'not found'; return t; }
         case 'file_size': { const b = (window.__disk ?? {})[args.path]; if (!b) throw 'not found'; return b.length; }
         case 'file_read': { const b = (window.__disk ?? {})[args.path]; if (!b) throw 'not found'; return new Uint8Array(b.slice(args.offset, args.offset + args.len)).buffer; }

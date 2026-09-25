@@ -84,8 +84,12 @@ an account GLUE works exactly as today, all local.
 ## GLUE Home as the computer's companion (built 2026-09-25, [ADR 0045](../adr/0045-glue-home-companion.md))
 - **Connect:** a code from Devices › + GLUE Home on the same computer (or its "Open GLUE Home" link).
   GLUE Home becomes that browser's companion, and Devices shows one row per computer.
-- **Library:** it reads the website's GLUE folder (found in Documents/GLUE etc., or chosen) and
-  finds music folders by name (or chosen), read-only.
+- **Library:** it reads the website's GLUE folder (found in Documents/GLUE etc., or chosen), read-only.
+  Every collection is shared (switch per collection). Music folders are found by themselves,
+  checked with one of their songs (DJ-app path, known path, usual folders, drive search); only one
+  that can't be found is asked for.
+- **Install guide** next to the downloads: the browser's download bar, the blue SmartScreen
+  screen, the macOS warning (`src/ui/HomeInstallHelp.svelte`).
 - **Streaming:** another computer's songs get a play button while its GLUE Home runs; the whole file
   comes over WebRTC, then plays and seeks; the track page can analyse it in full.
 - **Updates:** Settings › Updates (version, Check for updates, install by itself), plus a background

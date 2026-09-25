@@ -5,6 +5,23 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · GLUE Home 0.2.1: finds every music folder by itself; install guide
+- On the user's desktop, streaming failed ("The system cannot find the path specified"): the
+  music folders weren't where GLUE Home looked by name, and a folder chosen by hand wasn't checked.
+  Now GLUE Home finds every shared collection's music folders by itself, checking each with one of
+  its songs:
+  - where the song's DJ app said it is;
+  - the collection's known path;
+  - the usual folders;
+  - a search of the drives for a folder of that name with that song in it.
+
+  A folder chosen by hand is checked the same way.
+- Settings: the only thing asked for is the code. Every collection is shared (a switch per
+  collection); a "not found" list with Choose… appears only for a folder that can't be found.
+- Website: the GLUE Home download and pairing dialog explains the browser's "isn't commonly
+  downloaded" bar, Windows' blue "Windows protected your PC" screen and the macOS warning, and why
+  they're safe to pass.
+
 ## 2026-09-25 · GLUE Home 0.2.0: this computer's companion; streaming; updates itself
 - GLUE Home is the companion of the browser on its computer
   ([ADR 0045](../adr/0045-glue-home-companion.md)): the code made in that browser links them;
