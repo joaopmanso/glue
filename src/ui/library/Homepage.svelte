@@ -55,10 +55,15 @@
   <!-- Hero: the product itself -->
   <section class="hero">
     <div class="hero-text">
-      <p class="eyebrow"><GlueStick size={22} /> Global Library Unified Exporter</p>
-      <h2 class="h1" aria-label="The GLUE between your DJ apps.">
-        {#each headline as w, i (i)}<span class="w" class:accent={w === 'GLUE'} style:--d={i * 70 + 'ms'}>{w}</span>{i === 2 ? '' : ' '}{#if i === 2}<br>{/if}{/each}
-      </h2>
+      <div class="hero-head">
+        <div>
+          <p class="eyebrow">Global Library Unified Exporter</p>
+          <h2 class="h1" aria-label="The GLUE between your DJ apps.">
+            {#each headline as w, i (i)}<span class="w" class:accent={w === 'GLUE'} style:--d={i * 70 + 'ms'}>{w}</span>{i === 2 ? '' : ' '}{#if i === 2}<br>{/if}{/each}
+          </h2>
+        </div>
+        <div class="hero-logo" aria-hidden="true"><GlueStick size={220} /></div>
+      </div>
       <div class="hero-row">
         <p class="lede">A music library for DJs that runs in your browser. It reads every DJ app's collection, checks the real quality of every file, and builds sets that mix, without uploading a single track.</p>
         <div class="hero-act">
@@ -142,6 +147,11 @@
   /* Hero */
   .hero { display: grid; gap: clamp(34px, 5vw, 64px); padding-top: clamp(8px, 3vh, 40px); }
   .hero-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 56px; align-items: end; }
+  .hero-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; }
+  .hero-logo { position: relative; display: grid; place-items: center; width: clamp(150px, 18vw, 260px); aspect-ratio: 1; opacity: 0; animation: arrive 1s .35s cubic-bezier(.2, .7, .2, 1) forwards; }
+  .hero-logo::before { content: ''; position: absolute; inset: -10%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 38%, transparent), transparent); z-index: -1; }
+  .hero-logo :global(svg) { width: 100%; height: 100%; filter: drop-shadow(0 24px 30px rgb(0 0 0 / .45)); animation: bob 6s ease-in-out 1.4s infinite; }
+  @keyframes bob { 50% { transform: translateY(-10px) rotate(3deg); } }
   .hero-act { display: grid; gap: 18px; justify-items: start; }
   .eyebrow { display: flex; align-items: center; gap: 10px; font: 600 12px var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
   .h1 { font-size: clamp(40px, 7.4vw, 112px); line-height: .95; letter-spacing: -.04em; font-weight: 850; margin: 20px 0 28px; }
@@ -219,10 +229,12 @@
   :global(.hp .in) { opacity: 1 !important; transform: none !important; }
   :global(.hp .in) .frame { transform: none; }
   @media (prefers-reduced-motion: reduce) {
-    .w, .lede, .cta, .works, .hero-frame, .bg i { animation: none; opacity: 1; transform: none; }
+    .w, .lede, .cta, .works, .hero-frame, .hero-logo, .hero-logo :global(svg), .bg i { animation: none; opacity: 1; transform: none; }
     :global(.hp [class*="chapter"]), .duo, .wide, .cloud, .chapter .frame, .callout { opacity: 1; transform: none; transition: none; }
   }
   @media (max-width: 900px) {
+    .hero-head { grid-template-columns: minmax(0, 1fr) 84px; gap: 12px; align-items: start; }
+    .hero-logo { width: 84px; }
     .hero-row, .chapter, .chapter.flip, .cloud, .duo { grid-template-columns: 1fr; }
     .chapter.flip .copy { order: 0; }
   }

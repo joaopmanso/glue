@@ -9,7 +9,8 @@ adrs: [0002]
 ## What it does
 The first screen a visitor sees before any profile exists (`Homepage.svelte`, shown by
 `Welcome.svelte` above the setup form `#get-started`). It shows the real app, not illustrations:
-- Hero: "The GLUE between your DJ apps.", a one-paragraph lede, "Get started, free" (scrolls to
+- Hero: "The GLUE between your DJ apps." with the glue-stick logo large beside it (glowing,
+  bobbing gently), a one-paragraph lede, "Get started, free" (scrolls to
   the setup) and "Check one file first →" (`#/analyze`), the apps it reads, and a large looping
   clip of the library.
 - Chapters 01–04, alternating sides: library, quality verdict (with a "wall at 17.1 kHz"

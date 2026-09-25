@@ -5,7 +5,8 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
-## 2026-09-25 · Homepage: colour behind the page, no numbers band
+## 2026-09-25 · Homepage: colour behind the page, no numbers band, logo in the hero
+- The glue-stick logo stands large beside the headline (small on phones).
 - Removed the "0 bytes / 5 / 100% / Free" band, which didn't read well.
 - Soft, slowly drifting fields of colour behind the sections so the page isn't flat black.
 
