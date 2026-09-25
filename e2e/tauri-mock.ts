@@ -12,8 +12,8 @@ export const TAURI_MOCK = `(() => {
   const send = (event, payload, target) => { const m = { event, payload: payload === undefined ? null : JSON.parse(JSON.stringify(payload)), target }; bc.postMessage(m); deliver(m); };
   bc.onmessage = e => deliver(e.data);
   const cfg = () => JSON.parse(localStorage.getItem('home-config') || 'null');
-  // A file on "disk": window.__disk, or a song received into the incoming folder (C:\\In\\<name>).
-  const disk = p => (window.__disk ?? {})[p] ?? (p.startsWith('C:\\\\In\\\\') ? files.find(f => f.done && !f.moved && f.name === p.slice(6))?.chunks.flat() : undefined);
+  // A file on "disk": window.__disk, or a song received into the incoming folder (C:\\In\\<name>, or where it was saved).
+  const disk = p => (window.__disk ?? {})[p] ?? files.find(f => f.done && !f.moved && (p === 'C:\\\\In\\\\' + f.name || p.endsWith('GLUE Incoming\\\\' + f.name)))?.chunks.flat();
   window.__TAURI_INTERNALS__ = {
     metadata: { currentWindow: { label }, currentWebview: { windowLabel: label, label } },
     transformCallback(cb) { const id = next++; cbs.set(id, cb); return id; },
@@ -35,6 +35,7 @@ export const TAURI_MOCK = `(() => {
         case 'incoming_end': { const f = files[args.id - 1]; f.done = args.ok; return args.ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; }
         case 'set_status': case 'show_settings': return;
         case 'open_library': window.__opened = 'library'; return;
+        case 'local_port': return 47400;
         // Updates: window.__update is the newer version, if any.
         case 'plugin:app|version': return '0.2.0';
         case 'plugin:updater|check': return window.__update ? { rid: 1, currentVersion: '0.2.0', version: window.__update, date: '', body: '', rawJson: {} } : null;

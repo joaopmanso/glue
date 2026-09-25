@@ -44,6 +44,7 @@ See [research/dj-library-formats.md](../research/dj-library-formats.md#engine-dj
 - Not yet: cue points (PerformanceData.quickCues, a compressed binary structure) **[UNVERIFIED format]**.
 
 ## Folders and entries (2026-09-25)
-- A playlist with children is a folder; its own songs become a playlist of the same name inside it.
+- A playlist with children is a folder that keeps its own songs ([ADR 0049](../adr/0049-folders-are-playlists.md);
+  until then they went into a same-named playlist inside it).
 - Entries pointing at another Engine library (`databaseUuid` ≠ `Information.uuid`) are counted and
   reported, not matched.

@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-24
+updated: 2026-09-25
 adrs: [0009, 0022]
 ---
 # Playlists, folders & smart lists
@@ -57,3 +57,8 @@ track is used.
 - A playlist opens in its own order ("#", always ascending) and rows can be dragged to rearrange it.
   Sorted by another column, "Keep this order" saves that order as the playlist's own.
 - A colour tints the playlist's whole row, with a bar on the left.
+
+## Folders are playlists (2026-09-25, [ADR 0049](../adr/0049-folders-are-playlists.md))
+- As in Engine DJ, a folder holds songs as well as playlists: drop tracks on it, or pick it in "Add to
+  playlist"; "Remove from folder" takes its own songs out; the sidebar shows their count.
+- Opening a folder lists its own songs first, then its playlists' songs.

@@ -79,12 +79,8 @@ export function parseEngineDb(bytes: Uint8Array, SQL: SqlJsStatic, fileName = 'm
       const emit = (parent: number) => {
         for (const p of linkedOrder(byParent.get(parent) || [])) {
           const items = linkedOrder(byList.get(p.id) ?? []).map(e => e.track);
-          // Engine playlists can hold songs and other playlists at once: in GLUE a folder holds
-          // playlists, so one with children is a folder, and its own songs a playlist inside it.
-          if (byParent.has(p.id)) {
-            lists.push({ externalId: String(p.id), kind: 'folder', name: p.title, parent: parent ? String(parent) : null, items: [] });
-            if (items.length) lists.push({ externalId: p.id + ':songs', kind: 'playlist', name: p.title, parent: String(p.id), items });
-          } else lists.push({ externalId: String(p.id), kind: 'playlist', name: p.title, parent: parent ? String(parent) : null, items });
+          // Engine playlists can hold songs and other playlists at once; so can GLUE folders (ADR 0049).
+          lists.push({ externalId: String(p.id), kind: byParent.has(p.id) ? 'folder' : 'playlist', name: p.title, parent: parent ? String(parent) : null, items });
           emit(p.id);
         }
       };

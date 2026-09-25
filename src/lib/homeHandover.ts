@@ -4,6 +4,7 @@
 import { account } from './account.svelte';
 import { lib } from './library.svelte';
 import { remoteFiles, companionOnline } from './remoteFiles.svelte';
+import { localHome } from './localHome.svelte';
 import { cacheDir } from '../platform';
 import { readJSON } from '../store/fsx';
 import { shardOf } from '../store/types';
@@ -53,6 +54,8 @@ export async function handOver() {
 // Now and then: when a collection is open here and this computer's GLUE Home is online.
 if (typeof window !== 'undefined') setInterval(() => {
   const me = account.thisDevice, h = me ? companionOnline(me) : null, cid = lib.store?.meta.id;
+  // The local link (ADR 0048): asked for once, over the account's channel.
+  if (h && !localHome.for(h.id)) void localHome.learn(h.id, home => remoteFiles.ask(home, { t: 'local' }).then(a => a.data as { port: number; token: string | null }));
   if (h && cid && !done.has(h.id + '/' + cid)) void handOver();
 }, 20_000);
 /** After new analyses: hand them over too (next round). */

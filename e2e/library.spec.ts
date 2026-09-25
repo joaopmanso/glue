@@ -357,12 +357,14 @@ test('drops on folders and "+ Playlist", reorders playlist rows, columns and not
   await page.keyboard.type('Warm'); await page.keyboard.press('Enter');
   await expect(item('Warm')).toContainText('1');
 
-  // Dropping on a folder makes a playlist inside it.
+  // A folder is also a playlist (as in Engine DJ): dropping on it adds the track to it.
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
   await dragRow('Fixture MP3', await centre(item('Gigs')), async () => { await expect(item('Gigs').locator('.plus')).toBeVisible(); });
-  await page.keyboard.type('Friday'); await page.keyboard.press('Enter');
-  await expect(item('Friday')).toContainText('1');
-  expect(await page.locator('.lside .tree .name').allTextContents().then(a => a.map(x => x.trim()))).toEqual(['Gigs', 'Friday', 'Warm']);
+  await expect(item('Gigs')).toContainText('1');
+  await item('Gigs').locator('.name').click();
+  await expect(page.locator('.tr')).toHaveCount(1);
+  await expect(page.locator('.tr')).toContainText('Fixture MP3');
+  expect((await page.locator('.lside .tree .name').allTextContents()).map(x => x.trim().replace(/\d+$/, '').trim())).toEqual(['Gigs', 'Warm']);
 
   // Playlist rows: add three, reorder by dragging (default order is "#"), then keep a sorted order.
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
@@ -1576,18 +1578,21 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   const sorted = page.locator('.lside', { hasText: 'TO BE SORTED' });
   await expect(sorted).toBeVisible({ timeout: 40_000 });
   await page.locator('.lside').getByText('TO BE SORTED').click();
-  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 40_000 });
-  await expect(page.locator('.tr').first().locator('[data-c="device"]')).toHaveText('Desktop');
-  // It plays from there.
-  const first = page.locator('.tr', { hasText: 'flac-96k-24' });
+  // The songs sent from here are the tracks this computer has: one row each, on both computers
+  // ("mp3-128k (2).mp3" is the same song as "mp3-128k.mp3").
+  await expect(page.locator('.tr')).toHaveCount(3, { timeout: 40_000 });
+  const first = page.locator('.tr', { hasText: 'Fixture FLAC' });
+  await expect(first.locator('[data-c="device"] .dv')).toHaveText(['Laptop', 'Desktop']);
+  // It plays from this computer's own file, without downloading.
   await first.hover();
   await first.locator('.pbtn').click();
   await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
+  await expect(page.locator('#lib-now')).not.toContainText('getting it from');
   await page.click('#lib-play');
   // Move it into the desktop's music folder "Music": it leaves TO BE SORTED.
   await first.locator('.c-title').click();
   await page.selectOption('#move-to', 'rm');
-  await expect(page.locator('.tr')).toHaveCount(3, { timeout: 20_000 });
+  await expect(page.locator('.tr')).toHaveCount(2, { timeout: 20_000 });
   expect(await home.evaluate(() => (window as unknown as { __files: { name: string; moved?: string }[] }).__files.find(f => f.name === 'flac-96k-24.flac')?.moved)).toBe('D:\\Music');
 
 });
@@ -1668,4 +1673,96 @@ test('the website hands its mini spectrograms and analyses to this computer’s 
   const kept = () => home.evaluate(() => Object.keys((window as unknown as { __cache: Record<string, number[]> }).__cache));
   await expect.poll(async () => (await kept()).filter(k => k.startsWith('t/')).length, { timeout: 60_000 }).toBe(4);
   await expect.poll(async () => (await kept()).filter(k => k.startsWith('d/') && k.endsWith('.json')).length, { timeout: 30_000 }).toBe(4);
+});
+
+test('the local link: this computer’s GLUE Home answers the website directly, TO BE SORTED ready and playing without GLUE Cloud', async ({ page }) => {
+  test.setTimeout(180_000);
+  const ctx = page.context();
+  await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+    window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+      renderButton(el) { const b = document.createElement('button'); b.id = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
+  const user = { id: 'u1', email: 'dj@example.com', name: 'DJ Test', picture: null };
+  const devices = [{ id: 'b1', kind: 'browser', name: 'Desktop', platform: '', createdAt: 1, lastSeen: 1 }, { id: 'h1', kind: 'home', name: 'Desktop', platform: 'win32', createdAt: 2, lastSeen: 2, companionOf: 'b1' }];
+  let offline = false;
+  await ctx.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+    if (offline) return r.abort('internetdisconnected');
+    const p = new URL(r.request().url()).pathname, m = r.request().method();
+    const json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
+    if (p === '/v1/health') return json({ ok: true });
+    if (p === '/v1/auth/google') return json({ access: 'a', refresh: 'r', deviceId: 'b1', user });
+    if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1' });
+    if (p === '/v1/auth/device') return json({ access: 'h' });
+    if (p === '/v1/me') return json({ user, thisDevice: 'b1', devices });
+    if (p === '/v1/sync' && m === 'GET') return json({ profiles: [] });
+    if (p === '/v1/sync/links') return json({ groups: [] });
+    if (p === '/v1/sync/manifest') return json({ need: [] });
+    if (p === '/v1/sync/ops') return json({ ops: [] });
+    return json({ error: 'not found' }, 404);
+  });
+  const socks: Record<string, import('@playwright/test').WebSocketRoute | null> = { b1: null, h1: null };
+  const presence = () => { const online = Object.keys(socks).filter(k => socks[k]); for (const w of Object.values(socks)) w?.send(JSON.stringify({ type: 'presence', online })); };
+  const room = (me: 'b1' | 'h1') => (ws: import('@playwright/test').WebSocketRoute) => {
+    socks[me] = ws; presence();
+    ws.onMessage(raw => { const j = JSON.parse(String(raw)); if (j.type === 'signal') socks[j.to]?.send(JSON.stringify({ type: 'signal', from: me, data: j.data })); });
+  };
+  await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('b1'));
+  const home = await ctx.newPage();
+  await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('h1'));
+  await home.addInitScript(TAURI_MOCK);
+  await home.addInitScript(() => { if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true })); });
+  await home.goto('http://localhost:5176/service.html');
+  await expect(home.locator('#state')).toContainText('Online as Desktop');
+  // GLUE Home's local server (its Rust side, stood in by the test): hello, the incoming folder with
+  // each song's analysis, its files, its cache; only with the token it gave (except hello).
+  const hits: string[] = [];
+  await ctx.route('http://127.0.0.1:47400/**', async r => {
+    const u = new URL(r.request().url());
+    hits.push(u.pathname);
+    const cors = { 'Access-Control-Allow-Origin': 'http://localhost:5174', 'Access-Control-Allow-Private-Network': 'true' };
+    if (u.pathname === '/hello') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify({ app: 'glue-home', version: '0.3.2', device: 'h1' }) });
+    const token = await home.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).localToken);
+    if (u.searchParams.get('t') !== token) return r.fulfill({ status: 401, headers: cors, body: '{}' });
+    const w = await home.evaluate(() => { const x = window as unknown as { __files: { name: string; chunks: number[][]; done: boolean; moved?: string }[]; __cache: Record<string, number[]> }; return { files: x.__files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, bytes: f.chunks.flat() })), cache: x.__cache }; });
+    const dec = (b: number[] | undefined) => b ? JSON.parse(Buffer.from(b).toString()) : null;
+    if (u.pathname === '/incoming') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify(w.files.map(f => ({ name: f.name, size: f.bytes.length, mtime: 1, path: 'C:\\In\\' + f.name, summary: dec(w.cache['i/' + f.name + '.summary.json']) }))) });
+    if (u.pathname === '/incoming/file') { const f = w.files.find(x => x.name === u.searchParams.get('name')); return f ? r.fulfill({ contentType: 'audio/flac', headers: cors, body: Buffer.from(f.bytes) }) : r.fulfill({ status: 404, headers: cors, body: '{}' }); }
+    if (u.pathname === '/cache') { const b = w.cache[u.searchParams.get('key')!]; return b ? r.fulfill({ contentType: 'application/octet-stream', headers: cors, body: Buffer.from(b) }) : r.fulfill({ status: 404, headers: cors, body: '{}' }); }
+    return r.fulfill({ status: 404, headers: cors, body: '{}' });
+  });
+
+  // The desktop: an empty collection, signed in; its own GLUE Home is online.
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#account-btn');
+  await page.click('#fake-google');
+  const mine = page.locator('#devices [data-device="b1"]');
+  await expect(mine).toContainText('GLUE Home on', { timeout: 15_000 });
+  // A song arrives in its incoming folder (sent from here, as another computer would): GLUE Home
+  // analyses it at once.
+  await mine.hover();
+  await mine.locator('.more').click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.click('#send-songs');
+  await (await chooser).setFiles([fixture('flac-96k-24.flac')]);
+  await expect(page.locator('#send-panel')).toContainText('Sent to Desktop', { timeout: 30_000 });
+  await expect.poll(() => home.evaluate(() => Object.keys((window as unknown as { __cache: Record<string, unknown> }).__cache).some(k => k.endsWith('.summary.json'))), { timeout: 60_000 }).toBe(true);
+  // The website learns the local link (once, over the account's channel).
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('mco.localHome')), { timeout: 40_000 }).toContain('47400');
+
+  // Now without GLUE Cloud: a reload shows TO BE SORTED at once, analysed, from GLUE Home directly.
+  offline = true;
+  await page.reload();
+  await page.locator('.lside').getByText('TO BE SORTED').click({ timeout: 20_000 });
+  const song = page.locator('.tr', { hasText: 'flac-96k-24' });
+  await expect(song).toHaveCount(1);
+  await expect(song.locator('.q')).toHaveText(/\w/);                   // the analysis made when it arrived
+  await expect(song.locator('.wave canvas')).toBeVisible({ timeout: 20_000 });
+  await song.hover();
+  await song.locator('.pbtn').click();
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
+  expect(hits).toContain('/incoming/file');
 });

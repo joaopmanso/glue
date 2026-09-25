@@ -9,7 +9,7 @@ export type Payload = { kind: 'tracks'; ids: string[]; label: string } | { kind:
 /** Where a drop would land. */
 export type Target =
   | { type: 'playlist'; id: string }                        // add the tracks to a playlist
-  | { type: 'folder'; id: string }                          // a new playlist in this folder, with the tracks
+  | { type: 'folder'; id: string }                          // add the tracks to a folder (folders are playlists too)
   | { type: 'col'; key: ColKey; at: 'before' | 'after' }    // reorder the table's columns
   | { type: 'new' }                                         // "+ Playlist": a new playlist with them
   | { type: 'tag'; name: string }                           // tag the tracks
@@ -121,8 +121,9 @@ class Drag {
     if (p.kind === 'tracks') {
       if (t.type === 'home') { this.onHome?.(t.home, p.ids); return; }
       if (t.type === 'folder') {
-        const l = lib.createList('playlist', '', t.id, p.ids);
-        if (l) { this.onOpenFolder?.(t.id); view.editing = l.id; }
+        // A folder is also a playlist: the tracks go into it (ADR 0049).
+        const l = lib.store?.lists.get(t.id), n = lib.addToList(t.id, p.ids);
+        lib.notice = n ? 'Added ' + n + ' track' + (n === 1 ? '' : 's') + ' to ' + l?.name + '.' : 'Already in ' + l?.name + '.';
         return;
       }
       if (t.type === 'tag') {

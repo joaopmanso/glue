@@ -99,7 +99,13 @@ an account GLUE works exactly as today, all local.
   That cache is handed over by the website there, or analysed by GLUE Home itself.
 - **TO BE SORTED:** the songs in every GLUE Home's incoming folder, as a playlist, until "Move to music
   folder…". Drag tracks or drop files on a computer with GLUE Home to send them there.
-- **Next:** analysis of new tracks by GLUE Home; streaming that starts before the whole file is in.
+- **Local link** (0.4.0, [ADR 0048](../adr/0048-local-link-to-glue-home.md)): the website on GLUE Home's
+  own computer reads it over `127.0.0.1` (TO BE SORTED at once, even offline; songs play from disk).
+  GLUE Home analyses songs as they arrive. A waiting song the collection already has is that track
+  (one row, on both computers, played from the nearest copy).
+- **Next:** GLUE Home as the computer's library, with saving and cloud sync
+  ([ADR 0050](../adr/0050-glue-home-as-the-computers-library.md), proposed); streaming that starts
+  before the whole file is in.
 
 ## GLUE Home app (built 2026-09-25, [ADR 0044](../adr/0044-glue-home-tauri-tray-app.md))
 - **Install:** Devices › + GLUE Home shows the download for this OS (GitHub release

@@ -5,7 +5,7 @@ import { CollectionStore } from '../store/collection';
 import { LOOSE, applyImport, applyScan, blankLibTrack, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
-import { ANALYSIS_VERSION, SCHEMA, VERDICT_VERSION, newId, type List, type Profile, type Root, type Track } from '../store/types';
+import { ANALYSIS_VERSION, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary, type List, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
 import type { Copy, Overlay } from '../core/library/overlay';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
@@ -255,6 +255,8 @@ class Library {
   /** The open local collection changed (sync sends edits of a merged collection's shared data). */
   onLocalChange: (() => void) | null = null;
 
+  /** Other devices' songs were laid over again (TO BE SORTED marks its songs again). */
+  onOverlay: (() => void) | null = null;
   /** The devices whose songs the open collection shows (this one first); empty when it's only this one. */
   devicesShown = $state.raw<string[]>([]);
   /** Songs on more than one device of the merged collection, with each device's copy (Duplicates). */
@@ -290,6 +292,7 @@ class Library {
       }
     }
     this.version++;
+    this.onOverlay?.();
   }
   /** Things shown but not saved, by who shows them ('overlay': other devices' songs; 'incoming': TO BE SORTED). */
   private groups = new Map<string, Set<string>>();
@@ -301,12 +304,13 @@ class Library {
     g.clear();
   }
   /** Show tracks and lists that aren't this collection's own (never saved). */
-  showGroup(key: string, tracks: Track[], lists: List[]) {
+  showGroup(key: string, tracks: Track[], lists: List[], analysis?: Map<string, AnalysisSummary>) {
     const s = this.store;
     if (!s || this.cloud) return;
     this.dropGroup(key);
     const g = this.group(key);
     for (const t of tracks) { s.ephemeral.add(t.id); g.add(t.id); s.tracks.set(t.id, t); }
+    for (const [id, a] of analysis ?? []) s.analysis.set(id, a);
     for (const l of lists) { s.ephemeral.add(l.id); g.add(l.id); s.lists.set(l.id, l); }
     this.version++;
   }
@@ -693,7 +697,7 @@ class Library {
     const waiting = trackIds.filter(t => this.store?.tracks.get(t)?.remote?.incoming);
     if (waiting.length) { this.notice = 'Songs in TO BE SORTED go into a playlist once they’re in a music folder: select them there › Move to…'; trackIds = trackIds.filter(t => !waiting.includes(t)); if (!trackIds.length) return 0; }
     const l = this.store?.lists.get(id);
-    if (!l || l.kind !== 'playlist') return 0;
+    if (!l) return 0;   // folders are playlists too (ADR 0049)
     const add = trackIds.filter(t => !l.items.includes(t));
     const items = [...l.items];
     items.splice(at ?? items.length, 0, ...add);

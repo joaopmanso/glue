@@ -1,6 +1,6 @@
 [package]
 name = "glue-home"
-version = "0.3.1"
+version = "0.4.0"
 description = "GLUE Home: your main computer, reachable from the GLUE website"
 authors = ["joaopmanso"]
 edition = "2021"
@@ -18,6 +18,7 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 serde_json = "1"
+tiny_http = "0.12"
 
 [profile.release]
 codegen-units = 1

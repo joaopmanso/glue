@@ -40,7 +40,8 @@
   });
   const count = $derived.by(() => { void lib.version; void view.search; return view.rows('camelot').length; });
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
-  const playlists = $derived.by(() => { void lib.version; return [...(lib.store?.lists.values() ?? [])].filter(l => l.kind === 'playlist').sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b))); });
+  // Folders are playlists too (ADR 0049): songs can be added to them.
+  const playlists = $derived.by(() => { void lib.version; return [...(lib.store?.lists.values() ?? [])].filter(l => l.id !== TO_BE_SORTED).sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b))); });
   const current = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   const sel = $derived([...view.selected]);
   // Playlist insights (length, tempo, keys, tags): shown under a playlist's header; hideable.
@@ -80,10 +81,11 @@
   const sorting = $derived(current?.id === TO_BE_SORTED);
   let folders = $state<{ home: string; list: HomeFolder[] } | null>(null);
   $effect(() => {
-    const ids = sel, home = sorting ? lib.store?.tracks.get(ids[0])?.remote?.home : undefined;
-    if (!home || !ids.every(id => lib.store?.tracks.get(id)?.remote?.home === home)) { folders = null; return; }
+    const src = (id: string) => incoming.sourceOf(id)?.home;
+    const home = sorting ? src(sel[0]) : undefined;
+    if (!home || !sel.every(id => src(id) === home)) { folders = null; return; }
     if (folders?.home === home) return;
-    void remoteFiles.folders(home).then(list => (folders = { home, list })).catch(() => (folders = null));
+    void incoming.folders(home).then(list => (folders = { home, list })).catch(() => (folders = null));
   });
   async function moveTo(e: Event) {
     const el = e.currentTarget as HTMLSelectElement, folder = el.value;
@@ -170,7 +172,7 @@
             {#each playlists as p (p.id)}<option value={p.id}>{lib.listPath(p)}</option>{/each}
             <option value="__new">+ New playlist…</option>
           </select>
-          {#if current?.kind === 'playlist'}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from playlist</button>{/if}
+          {#if current && (current.kind === 'playlist' || sel.some(id => current.items.includes(id)))}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from {current.kind === 'folder' ? 'folder' : 'playlist'}</button>{/if}
           {#if lib.analysis.paused}<button type="button" class="mini" id="analyse-selected" title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
           {#if sorting && folders}
             <select id="move-to" aria-label="Move to a music folder" onchange={moveTo}>

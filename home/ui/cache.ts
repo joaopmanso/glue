@@ -7,6 +7,7 @@ import { shared, describe, trackPath } from './library';
 import { AnalysisPool } from '../../src/lib/pool';
 import { shardOf, type Track } from '../../src/store/types';
 import { DETAILS_VERSION, type DetailsHeader } from '../../src/store/details';
+import { incomingKey } from '../../src/core/transfer';
 
 const tKey = (p: string, c: string, id: string) => `t/${p}/${c}/${shardOf(id)}/${id}.bin`;
 const dKey = (p: string, c: string, id: string, ext: 'json' | 'bin') => `d/${p}/${c}/${shardOf(id)}/${id}.${ext}`;
@@ -35,6 +36,22 @@ export async function kept(p: string, c: string): Promise<{ thumbs: string[]; de
   }
   return out;
 }
+
+// ---- songs arriving in the incoming folder: analysed at once (ADR 0048) -------------------------------
+/** Analyse a song that just arrived (or one there without an analysis yet), so it's ready when the
+    website shows it in TO BE SORTED: its summary, mini spectrogram and full analysis. */
+export async function analyseIncoming(name: string, path: string, size: number) {
+  if (await read(incomingKey(name, 'summary.json'))) return;
+  const parts: ArrayBuffer[] = [];
+  for (let at = 0; at < size;) { const b = await bridge.fileRead(path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; }
+  pool ??= new AnalysisPool(1);
+  const r = await pool.analyze(new File(parts, name), 0);
+  if (r.thumb) await bridge.cacheWrite(incomingKey(name, 'thumb.bin'), r.thumb);
+  if (r.details) { await bridge.cacheWrite(incomingKey(name, 'details.bin'), r.details.bin); await bridge.cacheWrite(incomingKey(name, 'details.json'), new TextEncoder().encode(JSON.stringify(r.details.header))); }
+  await bridge.cacheWrite(incomingKey(name, 'summary.json'), new TextEncoder().encode(JSON.stringify({ ...r.summary, format: r.info.container ? { container: r.info.container, codec: r.info.codec, lossless: r.info.lossless, sampleRate: r.info.sampleRate, bits: r.info.bits, bitrate: Math.round(r.info.bitrate || 0), channels: r.info.channels } : null, duration: r.duration })));
+}
+export async function incomingSummary(name: string) { const b = await read(incomingKey(name, 'summary.json')); return b ? JSON.parse(new TextDecoder().decode(b)) : null; }
+export async function cacheFile(key: string) { return read(key); }
 
 // ---- analysing here --------------------------------------------------------------------------------
 let pool: AnalysisPool | null = null;

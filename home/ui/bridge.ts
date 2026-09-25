@@ -21,6 +21,7 @@ export interface HomeConfig {
   folders?: Record<string, string>;   // music folder id → where it is on this computer
   autoUpdate?: boolean;         // install updates by itself (on unless turned off)
   serve?: Record<string, boolean>;    // 'profile/collection' → shared with other computers (on unless false)
+  localToken?: string;          // what the website on this computer shows the local link (ADR 0048)
 }
 export interface Received { name: string; path: string; from: string; at: number; size: number }
 
@@ -53,6 +54,7 @@ export const bridge = {
   cacheList: (rel: string) => invoke<string[]>('cache_list', { rel }),
   incomingList: () => invoke<{ name: string; size: number; mtime: number; path: string }[]>('incoming_list'),
   incomingMove: (name: string, to: string) => invoke<string>('incoming_move', { name, to }),
+  localPort: () => invoke<number>('local_port'),
   glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
   fileSize: (path: string) => invoke<number>('file_size', { path }),
   fileRead: (path: string, offset: number, len: number) => invoke<ArrayBuffer>('file_read', { path, offset, len }),

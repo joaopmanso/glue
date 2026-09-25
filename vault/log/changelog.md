@@ -5,6 +5,26 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · GLUE Home 0.4.0: the local link; one row per song; folders are playlists
+- The website on a computer with GLUE Home talks to it directly, on `127.0.0.1` (ports 47400–47409,
+  a token GLUE Home made), learned once over the account's channel
+  ([ADR 0048](../adr/0048-local-link-to-glue-home.md)). TO BE SORTED shows at once on opening,
+  without GLUE Cloud, and its songs play from disk. The browser may ask once to allow "devices on
+  your local network".
+- GLUE Home analyses each song as it arrives (and those already waiting): TO BE SORTED rows show
+  quality, BPM, key, waveform and the full track page straight away.
+- A song sent from this computer is the same track in TO BE SORTED: one row, on both computers
+  (Laptop · Desktop), played from the nearest copy with no download. "Song (2).mp3" counts as
+  "Song.mp3".
+- Folders are playlists too, as in Engine DJ ([ADR 0049](../adr/0049-folders-are-playlists.md)):
+  drop tracks on a folder or pick it in "Add to playlist"; a folder shows its own songs first, then
+  its playlists'. Engine imports put a parent playlist's songs in the folder itself (re-import to
+  get it).
+- Proposed next ([ADR 0050](../adr/0050-glue-home-as-the-computers-library.md)): GLUE Home becomes the
+  computer's library, saving and cloud sync included.
+- Tests: "the local link: …" e2e (reload with GLUE Cloud offline), updated send-songs and
+  drops-on-folders e2e, Engine import unit test.
+
 ## 2026-09-25 · Engine DJ folders and playlists; a steadier link to GLUE Home (0.3.1); scroll bar
 - Engine DJ: a playlist with children is now a folder (its own songs go into a playlist of the same
   name inside it), so "2021 › DNB › Bangers" shows as folders in the sidebar. Playlist entries are

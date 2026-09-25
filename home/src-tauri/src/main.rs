@@ -14,6 +14,8 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent, Wry};
 use tauri_plugin_opener::OpenerExt;
 
+mod local;
+
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
 const LIBRARY_URL: &str = "https://joaopmanso.github.io/glue/?open=home#/";
 
@@ -37,7 +39,7 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// The settings (account, device credential, incoming folder), or none before the first setup.
 #[tauri::command]
-fn get_config(app: AppHandle) -> Option<serde_json::Value> {
+pub(crate) fn get_config(app: AppHandle) -> Option<serde_json::Value> {
     let p = config_path(&app).ok()?;
     serde_json::from_str(&fs::read_to_string(p).ok()?).ok()
 }
@@ -86,7 +88,7 @@ fn device_name() -> String {
 }
 
 /// A file name that is safe on Windows and macOS (the website sends only the name, never a path).
-fn safe_name(name: &str) -> String {
+pub(crate) fn safe_name(name: &str) -> String {
     let base = name.rsplit(['/', '\\']).next().unwrap_or("");
     let mut n: String = base.chars().map(|c| if c.is_control() || "<>:\"|?*".contains(c) { '_' } else { c }).collect();
     n = n.trim().trim_end_matches(['.', ' ']).to_string();
@@ -110,7 +112,7 @@ fn with_number(name: &str, i: u32) -> String {
     }
 }
 
-fn incoming_dir(app: &AppHandle) -> PathBuf {
+pub(crate) fn incoming_dir(app: &AppHandle) -> PathBuf {
     get_config(app.clone())
         .and_then(|c| c.get("incoming").and_then(|v| v.as_str()).map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from(default_incoming(app.clone())))
@@ -310,7 +312,7 @@ fn file_read(app: AppHandle, path: String, offset: u64, len: u32) -> Result<taur
 
 // ---- GLUE Home's own cache: waveforms and full analyses of the shared songs (ADR 0046) --------------
 
-fn cache_path(app: &AppHandle, rel: &str) -> Result<PathBuf, String> {
+pub(crate) fn cache_path(app: &AppHandle, rel: &str) -> Result<PathBuf, String> {
     if rel.split(['/', '\\']).any(|p| p == ".." || p.is_empty()) {
         return Err("bad path".into());
     }
@@ -349,7 +351,7 @@ fn cache_list(app: AppHandle, rel: String) -> Vec<String> {
 
 /// The songs in the incoming folder (not the ones still arriving).
 #[tauri::command]
-fn incoming_list(app: AppHandle) -> Vec<serde_json::Value> {
+pub(crate) fn incoming_list(app: AppHandle) -> Vec<serde_json::Value> {
     let dir = incoming_dir(&app);
     let Ok(d) = fs::read_dir(dir) else { return vec![] };
     d.flatten()
@@ -368,7 +370,7 @@ fn incoming_list(app: AppHandle) -> Vec<serde_json::Value> {
 /// Move a song from the incoming folder into one of the music folders GLUE Home found (never
 /// overwriting); the website picks it up there on its next scan.
 #[tauri::command]
-fn incoming_move(app: AppHandle, name: String, to: String) -> Result<String, String> {
+pub(crate) fn incoming_move(app: AppHandle, name: String, to: String) -> Result<String, String> {
     let from = incoming_dir(&app).join(safe_name(&name));
     if !from.is_file() {
         return Err("that song isn't in the incoming folder any more".into());
@@ -398,6 +400,12 @@ fn set_status(app: AppHandle, tray: State<'_, Tray>, text: String, running: bool
     if let Some(icon) = app.tray_by_id("main") {
         let _ = icon.set_tooltip(Some(format!("GLUE Home · {text}")));
     }
+}
+
+/// The local link's port (0 until it's listening).
+#[tauri::command]
+fn local_port() -> u16 {
+    local::PORT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 #[tauri::command]
@@ -434,7 +442,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]
@@ -477,6 +485,8 @@ fn main() {
                 })
                 .build(app)?;
             app.manage(Tray { status, start, stop });
+            // The website on this computer talks to GLUE Home directly (ADR 0048).
+            local::start(app.handle().clone());
             // Started with the computer: stay in the tray. Opened by hand (or the first time): settings.
             if !std::env::args().any(|a| a == "--background") {
                 open_settings(app.handle());

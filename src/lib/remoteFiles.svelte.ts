@@ -4,7 +4,8 @@
 import { account, type CloudDevice } from './account.svelte';
 import { lib } from './library.svelte';
 import { connectHome, type HomeChannel } from './homeLink';
-import { PENDING, frame, unframe, type HomeFolder, type IncomingFile, type StreamReply, type StreamReq } from '../core/transfer';
+import { PENDING, frame, incomingKey, unframe, type HomeFolder, type IncomingFile, type StreamReply, type StreamReq } from '../core/transfer';
+import { localHome } from './localHome.svelte';
 import type { DetailsHeader } from '../store/details';
 import type { Track } from '../store/types';
 import { thumbs } from './thumbs.svelte';
@@ -42,8 +43,25 @@ class RemoteFiles {
   private links = new Map<string, Promise<Link>>();
   private kept = new Map<string, File>();
 
-  canStream(t: Track) { return !!t.remote && !!(t.remote.home ? account.online.has(t.remote.home) : t.remote.id && companionOnline(t.remote.device)); }
+  /** A GLUE Home that can answer now: this computer's over the local link (ADR 0048), or online. */
+  private reachable(home: string | null | undefined) { return !!home && (!!localHome.for(home) || account.online.has(home)); }
+  canStream(t: Track) {
+    const r = t.remote;
+    if (!r) return false;
+    if (r.via && this.reachable(r.via.home)) return true;
+    return r.home ? this.reachable(r.home) : !!r.id && !!companionOnline(r.device);
+  }
   private homeFor(t: Track) { return t.remote?.home ?? companionOnline(t.remote?.device ?? '')?.id ?? null; }
+  /** Where a song's file comes from: an incoming folder (its own, or a copy of another computer's
+      song), else the other computer's library. */
+  private source(t: Track): { home: string; incoming?: string } | null {
+    const r = t.remote;
+    if (!r) return null;
+    if (r.incoming && r.home) return { home: r.home, incoming: r.incoming };
+    if (r.via && this.reachable(r.via.home)) return { home: r.via.home, incoming: r.via.incoming };
+    const h = this.homeFor(t);
+    return h ? { home: h } : null;
+  }
 
   private link(home: string): Promise<Link> {
     let l = this.links.get(home);
@@ -111,12 +129,21 @@ class RemoteFiles {
 
   /** A song's file: from its computer's GLUE Home (or that GLUE Home's incoming folder). */
   get(t: Track): Promise<File> {
-    const r = t.remote, home = r ? this.homeFor(t) : null;
-    if (!r || !home) return Promise.reject(new Error('This track’s file is on ' + (r?.name ?? 'another computer') + '.'));
-    const key = home + '/' + (r.incoming ?? r.id), hit = this.kept.get(key);
+    const r = t.remote, src = this.source(t), home = src?.home;
+    if (!r || !src || !home) return Promise.reject(new Error('This track’s file is on ' + (r?.name ?? 'another computer') + '.'));
+    const key = home + '/' + (src.incoming ?? r.id), hit = this.kept.get(key);
     if (hit) return Promise.resolve(hit);
+    // This computer's GLUE Home: straight from its disk, over the local link.
+    if (src.incoming && localHome.for(home)) {
+      return fetch(localHome.url('/incoming/file?name=' + encodeURIComponent(src.incoming))).then(async res => {
+        if (!res.ok) throw new Error('GLUE Home: ' + res.status);
+        const f = new File([await res.blob()], src.incoming!, { type: res.headers.get('content-type') ?? '' });
+        this.kept.set(key, f);
+        return f;
+      });
+    }
     this.loading = { trackId: t.id, name: t.title || t.fileName, device: r.name, got: 0, size: t.size ?? 0 };
-    const req: Req = r.incoming ? { t: 'get-incoming', name: r.incoming } : { t: 'get', profile: r.profile!, collection: r.collection!, track: r.id! };
+    const req: Req = src.incoming ? { t: 'get-incoming', name: src.incoming } : { t: 'get', profile: r.profile!, collection: r.collection!, track: r.id! };
     return this.ask(home, req, { onBytes: (got, size) => { if (this.loading) this.loading = { ...this.loading, got, size }; } })
       .then(a => {
         const f = new File([a.bytes.slice().buffer], a.name ?? t.fileName, { type: a.type ?? '' });
@@ -128,9 +155,32 @@ class RemoteFiles {
       .finally(() => { if (this.loading?.trackId === t.id) this.loading = null; });
   }
 
+  /** Files of a GLUE Home's cache (the analyses of songs in its incoming folder): over the local link
+      for this computer's, else one request. */
+  async cacheFiles(home: string, keys: string[]): Promise<Map<string, Uint8Array>> {
+    const out = new Map<string, Uint8Array>();
+    if (localHome.for(home)) {
+      await Promise.all(keys.map(async k => { const b = await localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(k)).catch(() => null); if (b) out.set(k, new Uint8Array(b)); }));
+      return out;
+    }
+    const a = await this.ask(home, { t: 'cache', keys }).catch(() => null);
+    if (!a) return out;
+    let at = 0;
+    for (const [k, size] of a.data as [string, number][]) { if (size) out.set(k, a.bytes.slice(at, at + size)); at += size; }
+    return out;
+  }
+
   /** Mini spectrograms of songs on one computer (those its GLUE Home has; the rest come later). */
   async thumbs(ts: Track[]): Promise<Map<string, Uint8Array>> {
     const out = new Map<string, Uint8Array>();
+    // Songs in an incoming folder: made when they arrived.
+    const waiting = new Map<string, Track[]>();
+    for (const t of ts) if (t.remote?.incoming && t.remote.home) (waiting.get(t.remote.home) ?? waiting.set(t.remote.home, []).get(t.remote.home)!).push(t);
+    for (const [home, list] of waiting) {
+      const got = await this.cacheFiles(home, list.map(t => incomingKey(t.remote!.incoming!, 'thumb.bin')));
+      for (const t of list) { const b = got.get(incomingKey(t.remote!.incoming!, 'thumb.bin')); if (b) out.set(t.id, b); }
+    }
+    ts = ts.filter(t => !t.remote?.incoming);
     const groups = new Map<string, Track[]>();
     for (const t of ts) {
       const home = this.homeFor(t), r = t.remote;
@@ -155,6 +205,12 @@ class RemoteFiles {
   /** The full analysis of a song on another computer (made there), without its audio. */
   async details(t: Track): Promise<{ header: DetailsHeader; bin: Uint8Array } | null> {
     const home = this.homeFor(t), r = t.remote;
+    if (r?.incoming && r.home) {
+      const k = [incomingKey(r.incoming, 'details.json'), incomingKey(r.incoming, 'details.bin')], got = await this.cacheFiles(r.home, k);
+      const h = got.get(k[0]), bin = got.get(k[1]);
+      if (!h || !bin) throw Object.assign(new Error(PENDING), { pending: true });
+      return { header: JSON.parse(new TextDecoder().decode(h)) as DetailsHeader, bin };
+    }
     if (!home || !r?.id || !r.profile || !r.collection) return null;
     const a = await this.ask(home, { t: 'details', profile: r.profile, collection: r.collection, track: r.id });
     return { header: a.data as DetailsHeader, bin: a.bytes };

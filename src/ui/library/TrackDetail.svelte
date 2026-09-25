@@ -62,7 +62,7 @@
     const key = 'track:' + t.id;
     loaded = t.id;
     // Another computer's song: its full analysis from its GLUE Home (ADR 0046), else its summary.
-    if (t.remote && !ask && lib.canRead(t) && !t.remote.incoming) {
+    if (t.remote && !ask && lib.canRead(t)) {
       // The summary at once; the full analysis replaces it when it's here (ADR 0047).
       phase = 'remote'; remoteNote = 'loading';
       try {

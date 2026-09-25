@@ -64,7 +64,8 @@ class View {
       const l = s.lists.get(sel.id);
       if (!l) return [];
       if (l.kind === 'folder') {
-        const ids = new Set<string>(), walk = (pid: string) => { for (const c of s.lists.values()) if (c.parentId === pid) { c.items.forEach(i => ids.add(i)); walk(c.id); } };
+        // A folder is also a playlist (as in Engine DJ, ADR 0049): its own songs first, then its playlists'.
+        const ids = new Set<string>(l.items), walk = (pid: string) => { for (const c of s.lists.values()) if (c.parentId === pid) { c.items.forEach(i => ids.add(i)); walk(c.id); } };
         walk(l.id);
         tracks = [...ids].map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
       } else tracks = l.items.map(i => s.tracks.get(i)).filter((t): t is Track => !!t);

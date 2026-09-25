@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M5
-updated: 2026-09-24
+updated: 2026-09-25
 adrs: [0013, 0025]
 ---
 # Duplicates
@@ -48,3 +48,6 @@ them at the best copy.
 - Tracks with a same-recording duplicate show a "2×" badge in the table (click to open the view).
 - Not yet: undo for "Use in playlists", "exclude others from exports" (M4), a separate exact tier.
 
+## TO BE SORTED songs (2026-09-25, [ADR 0048](../adr/0048-local-link-to-glue-home.md))
+- A song waiting in a GLUE Home's incoming folder that the collection already has (same file name, or
+  without " (2)", and same size) shows as that track, on both computers, not as a second row.

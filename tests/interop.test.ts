@@ -127,7 +127,7 @@ describe('Engine DJ m.db', () => {
     expect(lib.lists.map(l => [l.name, l.kind, l.items, l.parent])).toEqual([['First', 'folder', [], null], ['Child', 'playlist', ['1'], '11'], ['Second', 'playlist', ['2', '1'], null]]);
     expect(engineKey(0)).toBe('8B'); expect(engineKey(3)).toBe('9A');
   });
-  it('makes a playlist with children a folder (its own songs a playlist inside), and skips songs of other libraries', async () => {
+  it('makes a playlist with children a folder that keeps its own songs, and skips songs of other libraries', async () => {
     const SQL = await initSqlJs();
     const db = new SQL.Database();
     db.run(`CREATE TABLE Information (id INTEGER PRIMARY KEY, uuid TEXT);
@@ -140,7 +140,7 @@ describe('Engine DJ m.db', () => {
       INSERT INTO PlaylistEntity VALUES (200,20,1,'here',0),(201,22,2,'here',202),(202,22,1,'here',203),(203,22,7,'drive',0);`);
     const lib = parseEngineDb(db.export(), SQL); db.close();
     expect(lib.lists.map(l => [l.name, l.kind, l.items, l.parent])).toEqual([
-      ['2021', 'folder', [], null], ['2021', 'playlist', ['1'], '20'], ['DNB', 'folder', [], '20'], ['Bangers', 'playlist', ['2', '1'], '21']]);
+      ['2021', 'folder', ['1'], null], ['DNB', 'folder', [], '20'], ['Bangers', 'playlist', ['2', '1'], '21']]);
     expect(lib.stats).toEqual({ entries: 4, matched: 3, otherLibraries: 1 });
   });
 });

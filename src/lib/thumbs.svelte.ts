@@ -85,7 +85,7 @@ class Thumbs {
   }
   private async read(id: string) {
     const rt = lib.store?.tracks.get(id);
-    if (rt?.remote) { if (lib.canRead(rt) && !rt.remote.incoming) this.fromRemote(rt); else this.remember(id, null); return; }
+    if (rt?.remote) { if (lib.canRead(rt)) this.fromRemote(rt); else this.remember(id, null); return; }
     const dir = await cacheDir(), cid = this.cid;
     if (!dir || !cid) return;
     try {

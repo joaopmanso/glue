@@ -57,7 +57,8 @@ After working:
   `tests/cloud.test.ts`; deploy via `.github/workflows/cloud.yml`. Cloud credentials: GitHub secrets,
   never in the repo.
 - `home/`: GLUE Home, a Tauri 2 tray app (ADR 0044). `home/src-tauri` Rust (tray, settings file,
-  incoming-folder writes, autostart, `gluehome://`), `home/ui` its settings and hidden service pages.
+  incoming-folder writes, autostart, `gluehome://`,
+  `local.rs`: the local link on 127.0.0.1:47400–47409, ADR 0048), `home/ui` its settings and hidden service pages.
   No Rust on this laptop: `.github/workflows/home.yml` builds Windows + macOS on every change; a tag
   `home-v<version>` (version in `home/src-tauri/tauri.conf.json`) publishes the release the website
   links to. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts`.

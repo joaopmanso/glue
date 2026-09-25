@@ -141,7 +141,7 @@
         <button type="button" class="name" onclick={() => { if (drag.suppressClick) return; view.select({ kind: 'list', id: l.id }); if (l.kind === 'folder') open[l.id] = true; }} ondblclick={() => (view.editing = l.id)}>
           {l.name}{#if l.origin}<span class="imp" title="Imported; refreshed when you import the library again">↓</span>{/if}
         </button>
-        {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' ? l.items.length : ''}</span>{/if}
+        {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>{/if}
         <span class="tools" class:open={menuFor === l.id}>
           <button type="button" class="more" title="More" aria-haspopup="menu" aria-expanded={menuFor === l.id} onclick={() => (menuFor = menuFor === l.id ? null : l.id)}>⋯</button>
         </span>

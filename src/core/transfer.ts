@@ -36,13 +36,18 @@ export type StreamReq =
   | { t: 'folders'; n: number }                                                         // the music folders GLUE Home found (data: HomeFolder[])
   | { t: 'have'; n: number; profile: string; collection: string }                       // what it keeps (data: { thumbs, details } ids)
   | { t: 'put'; n: number; kind: 'thumb' | 'details'; profile: string; collection: string; track: string; size: number; header?: unknown }   // the bytes follow, then `end`
-  | { t: 'end'; n: number };
+  | { t: 'end'; n: number }
+  | { t: 'local'; n: number }                                                           // the local link (data: { port, token }), for the website on the same computer (ADR 0048)
+  | { t: 'cache'; n: number; keys: string[] };                                          // files of GLUE Home's cache (data: [key, size][])
 export type StreamReply =
   | { t: 'meta'; n: number; size: number; name?: string; type?: string; data?: unknown }
   | { t: 'eof'; n: number; type?: string }
   | { t: 'error'; n: number; error: string };
 export type StreamCtrl = StreamReq | StreamReply;
-export interface IncomingFile { name: string; size: number; mtime: number }
+/** summary: the analysis GLUE Home made when the song arrived (ADR 0048), once it's done. */
+export interface IncomingFile { name: string; size: number; mtime: number; summary?: import('../store/types').AnalysisSummary | null }
+/** Where GLUE Home keeps what it made of a song in its incoming folder. */
+export const incomingKey = (name: string, what: 'summary.json' | 'thumb.bin' | 'details.json' | 'details.bin') => 'i/' + name + '.' + what;
 export interface HomeFolder { id: string; name: string; collection: string }
 
 /** On a stream channel every binary message starts with its request's number (4 bytes, little

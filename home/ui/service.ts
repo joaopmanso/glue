@@ -109,6 +109,8 @@ function receive(dc: RTCDataChannel, from: string) {
         reply({ t: 'failed', n: f.n, error: f.error || 'incomplete' });
       } else {
         const path = await bridge.end(f.id, true);
+        // Analysed at once, so it's ready in TO BE SORTED (ADR 0048).
+        void cache.analyseIncoming(f.name, path, f.size).catch(e => console.warn('GLUE Home: couldn’t analyse', f.name, e));
         const r: Received = { name: f.name, path, from: fromName(), at: Date.now(), size: f.size };
         if (cfg) { cfg = { ...cfg, received: [r, ...(cfg.received ?? [])].slice(0, 30) }; await bridge.saveConfig(cfg).catch(() => {}); }
         reply({ t: 'saved', n: f.n, name: f.name });
@@ -193,8 +195,18 @@ function serve(dc: RTCDataChannel) {
       } else if (c.t === 'have') {
         await answer(c.n, await cache.kept(c.profile, c.collection), null);
       } else if (c.t === 'incoming') {
-        const list = (await bridge.incomingList()).map(f => ({ name: f.name, size: f.size, mtime: f.mtime }));
+        // With the analysis made when each song arrived.
+        const list = await Promise.all((await bridge.incomingList()).map(async f => ({ name: f.name, size: f.size, mtime: f.mtime, summary: await cache.incomingSummary(f.name) })));
         await answer(c.n, list, null);
+      } else if (c.t === 'cache') {
+        const found: [string, number][] = [], parts: Uint8Array[] = [];
+        for (const key of c.keys.slice(0, 200)) { const b = await cache.cacheFile(key); found.push([key, b?.length ?? 0]); if (b) parts.push(b); }
+        const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
+        for (const p of parts) { all.set(p, at); at += p.length; }
+        await answer(c.n, found, all);
+      } else if (c.t === 'local') {
+        // The website on this computer: how to reach GLUE Home without GLUE Cloud (ADR 0048).
+        await answer(c.n, { port: await bridge.localPort(), token: cfg?.localToken ?? null }, null);
       } else if (c.t === 'get-incoming') {
         const f = (await bridge.incomingList()).find(x => x.name === c.name);
         if (!f) throw new Error('That song isn’t in the incoming folder any more.');
@@ -238,6 +250,10 @@ async function findFolders() {
 async function boot() {
   cfg = await bridge.config();
   if (cfg && cfg.running === undefined) cfg = { ...cfg, running: true };
+  // The token that lets the website on this computer use the local link.
+  if (cfg && !cfg.localToken) { cfg = { ...cfg, localToken: [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('') }; await bridge.saveConfig(cfg).catch(() => {}); }
+  // Songs already waiting without an analysis (arrived while it was off, or before this version).
+  void (async () => { for (const f of await bridge.incomingList().catch(() => [])) await cache.analyseIncoming(f.name, f.path, f.size).catch(() => {}); })();
   // The website's GLUE folder, when it's in a usual place and none was chosen.
   if (cfg && !cfg.glue) { const g = await bridge.findGlue().catch(() => null); if (g) { cfg = { ...cfg, glue: g }; await bridge.saveConfig(cfg).catch(() => {}); } }
   start();
