@@ -5,6 +5,9 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · GLUE Cloud phase 1 live
+- D1 database created, API deployed (also from CI), live smoke test passed, test data removed.
+
 ## 2026-09-25 · GLUE Cloud phase 1 built (deploy waits on D1 access)
 - Accounts (Google), devices, pairing codes, per-user signaling room: `cloud/` (Worker + D1 +
   Durable Object). Website: Sign in, Sidebar › Devices, pairing dialog. GLUE Home preview in `home/`.

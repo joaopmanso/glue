@@ -64,7 +64,8 @@
   h3 { font-size: 16px; display: flex; gap: 8px; align-items: baseline; }
   h3 small { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .08em; }
   .pop p { color: var(--ink-2); }
-  .gbtn { min-height: 44px; }
+  /* Google draws the button in an iframe; a matching colour scheme keeps its background transparent. */
+  .gbtn { min-height: 44px; color-scheme: light; }
   .who { display: grid; }
   .who span { color: var(--muted); font-size: 12px; }
   .fine { color: var(--muted) !important; font-size: 11.5px; }

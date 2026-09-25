@@ -69,7 +69,14 @@ an account GLUE works exactly as today, all local.
   - `src/lib/devices.svelte.ts` for devices, presence and pairing;
   - `src/lib/account.svelte.ts` for sign-in.
 
-## Built (phase 1, 2026-09-25)
+## Built (phase 1, 2026-09-25, live)
+- **Live:**
+  - the API, D1 (`glue`) and the signaling room are deployed, and push-to-deploy runs from GitHub;
+  - a live smoke test with a temporary user passed (pair → online → signal → revoke → kicked);
+  - deleting a user cascades on D1;
+  - the Google button loads on the live site without origin errors.
+  - Sign-in with a real Google account is for the user to try: while the Google app is in "Testing",
+    only listed test users can sign in.
 - **API**, a Cloudflare Worker in `cloud/`:
   - `src/api.ts`: Google sign-in (ID token checked against Google's keys), rotating refresh
     tokens, devices, pairing codes, account deletion;
