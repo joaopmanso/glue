@@ -5,6 +5,10 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · Homepage: colour behind the page, no numbers band
+- Removed the "0 bytes / 5 / 100% / Free" band, which didn't read well.
+- Soft, slowly drifting fields of colour behind the sections so the page isn't flat black.
+
 ## 2026-09-25 · A homepage that shows the real app
 - New homepage ([feature](../features/homepage.md)): a large headline, then the product itself.
   Real screenshots and short looping clips of the library, quality verdict, playlist builder,

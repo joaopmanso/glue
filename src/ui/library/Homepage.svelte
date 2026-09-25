@@ -48,6 +48,10 @@
 </script>
 
 <div class="hp" id="homepage">
+  <!-- Soft colour fields behind the page, so it isn't flat black -->
+  <div class="bg" aria-hidden="true">
+    <i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i><i class="b6"></i><i class="b7"></i>
+  </div>
   <!-- Hero: the product itself -->
   <section class="hero">
     <div class="hero-text">
@@ -72,14 +76,6 @@
       </video>
     </div>
   </section>
-
-  <!-- Quiet facts -->
-  <ul class="facts" use:reveal>
-    <li><b>0 bytes</b><span>of your music uploaded</span></li>
-    <li><b>5</b><span>DJ libraries it reads</span></li>
-    <li><b>100%</b><span>in your browser, nothing to install</span></li>
-    <li><b>Free</b><span>no account needed</span></li>
-  </ul>
 
   <!-- Chapters -->
   {#each chapters as c, i (c.n)}
@@ -167,12 +163,20 @@
   .frame .media { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; background: var(--ground); }
   .hero-frame { transform-origin: 50% 0%; transition: transform .25s ease-out; opacity: 0; animation: arrive 1s .25s cubic-bezier(.2, .7, .2, 1) forwards; will-change: transform; }
   @keyframes arrive { from { opacity: 0; translate: 0 40px; scale: .97; } to { opacity: 1; translate: 0 0; scale: 1; } }
-  /* Facts */
-  .facts { list-style: none; margin: 0; padding: 26px 0; display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  .facts li { display: grid; gap: 4px; padding: 0 20px; border-left: 1px solid var(--line); }
-  .facts li:first-child { border-left: 0; padding-left: 0; }
-  .facts b { font-size: clamp(26px, 3vw, 38px); font-weight: 800; letter-spacing: -.02em; }
-  .facts span { color: var(--muted); font-size: 13.5px; }
+  /* Colour fields: soft blocks of colour behind the sections, drifting slowly */
+  .hp { position: relative; isolation: isolate; }
+  :global(html:has(#homepage)) { overflow-x: clip; }
+  .bg { position: absolute; z-index: -1; top: -12vh; bottom: -20vh; left: 50%; width: 100vw; margin-left: -50vw; overflow: hidden; pointer-events: none; }
+  .bg i { position: absolute; display: block; border-radius: 50%; opacity: var(--o, .22); background: radial-gradient(closest-side, var(--c) 0%, color-mix(in srgb, var(--c) 55%, transparent) 38%, color-mix(in srgb, var(--c) 18%, transparent) 70%, transparent 100%); animation: drift var(--t, 26s) ease-in-out infinite alternate; }
+  .b1 { --c: var(--accent); --o: .17; width: 70vw; height: 56vw; max-height: 1000px; top: -6%; right: -14vw; }
+  .b2 { --c: #ff5a2e; --o: .13; --t: 31s; width: 60vw; height: 48vw; top: 6%; left: -12vw; }
+  .b3 { --c: #8b3dff; --o: .16; --t: 28s; width: 66vw; height: 52vw; top: 22%; right: -10vw; }
+  .b4 { --c: #e0337a; --o: .12; --t: 34s; width: 62vw; height: 50vw; top: 38%; left: -10vw; }
+  .b5 { --c: #18b8a6; --o: .13; --t: 29s; width: 64vw; height: 50vw; top: 54%; right: -12vw; }
+  .b6 { --c: var(--accent); --o: .12; --t: 33s; width: 66vw; height: 52vw; top: 70%; left: -12vw; }
+  .b7 { --c: #3d7bff; --o: .14; --t: 27s; width: 66vw; height: 52vw; top: 84%; right: -10vw; }
+  @keyframes drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(4vw, -3vw, 0) scale(1.08); } }
+  :global([data-mode="light"]) .bg i { opacity: calc(var(--o, .22) * 1.5); mix-blend-mode: multiply; }
   /* Chapters */
   .chapter { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.3fr); gap: clamp(28px, 5vw, 80px); align-items: center; }
   .chapter.flip { grid-template-columns: minmax(0, 1.3fr) minmax(0, .8fr); }
@@ -209,19 +213,17 @@
   .link span:last-child { right: 0; border-right: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent); border-bottom-right-radius: 14px; }
   /* (the setup below the page is the final call) */
   /* Scroll reveal */
-  :global(.hp [class*="chapter"]), .facts, .duo, .wide, .cloud { opacity: 0; transform: translateY(28px); transition: opacity .8s cubic-bezier(.2, .7, .2, 1), transform .8s cubic-bezier(.2, .7, .2, 1); }
+  :global(.hp [class*="chapter"]), .duo, .wide, .cloud { opacity: 0; transform: translateY(28px); transition: opacity .8s cubic-bezier(.2, .7, .2, 1), transform .8s cubic-bezier(.2, .7, .2, 1); }
   .chapter .frame { transform: translateX(28px) scale(.985); transition: transform 1s cubic-bezier(.2, .7, .2, 1); }
   .chapter.flip .frame { transform: translateX(-28px) scale(.985); }
   :global(.hp .in) { opacity: 1 !important; transform: none !important; }
   :global(.hp .in) .frame { transform: none; }
   @media (prefers-reduced-motion: reduce) {
-    .w, .lede, .cta, .works, .hero-frame { animation: none; opacity: 1; transform: none; }
-    :global(.hp [class*="chapter"]), .facts, .duo, .wide, .cloud, .chapter .frame, .callout { opacity: 1; transform: none; transition: none; }
+    .w, .lede, .cta, .works, .hero-frame, .bg i { animation: none; opacity: 1; transform: none; }
+    :global(.hp [class*="chapter"]), .duo, .wide, .cloud, .chapter .frame, .callout { opacity: 1; transform: none; transition: none; }
   }
   @media (max-width: 900px) {
     .hero-row, .chapter, .chapter.flip, .cloud, .duo { grid-template-columns: 1fr; }
     .chapter.flip .copy { order: 0; }
-    .facts { grid-template-columns: 1fr 1fr; gap: 18px 0; }
-    .facts li:nth-child(3) { border-left: 0; padding-left: 0; }
   }
 </style>

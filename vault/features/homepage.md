@@ -12,7 +12,6 @@ The first screen a visitor sees before any profile exists (`Homepage.svelte`, sh
 - Hero: "The GLUE between your DJ apps.", a one-paragraph lede, "Get started, free" (scrolls to
   the setup) and "Check one file first →" (`#/analyze`), the apps it reads, and a large looping
   clip of the library.
-- Facts band (0 bytes uploaded · 5 DJ apps · 100% in the browser · free).
 - Chapters 01–04, alternating sides: library, quality verdict (with a "wall at 17.1 kHz"
   callout), the playlist builder (clip), playlist insights.
 - Two tiles: duplicates found by sound, the column value filter.
@@ -20,6 +19,8 @@ The first screen a visitor sees before any profile exists (`Homepage.svelte`, sh
   cloud panel.
 
 ## Behaviour
+- Soft fields of colour (GLUE yellow, orange, violet, pink, teal, blue) sit behind the sections
+  and drift slowly, so the dark page isn't flat black; fainter, multiplied, in light mode.
 - Sections fade and rise in as they scroll into view; headline words rise one by one; the hero
   frame tilts slightly with the pointer. All of it is off with `prefers-reduced-motion`.
 - Clips are muted, looping H.264 mp4s with a webp poster, and only play while visible.
