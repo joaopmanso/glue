@@ -37,7 +37,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Rust targets (macOS: one app for Apple silicon and Intel)
+      - name: 'Rust targets (macOS: one app for Apple silicon and Intel)'
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: npm run home:ui

@@ -33,6 +33,7 @@ export const bridge = {
   end: (id: number, ok: boolean) => invoke<string>('incoming_end', { id, ok }),
   trayStatus: (text: string, running: boolean) => invoke<void>('set_status', { text, running }),
   showSettings: () => invoke<void>('show_settings'),
+  openLibrary: () => invoke<void>('open_library'),
   // Between the windows.
   onConfig: (f: (c: HomeConfig) => void) => listen<HomeConfig>('config', e => f(e.payload)),
   onControl: (f: (what: 'start' | 'stop' | 'restart') => void) => listen<'start' | 'stop' | 'restart'>('control', e => f(e.payload)),

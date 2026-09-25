@@ -32,6 +32,7 @@ export const TAURI_MOCK = `(() => {
         case 'incoming_write': files[Number(opts.headers['x-id']) - 1].chunks.push(Array.from(args)); return;
         case 'incoming_end': { const f = files[args.id - 1]; f.done = args.ok; return args.ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; }
         case 'set_status': case 'show_settings': return;
+        case 'open_library': window.__opened = 'library'; return;
         // ask() is a message dialog that answers with the clicked button's label.
         case 'plugin:dialog|message': { const b = args.buttons, labels = b && typeof b === 'object' ? Object.values(b)[0] : ['Yes', 'No']; return (window.__ask ?? true) ? labels[0] : labels[1]; }
         case 'plugin:dialog|open': return 'D:\\\\Incoming';

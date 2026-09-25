@@ -12,6 +12,10 @@ use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent, Wry};
+use tauri_plugin_opener::OpenerExt;
+
+/// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
+const LIBRARY_URL: &str = "https://joaopmanso.github.io/glue/?open=home#/";
 
 /// Songs being received: id → (the file being written, its `.part` path, its final path).
 #[derive(Default)]
@@ -173,6 +177,15 @@ fn show_settings(app: AppHandle) {
     open_settings(&app);
 }
 
+#[tauri::command]
+fn open_library(app: AppHandle) {
+    open_glue(&app);
+}
+
+fn open_glue(app: &AppHandle) {
+    let _ = app.opener().open_url(LIBRARY_URL, None::<&str>);
+}
+
 fn open_settings(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.show();
@@ -190,7 +203,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]
@@ -201,13 +214,15 @@ fn main() {
                 let _ = app.deep_link().register_all();
             }
             let status = MenuItem::with_id(app, "status", "Starting…", false, None::<&str>)?;
-            let open = MenuItem::with_id(app, "open", "Open GLUE Home…", true, None::<&str>)?;
+            let library = MenuItem::with_id(app, "library", "Open GLUE library", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "GLUE Home settings…", true, None::<&str>)?;
             let start = MenuItem::with_id(app, "start", "Start service", false, None::<&str>)?;
             let stop = MenuItem::with_id(app, "stop", "Stop service", true, None::<&str>)?;
             let restart = MenuItem::with_id(app, "restart", "Restart service", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit GLUE Home", true, None::<&str>)?;
             let (s1, s2) = (PredefinedMenuItem::separator(app)?, PredefinedMenuItem::separator(app)?);
-            let menu = Menu::with_items(app, &[&status, &s1, &open, &start, &stop, &restart, &s2, &quit])?;
+            let s3 = PredefinedMenuItem::separator(app)?;
+            let menu = Menu::with_items(app, &[&status, &s1, &library, &open, &s3, &start, &stop, &restart, &s2, &quit])?;
             let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
             TrayIconBuilder::with_id("main")
                 .icon(icon)
@@ -215,6 +230,7 @@ fn main() {
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, e| match e.id().as_ref() {
+                    "library" => open_glue(app),
                     "open" => open_settings(app),
                     "start" | "stop" | "restart" => {
                         let _ = app.emit_to("service", "control", e.id().as_ref());
@@ -224,7 +240,8 @@ fn main() {
                 })
                 .on_tray_icon_event(|tray, e| {
                     if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
-                        open_settings(tray.app_handle());
+                        // A click on the icon opens the library (right-click: the menu).
+                        open_glue(tray.app_handle());
                     }
                 })
                 .build(app)?;

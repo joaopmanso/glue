@@ -147,6 +147,7 @@ class Library {
     else this.phase = 'profiles';
   }
   /** Only one tab writes to the GLUE folder; others open read-only. */
+  private unlock: (() => void) | null = null;
   private async takeLock() {
     const locks = (navigator as Navigator & { locks?: LockManager }).locks;
     if (!locks) return;
@@ -154,9 +155,16 @@ class Library {
       void locks.request('mco-writer', { ifAvailable: true }, lock => {
         this.readOnly = !lock;
         resolve();
-        return lock ? new Promise<void>(() => {}) : undefined;   // hold it for the life of the tab
+        // Held for the life of the tab, unless it hands the library to another tab (lib/tabs).
+        return lock ? new Promise<void>(r => { this.unlock = r; }) : undefined;
       });
     });
+  }
+  /** Another GLUE tab takes over: stop, and let go of the GLUE folder. */
+  releaseFolder() {
+    this.stopAnalysis();
+    this.unlock?.(); this.unlock = null;
+    this.readOnly = true;
   }
 
   // ─── Profiles and collections ──────────────────────────────────────────────

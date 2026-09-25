@@ -26,8 +26,10 @@
   import { auto } from './lib/auto.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
   import { themes } from './lib/themes.svelte';
+  import { tabs } from './lib/tabs.svelte';
 
-  onMount(() => { void lib.boot(); void account.init(); });
+  // Opened from GLUE Home's tray icon while a GLUE tab is open: that one comes forward instead.
+  onMount(() => { void account.init(); void tabs.fromHome().then(other => { if (!other) void lib.boot(); }); });
   // The admin panel is for admins only: anyone else is sent back to the library (the API checks too).
   $effect(() => { if (route.name === 'admin' && account.ready && account.phase !== 'working' && !account.isAdmin) router.go('#/'); });
 
@@ -139,7 +141,13 @@
     </div>
   </header>
 
-  {#if route.name === 'analyze'}
+  {#if tabs.state !== 'active'}
+    <section class="elsewhere" id="tab-elsewhere">
+      <h2>GLUE is open in another tab</h2>
+      <p>{tabs.state === 'yielded' ? 'Your library moved to another tab. Only one tab works on it at a time.' : 'Switch to that tab (its title is flashing), or use this one instead.'}</p>
+      <button type="button" class="btn" id="use-this-tab" onclick={() => tabs.state === 'yielded' ? location.reload() : tabs.takeOver()}>Use this tab instead</button>
+    </section>
+  {:else if route.name === 'analyze'}
     {#if app.busy}
       <div id="status" class="status">
         <div class="row"><span id="status-text">{app.busy.text}</span><span id="status-pct" class="mono">{app.busy.p != null ? Math.round(app.busy.p * 100) + '%' : ''}</span></div>
@@ -175,6 +183,8 @@
 
 <style>
   .hidden { visibility: hidden; }
+  .elsewhere { max-width: 480px; margin: 12vh auto 0; display: grid; gap: 14px; justify-items: center; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 30px; }
+  .elsewhere p { color: var(--ink-2); }
   .modebtn { order: 10; background: none; border: 1px solid var(--line); border-radius: 50%; width: 30px; height: 30px; display: grid; place-items: center; color: var(--ink-2); cursor: pointer; padding: 0; }
   .modebtn:hover { color: var(--accent); border-color: var(--accent); }
   .modebtn svg { width: 15px; height: 15px; }

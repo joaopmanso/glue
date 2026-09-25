@@ -1492,3 +1492,29 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   await expect.poll(() => home.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).received?.length)).toBe(3);
 
 });
+
+test('GLUE Home opens the library: a GLUE tab that is open comes forward; "Use this tab instead" moves the library', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await expect(page.locator('.lside')).toBeVisible();
+  // The tray icon opens …/?open=home: this tab is open, so it's asked to come forward (its title flashes).
+  const titles: string[] = [];
+  await page.exposeFunction('__title', (t: string) => titles.push(t));
+  await page.evaluate(() => new MutationObserver(() => (window as unknown as { __title: (t: string) => void }).__title(document.title)).observe(document.querySelector('title')!, { childList: true }));
+  const second = await page.context().newPage();
+  await second.goto('./?open=home#/');
+  await expect.poll(() => titles.includes('● GLUE is here')).toBe(true);
+  if (!second.isClosed()) {
+    // The browser didn't let the new tab close itself: it offers to take over.
+    await expect(second.locator('#tab-elsewhere')).toContainText('GLUE is open in another tab');
+    await second.click('#use-this-tab');
+    await expect(second.locator('.lside')).toBeVisible({ timeout: 15_000 });
+    await expect(second.locator('.notice.warn')).toHaveCount(0);                  // it has the GLUE folder, not read-only
+    await expect(page.locator('#tab-elsewhere')).toContainText('moved to another tab');
+    await expect(second).toHaveURL(/\/glue\/#\/$/);                               // ?open=home is gone
+  }
+});

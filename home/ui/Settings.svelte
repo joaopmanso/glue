@@ -75,6 +75,7 @@
     <div><h1>GLUE Home</h1><p>{status?.text ?? 'Starting…'}</p></div>
     <span class="pill" id="state-pill" data-state={status?.state ?? 'connecting'}>{pill}</span>
   </header>
+  <button type="button" class="primary wide" id="open-library" onclick={() => bridge.openLibrary()}>Open GLUE library</button>
 
   <section>
     <h2>Service</h2>
@@ -155,6 +156,7 @@
   button:hover:not(:disabled) { border-color: var(--accent); }
   button:disabled { opacity: .45; cursor: default; }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.wide { justify-self: stretch; padding: 9px 14px; }
   button.link { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; justify-self: start; }
   form { display: grid; gap: 8px; }
   label { display: grid; gap: 4px; font-size: 12.5px; color: var(--ink-2); }
