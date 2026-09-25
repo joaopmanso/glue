@@ -1,9 +1,21 @@
 ---
-updated: 2026-09-25
+updated: 2026-09-26
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-09-26 · Decision: GLUE Home as the computer's disk and engine (ADR 0051)
+- The open bug (a song sent to the desktop shows no waveform there and its page says "run GLUE Home on
+  Laptop") comes from the song staying the laptop's track on the desktop. Instead of patching that,
+  the user chose to have GLUE Home do the local work when it runs:
+  [ADR 0051](../adr/0051-glue-home-as-local-engine.md), which supersedes 0050.
+  - The website keeps its public address and uses GLUE Home's disk over the local link.
+  - The incoming folder becomes a hidden music folder, so a sent song is that computer's own track.
+  - One writer at a time, through a lease; with no tab open, GLUE Home syncs on its own.
+  - GLUE Home does the analysis, with Rust decoding and parallel workers.
+- `CLAUDE.md`'s non-negotiables reworded (no GLUE server that sees your music; GLUE Home as disk
+  and engine; one writer). No app code changed yet.
 
 ## 2026-09-26 · Handoff; open bug recorded
 - The user's check on the desktop: the direct link answers and the sent song plays. Still wrong: that

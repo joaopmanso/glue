@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: superseded by 0051
 date: 2026-09-25
 ---
 # 0050. GLUE Home as the computer's library: saving and cloud sync move into it

@@ -29,10 +29,16 @@ After working:
 - research findings go in `vault/research/` with sources; mark unverified claims **[UNVERIFIED]**.
 
 ## Non-negotiables
-- Client-only, no server, no accounts; audio never leaves the machine (ADR 0002).
+- No GLUE server that sees your music: the website works on its own, accounts are optional, and audio
+  goes only between the user's own computers (ADR 0002, 0036, 0037). GLUE Home is the user's own
+  program on their own computer; when it runs, the website uses it as its disk and engine over the
+  local link (ADR 0051).
 - GLUE's data is JSON files in the user's GLUE folder, no database (ADR 0009).
 - Never write into another app's library in v1 (ADR 0010).
-- OS access only through `src/platform/` (ADR 0007).
+- OS access only through `src/platform/` (ADR 0007): the browser's handles, or GLUE Home's disk in
+  Home mode (ADR 0051).
+- One writer of the GLUE folder at a time: a tab in Home mode writes only while it holds GLUE Home's
+  lease; GLUE Home writes only while no lease is held (ADR 0051).
 
 ## Repo & deploy
 - GitHub: `joaopmanso` account (joao.pedro.manso@gmail.com). This repo's git identity is set locally
@@ -60,7 +66,8 @@ After working:
 - `home/`: GLUE Home, a Tauri 2 tray app (ADR 0044). `home/src-tauri` Rust (tray, settings file,
   incoming-folder writes, autostart, `gluehome://`,
   `local.rs`: the local link on 127.0.0.1:47400–47409, ADR 0048), `home/ui` its settings and hidden service pages.
-  No Rust on this laptop: `.github/workflows/home.yml` builds Windows + macOS on every change; a tag
+  The desktop (JMansoPC) has Rust and runs GLUE Home, so it can build and test it locally; the laptop has
+  no Rust. `.github/workflows/home.yml` builds Windows + macOS on every change; a tag
   `home-v<version>` (version in `home/src-tauri/tauri.conf.json`) publishes the release the website
   links to. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts`.
 - Routes: `#/` library, `#/track/<id>` track page, `#/analyze` analyze a file, `#/admin`.
