@@ -5,6 +5,10 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · GLUE = Global Library Unified Exporter
+- The U is **Unified**, not Utility: header, title, description, docs and the /mco/ redirect page
+  ([ADR 0039](../adr/0039-glue-unified.md)).
+
 ## 2026-09-25 · Moved to joaopmanso.github.io/glue/
 - Repo renamed `mco` → `glue`; Vite base `/glue/`. `joaopmanso/mco` becomes a redirect to /glue/
   (routes kept). Same origin, so browser data and folder permissions carry over.

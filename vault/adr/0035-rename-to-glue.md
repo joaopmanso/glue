@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (name spelled out by 0039)
 date: 2026-09-25
 ---
 # 0035. Rename MCO to GLUE (Global Library Utility Exporter); keep internal identifiers

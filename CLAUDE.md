@@ -1,4 +1,4 @@
-# GLUE: Global Library Utility Exporter
+# GLUE: Global Library Unified Exporter
 
 Formerly **MCO** (Music Collection Organizer), renamed 2026-09-25 ([ADR 0035](vault/adr/0035-rename-to-glue.md)).
 Internal identifiers keep the old prefix on purpose (`mco.json`, `mco-backup.json`, IndexedDB `mco`,

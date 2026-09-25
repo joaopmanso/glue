@@ -656,7 +656,7 @@ test('builds a playlist from a track: seed first, included tracks kept, saved as
   await page.getByRole('button', { name: 'Create profile' }).click();
   await page.click('#onb-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
-  await expect(page.locator('.brand h1 a')).toHaveAccessibleName('GLUE, Global Library Utility Exporter');
+  await expect(page.locator('.brand h1 a')).toHaveAccessibleName('GLUE, Global Library Unified Exporter');
 
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).click();
   await page.click('#auto-from');

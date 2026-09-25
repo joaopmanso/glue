@@ -3,7 +3,7 @@ updated: 2026-09-24
 ---
 # Vision
 
-**GLUE (Global Library Utility Exporter)** is a local-first home for a DJ's music collection. It brings every
+**GLUE (Global Library Unified Exporter)** is a local-first home for a DJ's music collection. It brings every
 source together: loose folders, iCloud Drive, and the Rekordbox, Engine DJ, Traktor and Apple Music
 libraries. It then keeps the collection clean (duplicates, fake lossless, low-quality files), knows
 every track (quality, BPM, key), and turns preparation into playlists, shows and sessions that go
