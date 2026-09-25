@@ -1,15 +1,10 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-24
+updated: 2026-09-25
 adrs: [0010]
 ---
 # Import: Engine DJ
-
-## Folders and entries (2026-09-25)
-- A playlist with children is a folder; its own songs become a playlist of the same name inside it.
-- Entries pointing at another Engine library (`databaseUuid` ≠ `Information.uuid`) are counted and
-  reported, not matched.
 
 ## What it does
 Reads the Engine DJ library (tracks, playlists, ratings, BPM, key, history) as a read-only source.
@@ -47,3 +42,8 @@ See [research/dj-library-formats.md](../research/dj-library-formats.md#engine-dj
 ## Detected automatically (2026-09-24)
 - Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
 - Not yet: cue points (PerformanceData.quickCues, a compressed binary structure) **[UNVERIFIED format]**.
+
+## Folders and entries (2026-09-25)
+- A playlist with children is a folder; its own songs become a playlist of the same name inside it.
+- Entries pointing at another Engine library (`databaseUuid` ≠ `Information.uuid`) are counted and
+  reported, not matched.
