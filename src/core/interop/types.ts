@@ -26,7 +26,8 @@ export interface ImportedList {
   parent: string | null;     // externalId of the parent folder
   items: string[];           // track externalIds, in order
 }
-export interface ImportedLibrary { app: SourceApp; name: string; tracks: ImportedTrack[]; lists: ImportedList[] }
+/** stats: playlist entries read, matched to a track, and pointing at another library (Engine DJ). */
+export interface ImportedLibrary { app: SourceApp; name: string; tracks: ImportedTrack[]; lists: ImportedList[]; stats?: { entries: number; matched: number; otherLibraries: number } }
 
 export const blankTrack = (externalId: string, path: string): ImportedTrack => ({
   externalId, path, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', grouping: '',

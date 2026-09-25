@@ -45,7 +45,9 @@ async function analyse(p: string, c: string, id: string, cfg: HomeConfig): Promi
   const size = await bridge.fileSize(f.path), parts: ArrayBuffer[] = [];
   for (let at = 0; at < size;) { const b = await bridge.fileRead(f.path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; }
   pool ??= new AnalysisPool(1);
-  const r = await pool.analyze(new File(parts, f.name), 0);
+  // A song that never finishes (it won't decode) mustn't hold up every other one: 2 minutes at most.
+  const p0 = pool;
+  const r = await Promise.race([p0.analyze(new File(parts, f.name), 0), new Promise<never>((_, no) => setTimeout(() => { p0.stop(); if (pool === p0) pool = null; no(new Error('the analysis took too long')); }, 120_000))]);
   if (r.thumb) await putThumb(p, c, id, r.thumb);
   if (r.details) await putDetails(p, c, id, r.details.header, r.details.bin);
   return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null };
@@ -56,11 +58,13 @@ const urgent: Job[] = [];
 let running = false;
 export const progress = { background: { done: 0, total: 0, running: false } };
 
-/** Now: another computer is waiting (its page, or rows on its screen). */
-export function soon(p: string, c: string, id: string, cfg: () => HomeConfig | null): Promise<boolean> {
+/** Now: another computer is waiting (`first`: its track page; else rows on its screen). */
+export function soon(p: string, c: string, id: string, cfg: () => HomeConfig | null, first = false): Promise<boolean> {
   return new Promise(res => {
-    const j = urgent.find(x => x.p === p && x.c === c && x.id === id);
-    if (j) j.done.push(res); else urgent.push({ p, c, id, done: [res] });
+    const i = urgent.findIndex(x => x.p === p && x.c === c && x.id === id);
+    const j = i >= 0 ? urgent.splice(i, 1)[0] : { p, c, id, done: [] as ((ok: boolean) => void)[] };
+    j.done.push(res);
+    if (first) urgent.unshift(j); else urgent.push(j);
     void drain(cfg);
   });
 }
@@ -97,12 +101,14 @@ export async function background(cfg: () => HomeConfig | null, busy: () => boole
     }
     progress.background.total = todo.length; report();
     for (const j of todo) {
-      while (busy() || urgent.length || running) await new Promise(r => setTimeout(r, 2000));
+      // Another computer's requests go first (they're run here if nothing else runs them).
+      while (busy() || urgent.length || running) { if (urgent.length && !running) await drain(cfg); else await new Promise(r => setTimeout(r, 1000)); }
       const c = cfg();
       if (!c || !shared(c, j.p, j.c)) continue;
       if (await thumb(j.p, j.c, j.id)) { progress.background.done++; continue; }   // handed over meanwhile
       running = true;
       try { await analyse(j.p, j.c, j.id, c); } catch { /* not found or not decodable: skipped */ } finally { running = false; }
+      if (urgent.length) void drain(cfg);
       progress.background.done++;
       if (progress.background.done % 10 === 0) report();
       await new Promise(r => setTimeout(r, 1500));   // gently: this computer is in use too

@@ -48,6 +48,12 @@
   let stored = $state(false);        // showing the analysis kept from an earlier visit
   let canPlay = $state(true);        // false: a stored analysis is shown but the file isn't readable yet
   let loaded = '';
+  // Another computer's song: its full analysis is on its way ('loading'), still being made there
+  // ('pending'), or couldn't come ('failed').
+  let remoteNote = $state<'' | 'loading' | 'pending' | 'failed'>('');
+  let remoteError = $state('');
+  let tries = 0, retry = 0;
+  const fetching = $derived(remoteFiles.loading && remoteFiles.loading.trackId === id ? remoteFiles.loading : null);
 
   /** Show the stored analysis if there is one; otherwise (or with `fresh`) analyse the file and store it. */
   async function load(ask: boolean, fresh = false) {
@@ -57,13 +63,20 @@
     loaded = t.id;
     // Another computer's song: its full analysis from its GLUE Home (ADR 0046), else its summary.
     if (t.remote && !ask && lib.canRead(t) && !t.remote.incoming) {
-      phase = 'loading';
+      // The summary at once; the full analysis replaces it when it's here (ADR 0047).
+      phase = 'remote'; remoteNote = 'loading';
       try {
         const d = await remoteFiles.details(t);
         if (id !== t.id) return;
-        if (d) { const x = await decodeDetails(d.header, d.bin); if (id !== t.id) return; app.playKey = key; showResult(x.info, x.res, null); canPlay = player.sourceKey === key && !!player.url; stored = true; phase = 'ready'; return; }
-      } catch { /* the summary, then */ }
-      phase = 'remote'; return;
+        if (d) { const x = await decodeDetails(d.header, d.bin); if (id !== t.id) return; app.playKey = key; showResult(x.info, x.res, null); canPlay = player.sourceKey === key && !!player.url; stored = true; remoteNote = ''; phase = 'ready'; return; }
+      } catch (e) {
+        if (id !== t.id) return;
+        // Still being analysed there: ask again in a moment (a while, not for ever).
+        if ((e as { pending?: boolean }).pending && tries++ < 15) { remoteNote = 'pending'; retry = window.setTimeout(() => { if (loaded === t.id) void load(false); }, 8000); return; }
+        remoteNote = 'failed'; remoteError = (e as Error).message;
+        return;
+      }
+      remoteNote = ''; return;
     }
     if (t.remote || lib.cloud) { if (!ask) { phase = 'remote'; return; } }
     if (t.remote && lib.canRead(t)) {
@@ -129,7 +142,7 @@ canPlay = true;
     untrack(() => { app.phase = 'start'; app.res = null; app.info = null; app.verdict = null; app.error = null; app.busy = null; });
     lib.prioritize(id);
     void load(false);
-    return () => player.defer(null);   // a waiting source belongs to this page only
+    return () => { player.defer(null); clearTimeout(retry); tries = 0; };   // a waiting source belongs to this page only
   });
 
   /** Another device's track: the verdict, tempo and key widgets built from its stored summary. */
@@ -218,6 +231,12 @@ canPlay = true;
       {/if}
     </section>
 
+    {#if fetching}
+      <div class="status" id="remote-fetch">
+        <div class="row"><span>Getting the song from {fetching.device}…</span><span class="mono">{fetching.size ? Math.round(fetching.got / fetching.size * 100) + '%' : ''}</span></div>
+        <div class="bar"><span style:width={(fetching.size ? fetching.got / fetching.size : 0) * 100 + '%'}></span></div>
+      </div>
+    {/if}
     {#if phase === 'ready' && !canPlay && track.remote}
       <div class="notice" id="remote-analysis-note">The analysis made on <b>{elsewhere}</b>. The song itself is there too: <button type="button" class="btn" id="remote-play" onclick={allowPlay}>Play from {elsewhere}</button></div>
     {:else if phase === 'ready' && !canPlay && track.status === 'linked'}
@@ -232,6 +251,10 @@ canPlay = true;
           <span>This track’s file is on <b>{elsewhere}</b>. Its details and analysis come from there. To play it here, run GLUE Home on {elsewhere}.</span>
         {/if}
       </div>
+      {#if remoteNote}
+        <p class="remote-state" id="remote-state" data-state={remoteNote} role="status">{#if remoteNote !== 'failed'}<span class="spin"></span>{/if}
+          {remoteNote === 'loading' ? 'Getting the full analysis from ' + elsewhere + '…' : remoteNote === 'pending' ? elsewhere + ' is analysing this song now; it shows here when it’s ready.' : 'The full analysis didn’t come from ' + elsewhere + ' (' + remoteError + '). This is its summary.'}</p>
+      {/if}
       {#if remoteView}
         <div class="remote-res" id="remote-analysis">
           <Sidebar summary={remoteView} />
@@ -294,6 +317,10 @@ canPlay = true;
   .dj td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line); color: var(--ink-2); }
   .dj .mco td { color: var(--accent); }
   .stars { color: var(--warn); letter-spacing: 1px; }
+  .remote-state { display: flex; gap: 10px; align-items: center; color: var(--ink-2); font-size: 13px; }
+  .remote-state[data-state="failed"] { color: var(--muted); }
+  .spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: spin .9s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .remote-res { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
   .remote-col { display: grid; gap: 10px; }
   .fine { color: var(--muted); font-size: 12.5px; }

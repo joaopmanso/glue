@@ -5,6 +5,21 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · Engine DJ folders and playlists; a steadier link to GLUE Home (0.3.1); scroll bar
+- Engine DJ: a playlist with children is now a folder (its own songs go into a playlist of the same
+  name inside it), so "2021 › DNB › Bangers" shows as folders in the sidebar. Playlist entries are
+  counted: the import message says how many found their song, and how many point at another Engine
+  library (a drive), which has to be imported too.
+- The laptop ↔ GLUE Home channel ([ADR 0047](../adr/0047-stream-channel-requests-at-once.md)):
+  - requests run at the same time, with tagged bytes, so one slow one no longer blocks the rest;
+  - time limits reconnect a stuck channel instead of freezing until a reload;
+  - GLUE Home's analysis queue no longer deadlocks, and an analysis can't hang it;
+  - track page: the summary at once with "Getting the full analysis from …" or "… is analysing
+    this song now", plus the song's download progress (no more blank page);
+  - waveforms that aren't made yet are asked for again for longer.
+- Library: only the rows scroll, both ways, so the vertical scroll bar stays visible on narrow
+  windows; the header follows sideways and the columns menu floats above it.
+
 ## 2026-09-25 · GLUE Home 0.3.0: shares waveforms and analyses; TO BE SORTED
 - Another computer's songs now show their mini spectrograms, and their track page shows the full
   analysis at once, from that computer's GLUE Home, without downloading the audio; "Play from

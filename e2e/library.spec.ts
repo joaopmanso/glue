@@ -882,6 +882,15 @@ test('filters the table by quality and format', async ({ page }) => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth), 'page fits at ' + w).toBeLessThanOrEqual(w);
     const m = (await page.locator('#mode-toggle').boundingBox())!;
     expect(m.x + m.width, 'mode toggle on screen at ' + w).toBeLessThanOrEqual(w);
+    // Only the rows scroll: their vertical scroll bar is at the table's visible edge, not past it.
+    const b = (await page.locator('.table .body').boundingBox())!;
+    expect(b.x + b.width, 'rows end on screen at ' + w).toBeLessThanOrEqual(w);
+    if (w === 1024) {
+      expect(await page.locator('.table .body').evaluate(e => e.scrollWidth > e.clientWidth), 'columns scroll sideways at 1024').toBe(true);
+      // Scrolling the rows sideways takes the header along.
+      await page.locator('.table .body').evaluate(e => { e.scrollLeft = 200; e.dispatchEvent(new Event('scroll')); });
+      await expect.poll(() => page.locator('.table .hwrap').evaluate(e => e.scrollLeft)).toBe(200);
+    }
   }
   await page.setViewportSize({ width: 1920, height: 960 });
   await page.click('#filter-btn');

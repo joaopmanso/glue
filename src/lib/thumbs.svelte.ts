@@ -78,9 +78,9 @@ class Thumbs {
           this.remember(t.id, null);
           const n = (this.tries.get(t.id) ?? 0) + 1;
           this.tries.set(t.id, n);
-          if (n < 4) setTimeout(() => { if (this.cid === cid) { this.cache.delete(t.id); this.request(t.id); } }, 12_000 * n);
+          if (n < 10) setTimeout(() => { if (this.cid === cid) { this.cache.delete(t.id); this.request(t.id); } }, Math.min(60_000, 8_000 * n));
         }
-      }).catch(() => {});
+      }).catch(() => { for (const t of batch) { this.remember(t.id, null); setTimeout(() => { if (this.cid === cid) { this.cache.delete(t.id); this.request(t.id); } }, 15_000); } });
     }, 120);
   }
   private async read(id: string) {

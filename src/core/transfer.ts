@@ -45,6 +45,20 @@ export type StreamCtrl = StreamReq | StreamReply;
 export interface IncomingFile { name: string; size: number; mtime: number }
 export interface HomeFolder { id: string; name: string; collection: string }
 
+/** On a stream channel every binary message starts with its request's number (4 bytes, little
+    endian), so several requests can run at once without their bytes mixing (ADR 0047). */
+export function frame(n: number, payload: Uint8Array): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(4 + payload.length);
+  new DataView(out.buffer).setUint32(0, n >>> 0, true);
+  out.set(payload, 4);
+  return out;
+}
+export function unframe(buf: ArrayBuffer): { n: number; data: Uint8Array } {
+  return { n: new DataView(buf).getUint32(0, true), data: new Uint8Array(buf, 4) };
+}
+/** Stream answers: a GLUE Home still making an analysis says so, and the page asks again. */
+export const PENDING = 'pending';
+
 export const isHandshake = (d: unknown): d is Handshake => !!d && typeof d === 'object' && (d as { app?: unknown }).app === 'glue-send';
 
 /** A file name that's safe in any folder on Windows and macOS (no paths, no reserved names). */

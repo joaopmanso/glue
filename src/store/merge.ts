@@ -35,7 +35,7 @@ function inferRoots(store: CollectionStore, rootPaths: Map<string, string>) {
   if (changed) store.saveMeta();
 }
 
-export interface ImportReport { sourceId: string; tracks: number; matched: number; linked: number; lists: number }
+export interface ImportReport { sourceId: string; tracks: number; matched: number; linked: number; lists: number; entries?: ImportedLibrary['stats'] }
 
 export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileName: string): ImportReport {
   const existing = [...store.sources.values()].find(s => s.app === lib.app && s.fileName === fileName);
@@ -94,7 +94,7 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   }
   const src: Source = { schemaVersion: SCHEMA, id: sourceId, app: lib.app, name: lib.name, fileName, importedAt: now(), tracks: sourceTracks, lists: lib.lists.length };
   store.putSource(src);
-  return { sourceId, tracks: lib.tracks.length, matched, linked: links.size, lists: lib.lists.length };
+  return { sourceId, tracks: lib.tracks.length, matched, linked: links.size, lists: lib.lists.length, entries: lib.stats };
 }
 
 export interface ScanEntry { relPath: string; size: number; mtime: number; fileName: string }

@@ -37,6 +37,10 @@
   const minWidth = $derived(widths.reduce((a, w) => a + (Number(/(\d+)px/.exec(w)?.[1]) || 0), 0) + 10 * (widths.length - 1) + 16);
 
   let scroller: HTMLDivElement;
+  // Only the rows scroll (both ways), so their vertical scroll bar stays in view on narrow windows;
+  // the header follows them sideways.
+  let headWrap = $state<HTMLDivElement>();
+  let colMenuAt = $state({ right: 8, top: 40 });
   let scrollTop = $state(0), height = $state(600);
   const first = $derived(Math.max(0, Math.floor(scrollTop / ROW) - OVERSCAN));
   const last = $derived(Math.min(rows.length, Math.ceil((scrollTop + height) / ROW) + OVERSCAN));
@@ -159,6 +163,7 @@
 {/snippet}
 
 <div class="table" role="grid" aria-rowcount={rows.length} aria-multiselectable="true" style:--cols={template}>
+  <div class="hwrap" bind:this={headWrap}>
   <div class="thead" role="row" style:min-width={minWidth + 'px'}>
     <span aria-hidden="true"></span>
     {#if isPlaylist}
@@ -188,11 +193,11 @@
       </div>
     {/each}
     <span class="cm">
-      <button type="button" class="cmbtn" id="columns-btn" title="Choose columns" aria-haspopup="menu" aria-expanded={colMenu} onclick={() => (colMenu = !colMenu)}>
+      <button type="button" class="cmbtn" id="columns-btn" title="Choose columns" aria-haspopup="menu" aria-expanded={colMenu} onclick={e => { const r = e.currentTarget.getBoundingClientRect(); colMenuAt = { right: Math.max(8, innerWidth - r.right), top: r.bottom + 4 }; colMenu = !colMenu; }}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12M2 8h12M2 13h12" stroke="currentColor" stroke-width="1.4"/><circle cx="5" cy="3" r="1.6" fill="currentColor"/><circle cx="11" cy="8" r="1.6" fill="currentColor"/><circle cx="7" cy="13" r="1.6" fill="currentColor"/></svg>
       </button>
       {#if colMenu}
-        <div class="colmenu" role="menu" id="columns-menu">
+        <div class="colmenu" role="menu" id="columns-menu" style:right={colMenuAt.right + 'px'} style:top={colMenuAt.top + 'px'}>
           <p class="label">Columns</p>
           {#each columns.order as k, i (k)}
             <div class="crow">
@@ -207,10 +212,11 @@
       {/if}
     </span>
   </div>
+  </div>
   <!-- The body takes keyboard focus for the whole grid (arrows, Enter, Delete, Ctrl+A). -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-  <div class="body" style:min-width={minWidth + 'px'} bind:this={scroller} bind:clientHeight={height} onscroll={() => (scrollTop = scroller.scrollTop)} tabindex="0" role="rowgroup" onkeydown={onKey}>
-    <div class="spacer" style:height={rows.length * ROW + 'px'}>
+  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => { scrollTop = scroller.scrollTop; if (headWrap) headWrap.scrollLeft = scroller.scrollLeft; }} tabindex="0" role="rowgroup" onkeydown={onKey}>
+    <div class="spacer" style:height={rows.length * ROW + 'px'} style:min-width={minWidth + 'px'}>
       {#each visible as r, j (r.t.id)}
         {@const i = first + j}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -277,7 +283,8 @@
   onkeydown={e => { if (e.key === 'Escape') { colMenu = false; headFilter = null; } }} />
 
 <style>
-  .table { display: grid; grid-template-rows: auto 1fr; min-height: 0; min-width: 0; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 13px; }
+  .table { display: grid; grid-template-rows: auto 1fr; min-height: 0; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 13px; }
+  .hwrap { overflow: hidden; min-width: 0; }
   .thead, .tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 10px; padding: 0 6px 0 10px; }
   .thead { border-bottom: 1px solid var(--line); height: 32px; position: relative; z-index: 2; }
   .th { display: flex; align-items: center; min-width: 0; height: 100%; gap: 2px; }
@@ -307,7 +314,7 @@
   .cmbtn { background: none; border: 0; color: var(--muted); cursor: pointer; width: 24px; height: 24px; border-radius: 4px; display: grid; place-items: center; padding: 0; }
   .cmbtn:hover, .cmbtn[aria-expanded="true"] { color: var(--ink); background: var(--raised); }
   .cmbtn svg { width: 14px; height: 14px; }
-  .colmenu { position: absolute; right: 0; top: 30px; width: 230px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 8px; box-shadow: 0 10px 28px rgb(0 0 0 / .45); display: grid; gap: 2px; }
+  .colmenu { position: fixed; z-index: 45; width: 230px; max-height: calc(100vh - 120px); overflow-y: auto; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 8px; box-shadow: 0 10px 28px rgb(0 0 0 / .45); display: grid; gap: 2px; }
   .colmenu .label { margin: 0 4px 4px; }
   .crow { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px; }
   .crow:hover { background: var(--surface); }
@@ -316,7 +323,7 @@
   .crow button:disabled { opacity: .3; cursor: default; }
   .reset { margin-top: 6px; background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 4px; cursor: pointer; }
   .hint { color: var(--muted); font-size: 11.5px; margin: 4px 4px 0; }
-  .body { overflow-y: auto; position: relative; min-height: 0; outline: none; }
+  .body { overflow: auto; position: relative; min-height: 0; min-width: 0; outline: none; }
   .spacer { position: relative; }
   .tr { position: absolute; left: 0; right: 0; top: 0; height: 30px; cursor: default; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); user-select: none; }
   .tr > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

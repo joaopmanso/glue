@@ -56,24 +56,40 @@ export function parseEngineDb(bytes: Uint8Array, SQL: SqlJsStatic, fileName = 'm
       return t;
     }).filter(t => t.path);
     const lists: ImportedList[] = [];
+    const stats = { entries: 0, matched: 0, otherLibraries: 0 };
     if (tables.has('Playlist') && tables.has('PlaylistEntity')) {
       const pl = rows(db, 'SELECT id, title, parentListId AS parent, nextListId AS next FROM Playlist')
         .map(r => ({ id: Number(r.id), next: Number(r.next || 0), parent: Number(r.parent || 0), title: String(r.title ?? 'Playlist') }));
-      const ents = rows(db, 'SELECT id, listId, trackId, nextEntityId AS next FROM PlaylistEntity')
-        .map(r => ({ id: Number(r.id), next: Number(r.next || 0), list: Number(r.listId), track: String(r.trackId) }));
-      const hasChildren = new Set(pl.map(p => p.parent));
+      // An entry can point at a song of another Engine library (a drive): only this library's count.
+      const ec = cols(db, 'PlaylistEntity');
+      const localUuid = tables.has('Information') && cols(db, 'Information').has('uuid') ? String(rows(db, 'SELECT uuid FROM Information LIMIT 1')[0]?.uuid ?? '') : '';
+      const ents = rows(db, `SELECT id, listId, trackId, nextEntityId AS next, ${ec.has('databaseUuid') ? 'databaseUuid' : 'NULL'} AS db FROM PlaylistEntity`)
+        .map(r => ({ id: Number(r.id), next: Number(r.next || 0), list: Number(r.listId), track: String(r.trackId), db: r.db == null ? '' : String(r.db) }));
+      const known = new Set(tracks.map(t => t.externalId));
+      const byList = new Map<number, typeof ents>();
+      for (const e of ents) {
+        stats.entries++;
+        if (localUuid && e.db && e.db !== localUuid) { stats.otherLibraries++; continue; }
+        if (!known.has(e.track)) continue;
+        stats.matched++;
+        (byList.get(e.list) ?? byList.set(e.list, []).get(e.list)!).push(e);
+      }
       const byParent = new Map<number, typeof pl>();
       for (const p of pl) { const a = byParent.get(p.parent) || []; a.push(p); byParent.set(p.parent, a); }
       const emit = (parent: number) => {
         for (const p of linkedOrder(byParent.get(parent) || [])) {
-          const items = linkedOrder(ents.filter(e => e.list === p.id)).map(e => e.track);
-          const folder = hasChildren.has(p.id) && !items.length;
-          lists.push({ externalId: String(p.id), kind: folder ? 'folder' : 'playlist', name: p.title, parent: parent ? String(parent) : null, items });
+          const items = linkedOrder(byList.get(p.id) ?? []).map(e => e.track);
+          // Engine playlists can hold songs and other playlists at once: in GLUE a folder holds
+          // playlists, so one with children is a folder, and its own songs a playlist inside it.
+          if (byParent.has(p.id)) {
+            lists.push({ externalId: String(p.id), kind: 'folder', name: p.title, parent: parent ? String(parent) : null, items: [] });
+            if (items.length) lists.push({ externalId: p.id + ':songs', kind: 'playlist', name: p.title, parent: String(p.id), items });
+          } else lists.push({ externalId: String(p.id), kind: 'playlist', name: p.title, parent: parent ? String(parent) : null, items });
           emit(p.id);
         }
       };
       emit(0);
     }
-    return { app: 'engine', name: 'Engine DJ (' + fileName + ')', tracks, lists };
+    return { app: 'engine', name: 'Engine DJ (' + fileName + ')', tracks, lists, stats };
   } finally { db.close(); }
 }

@@ -10,6 +10,9 @@ function report(name: string, r: ImportReport | null) {
   if (!r) return '';
   const bits = [r.tracks + ' track' + (r.tracks === 1 ? '' : 's'), r.lists + ' playlist' + (r.lists === 1 ? '' : 's') + ' or folder' + (r.lists === 1 ? '' : 's')];
   if (r.linked + r.matched) bits.push((r.linked + r.matched) + ' matched to tracks you already had');
+  // Playlist entries (Engine DJ): how many found their song; some can point at another library.
+  const e = r.entries;
+  if (e && e.entries) bits.push(e.matched.toLocaleString() + ' of ' + e.entries.toLocaleString() + ' playlist entries found their song' + (e.otherLibraries ? ' (' + e.otherLibraries.toLocaleString() + ' are songs of another Engine library, e.g. on a drive: import that one too)' : ''));
   return name + ': ' + bits.join(', ') + '.';
 }
 

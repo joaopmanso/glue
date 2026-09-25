@@ -6,6 +6,11 @@ adrs: [0010]
 ---
 # Import: Engine DJ
 
+## Folders and entries (2026-09-25)
+- A playlist with children is a folder; its own songs become a playlist of the same name inside it.
+- Entries pointing at another Engine library (`databaseUuid` ≠ `Information.uuid`) are counted and
+  reported, not matched.
+
 ## What it does
 Reads the Engine DJ library (tracks, playlists, ratings, BPM, key, history) as a read-only source.
 

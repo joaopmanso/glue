@@ -4,7 +4,7 @@
 import { account, type CloudDevice } from './account.svelte';
 import { lib } from './library.svelte';
 import { connectHome, type HomeChannel } from './homeLink';
-import type { HomeFolder, IncomingFile, StreamReply, StreamReq } from '../core/transfer';
+import { PENDING, frame, unframe, type HomeFolder, type IncomingFile, type StreamReply, type StreamReq } from '../core/transfer';
 import type { DetailsHeader } from '../store/details';
 import type { Track } from '../store/types';
 import { thumbs } from './thumbs.svelte';
@@ -20,65 +20,93 @@ export function companionOnline(browser: string): CloudDevice | null {
 }
 
 type Req = StreamReq extends infer R ? R extends { n: number } ? Omit<R, 'n'> : never : never;
+type Answer = { data: unknown; bytes: Uint8Array; name?: string; type?: string };
 const KEEP = 3;
+/** Give up on an answer that doesn't start (or stops coming) in this long (ADR 0047). */
+const FIRST_WAIT = 40_000, IDLE_WAIT = 20_000;
+/** At most this many at once per GLUE Home (songs: 2). */
+const MAX_AT_ONCE = 6, MAX_FILES = 2;
 let seq = 1;
 
+/** One channel to a GLUE Home, shared by requests that run at once: answers come back by number. */
+interface Link {
+  ch: HomeChannel;
+  waiting: Map<number, { text: (c: StreamReply) => void; bytes: (b: Uint8Array) => void; gone: () => void }>;
+  running: number; files: number; timeouts: number;
+  queue: { file: boolean; go: () => void }[];
+}
+
 class RemoteFiles {
-  /** The song being fetched (the player shows it). */
-  loading = $state<{ name: string; device: string; got: number; size: number } | null>(null);
-  private links = new Map<string, Promise<HomeChannel>>();
-  private queues = new Map<string, Promise<unknown>>();
+  /** The song being fetched (the player and its track page show it). */
+  loading = $state<{ trackId: string; name: string; device: string; got: number; size: number } | null>(null);
+  private links = new Map<string, Promise<Link>>();
   private kept = new Map<string, File>();
 
   canStream(t: Track) { return !!t.remote && !!(t.remote.home ? account.online.has(t.remote.home) : t.remote.id && companionOnline(t.remote.device)); }
   private homeFor(t: Track) { return t.remote?.home ?? companionOnline(t.remote?.device ?? '')?.id ?? null; }
 
-  private link(home: string): Promise<HomeChannel> {
+  private link(home: string): Promise<Link> {
     let l = this.links.get(home);
     if (!l) {
-      l = connectHome(home, 'stream', { onFail: () => this.links.delete(home) });
-      l.catch(() => this.links.delete(home));
+      const drop = () => { if (this.links.get(home) === l) this.links.delete(home); };
+      l = connectHome(home, 'stream', { onFail: () => { drop(); void l?.then(k => { for (const w of k.waiting.values()) w.gone(); }); } }).then(ch => {
+        const k: Link = { ch, waiting: new Map(), running: 0, files: 0, timeouts: 0, queue: [] };
+        ch.dc.onmessage = e => {
+          if (typeof e.data === 'string') { let c: StreamReply; try { c = JSON.parse(e.data); } catch { return; } k.waiting.get(c.n)?.text(c); }
+          else { const f = unframe(e.data as ArrayBuffer); k.waiting.get(f.n)?.bytes(f.data); }
+        };
+        return k;
+      });
+      l.catch(drop);
       this.links.set(home, l);
     }
     return l;
   }
+  private closeLink(home: string) { const l = this.links.get(home); this.links.delete(home); void l?.then(k => { k.ch.close(); for (const w of k.waiting.values()) w.gone(); }); }
 
-  /** One request to a GLUE Home: its answer's `data`, and the bytes that came with it. `upload`: bytes
-      sent after the request (then `end`). */
-  ask(home: string, req: Req, opts: { onBytes?: (got: number, size: number) => void; upload?: Uint8Array } = {}): Promise<{ data: unknown; bytes: Uint8Array; name?: string; type?: string }> {
-    const job = (this.queues.get(home) ?? Promise.resolve()).then(async () => {
-      const { dc } = await this.link(home);
-      const n = seq++;
-      return new Promise<{ data: unknown; bytes: Uint8Array; name?: string; type?: string }>((resolve, reject) => {
-        const parts: ArrayBuffer[] = [];
-        let size = 0, got = 0, head: Extract<StreamReply, { t: 'meta' }> | null = null;
-        const onMsg = (e: MessageEvent) => {
-          if (typeof e.data !== 'string') { if (!head) return; parts.push(e.data as ArrayBuffer); got += (e.data as ArrayBuffer).byteLength; opts.onBytes?.(got, size); return; }
-          const c = JSON.parse(e.data) as StreamReply;
-          if (!('n' in c) || c.n !== n) return;
-          if (c.t === 'meta') { head = c; size = c.size; opts.onBytes?.(0, size); }
-          else if (c.t === 'eof') {
-            done();
-            if (got !== size) return reject(new Error('It arrived incomplete.'));
-            const bytes = new Uint8Array(size); let at = 0;
-            for (const p of parts) { bytes.set(new Uint8Array(p), at); at += p.byteLength; }
-            resolve({ data: head?.data, bytes, name: head?.name, type: c.type || head?.type });
-          } else if (c.t === 'error') { done(); reject(new Error(c.error)); }
-        };
-        const onClose = () => { done(); reject(new Error('The connection closed.')); };
-        const done = () => { dc.removeEventListener('message', onMsg); dc.removeEventListener('close', onClose); };
-        dc.addEventListener('message', onMsg);
-        dc.addEventListener('close', onClose);
+  /** One request to a GLUE Home: its answer's `data`, and the bytes that came with it. Several run at
+      once; each gives up if its answer doesn't come. `upload`: bytes sent after the request. */
+  async ask(home: string, req: Req, opts: { onBytes?: (got: number, size: number) => void; upload?: Uint8Array } = {}): Promise<Answer> {
+    const k = await this.link(home);
+    const file = req.t === 'get' || req.t === 'get-incoming';
+    // Wait for a free place (songs have fewer).
+    if (k.running >= MAX_AT_ONCE || (file && k.files >= MAX_FILES)) await new Promise<void>(go => k.queue.push({ file, go }));
+    k.running++; if (file) k.files++;
+    const next = () => {
+      k.running--; if (file) k.files--;
+      const i = k.queue.findIndex(q => !q.file || k.files < MAX_FILES);
+      if (i >= 0) k.queue.splice(i, 1)[0].go();
+    };
+    const n = seq++;
+    try {
+      return await new Promise<Answer>((resolve, reject) => {
+        const parts: Uint8Array[] = [];
+        let size = 0, got = 0, head: Extract<StreamReply, { t: 'meta' }> | null = null, timer = 0;
+        const wait = (ms: number) => { clearTimeout(timer); timer = window.setTimeout(() => { finish(); if (++k.timeouts >= 2) this.closeLink(home); reject(new Error('it didn’t answer in time')); }, ms); };
+        const finish = () => { clearTimeout(timer); k.waiting.delete(n); };
+        k.waiting.set(n, {
+          text: c => {
+            if (c.t === 'meta') { head = c; size = c.size; opts.onBytes?.(0, size); wait(IDLE_WAIT); }
+            else if (c.t === 'eof') {
+              finish(); k.timeouts = 0;
+              if (got !== size) return reject(new Error('it arrived incomplete'));
+              const bytes = new Uint8Array(size); let at = 0;
+              for (const p of parts) { bytes.set(p, at); at += p.length; }
+              resolve({ data: head?.data, bytes, name: head?.name, type: c.type || head?.type });
+            } else if (c.t === 'error') { finish(); k.timeouts = 0; reject(Object.assign(new Error(c.error), { pending: c.error === PENDING })); }
+          },
+          bytes: b => { if (!head) return; parts.push(b.slice()); got += b.length; opts.onBytes?.(got, size); wait(IDLE_WAIT); },
+          gone: () => { finish(); reject(new Error('the connection closed')); },
+        });
+        wait(FIRST_WAIT);
+        const dc = k.ch.dc;
         dc.send(JSON.stringify({ ...req, n }));
         if (opts.upload) {
-          const up = new Uint8Array(opts.upload);
-          for (let i = 0; i < up.length; i += 64 * 1024) dc.send(up.subarray(i, Math.min(up.length, i + 64 * 1024)));
+          for (let i = 0; i < opts.upload.length; i += 64 * 1024) dc.send(frame(n, opts.upload.subarray(i, Math.min(opts.upload.length, i + 64 * 1024))));
           dc.send(JSON.stringify({ t: 'end', n }));
         }
       });
-    });
-    this.queues.set(home, job.catch(() => {}));
-    return job;
+    } finally { next(); }
   }
 
   /** A song's file: from its computer's GLUE Home (or that GLUE Home's incoming folder). */
@@ -87,7 +115,7 @@ class RemoteFiles {
     if (!r || !home) return Promise.reject(new Error('This track’s file is on ' + (r?.name ?? 'another computer') + '.'));
     const key = home + '/' + (r.incoming ?? r.id), hit = this.kept.get(key);
     if (hit) return Promise.resolve(hit);
-    this.loading = { name: t.title || t.fileName, device: r.name, got: 0, size: t.size ?? 0 };
+    this.loading = { trackId: t.id, name: t.title || t.fileName, device: r.name, got: 0, size: t.size ?? 0 };
     const req: Req = r.incoming ? { t: 'get-incoming', name: r.incoming } : { t: 'get', profile: r.profile!, collection: r.collection!, track: r.id! };
     return this.ask(home, req, { onBytes: (got, size) => { if (this.loading) this.loading = { ...this.loading, got, size }; } })
       .then(a => {
@@ -97,7 +125,7 @@ class RemoteFiles {
         return f;
       })
       .catch(e => { throw new Error(r.name + ': ' + (e as Error).message); })
-      .finally(() => { this.loading = null; });
+      .finally(() => { if (this.loading?.trackId === t.id) this.loading = null; });
   }
 
   /** Mini spectrograms of songs on one computer (those its GLUE Home has; the rest come later). */

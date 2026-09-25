@@ -3,7 +3,7 @@
    Restart come from the tray and the settings window. */
 import { API, bridge, type HomeConfig, type Received, type Status } from './bridge';
 import { stayOnline } from './cloud';
-import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, isHandshake, type Ctrl, type Handshake, type HomeFolder, type StreamReply, type StreamReq } from '../../src/core/transfer';
+import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, PENDING, frame, unframe, isHandshake, type Ctrl, type Handshake, type HomeFolder, type StreamReply, type StreamReq } from '../../src/core/transfer';
 import type { DetailsHeader } from '../../src/store/details';
 import * as cache from './cache';
 import { describe, locateAll, trackPath } from './library';
@@ -130,26 +130,27 @@ function serve(dc: RTCDataChannel) {
   const answer = async (n: number, data: unknown, bytes: Uint8Array | { path: string; size: number } | null, extra: { name?: string; type?: string } = {}) => {
     const size = bytes ? ('path' in bytes ? bytes.size : bytes.length) : 0;
     send({ t: 'meta', n, size, data, ...extra });
-    const push = async (block: Uint8Array<ArrayBuffer>) => { for (let i = 0; i < block.length; i += CHUNK) { await drained(); if (dc.readyState !== 'open') return; dc.send(block.subarray(i, Math.min(block.length, i + CHUNK))); } };
+    // Each binary message carries its request's number, so answers can go out at the same time (ADR 0047).
+    const push = async (block: Uint8Array) => { for (let i = 0; i < block.length; i += CHUNK) { await drained(); if (dc.readyState !== 'open') return; dc.send(frame(n, block.subarray(i, Math.min(block.length, i + CHUNK)))); } };
     if (bytes && 'path' in bytes) for (let at = 0; at < bytes.size;) { const b = new Uint8Array(await bridge.fileRead(bytes.path, at, 1024 * 1024)); if (!b.length) break; await push(b); at += b.length; }
-    else if (bytes) await push(new Uint8Array(bytes));
+    else if (bytes) await push(bytes);
     send({ t: 'eof', n, type: extra.type });
   };
   const need = () => { if (!cfg?.glue) throw new Error('GLUE Home doesn’t know this computer’s GLUE folder: choose it in its settings.'); return cfg; };
   const typeOf = (name: string) => TYPES[name.split('.').pop()?.toLowerCase() ?? ''] ?? '';
-  // What the website on this computer hands over ('put'): its bytes arrive after the request.
-  let upload: { req: Extract<StreamReq, { t: 'put' }>; parts: Uint8Array[]; got: number } | null = null;
-  let chain: Promise<void> = Promise.resolve();
+  // What the website on this computer hands over ('put'): its bytes arrive after the request, by number.
+  const uploads = new Map<number, { req: Extract<StreamReq, { t: 'put' }>; parts: Uint8Array[]; got: number }>();
+  // Requests run at the same time: a slow one (an analysis) doesn't hold up the others.
   const step = (f: () => Promise<void>, n: number) => {
-    chain = chain.then(async () => { serving++; try { await f(); } catch (err) { send({ t: 'error', n, error: (err as Error).message || String(err) }); } finally { serving--; } });
+    void (async () => { serving++; try { await f(); } catch (err) { send({ t: 'error', n, error: (err as Error).message || String(err) }); } finally { serving--; } })();
   };
   dc.onmessage = e => {
-    if (typeof e.data !== 'string') { if (upload) { upload.parts.push(new Uint8Array(e.data as ArrayBuffer)); upload.got += (e.data as ArrayBuffer).byteLength; } return; }
+    if (typeof e.data !== 'string') { const f = unframe(e.data as ArrayBuffer), u = uploads.get(f.n); if (u) { u.parts.push(f.data.slice()); u.got += f.data.length; } return; }
     const c = JSON.parse(e.data) as StreamReq;
-    if (c.t === 'put') { upload = { req: c, parts: [], got: 0 }; return; }
+    if (c.t === 'put') { uploads.set(c.n, { req: c, parts: [], got: 0 }); return; }
     if (c.t === 'end') {
-      const u = upload; upload = null;
-      if (!u || u.req.n !== c.n) return;
+      const u = uploads.get(c.n); uploads.delete(c.n);
+      if (!u) return;
       step(async () => {
         const bytes = new Uint8Array(u.got); let at = 0;
         for (const p of u.parts) { bytes.set(p, at); at += p.length; }
@@ -180,7 +181,13 @@ function serve(dc: RTCDataChannel) {
       } else if (c.t === 'details') {
         need();
         let d = await cache.details(c.profile, c.collection, c.track);
-        if (!d && await cache.soon(c.profile, c.collection, c.track, () => cfg)) d = await cache.details(c.profile, c.collection, c.track);
+        if (!d) {
+          // Made now, first in line; if it takes long, the page asks again (it shows the summary meanwhile).
+          const made = cache.soon(c.profile, c.collection, c.track, () => cfg, true);
+          const r = await Promise.race([made, new Promise<'wait'>(res => setTimeout(() => res('wait'), 12_000))]);
+          if (r === 'wait') throw new Error(PENDING);
+          if (r) d = await cache.details(c.profile, c.collection, c.track);
+        }
         if (!d) throw new Error('GLUE Home couldn’t analyse that song.');
         await answer(c.n, d.header, d.bin);
       } else if (c.t === 'have') {
