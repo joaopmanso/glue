@@ -20,6 +20,7 @@
   import GlueStick from './ui/GlueStick.svelte';
   import AccountButton from './ui/AccountButton.svelte';
   import { account } from './lib/account.svelte';
+  import './lib/sync.svelte';   // cloud sync hooks (ADR 0040)
   import { auto } from './lib/auto.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
   import { themes } from './lib/themes.svelte';

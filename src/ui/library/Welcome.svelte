@@ -6,6 +6,11 @@
   import type { BackupManifest } from '../../store/backup';
   import type { ZipEntry } from '../../core/zip';
   import ThemePicker from '../ThemePicker.svelte';
+  import CloudPanel from './CloudPanel.svelte';
+  import GlueStick from '../GlueStick.svelte';
+  import SyncSetup from './SyncSetup.svelte';
+  import { account } from '../../lib/account.svelte';
+  import { sync } from '../../lib/sync.svelte';
 
   let profileName = $state('');
   let collectionName = $state('My collection');
@@ -63,6 +68,22 @@
     try { if (canKeepFiles()) await lib.addFiles(await pickAudioFiles()); } catch (e) { if ((e as DOMException).name !== 'AbortError') lib.notice = (e as Error).message; }
     lib.onboarding = null;
   }
+  // Cloud sync per profile (ADR 0040): read from each profile's file.
+  let syncOn = $state<Record<string, boolean>>({});
+  let setupFor = $state<string | null>(null);
+  $effect(() => {
+    const ps = lib.home?.index.profiles ?? [];
+    void setupFor;
+    void Promise.all(ps.map(async p => [p.id, !!(await lib.profileInfo(p.id))?.cloudSync] as const)).then(r => { syncOn = Object.fromEntries(r); }).catch(() => {});
+  });
+  async function toggleSync(pid: string) {
+    if (!account.signedIn) { lib.notice = 'Sign in with Google (GLUE Cloud, below) to turn on Cloud sync.'; document.getElementById('cloud-panel')?.scrollIntoView({ behavior: 'smooth' }); return; }
+    if (syncOn[pid]) {
+      if (!confirm('Turn off Cloud sync for this profile? It stops uploading; its cloud copy stays until you delete it (GLUE Cloud, below).')) return;
+      await lib.setProfileSync(pid, false); syncOn = { ...syncOn, [pid]: false };
+    } else setupFor = pid;
+  }
+  const ago = (t: number | null) => { if (!t) return ''; const m = Math.round((Date.now() - t) / 60e3); return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
   const tracks = (m: BackupManifest) => m.collections.reduce((n, c) => n + c.tracks, 0);
   const step = $derived(lib.phase === 'welcome' || lib.phase === 'reconnect' ? 1 : lib.onboarding === 'music' ? 3 : 2);
 </script>
@@ -82,8 +103,47 @@
     <p class="muted">Opening your library…</p>
 
   {:else if lib.phase === 'welcome'}
+    {#if !checking && !restore}
+      <div class="home" id="homepage">
+        <div class="hero">
+          <div class="hero-copy">
+            <p class="kicker">Global Library Unified Exporter</p>
+            <h2 class="hero-h">The glue between<br>your DJ apps.</h2>
+            <p class="hero-lede">One library for everything in rekordbox, Engine DJ, Serato, Traktor and Apple Music, on your own computer. See what every file really is, build sets that mix, tag and tidy, and take it back to your DJ app.</p>
+            <div class="hero-cta">
+              <a class="btn big" href="#get-started" id="get-started-btn" onclick={e => { e.preventDefault(); document.getElementById('get-started')?.scrollIntoView({ behavior: 'smooth' }); }}>Get started, free</a>
+              <a class="btn-ghost big" href="#/analyze">Check a single file</a>
+            </div>
+            <p class="fine">No account needed. Your music never leaves your computer.</p>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="halo"></div>
+            <GlueStick size={190} />
+            <span class="appchip c1">rekordbox</span><span class="appchip c2">Engine DJ</span><span class="appchip c3">Serato</span><span class="appchip c4">Traktor</span><span class="appchip c5">Apple Music</span>
+          </div>
+        </div>
+
+        <ul class="features" aria-label="What GLUE does">
+          <li><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h13" /><circle cx="19" cy="12" r="2" /></svg><h3>Every library in one</h3><p>Import rekordbox XML, Engine DJ, Serato, Traktor and Apple Music. Cue points, ratings and playlists come along.</p></li>
+          <li><svg viewBox="0 0 24 24"><path d="M3 18V6M7 18V9M11 18V4M15 18V11M19 18V14M21 18H3" /></svg><h3>The truth about quality</h3><p>A spectrogram check on every file: genuine lossless, upsampled, or an MP3 in disguise, with the evidence.</p></li>
+          <li><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><path d="M12 4v8l5 3" /></svg><h3>Tempo, key and sets that mix</h3><p>BPM and key for every track, and a playlist builder that follows a tempo ramp and the Camelot wheel.</p></li>
+          <li><svg viewBox="0 0 24 24"><path d="M4 12l8-8h7v7l-8 8z" /><circle cx="15.5" cy="8.5" r="1.5" /></svg><h3>Tags and insights</h3><p>Tag tracks and playlists, see a set's length, tempo flow and tag overlap at a glance.</p></li>
+          <li><svg viewBox="0 0 24 24"><rect x="3" y="5" width="11" height="14" rx="2" /><rect x="10" y="3" width="11" height="14" rx="2" /></svg><h3>Duplicates by sound</h3><p>The same recording under any name or format, found by listening, not by file name.</p></li>
+          <li><svg viewBox="0 0 24 24"><path d="M6 15a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.5A3.5 3.5 0 0 1 17 15z" /><path d="M9 19h6" /></svg><h3>Every computer, one account</h3><p>Optional: sign in to see your collections from any browser and merge libraries from your laptop and desktop.</p></li>
+        </ul>
+
+        <ol class="how-it" aria-label="How it works">
+          <li><b>1</b><span><b>Pick a folder</b> for GLUE's own data (a few megabytes).</span></li>
+          <li><b>2</b><span><b>Add your music</b>: folders, songs or a DJ library. GLUE only reads it.</span></li>
+          <li><b>3</b><span><b>Organise and export</b> back to your DJ app, or build a set from any track.</span></li>
+        </ol>
+
+        <div class="cloud-home"><CloudPanel /></div>
+      </div>
+    {/if}
+    <div id="get-started" class="setup">
     {@render stepper()}
-    <h2>Welcome to GLUE</h2>
+    <h2>Set up GLUE on this computer</h2>
     <p class="lede">GLUE organises your music on your own computer. There’s no account and nothing is uploaded. First, GLUE needs a small folder of its own to save your profile, playlists, ratings and analysis.</p>
 
     {#if checking}
@@ -133,6 +193,7 @@
       </div>
       <p class="fine center"><a href="#/analyze">Or just analyse a single file</a> without setting anything up.</p>
     {/if}
+    </div>
 
   {:else if lib.phase === 'reconnect'}
     <h2>Welcome back</h2>
@@ -155,6 +216,11 @@
               <button type="button" class="backup-btn" title="Download a backup (.zip) of this profile" onclick={() => backup(p.id)}>
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5v1h11v-1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Backup
               </button>
+              <button type="button" class="syncbtn" class:on={syncOn[p.id]} data-sync={p.id} aria-pressed={!!syncOn[p.id]}
+                title={sync.status[p.id]?.error ? 'Cloud sync: ' + sync.status[p.id].error : syncOn[p.id] ? 'Cloud sync is on: this profile’s data (not the music) is kept in GLUE Cloud' : 'Keep this profile’s data in GLUE Cloud, to see it from any browser'} onclick={() => toggleSync(p.id)}>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7.2a3 3 0 0 0 .4-6 4.2 4.2 0 0 0-8.1 1.2 2.4 2.4 0 0 0 .5 4.8z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+                {syncOn[p.id] ? (sync.status[p.id]?.busy ? 'Syncing…' : sync.status[p.id]?.error ? 'Sync problem' : sync.status[p.id]?.at ? 'Synced ' + ago(sync.status[p.id].at) : 'Cloud sync on') : 'Cloud sync'}
+              </button>
               <button type="button" title="Rename" onclick={() => { const n = prompt('Rename profile', p.name); if (n?.trim()) void lib.renameProfile(p.id, n); }}>Rename</button>
               <button type="button" class="del" title="Delete this profile" onclick={() => { if (confirm('Delete the profile “' + p.name + '” with all its collections and playlists? Download a backup first if you might want it back. Your music files aren’t touched.')) void lib.deleteProfile(p.id); }}>Delete</button>
             </span>
@@ -169,6 +235,7 @@
         <button type="submit" class="btn" disabled={!profileName.trim()}>Create profile</button>
       </div>
     </form>
+    <CloudPanel />
     <ThemePicker />
     <div class="more">
       <button type="button" class="btn-ghost sm" id="restore-btn" onclick={() => zipInput.click()}>Restore a backup…</button>
@@ -223,9 +290,36 @@
   {/if}
   {#if busy}<p class="muted" role="status">{busy}</p>{/if}
 </section>
+{#if setupFor}<SyncSetup pid={setupFor} onclose={() => (setupFor = null)} />{/if}
 
 <style>
   .welcome { max-width: 900px; margin: 5vh auto 0; display: grid; gap: 18px; }
+  .welcome:has(#homepage) { max-width: 1180px; margin-top: 2vh; }
+  .setup { display: grid; gap: 18px; scroll-margin-top: 24px; }
+  .home { display: grid; gap: clamp(28px, 5vw, 56px); margin-bottom: 24px; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 32px; align-items: center; min-height: min(62vh, 560px); }
+  .kicker { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .hero-h { font-size: clamp(38px, 5.6vw, 72px); line-height: 1.02; font-stretch: 118%; font-weight: 800; letter-spacing: -.02em; margin: 10px 0 18px; }
+  .hero-lede { font-size: clamp(16px, 1.5vw, 19px); color: var(--ink-2); max-width: 580px; }
+  .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin: 26px 0 12px; }
+  .btn.big, .btn-ghost.big { padding: 13px 24px; font-size: 16px; text-decoration: none; display: inline-flex; align-items: center; }
+  .hero-art { position: relative; display: grid; place-items: center; min-height: 360px; }
+  .halo { position: absolute; width: 78%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 26%, transparent), transparent 68%); }
+  .hero-art :global(.gluestick) { position: relative; filter: drop-shadow(0 18px 30px rgb(0 0 0 / .35)); animation: bob 6s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-8px) rotate(2deg); } }
+  @media (prefers-reduced-motion: reduce) { .hero-art :global(.gluestick) { animation: none; } }
+  .appchip { position: absolute; font: 600 12.5px var(--font-sans); padding: 5px 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line-2); color: var(--ink-2); box-shadow: 0 8px 20px rgb(0 0 0 / .25); }
+  .c1 { top: 12%; left: 6%; } .c2 { top: 20%; right: 2%; } .c3 { bottom: 26%; left: 0; } .c4 { bottom: 12%; right: 10%; } .c5 { top: 52%; right: -2%; }
+  .features { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .features li { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 8px; align-content: start; }
+  .features svg { width: 28px; height: 28px; fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .features h3 { font-size: 16px; }
+  .features p { color: var(--ink-2); font-size: 14px; }
+  .how-it { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .how-it li { display: flex; gap: 12px; align-items: flex-start; color: var(--ink-2); font-size: 14.5px; }
+  .how-it li > b { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-weight: 800; }
+  .how-it span b { color: var(--ink); }
+  @media (max-width: 820px) { .hero { grid-template-columns: 1fr; min-height: 0; } .hero-art { min-height: 260px; order: -1; } }
   h2 { font-size: 30px; font-stretch: 115%; }
   h3 { font-size: 16px; }
   .lede { color: var(--ink-2); font-size: 16px; max-width: 720px; }
@@ -263,6 +357,7 @@
   .ptools button { display: inline-flex; align-items: center; gap: 5px; background: none; border: 1px solid var(--line-2); border-radius: 5px; color: var(--ink-2); font-size: 12.5px; padding: 4px 10px; cursor: pointer; }
   .ptools button:hover { color: var(--accent); border-color: var(--accent); }
   .ptools .del:hover { color: var(--bad); border-color: var(--bad); }
+  .ptools .syncbtn.on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 55%, var(--line-2)); }
   .ptools svg { width: 13px; height: 13px; }
   .create { display: grid; gap: 6px; }
   .row { display: flex; gap: 10px; }

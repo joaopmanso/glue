@@ -19,7 +19,7 @@ describe('tempo and key (ADR 0006)', () => {
       expect(r.bpm).not.toBeNull();
       expect(Math.abs(r.bpm! - bpm)).toBeLessThan(0.1);
       expect(NAMES[r.key!.tonic] + ' ' + r.key!.mode).toBe(name);
-    });
+    }, 30_000);   // 30 s of synthesised audio: slow when the whole suite runs in parallel
   }
 });
 

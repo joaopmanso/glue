@@ -12,7 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 function env(): Env {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
-  db.exec(readFileSync(new URL('../cloud/migrations/0001_init.sql', import.meta.url), 'utf8'));
+  for (const m of ['0001_init.sql', '0002_sync.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
   const stmt = (sql: string, args: unknown[] = []): ReturnType<Env['DB']['prepare']> => ({
     bind: (...v: unknown[]) => stmt(sql, v),
     first: async <T,>() => (db.prepare(sql).get(...(args as never[])) as T) ?? null,

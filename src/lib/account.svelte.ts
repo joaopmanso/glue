@@ -99,9 +99,23 @@ class Account {
   pair() { return this.call<{ code: string; expiresAt: number }>('POST', '/v1/pairing', {}); }
   async rename(id: string, name: string) { await this.call('PATCH', '/v1/devices/' + id, { name }); await this.loadMe(); }
   async remove(id: string) { await this.call('DELETE', '/v1/devices/' + id); await this.loadMe(); }
+  /** Told once per sign-in (sync starts then). */
+  onSignedIn: (() => void) | null = null;
   async loadMe() {
     const r = await this.call<{ user: CloudUser; thisDevice: string; devices: CloudDevice[] }>('GET', '/v1/me');
+    const first = this.phase !== 'signed-in';
     this.user = r.user; this.devices = r.devices; this.thisDevice = r.thisDevice; this.phase = 'signed-in';
+    if (first) this.onSignedIn?.();
+  }
+
+  /** Signed-in request to GLUE Cloud (sync uses it). `text` sends a plain-text body; `raw` returns the body as text. */
+  async request<T = unknown>(method: string, path: string, opts: { json?: unknown; text?: string; raw?: boolean } = {}): Promise<T> {
+    if (!this.access || Date.now() > this.accessExp) await this.renew();
+    const go = () => fetch(API_BASE + path, { method, headers: { Authorization: 'Bearer ' + this.access, ...(opts.json !== undefined ? { 'Content-Type': 'application/json' } : opts.text !== undefined ? { 'Content-Type': 'text/plain' } : {}) }, body: opts.json !== undefined ? JSON.stringify(opts.json) : opts.text });
+    let r = await go();
+    if (r.status === 401) { try { await this.renew(); } catch (e) { this.forget(); throw e; } r = await go(); }
+    if (!r.ok) { const j = await r.json().catch(() => ({})) as { error?: string }; throw Object.assign(new Error(j.error || 'GLUE Cloud said no (' + r.status + ')'), { status: r.status }); }
+    return (opts.raw ? await r.text() : await r.json()) as T;
   }
 
   // ---- plumbing -----------------------------------------------------------------------------------

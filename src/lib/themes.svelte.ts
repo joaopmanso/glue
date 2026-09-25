@@ -24,6 +24,15 @@ export const THEMES: ThemeDef[] = [
     light: { ground: '#f3f5f8', surface: '#ffffff', raised: '#eaeef3', line: '#dbe1e8', line2: '#c5cdd8', ink: '#111821', ink2: '#3a4655', muted: '#687586', accent: '#1d74c4', accentInk: '#ffffff', ok: '#12875a', warn: '#a8790a', bad: '#cc3b3b' },
   },
   {
+    // Glue-stick yellow on black, like the classic stick; a darker gold on cream in light mode so
+    // text in the accent colour stays readable. The logo follows the accent, so it turns yellow too.
+    id: 'stick', name: 'Glue Stick', blurb: 'Glue-stick yellow on black, a heavy grotesque, rounded corners.',
+    fonts: { display: '"Archivo", system-ui, sans-serif', sans: '"Archivo", system-ui, -apple-system, "Segoe UI", sans-serif', mono: '"JetBrains Mono", ui-monospace, Consolas, monospace', css: null },
+    radius: '10px', displayWeight: 850, displayTracking: '-0.015em',
+    dark: { ground: '#0c0c0b', surface: '#141412', raised: '#1c1c19', line: '#2a2a25', line2: '#3a3a33', ink: '#f6f3e8', ink2: '#c9c4b3', muted: '#8f8a7a', accent: '#ffd100', accentInk: '#141200', ok: '#4fd18b', warn: '#ff9f1c', bad: '#ff4d3d' },
+    light: { ground: '#fff9e6', surface: '#ffffff', raised: '#fbf1cc', line: '#ece0b6', line2: '#dccb90', ink: '#15140f', ink2: '#433f30', muted: '#7a735d', accent: '#b58500', accentInk: '#ffffff', ok: '#16834f', warn: '#b35c00', bad: '#d32a1d' },
+  },
+  {
     id: 'studio', name: 'Studio', blurb: 'Warm analog desk: walnut and paper, brass accents, a serif for titles.',
     fonts: { display: '"Fraunces", Georgia, serif', sans: '"Hanken Grotesk", system-ui, sans-serif', mono: '"IBM Plex Mono", ui-monospace, Consolas, monospace', css: 'family=Fraunces:opsz,wght@9..144,400..700&family=Hanken+Grotesk:wght@400..800&family=IBM+Plex+Mono:wght@400;600' },
     radius: '8px', displayWeight: 600, displayTracking: '-0.01em',

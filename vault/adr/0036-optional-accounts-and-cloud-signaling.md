@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; "no library data in the cloud" superseded by 0040 (opt-in cloud sync)
 date: 2026-09-25
 ---
 # 0036. Optional accounts and a small free cloud service (Cloudflare) for devices and signaling

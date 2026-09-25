@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// Synthesising and analysing seconds of audio: slow when the whole suite runs in parallel.
+vi.setConfig({ testTimeout: 30_000 });
 import { runJob } from '../src/core/audio/analyze';
 import { classify } from '../src/core/audio/verdict';
 import { blankInfo } from '../src/core/formats/parse';

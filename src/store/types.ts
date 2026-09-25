@@ -10,7 +10,8 @@ export interface ProfileRef { id: string; name: string; color: string }
 export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null; appearance?: { theme: string; mode: 'dark' | 'light' | 'system' } }
 
 export interface CollectionRef { id: string; name: string }
-export interface Profile { schemaVersion: number; id: string; name: string; color: string; createdAt: string; collections: CollectionRef[]; lastCollection: string | null }
+/** cloudSync: this device keeps a copy of the profile's data in GLUE Cloud (ADR 0040). */
+export interface Profile { schemaVersion: number; id: string; name: string; color: string; createdAt: string; collections: CollectionRef[]; lastCollection: string | null; cloudSync?: boolean }
 
 /** A music folder the user granted (handle lives in IndexedDB under `handleKey`). */
 export interface Root { id: string; name: string; absPath: string | null; handleKey: string; addedAt: string }
@@ -39,6 +40,7 @@ export interface Track {
   notes?: string;               // the user's own notes about the track
   grouping?: string;            // the file's / DJ app's Grouping field
   tags?: string[];              // the user's tags; absent until edited, then the found ones (tagsOf) stand in
+  onDevices?: string[];         // cloud views only: the devices that have this track (never saved)
   sources: string[];            // ids of imported sources that contain this track
 }
 

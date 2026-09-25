@@ -36,16 +36,16 @@
   // Takes the version so nested folders re-render when any list changes (the store's maps aren't reactive).
   const childrenOf = (id: string, _version: number) => lib.childLists(id || null);
   const loose = $derived.by(() => { void lib.version; let n = 0; for (const t of lib.store?.tracks.values() ?? []) if (t.fileKey) n++; return n; });
-  let songInput: HTMLInputElement;
+  let songInput = $state<HTMLInputElement>();
   async function addSongs() {
-    if (!canKeepFiles()) { songInput.click(); return; }
+    if (!canKeepFiles()) { songInput?.click(); return; }
     try { await lib.addFiles(await pickAudioFiles()); }
     catch (e) { if ((e as DOMException).name !== 'AbortError') lib.notice = (e as Error).message; }
   }
   const sources = $derived.by(() => { void lib.version; return [...(lib.store?.sources.values() ?? [])]; });
 
   let open = $state<Record<string, boolean>>({});
-  let fileInput: HTMLInputElement;
+  let fileInput = $state<HTMLInputElement>();
   let pathEdit = $state<string | null>(null);
   let menuFor = $state<string | null>(null);   // the list whose ⋯ menu is open
   let tagMenu = $state<string | null>(null);   // the tag whose ⋯ menu is open
@@ -232,6 +232,7 @@
     </ul>
   </section>
 
+  {#if !lib.cloud}
   <section>
     <div class="head">
       <h3 class="label">Music</h3>
@@ -275,7 +276,7 @@
       <h3 class="label">DJ libraries</h3>
       <span class="add">
         <button type="button" id="find-libs" title="Allow another folder for GLUE to look for DJ libraries in" onclick={() => lib.addLibraryPlace('documents')}>Look in…</button>
-        <button type="button" id="import-lib" onclick={() => fileInput.click()} title="Choose a library file yourself: rekordbox XML, Engine DJ m.db, Traktor NML, iTunes / Apple Music XML, M3U">+ Import</button>
+        <button type="button" id="import-lib" onclick={() => fileInput?.click()} title="Choose a library file yourself: rekordbox XML, Engine DJ m.db, Traktor NML, iTunes / Apple Music XML, M3U">+ Import</button>
       </span>
     </div>
     <input type="file" multiple accept={IMPORT_ACCEPT} bind:this={fileInput} hidden id="import-input"
@@ -316,7 +317,8 @@
       </ul>
     </details>
   </section>
-  {#if account.signedIn}<DevicesSection />{/if}
+  {/if}
+  {#if account.signedIn && !lib.cloud}<DevicesSection />{/if}
 </nav>
 
 <style>

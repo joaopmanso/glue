@@ -5,6 +5,21 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · Cloud sync, merged collections, a real start page, Glue Stick theme
+- Cloud sync (opt-in per profile):
+  - library data (never audio) goes to GLUE Cloud;
+  - any signed-in browser opens any device's collection;
+  - merge collections across devices, chosen when the second device links;
+  - edits made in a cloud view reach the owning device the next time it opens;
+  - clean-up per copy or everything.
+
+  [ADR 0040](../adr/0040-cloud-sync-and-merged-collections.md). Backend migration `0002_sync`.
+- Start page: a product homepage (logo, pitch, features, how it works, GLUE Cloud) above the setup.
+- New theme **Glue Stick** (yellow on black); yellow favicon; the logo keeps cream glue and a dark
+  band in every theme.
+- Tests: two slow audio tests got 30 s limits, and the backend tests make one RSA key per file (the
+  suite had begun timing out under load).
+
 ## 2026-09-25 · GLUE Cloud phase 1 live
 - D1 database created, API deployed (also from CI), live smoke test passed, test data removed.
 

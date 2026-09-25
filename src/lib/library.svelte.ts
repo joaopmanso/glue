@@ -78,6 +78,14 @@ class Library {
   onSettled: (() => void) | null = null;
   /** A track's mini spectrogram is ready (the thumbnail cache stores it). */
   onThumb: ((id: string, data: Uint8Array) => void) | null = null;
+  /** A collection from GLUE Cloud on screen instead of a local one (ADR 0040): nothing is analysed,
+      scanned or written to this computer; edits go to the device that owns the data. */
+  cloud = $state.raw<CloudView | null>(null);
+  /** Sync hooks (lib/sync): a local profile's files were saved / a collection opened. */
+  onFlushed: ((pid: string) => void) | null = null;
+  onCollectionOpened: ((pid: string, cid: string) => void) | null = null;
+  /** The GLUE folder (sync reads the profile's files from it). */
+  get homeHandle() { return this.homeDir; }
   /** First run: after the profile, a step that explains how to add music. */
   onboarding = $state<null | 'music'>(null);
   /** A backup chosen on the start screen, restored once the GLUE folder is chosen. */
@@ -225,6 +233,37 @@ class Library {
     await this.home.deleteProfile(pid);
     this.phase = 'profiles';
   }
+  /** Show a collection from GLUE Cloud (built by lib/sync). The local collection is saved and closed first. */
+  async enterCloudView(s: CollectionStore, view: CloudView) {
+    await this.closeCollection();
+    s.onChange = () => { this.version++; this.onCloudChange?.(); };
+    s.onDirty = () => {};
+    this.store = s; this.cloud = view;
+    this.phase = 'library'; this.onboarding = null;
+    this.version++;
+  }
+  onCloudChange: (() => void) | null = null;
+  /** Back to this computer's own library (or the profile list / start when there's none). */
+  async leaveCloudView() {
+    this.cloud = null; this.store = null;
+    if (this.profile) {
+      const p = this.profile;
+      const cid = p.lastCollection && p.collections.some(c => c.id === p.lastCollection) ? p.lastCollection : p.collections[0]?.id;
+      if (cid) return this.openCollection(cid);
+    }
+    this.phase = this.home ? 'profiles' : 'welcome';
+    this.version++;
+  }
+  /** Turn cloud sync on or off for a profile of this GLUE folder. */
+  async setProfileSync(pid: string, on: boolean) {
+    const home = this.home;
+    if (!home) return;
+    const p = { ...(this.profile?.id === pid ? this.profile : await home.loadProfile(pid)), cloudSync: on || undefined };
+    await home.saveProfile(p);
+    if (this.profile?.id === pid) this.profile = p;
+    this.home = null; this.home = home;
+  }
+  async profileInfo(pid: string) { return this.profile?.id === pid ? this.profile : this.home ? this.home.loadProfile(pid) : null; }
   switchProfile() { void this.closeCollection().then(() => { this.profile = null; this.phase = 'profiles'; }); }
 
   async createCollection(name: string) {
@@ -250,6 +289,7 @@ class Library {
     this.version++;
     this.enqueueAll();
     this.onOpened?.();
+    this.onCollectionOpened?.(this.profile.id, cid);
     void this.detectLibraries();
     void this.recheckVerdicts();
   }
@@ -271,23 +311,24 @@ class Library {
   private async closeCollection() {
     this.stopAnalysis();
     await this.flush();
+    this.cloud = null;
     this.store = null; this.roots = [];
     this.looseHandles.clear(); this.looseGranted = new Set();
   }
 
   // ─── Saving ────────────────────────────────────────────────────────────────
   private scheduleFlush() {
-    if (this.readOnly) return;
+    if (this.readOnly || this.cloud) return;
     this.unsaved = true;
     clearTimeout(this.flushTimer);
     this.flushTimer = window.setTimeout(() => void this.flush(), 800);
   }
   async flush() {
     const s = this.store;
-    if (!s || this.readOnly || !s.hasPending) { this.unsaved = false; return; }
+    if (!s || this.readOnly || this.cloud || !s.hasPending) { this.unsaved = false; return; }
     clearTimeout(this.flushTimer);
     this.saving = true;
-    try { await s.flush(); this.saveError = ''; }
+    try { await s.flush(); this.saveError = ''; if (this.profile) this.onFlushed?.(this.profile.id); }
     catch (e) {
       console.error(e);
       // Say it once (the save is retried quietly), and again only if the problem changes.
@@ -402,7 +443,7 @@ class Library {
   /** Look for DJ libraries in every folder GLUE may read: music folders, the GLUE folder, remembered places. */
   async detectLibraries() {
     const s = this.store;
-    if (!s) return;
+    if (!s || this.cloud) return;
     // A request while a search runs (a new place, an import) runs another search right after it.
     if (this.detecting) { this.detectAgain = true; return; }
     this.detecting = true;
@@ -611,6 +652,7 @@ class Library {
 
   // ─── Files and background analysis ─────────────────────────────────────────
   async fileFor(t: Track): Promise<File> {
+    if (this.cloud) throw new Error('This track’s file is on ' + (t.onDevices?.join(' and ') || this.cloud.title) + '. Playing it from another computer comes with GLUE Home streaming.');
     if (t.fileKey) return this.looseFile(t, true);
     const r = this.rootState(t.rootId);
     if (!r?.dir || !t.relPath) throw new Error('This track isn’t linked to a file yet. Add the music folder it lives in.');
@@ -792,7 +834,7 @@ class Library {
   pendingCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (this.needsAnalysis(t)) n++; return n; }
   enqueueAll() {
     const s = this.store;
-    if (!s) return;
+    if (!s || this.cloud) return;
     this.queue = [...s.tracks.values()].filter(t => this.canRead(t) && this.needsAnalysis(t) && !this.active.has(t.id))
       .sort((a, b) => a.addedAt.localeCompare(b.addedAt)).map(t => t.id);
     this.pump();
@@ -821,7 +863,7 @@ class Library {
   private stopAnalysis() { this.queue = []; this.manual = []; this.pool?.stop(); this.pool = null; this.active.clear(); this.analysis = { running: 0, done: 0, failed: 0, paused: this.analysis.paused }; }
 
   private pump() {
-    if (this.readOnly || this.stemsBusy) return;
+    if (this.readOnly || this.stemsBusy || this.cloud) return;
     // With background analysis off, only tracks asked for explicitly are analysed.
     if (this.analysis.paused && !this.manual.length) return;
     this.pool ??= new AnalysisPool();
@@ -886,5 +928,8 @@ async function quickTags(t: Track, file: File): Promise<Track> {
   if (!out.title) { const n = nameFields(out.fileName); out.title = n.title; if (!out.artist) out.artist = n.artist; }
   return out;
 }
+
+/** What a cloud view shows: one device's collection, or a merged collection (see lib/sync). */
+export interface CloudView { kind: 'device' | 'group'; title: string; subtitle: string; updatedAt: number | null }
 
 export const lib = new Library();

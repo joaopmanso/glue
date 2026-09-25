@@ -619,7 +619,7 @@ test('themes: pick a theme and dark / light on the profile screen; it sticks', a
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
   const html = page.locator('html');
   await expect(html).toHaveAttribute('data-theme', 'classic');
-  for (const id of ['classic', 'studio', 'riso', 'moss']) for (const mode of ['dark', 'light']) {
+  for (const id of ['classic', 'stick', 'studio', 'riso', 'moss']) for (const mode of ['dark', 'light']) {
     await page.locator('.top .who').click();
     await page.click('#theme-' + id); await page.click('#mode-' + mode);
     await expect(html).toHaveAttribute('data-theme', id);
@@ -1107,4 +1107,117 @@ test('GLUE account: Google sign-in, devices, pairing a GLUE Home, staying signed
   await expect(page.locator('#devices')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('#account-btn')).toHaveText('Sign in', { timeout: 15_000 });
+});
+
+test('cloud sync: upload, open from the cloud, edits reach the owning device, merge two devices, clean up', async ({ page }) => {
+  // A stand-in GLUE Cloud with the same API as cloud/src (tests/cloud.test.ts covers the real one).
+  await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+    window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+      renderButton(el) { const b = document.createElement('button'); b.className = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
+  const user = { id: 'u1', email: 'dj@example.com', name: 'DJ Test', picture: null };
+  const devices = [{ id: 'b1', kind: 'browser', name: 'Laptop', platform: '', createdAt: 1, lastSeen: 1 }];
+  type Stored = { name: string; stats: unknown; files: Map<string, { hash: string; size: number; data: string }>; updatedAt: number };
+  const cloud = new Map<string, Stored>();                          // 'device/profile'
+  let ops: { seq: number; device: string; profile: string; collection: string; op: unknown }[] = [], seq = 0;
+  let links: { id: string; name: string; members: { device: string; profile: string; collection: string }[] }[] = [];
+  await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
+    const req = r.request(), u = new URL(req.url()), m = req.method(), p = u.pathname;
+    const json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
+    if (p === '/v1/health') return json({ ok: true });
+    if (p === '/v1/auth/google') return json({ access: 'a', refresh: 'r', deviceId: 'b1', user });
+    if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1' });
+    if (p === '/v1/me') return json({ user, thisDevice: 'b1', devices });
+    if (p === '/v1/sync/manifest') {
+      const b = req.postDataJSON(), key = 'b1/' + b.profile.id, s = cloud.get(key) ?? { name: b.profile.name, stats: null, files: new Map(), updatedAt: 0 };
+      s.name = b.profile.name; s.stats = b.stats; s.updatedAt = Date.now();
+      const keep = new Set(b.files.map((f: { path: string }) => f.path));
+      for (const k of [...s.files.keys()]) if (!keep.has(k)) s.files.delete(k);
+      cloud.set(key, s);
+      return json({ need: b.files.filter((f: { path: string; hash: string }) => s.files.get(f.path)?.hash !== f.hash).map((f: { path: string }) => f.path) });
+    }
+    if (p === '/v1/sync/file' && m === 'PUT') {
+      cloud.get('b1/' + u.searchParams.get('profile'))!.files.set(u.searchParams.get('path')!, { hash: u.searchParams.get('hash')!, size: Number(u.searchParams.get('size')), data: req.postData()! });
+      return json({ ok: true });
+    }
+    if (p === '/v1/sync' && m === 'GET') return json({ thisDevice: 'b1', profiles: [...cloud].map(([k, s]) => { const [d, pid] = k.split('/'); return { device: { id: d, name: devices.find(x => x.id === d)!.name, kind: 'browser' }, profile: { id: pid, name: s.name, color: null }, stats: s.stats, files: s.files.size, stored: s.files.size, bytes: 1, updatedAt: s.updatedAt, complete: true }; }) });
+    if (p === '/v1/sync' && m === 'DELETE') { cloud.clear(); ops = []; links = []; return json({ ok: true }); }
+    if (p === '/v1/sync/links' && m === 'GET') return json({ groups: links });
+    if (p === '/v1/sync/links' && m === 'POST') { const b = req.postDataJSON(); const g = { id: 'g1', name: b.name, members: b.members }; links = [g]; return json({ group: 'g1', name: b.name }); }
+    if (p === '/v1/sync/ops' && m === 'POST') { for (const o of req.postDataJSON().ops) ops.push({ seq: ++seq, ...o }); return json({ queued: 1 }); }
+    if (p === '/v1/sync/ops' && m === 'GET') { const d = u.searchParams.get('device') ?? 'b1', pid = u.searchParams.get('profile'); return json({ ops: ops.filter(o => o.device === d && o.profile === pid).map(o => ({ seq: o.seq, collection: o.collection, op: o.op, at: 1 })) }); }
+    if (p === '/v1/sync/ops/ack') { const b = req.postDataJSON(); ops = ops.filter(o => !(o.device === 'b1' && o.profile === b.profile && o.seq <= b.upTo)); return json({ ok: true }); }
+    const f = /^\/v1\/sync\/([\w-]+)\/([\w-]+)(\/file)?$/.exec(p);
+    if (f && !f[3]) return json({ files: [...(cloud.get(f[1] + '/' + f[2])?.files ?? new Map())].map(([path, x]) => ({ path, hash: x.hash, size: x.size })) });
+    if (f && f[3]) return r.fulfill({ contentType: 'text/plain', body: cloud.get(f[1] + '/' + f[2])!.files.get(u.searchParams.get('path')!)!.data });
+    return json({ error: 'not found' }, 404);
+  });
+  await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { ws.send(JSON.stringify({ type: 'presence', online: ['b1'] })); ws.onMessage(() => {}); });
+
+  await seed(page);
+  await page.goto('./');
+  await expect(page.locator('#homepage')).toBeVisible();                      // the start page
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+
+  // Sign in on the profile screen, turn on Cloud sync (the first device: nothing to merge with).
+  await page.locator('.top .who').click();
+  await page.locator('#cloud-panel .fake-google').click();
+  await expect(page.locator('#cloud-panel')).toContainText('dj@example.com');
+  await page.locator('[data-sync]').click();
+  await expect(page.locator('[data-sync]')).toContainText(/Synced/, { timeout: 20_000 });
+  const mine = [...cloud.values()][0];
+  expect(mine.files.size).toBeGreaterThan(3);                                 // profile, collection, track and analysis shards
+  expect([...mine.files.keys()].some(k => /tracks\/\w+\.json$/.test(k))).toBe(true);
+
+  // Open this device's collection from the cloud: the same four tracks; a rating made here is queued for the device.
+  const item = page.locator('#cloud-panel [data-cloud^="b1/"]');
+  await expect(item).toContainText('4 tracks');
+  await item.getByRole('button', { name: 'Open' }).click();
+  await expect(page.locator('#cloud-banner')).toContainText('Laptop');
+  await expect(page.locator('.tr')).toHaveCount(4);
+  await expect(page.locator('.lside')).not.toContainText('DJ libraries');       // this-computer-only parts are hidden
+  const row = page.locator('.tr', { hasText: 'Fixture FLAC' });
+  await row.hover();
+  await row.locator('.c-rate button').nth(3).click({ position: { x: 10, y: 6 } });
+  await expect.poll(() => ops.length, { timeout: 10_000 }).toBe(1);
+  expect(ops[0]).toMatchObject({ device: 'b1', op: { t: 'track', rating: 4 } });
+
+  // Back on this computer, the waiting edit is applied to the local files and acknowledged.
+  await page.click('#leave-cloud');                                            // opened from the profile screen: back there
+  await expect(page.locator('#cloud-banner')).toHaveCount(0);
+  await page.locator('.profile', { hasText: 'DJ Test' }).click();
+  await expect(page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.stars')).toHaveAttribute('aria-valuenow', '4', { timeout: 15_000 });
+  await expect.poll(() => ops.length, { timeout: 10_000 }).toBe(0);
+
+  // A second device with its own copy: turning sync on again offers to merge; the merged view shows both.
+  devices.push({ id: 'desk', kind: 'browser', name: 'Desktop', platform: '', createdAt: 2, lastSeen: 2 });
+  const copy = [...cloud.entries()][0];
+  cloud.set('desk/' + copy[0].split('/')[1], { ...copy[1], files: new Map(copy[1].files) });
+  await page.locator('.top .who').click();
+  page.once('dialog', d => d.accept());
+  await page.locator('[data-sync]').click();                                   // off
+  await expect(page.locator('[data-sync]')).toHaveText(/Cloud sync/);
+  await page.locator('[data-sync]').click();                                   // on again: now there's something to merge with
+  const setup = page.locator('#sync-setup');
+  await expect(setup).toContainText('Merge with Desktop · My collection');
+  await expect(setup.locator('input[value^="m:desk/"]')).toBeChecked();       // same name: merging is suggested
+  await page.click('#sync-go');
+  await expect(setup).toHaveCount(0, { timeout: 20_000 });
+  expect(links[0].members.map(x => x.device).sort()).toEqual(['b1', 'desk']);
+  const merged = page.locator('#cloud-panel [data-group="g1"]');
+  await expect(merged).toContainText('My collection');
+  await merged.getByRole('button', { name: 'Open' }).click();
+  await expect(page.locator('#cloud-banner')).toContainText(/Merged from (Laptop, Desktop|Desktop, Laptop)/);
+  await expect(page.locator('.tr')).toHaveCount(4);                            // the same songs on both: one row each
+  await expect(page.locator('.tr').first().locator('.ondev')).toHaveText(/^(Laptop · Desktop|Desktop · Laptop)$/);
+
+  // Clean up the cloud.
+  await page.click('#leave-cloud');
+  await page.click('#cloud-clean');
+  await page.click('#cloud-clean-go');
+  await expect(page.locator('#cloud-empty')).toBeVisible();
+  expect(cloud.size).toBe(0);
 });

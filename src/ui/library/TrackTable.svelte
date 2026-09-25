@@ -105,6 +105,7 @@
   {:else if k === 'title'}
     {@const g = dupes.groupOf.get(r.t.id)}
     <span class="c-title" title={r.t.fileName}>{r.t.title || r.t.fileName}</span>
+    {#if r.t.onDevices?.length}<span class="ondev" title={'On ' + r.t.onDevices.join(', ')}>{r.t.onDevices.join(' · ')}</span>{/if}
     {#if g?.kind === 'same'}<button type="button" class="dup" title={'Same recording as ' + (g.ids.length - 1) + ' other track' + (g.ids.length > 2 ? 's' : '') + ': show duplicates'}
       onclick={e => { e.stopPropagation(); view.select({ kind: 'dupes' }); }}>{g.ids.length}×</button>{/if}
   {:else if k === 'artist'}<span class="c-artist">{r.t.artist}</span>
@@ -320,6 +321,7 @@
   .tr.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
   .tr.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
   .c-title { color: var(--ink); font-weight: 550; overflow: hidden; text-overflow: ellipsis; }
+  .ondev { flex: none; margin-left: 6px; font-size: 10.5px; color: var(--muted); border: 1px solid var(--line-2); border-radius: 8px; padding: 0 6px; line-height: 15px; }
   .dup { flex: none; margin-left: 6px; background: none; border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); border-radius: 3px; font: 600 10.5px var(--font-mono); padding: 0 4px; cursor: pointer; }
   .dup:hover { background: color-mix(in srgb, var(--warn) 15%, transparent); }
   .c-artist, .c-soft { color: var(--ink-2); }

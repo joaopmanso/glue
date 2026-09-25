@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-09-25
-adrs: [0036, 0037, 0038]
+adrs: [0036, 0040, 0037, 0038]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -68,6 +68,34 @@ an account GLUE works exactly as today, all local.
     a read-only local one;
   - `src/lib/devices.svelte.ts` for devices, presence and pairing;
   - `src/lib/account.svelte.ts` for sign-in.
+
+## Cloud sync and merged collections (built 2026-09-25, [ADR 0040](../adr/0040-cloud-sync-and-merged-collections.md))
+- **Profile screen:**
+  - **Cloud sync** per profile ("Synced 2 min ago"; a problem shows in the tooltip);
+  - the **GLUE Cloud** panel: Google sign-in; every device's synced collections and the merged ones,
+    with **Open**; delete a profile's cloud copy; "Delete everything in my cloud".
+  - The same panel is on the start page, so a new browser can open the collection without any setup.
+- **Linking a second device:** when the account has other devices' collections, the setup dialog
+  asks, per collection, "keep separate" or "merge with …" (same name suggested).
+- **Cloud view:**
+  - a banner says whose collection it is and when it was last synced, with Back / Close;
+  - rows show the devices that have them ("Laptop · Desktop");
+  - ratings, notes, tags and playlists can be edited; they're queued for the owning device(s),
+    which apply them on open.
+  - Playing, analysis, music folders and imports are this-computer only.
+- **Code:**
+  - `src/lib/sync.svelte.ts`: push, pull and views;
+  - `core/library/cloudEdits.ts`, `core/library/mergeCollections.ts`;
+  - `cloud/src/sync.ts`, `cloud/migrations/0002_sync.sql`;
+  - UI: `CloudPanel`, `SyncSetup`.
+- **Tests:**
+  - `tests/cloudsync.test.ts`: edits, merge, translate;
+  - `tests/cloud.test.ts`: sync, links, ops, clean-up, on SQLite;
+  - e2e "cloud sync…": upload, open, edit reaches the device, merge, clean up, against a stand-in
+    API.
+- **Found while testing:** a `File` goes stale if the library saves that file meanwhile
+  (`NotReadableError`), so uploads read each file fresh and retry. The setup dialog must run once:
+  saving the profile re-triggered it.
 
 ## Built (phase 1, 2026-09-25, live)
 - **Live:**

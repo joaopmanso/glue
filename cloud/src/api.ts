@@ -1,5 +1,6 @@
 /* GLUE Cloud API (ADR 0036): Google sign-in, sessions, devices, pairing GLUE Home, and the door to
    the per-user signaling room. Plain request → response, so tests run it against real SQLite. */
+import * as sync from './sync';
 import { normCode, pairingCode, randomId, randomToken, sha256, signAccess, verifyAccess, verifyGoogle, type Access, type JwkSet } from './crypto';
 
 /** The parts of Cloudflare D1 we use (tests pass a node:sqlite shim with the same shape). */
@@ -24,7 +25,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
   const origin = req.headers.get('Origin');
   const allowed = env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean);
   const cors: Record<string, string> = origin && allowed.includes(origin)
-    ? { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS', 'Access-Control-Max-Age': '600', Vary: 'Origin' }
+    ? { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS', 'Access-Control-Max-Age': '600', Vary: 'Origin' }
     : { Vary: 'Origin' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
@@ -74,13 +75,33 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
         return reply({ device: device({ ...d, name }) });
       }
       // Revoke: the device can't refresh or reconnect, and is dropped from the signaling room at once.
+      // Its synced collections go too (ADR 0040).
       await env.DB.batch([
         env.DB.prepare('UPDATE devices SET revoked_at = ? WHERE id = ?').bind(now, d.id),
         env.DB.prepare('DELETE FROM credentials WHERE device_id = ?').bind(d.id),
+        env.DB.prepare('DELETE FROM sync_files WHERE device_id = ?').bind(d.id),
+        env.DB.prepare('DELETE FROM sync_profiles WHERE device_id = ?').bind(d.id),
+        env.DB.prepare('DELETE FROM sync_links WHERE device_id = ?').bind(d.id),
+        env.DB.prepare('DELETE FROM sync_ops WHERE device_id = ?').bind(d.id),
       ]);
       if (env.SIGNAL) await env.SIGNAL.get(env.SIGNAL.idFromName(a.sub)).fetch(new Request('https://signal/kick?device=' + encodeURIComponent(d.id), { method: 'POST' })).catch(() => null);
       return reply({ ok: true });
     }
+    // Cloud sync (ADR 0040).
+    if (m === 'POST' && path === '/v1/sync/manifest') return reply(await sync.manifest(env, a, await body() as unknown as sync.Manifest, now));
+    if (m === 'PUT' && path === '/v1/sync/file') return reply(await sync.putFile(env, a, url.searchParams, await req.text(), now));
+    if (m === 'GET' && path === '/v1/sync') return reply(await sync.list(env, a));
+    if (m === 'DELETE' && path === '/v1/sync') { await env.DB.batch([env.DB.prepare('DELETE FROM sync_links WHERE user_id = ?').bind(a.sub), env.DB.prepare('DELETE FROM sync_ops WHERE user_id = ?').bind(a.sub)]); return reply(await sync.remove(env, a)); }
+    if (m === 'GET' && path === '/v1/sync/links') return reply(await sync.links(env, a));
+    if (m === 'POST' && path === '/v1/sync/links') return reply(await sync.link(env, a, await body(), now, randomId));
+    if (m === 'POST' && path === '/v1/sync/ops') return reply(await sync.pushOps(env, a, await body(), now));
+    if (m === 'GET' && path === '/v1/sync/ops') return reply(await sync.pendingOps(env, a, url.searchParams.get('device') ?? a.dev, url.searchParams.get('profile') ?? ''));
+    if (m === 'POST' && path === '/v1/sync/ops/ack') return reply(await sync.ackOps(env, a, await body()));
+    if (m === 'POST' && path === '/v1/sync/unlink') return reply(await sync.unlink(env, a, await body()));
+    const sm = /^\/v1\/sync\/([\w-]+)\/([\w-]+)(\/file)?$/.exec(path);
+    if (sm && m === 'GET' && !sm[3]) return reply(await sync.files(env, a, sm[1], sm[2]));
+    if (sm && m === 'GET' && sm[3]) return new Response(await sync.getFile(env, a, sm[1], sm[2], url.searchParams.get('path')), { headers: { ...cors, 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
+    if (sm && m === 'DELETE' && !sm[3]) return reply(await sync.remove(env, a, sm[1], sm[2]));
     if (m === 'DELETE' && path === '/v1/me') {
       // Delete the account: user, identities, devices, credentials and codes (cascades).
       await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(a.sub).run();
@@ -88,7 +109,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     }
     throw new HttpError(404, 'not found');
   } catch (e) {
-    if (e instanceof HttpError) return reply({ error: e.message }, e.status);
+    if (e instanceof HttpError || e instanceof sync.SyncError) return reply({ error: e.message }, e.status);
     console.error(e);
     return reply({ error: 'server error' }, 500);
   }
