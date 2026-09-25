@@ -83,6 +83,7 @@ describe('GLUE Cloud: Google sign-in and sessions', () => {
     const r = await call('POST', '/v1/auth/google', { credential: t.slice(0, -4) + 'AAAA' });
     expect(r.status).toBe(401);
     expect((await call('POST', '/v1/auth/google', { credential: await idToken({}, 'unknown-kid') })).status).toBe(401);
+    expect((await call('POST', '/v1/auth/google', { credential: 'x.y.z' })).json.error).toMatch(/malformed token/);
   });
   it('refresh tokens rotate and work once; logout ends the session', async () => {
     const a = await signIn();

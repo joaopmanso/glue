@@ -66,7 +66,8 @@ export async function googleKeys(now = Date.now()): Promise<JwkSet> {
 export async function verifyGoogle(idToken: string, clientId: string, keys: JwkSet, now: number): Promise<GoogleClaims> {
   const parts = idToken.split('.');
   if (parts.length !== 3) throw new Error('malformed token');
-  const head = parse<{ alg: string; kid: string }>(parts[0]);
+  let head: { alg: string; kid: string };
+  try { head = parse<{ alg: string; kid: string }>(parts[0]); } catch { throw new Error('malformed token'); }
   if (head.alg !== 'RS256') throw new Error('unexpected algorithm');
   const jwk = keys.keys.find(k => k.kid === head.kid);
   if (!jwk) throw new Error('unknown signing key');

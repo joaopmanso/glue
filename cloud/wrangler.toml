@@ -12,7 +12,7 @@ ALLOWED_ORIGINS = "https://joaopmanso.github.io,http://localhost:5174,http://loc
 [[d1_databases]]
 binding = "DB"
 database_name = "glue"
-database_id = "TO_BE_CREATED"
+database_id = "99ced31b-453d-462f-a312-57f900cfcf05"
 migrations_dir = "migrations"
 
 [[durable_objects.bindings]]
