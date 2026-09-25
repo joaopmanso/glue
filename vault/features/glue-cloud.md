@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-09-25
-adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0037, 0038]
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0037, 0038]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -81,6 +81,17 @@ an account GLUE works exactly as today, all local.
   - `src/ui/EmailSignIn.svelte`, `src/ui/AdminView.svelte`;
   - `passwordKey` in `src/lib/account.svelte.ts`.
 
+## GLUE Home as the computer's companion (built 2026-09-25, [ADR 0045](../adr/0045-glue-home-companion.md))
+- **Connect:** a code from Devices › + GLUE Home on the same computer (or its "Open GLUE Home" link).
+  GLUE Home becomes that browser's companion, and Devices shows one row per computer.
+- **Library:** it reads the website's GLUE folder (found in Documents/GLUE etc., or chosen) and
+  finds music folders by name (or chosen), read-only.
+- **Streaming:** another computer's songs get a play button while its GLUE Home runs; the whole file
+  comes over WebRTC, then plays and seeks; the track page can analyse it in full.
+- **Updates:** Settings › Updates (version, Check for updates, install by itself), plus a background
+  check every six hours.
+- **Next:** analysis of new tracks by GLUE Home; streaming that starts before the whole file is in.
+
 ## GLUE Home app (built 2026-09-25, [ADR 0044](../adr/0044-glue-home-tauri-tray-app.md))
 - **Install:** Devices › + GLUE Home shows the download for this OS (GitHub release
   `GLUE-Home-Setup.exe` / `GLUE-Home.dmg`) and "Open GLUE Home on this computer" (`gluehome://`).
@@ -90,7 +101,7 @@ an account GLUE works exactly as today, all local.
   - right-click menu: status, Open GLUE library, GLUE Home settings…, Start / Stop / Restart
     service, Quit.
 - **Settings:**
-  - sign in with email and password, Google (the browser opens `#/connect-home`), or a code;
+  - a code from the website (email and Google sign-in were dropped with ADR 0045);
   - this computer's name;
   - incoming folder (default Music/GLUE Incoming);
   - start with the computer (asked on first launch);

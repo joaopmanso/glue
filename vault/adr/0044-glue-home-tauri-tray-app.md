@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; pairing and the device model refined by 0045 (companion, code only)
 date: 2026-09-25
 ---
 # 0044. GLUE Home is a Tauri tray app; the website sends songs to it over WebRTC

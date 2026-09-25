@@ -5,6 +5,20 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · GLUE Home 0.2.0: this computer's companion; streaming; updates itself
+- GLUE Home is the companion of the browser on its computer
+  ([ADR 0045](../adr/0045-glue-home-companion.md)): the code made in that browser links them;
+  Devices shows one row per computer ("GLUE Home on", streaming on). Connecting again replaces the
+  old GLUE Home device (no more duplicates).
+- Codes only: GLUE Home's email and Google sign-in are gone (and the website's `#/connect-home`).
+- GLUE Home reads the website's GLUE folder (found in the usual places) and finds its music folders
+  by name; it never writes to them.
+- Streaming: another computer's songs play here through its GLUE Home, and their track page can
+  "Play and analyse from Desktop" with the full analysis.
+- Updates: "Check for updates" in GLUE Home and automatic installs (signed; tagged releases carry
+  `latest.json`). Installs of 0.1.0 update by hand once.
+- API: migration `0004_companions`; `POST /v1/home/signin` removed.
+
 ## 2026-09-25 · GLUE Home: a tray app for Windows and macOS; send songs to another computer
 - GLUE Home is now a small Tauri app ([ADR 0044](../adr/0044-glue-home-tauri-tray-app.md),
   superseding 0038):
