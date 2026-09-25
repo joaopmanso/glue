@@ -189,6 +189,26 @@ describe('GLUE Cloud: sync and merged collections (ADR 0040)', () => {
     expect(f.json.files.map((x: { path: string }) => x.path)).toEqual(['profile.json']);    // only stored files
     expect((await call('GET', '/v1/sync/' + laptop.json.deviceId + '/p1/file?path=profile.json', undefined, desktop.json.access)).text).toBe('H4sIAAAA12');
   });
+  it('uploads and reads many files per request (ADR 0043)', async () => {
+    const laptop = await signIn(), desktop = await signIn({}, { deviceName: 'Chrome on Mac' });
+    const files = Array.from({ length: 150 }, (_, i) => ({ path: 'collections/c1/tracks/' + i.toString(16).padStart(2, '0') + '.json', hash: h((i % 10).toString()), size: 30 }));
+    await call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'DJ' }, files: [...files, { path: 'collections/c1/lists/l1.json', hash: h('e'), size: 5 }] }, laptop.json.access);
+    const body = files.map((f, i) => f.path + '\t' + f.hash + '\t30\t' + 'QUFB'.repeat(i + 1)).join('\n');
+    const up = await call('POST', '/v1/sync/files?profile=p1', body, laptop.json.access);
+    expect(up.status).toBe(200);
+    expect(up.json.stored).toBe(150);
+    const list = await call('GET', '/v1/sync/' + laptop.json.deviceId + '/p1', undefined, desktop.json.access);
+    expect(list.json.files).toHaveLength(150);                                  // the list isn't uploaded yet
+    expect(list.json.files[3]).toMatchObject({ stored: 16 });
+    // In the order asked; files not stored are left out.
+    const want = ['collections/c1/lists/l1.json', files[5].path, files[0].path];
+    const b = await call('POST', '/v1/sync/' + laptop.json.deviceId + '/p1/bundle', { paths: want }, desktop.json.access);
+    expect(b.text.split('\n')).toEqual([files[5].path + '\t' + h('5') + '\t' + 'QUFB'.repeat(6), files[0].path + '\t' + h('0') + '\tQUFB']);
+    expect((await call('POST', '/v1/sync/' + laptop.json.deviceId + '/p1/bundle', { paths: ['../x'] }, desktop.json.access)).status).toBe(400);
+    expect((await call('POST', '/v1/sync/files?profile=p1', 'bad\tline', laptop.json.access)).status).toBe(400);
+    const other = await signIn({ sub: 'g-other' });
+    expect((await call('POST', '/v1/sync/' + laptop.json.deviceId + '/p1/bundle', { paths: want }, other.json.access)).status).toBe(404);
+  });
   it('refuses bad paths, oversized files, uploads before a manifest, and other accounts', async () => {
     const a = await signIn();
     expect((await call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'x' }, files: [{ path: '../etc', hash: h('a'), size: 1 }] }, a.json.access)).status).toBe(400);

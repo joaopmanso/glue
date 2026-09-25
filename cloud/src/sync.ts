@@ -6,6 +6,8 @@ import type { Env } from './api';
 
 export const MAX_FILE = 1_800_000;        // base64 characters per file (D1 rows are at most 2 MB)
 export const MAX_FILES = 5000;            // per profile per device
+/** Batches (ADR 0043): an upload body, files in it, and a download answer, in characters. */
+export const MAX_BATCH_BODY = 1_900_000, MAX_BATCH_FILES = 200, MAX_BUNDLE = 1_500_000, MAX_BUNDLE_PATHS = 2000;
 /** Stored per user (base64), by tier (ADR 0041). Everyone is on paid for now. */
 export const MAX_BYTES: Record<string, number> = { free: 50_000_000, paid: 300_000_000, admin: 1_000_000_000 };
 
@@ -55,6 +57,33 @@ export async function putFile(env: Env, a: Access, q: URLSearchParams, text: str
   return { ok: true };
 }
 
+/** Several files in one request (ADR 0043): lines `path \t hash \t size \t base64`. A big library's
+    first upload is a few requests instead of one per file. */
+export async function putFiles(env: Env, a: Access, q: URLSearchParams, text: string, now: number) {
+  const profile = q.get('profile') ?? '';
+  if (!ID.test(profile)) throw new SyncError(400, 'bad profile');
+  if (text.length > MAX_BATCH_BODY) throw new SyncError(413, 'batch too large');
+  const rows: { path: string; hash: string; size: number; data: string }[] = [];
+  for (const line of text.split('\n')) {
+    if (!line) continue;
+    const [path, hash, size, data = ''] = line.split('\t');
+    if (!okPath(path) || !HASH.test(hash) || !Number.isFinite(Number(size))) throw new SyncError(400, 'bad file entry: ' + String(path).slice(0, 80));
+    if (data.length > MAX_FILE) throw new SyncError(413, 'file too large for cloud sync: ' + path);
+    if (!/^[A-Za-z0-9+/=]*$/.test(data.slice(0, 200))) throw new SyncError(400, 'expected base64');
+    rows.push({ path, hash, size: Number(size), data });
+  }
+  if (rows.length > MAX_BATCH_FILES) throw new SyncError(400, 'too many files in one batch (at most ' + MAX_BATCH_FILES + ')');
+  if (!rows.length) return { ok: true, stored: 0 };
+  const known = await env.DB.prepare('SELECT 1 FROM sync_profiles WHERE user_id = ? AND device_id = ? AND profile_id = ?').bind(a.sub, a.dev, profile).first();
+  if (!known) throw new SyncError(409, 'send the manifest first');
+  const used = await env.DB.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM sync_files WHERE user_id = ?').bind(a.sub).first<{ n: number }>();
+  const tier = (await env.DB.prepare('SELECT tier FROM users WHERE id = ?').bind(a.sub).first<{ tier: string }>())?.tier ?? 'free';
+  if ((used?.n ?? 0) + rows.reduce((s, r) => s + r.data.length, 0) > (MAX_BYTES[tier] ?? MAX_BYTES.free)) throw new SyncError(507, 'cloud storage for this account is full');
+  await env.DB.batch(rows.map(r => env.DB.prepare('INSERT INTO sync_files (user_id, device_id, profile_id, path, hash, size, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (user_id, device_id, profile_id, path) DO UPDATE SET hash = excluded.hash, size = excluded.size, data = excluded.data, updated_at = excluded.updated_at')
+    .bind(a.sub, a.dev, profile, r.path, r.hash, r.size, r.data, now)));
+  return { ok: true, stored: rows.length };
+}
+
 /** Every synced profile of the user's devices (this one included). */
 export async function list(env: Env, a: Access) {
   const rows = (await env.DB.prepare(`SELECT sp.device_id, sp.profile_id, sp.name, sp.color, sp.stats, sp.files, sp.bytes, sp.updated_at, d.name AS device_name, d.kind AS device_kind,
@@ -77,8 +106,29 @@ async function ownDevice(env: Env, a: Access, device: string) {
 }
 export async function files(env: Env, a: Access, device: string, profile: string) {
   await ownDevice(env, a, device);
-  const rows = (await env.DB.prepare('SELECT path, hash, size FROM sync_files WHERE user_id = ? AND device_id = ? AND profile_id = ? AND data IS NOT NULL ORDER BY path').bind(a.sub, device, profile).all<ManifestFile>()).results;
+  // stored: the base64 length, so readers can ask for batches of a known size.
+  const rows = (await env.DB.prepare('SELECT path, hash, size, LENGTH(data) AS stored FROM sync_files WHERE user_id = ? AND device_id = ? AND profile_id = ? AND data IS NOT NULL ORDER BY path').bind(a.sub, device, profile).all<ManifestFile & { stored: number }>()).results;
   return { files: rows };
+}
+/** Many files in one answer (ADR 0043): lines `path \t hash \t base64`, in the order asked, up to about
+    1.5 MB. Files not stored (yet) are left out; what doesn't fit is asked for again. */
+export async function bundle(env: Env, a: Access, device: string, profile: string, b: { paths?: unknown }): Promise<string> {
+  const paths = Array.isArray(b?.paths) ? b.paths : [];
+  if (paths.length > MAX_BUNDLE_PATHS || !paths.every(okPath)) throw new SyncError(400, 'bad paths');
+  await ownDevice(env, a, device);
+  if (!paths.length) return '';
+  const rows = (await env.DB.prepare('SELECT path, hash, data FROM sync_files WHERE user_id = ? AND device_id = ? AND profile_id = ? AND data IS NOT NULL AND path IN (SELECT value FROM json_each(?))')
+    .bind(a.sub, device, profile, JSON.stringify(paths)).all<{ path: string; hash: string; data: string }>()).results;
+  const at = new Map((paths as string[]).map((p, i) => [p, i]));
+  rows.sort((x, y) => at.get(x.path)! - at.get(y.path)!);
+  const out: string[] = [];
+  let n = 0;
+  for (const r of rows) {
+    const len = r.path.length + r.hash.length + r.data.length + 3;
+    if (out.length && n + len > MAX_BUNDLE) break;
+    out.push(r.path + '\t' + r.hash + '\t' + r.data); n += len;
+  }
+  return out.join('\n');
 }
 export async function getFile(env: Env, a: Access, device: string, profile: string, path: string | null): Promise<string> {
   if (!okPath(path)) throw new SyncError(400, 'bad path');

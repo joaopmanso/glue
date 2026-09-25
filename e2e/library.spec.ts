@@ -1121,7 +1121,8 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   const cloud = new Map<string, Stored>();                          // 'device/profile'
   let ops: { seq: number; device: string; profile: string; collection: string; op: unknown }[] = [], seq = 0;
   let links: { id: string; name: string; members: { device: string; profile: string; collection: string }[] }[] = [];
-  let slow = false, offline = false;
+  let slow = false, offline = false, bundles = 0;
+  const batches: number[] = [];
   await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
     const req = r.request(), u = new URL(req.url()), m = req.method(), p = u.pathname;
     const json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
@@ -1143,6 +1144,13 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
       cloud.get('b1/' + u.searchParams.get('profile'))!.files.set(u.searchParams.get('path')!, { hash: u.searchParams.get('hash')!, size: Number(u.searchParams.get('size')), data: req.postData()! });
       return json({ ok: true });
     }
+    if (p === '/v1/sync/files' && m === 'POST') {
+      const s = cloud.get('b1/' + u.searchParams.get('profile'))!;
+      const lines = req.postData()!.split('\n').filter(Boolean);
+      batches.push(lines.length);
+      for (const l of lines) { const [path, hash, size, data] = l.split('\t'); s.files.set(path, { hash, size: Number(size), data }); }
+      return json({ ok: true, stored: lines.length });
+    }
     if (p === '/v1/sync' && m === 'GET') return json({ thisDevice: 'b1', profiles: [...cloud].map(([k, s]) => { const [d, pid] = k.split('/'); return { device: { id: d, name: devices.find(x => x.id === d)!.name, kind: 'browser' }, profile: { id: pid, name: s.name, color: null }, stats: s.stats, files: s.files.size, stored: s.files.size, bytes: 1, updatedAt: s.updatedAt, complete: true }; }) });
     if (p === '/v1/sync' && m === 'DELETE') { cloud.clear(); ops = []; links = []; return json({ ok: true }); }
     if (p === '/v1/sync/links' && m === 'GET') return json({ groups: links });
@@ -1150,8 +1158,13 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
     if (p === '/v1/sync/ops' && m === 'POST') { for (const o of req.postDataJSON().ops) ops.push({ seq: ++seq, ...o }); return json({ queued: 1 }); }
     if (p === '/v1/sync/ops' && m === 'GET') { const d = u.searchParams.get('device') ?? 'b1', pid = u.searchParams.get('profile'); return json({ ops: ops.filter(o => o.device === d && o.profile === pid).map(o => ({ seq: o.seq, collection: o.collection, op: o.op, at: 1 })) }); }
     if (p === '/v1/sync/ops/ack') { const b = req.postDataJSON(); ops = ops.filter(o => !(o.device === 'b1' && o.profile === b.profile && o.seq <= b.upTo)); return json({ ok: true }); }
-    const f = /^\/v1\/sync\/([\w-]+)\/([\w-]+)(\/file)?$/.exec(p);
-    if (f && !f[3]) return json({ files: [...(cloud.get(f[1] + '/' + f[2])?.files ?? new Map())].map(([path, x]) => ({ path, hash: x.hash, size: x.size })) });
+    const f = /^\/v1\/sync\/([\w-]+)\/([\w-]+)(\/file|\/bundle)?$/.exec(p);
+    if (f && !f[3]) return json({ files: [...(cloud.get(f[1] + '/' + f[2])?.files ?? new Map())].map(([path, x]) => ({ path, hash: x.hash, size: x.size, stored: x.data.length })) });
+    if (f && f[3] === '/bundle') {
+      bundles++;
+      const got = cloud.get(f[1] + '/' + f[2])!.files;
+      return r.fulfill({ contentType: 'text/plain', body: (req.postDataJSON().paths as string[]).filter(x => got.has(x)).map(x => x + '\t' + got.get(x)!.hash + '\t' + got.get(x)!.data).join('\n') });
+    }
     if (f && f[3]) return r.fulfill({ contentType: 'text/plain', body: cloud.get(f[1] + '/' + f[2])!.files.get(u.searchParams.get('path')!)!.data });
     return json({ error: 'not found' }, 404);
   });
@@ -1175,6 +1188,7 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await expect.poll(() => [...cloud.values()][0]?.files.size ?? 0, { timeout: 20_000 }).toBeGreaterThan(3);
   const mine = [...cloud.values()][0];
   expect([...mine.files.keys()].some(k => /tracks\/\w+\.json$/.test(k))).toBe(true);
+  expect(batches[0]).toBe(mine.files.size);                                    // one request for the whole first upload
   await expect(page.locator('[data-col="device"]')).toHaveCount(0);            // one device: no Device column
 
   // Open this device's collection from the cloud: the same four tracks; a rating made here is queued for the device.
@@ -1223,6 +1237,7 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await expect(page.locator('.tr')).toHaveCount(5, { timeout: 20_000 });
   slow = false;
   expect(links[0].members.map(x => x.device).sort()).toEqual(['b1', 'desk']);
+  expect(bundles).toBeGreaterThan(0);                                          // many files per request
   await expect(page.locator('[data-col="device"]')).toHaveCount(1);
   const desk = page.locator('.tr', { hasText: 'Desk Only Song' });
   await expect(desk.locator('[data-c="device"]')).toHaveText('Desktop');

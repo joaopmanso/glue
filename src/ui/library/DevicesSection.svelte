@@ -51,7 +51,6 @@
     return rs.reduce((n, r) => n + (r.stats?.collections ?? []).reduce((a, c) => a + c.tracks, 0), 0);
   }
   const syncedAt = (d: CloudDevice) => Math.max(0, ...sync.remote.filter(r => r.device.id === d.id).map(r => r.updatedAt)) || null;
-  const filterable = $derived(manyDevices());
   const only = $derived(view.filters.device);
 
   function openMenu(e: MouseEvent, d: CloudDevice) {
@@ -88,7 +87,7 @@
       {@const loading = !!sync.busy && sync.busy.includes(d.name)}
       <li>
         <div class="item dev" data-device={d.id} class:sel={only.includes(d.name)} style:--c={deviceColor(d.name)}>
-          <button type="button" class="dname" disabled={!filterable} title={filterable ? (only.includes(d.name) ? 'Show every device’s songs again' : 'Show only the songs on ' + d.name) : d.name}
+          <button type="button" class="dname" aria-pressed={only.includes(d.name)} title={only.includes(d.name) ? 'Show every device’s songs again' : 'Show only the songs on ' + d.name}
             onclick={() => view.toggleFilter('device', d.name)}>
             <i class="sw" class:on aria-hidden="true"></i>
             <span class="txt"><b>{d.name}</b><small>{d.kind === 'home' ? 'GLUE Home · ' : ''}{seen(d)}{n != null ? ' · ' + n.toLocaleString() + ' song' + (n === 1 ? '' : 's') : ''}{!me && at ? ' · synced ' + ago(at) : ''}</small></span>
@@ -145,7 +144,6 @@ node home/src/main.ts run</pre>
   .dev:hover { background: var(--raised); }
   .dev.sel { background: color-mix(in srgb, var(--c) 14%, transparent); border-color: color-mix(in srgb, var(--c) 45%, transparent); }
   .dname { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: pointer; font: inherit; }
-  .dname:disabled { cursor: default; }
   .sw { position: relative; width: 12px; height: 26px; border-radius: 3px; background: var(--c); flex: none; }
   .sw.on::after { content: ''; position: absolute; right: -3px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--ground); }
   .txt { flex: 1; min-width: 0; display: grid; line-height: 1.25; font-size: 13px; }

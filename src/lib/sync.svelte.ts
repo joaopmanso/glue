@@ -11,7 +11,7 @@
 import { lib } from './library.svelte';
 import { account } from './account.svelte';
 import { walk } from '../store/backup';
-import { fileAt, readJSON, removePath, subdir, writeJSON, writeText, type Dir } from '../store/fsx';
+import { fileAt, readJSON, removePath, subdir, writeJSON, type Dir } from '../store/fsx';
 import { MemDir, asDir } from '../store/memdir';
 import { CollectionStore } from '../store/collection';
 import { SCHEMA, shardOf, type Profile } from '../store/types';
@@ -35,6 +35,13 @@ type OutOp = Member & { op: EditOp };
 export const syncOn = (p: Profile | null | undefined) => !!p && p.cloudSync !== false;
 
 const PUSH_DELAY = 20_000, PUSH_GAP = 90_000, PULL_EVERY = 120_000, PARALLEL = 4;
+/** Batch sizes in base64 characters (ADR 0043): uploads, and downloads (small, so songs appear as they come). */
+const UP_BATCH = 1_000_000, DOWN_BATCH = 400_000;
+/** Imports' DJ-app details stay on their device; the rest comes first by what shows first. */
+const wanted = (p: string) => !/\/sources\//.test(p);
+const rank = (p: string) => /(^|\/)(collection|profile)\.json$/.test(p) ? 0 : /\/lists\//.test(p) ? 1 : /\/tracks\//.test(p) ? 2 : 3;
+/** A device's synced files as kept in cloud/<device>-<profile>.json: path → [hash, gzip base64]. */
+interface Snapshot { v: 2; files: Record<string, [string, string]> }
 
 // ---- bytes ------------------------------------------------------------------------------------------
 async function sha256hex(b: Uint8Array): Promise<string> {
@@ -122,13 +129,26 @@ class CloudSync {
       const stats = { collections: await Promise.all(profile!.collections.map(async c => ({ id: c.id, name: c.name, tracks: await this.trackCount(pid, c.id) }))) };
       const { need } = await account.request<{ need: string[] }>('POST', '/v1/sync/manifest', { json: { profile: { id: pid, name: profile!.name, color: profile!.color }, stats, files: list.map(({ path, hash, size }) => ({ path, hash, size })) } });
       const want = new Set(need);
-      await pool(list.filter(f => want.has(f.path)), PARALLEL, async f => {
+      // In batches of about 1 MB (ADR 0043): a 7k-track library is a few requests, not a thousand.
+      let batch: string[] = [], size = 0, batched = true;
+      const send = async () => {
+        if (!batch.length) return;
+        const lines = batch; batch = []; size = 0;
+        if (batched) {
+          try { await account.request('POST', '/v1/sync/files?profile=' + encodeURIComponent(pid), { text: lines.join('\n') }); return; }
+          catch (e) { if ((e as { status?: number }).status !== 404) throw e; batched = false; }   // an older GLUE Cloud
+        }
+        await pool(lines, PARALLEL, async l => { const [path, hash, sz, b64] = l.split('\t'); await account.request('PUT', '/v1/sync/file?' + new URLSearchParams({ profile: pid, path, hash, size: sz }), { text: b64 }); });
+      };
+      for (const f of list.filter(x => want.has(x.path))) {
         const { bytes } = await read(f.path);
         // Changed since the manifest: send what's there now (the next push corrects the manifest).
         const hash = await sha256hex(bytes);
-        const gz = await pipe(bytes, new CompressionStream('gzip'));
-        await account.request('PUT', '/v1/sync/file?' + new URLSearchParams({ profile: pid, path: f.path, hash, size: String(bytes.length) }), { text: toB64(gz) });
-      });
+        const line = f.path + '\t' + hash + '\t' + bytes.length + '\t' + toB64(await pipe(bytes, new CompressionStream('gzip')));
+        if (batch.length && (size + line.length > UP_BATCH || batch.length >= 150)) await send();
+        batch.push(line); size += line.length;
+      }
+      await send();
       this.lastPush.set(pid, Date.now());
       this.set(pid, { busy: false, at: Date.now(), error: '' });
       void this.refresh().catch(() => {});   // the cloud list shows the new copy
@@ -270,31 +290,45 @@ class CloudSync {
     return account.devices.find(d => d.id === id)?.name ?? this.remote.find(r => r.device.id === id)?.device.name ?? 'This computer';
   }
 
-  /** Lay the other devices' part of the merged collection over the open one (or take it away). */
+  /** Lay the other devices' part of the merged collection over the open one (or take it away).
+      Online, their songs appear batch by batch while they arrive. */
   private async showOverlay(pid: string, cid: string, online: boolean, me = account.thisDevice ?? '', still = () => lib.profile?.id === pid && lib.store?.meta.id === cid && !lib.cloud) {
     const g = this.groups.find(x => x.members.some(m => m.device === me && m.profile === pid && m.collection === cid)) ?? null;
     if (!g) { if (this.overlay) { await this.sendEdits(); this.overlay = null; this.others = []; lib.applyOverlay(null); } return; }
     const data: MemberData[] = [], used: Member[] = [];
+    const show = async (list: MemberData[], members: Member[]) => {
+      if (!still()) return;
+      await this.sendEdits();   // what changed against the previous overlay goes out first
+      this.others = list; this.otherMembers = members; this.overlayGroup = g; this.meId = me;
+      this.rebuild();
+    };
+    // While songs arrive the library updates at most about once a second (a 50k-song merge takes ~1 s).
+    let shownAt = 0;
     try {
       for (const m of g.members) {
         if (m.device === me) continue;
         const r = this.remote.find(x => x.device.id === m.device && x.profile.id === m.profile);
         if (!r) continue;   // that device hasn't uploaded yet
+        const expected = r.stats?.collections?.find(c => c.id === m.collection)?.tracks ?? 0;
+        const member = (s: CollectionStore): MemberData => ({ device: { id: m.device, name: r.device.name }, profile: m.profile, collection: m.collection, meta: s.meta, tracks: [...s.tracks.values()], analysis: s.analysis, lists: [...s.lists.values()], sources: [] });
         if (online) this.busy = 'Updating from ' + r.device.name + '…';
         try {
-          const dir = await this.mirror(m.device, m.profile, online);
+          const dir = await this.mirror(m.device, m.profile, online, async part => {
+            if (Date.now() - shownAt < 1000) return;
+            const s = await CollectionStore.load(part, m.profile, m.collection).catch(() => null);
+            if (!s || !still()) return;
+            this.busy = 'Updating from ' + r.device.name + '… ' + s.tracks.size.toLocaleString() + (expected ? ' of ' + expected.toLocaleString() : '') + ' songs';
+            await show([...data, member(s)], [...used, m]);
+            shownAt = Date.now();
+          });
           const s = await CollectionStore.load(dir, m.profile, m.collection);
           // Edits still waiting for that device, on top of its last copy.
-          if (online) apply(s, (await this.pending(m.device, m.profile)).filter(o => o.collection === m.collection).map(o => o.op));
-          data.push({ device: { id: m.device, name: r.device.name }, profile: m.profile, collection: m.collection, meta: s.meta, tracks: [...s.tracks.values()], analysis: s.analysis, lists: [...s.lists.values()], sources: [] });
-          used.push(m);
+          if (online) apply(s, (await this.pending(m.device, m.profile).catch(() => [])).filter(o => o.collection === m.collection).map(o => o.op));
+          data.push(member(s)); used.push(m);
         } catch (e) { if (online) console.warn('Cloud sync: no copy of ' + r.device.name + ' yet', e); }
       }
     } finally { if (online) this.busy = ''; }
-    if (!still()) return;
-    await this.sendEdits();   // what changed against the previous overlay goes out first
-    this.others = data; this.otherMembers = used; this.overlayGroup = g; this.meId = me;
-    this.rebuild();
+    await show(data, used);
   }
   /** Merge the open collection (as it is now) with the other devices' copies, and show it. */
   private rebuild() {
@@ -354,26 +388,60 @@ class CloudSync {
     const d = await this.cacheRoot();
     return d ? await readJSON<CacheState>(d, 'state.json').catch(() => null) : null;
   }
-  /** A device's profile files: the copy in cloud/<device>/, brought up to date from the cloud when
-      online (only the files that changed). Offline, or while GLUE Cloud can't be reached: the last copy. */
-  private async mirror(device: string, profile: string, online: boolean): Promise<Dir> {
-    const root = await this.cacheRoot();
-    const dir = (root && await subdir(root, [device], !lib.readOnly).catch(() => null)) || asDir(new MemDir());
-    const hashesAt = profile + '.hashes.json';
-    const known = (await readJSON<Record<string, string>>(dir, hashesAt).catch(() => null)) ?? {};
-    if (!online) { if (!Object.keys(known).length) throw new Error('No copy of this device yet.'); return dir; }
-    let files: { path: string; hash: string }[];
-    try { files = (await account.request<{ files: { path: string; hash: string }[] }>('GET', '/v1/sync/' + device + '/' + profile)).files; }
-    catch (e) { if (Object.keys(known).length) return dir; throw e; }
-    const want = new Map(files.map(f => [f.path, f.hash]));
-    await pool(files.filter(f => known[f.path] !== f.hash), 6, async f => {
-      const b64 = await account.request<string>('GET', '/v1/sync/' + device + '/' + profile + '/file?path=' + encodeURIComponent(f.path), { raw: true });
-      await writeText(dir, 'profiles/' + profile + '/' + f.path, new TextDecoder().decode(await pipe(fromB64(b64), new DecompressionStream('gzip'))));
-      known[f.path] = f.hash;
-    });
-    for (const path of Object.keys(known)) if (!want.has(path)) { await removePath(dir, 'profiles/' + profile + '/' + path).catch(() => {}); delete known[path]; }
-    await writeJSON(dir, hashesAt, known).catch(() => {});
-    return dir;
+  /** A device's synced files: the copy in cloud/<device>-<profile>.json, brought up to date from the
+      cloud when online. Only files that changed come, many per request, playlists and songs first;
+      `onPart` sees what has arrived after each batch. Offline, or while GLUE Cloud can't be reached:
+      the last copy. A file that can't be had now is left for next time. */
+  private async mirror(device: string, profile: string, online: boolean, onPart?: (d: Dir) => Promise<void>): Promise<Dir> {
+    const root = await this.cacheRoot(), name = device + '-' + profile + '.json';
+    const snap = (root && await readJSON<Snapshot>(root, name).catch(() => null)) || { v: 2, files: {} };
+    const texts = new Map<string, string>();
+    const decode = async (p: string) => { if (!texts.has(p)) texts.set(p, new TextDecoder().decode(await pipe(fromB64(snap.files[p][1]), new DecompressionStream('gzip')))); };
+    const toDir = async () => {
+      await Promise.all(Object.keys(snap.files).map(decode));
+      const d = new MemDir();
+      for (const p of Object.keys(snap.files)) await d.put('profiles/' + profile + '/' + p, texts.get(p)!);
+      return asDir(d);
+    };
+    const had = Object.keys(snap.files).length > 0;
+    if (!online) { if (!had) throw new Error('No copy of this device yet.'); return toDir(); }
+    let list: { path: string; hash: string; stored?: number }[];
+    try { list = (await account.request<{ files: { path: string; hash: string; stored?: number }[] }>('GET', '/v1/sync/' + device + '/' + profile)).files.filter(f => wanted(f.path)); }
+    catch (e) { if (had) return toDir(); throw e; }
+    const want = new Set(list.map(f => f.path));
+    let changed = false;
+    for (const p of Object.keys(snap.files)) if (!want.has(p)) { delete snap.files[p]; texts.delete(p); changed = true; }
+    const todo = list.filter(f => snap.files[f.path]?.[0] !== f.hash).sort((x, y) => rank(x.path) - rank(y.path) || x.path.localeCompare(y.path));
+    let bundles = true;
+    while (todo.length) {
+      const group: typeof todo = [];
+      let size = 0;
+      while (todo.length && (!group.length || (size + (todo[0].stored ?? 4000) <= DOWN_BATCH && group.length < 500))) { const f = todo.shift()!; group.push(f); size += f.stored ?? 4000; }
+      let got = new Map<string, [string, string]>();
+      if (bundles) {
+        try {
+          const text = await account.request<string>('POST', '/v1/sync/' + device + '/' + profile + '/bundle', { json: { paths: group.map(f => f.path) }, raw: true });
+          for (const line of text ? text.split('\n') : []) { const [p, hash, b64] = line.split('\t'); if (p && b64 !== undefined) got.set(p, [hash, b64]); }
+        } catch (e) { if ((e as { status?: number }).status !== 404) throw e; bundles = false; }   // an older GLUE Cloud
+      }
+      if (!bundles) {
+        got = new Map();
+        await pool(group, 6, async f => {
+          const b64 = await account.request<string>('GET', '/v1/sync/' + device + '/' + profile + '/file?path=' + encodeURIComponent(f.path), { raw: true }).catch(() => null);
+          if (b64 != null) got.set(f.path, [f.hash, b64]);
+        });
+      }
+      for (const [p, v] of got) { snap.files[p] = v; texts.delete(p); }
+      changed ||= got.size > 0;
+      // What didn't fit in the answer comes in the next request (unless nothing came: then next time).
+      if (got.size) todo.unshift(...group.filter(f => !got.has(f.path)));
+      if (onPart && got.size) await onPart(await toDir());
+    }
+    if (changed && root && !lib.readOnly) {
+      await writeJSON(root, name, snap).catch(() => {});
+      await removePath(root, device).catch(() => {});   // the copy's earlier layout (a folder per device)
+    }
+    return toDir();
   }
 
   // ---- cloud → a view in this browser -------------------------------------------------------------
@@ -462,7 +530,7 @@ class CloudSync {
   async deleteCopy(device: string, profile: string) {
     await account.request('DELETE', '/v1/sync/' + device + '/' + profile);
     const root = lib.readOnly ? null : await this.cacheRoot();
-    if (root) await removePath(root, device).catch(() => {});
+    if (root) { await removePath(root, device + '-' + profile + '.json').catch(() => {}); await removePath(root, device).catch(() => {}); }
     await this.refresh(); await this.resync();
   }
   async deleteAll() {

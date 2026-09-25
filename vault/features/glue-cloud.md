@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-09-25
-adrs: [0036, 0040, 0041, 0042, 0037, 0038]
+adrs: [0036, 0040, 0041, 0042, 0043, 0037, 0038]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -86,8 +86,10 @@ an account GLUE works exactly as today, all local.
 - **Merges by itself:** a collection opens → it's merged with the same-named one on another device
   (or the only one there is). Unmerge in the cloud panel sticks.
 - **One library:** the other devices' songs and playlists show in this computer's own library,
-  from a copy in the GLUE folder (`cloud/`): instant, and offline too. "Updating from Desktop…"
-  while the copy refreshes (only files that changed).
+  from a copy in the GLUE folder (`cloud/<device>-<profile>.json`): instant, and offline too.
+  "Updating from Desktop… 3,200 of 7,000 songs" while it refreshes: only files that changed, many
+  per request, playlists and songs first, shown as they arrive
+  ([ADR 0043](../adr/0043-batched-sync-and-progressive-loading.md)).
 - **Device column** (only with several devices' songs): coloured chips, click to filter; also in
   Filter › Device. Sidebar › Devices: each device's colour, songs, when it synced, a streaming-off
   mark, and click to show only its songs. The ⋯ menu floats where it fits.

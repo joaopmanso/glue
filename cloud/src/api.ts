@@ -95,6 +95,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     // Cloud sync (ADR 0040).
     if (m === 'POST' && path === '/v1/sync/manifest') return reply(await sync.manifest(env, a, await body() as unknown as sync.Manifest, now));
     if (m === 'PUT' && path === '/v1/sync/file') return reply(await sync.putFile(env, a, url.searchParams, await req.text(), now));
+    if (m === 'POST' && path === '/v1/sync/files') return reply(await sync.putFiles(env, a, url.searchParams, await req.text(), now));
     if (m === 'GET' && path === '/v1/sync') return reply(await sync.list(env, a));
     if (m === 'DELETE' && path === '/v1/sync') { await env.DB.batch([env.DB.prepare('DELETE FROM sync_links WHERE user_id = ?').bind(a.sub), env.DB.prepare('DELETE FROM sync_ops WHERE user_id = ?').bind(a.sub)]); return reply(await sync.remove(env, a)); }
     if (m === 'GET' && path === '/v1/sync/links') return reply(await sync.links(env, a));
@@ -103,9 +104,10 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     if (m === 'GET' && path === '/v1/sync/ops') return reply(await sync.pendingOps(env, a, url.searchParams.get('device') ?? a.dev, url.searchParams.get('profile') ?? ''));
     if (m === 'POST' && path === '/v1/sync/ops/ack') return reply(await sync.ackOps(env, a, await body()));
     if (m === 'POST' && path === '/v1/sync/unlink') return reply(await sync.unlink(env, a, await body()));
-    const sm = /^\/v1\/sync\/([\w-]+)\/([\w-]+)(\/file)?$/.exec(path);
+    const sm = /^\/v1\/sync\/([\w-]+)\/([\w-]+)(\/file|\/bundle)?$/.exec(path);
     if (sm && m === 'GET' && !sm[3]) return reply(await sync.files(env, a, sm[1], sm[2]));
-    if (sm && m === 'GET' && sm[3]) return new Response(await sync.getFile(env, a, sm[1], sm[2], url.searchParams.get('path')), { headers: { ...cors, 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
+    if (sm && m === 'POST' && sm[3] === '/bundle') return new Response(await sync.bundle(env, a, sm[1], sm[2], await body()), { headers: { ...cors, 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
+    if (sm && m === 'GET' && sm[3] === '/file') return new Response(await sync.getFile(env, a, sm[1], sm[2], url.searchParams.get('path')), { headers: { ...cors, 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
     if (sm && m === 'DELETE' && !sm[3]) return reply(await sync.remove(env, a, sm[1], sm[2]));
     if (m === 'DELETE' && path === '/v1/me') {
       // Delete the account: user, identities, devices, credentials and codes (cascades).

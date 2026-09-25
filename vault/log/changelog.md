@@ -5,6 +5,18 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · Merged collections load in seconds, songs appear as they come
+- On a 7k-song desktop the laptop sat at "Updating from Desktop…" for minutes and then showed
+  nothing: one request and one saved file per shard (1,167 of them), everything at the end, and
+  one failed file failed the device. Now uploads and downloads go many files per request, playlists
+  and songs first ("… 3,200 of 7,000 songs", the count rising as they come), the copy is one file
+  per device, and a missing file waits for next time
+  ([ADR 0043](../adr/0043-batched-sync-and-progressive-loading.md)). Backend: `POST /v1/sync/files`,
+  `POST /v1/sync/<device>/<profile>/bundle`.
+- Clicking a device in Sidebar › Devices always filters the library to its songs.
+- SQLite for GLUE's own data was looked at and not taken (ADR 0043, alternatives): the merge of
+  12k songs takes ~0.25 s; the slow part was requests and file writes.
+
 ## 2026-09-25 · One library across devices: sync by default, automatic merge, Device column
 - Signed in, Cloud sync is on for every profile (turn it off per profile). No setup dialog.
 - A collection is merged with the same one on your other devices by itself, and their songs and
