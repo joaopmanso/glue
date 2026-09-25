@@ -40,7 +40,7 @@ Shipped (from Speklone):
 [player](features/player.md) ·
 [live view](features/live-view.md) ·
 [stem separation](features/stem-separation.md) ·
-[start page](features/start-page.md) ·
+[start page](features/start-page.md) · [homepage](features/homepage.md) ·
 [deployment](features/deployment.md)
 
 Planned (GLUE):

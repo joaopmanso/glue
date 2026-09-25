@@ -5,6 +5,14 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · A homepage that shows the real app
+- New homepage ([feature](../features/homepage.md)): a large headline, then the product itself.
+  Real screenshots and short looping clips of the library, quality verdict, playlist builder,
+  insights, duplicates, column filter, the live 3D view and GLUE Cloud, in alternating chapters.
+  Scroll-in, headline and tilt animations are all off with reduced motion.
+- The media comes from a synthetic demo library (`scripts/demo/make-audio.ts`), captured by
+  driving the built app in headless Edge (`scripts/demo/capture.ts`) into `public/home/`.
+
 ## 2026-09-25 · GLUE in capitals everywhere; admin strictly for admins
 - Every visible "glue" is now GLUE: the homepage headline "The GLUE between your DJ apps.", the
   theme "GLUE Stick", and the page description (reworded rather than "GLUEs").

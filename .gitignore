@@ -4,3 +4,6 @@ dist/
 models/
 test-results/
 *.local
+
+# Demo library for the homepage media (make with scripts/demo/make-audio.ts)
+scripts/demo/out/
