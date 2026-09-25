@@ -25,4 +25,4 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
 ## Limits & open questions
 - Fixed in M1: a quick pause/play inside one frame could start a second play loop (now exactly one
   animation-frame loop; `src/lib/player.svelte.ts`).
-- MCO: becomes a global player bar that plays any selected track (M2).
+- GLUE: becomes a global player bar that plays any selected track (M2).

@@ -1,7 +1,7 @@
 /* Themes (ADR 0028): colour tokens, fonts and shape per theme, each with a dark and a light mode.
    Applied as data-theme / data-mode on <html>; the CSS for every theme is generated from this one
    table, so the tokens live in one place. Chosen on the profile screen, remembered per browser and
-   in the MCO folder. */
+   in the GLUE folder. */
 import { readPref, writePref } from './prefs';
 import { setCanvasFonts } from '../ui/render/canvas';
 
@@ -96,7 +96,7 @@ class Themes {
     this.onChange?.(this.theme, mode);
   }
   toggleMode() { this.set(this.theme, this.resolved === 'dark' ? 'light' : 'dark'); }
-  /** The MCO folder remembers the choice too (so another browser opens with it). */
+  /** The GLUE folder remembers the choice too (so another browser opens with it). */
   onChange: ((theme: string, mode: Mode) => void) | null = null;
 
   private apply() {

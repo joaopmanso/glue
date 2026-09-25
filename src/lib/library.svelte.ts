@@ -1,4 +1,4 @@
-/* The library: MCO folder → profile → collection, kept in memory and written back to JSON files.
+/* The library: GLUE folder → profile → collection, kept in memory and written back to JSON files.
    Components read `lib.version` to re-derive views after any change. */
 import { HomeStore } from '../store/home';
 import { CollectionStore } from '../store/collection';
@@ -79,7 +79,7 @@ class Library {
   onThumb: ((id: string, data: Uint8Array) => void) | null = null;
   /** First run: after the profile, a step that explains how to add music. */
   onboarding = $state<null | 'music'>(null);
-  /** A backup chosen on the start screen, restored once the MCO folder is chosen. */
+  /** A backup chosen on the start screen, restored once the GLUE folder is chosen. */
   pendingRestore = $state.raw<{ manifest: BackupManifest; entries: ZipEntry[] } | null>(null);
 
   constructor() {
@@ -89,7 +89,7 @@ class Library {
     }
   }
 
-  // ─── MCO folder ────────────────────────────────────────────────────────────
+  // ─── GLUE folder ────────────────────────────────────────────────────────────
   async boot() {
     try {
       const h = await platform.restoreHome();
@@ -126,7 +126,7 @@ class Library {
     this.homeDir = dir; this.homeKind = kind; this.homeName = kind === 'private' ? 'browser storage' : dir.name;
     await this.takeLock();
     this.home = await HomeStore.open(dir);
-    // The MCO folder's look wins over this browser's (another computer opens with the same theme).
+    // The GLUE folder's look wins over this browser's (another computer opens with the same theme).
     const look = this.home.index.appearance;
     if (look && (look.theme !== themes.theme || look.mode !== themes.mode)) themes.set(look.theme, look.mode);
     themes.onChange = (theme, mode) => { if (!this.readOnly) void this.home?.setAppearance({ theme, mode }); };
@@ -135,7 +135,7 @@ class Library {
     if (last && this.home.index.profiles.some(p => p.id === last)) await this.openProfile(last);
     else this.phase = 'profiles';
   }
-  /** Only one tab writes to the MCO folder; others open read-only. */
+  /** Only one tab writes to the GLUE folder; others open read-only. */
   private async takeLock() {
     const locks = (navigator as Navigator & { locks?: LockManager }).locks;
     if (!locks) return;
@@ -166,13 +166,13 @@ class Library {
     const p = this.profile?.id === pid ? this.profile : await home.loadProfile(pid);
     const blob = await buildBackup(dir, p);
     const day = new Date().toISOString().slice(0, 10), safe = p.name.replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'profile';
-    downloadBlob(blob, `MCO backup - ${safe} - ${day}.zip`);
+    downloadBlob(blob, `GLUE backup - ${safe} - ${day}.zip`);
     return blob.size;
   }
-  /** Read a backup zip (checks it's an MCO backup a this version can open). */
+  /** Read a backup zip (checks it's a GLUE backup a this version can open). */
   async readBackupFile(file: File) { return readBackup(new Uint8Array(await file.arrayBuffer())); }
   profileExists(pid: string) { return !!this.home?.index.profiles.some(p => p.id === pid); }
-  /** Put a backup's profile into the MCO folder and open it. `replace`: an existing copy is removed first. */
+  /** Put a backup's profile into the GLUE folder and open it. `replace`: an existing copy is removed first. */
   async applyBackup(b: { manifest: BackupManifest; entries: ZipEntry[] }, replace: boolean) {
     const home = this.home, dir = this.homeDir;
     if (!home || !dir) { this.pendingRestore = b; return; }
@@ -189,7 +189,7 @@ class Library {
     const folders = this.roots.length;
     this.notice = 'Restored ' + b.manifest.profile.name + '.' + (folders ? ' Link its music folder' + (folders === 1 ? '' : 's') + ' again with “Find folder” in the sidebar.' : '');
   }
-  /** Delete every file MCO made (in its folder and in the browser) and start again. */
+  /** Delete every file GLUE made (in its folder and in the browser) and start again. */
   async deleteAllData() {
     const home = this.home, kind = this.homeKind;
     await this.closeCollection();
@@ -241,7 +241,7 @@ class Library {
     if (this.profile.lastCollection !== cid) { this.profile = { ...this.profile, lastCollection: cid }; await this.home.saveProfile(this.profile); }
     this.found = [];
     this.analysis = { ...this.analysis, paused: s.meta.autoAnalyse === false };
-    if (s.damaged.length) this.notice = 'Some files in your MCO folder couldn’t be read and were set aside (' + s.damaged.join(', ') + ', saved as .damaged). Anything they held may need re-importing or re-scanning.';
+    if (s.damaged.length) this.notice = 'Some files in your GLUE folder couldn’t be read and were set aside (' + s.damaged.join(', ') + ', saved as .damaged). Anything they held may need re-importing or re-scanning.';
     await this.loadRoots();
     await this.loadLoose();
     this.phase = 'library';
@@ -289,7 +289,7 @@ class Library {
     catch (e) {
       console.error(e);
       // Say it once (the save is retried quietly), and again only if the problem changes.
-      const msg = 'Couldn’t save some changes to your MCO folder: ' + ((e as Error).message || e) + ' MCO keeps retrying.';
+      const msg = 'Couldn’t save some changes to your GLUE folder: ' + ((e as Error).message || e) + ' GLUE keeps retrying.';
       if (msg !== this.saveError) { this.saveError = msg; this.notice = msg; }
     }
     finally { this.saving = false; this.unsaved = s.hasPending; if (s.hasPending) this.scheduleFlush(); }
@@ -397,7 +397,7 @@ class Library {
   }
 
   // ─── Finding DJ libraries ──────────────────────────────────────────────────
-  /** Look for DJ libraries in every folder MCO may read: music folders, the MCO folder, remembered places. */
+  /** Look for DJ libraries in every folder GLUE may read: music folders, the GLUE folder, remembered places. */
   async detectLibraries() {
     const s = this.store;
     if (!s) return;
@@ -531,7 +531,7 @@ class Library {
     this.store!.putList({ ...l, tags: next.length ? next : undefined });
     this.rememberTags(next);
   }
-  /** Keep tags in the collection's list, so a tag made in MCO stays offered while nothing uses it. */
+  /** Keep tags in the collection's list, so a tag made in GLUE stays offered while nothing uses it. */
   rememberTags(tags: string[]) {
     const s = this.store;
     if (!s || !tags.length) return;
@@ -613,7 +613,7 @@ class Library {
     const r = this.rootState(t.rootId);
     if (!r?.dir || !t.relPath) throw new Error('This track isn’t linked to a file yet. Add the music folder it lives in.');
     if (!r.granted) {
-      if (!(await platform.permission(r.dir, 'read', true))) throw new Error('MCO needs access to “' + r.root.name + '” again.');
+      if (!(await platform.permission(r.dir, 'read', true))) throw new Error('GLUE needs access to “' + r.root.name + '” again.');
       this.roots = this.roots.map(x => x.root.id === r.root.id ? { ...x, granted: true } : x);
     }
     return fileAt(r.dir, t.relPath);
@@ -639,10 +639,10 @@ class Library {
     const key = t.fileKey!;
     if (key.startsWith('copy:')) return fileAt(this.homeDir!, key.slice(5));
     const h = this.looseHandles.get(t.id) ?? await platform.fileHandle(key);
-    if (!h) throw Object.assign(new Error('MCO lost track of this file. Add it again.'), { name: 'NotFoundError' });
+    if (!h) throw Object.assign(new Error('GLUE lost track of this file. Add it again.'), { name: 'NotFoundError' });
     this.looseHandles.set(t.id, h);
     if (!this.looseGranted.has(t.id)) {
-      if (!(await platform.permission(h, 'read', ask))) throw new Error('MCO needs your permission to read “' + t.fileName + '” again.');
+      if (!(await platform.permission(h, 'read', ask))) throw new Error('GLUE needs your permission to read “' + t.fileName + '” again.');
       this.looseGranted = new Set([...this.looseGranted, t.id]);
     }
     return h.getFile();
@@ -654,7 +654,7 @@ class Library {
     const s = this.store;
     if (!s || this.job) return;
     handles = handles.filter(h => AUDIO_EXT.test(h.name));
-    if (!handles.length) { this.notice = 'Those aren’t audio files MCO can read.'; return; }
+    if (!handles.length) { this.notice = 'Those aren’t audio files GLUE can read.'; return; }
     this.job = { text: 'Adding songs…', done: 0, total: handles.length };
     let already = 0;
     const fresh: SongInput[] = [];
@@ -680,13 +680,13 @@ class Library {
     finally { this.job = null; }
     this.enqueueAll();
   }
-  /** Browsers without file handles: keep a copy of each song in the MCO folder. */
+  /** Browsers without file handles: keep a copy of each song in the GLUE folder. */
   async addFileCopies(files: File[]) {
     const s = this.store, home = this.homeDir;
     if (!s || !home || this.job) return;
     files = files.filter(f => AUDIO_EXT.test(f.name));
-    if (!files.length) { this.notice = 'Those aren’t audio files MCO can read.'; return; }
-    this.job = { text: 'Copying songs into MCO…', done: 0, total: files.length };
+    if (!files.length) { this.notice = 'Those aren’t audio files GLUE can read.'; return; }
+    this.job = { text: 'Copying songs into GLUE…', done: 0, total: files.length };
     const copies = [...s.tracks.values()].filter(t => t.fileKey?.startsWith('copy:'));
     const fresh = files.filter(f => !copies.some(t => t.fileName === f.name && t.size === f.size));
     try {
@@ -766,7 +766,7 @@ class Library {
     const s = this.store, dir = await platform.cacheDir();
     if (s && dir) await writeDetails(dir, s.meta.id, id, d);
   }
-  /** Take tracks out of the collection. Files on disk are never touched (copies MCO made are). */
+  /** Take tracks out of the collection. Files on disk are never touched (copies GLUE made are). */
   async removeTracks(ids: string[]) {
     const s = this.store;
     if (!s) return;

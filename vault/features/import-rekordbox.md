@@ -7,12 +7,12 @@ adrs: [0010, 0012]
 # Import: Rekordbox
 
 ## What it does
-Brings a Rekordbox collection (tracks, playlists, folders, cues, ratings, colours, BPM, key) into MCO
-as a read-only source, and lets the user copy its playlists into MCO lists.
+Brings a Rekordbox collection (tracks, playlists, folders, cues, ratings, colours, BPM, key) into GLUE
+as a read-only source, and lets the user copy its playlists into GLUE lists.
 
 ## Behaviour
 - Web path: rekordbox XML. Guide: Rekordbox › File › Export Collection in xml format → save into
-  `MCO/imports/rekordbox.xml`. MCO picks it up automatically (on load and when the imports folder
+  `GLUE/imports/rekordbox.xml`. GLUE picks it up automatically (on load and when the imports folder
   changes) and offers to re-import when the file is newer.
 - master.db (encrypted SQLCipher, in AppData / ~/Library) is out of reach for a website
   (blocked directories); reserved for the desktop client.
@@ -44,4 +44,4 @@ See [research/dj-library-formats.md](../research/dj-library-formats.md#rekordbox
 
 ## Detected automatically (2026-09-24)
 - Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
-- Cue points: POSITION_MARK → position, hot-cue slot (Num), name, colour (Red/Green/Blue), loops (End); the rating becomes the track's own when unrated in MCO.
+- Cue points: POSITION_MARK → position, hot-cue slot (Num), name, colour (Red/Green/Blue), loops (End); the rating becomes the track's own when unrated in GLUE.

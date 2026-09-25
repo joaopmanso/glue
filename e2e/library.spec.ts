@@ -539,7 +539,7 @@ test('onboarding, backup, delete everything, restore on a fresh start', async ({
   // Backup from "Who's using MCO?".
   await page.locator('.top .who').click();
   const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('.pcard', { hasText: 'DJ Test' }).locator('.backup-btn').click()]);
-  expect(dl.suggestedFilename()).toMatch(/^MCO backup - DJ Test - \d{4}-\d\d-\d\d\.zip$/);
+  expect(dl.suggestedFilename()).toMatch(/^GLUE backup - DJ Test - \d{4}-\d\d-\d\d\.zip$/);
   const zip = join(mkdtempSync(join(tmpdir(), 'mco-bk-')), dl.suggestedFilename());
   await dl.saveAs(zip);
 
@@ -656,7 +656,7 @@ test('builds a playlist from a track: seed first, included tracks kept, saved as
   await page.getByRole('button', { name: 'Create profile' }).click();
   await page.click('#onb-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
-  await expect(page.locator('.brand h1 a')).toHaveAccessibleName('MCO, Music Collection Organizer');
+  await expect(page.locator('.brand h1 a')).toHaveAccessibleName('GLUE, Global Library Utility Exporter');
 
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).click();
   await page.click('#auto-from');

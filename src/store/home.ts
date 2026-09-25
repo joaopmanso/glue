@@ -1,4 +1,4 @@
-/* The MCO folder's top level: profiles (ADR 0018). */
+/* The GLUE folder's top level: profiles (ADR 0018). */
 import { type Dir, readJSON, removePath, writeJSON } from './fsx';
 import { type Collection, type HomeIndex, type Profile, PROFILE_COLORS, SCHEMA, newId } from './types';
 import { migrate } from './migrations';
@@ -31,7 +31,7 @@ export class HomeStore {
 
   async loadProfile(pid: string): Promise<Profile> {
     const p = await readJSON<Profile>(this.root, this.profilePath(pid));
-    if (!p) throw new Error('Profile not found in your MCO folder.');
+    if (!p) throw new Error('Profile not found in your GLUE folder.');
     return migrate('profile', p);
   }
 
@@ -62,7 +62,7 @@ export class HomeStore {
     await this.saveIndex();
   }
 
-  /** Remove everything MCO wrote in its folder (and nothing else the user keeps there). */
+  /** Remove everything GLUE wrote in its folder (and nothing else the user keeps there). */
   async wipe() {
     for (const name of ['profiles', 'files', 'mco.json']) await removePath(this.root, name);
     this.index = { schemaVersion: SCHEMA, profiles: [], lastProfile: null };

@@ -1,4 +1,4 @@
-/* Everything MCO asks of the operating system goes through here (ADR 0007), so a desktop client can
+/* Everything GLUE asks of the operating system goes through here (ADR 0007), so a desktop client can
    replace it later. Two web flavours: Chromium's File System Access pickers (full), and the
    origin-private file system for Safari/Firefox (reduced: no music folders, files come by drop). */
 import { idbDel, idbGet, idbSet } from './idb';
@@ -17,7 +17,7 @@ const HOME_KEY = 'home';
 
 export type HomeState = { dir: Dir; kind: 'folder' | 'private'; granted: boolean } | null;
 
-/** The MCO folder remembered from last time, and whether we may still use it without asking. */
+/** The GLUE folder remembered from last time, and whether we may still use it without asking. */
 export async function restoreHome(): Promise<HomeState> {
   let saved: { dir: Dir; kind: 'folder' | 'private' } | undefined;
   try { saved = await idbGet(HOME_KEY); } catch { saved = undefined; }
@@ -26,18 +26,18 @@ export async function restoreHome(): Promise<HomeState> {
   return { ...saved, granted: await permission(saved.dir, 'readwrite', false) };
 }
 
-/** Ask the user for the folder MCO keeps its data in (they create "MCO" inside Documents). */
+/** Ask the user for the folder GLUE keeps its data in (they create "GLUE" inside Documents). */
 export async function pickHome(): Promise<Dir> {
   const p = picker();
   if (!p) throw new Error('This browser can’t open folders.');
   return p({ id: 'mco-home', mode: 'readwrite', startIn: 'documents' });
 }
-/** Use this folder for MCO's data from now on. */
+/** Use this folder for GLUE's data from now on. */
 export const rememberHome = (dir: Dir) => idbSet(HOME_KEY, { dir, kind: 'folder' });
 
 export interface FolderLook { hasMco: boolean; audio: number; folders: number; files: number }
 const AUDIO = /\.(flac|wav|aiff?|aifc|m4a|mp3|aac|ogg|opus|alac|wv)$/i;
-/** A quick look inside a folder (top level plus one level down) before MCO writes into it. */
+/** A quick look inside a folder (top level plus one level down) before GLUE writes into it. */
 export async function lookInto(dir: Dir): Promise<FolderLook> {
   const out: FolderLook = { hasMco: false, audio: 0, folders: 0, files: 0 };
   type E = { entries(): AsyncIterable<[string, FileSystemHandle]> };
@@ -54,7 +54,7 @@ export async function lookInto(dir: Dir): Promise<FolderLook> {
   return out;
 }
 
-/** Forget everything MCO keeps in the browser: folder handles, stored analyses, preferences. */
+/** Forget everything GLUE keeps in the browser: folder handles, stored analyses, preferences. */
 export async function wipeBrowserData(privateRoot: boolean) {
   await new Promise<void>(res => { try { const r = indexedDB.deleteDatabase('mco'); r.onsuccess = r.onerror = r.onblocked = () => res(); } catch { res(); } });
   try {
@@ -88,7 +88,7 @@ export async function permission(h: FileSystemHandle, mode: 'read' | 'readwrite'
 /** Ask for a music folder; its handle is stored under a key the collection remembers. */
 export async function pickMusicFolder(): Promise<{ dir: Dir; key: string }> {
   const p = picker();
-  if (!p) throw new Error('This browser can’t open folders; drop files onto MCO instead.');
+  if (!p) throw new Error('This browser can’t open folders; drop files onto GLUE instead.');
   return rememberFolder(await p({ id: 'mco-music', mode: 'read', startIn: 'music' }));
 }
 /** Keep a folder handle (picked, or dropped onto the page) for later visits. */
@@ -102,7 +102,7 @@ export async function folderHandle(key: string): Promise<Dir | null> {
 }
 export const forgetFolder = (key: string) => idbDel(key);
 
-/** Extra places where MCO looks for DJ libraries (e.g. Documents › Native Instruments), remembered. */
+/** Extra places where GLUE looks for DJ libraries (e.g. Documents › Native Instruments), remembered. */
 export async function libraryPlaces(): Promise<{ key: string; dir: Dir }[]> {
   try { return (await idbGet<{ key: string; dir: Dir }[]>('library-places')) ?? []; } catch { return []; }
 }
@@ -125,7 +125,7 @@ export async function cacheDir(): Promise<Dir | null> {
 
 type FilePicker = (o: { id?: string; multiple?: boolean; startIn?: string; types?: { description: string; accept: Record<string, string[]> }[] }) => Promise<FileSystemFileHandle[]>;
 const filePicker = (): FilePicker | null => (window as unknown as { showOpenFilePicker?: FilePicker }).showOpenFilePicker ?? null;
-/** Can single files be kept across visits (a handle per file)? Otherwise MCO keeps a copy. */
+/** Can single files be kept across visits (a handle per file)? Otherwise GLUE keeps a copy. */
 export const canKeepFiles = () => !!filePicker() && window.isSecureContext;
 
 export async function pickAudioFiles(): Promise<FileSystemFileHandle[]> {

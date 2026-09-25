@@ -23,7 +23,7 @@ export class CollectionStore {
   static async load(root: Dir, pid: string, cid: string): Promise<CollectionStore> {
     const base = `profiles/${pid}/collections/${cid}`;
     const meta = await readJSON<Collection>(root, base + '/collection.json');
-    if (!meta) throw new Error('Collection not found in your MCO folder.');
+    if (!meta) throw new Error('Collection not found in your GLUE folder.');
     const s = new CollectionStore(root, base, migrate('collection', meta));
     // One unreadable file must not lock the user out of the rest: keep a copy aside and go on.
     const read = async <T>(path: string): Promise<T | null> => {

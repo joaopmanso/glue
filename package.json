@@ -1,8 +1,8 @@
 {
-  "name": "mco",
+  "name": "glue",
   "version": "0.1.0",
   "private": true,
-  "description": "MCO, Music Collection Organizer: a local-first DJ collection manager",
+  "description": "GLUE, Global Library Utility Exporter: a local-first DJ library that glues DJ apps together",
   "type": "module",
   "scripts": {
     "dev": "vite",

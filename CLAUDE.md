@@ -1,4 +1,9 @@
-# MCO: Music Collection Organizer
+# GLUE: Global Library Utility Exporter
+
+Formerly **MCO** (Music Collection Organizer), renamed 2026-09-25 ([ADR 0035](vault/adr/0035-rename-to-glue.md)).
+Internal identifiers keep the old prefix on purpose (`mco.json`, `mco-backup.json`, IndexedDB `mco`,
+prefs `mco.*`, picker ids `mco-home`…) so existing data folders, backups and settings keep working;
+the repo and URL are still `mco` until moved.
 
 Local-first web app for DJs: builds a music collection from folders and DJ-app libraries (Rekordbox,
 Engine DJ, Traktor, Apple Music), analyses quality / BPM / key in the background, manages playlists,
@@ -21,7 +26,7 @@ After working:
 
 ## Non-negotiables
 - Client-only, no server, no accounts; audio never leaves the machine (ADR 0002).
-- MCO's data is JSON files in the user's MCO folder, no database (ADR 0009).
+- GLUE's data is JSON files in the user's GLUE folder, no database (ADR 0009).
 - Never write into another app's library in v1 (ADR 0010).
 - OS access only through `src/platform/` (ADR 0007).
 

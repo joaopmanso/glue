@@ -7,8 +7,8 @@ adrs: [0007, 0009, 0012, 0014, 0021]
 # Library & scanner
 
 ## What it does
-Builds a collection from music folders and files: drag and drop anything onto MCO, or add folders
-with a picker (starts in Music). MCO scans them, reads tags and format facts, and lists every track in
+Builds a collection from music folders and files: drag and drop anything onto GLUE, or add folders
+with a picker (starts in Music). GLUE scans them, reads tags and format facts, and lists every track in
 a fast, sortable, searchable table. It notices added, changed and removed files.
 
 ## Behaviour
@@ -49,7 +49,7 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
   analysis fills in the rest from the whole file. Vanished files are marked missing.
 - Track table: virtualised rows, sort by every column, word search, click / Ctrl / Shift selection,
   keyboard (arrows, Enter opens, Delete removes from playlist, Ctrl+A), drag to playlists. BPM and key
-  show MCO's analysis, or the imported DJ library's value (dimmed) until MCO has one.
+  show GLUE's analysis, or the imported DJ library's value (dimmed) until GLUE has one.
 - Code: `src/core/library/scan.ts`, `src/store/merge.ts` (`applyScan`), `src/ui/library/TrackTable.svelte`.
 - Not yet: quick hash / rename detection, FileSystemObserver, column chooser, session-only folder
   drops on Safari/Firefox.
@@ -57,7 +57,7 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
 ## Single songs (2026-09-24)
 - "+ Songs" in the sidebar's Music section, or drop songs anywhere on the library; mixed drops of
   folders, songs and DJ-library files each do the right thing. [ADR 0021](../adr/0021-single-songs.md).
-- Kept by file handle (Chromium) or as a copy in the MCO folder (Safari/Firefox). Songs inside a
+- Kept by file handle (Chromium) or as a copy in the GLUE folder (Safari/Firefox). Songs inside a
   linked folder, or matching an imported track, don't create duplicates; adding the folder later adopts
   them. "Added songs" lists them; "Remove from collection" takes tracks out.
 
@@ -78,7 +78,7 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
 ## Overview column, quality and format filters (2026-09-24)
 - "Overview": a mini spectrogram per row next to ▶; click or drag to play / scrub from that spot;
   playhead and played part on the playing row; imported cue points as ticks ([ADR 0031](../adr/0031-row-thumbnails.md)).
-- **Filter** next to the search: Quality (MCO's verdicts, "Not analysed", "No file") and Format (MP3,
+- **Filter** next to the search: Quality (GLUE's verdicts, "Not analysed", "No file") and Format (MP3,
   FLAC, WAV, AIFF, AAC…), with counts for the current view; any within a group, groups combined.
   Clicking a row's quality badge filters by it.
 

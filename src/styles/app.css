@@ -33,8 +33,10 @@
   /* header */
   .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
   .brand { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-  /* The full name, with the initials that make MCO standing out. */
+  /* The full name, with the initials that make GLUE standing out. */
   .brand h1 { font-size: 21px; font-stretch: 105%; font-weight: 500; letter-spacing: -.005em; white-space: nowrap; color: var(--ink-2); }
+  .brand h1 a { display: inline-flex; align-items: baseline; }
+  .brand h1 .gluestick { align-self: center; margin: -4px .3em -4px -4px; }
   .brand h1 b { color: var(--accent); font-weight: 800; font-size: 1.12em; }
   .brand h1 span:not(:last-child) { margin-right: .3em; }
   @media (max-width: 720px) { .brand h1 span { display: none; } .brand h1 b { color: var(--ink); } .brand h1 b + b, .brand h1 span + b { color: var(--accent); } }

@@ -58,7 +58,7 @@
   <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="auto-h" id="auto-dialog">
     <header>
       <h2 id="auto-h">Build a playlist</h2>
-      <p>MCO picks tracks from your collection that fit the tempo, mix harmonically and are rated highest, with a little chance so every run is different.</p>
+      <p>GLUE picks tracks from your collection that fit the tempo, mix harmonically and are rated highest, with a little chance so every run is different.</p>
       <button type="button" class="x" aria-label="Close" onclick={() => auto.close()}>×</button>
     </header>
 
@@ -70,7 +70,7 @@
             <div class="tchip seed"><b>{seed.title || seed.fileName}</b><span>{seed.artist}</span>
               <span class="mono">{an(seed.id)?.bpm ? Math.round(an(seed.id)!.bpm!) + ' BPM' : ''} {an(seed.id)?.key ? keyLabel(an(seed.id)!.key!, app.keyNotation) : ''}</span>
               <button type="button" aria-label="No starting track" onclick={() => (auto.form.seedId = null)}>×</button></div>
-          {:else}<p class="hint">No starting track: MCO chooses the first one too.</p>{/if}
+          {:else}<p class="hint">No starting track: GLUE chooses the first one too.</p>{/if}
         </fieldset>
 
         <fieldset>

@@ -5,6 +5,12 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · MCO is now GLUE
+- Renamed to **GLUE, Global Library Utility Exporter** (MCO was taken): header with the letters
+  emphasised and a glue-stick logo, favicon, title, messages, backup names, docs
+  ([ADR 0035](../adr/0035-rename-to-glue.md)). File formats and storage keys keep the `mco` prefix,
+  so existing folders, backups and settings open unchanged. Repo and URL not moved yet.
+
 ## 2026-09-25 · Quiet content above the fade counts
 - AIFFs still read "band-limited to about 15 kHz" although faint content reached past 20 kHz. The
   fade is measured on the average spectrum; quiet highs barely move it. Now the spectrogram's louder

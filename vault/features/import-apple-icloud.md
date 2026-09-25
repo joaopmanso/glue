@@ -12,9 +12,9 @@ Imports the Apple Music / iTunes library (tracks and playlists) and scans music 
 ## Behaviour
 - **Windows iTunes**: auto-detected in the granted Music folder: `Music/iTunes/iTunes Library.xml` or
   `iTunes Music Library.xml` (only exists if "Share iTunes Library XML with other applications" is on;
-  MCO explains how to turn it on). The newer Windows Apple Music app has no readable library file.
+  GLUE explains how to turn it on). The newer Windows Apple Music app has no readable library file.
 - **macOS Music**: the library bundle is binary and undocumented; guide: Music › File › Library ›
-  Export Library… → save into `MCO/imports/`.
+  Export Library… → save into `GLUE/imports/`.
 - Parse the plist XML: `Tracks` dict (Name, Artist, Album, Genre, BPM, Total Time ms, Date Added,
   Play Count, Rating 0–100, Location `file:///…`), `Playlists` array (Playlist Items, folders via
   Parent Persistent ID; skip Master and distinguished built-ins).

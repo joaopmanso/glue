@@ -13,7 +13,7 @@ test('start page shows the drop zone and example button', async ({ page }) => {
   await page.goto('./#/analyze');
   await expect(page.locator('#dropzone')).toBeVisible();
   await expect(page.locator('#try-example')).toBeVisible();
-  await expect(page).toHaveTitle(/MCO/);
+  await expect(page).toHaveTitle(/GLUE/);
 });
 
 test('the example track is judged a transcode with padded bits', async ({ page }) => {

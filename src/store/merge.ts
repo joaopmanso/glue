@@ -70,7 +70,7 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
     if (!t.sources.includes(sourceId)) t.sources = [...t.sources, sourceId];
     touched.set(t.id, t);
     ext2track.set(it.externalId, t);
-    // The DJ app's rating becomes the track's own when it hasn't been rated in MCO.
+    // The DJ app's rating becomes the track's own when it hasn't been rated in GLUE.
     if (t.rating == null && it.rating) t.rating = Math.min(5, Math.max(0, it.rating));
     sourceTracks.push({ externalId: it.externalId, trackId: t.id, bpm: it.bpm, key: it.key, rating: it.rating, playCount: it.playCount, cues: it.cues, dateAdded: it.dateAdded, path: it.path, ...(it.cueList.length ? { cueList: it.cueList } : {}) });
   }

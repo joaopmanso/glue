@@ -21,7 +21,7 @@ export async function readText(root: Dir, path: string): Promise<string | null> 
 }
 
 export class DamagedFile extends Error {
-  constructor(readonly path: string, readonly text: string) { super('Damaged file in your MCO folder: ' + path); }
+  constructor(readonly path: string, readonly text: string) { super('Damaged file in your GLUE folder: ' + path); }
 }
 
 /** A file's JSON. An empty file counts as missing: the browser creates the file before the first

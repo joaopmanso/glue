@@ -7,33 +7,33 @@ adrs: [0010, 0011, 0012]
 # Exports to DJ software
 
 ## What it does
-Gets MCO playlists, shows and sessions into Rekordbox and Engine DJ (and Traktor, and anything that
+Gets GLUE playlists, shows and sessions into Rekordbox and Engine DJ (and Traktor, and anything that
 reads M3U8) without touching their databases.
 
 ## Behaviour
-- **Live rekordbox XML** at `MCO/exports/rekordbox.xml`, regenerated a few seconds after any list
-  change. Tree: `MCO › Playlists › …` and `MCO › Shows › <Show> › <Session>`. Tracks: `Location`
+- **Live rekordbox XML** at `GLUE/exports/rekordbox.xml`, regenerated a few seconds after any list
+  change. Tree: `GLUE › Playlists › …` and `GLUE › Shows › <Show> › <Session>`. Tracks: `Location`
   (`file://localhost/` + percent-encoded absolute path), Name, Artist, Album, Genre, TotalTime,
   AverageBpm, Tonality (musical key), BitRate, SampleRate, Rating, and cues / beat grid carried over
   from a Rekordbox import.
 - **One-time setup guides** (shown in Export Center, with screenshots):
   - Rekordbox: Preferences › View › Layout › tick "rekordbox xml"; Preferences › Advanced › Database ›
-    Imported Library → choose `Documents/MCO/exports/rekordbox.xml`. Then drag MCO playlists from the
+    Imported Library → choose `Documents/GLUE/exports/rekordbox.xml`. Then drag GLUE playlists from the
     "rekordbox xml" tree into Rekordbox; use its refresh button after changes.
   - Engine DJ: Preferences › Library › Integration › rekordbox → point to the same file; right-click ›
     Import as Playlist.
-- **Traktor**: per-list `.nml` playlist files in `MCO/exports/traktor/` (import via right-click
+- **Traktor**: per-list `.nml` playlist files in `GLUE/exports/traktor/` (import via right-click
   Playlists › Import Playlist).
-- **M3U8**: per list in `MCO/exports/m3u8/` (Rekordbox, Serato and others).
+- **M3U8**: per list in `GLUE/exports/m3u8/` (Rekordbox, Serato and others).
 - **Quality policy** per export: include all / skip tier E / swap every track for its preferred
   duplicate.
 - Blocked when a root has no absolute path yet: the export tells which root and asks for it.
 
 ## Acceptance
-- [ ] rekordbox.xml validates against Pioneer's spec; Rekordbox shows the MCO tree and imports a
+- [ ] rekordbox.xml validates against Pioneer's spec; Rekordbox shows the GLUE tree and imports a
   session with correct order, BPM and key.
 - [ ] Engine DJ imports the same file.
-- [ ] Round trip: export → import back into MCO → identical lists.
+- [ ] Round trip: export → import back into GLUE → identical lists.
 - [ ] Traktor imports the NML playlist.
 
 ## Later
@@ -41,7 +41,7 @@ reads M3U8) without touching their databases.
   copies a file, so only useful for playlist files, not audio. Direct database write-back: desktop era.
 
 ## Drag out (2026-09-24, before the M4 exports)
-- Chrome/Edge: drag a track's grip (⋮⋮, left of ▶) out of MCO for a copy of the file; drag a playlist's
+- Chrome/Edge: drag a track's grip (⋮⋮, left of ▶) out of GLUE for a copy of the file; drag a playlist's
   icon for a `.m3u8` with absolute paths ([ADR 0027](../adr/0027-drag-out-with-downloadurl.md)).
 - Works with Explorer, the desktop, USB sticks. rekordbox imports the `.m3u8` via File › Import ›
   Import Playlist; direct drops into rekordbox / Engine DJ are unverified, and a dropped track would be

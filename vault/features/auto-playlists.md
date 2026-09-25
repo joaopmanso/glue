@@ -7,7 +7,7 @@ adrs: [0029, 0032, 0025, 0006]
 # Automatic playlists
 
 ## What it does
-Pick a track (or none) and MCO builds a playlist from the collection: along a tempo ramp, mixing
+Pick a track (or none) and GLUE builds a playlist from the collection: along a tempo ramp, mixing
 harmonically, favouring the highest rated tracks, with some chance so every run differs.
 
 ## Behaviour

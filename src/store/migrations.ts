@@ -11,7 +11,7 @@ const steps: Partial<Record<Kind, Record<number, Step>>> = {};
 export function migrate<T>(kind: Kind, data: T): T {
   const d = data as unknown as Record<string, unknown>;
   let v = typeof d.schemaVersion === 'number' ? d.schemaVersion : 0;
-  if (v > SCHEMA) throw new Error('This MCO folder was written by a newer version of MCO. Update the page (reload) and try again.');
+  if (v > SCHEMA) throw new Error('This GLUE folder was written by a newer version of GLUE. Update the page (reload) and try again.');
   let out = d;
   while (v < SCHEMA) {
     const step = steps[kind]?.[v];

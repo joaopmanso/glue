@@ -17,6 +17,7 @@
   import DragTag from './ui/library/DragTag.svelte';
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
   import TagEditor from './ui/library/TagEditor.svelte';
+  import GlueStick from './ui/GlueStick.svelte';
   import { auto } from './lib/auto.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
   import { themes } from './lib/themes.svelte';
@@ -59,7 +60,7 @@
     for (const d of dirs) await lib.addFolder(d);
     const libFiles = files.filter(f => !AUDIO_EXT.test(f.name) && f.size > 0);
     if (libFiles.length && !dirs.length) await importFiles(libFiles);
-    // Songs: kept by handle where the browser allows it, otherwise copied into MCO's storage.
+    // Songs: kept by handle where the browser allows it, otherwise copied into GLUE's storage.
     const songHandles = handles.filter((h): h is FileSystemFileHandle => h?.kind === 'file' && AUDIO_EXT.test(h.name));
     const songs = files.filter(f => AUDIO_EXT.test(f.name));
     if (songHandles.length && canKeepFiles()) await lib.addFiles(songHandles);
@@ -97,7 +98,7 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <h1><a href="#/" aria-label="MCO, Music Collection Organizer"><b>M</b><span>usic</span><b>C</b><span>ollection</span><b>O</b><span>rganizer</span></a></h1>
+      <h1><a href="#/" aria-label="GLUE, Global Library Utility Exporter"><GlueStick /><b>G</b><span>lobal</span><b>L</b><span>ibrary</span><b>U</b><span>tility</span><b>E</b><span>xporter</span></a></h1>
       <nav class="tabs" aria-label="Sections">
         <a href="#/" class:on={route.name !== 'analyze'}>Library</a>
         <a href="#/analyze" class:on={route.name === 'analyze'}>Analyze a file</a>

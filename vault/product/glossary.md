@@ -3,23 +3,23 @@ updated: 2026-09-24
 ---
 # Glossary
 
-- **MCO folder**: the folder the user picks or creates once (normally `Documents/MCO`). It *is* the
+- **GLUE folder**: the folder the user picks or creates once (normally `Documents/GLUE`). It *is* the
   library: JSON files, backups, imports, exports. See [ADR 0009](../adr/0009-json-files-store.md).
-- **Collection**: a named library inside the MCO folder, with its own music roots and lists. One MCO
+- **Collection**: a named library inside the GLUE folder, with its own music roots and lists. One GLUE
   folder can hold several (e.g. "Main", "Weddings").
 - **Root**: a music folder added to a collection (e.g. `~/Music`, an external drive folder, iCloud
   Drive). Tracks are stored relative to their root.
 - **Absolute path**: a root's real location on disk (`C:\Users\x\Music`). Browsers don't reveal it, but
   every DJ-app export format needs it. See [ADR 0012](../adr/0012-absolute-path-strategy.md).
 - **Track**: one audio file in a root, plus its tags and format facts.
-- **Analysis**: what MCO measured about a track: quality verdict and tier, bandwidth cutoff, effective
+- **Analysis**: what GLUE measured about a track: quality verdict and tier, bandwidth cutoff, effective
   bit depth, BPM, key, tuning.
 - **Verdict**: the per-track quality conclusion (e.g. "Genuine hi-res", "Transcoded", "Upsampled",
   "Padded", "Lossy · not hi-res").
 - **Quality tier**: the verdict reduced to a sortable rank used by filters and duplicate preference.
   See [quality tiers](../features/quality-tiers.md).
 - **Source**: an imported external library (Rekordbox XML, Engine DJ database, Traktor NML, Apple
-  Music / iTunes XML). Read-only inside MCO.
+  Music / iTunes XML). Read-only inside GLUE.
 - **List**: anything that holds tracks in order. Kinds: **folder**, **playlist**, **smart list**,
   **show**, **session**.
 - **Playlist**: a free-form ordered list of tracks.

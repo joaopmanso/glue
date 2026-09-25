@@ -38,4 +38,4 @@ highlighted, and the three keys it mixes with.
 ## Limits & open questions
 - Octave (half/double) ambiguity: the prior picks one; the UI shows the alternatives.
 - Relative major/minor ambiguity on progressions that genuinely support both.
-- Stored per track and shown as columns in MCO (M3); Engine DJ key ints 0–23 map to fifths order.
+- Stored per track and shown as columns in GLUE (M3); Engine DJ key ints 0–23 map to fifths order.

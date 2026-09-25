@@ -6,7 +6,7 @@ import { LIST_COLORS } from '../store/types';
 export interface TagInfo { name: string; tracks: number; lists: number }
 let memoV = -1, memoStore: unknown = null, memo: TagInfo[] = [];
 
-/** Every tag: made in MCO, on a track or on a playlist; alphabetical. */
+/** Every tag: made in GLUE, on a track or on a playlist; alphabetical. */
 export function allTags(): TagInfo[] {
   const v = lib.version, s = lib.store;
   if (v === memoV && s === memoStore) return memo;

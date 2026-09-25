@@ -19,7 +19,7 @@ Publishes the app as a static site on GitHub Pages.
   (a frozen copy of `legacy/index.html`) at https://joaopmanso.github.io/speklone/, at the user's
   request (2026-09-24); its `404.html` sends unknown paths to it. It briefly forwarded to /mco/ first.
   Because it reuses the old name, GitHub's automatic git redirect from `speklone` to `mco` no longer
-  applies; the local remote points at `mco` directly. Changes to MCO don't reach it; update it only by
+  applies; the local remote points at `mco` directly. Changes to GLUE don't reach it; update it only by
   re-uploading `legacy/index.html` on purpose.
 - `backup.html` in the working folder is the user's own file and is git-ignored on purpose.
 - No GitHub CLI on the machine; the API is used with the token Git Credential Manager holds for

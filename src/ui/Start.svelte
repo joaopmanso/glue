@@ -16,7 +16,7 @@
 <section class="splash" id="splash" aria-label="Start">
   <div class="splash-copy">
     <h2>Is your hi-res <em>actually</em> hi-res?</h2>
-    <p class="lede">MCO shows what’s really inside a track (where the spectrum stops, how many bits carry signal, which tools touched it) and tells you whether it’s genuine, upsampled, or a lossy rip in disguise.</p>
+    <p class="lede">GLUE shows what’s really inside a track (where the spectrum stops, how many bits carry signal, which tools touched it) and tells you whether it’s genuine, upsampled, or a lossy rip in disguise.</p>
   </div>
   <button type="button" class="dropzone" id="dropzone" onclick={() => document.getElementById('file-input')?.click()}>
     <canvas id="splash-art" aria-hidden="true" bind:this={art}></canvas>

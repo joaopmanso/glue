@@ -13,7 +13,7 @@ export const FILTER_GROUPS: { g: FilterGroup; title: string }[] = [{ g: 'quality
 const NO_FILTERS = (): Record<FilterGroup, string[]> => ({ quality: [], format: [], tag: [], genre: [] });
 export type SortKey = 'title' | 'artist' | 'album' | 'genre' | 'bpm' | 'key' | 'duration' | 'format' | 'quality' | 'rating' | 'added' | 'label' | 'year' | 'order';
 
-/** dj: what an imported DJ library said, shown when MCO's own analysis has no value. */
+/** dj: what an imported DJ library said, shown when GLUE's own analysis has no value. */
 export interface Row { t: Track; a: AnalysisSummary | null; n: number; dj: { bpm: number | null; key: string | null; rating: number | null } | null }
 
 const QUALITY_RANK: Record<string, number> = { ok: 0, info: 1, warn: 2, bad: 3 };
@@ -133,7 +133,7 @@ export function valuesOf(g: FilterGroup, r: Row): string[] {
   const tags = tagsOf(r.t);
   return tags.length ? tags : [NO_TAGS];
 }
-/** What the Quality filter groups by: MCO's verdict, or why there's none. */
+/** What the Quality filter groups by: GLUE's verdict, or why there's none. */
 export function qualityOf(r: Row): string {
   if (r.t.status === 'unlinked') return 'No file';
   if (r.t.status === 'missing') return 'Missing';

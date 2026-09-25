@@ -1,7 +1,7 @@
 /* Profile backups as a zip (ADR 0026):
      mco-backup.json         what's inside (format, version, the profile's name and colour)
-     profile/…               everything under MCO/profiles/<pid>/ (profile, collections, playlists…)
-     files/…                 songs MCO keeps its own copy of (browsers without file handles)
+     profile/…               everything under GLUE/profiles/<pid>/ (profile, collections, playlists…)
+     files/…                 songs GLUE keeps its own copy of (browsers without file handles)
    Music folders aren't in it (only their names and locations): they're linked again after a restore. */
 import { createZip, readZip, type ZipEntry } from '../core/zip';
 import { type Dir, subdir, writeBlob } from './fsx';
@@ -27,7 +27,7 @@ const json = (x: unknown) => new TextEncoder().encode(JSON.stringify(x, null, 1)
 
 export async function buildBackup(home: Dir, profile: Profile): Promise<Blob> {
   const pdir = await subdir(home, ['profiles', profile.id], false);
-  if (!pdir) throw new Error('This profile has no files in the MCO folder.');
+  if (!pdir) throw new Error('This profile has no files in the GLUE folder.');
   const files = await walk(pdir);
   const entries: ZipEntry[] = [];
   const collections: BackupManifest['collections'] = [];
@@ -62,20 +62,20 @@ export async function buildBackup(home: Dir, profile: Profile): Promise<Blob> {
 export async function readBackup(zip: Uint8Array): Promise<{ manifest: BackupManifest; entries: ZipEntry[] }> {
   const entries = await readZip(zip);
   const m = entries.find(e => e.path === 'mco-backup.json');
-  if (!m) throw new Error('This zip isn’t an MCO backup (no mco-backup.json inside).');
+  if (!m) throw new Error('This zip isn’t a GLUE backup (no mco-backup.json inside).');
   const manifest = JSON.parse(new TextDecoder().decode(m.data)) as BackupManifest;
-  if (manifest.format !== BACKUP_FORMAT || !manifest.profile?.id) throw new Error('This zip isn’t an MCO backup.');
-  if (manifest.version > BACKUP_VERSION || manifest.schemaVersion > SCHEMA) throw new Error('This backup was made by a newer version of MCO. Reload the page to update MCO, then try again.');
+  if (manifest.format !== BACKUP_FORMAT || !manifest.profile?.id) throw new Error('This zip isn’t a GLUE backup.');
+  if (manifest.version > BACKUP_VERSION || manifest.schemaVersion > SCHEMA) throw new Error('This backup was made by a newer version of GLUE. Reload the page to update GLUE, then try again.');
   if (!entries.some(e => e.path === 'profile/profile.json')) throw new Error('The backup has no profile in it.');
   return { manifest, entries };
 }
 
-/** Write a backup's files into the MCO folder (the profile's folder must be empty or already removed). */
+/** Write a backup's files into the GLUE folder (the profile's folder must be empty or already removed). */
 export async function writeBackup(home: Dir, b: { manifest: BackupManifest; entries: ZipEntry[] }) {
   const pid = b.manifest.profile.id;
   for (const e of b.entries) {
     if (e.path === 'mco-backup.json') continue;
-    if (e.path.includes('..') || e.path.startsWith('/')) continue;   // never outside the MCO folder
+    if (e.path.includes('..') || e.path.startsWith('/')) continue;   // never outside the GLUE folder
     const target = e.path.startsWith('profile/') ? `profiles/${pid}/${e.path.slice(8)}` : e.path.startsWith('files/') ? e.path : null;
     if (target) await writeBlob(home, target, new Blob([e.data.slice().buffer]));
   }

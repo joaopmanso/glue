@@ -17,4 +17,4 @@ synthetic 96 kHz / 24-bit track with a 16 kHz wall, and four cards explaining th
 - The analysis layout replaces the start page once a file or the example loads.
 
 ## Limits & open questions
-- MCO: becomes the first-run flow (create/choose the MCO folder, add music) plus "Analyze a file".
+- GLUE: becomes the first-run flow (create/choose the GLUE folder, add music) plus "Analyze a file".

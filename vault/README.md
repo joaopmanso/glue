@@ -1,14 +1,14 @@
 ---
 updated: 2026-09-24
 ---
-# MCO vault
+# GLUE vault
 
-The project's memory: what MCO is, what it does, why it's built the way it is, and what comes next.
+The project's memory: what GLUE is, what it does, why it's built the way it is, and what comes next.
 Written for both people and AI agents. Plain Markdown with relative links, so it reads on GitHub and
 opens as an [Obsidian](https://obsidian.md) vault.
 
 ## Start here
-- [Vision](product/vision.md): what MCO is for and the principles it keeps.
+- [Vision](product/vision.md): what GLUE is for and the principles it keeps.
 - [Roadmap](product/roadmap.md): milestones and their status.
 - [Glossary](product/glossary.md): the words we use (collection, root, source, show, session…).
 - [Changelog](log/changelog.md): what changed, newest first.
@@ -43,8 +43,8 @@ Shipped (from Speklone):
 [start page](features/start-page.md) ·
 [deployment](features/deployment.md)
 
-Planned (MCO):
-[MCO folder & backups](features/mco-folder-backups.md) ·
+Planned (GLUE):
+[GLUE folder & backups](features/mco-folder-backups.md) ·
 [library & scanner](features/library-scanner.md) ·
 [background analysis](features/background-analysis.md) ·
 [quality tiers & filters](features/quality-tiers.md) ·
@@ -75,20 +75,20 @@ Planned (MCO):
 | [0006](adr/0006-tempo-key-algorithms.md) | Tempo and key detection algorithms | accepted |
 | [0007](adr/0007-web-first-platform-layer.md) | Web first; OS access only through a platform layer | accepted |
 | [0008](adr/0008-typescript-svelte-vite.md) | TypeScript + Svelte + Vite | accepted |
-| [0009](adr/0009-json-files-store.md) | JSON files in the MCO folder are the store; no database | accepted (layout amended by 0018) |
+| [0009](adr/0009-json-files-store.md) | JSON files in the GLUE folder are the store; no database | accepted (layout amended by 0018) |
 | [0010](adr/0010-import-export-before-write-back.md) | Read-only import and file export before any write-back | accepted |
 | [0011](adr/0011-rekordbox-xml-shared-export.md) | One rekordbox XML file serves Rekordbox and Engine DJ | accepted |
 | [0012](adr/0012-absolute-path-strategy.md) | How exports get absolute file paths | accepted |
 | [0013](adr/0013-duplicate-tiers.md) | Three tiers of duplicate detection | accepted |
 | [0014](adr/0014-chromium-full-others-reduced.md) | Chrome/Edge full, Safari/Firefox reduced | accepted |
-| [0015](adr/0015-installable-pwa.md) | MCO is an installable PWA | superseded by 0017 |
+| [0015](adr/0015-installable-pwa.md) | GLUE is an installable PWA | superseded by 0017 |
 | [0016](adr/0016-keep-legacy-page-for-parity.md) | Keep the original Speklone page as the parity reference | accepted |
 | [0017](adr/0017-no-installable-app-for-now.md) | No installable app for now | accepted |
 | [0018](adr/0018-local-profiles.md) | Local profiles, no password; profiles own collections | accepted |
 | [0019](adr/0019-background-analysis-decoding.md) | Background analysis: browser decoding + analysis worker pool | accepted |
 | [0020](adr/0020-imports-then-link-folders.md) | Imports bring metadata first; music folders linked afterwards | accepted |
 | [0021](adr/0021-single-songs.md) | Songs can be added one by one, kept by file handle | accepted |
-| [0022](adr/0022-pointer-drag-inside-mco.md) | Drags inside MCO use pointer events, not HTML drag-and-drop | accepted |
+| [0022](adr/0022-pointer-drag-inside-mco.md) | Drags inside GLUE use pointer events, not HTML drag-and-drop | accepted |
 | [0023](adr/0023-store-track-page-analysis.md) | Track pages store their full analysis (amends 0019) | superseded in part by 0024 |
 | [0024](adr/0024-background-stores-full-analysis.md) | Background analysis stores the full analysis, in the browser's storage | accepted |
 | [0031](adr/0031-row-thumbnails.md) | Mini spectrograms in the track table: tiny, per track, loaded on demand | accepted |
@@ -96,5 +96,5 @@ Planned (MCO):
 | [0029](adr/0029-automatic-playlists.md) | Automatic playlists: a greedy walk along a BPM ramp with weighted randomness | accepted |
 | [0028](adr/0028-themes.md) | Themes: one token table, dark and light for each | accepted |
 | [0027](adr/0027-drag-out-with-downloadurl.md) | Dragging out to other apps uses Chromium's DownloadURL | accepted |
-| [0026](adr/0026-profile-backups-and-wipe.md) | Profile backups are zips; "delete all" removes only what MCO made | accepted |
+| [0026](adr/0026-profile-backups-and-wipe.md) | Profile backups are zips; "delete all" removes only what GLUE made | accepted |
 | [0025](adr/0025-band-energy-fingerprints.md) | Band-energy fingerprints for "same recording", kept in the browser's cache (amends 0013) | accepted |

@@ -56,4 +56,4 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
 ## Limits & open questions
 - A 16-bit master with gain applied after conversion passes the 24-bit test.
 - ALAC decodes only in Safari; DSD not supported.
-- Porting to MCO: becomes the Inspector and "Analyze a file" (M1); summary stored per track (M3).
+- Porting to GLUE: becomes the Inspector and "Analyze a file" (M1); summary stored per track (M3).

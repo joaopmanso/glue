@@ -61,7 +61,7 @@
   function renameCollection() { const n = prompt('Rename collection', lib.store?.meta.name); if (n) void lib.renameCollection(n); }
   function deleteCollection() {
     const s = lib.store;
-    if (s && confirm('Delete the collection “' + s.meta.name + '”? Its playlists and analysis are removed from your MCO folder. Your music files aren’t touched.')) void lib.deleteCollection(s.meta.id);
+    if (s && confirm('Delete the collection “' + s.meta.name + '”? Its playlists and analysis are removed from your GLUE folder. Your music files aren’t touched.')) void lib.deleteCollection(s.meta.id);
   }
 </script>
 
@@ -105,7 +105,7 @@
     <div class="notice toast" role="status"><span>{lib.notice}</span><button type="button" aria-label="Dismiss" onclick={() => (lib.notice = '')}>×</button></div>
   {/if}
   {#if lib.readOnly}
-    <div class="notice warn">MCO is open in another tab, so this one is read-only. Close the other tab and reload to make changes here.</div>
+    <div class="notice warn">GLUE is open in another tab, so this one is read-only. Close the other tab and reload to make changes here.</div>
   {/if}
 
   <div class="main">

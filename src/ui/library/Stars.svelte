@@ -14,7 +14,7 @@
 </script>
 
 <span class="stars" class:dim={dim && hover == null} role="slider" tabindex="0" aria-label="Rating" aria-valuemin="0" aria-valuemax="5" aria-valuenow={value ?? 0} aria-valuetext={label(value)}
-  title={dim ? 'From your DJ library: ' + label(value) + '. Click to rate in MCO.' : label(value)}
+  title={dim ? 'From your DJ library: ' + label(value) + '. Click to rate in GLUE.' : label(value)}
   onpointerleave={() => (hover = null)} onpointerdown={e => e.stopPropagation()} onclick={e => e.stopPropagation()} ondblclick={e => e.stopPropagation()}
   onkeydown={e => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); onset(Math.min(5, (value ?? 0) + 0.5)); }

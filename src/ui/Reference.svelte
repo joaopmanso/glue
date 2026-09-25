@@ -3,7 +3,7 @@
 <details class="ref">
   <summary>How the verdict is reached</summary>
   <div class="inner">
-    <p>Every lossy encoder throws away the top of the spectrum with a steep lowpass filter, and every sample-rate converter leaves nothing above the source’s Nyquist limit (half its sample rate). Converting to FLAC, WAV or a higher sample rate can’t bring that content back, so the wall stays visible. MCO averages the spectrum over the whole track, finds where the content stops and how steeply, and compares that against what the declared format should hold. It also checks whether the low bits of 24-bit files carry anything, and reads the container for encoder and downloader fingerprints.</p>
+    <p>Every lossy encoder throws away the top of the spectrum with a steep lowpass filter, and every sample-rate converter leaves nothing above the source’s Nyquist limit (half its sample rate). Converting to FLAC, WAV or a higher sample rate can’t bring that content back, so the wall stays visible. GLUE averages the spectrum over the whole track, finds where the content stops and how steeply, and compares that against what the declared format should hold. It also checks whether the low bits of 24-bit files carry anything, and reads the container for encoder and downloader fingerprints.</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Where content stops</th><th>Usual source</th></tr></thead>

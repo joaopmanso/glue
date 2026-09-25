@@ -29,7 +29,7 @@ them at the best copy.
 ## How it works
 - Fingerprint: chroma-based 32-bit codes (Chromaprint-style) over ~30 s from the middle of the track,
   computed during background analysis from the same decimated signal as tempo/key; stored in
-  `MCO/cache/fingerprints/` (derived, rebuildable).
+  `GLUE/cache/fingerprints/` (derived, rebuildable).
 - Candidate search via locality-sensitive hashing on code substrings; similarity = bit error rate at
   the best alignment.
 

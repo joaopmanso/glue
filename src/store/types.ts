@@ -14,7 +14,7 @@ export interface Profile { schemaVersion: number; id: string; name: string; colo
 
 /** A music folder the user granted (handle lives in IndexedDB under `handleKey`). */
 export interface Root { id: string; name: string; absPath: string | null; handleKey: string; addedAt: string }
-/** tags: tags made in MCO, kept even while no track uses them (ADR 0032). */
+/** tags: tags made in GLUE, kept even while no track uses them (ADR 0032). */
 export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; autoAnalyse?: boolean; tags?: string[] }
 
 export type TrackStatus = 'linked' | 'unlinked' | 'missing';
@@ -25,7 +25,7 @@ export interface Track {
   rootId: string | null;        // where the file is (linked tracks)
   relPath: string | null;       // path inside the root, '/'-separated
   /** A song added on its own: 'file:…' = its handle's key in IndexedDB, 'copy:<path>' = a copy in the
-      MCO folder (browsers without file handles). Absent for folder and imported tracks. */
+      GLUE folder (browsers without file handles). Absent for folder and imported tracks. */
   fileKey?: string | null;
   importPath: string | null;    // absolute path as an imported library saw it
   fileName: string;
@@ -35,7 +35,7 @@ export interface Track {
   duration: number | null;
   format: TrackFormat | null;
   addedAt: string;
-  rating?: number | null;       // the user's own rating in MCO: 0.5–5 in half stars
+  rating?: number | null;       // the user's own rating in GLUE: 0.5–5 in half stars
   notes?: string;               // the user's own notes about the track
   grouping?: string;            // the file's / DJ app's Grouping field
   tags?: string[];              // the user's tags; absent until edited, then the found ones (tagsOf) stand in

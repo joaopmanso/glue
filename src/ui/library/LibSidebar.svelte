@@ -245,7 +245,7 @@
         <li>
           <div class="item" class:sel={isSel({ kind: 'root', id: r.root.id })}>
             <button type="button" class="name" onclick={() => view.select({ kind: 'root', id: r.root.id })} title={r.root.absPath ?? 'Location on disk not known yet'}>📁 {r.root.name}</button>
-            {#if !r.dir}<button type="button" class="reconnect" title="MCO lost its link to this folder (restored backup or cleared browser data): choose it again" onclick={() => lib.relinkFolder(r.root.id)}>Find folder</button>
+            {#if !r.dir}<button type="button" class="reconnect" title="GLUE lost its link to this folder (restored backup or cleared browser data): choose it again" onclick={() => lib.relinkFolder(r.root.id)}>Find folder</button>
             {:else if !r.granted}<button type="button" class="reconnect" onclick={() => lib.reconnectFolder(r.root.id)}>Allow</button>{/if}
             <span class="tools">
               <button type="button" title="Scan again" onclick={() => lib.scanRoot(r.root.id)}>↻</button>
@@ -264,7 +264,7 @@
       {#if loose}
         <li><button type="button" class="item name" class:sel={isSel({ kind: 'root', id: LOOSE })} onclick={() => view.select({ kind: 'root', id: LOOSE })} title="Songs added one by one">🎵 Added songs<span class="n">{loose}</span></button></li>
       {/if}
-      {#if !lib.roots.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). MCO only reads them.' : 'Add songs, or drop them onto MCO: they’re copied into MCO’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
+      {#if !lib.roots.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). GLUE only reads them.' : 'Add songs, or drop them onto GLUE: they’re copied into GLUE’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
     </ul>
   </section>
 
@@ -272,7 +272,7 @@
     <div class="head">
       <h3 class="label">DJ libraries</h3>
       <span class="add">
-        <button type="button" id="find-libs" title="Allow another folder for MCO to look for DJ libraries in" onclick={() => lib.addLibraryPlace('documents')}>Look in…</button>
+        <button type="button" id="find-libs" title="Allow another folder for GLUE to look for DJ libraries in" onclick={() => lib.addLibraryPlace('documents')}>Look in…</button>
         <button type="button" id="import-lib" onclick={() => fileInput.click()} title="Choose a library file yourself: rekordbox XML, Engine DJ m.db, Traktor NML, iTunes / Apple Music XML, M3U">+ Import</button>
       </span>
     </div>
@@ -309,8 +309,8 @@
       <ul class="howto">
         <li><b>Engine DJ</b>, <b>Serato</b>, <b>iTunes</b>: inside your Music folder. Add Music under “Music” above and they show up here. Serato on an external drive: add the drive, or <button type="button" class="inline" onclick={pickSeratoFolder}>choose its _Serato_ folder</button>.</li>
         <li><b>Traktor</b>: Documents › Native Instruments. <button type="button" class="inline" onclick={() => lib.addLibraryPlace('documents')}>Allow that folder once</button>.</li>
-        <li><b>rekordbox</b>: its library can’t be read by a web page. In rekordbox use File › Export Collection in xml format and save it in your MCO folder (<b>{lib.homeName}</b>); it appears here, with Update after each new export.</li>
-        <li><b>Apple Music</b> (Mac): File › Library › Export Library, saved in your MCO folder.</li>
+        <li><b>rekordbox</b>: its library can’t be read by a web page. In rekordbox use File › Export Collection in xml format and save it in your GLUE folder (<b>{lib.homeName}</b>); it appears here, with Update after each new export.</li>
+        <li><b>Apple Music</b> (Mac): File › Library › Export Library, saved in your GLUE folder.</li>
       </ul>
     </details>
   </section>

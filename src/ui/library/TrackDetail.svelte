@@ -29,7 +29,7 @@
     return out;
   });
   const root = $derived(track ? lib.rootState(track.rootId) : null);
-  const location = $derived(track?.fileKey ? track.fileName + (track.fileKey.startsWith('copy:') ? ' (a copy kept in MCO)' : ' (added on its own)') : track?.relPath ? (root?.root.absPath ? root.root.absPath + (root.root.absPath.includes('\\') ? '\\' + track.relPath.replace(/\//g, '\\') : '/' + track.relPath) : (root?.root.name ?? '') + '/' + track.relPath) : track?.importPath ?? '');
+  const location = $derived(track?.fileKey ? track.fileName + (track.fileKey.startsWith('copy:') ? ' (a copy kept in GLUE)' : ' (added on its own)') : track?.relPath ? (root?.root.absPath ? root.root.absPath + (root.root.absPath.includes('\\') ? '\\' + track.relPath.replace(/\//g, '\\') : '/' + track.relPath) : (root?.root.name ?? '') + '/' + track.relPath) : track?.importPath ?? '');
 
   // Neighbours in the current library view, for previous / next.
   const order = $derived(view.rows(app.keyNotation).map(r => r.t.id));
@@ -165,7 +165,7 @@ canPlay = true;
               <tr><td>{name}</td><td class="mono">{st.bpm ? +st.bpm.toFixed(2) : '—'}</td><td class="mono">{st.key ?? '—'}</td><td class="stars">{stars(st.rating)}</td><td class="mono">{st.playCount ?? '—'}</td><td class="mono">{st.cues || '—'}</td><td>{st.dateAdded ?? '—'}</td></tr>
             {/each}
             {#if summary?.bpm || summary?.key}
-              <tr class="mco"><td>MCO analysis</td><td class="mono">{summary.bpm ?? '—'}</td><td class="mono">{summary.key ? keyLabel(summary.key, app.keyNotation) : '—'}</td><td colspan="4"></td></tr>
+              <tr class="mco"><td>GLUE analysis</td><td class="mono">{summary.bpm ?? '—'}</td><td class="mono">{summary.key ? keyLabel(summary.key, app.keyNotation) : '—'}</td><td colspan="4"></td></tr>
             {/if}
           </tbody>
         </table>
@@ -173,12 +173,12 @@ canPlay = true;
     </section>
 
     {#if phase === 'ready' && !canPlay && track.status === 'linked'}
-      <div class="notice">This is the analysis stored earlier. To play the track, MCO needs your permission to read it again. <button type="button" class="btn" onclick={allowPlay}>Allow and play</button></div>
+      <div class="notice">This is the analysis stored earlier. To play the track, GLUE needs your permission to read it again. <button type="button" class="btn" onclick={allowPlay}>Allow and play</button></div>
     {/if}
     {#if phase === 'need-access'}
-      <div class="notice">MCO needs your permission to read “{track.fileKey ? track.fileName : root?.root.name}” again. <button type="button" class="btn" onclick={() => load(true)}>Allow and analyse</button></div>
+      <div class="notice">GLUE needs your permission to read “{track.fileKey ? track.fileName : root?.root.name}” again. <button type="button" class="btn" onclick={() => load(true)}>Allow and analyse</button></div>
     {:else if phase === 'no-file'}
-      <div class="notice">{track.status === 'missing' ? 'The file wasn’t found where it was last seen. Scan its music folder again, or add the folder it moved to.' : 'This track came from an imported library and isn’t linked to a file yet. Add the music folder it lives in (sidebar › Music folders) and MCO links it automatically.'}</div>
+      <div class="notice">{track.status === 'missing' ? 'The file wasn’t found where it was last seen. Scan its music folder again, or add the folder it moved to.' : 'This track came from an imported library and isn’t linked to a file yet. Add the music folder it lives in (sidebar › Music folders) and GLUE links it automatically.'}</div>
     {:else if phase === 'error'}
       <div class="error"><b>Couldn’t analyse this track.</b> {message}</div>
     {/if}

@@ -3,14 +3,14 @@ updated: 2026-09-24
 ---
 # Vision
 
-**MCO (Music Collection Organizer)** is a local-first home for a DJ's music collection. It brings every
+**GLUE (Global Library Utility Exporter)** is a local-first home for a DJ's music collection. It brings every
 source together: loose folders, iCloud Drive, and the Rekordbox, Engine DJ, Traktor and Apple Music
 libraries. It then keeps the collection clean (duplicates, fake lossless, low-quality files), knows
 every track (quality, BPM, key), and turns preparation into playlists, shows and sessions that go
 straight back into Rekordbox and Engine DJ.
 
 It grew out of **Speklone**, a spectral-forensics page answering "is this hi-res file actually
-hi-res?". That engine is now MCO's per-track Inspector and its "Analyze a file" mode.
+hi-res?". That engine is now GLUE's per-track Inspector and its "Analyze a file" mode.
 
 ## Who it's for
 DJs with large, messy collections spread over several apps and drives, who prepare gigs in advance
@@ -18,7 +18,7 @@ and care about audio quality.
 
 ## Principles
 1. **Local first, no accounts.** Audio never leaves the machine. The library is a folder of JSON files
-   the user owns (`Documents/MCO`), readable and backed up by hand if they want. Cloud save may come
+   the user owns (`Documents/GLUE`), readable and backed up by hand if they want. Cloud save may come
    later, opt-in.
 2. **Never damage the user's DJ libraries.** Imports are read-only; hand-back is through files the DJ
    apps import themselves. Write-back, when it comes, is backed up and opt-in

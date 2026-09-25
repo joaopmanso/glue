@@ -8,13 +8,13 @@ adrs: [0010, 0020]
 
 ## What it does
 Reads Serato's library (`database V2`) and crates as a read-only source: tracks with their metadata,
-and crates as MCO playlists.
+and crates as GLUE playlists.
 
 ## Where the files are
 - Main drive: `Music/_Serato_/database V2` (Windows `C:\Users\<u>\Music\_Serato_`, macOS
   `~/Music/_Serato_`); crates in `_Serato_/Subcrates/*.crate`. External drives have their own
   `_Serato_` folder at the drive root.
-- Granting the Music folder lets MCO find it automatically; otherwise the user picks the
+- Granting the Music folder lets GLUE find it automatically; otherwise the user picks the
   `_Serato_` folder (or the `database V2` file and `.crate` files).
 
 ## Format (Mixxx wiki, Holzhaus/serato-tags)

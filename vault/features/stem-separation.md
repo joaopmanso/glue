@@ -45,4 +45,4 @@ downloaded as 24-bit WAV, singly or as the selected mix.
 - The model cache (`mco-models-v1`) also reads the legacy page's `speklone-models-v1` copy: both pages
   share the joaopmanso.github.io origin.
 - Stems are always 44.1 kHz (model's fixed rate).
-- MCO: optional saving to `MCO/stems/` (later).
+- GLUE: optional saving to `GLUE/stems/` (later).

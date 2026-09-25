@@ -44,7 +44,7 @@ track is used.
   with them; the drop highlight no longer flickers over child elements.
 
 ## Organising and colours (2026-09-24)
-- Drags now use MCO's own pointer drag ([ADR 0022](../adr/0022-pointer-drag-inside-mco.md)): a tag by
+- Drags now use GLUE's own pointer drag ([ADR 0022](../adr/0022-pointer-drag-inside-mco.md)): a tag by
   the pointer says what will happen, the target playlist lights up with a "+", Escape cancels.
 - Playlists and folders: drag up / down (insertion line), onto the middle of a folder to move in,
   onto another list's edge to move next to it (in or out of folders), or onto "Move to the top level".

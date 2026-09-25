@@ -19,7 +19,7 @@
     {#each THEMES as t (t.id)}
       <button type="button" role="radio" class="card" id={'theme-' + t.id} aria-checked={themes.theme === t.id} onclick={() => themes.set(t.id)}>
         <div class="theme-scope preview" data-theme={t.id} data-mode={themes.resolved}>
-          <div class="pv-top"><b class="pv-brand">MCO</b><span class="pv-tab">Library</span><span class="pv-dot"></span></div>
+          <div class="pv-top"><b class="pv-brand">GLUE</b><span class="pv-tab">Library</span><span class="pv-dot"></span></div>
           <div class="pv-body">
             <div class="pv-side"><i></i><i class="on"></i><i></i><i></i></div>
             <div class="pv-main">

@@ -79,7 +79,7 @@
 <div class="dv" id="dupes">
   <div class="intro">
     <p>
-      MCO compares how tracks <b>sound</b>, so the same recording is found under any name, tag or format: a WAV and its MP3,
+      GLUE compares how tracks <b>sound</b>, so the same recording is found under any name, tag or format: a WAV and its MP3,
       two rips, a re-download. Nothing is deleted; “Use in playlists” points your playlists at the copy you keep.
     </p>
     <span class="scan">

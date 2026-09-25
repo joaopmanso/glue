@@ -72,7 +72,7 @@ export async function readZip(zip: Uint8Array): Promise<ZipEntry[]> {
     let data: Uint8Array;
     if (method === 0) data = body.slice();
     else if (method === 8) data = await pipe(body, new DecompressionStream('deflate-raw'));
-    else throw new Error('The zip uses a compression MCO can’t read (' + path + ').');
+    else throw new Error('The zip uses a compression GLUE can’t read (' + path + ').');
     if (crc32(data) !== crc) throw new Error('The zip file is damaged (' + path + ').');
     out.push({ path, data });
   }

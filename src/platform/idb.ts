@@ -1,4 +1,4 @@
-/* A tiny key-value store in IndexedDB, for the one thing that can't live in the MCO folder:
+/* A tiny key-value store in IndexedDB, for the one thing that can't live in the GLUE folder:
    folder handles (the browser can't write them to a file). */
 const DB = 'mco', STORE = 'handles';
 

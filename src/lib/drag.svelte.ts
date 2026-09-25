@@ -1,4 +1,4 @@
-/* Dragging inside MCO (tracks onto playlists, playlists around the tree) with pointer events.
+/* Dragging inside GLUE (tracks onto playlists, playlists around the tree) with pointer events.
    The browser's own drag-and-drop is kept only for files coming from the desktop: it paints its
    own drag image, cancels a drag when the page re-renders under it, and can't be styled. */
 import { lib } from './library.svelte';

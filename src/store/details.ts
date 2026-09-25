@@ -1,5 +1,5 @@
 /* The full analysis behind a track page, kept so the page opens instantly (ADR 0023, 0024).
-   Derived data in the browser's own storage (not the MCO folder): `details/<cid>/<shard>/<id>.json`
+   Derived data in the browser's own storage (not the GLUE folder): `details/<cid>/<shard>/<id>.json`
    (file facts, sample stats, tempo/key, sizes) + `<id>.bin`, deflate-compressed: the average spectrum
    as float32, then the spectrogram at one byte per cell (0.8 dB steps), rows delta-coded. */
 import type { AnalysisResult, FileInfo } from '../core/types';

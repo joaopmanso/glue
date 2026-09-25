@@ -214,7 +214,7 @@
               <span class="grip" draggable="true" role="button" tabindex="-1" aria-label="Drag out a copy of the file"
                 title="Drag to Explorer, the desktop or a USB stick to copy this file"
                 onpointerenter={() => void prepareTrack(r.t)}
-                ondragstart={e => { if (!startTrackDrag(e, r.t)) lib.notice = lib.canRead(r.t) ? 'Getting the file ready: drag again.' : 'MCO needs permission to read this file first: play it or open its page.'; }}>
+                ondragstart={e => { if (!startTrackDrag(e, r.t)) lib.notice = lib.canRead(r.t) ? 'Getting the file ready: drag again.' : 'GLUE needs permission to read this file first: play it or open its page.'; }}>
                 <svg viewBox="0 0 6 14" aria-hidden="true"><circle cx="1.5" cy="2" r="1.1"/><circle cx="4.5" cy="2" r="1.1"/><circle cx="1.5" cy="7" r="1.1"/><circle cx="4.5" cy="7" r="1.1"/><circle cx="1.5" cy="12" r="1.1"/><circle cx="4.5" cy="12" r="1.1"/></svg>
               </span>
             {/if}

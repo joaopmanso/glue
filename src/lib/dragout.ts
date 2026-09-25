@@ -1,4 +1,4 @@
-/* Dragging out of MCO to other apps (ADR 0027), with Chromium's `DownloadURL` drag type: the drop
+/* Dragging out of GLUE to other apps (ADR 0027), with Chromium's `DownloadURL` drag type: the drop
    target receives a copy of the file (a track) or a generated M3U8 (a playlist). The data has to be
    ready inside `dragstart`, so a track's file is opened as soon as the pointer is over its handle. */
 import { lib } from './library.svelte';
@@ -22,7 +22,7 @@ export async function prepareTrack(t: Track) {
   try { ready.set(t.id, URL.createObjectURL(await lib.fileFor(t))); } catch { /* not readable: the drag says so */ }
 }
 
-/** Absolute path of a track's file, when MCO knows where its folder is on disk. */
+/** Absolute path of a track's file, when GLUE knows where its folder is on disk. */
 export function absolutePath(t: Track): string | null {
   if (!t.relPath) return null;
   const base = lib.rootState(t.rootId)?.root.absPath;

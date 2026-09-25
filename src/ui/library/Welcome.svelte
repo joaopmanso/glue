@@ -11,7 +11,7 @@
   let collectionName = $state('My collection');
   const full = canPickFolders();
 
-  // Step 1: the folder for MCO's own data, checked before it's used.
+  // Step 1: the folder for GLUE's own data, checked before it's used.
   let checking = $state<{ dir: FileSystemDirectoryHandle; look: FolderLook } | null>(null);
   let restore = $state.raw<{ manifest: BackupManifest; entries: ZipEntry[] } | null>(null);
   let restoreError = $state('');
@@ -25,7 +25,7 @@
     const r = await lib.pickHomeFolder();
     if (!r) return;
     const { look } = r;
-    if (look.hasMco || (!look.audio && look.folders + look.files === 0)) return use(r.dir);   // an MCO library, or empty
+    if (look.hasMco || (!look.audio && look.folders + look.files === 0)) return use(r.dir);   // a GLUE library, or empty
     checking = r;   // not empty: show what's there before using it
   }
   async function use(dir: FileSystemDirectoryHandle) {
@@ -69,7 +69,7 @@
 
 {#snippet stepper()}
   <ol class="stepper" aria-label="Getting started">
-    <li class:on={step === 1} class:done={step > 1}><span>1</span>Where MCO saves its data</li>
+    <li class:on={step === 1} class:done={step > 1}><span>1</span>Where GLUE saves its data</li>
     <li class:on={step === 2} class:done={step > 2}><span>2</span>Your profile</li>
     <li class:on={step === 3}><span>3</span>Add your music</li>
   </ol>
@@ -83,17 +83,17 @@
 
   {:else if lib.phase === 'welcome'}
     {@render stepper()}
-    <h2>Welcome to MCO</h2>
-    <p class="lede">MCO organises your music on your own computer. There’s no account and nothing is uploaded. First, MCO needs a small folder of its own to save your profile, playlists, ratings and analysis.</p>
+    <h2>Welcome to GLUE</h2>
+    <p class="lede">GLUE organises your music on your own computer. There’s no account and nothing is uploaded. First, GLUE needs a small folder of its own to save your profile, playlists, ratings and analysis.</p>
 
     {#if checking}
       <div class="card warn" role="alertdialog" aria-labelledby="chk-h">
         <h3 id="chk-h">{checking.look.audio ? 'That looks like a music folder' : 'That folder isn’t empty'}</h3>
         <p>
           “{checking.dir.name}” has {checking.look.audio ? checking.look.audio + (checking.look.audio >= 200 ? '+' : '') + ' audio files and ' : ''}{checking.look.folders} folder{checking.look.folders === 1 ? '' : 's'}.
-          MCO would add its own files there (<code>mco.json</code>, <code>profiles/</code>). {#if checking.look.audio}Your music is added in step 3: MCO only reads it and never writes into music folders.{/if}
+          GLUE would add its own files there (<code>mco.json</code>, <code>profiles/</code>). {#if checking.look.audio}Your music is added in step 3: GLUE only reads it and never writes into music folders.{/if}
         </p>
-        <p>Recommended: an <b>empty folder called MCO inside Documents</b>. In the folder picker, open Documents and use “New folder”.</p>
+        <p>Recommended: an <b>empty folder called GLUE inside Documents</b>. In the folder picker, open Documents and use “New folder”.</p>
         <div class="actions">
           <button type="button" class="btn" id="choose-other" onclick={chooseHome}>Choose another folder</button>
           <button type="button" class="btn-ghost" id="use-anyway" onclick={() => use(checking!.dir)}>Use “{checking.dir.name}” anyway</button>
@@ -104,17 +104,17 @@
         <div class="card main">
           <h3>{restore ? 'Where should the restored library go?' : 'Start fresh'}</h3>
           {#if full}
-            <p><b>This is not your music folder.</b> Pick (or create) an empty folder for MCO’s own files, a few megabytes. The usual place:</p>
-            <p class="where"><span class="crumb">Documents</span> › <span class="crumb new">MCO</span></p>
+            <p><b>This is not your music folder.</b> Pick (or create) an empty folder for GLUE’s own files, a few megabytes. The usual place:</p>
+            <p class="where"><span class="crumb">Documents</span> › <span class="crumb new">GLUE</span></p>
             <ol class="how">
               <li>Click the button below.</li>
-              <li>Open <b>Documents</b>, click <b>New folder</b>, name it <b>MCO</b>, and select it.</li>
-              <li>Allow MCO to save changes to it.</li>
+              <li>Open <b>Documents</b>, click <b>New folder</b>, name it <b>GLUE</b>, and select it.</li>
+              <li>Allow GLUE to save changes to it.</li>
             </ol>
-            <button type="button" class="btn" id="choose-home" onclick={chooseHome}>Choose where to save MCO’s data</button>
-            <p class="fine">Already used MCO on this computer? Choose that same MCO folder and everything opens as you left it.</p>
+            <button type="button" class="btn" id="choose-home" onclick={chooseHome}>Choose where to save GLUE’s data</button>
+            <p class="fine">Used GLUE (or MCO, its old name) on this computer before? Choose the same folder as before and everything opens as you left it.</p>
           {:else}
-            <p>This browser can’t open folders, so MCO keeps its data in the browser’s own storage. For the full experience (linking music folders, instant access to your files) use Chrome or Edge.</p>
+            <p>This browser can’t open folders, so GLUE keeps its data in the browser’s own storage. For the full experience (linking music folders, instant access to your files) use Chrome or Edge.</p>
             <button type="button" class="btn" id="use-private" onclick={startPrivate}>{restore ? 'Restore into browser storage' : 'Start in browser storage'}</button>
           {/if}
         </div>
@@ -122,10 +122,10 @@
           <h3>Restore a backup</h3>
           {#if restore}
             <p class="ok">Backup of <b>{restore.manifest.profile.name}</b> from {new Date(restore.manifest.createdAt).toLocaleString()}: {restore.manifest.collections.length} collection{restore.manifest.collections.length === 1 ? '' : 's'}, {tracks(restore.manifest)} track{tracks(restore.manifest) === 1 ? '' : 's'}.</p>
-            <p class="fine">Now choose where MCO saves its data (left). The backup is restored there.</p>
+            <p class="fine">Now choose where GLUE saves its data (left). The backup is restored there.</p>
             <button type="button" class="link" onclick={() => (restore = null)}>Cancel restore</button>
           {:else}
-            <p>Moving to a new computer or starting over? Pick an MCO backup (<code>.zip</code>) made from the profile screen.</p>
+            <p>Moving to a new computer or starting over? Pick a GLUE backup (<code>.zip</code>) made from the profile screen.</p>
             <button type="button" class="btn-ghost" id="restore-btn" onclick={() => zipInput.click()}>Choose backup file…</button>
           {/if}
           {#if restoreError}<p class="err">{restoreError}</p>{/if}
@@ -136,7 +136,7 @@
 
   {:else if lib.phase === 'reconnect'}
     <h2>Welcome back</h2>
-    <p class="lede">Your browser asks again before MCO can use your <b>{lib.homeName}</b> folder. Choose “Allow on every visit” to skip this next time.</p>
+    <p class="lede">Your browser asks again before GLUE can use your <b>{lib.homeName}</b> folder. Choose “Allow on every visit” to skip this next time.</p>
     <div class="actions">
       <button type="button" class="btn" id="reconnect" onclick={() => lib.reconnect()}>Open {lib.homeName}</button>
       <button type="button" class="btn-ghost" onclick={() => lib.changeHome()}>Use a different folder</button>
@@ -144,7 +144,7 @@
 
   {:else if lib.phase === 'profiles'}
     {#if !lib.home?.index.profiles.length}{@render stepper()}{/if}
-    <h2>Who’s using MCO?</h2>
+    <h2>Who’s using GLUE?</h2>
     <p class="lede">Each profile has its own collections, playlists and ratings, all saved in <b>{lib.homeName}</b>.</p>
     {#if lib.home?.index.profiles.length}
       <ul class="profiles">
@@ -172,14 +172,14 @@
     <ThemePicker />
     <div class="more">
       <button type="button" class="btn-ghost sm" id="restore-btn" onclick={() => zipInput.click()}>Restore a backup…</button>
-      <button type="button" class="link" onclick={() => lib.changeHome()}>Use a different MCO folder</button>
-      <button type="button" class="link danger" id="danger-toggle" onclick={() => (showDanger = !showDanger)}>Delete all MCO data…</button>
+      <button type="button" class="link" onclick={() => lib.changeHome()}>Use a different GLUE folder</button>
+      <button type="button" class="link danger" id="danger-toggle" onclick={() => (showDanger = !showDanger)}>Delete all GLUE data…</button>
     </div>
     {#if restoreError}<p class="err">{restoreError}</p>{/if}
     {#if showDanger}
       <div class="card danger-zone" role="alertdialog" aria-labelledby="dz-h">
-        <h3 id="dz-h">Delete all MCO data</h3>
-        <p>This removes every profile, collection, playlist, rating, note and analysis MCO saved, in <b>{lib.homeName}</b> and in this browser, and takes you back to the start. <b>Your music files are not touched</b>, and anything else in that folder stays.</p>
+        <h3 id="dz-h">Delete all GLUE data</h3>
+        <p>This removes every profile, collection, playlist, rating, note and analysis GLUE saved, in <b>{lib.homeName}</b> and in this browser, and takes you back to the start. <b>Your music files are not touched</b>, and anything else in that folder stays.</p>
         <p>Download backups of the profiles you want to keep first. Type <b>delete</b> to confirm.</p>
         <div class="row">
           <input id="danger-confirm" bind:value={confirmText} placeholder="delete" autocomplete="off" aria-label="Type delete to confirm">
@@ -201,14 +201,14 @@
   {:else if lib.phase === 'library' && lib.onboarding === 'music'}
     {@render stepper()}
     <h2>Add your music, {lib.profile?.name}</h2>
-    <p class="lede">MCO reads your music where it already is. Nothing is moved, copied or changed, and you can add more at any time from the sidebar.</p>
+    <p class="lede">GLUE reads your music where it already is. Nothing is moved, copied or changed, and you can add more at any time from the sidebar.</p>
     <div class="paths three">
       {#if full}
-        <div class="card"><h3>A music folder</h3><p>Your whole Music folder, or the folder with your DJ tracks. MCO keeps it up to date.</p>
+        <div class="card"><h3>A music folder</h3><p>Your whole Music folder, or the folder with your DJ tracks. GLUE keeps it up to date.</p>
           <button type="button" class="btn" id="onb-folder" onclick={async () => { lib.onboarding = null; await lib.addFolder(); }}>Choose music folder</button></div>
       {/if}
       {#if canKeepFiles()}
-        <div class="card"><h3>Some songs</h3><p>Pick individual files. You can also drop songs onto MCO later.</p>
+        <div class="card"><h3>Some songs</h3><p>Pick individual files. You can also drop songs onto GLUE later.</p>
           <button type="button" class="btn-ghost" onclick={addSongs}>Choose songs</button></div>
       {/if}
       <div class="card"><h3>A DJ library</h3><p>rekordbox XML, Engine DJ, Serato, Traktor, Apple Music or an M3U playlist: tracks and playlists come in, then you link the music folder.</p>
@@ -219,7 +219,7 @@
 
   {:else if lib.phase === 'error'}
     <div class="error"><b>Couldn’t open your library.</b> {lib.error}</div>
-    <div class="actions"><button type="button" class="btn-ghost" onclick={() => lib.changeHome()}>Choose the MCO folder again</button></div>
+    <div class="actions"><button type="button" class="btn-ghost" onclick={() => lib.changeHome()}>Choose the GLUE folder again</button></div>
   {/if}
   {#if busy}<p class="muted" role="status">{busy}</p>{/if}
 </section>
