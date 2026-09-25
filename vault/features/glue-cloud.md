@@ -16,11 +16,12 @@ an account GLUE works exactly as today, all local.
 ## Behaviour
 - **Accounts are optional.** The website never requires one; the local library, folders and backups
   are unchanged. An account is needed only for GLUE Home and for seeing other devices.
-- **Sign-in:** Google or Apple. The cloud keeps only who you are and which devices you have.
+- **Sign-in:** Google first; Apple later, once there's an Apple Developer membership (user,
+  2026-09-25). The cloud keeps only who you are and which devices you have.
 - **Pairing GLUE Home** (two ways):
   - **Code:** the signed-in website shows a short code (e.g. `GLUE-7KQ4-M2`, valid 10 minutes,
     single use), and you type it into GLUE Home. This also works on a headless machine or NAS.
-  - **Same account:** GLUE Home opens the browser to sign in with Google or Apple.
+  - **Same account:** GLUE Home opens the browser to sign in with Google (Apple doesn't allow it).
 - **Devices** in the sidebar:
   - "This browser", plus each GLUE Home ("Studio PC · online", "NAS · last seen 2 days ago");
   - rename or revoke a device from the website.
@@ -41,10 +42,10 @@ an account GLUE works exactly as today, all local.
 
 ## How it works (proposed; see the ADRs)
 - **Cloud** ([ADR 0036](../adr/0036-optional-accounts-and-cloud-signaling.md)):
-  - a hosted auth and database service;
+  - Cloudflare's free tier: a Worker API, a D1 SQL database, and a Durable Object per user for
+    signaling;
   - tables: users, identities, devices (name, public key, last seen, revoked), pairing codes
     (stored hashed), plan / relay quota;
-  - a realtime channel per user for signaling.
   - No library data, file names or audio is stored in the cloud.
 - **Transport** ([ADR 0037](../adr/0037-p2p-webrtc-transport.md)):
   - WebRTC data channels between the browser and GLUE Home, direct when possible (LAN or the
@@ -69,6 +70,8 @@ an account GLUE works exactly as today, all local.
   - `src/lib/account.svelte.ts` for sign-in.
 
 ## Phases
+First release: phases 1–3 (user, 2026-09-25).
+
 1. **Accounts & devices:**
    - optional Google / Apple sign-in in the website, a device list, pairing codes;
    - GLUE Home skeleton: pair, stay online, show status.
@@ -90,7 +93,8 @@ an account GLUE works exactly as today, all local.
 - [ ] Works with no account on the local side; revoking a device cuts it off at once.
 
 ## Limits & open questions
-- **Which cloud service** (auth, database, realtime): recommendation in ADR 0036.
+- **Cloud service:** Cloudflare free tier, proposed after the user asked for a free SQL database
+  (ADR 0036).
 - **Relay costs:** direct connections are free; relayed traffic costs money per GB. This is where
   a paid tier makes sense (a relay quota).
 - **Apple sign-in** needs an Apple Developer membership and verified domains; a custom domain for

@@ -34,7 +34,15 @@ are marked **[UNVERIFIED]**.
   - paid: the $5/month plan includes 1M requests, then $0.15 per million;
   - incoming WebSocket messages bill at 20:1, and hibernating sockets aren't billed for duration
     (https://developers.cloudflare.com/durable-objects/platform/pricing).
-  - Auth would be ours to build. D1 pricing **[UNVERIFIED]**.
+  - Auth would be ours to build.
+- **Cloudflare free plan** (checked 2026-09-25):
+  - D1: 5 GB, 5M rows read and 100k rows written per day, with errors (no pausing) past the
+    daily limits (https://developers.cloudflare.com/d1/platform/pricing/);
+  - Workers: 100k requests/day, 10 ms CPU per invocation
+    (https://developers.cloudflare.com/workers/platform/pricing/);
+  - SQLite-backed Durable Objects on the free plan: 100k requests/day and 13,000 GB-s/day, with
+    idle hibernatable objects not billed for duration
+    (https://developers.cloudflare.com/durable-objects/platform/pricing/).
 
 ## WebRTC and relays
 - **Share of connections that need TURN:** about 20% is the usual estimate. Other estimates run from

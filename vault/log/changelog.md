@@ -5,6 +5,12 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · Moved to joaopmanso.github.io/glue/
+- Repo renamed `mco` → `glue`; Vite base `/glue/`. `joaopmanso/mco` becomes a redirect to /glue/
+  (routes kept). Same origin, so browser data and folder permissions carry over.
+- GLUE Cloud decisions from the user: Google sign-in first (Apple later), first release = phases 1–3,
+  a free SQL database: ADR 0036 now proposes Cloudflare's free tier (Worker, D1, Durable Objects).
+
 ## 2026-09-25 · GLUE Cloud designed (proposed)
 - Design for the optional cloud tier: accounts (Google / Apple), GLUE Home, P2P remote library,
   uploads, devices ([GLUE Cloud](../features/glue-cloud.md), ADRs 0036–0038 proposed,
