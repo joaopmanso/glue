@@ -5,6 +5,11 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · GLUE Cloud designed (proposed)
+- Design for the optional cloud tier: accounts (Google / Apple), GLUE Home, P2P remote library,
+  uploads, devices ([GLUE Cloud](../features/glue-cloud.md), ADRs 0036–0038 proposed,
+  [research](../research/remote-access.md)). Waiting on the user's decisions; nothing built yet.
+
 ## 2026-09-25 · MCO is now GLUE
 - Renamed to **GLUE, Global Library Utility Exporter** (MCO was taken): header with the letters
   emphasised and a glue-stick logo, favicon, title, messages, backup names, docs
