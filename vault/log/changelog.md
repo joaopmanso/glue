@@ -5,6 +5,24 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · GLUE Home: a tray app for Windows and macOS; send songs to another computer
+- GLUE Home is now a small Tauri app ([ADR 0044](../adr/0044-glue-home-tauri-tray-app.md),
+  superseding 0038):
+  - an icon next to the clock (click: the GLUE library; right-click: status, settings, Start / Stop
+    / Restart, Quit);
+  - settings: sign in with email and password, Google in the browser (`#/connect-home`), or a code;
+    the incoming folder; start with the computer (asked on first launch);
+  - installers of 1.3 MB (Windows) and 3.8 MB (macOS universal), built on GitHub and published as
+    releases; the pairing dialog links the one for your OS.
+- Send songs: drop them on a GLUE Home in Sidebar › Devices, or ⋯ › Send songs…, or select tracks ›
+  "Send to …". They go straight between the two computers over WebRTC into its incoming folder,
+  with progress; names that are taken get " (2)".
+- Opening the library from GLUE Home while a GLUE tab is open brings that tab forward (its title
+  flashes) instead of a second one; "Use this tab instead" moves the library across safely.
+- API: `POST /v1/home/signin`; the app's web views are allowed origins.
+- Tests: GLUE Home's settings and service pages with a stand-in for the Rust side; a real WebRTC
+  transfer from the website to the service page (bytes compared); the tab hand-off.
+
 ## 2026-09-25 · Merged collections: instant after a reload, duplicates across devices, full track page
 - A reload showed only this device's songs and then fetched the other device's again: the cloud's
   list of merges wasn't in yet, so the copy in the GLUE folder wasn't used. Now it opens from the

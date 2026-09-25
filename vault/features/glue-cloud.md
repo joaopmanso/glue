@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-09-25
-adrs: [0036, 0040, 0041, 0042, 0043, 0037, 0038]
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0037, 0038]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -81,6 +81,34 @@ an account GLUE works exactly as today, all local.
   - `src/ui/EmailSignIn.svelte`, `src/ui/AdminView.svelte`;
   - `passwordKey` in `src/lib/account.svelte.ts`.
 
+## GLUE Home app (built 2026-09-25, [ADR 0044](../adr/0044-glue-home-tauri-tray-app.md))
+- **Install:** Devices › + GLUE Home shows the download for this OS (GitHub release
+  `GLUE-Home-Setup.exe` / `GLUE-Home.dmg`) and "Open GLUE Home on this computer" (`gluehome://`).
+  Not code-signed yet: SmartScreen "More info › Run anyway"; macOS right-click › Open.
+- **Tray icon:**
+  - click opens the library (an open GLUE tab comes forward instead of a new one);
+  - right-click menu: status, Open GLUE library, GLUE Home settings…, Start / Stop / Restart
+    service, Quit.
+- **Settings:**
+  - sign in with email and password, Google (the browser opens `#/connect-home`), or a code;
+  - this computer's name;
+  - incoming folder (default Music/GLUE Incoming);
+  - start with the computer (asked on first launch);
+  - received songs.
+- **Sending:**
+  - how: drop songs on the GLUE Home in Devices, ⋯ › Send songs…, or select tracks › Send to …;
+  - the path: a WebRTC data channel, direct only (no relay yet);
+  - on arrival: `.part` then renamed; taken names get " (2)".
+- **Code:**
+  - `home/src-tauri/src/main.rs`, `home/ui/{Settings.svelte,service.ts,cloud.ts,bridge.ts}`;
+  - `src/core/transfer.ts`, `src/lib/sendToHome.svelte.ts`, `src/lib/tabs.svelte.ts`;
+  - `src/ui/ConnectHome.svelte`, `src/ui/library/SendPanel.svelte`.
+- **Tests:** `e2e/home.spec.ts` (settings, service controls, sign-in paths, deep link), e2e "send
+  songs to a GLUE Home…" (a real WebRTC transfer, bytes compared), "GLUE Home opens the library…"
+  (tabs), `tests/cloud.test.ts` (home sign-in).
+- **Open:** a TURN relay; OS keychain for the credential; code signing; picking up new files in
+  the incoming folder without a scan.
+
 ## Merged collection in the library (built 2026-09-25, [ADR 0042](../adr/0042-merged-collection-in-the-local-library.md))
 - **Sync by default:** signed in, every profile syncs unless its Cloud sync button is turned off.
 - **Merges by itself:** a collection opens → it's merged with the same-named one on another device
@@ -157,9 +185,8 @@ setup dialog is gone.
   - the header's **Sign in** (`AccountButton`) appears only when the API answers;
   - Sidebar › **Devices** (`DevicesSection`): online dots, rename, remove, "+ GLUE Home" with
     the pairing code (the dialog closes when GLUE Home joins).
-- **GLUE Home preview** (`home/src/`), Node 24 running the TypeScript directly:
-  `node home/src/main.ts pair CODE`, then `run`. It keeps a private device credential in
-  `~/.glue-home/config.json`, stays online, reconnects, and stops when removed.
+- **GLUE Home preview** (phase 1, a Node command line; replaced by the tray app above, ADR 0044):
+  paired with a code, stayed online, reconnected, stopped when removed.
 - **Tests:**
   - `tests/cloud.test.ts`: the API on real SQLite, with test-signed Google tokens;
   - `tests/home.test.ts`: pairing;

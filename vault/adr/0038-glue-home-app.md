@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: superseded by 0044
 date: 2026-09-25
 ---
 # 0038. GLUE Home: a small Node.js/TypeScript app that serves the main computer's library

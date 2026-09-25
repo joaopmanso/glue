@@ -54,9 +54,15 @@ After working:
   `pool.ts` background analysis, `app.svelte.ts` analyze-a-file, `player`, `stems`, `route`, `view`) ·
   `src/ui/` components (`ui/library/` for the library) + canvas renderers.
 - `cloud/`: the GLUE Cloud Worker (API, D1 migrations, signaling Durable Object). Tests in
-  `tests/cloud.test.ts`; deploy via `.github/workflows/cloud.yml`. `home/`: GLUE Home (Node 24, run the
-  `.ts` directly). Cloud credentials: GitHub secrets, never in the repo.
-- Routes: `#/` library, `#/track/<id>` track page, `#/analyze` analyze a file.
+  `tests/cloud.test.ts`; deploy via `.github/workflows/cloud.yml`. Cloud credentials: GitHub secrets,
+  never in the repo.
+- `home/`: GLUE Home, a Tauri 2 tray app (ADR 0044). `home/src-tauri` Rust (tray, settings file,
+  incoming-folder writes, autostart, `gluehome://`), `home/ui` its settings and hidden service pages.
+  No Rust on this laptop: `.github/workflows/home.yml` builds Windows + macOS on every change; a tag
+  `home-v<version>` (version in `home/src-tauri/tauri.conf.json`) publishes the release the website
+  links to. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts`.
+- Routes: `#/` library, `#/track/<id>` track page, `#/analyze` analyze a file, `#/connect-home`
+  (GLUE Home's Google sign-in), `#/admin`.
 - E2E library tests use a temporary persistent browser profile and fake the folder pickers with OPFS
   folders (`e2e/library.spec.ts`); Playwright's default contexts crash when reading a stored handle.
 - `legacy/index.html`: original Speklone page, frozen; `tests/parity.test.ts` compares against it
