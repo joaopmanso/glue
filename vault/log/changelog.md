@@ -5,6 +5,13 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · Quiet content above the fade counts
+- AIFFs still read "band-limited to about 15 kHz" although faint content reached past 20 kHz. The
+  fade is measured on the average spectrum; quiet highs barely move it. Now the spectrogram's louder
+  moments are checked too: quiet content up to 17 kHz or higher, with no wall, means Lossless
+  ([ADR 0034](../adr/0034-quiet-content-above-the-fade.md)). Steady hiss doesn't count.
+- `VERDICT_VERSION` 3: stored Caution / Suspect verdicts are re-checked again, without decoding.
+
 ## 2026-09-25 · Gentle roll-offs are no longer "Caution"
 - Lossless files whose top end fades out gently from 17 kHz up (common on artist / Bandcamp /
   SoundCloud downloads) now read Lossless with a Note; shallow high "walls" (≥ 18.5 kHz, < 30 dB)

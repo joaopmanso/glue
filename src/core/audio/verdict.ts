@@ -113,8 +113,34 @@ export function findResample(cut: Cutoff, sr: number): number | null {
   return best ? best.r : null;
 }
 
-/** What the verdict needs from the analysis. */
-export interface VerdictInput { sr: number; stats: SampleStats; ltas: Float32Array; binHz: number; containerBits: number }
+/** How far real content reaches in the louder moments (a peak-hold over time of the spectrogram),
+    as opposed to the long-term average the cutoff is measured on. Hats, cymbals, noise or a thin
+    line can sit well above the noise floor while hardly moving the average. An encoder removes
+    everything above its lowpass all the time, so content up there means nothing cut the top off
+    (ADR 0033). Fixed bands, so a stored (row-reduced) spectrogram gives the same answer. */
+export function peakReach(spec: Float32Array, cols: number, rows: number, sr: number): number | null {
+  if (!spec?.length || !cols || rows < 64) return null;
+  // Per band: the loud moments (95th percentile over time) and the quiet ones (20th); the noise floor
+  // is the quietest band in quiet moments, so steady content up there can't pass for the floor.
+  const B = 128, nyq = sr / 2, per = rows / B, P = new Float32Array(B), Q = new Float32Array(B), col = new Float32Array(cols);
+  for (let b = 0; b < B; b++) {
+    const r0 = Math.floor(b * per), r1 = Math.max(r0 + 1, Math.floor((b + 1) * per));
+    for (let c = 0; c < cols; c++) { let m = -Infinity; for (let r = r0; r < r1; r++) m = Math.max(m, spec[c * rows + r]); col[c] = m; }
+    col.sort();
+    P[b] = col[Math.floor(0.95 * (cols - 1))]; Q[b] = col[Math.floor(0.2 * (cols - 1))];
+  }
+  const b1 = Math.ceil(1000 / nyq * B);
+  let floor = Infinity;
+  for (let b = b1; b + 2 < B; b++) floor = Math.min(floor, (Q[b] + Q[b + 1] + Q[b + 2]) / 3);
+  // Content comes and goes (hats, cymbals, tails): louder moments well above both the floor and the
+  // band's own quiet level. Steady hiss up there (e.g. noise-shaped dither) doesn't count.
+  const on = (b: number) => P[b] > floor + 10 && P[b] > Q[b] + 6;
+  for (let b = B - 1; b > b1; b--) if (on(b) && on(b - 1)) return (b + 1) * nyq / B;
+  return b1 * nyq / B;
+}
+
+/** What the verdict needs from the analysis (the spectrogram is optional: it refines gentle fades). */
+export interface VerdictInput { sr: number; stats: SampleStats; ltas: Float32Array; binHz: number; containerBits: number; spec?: Float32Array; cols?: number; rows?: number }
 type Head = { grade: Grade; label: string; headline: string; sub: string };
 
 const article = (word: string) => (/^[AEIOU]/i.test(word) ? 'an ' : 'a ') + word;
@@ -176,6 +202,9 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
       // common on artist and label downloads; lossy encoders leave a wall instead (2026-09-25).
       origin = 'Rolled-off master';
       add('info', 'Top end rolls off from about ' + kHz, 'The highest frequencies fade out gradually instead of stopping at a wall. Many masters are made this way (a gentle lowpass, dark sounds, heavy limiting). It is not a lossy fingerprint.');
+    } else if ((cut.reach = res.spec && res.cols && res.rows ? peakReach(res.spec, res.cols, res.rows, sr) ?? undefined : undefined) != null && cut.reach >= ROLL_OFF_OK) {
+      origin = 'Rolled-off master';
+      add('info', 'Quiet content up to ' + fmtKHz(cut.reach), 'Most of the energy fades out by about ' + kHz + ', but quieter content (cymbals, noise, thin lines) carries on up to ' + fmtKHz(cut.reach) + '. A lossy encoder removes everything above its cutoff, so nothing cut the top off here.');
     } else {
       bwTone = 'warn';
       origin = 'Band-limited source';
@@ -268,7 +297,7 @@ function finishVerdict(head: Head | null, F: Finding[], cut: Cutoff, info: FileI
     else if (info.lossless == null) head = { grade: 'info', label: 'Unverified', headline: 'No lossy fingerprint, format unknown', sub: 'Content reaches ' + fmtKHz(Math.max(cut.fc, cut.fade)) + ' with no encoder wall, but the codec couldn’t be identified, so this isn’t proof the file is lossless.' };
     else if (info.lossless === false) head = { grade: 'warn', label: 'Lossy · not hi-res', headline: 'Lossy ' + info.codec + ', not hi-res', sub: 'Content stops at ' + kHz + '. The bandwidth matches what ' + info.codec + (info.bitrate ? ' at ' + Math.round(info.bitrate) + ' kbps' : '') + ' should give, so it isn’t a fake, but the encoder has removed detail and no sample rate can make it hi-res.' };
     else if (hiRes) head = { grade: 'ok', label: 'Genuine hi-res', headline: 'Real hi-res: content to ' + fmtKHz(Math.max(cut.fc, cut.fade)), sub: 'The spectrum extends well past what a CD or 48 kHz master can hold' + (depth && depth.eff >= 20 ? ', and the low bits carry signal.' : '.') };
-    else if (!cut.full && cut.fc < 20800) head = { grade: 'ok', label: 'Lossless', headline: 'Genuine ' + fmtRate(sr) + ' lossless', sub: 'No lossy fingerprints. The top end rolls off gently from about ' + kHz + ', as many masters do.' };
+    else if (!cut.full && cut.fc < 20800) head = { grade: 'ok', label: 'Lossless', headline: 'Genuine ' + fmtRate(sr) + ' lossless', sub: 'No lossy fingerprints. The top end rolls off gently from about ' + kHz + (cut.reach && cut.reach > cut.fc + 500 ? ', with quieter content up to ' + fmtKHz(cut.reach) : '') + ', as many masters do.' };
     else head = { grade: 'ok', label: 'Lossless', headline: 'Genuine ' + fmtRate(sr) + ' lossless', sub: 'Full bandwidth with no lossy fingerprints: what you’d expect from a proper CD rip or a lossless download.' };
   }
   const expected = info.lossless === true ? { hz: sr / 2, why: 'Nyquist limit' } : info.lossless === false ? expectedCutoff(info) : null;

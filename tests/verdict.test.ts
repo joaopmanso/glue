@@ -3,7 +3,7 @@ import { runJob } from '../src/core/audio/analyze';
 import { classify } from '../src/core/audio/verdict';
 import { blankInfo } from '../src/core/formats/parse';
 import type { FileInfo } from '../src/core/types';
-import { bandLimitedTones as bandLimitedNoise, bandLimitedNoise as wallNoise, quantize, rolledOff } from './helpers';
+import { bandLimitedTones as bandLimitedNoise, bandLimitedNoise as wallNoise, quantize, rolledOff, rnd } from './helpers';
 
 const noop = () => {};
 const lossless = (sr: number, bits: number): FileInfo => Object.assign(blankInfo(), { container: 'FLAC', codec: 'FLAC', lossless: true, sampleRate: sr, bits, channels: 2, clues: [] });
@@ -56,6 +56,21 @@ describe('verdicts on synthetic signals', () => {
     const v = verdictOf(quantize(rolledOff(44100, 4, 3000, 9), 16), 44100, lossless(44100, 16));
     expect(v.cut.fc).toBeLessThan(17000);
     expect(v.label).toBe('Caution');
+  });
+  it('a dark master with quiet content above the fade (hats, cymbals) is lossless; steady hiss up there is not content', () => {
+    const dark = () => rolledOff(44100, 4, 3000, 9);
+    const hats = dark();   // short, faint full-band bursts four times a second (about −54 dBFS)
+    for (const o of hats) for (let s = 0; s < o.length; s += 11025) for (let i = 0; i < 660 && s + i < o.length; i++) o[s + i] += rnd() * 0.002 * Math.exp(-i / 200);
+    const v = verdictOf(quantize(hats, 16), 44100, lossless(44100, 16));
+    expect(v.cut.wall).toBe(false);
+    expect(v.cut.fc).toBeLessThan(17000);                 // the average alone says "band-limited"
+    expect(v.label).toBe('Lossless');
+    expect(v.cut.reach).toBeGreaterThan(20000);
+    expect(v.findings.map(f => f.title).join()).toContain('Quiet content up to');
+    const hiss = dark();    // steady high-passed noise, like noise-shaped dither
+    const h = rolledOff(44100, 4, 0, 0);
+    for (let c = 0; c < 2; c++) { let p = 0; for (let i = 0; i < hiss[c].length; i++) { hiss[c][i] += (h[c][i] - p) * 0.01; p = h[c][i]; } }
+    expect(verdictOf(quantize(hiss, 16), 44100, lossless(44100, 16)).label).toBe('Caution');
   });
   it('real encoder walls near the top are still transcodes; shallow high "walls" are only a caution', () => {
     for (const f of [18600, 19400]) expect(verdictOf(quantize(wallNoise(44100, 4, f), 16), 44100, lossless(44100, 16)).label).toBe('Transcoded');

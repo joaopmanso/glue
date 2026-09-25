@@ -9,7 +9,7 @@
     if (!info || !v) return [];
     const cut = v.cut;
     const bw = cut.full && !cut.wall ? fmtKHz(Math.max(cut.fc, cut.fade)) : fmtKHz(cut.fc);
-    const bwSub = cut.wall ? 'sharp wall, −' + Math.round(cut.drop) + ' dB' : cut.full ? 'reaches the top' : 'gradual fade';
+    const bwSub = cut.wall ? 'sharp wall, −' + Math.round(cut.drop) + ' dB' : cut.full ? 'reaches the top' : 'gradual fade' + (cut.reach && cut.reach > cut.fc + 500 ? ', quieter to ' + fmtKHz(cut.reach) : '');
     let depthVal = '—', depthSub = info.lossless === false ? 'not meaningful for lossy' : 'not measured', depthTone = '';
     if (v.depth) {
       depthVal = v.depth.eff + '-bit';

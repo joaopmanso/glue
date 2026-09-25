@@ -112,6 +112,7 @@ export interface Cutoff {
   rising: boolean;
   imaging: { r: number; corr: number } | null;
   sm: Float32Array;
+  reach?: number;          // quiet content (peak-hold) reaches this high, when it was checked
 }
 
 export type Grade = 'ok' | 'warn' | 'bad' | 'info';

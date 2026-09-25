@@ -2,7 +2,7 @@
 status: shipped
 milestone: Speklone
 updated: 2026-09-25
-adrs: [0002, 0033]
+adrs: [0002, 0033, 0034]
 ---
 # Quality forensics
 
@@ -24,6 +24,9 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
 - A lossless CD / 48 kHz file whose top end fades out gently (no wall) from 17 kHz up is Lossless,
   with a Note; below 17 kHz it's a Caution ([ADR 0033](../adr/0033-tolerate-gentle-roll-offs.md)).
   Stored verdicts are re-checked from stored analyses when these rules change.
+- A fade below 17 kHz is still Lossless when quiet content (hats, cymbals, tails) reaches 17 kHz or
+  higher in the louder moments: "Quiet content up to X kHz"
+  ([ADR 0034](../adr/0034-quiet-content-above-the-fade.md)). Steady hiss up there doesn't count.
 - "Fake bitrate" is a Fail only for MP3 (LAME's lowpass per bitrate is reliable); for AAC/Vorbis/Opus
   a low cutoff is a Caution.
 - Unknown format + lossy wall → "Lossy audio: content stops at X"; unknown without a wall →
