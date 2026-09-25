@@ -39,7 +39,11 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// The settings (account, device credential, incoming folder), or none before the first setup.
 #[tauri::command]
-pub(crate) fn get_config(app: AppHandle) -> Option<serde_json::Value> {
+fn get_config(app: AppHandle) -> Option<serde_json::Value> {
+    get_config_impl(app)
+}
+
+pub(crate) fn get_config_impl(app: AppHandle) -> Option<serde_json::Value> {
     let p = config_path(&app).ok()?;
     serde_json::from_str(&fs::read_to_string(p).ok()?).ok()
 }
@@ -351,7 +355,11 @@ fn cache_list(app: AppHandle, rel: String) -> Vec<String> {
 
 /// The songs in the incoming folder (not the ones still arriving).
 #[tauri::command]
-pub(crate) fn incoming_list(app: AppHandle) -> Vec<serde_json::Value> {
+fn incoming_list(app: AppHandle) -> Vec<serde_json::Value> {
+    incoming_list_impl(app)
+}
+
+pub(crate) fn incoming_list_impl(app: AppHandle) -> Vec<serde_json::Value> {
     let dir = incoming_dir(&app);
     let Ok(d) = fs::read_dir(dir) else { return vec![] };
     d.flatten()
@@ -370,7 +378,11 @@ pub(crate) fn incoming_list(app: AppHandle) -> Vec<serde_json::Value> {
 /// Move a song from the incoming folder into one of the music folders GLUE Home found (never
 /// overwriting); the website picks it up there on its next scan.
 #[tauri::command]
-pub(crate) fn incoming_move(app: AppHandle, name: String, to: String) -> Result<String, String> {
+fn incoming_move(app: AppHandle, name: String, to: String) -> Result<String, String> {
+    incoming_move_impl(app, name, to)
+}
+
+pub(crate) fn incoming_move_impl(app: AppHandle, name: String, to: String) -> Result<String, String> {
     let from = incoming_dir(&app).join(safe_name(&name));
     if !from.is_file() {
         return Err("that song isn't in the incoming folder any more".into());

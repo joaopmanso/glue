@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::atomic::{AtomicU16, Ordering};
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 pub static PORT: AtomicU16 = AtomicU16::new(0);
@@ -95,7 +95,7 @@ fn handle(app: AppHandle, req: Request) {
     let path = url.split('?').next().unwrap_or("").to_string();
     let q = query(&url);
     let arg = |k: &str| q.iter().find(|(a, _)| a == k).map(|(_, v)| v.clone()).unwrap_or_default();
-    let cfg = crate::get_config(app.clone());
+    let cfg = crate::get_config_impl(app.clone());
     let s = |key: &str| cfg.as_ref().and_then(|c| c.get(key)).and_then(|v| v.as_str()).unwrap_or("").to_string();
     if path == "/hello" {
         let body = serde_json::json!({ "app": "glue-home", "version": app.package_info().version.to_string(), "device": s("deviceId") });
@@ -109,7 +109,7 @@ fn handle(app: AppHandle, req: Request) {
     }
     match path.as_str() {
         "/incoming" => {
-            let list: Vec<serde_json::Value> = crate::incoming_list(app.clone()).into_iter().map(|mut f| {
+            let list: Vec<serde_json::Value> = crate::incoming_list_impl(app.clone()).into_iter().map(|mut f| {
                 // With the analysis GLUE Home made when the song arrived, if it's done.
                 let name = f.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
                 if let Ok(p) = crate::cache_path(&app, &format!("i/{name}.summary.json")) {
@@ -143,7 +143,7 @@ fn handle(app: AppHandle, req: Request) {
         }
         "/incoming/move" if req.method() == &Method::Post => {
             let to = cfg.as_ref().and_then(|c| c.get("folders")).and_then(|f| f.get(arg("folder"))).and_then(|v| v.as_str()).map(|v| v.to_string());
-            match to.map(|to| crate::incoming_move(app.clone(), arg("name"), to)) {
+            match to.map(|to| crate::incoming_move_impl(app.clone(), arg("name"), to)) {
                 Some(Ok(p)) => reply(req, 200, serde_json::json!({ "path": p }).to_string().into_bytes(), "application/json", vec![]),
                 Some(Err(e)) => reply(req, 400, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json", vec![]),
                 None => reply(req, 400, b"{\"error\":\"GLUE Home doesn't know that music folder\"}".to_vec(), "application/json", vec![]),
