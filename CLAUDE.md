@@ -2,8 +2,8 @@
 
 Formerly **MCO** (Music Collection Organizer), renamed 2026-09-25 ([ADR 0035](vault/adr/0035-rename-to-glue.md)).
 Internal identifiers keep the old prefix on purpose (`mco.json`, `mco-backup.json`, IndexedDB `mco`,
-prefs `mco.*`, picker ids `mco-home`…) so existing data folders, backups and settings keep working;
-the repo and URL are still `mco` until moved.
+prefs `mco.*`, picker ids `mco-home`…) so existing data folders, backups and settings keep working.
+Repo `joaopmanso/glue`, live at https://joaopmanso.github.io/glue/ (`joaopmanso/mco` only redirects there).
 
 Local-first web app for DJs: builds a music collection from folders and DJ-app libraries (Rekordbox,
 Engine DJ, Traktor, Apple Music), analyses quality / BPM / key in the background, manages playlists,
@@ -55,4 +55,4 @@ After working:
   folders (`e2e/library.spec.ts`); Playwright's default contexts crash when reading a stored handle.
 - `legacy/index.html`: original Speklone page, frozen; `tests/parity.test.ts` compares against it
   (ADR 0016). Change a parity expectation only on purpose, with a changelog note.
-- Push to `main` = checks, tests, build and deploy to https://joaopmanso.github.io/mco/.
+- Push to `main` = checks, tests, build and deploy to https://joaopmanso.github.io/glue/.

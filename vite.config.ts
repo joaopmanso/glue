@@ -1,9 +1,9 @@
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
-// Served from https://joaopmanso.github.io/mco/ (GitHub Pages project site).
+// Served from https://joaopmanso.github.io/glue/ (GitHub Pages project site).
 export default defineConfig({
-  base: '/mco/',
+  base: '/glue/',
   plugins: [svelte()],
   worker: { format: 'es' },
   build: { target: 'es2022', sourcemap: true },

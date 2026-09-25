@@ -3,7 +3,7 @@
 A local-first music collection tool for DJs, growing out of **Speklone** (spectral forensics: "is this
 hi-res actually hi-res?"). Everything runs in the visitor's browser; no audio ever leaves their machine.
 
-Live: https://joaopmanso.github.io/mco/ · original Speklone page: https://joaopmanso.github.io/speklone/
+Live: https://joaopmanso.github.io/glue/ · original Speklone page: https://joaopmanso.github.io/speklone/
 
 Today (M1) it analyses single files: quality verdict (transcodes, upsamples, padded bits, rip
 fingerprints), spectrogram and average spectrum, tempo and key (Camelot / Open Key / musical), a player
@@ -15,11 +15,11 @@ playlists, shows, sessions, imports/exports for Rekordbox and Engine DJ, duplica
 
 ```sh
 npm install
-npm run dev        # http://localhost:5174/mco/
+npm run dev        # http://localhost:5174/glue/
 npm run check      # svelte-check (TypeScript)
 npm test           # unit + parity tests (Vitest)
 npx playwright test               # browser tests against the production build (uses installed Edge)
-BASE_URL=https://joaopmanso.github.io/mco/ npx playwright test e2e/analyze.spec.ts   # same, against the live site
+BASE_URL=https://joaopmanso.github.io/glue/ npx playwright test e2e/analyze.spec.ts   # same, against the live site
 STEMS=1 npx playwright test e2e/stems.spec.ts   # slow: real stem separation
 npm run build      # static site in dist/
 ```

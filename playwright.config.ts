@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
-// By default runs against the production build under /mco/, the way GitHub Pages serves it.
-// BASE_URL=https://joaopmanso.github.io/mco/ runs the same tests against the live site.
+// By default runs against the production build under /glue/, the way GitHub Pages serves it.
+// BASE_URL=https://joaopmanso.github.io/glue/ runs the same tests against the live site.
 // Uses the installed Microsoft Edge (channel 'msedge'), so no browser download is needed.
 const live = process.env.BASE_URL;
 export default defineConfig({
@@ -10,13 +10,13 @@ export default defineConfig({
   fullyParallel: false,
   reporter: 'list',
   use: {
-    baseURL: live || 'http://localhost:5174/mco/',
+    baseURL: live || 'http://localhost:5174/glue/',
     channel: process.env.PW_CHANNEL || 'msedge',
     viewport: { width: 1920, height: 960 },
   },
   webServer: live ? undefined : {
     command: 'npm run build && npm run preview -- --strictPort',
-    url: 'http://localhost:5174/mco/',
+    url: 'http://localhost:5174/glue/',
     reuseExistingServer: true,
     timeout: 120_000,
   },
