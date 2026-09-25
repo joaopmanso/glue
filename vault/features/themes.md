@@ -17,7 +17,7 @@ Choose how GLUE looks: a theme (colours, fonts, shape) and dark, light or match-
 ## Open
 - The user tries Studio, Riso and Moss and picks the new default.
 
-## Glue Stick (2026-09-25)
+## GLUE Stick (2026-09-25)
 - A fifth theme at the user's request: glue-stick yellow (#ffd100) on black, like the classic
   UHU stick; light mode uses a darker gold (#b58500) on cream so accent text stays readable.
   Heavy Archivo titles, 10 px corners.

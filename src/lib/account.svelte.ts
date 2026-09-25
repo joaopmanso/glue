@@ -51,12 +51,15 @@ class Account {
   private set refreshToken(v: string) { writePref('cloud.refresh', v); }
 
   /** On start: resume a session kept from before (quietly; offline or signed out is fine). */
+  /** The saved session has been tried (signed in or not): pages that depend on the account can decide. */
+  ready = $state(false);
   async init() {
     void this.probe();
-    if (!this.refreshToken) return;
+    if (!this.refreshToken) { this.ready = true; return; }
     this.phase = 'working';
     try { await this.renew(); await this.loadMe(); this.connect(); }
     catch (e) { if ((e as { status?: number }).status === 401) this.forget(); else { this.phase = 'signed-out'; this.error = 'GLUE Cloud is unreachable right now.'; } }
+    finally { this.ready = true; }
   }
 
   private async probe() {

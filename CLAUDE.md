@@ -1,5 +1,8 @@
 # GLUE: Global Library Unified Exporter
 
+The name is always written **GLUE**, in capitals, everywhere people can see it (the theme is
+"GLUE Stick", the headline "The GLUE between…"); the user asked for this on 2026-09-25.
+
 Formerly **MCO** (Music Collection Organizer), renamed 2026-09-25 ([ADR 0035](vault/adr/0035-rename-to-glue.md)).
 Internal identifiers keep the old prefix on purpose (`mco.json`, `mco-backup.json`, IndexedDB `mco`,
 prefs `mco.*`, picker ids `mco-home`…) so existing data folders, backups and settings keep working.

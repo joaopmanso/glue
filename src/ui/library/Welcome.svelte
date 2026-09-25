@@ -108,7 +108,7 @@
         <div class="hero">
           <div class="hero-copy">
             <p class="kicker">Global Library Unified Exporter</p>
-            <h2 class="hero-h">The glue between<br>your DJ apps.</h2>
+            <h2 class="hero-h">The GLUE between<br>your DJ apps.</h2>
             <p class="hero-lede">One library for everything in rekordbox, Engine DJ, Serato, Traktor and Apple Music, on your own computer. See what every file really is, build sets that mix, tag and tidy, and take it back to your DJ app.</p>
             <div class="hero-cta">
               <a class="btn big" href="#get-started" id="get-started-btn" onclick={e => { e.preventDefault(); document.getElementById('get-started')?.scrollIntoView({ behavior: 'smooth' }); }}>Get started, free</a>

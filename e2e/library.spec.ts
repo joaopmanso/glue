@@ -1252,7 +1252,7 @@ test('email + password account, and the admin panel only for admins', async ({ p
   await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { ws.send(JSON.stringify({ type: 'presence', online: ['b1'] })); ws.onMessage(() => {}); });
 
   await page.goto('./');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'stick');        // Glue Stick is the default theme
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'stick');        // GLUE Stick is the default theme
   // Register with an email and a password (the password is stretched in the browser; only a key is sent).
   await page.click('#account-btn');
   await page.click('#pw-swap');
@@ -1280,16 +1280,29 @@ test('email + password account, and the admin panel only for admins', async ({ p
   await page.click('#pw-submit');
   await expect(page.locator('#account-btn')).toHaveText(/D/, { timeout: 15_000 });
 
-  // Not an admin: no Admin tab, and #/admin says so.
+  // Not an admin: no Admin tab or link, and #/admin sends you back to the library.
   await expect(page.locator('#admin-tab')).toHaveCount(0);
+  await expect(page.locator('#admin-link')).toHaveCount(0);
   await page.goto('./#/admin');
-  await expect(page.locator('#admin-denied')).toContainText('Admins only', { timeout: 15_000 });
+  await expect(page).toHaveURL(/#\/$/, { timeout: 15_000 });
+  await expect(page.locator('#admin')).toHaveCount(0);
   expect(calls).toEqual([]);
+  // Signed out, too (the account menu may still be open from signing in).
+  if (!await page.locator('#sign-out').isVisible()) await page.click('#account-btn');
+  await page.click('#sign-out');
+  await page.goto('./#/admin');
+  await expect(page).toHaveURL(/#\/$/, { timeout: 15_000 });
+  await page.click('#account-btn');
+  await page.fill('#pw-email', 'dj@example.com');
+  await page.fill('#pw-password', 'correct horse battery');
+  await page.click('#pw-submit');
+  await expect(page.locator('#account-btn')).toHaveText(/D/, { timeout: 15_000 });
 
   // An admin sees the panel: statistics, users, tiers, clearing data, maintenance.
   tier = 'admin';
   await page.reload();
   await expect(page.locator('#admin-tab')).toBeVisible({ timeout: 15_000 });
+  await page.click('#admin-tab');
   await expect(page.locator('#admin-stats')).toContainText('Users');
   await expect(page.locator('#admin-stats')).toContainText('2.0 KB');
   const row = page.locator('#admin-users [data-user="u2"]');

@@ -5,7 +5,14 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
-## 2026-09-25 · Email + password accounts, tiers, admin panel; Glue Stick is the default
+## 2026-09-25 · GLUE in capitals everywhere; admin strictly for admins
+- Every visible "glue" is now GLUE: the homepage headline "The GLUE between your DJ apps.", the
+  theme "GLUE Stick", and the page description (reworded rather than "GLUEs").
+- The Admin tab and account-menu link only show for admins, as before. Now `#/admin` also sends
+  anyone else (signed out included) back to the library once the session has loaded. The API
+  refused them already.
+
+## 2026-09-25 · Email + password accounts, tiers, admin panel; GLUE Stick is the default
 - Sign in with an email and password (short register form) as well as Google. The password is
   stretched in the browser (PBKDF2 300k); the server stores a salted hash of that only.
 - Tiers free / paid / admin (everyone paid). Admin only via a Google-verified

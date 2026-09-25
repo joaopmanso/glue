@@ -27,6 +27,8 @@
   import { themes } from './lib/themes.svelte';
 
   onMount(() => { void lib.boot(); void account.init(); });
+  // The admin panel is for admins only: anyone else is sent back to the library (the API checks too).
+  $effect(() => { if (route.name === 'admin' && account.ready && account.phase !== 'working' && !account.isAdmin) router.go('#/'); });
 
   const route = $derived(router.current);
   const inLibrary = $derived(lib.phase === 'library');
