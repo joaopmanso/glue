@@ -5,6 +5,12 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · Handoff; open bug recorded
+- The user's check on the desktop: the direct link answers and the sent song plays. Still wrong: that
+  song (the laptop's track, with its file waiting on the desktop) has no waveform or analysis there.
+  Cause and fix plan in [the handoff note](2026-09-26-handoff.md) and the
+  [GLUE Cloud known issues](../features/glue-cloud.md#known-issues-2026-09-26). No code change.
+
 ## 2026-09-25 · TO BE SORTED without the wait; the direct link shows in Devices
 From the user's test of 0.4.0:
 - Laptop: TO BE SORTED took ~30 s (until the next round) when the desktop's GLUE Home came online

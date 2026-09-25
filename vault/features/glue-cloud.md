@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M6
-updated: 2026-09-25
+updated: 2026-09-26
 adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
@@ -106,6 +106,12 @@ an account GLUE works exactly as today, all local.
 - **Next:** GLUE Home as the computer's library, with saving and cloud sync
   ([ADR 0050](../adr/0050-glue-home-as-the-computers-library.md), proposed); streaming that starts
   before the whole file is in.
+
+## Known issues (2026-09-26)
+- **A song sent to a computer is unanalysed there when that computer's collection already has it
+  from another device** (the laptop's track, with the file waiting in the desktop's incoming folder):
+  no waveform, and the track page says "on Laptop, not analysed" with the analyse button, again after
+  a refresh. Playing works. Cause and fix: [handoff 2026-09-26](../log/2026-09-26-handoff.md).
 
 ## GLUE Home app (built 2026-09-25, [ADR 0044](../adr/0044-glue-home-tauri-tray-app.md))
 - **Install:** Devices › + GLUE Home shows the download for this OS (GitHub release

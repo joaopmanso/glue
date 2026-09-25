@@ -18,7 +18,8 @@ Inspector and "Analyze a file" mode.
 Before working, read:
 1. `vault/product/roadmap.md` (current milestone),
 2. the feature file(s) in `vault/features/` you're touching,
-3. the ADRs they link in `vault/adr/`.
+3. the ADRs they link in `vault/adr/`,
+4. the newest handoff note in `vault/log/` (`YYYY-MM-DD-handoff.md`), if there is one.
 
 After working:
 - update the feature's `status` and notes, the roadmap if a milestone moved, and
