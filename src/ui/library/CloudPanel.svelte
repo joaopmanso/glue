@@ -5,6 +5,7 @@
   import { account } from '../../lib/account.svelte';
   import { sync, type Group, type Member, type RemoteProfile } from '../../lib/sync.svelte';
   import { themes } from '../../lib/themes.svelte';
+  import EmailSignIn from '../EmailSignIn.svelte';
 
   let gbox = $state<HTMLDivElement>();
   let opening = $state('');
@@ -40,8 +41,8 @@
     {#if account.signedIn}<span class="acct">{account.user?.email} · <button type="button" class="link" onclick={() => account.signOut()}>Sign out</button></span>{/if}
   </div>
   {#if !account.signedIn}
-    <p>Sign in with Google to keep a copy of your collections' data in the cloud (tracks, playlists, ratings, notes, tags; <b>never the music</b>), see every device's collection from any browser, and merge collections across computers.</p>
-    {#if account.available || account.phase === 'working'}<div class="gbtn" bind:this={gbox} id="cloud-google"></div>
+    <p>Sign in (Google, or an email and password) to keep a copy of your collections' data in the cloud (tracks, playlists, ratings, notes, tags; <b>never the music</b>), see every device's collection from any browser, and merge collections across computers.</p>
+    {#if account.available || account.phase === 'working'}<div class="gbtn" bind:this={gbox} id="cloud-google"></div><EmailSignIn idPrefix="cloud-pw" />
     {:else}<p class="fine">GLUE Cloud isn't reachable right now.</p>{/if}
   {:else}
     {#if sync.loading && !sync.remote.length}<p class="fine">Looking in your cloud…</p>

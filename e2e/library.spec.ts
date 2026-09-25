@@ -618,7 +618,7 @@ test('themes: pick a theme and dark / light on the profile screen; it sticks', a
   await page.click('#onb-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
   const html = page.locator('html');
-  await expect(html).toHaveAttribute('data-theme', 'classic');
+  await expect(html).toHaveAttribute('data-theme', 'stick');                 // the default (2026-09-25)
   for (const id of ['classic', 'stick', 'studio', 'riso', 'moss']) for (const mode of ['dark', 'light']) {
     await page.locator('.top .who').click();
     await page.click('#theme-' + id); await page.click('#mode-' + mode);
@@ -1220,4 +1220,85 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await page.click('#cloud-clean-go');
   await expect(page.locator('#cloud-empty')).toBeVisible();
   expect(cloud.size).toBe(0);
+});
+
+test('email + password account, and the admin panel only for admins', async ({ page }) => {
+  test.setTimeout(90_000);   // each sign-in stretches the password (PBKDF2, 300k rounds) in the browser
+  let tier = 'paid', registered: Record<string, unknown> | null = null;
+  const users = [{ id: 'u2', email: 'fan@example.com', name: 'Fan', tier: 'paid', createdAt: 1, providers: ['password'], devices: 1, lastSeen: Date.now(), bytes: 2048, profiles: 1 }];
+  const calls: string[] = [];
+  await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: 'window.google = { accounts: { id: { initialize() {}, renderButton() {}, disableAutoSelect() {} } } };' }));
+  await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
+    const req = r.request(), u = new URL(req.url()), m = req.method(), p = u.pathname;
+    const json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
+    const me = () => ({ id: 'u1', email: 'dj@example.com', name: 'DJ', picture: null, tier });
+    if (p === '/v1/health') return json({ ok: true });
+    if (p === '/v1/auth/register') { registered = req.postDataJSON(); return json({ access: 'a', refresh: 'r', deviceId: 'b1', user: me() }); }
+    if (p === '/v1/auth/password') { const b = req.postDataJSON(); return b.key === (registered as { key?: string } | null)?.key ? json({ access: 'a', refresh: 'r', deviceId: 'b1', user: me() }) : json({ error: 'wrong email or password' }, 401); }
+    if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1' });
+    if (p === '/v1/auth/logout') return json({ ok: true });
+    if (p === '/v1/me') return json({ user: me(), thisDevice: 'b1', devices: [{ id: 'b1', kind: 'browser', name: 'Edge', platform: '', createdAt: 1, lastSeen: 1 }] });
+    if (p.startsWith('/v1/admin/')) {
+      if (tier !== 'admin') return json({ error: 'admins only' }, 403);
+      calls.push(m + ' ' + p);
+      if (p === '/v1/admin/stats') return json({ users: { total: 1, byTier: { paid: 1 }, byProvider: { password: 1 }, new7: 1, new30: 1, active7: 1, signups: Array(30).fill(0).map((_, i) => i === 29 ? 1 : 0) }, devices: { byKind: { browser: 1 }, revoked: 0, seen24h: 1 }, sync: { profiles: 1, files: 12, bytes: 2048, merges: 0, pendingEdits: 0 }, housekeeping: { expiredCodes: 3, expiredSessions: 0, attempts: 2, oldEdits: 0 }, at: Date.now() });
+      if (p === '/v1/admin/users') return json({ users });
+      if (p === '/v1/admin/users/u2' && m === 'PATCH') { users[0].tier = req.postDataJSON().tier; return json({ ok: true }); }
+      if (p === '/v1/admin/users/u2/cloud' && m === 'DELETE') { users[0].bytes = 0; return json({ ok: true }); }
+      if (p === '/v1/admin/maintenance') return json({ removed: 3 });
+    }
+    return json({ error: 'not found' }, 404);
+  });
+  await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { ws.send(JSON.stringify({ type: 'presence', online: ['b1'] })); ws.onMessage(() => {}); });
+
+  await page.goto('./');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'stick');        // Glue Stick is the default theme
+  // Register with an email and a password (the password is stretched in the browser; only a key is sent).
+  await page.click('#account-btn');
+  await page.click('#pw-swap');
+  await page.fill('#pw-name', 'DJ');
+  await page.fill('#pw-email', 'dj@example.com');
+  await page.fill('#pw-password', 'short');
+  await page.fill('#pw-confirm', 'short');
+  await page.click('#pw-submit');
+  await expect(page.locator('#pw-error')).toContainText('at least 8');
+  await page.fill('#pw-password', 'correct horse battery');
+  await page.fill('#pw-confirm', 'correct horse battery');
+  await page.click('#pw-submit');
+  await expect(page.locator('#account-btn')).toHaveText(/D/, { timeout: 15_000 });
+  expect(registered).toMatchObject({ email: 'dj@example.com', name: 'DJ' });
+  expect(JSON.stringify(registered)).not.toContain('correct horse');                 // never the password itself
+  expect(String((registered as unknown as { key: string }).key)).toMatch(/^[\w-]{43}$/);
+  // Sign out (the account menu is still open, now showing the account) and back in with the same password.
+  await page.click('#sign-out');
+  await page.click('#account-btn');
+  await page.fill('#pw-email', 'dj@example.com');
+  await page.fill('#pw-password', 'wrong password!');
+  await page.click('#pw-submit');
+  await expect(page.locator('#pw-error')).toContainText('Wrong email or password');
+  await page.fill('#pw-password', 'correct horse battery');
+  await page.click('#pw-submit');
+  await expect(page.locator('#account-btn')).toHaveText(/D/, { timeout: 15_000 });
+
+  // Not an admin: no Admin tab, and #/admin says so.
+  await expect(page.locator('#admin-tab')).toHaveCount(0);
+  await page.goto('./#/admin');
+  await expect(page.locator('#admin-denied')).toContainText('Admins only', { timeout: 15_000 });
+  expect(calls).toEqual([]);
+
+  // An admin sees the panel: statistics, users, tiers, clearing data, maintenance.
+  tier = 'admin';
+  await page.reload();
+  await expect(page.locator('#admin-tab')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#admin-stats')).toContainText('Users');
+  await expect(page.locator('#admin-stats')).toContainText('2.0 KB');
+  const row = page.locator('#admin-users [data-user="u2"]');
+  await expect(row).toContainText('fan@example.com');
+  await row.locator('select').selectOption('free');
+  await expect.poll(() => users[0].tier).toBe('free');
+  page.once('dialog', d => d.accept());
+  await row.getByRole('button', { name: 'Clear cloud data' }).click();
+  await expect.poll(() => users[0].bytes).toBe(0);
+  await page.locator('#admin-maint').getByRole('button', { name: /Pairing codes/ }).click();
+  await expect(page.locator('.admin .ok')).toContainText('3 removed');
 });

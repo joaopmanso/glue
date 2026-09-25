@@ -12,7 +12,7 @@ const CLIENT = 'test-client.apps.googleusercontent.com', ORIGIN = 'https://joaop
 function d1(): DB {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
-  for (const m of ['0001_init.sql', '0002_sync.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
+  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
   const stmt = (sql: string, args: unknown[] = []): Stmt => ({
     bind: (...v) => stmt(sql, v),
     first: async <T,>() => (db.prepare(sql).get(...(args as never[])) as T) ?? null,
@@ -51,7 +51,7 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   now = Date.UTC(2026, 8, 25);
-  env = { DB: d1(), SESSION_KEY: 'test-session-key-0123456789abcdef', GOOGLE_CLIENT_ID: CLIENT, ALLOWED_ORIGINS: ORIGIN + ',http://localhost:5174' };
+  env = { DB: d1(), SESSION_KEY: 'test-session-key-0123456789abcdef', GOOGLE_CLIENT_ID: CLIENT, ALLOWED_ORIGINS: ORIGIN + ',http://localhost:5174', ADMIN_EMAILS: 'boss@example.com' };
 });
 
 describe('GLUE Cloud: tokens', () => {
@@ -243,5 +243,59 @@ describe('GLUE Cloud: sync and merged collections (ADR 0040)', () => {
     expect((await call('GET', '/v1/sync/ops?profile=p2', undefined, desktop.json.access)).json.ops).toHaveLength(2);
     await call('POST', '/v1/sync/ops/ack', { profile: 'p2', upTo: mine.json.ops[1].seq }, desktop.json.access);
     expect((await call('GET', '/v1/sync/ops?profile=p2', undefined, desktop.json.access)).json.ops).toHaveLength(0);
+  });
+});
+
+describe('GLUE Cloud: email + password, tiers, admin (ADR 0041)', () => {
+  const key = (s: string) => (s + '-'.repeat(43)).slice(0, 43);   // stands in for the browser's PBKDF2 output
+  it('registers, signs in, refuses a wrong password and a second account for the same email', async () => {
+    const r = await call('POST', '/v1/auth/register', { email: 'DJ@Example.com', name: 'DJ', key: key('secret'), deviceName: 'Firefox' });
+    expect(r.status).toBe(200);
+    expect(r.json.user).toMatchObject({ email: 'dj@example.com', name: 'DJ', tier: 'paid' });                  // everyone is on paid for now
+    expect((await call('POST', '/v1/auth/register', { email: 'dj@example.com', key: key('other') })).status).toBe(409);
+    expect((await call('POST', '/v1/auth/password', { email: 'dj@example.com', key: key('wrong') })).status).toBe(401);
+    const ok = await call('POST', '/v1/auth/password', { email: ' dj@EXAMPLE.com ', key: key('secret'), deviceId: r.json.deviceId });
+    expect(ok.status).toBe(200);
+    expect(ok.json.deviceId).toBe(r.json.deviceId);
+    const me = await call('GET', '/v1/me', undefined, ok.json.access);
+    expect(me.json.user).toMatchObject({ tier: 'paid', providers: ['password'] });
+    expect((await call('POST', '/v1/auth/register', { email: 'not-an-email', key: key('x') })).status).toBe(400);
+  });
+  it('limits password guesses per account', async () => {
+    await call('POST', '/v1/auth/register', { email: 'dj@example.com', key: key('secret') });
+    for (let i = 0; i < 10; i++) await call('POST', '/v1/auth/password', { email: 'dj@example.com', key: key('guess' + i) });
+    expect((await call('POST', '/v1/auth/password', { email: 'dj@example.com', key: key('secret') })).status).toBe(429);
+  });
+  it('makes only a Google-verified admin email an admin; a password account with that email is not', async () => {
+    const pw = await call('POST', '/v1/auth/register', { email: 'boss@example.com', key: key('squat') });
+    expect(pw.json.user.tier).toBe('paid');
+    expect((await call('GET', '/v1/admin/stats', undefined, pw.json.access)).status).toBe(403);
+    const unverified = await signIn({ sub: 'g-boss', email: 'boss@example.com', email_verified: false });
+    expect(unverified.status).toBe(401);
+    const boss = await signIn({ sub: 'g-boss', email: 'boss@example.com' });
+    expect(boss.json.user.tier).toBe('admin');
+    expect((await call('GET', '/v1/admin/stats', undefined, (await signIn()).json.access)).status).toBe(403);   // an ordinary Google user
+  });
+  it('admin: statistics, users, tiers, clearing data, deleting accounts, maintenance', async () => {
+    const boss = await signIn({ sub: 'g-boss', email: 'boss@example.com' }), dj = await signIn();
+    await call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'x' }, files: [{ path: 'a.json', hash: 'a'.repeat(64), size: 1 }] }, dj.json.access);
+    await call('PUT', '/v1/sync/file?profile=p1&path=a.json&hash=' + 'a'.repeat(64) + '&size=1', 'AAAA', dj.json.access);
+    const s = await call('GET', '/v1/admin/stats', undefined, boss.json.access);
+    expect(s.json.users).toMatchObject({ total: 2, byTier: { admin: 1, paid: 1 }, byProvider: { google: 2 }, new7: 2 });
+    expect(s.json.users.signups).toHaveLength(30);
+    expect(s.json.users.signups[29]).toBe(2);
+    expect(s.json.sync).toMatchObject({ profiles: 1, files: 1, bytes: 4 });
+    const us = await call('GET', '/v1/admin/users?q=dj@', undefined, boss.json.access);
+    expect(us.json.users).toHaveLength(1);
+    expect(us.json.users[0]).toMatchObject({ email: 'dj@example.com', tier: 'paid', devices: 1, bytes: 4, providers: ['google'] });
+    const id = us.json.users[0].id;
+    expect((await call('PATCH', '/v1/admin/users/' + id, { tier: 'free' }, boss.json.access)).status).toBe(200);
+    expect((await call('GET', '/v1/me', undefined, dj.json.access)).json.user.tier).toBe('free');
+    expect((await call('PATCH', '/v1/admin/users/' + boss.json.user.id, { tier: 'paid' }, boss.json.access)).status).toBe(400);   // not yourself
+    await call('DELETE', '/v1/admin/users/' + id + '/cloud', undefined, boss.json.access);
+    expect((await call('GET', '/v1/sync', undefined, dj.json.access)).json.profiles).toEqual([]);
+    expect((await call('POST', '/v1/admin/maintenance', { task: 'attempts' }, boss.json.access)).status).toBe(200);
+    expect((await call('DELETE', '/v1/admin/users/' + id, undefined, boss.json.access)).status).toBe(200);
+    expect((await call('GET', '/v1/me', undefined, dj.json.access)).status).toBe(401);
   });
 });

@@ -1,10 +1,11 @@
-/* Hash routes: #/ library · #/track/<id> track detail · #/analyze analyse a single file. */
-export type Route = { name: 'library' } | { name: 'track'; id: string } | { name: 'analyze' };
+/* Hash routes: #/ library · #/track/<id> track detail · #/analyze analyse a single file · #/admin admin panel. */
+export type Route = { name: 'library' } | { name: 'track'; id: string } | { name: 'analyze' } | { name: 'admin' };
 
 function parse(h: string): Route {
   const m = /^#\/track\/([\w-]+)/.exec(h);
   if (m) return { name: 'track', id: m[1] };
   if (h.startsWith('#/analyze')) return { name: 'analyze' };
+  if (h.startsWith('#/admin')) return { name: 'admin' };
   return { name: 'library' };
 }
 

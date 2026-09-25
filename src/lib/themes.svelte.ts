@@ -54,7 +54,7 @@ export const THEMES: ThemeDef[] = [
     light: { ground: '#eef1ec', surface: '#f8faf6', raised: '#e6ebe4', line: '#d3dbd2', line2: '#bcc8bd', ink: '#17211b', ink2: '#3a4a40', muted: '#6a796f', accent: '#2c6a4d', accentInk: '#f3faf5', ok: '#2b7a4c', warn: '#8e680c', bad: '#b04633' },
   },
 ];
-export const themeById = (id: string) => THEMES.find(t => t.id === id) ?? THEMES[0];
+export const themeById = (id: string) => THEMES.find(t => t.id === id) ?? THEMES.find(t => t.id === 'stick')!;
 
 const vars = (t: ThemeDef, k: Tokens, mode: 'dark' | 'light') => [
   `color-scheme: ${mode}`,
@@ -81,7 +81,7 @@ export function loadFonts(t: ThemeDef) {
 }
 
 class Themes {
-  theme = $state(readPref('theme', 'classic'));
+  theme = $state(readPref('theme', 'stick'));   // Glue Stick is the default (2026-09-25); Classic stays
   mode = $state<Mode>((readPref('mode', 'dark') as Mode) || 'dark');
   systemDark = $state(true);
   /** Bumps when the look changes, so canvases redraw with the new colours. */

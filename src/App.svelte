@@ -19,6 +19,7 @@
   import TagEditor from './ui/library/TagEditor.svelte';
   import GlueStick from './ui/GlueStick.svelte';
   import AccountButton from './ui/AccountButton.svelte';
+  import AdminView from './ui/AdminView.svelte';
   import { account } from './lib/account.svelte';
   import './lib/sync.svelte';   // cloud sync hooks (ADR 0040)
   import { auto } from './lib/auto.svelte';
@@ -103,8 +104,9 @@
     <div class="brand">
       <h1><a href="#/" aria-label="GLUE, Global Library Unified Exporter"><GlueStick /><b>G</b><span>lobal</span><b>L</b><span>ibrary</span><b>U</b><span>nified</span><b>E</b><span>xporter</span></a></h1>
       <nav class="tabs" aria-label="Sections">
-        <a href="#/" class:on={route.name !== 'analyze'}>Library</a>
+        <a href="#/" class:on={route.name !== 'analyze' && route.name !== 'admin'}>Library</a>
         <a href="#/analyze" class:on={route.name === 'analyze'}>Analyze a file</a>
+        {#if account.isAdmin}<a href="#/admin" id="admin-tab" class:on={route.name === 'admin'}>Admin</a>{/if}
       </nav>
     </div>
     <div class="open">
@@ -146,6 +148,8 @@
     {#if app.phase === 'start'}<Start />{:else}<Results />{/if}
     <Reference />
     <footer>Decoding uses your browser’s audio engine (WAV and AIFF are read directly). Chrome and Firefox can’t decode ALAC or DSD; Safari handles ALAC.</footer>
+  {:else if route.name === 'admin'}
+    <AdminView />
   {:else if !inLibrary || lib.onboarding === 'music'}
     <Welcome />
   {:else if route.name === 'track'}

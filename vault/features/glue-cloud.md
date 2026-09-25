@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-09-25
-adrs: [0036, 0040, 0037, 0038]
+adrs: [0036, 0040, 0041, 0037, 0038]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -68,6 +68,18 @@ an account GLUE works exactly as today, all local.
     a read-only local one;
   - `src/lib/devices.svelte.ts` for devices, presence and pairing;
   - `src/lib/account.svelte.ts` for sign-in.
+
+## Accounts, tiers and admin (built 2026-09-25, [ADR 0041](../adr/0041-passwords-tiers-admin.md))
+- **Sign-in:** Google, or email + password with a short register form (header › Sign in, and the
+  GLUE Cloud panel). The password is stretched in the browser, and only a salted hash of that is
+  stored. No email check yet.
+- **Tiers:** free / paid / admin; everyone is on paid. The account menu shows the plan.
+- **Admin:** joao.pedro.manso@gmail.com through Google only (`ADMIN_EMAILS`). The **Admin** tab
+  opens `#/admin`: statistics, users (tier, clear cloud data, delete), maintenance.
+- **Code:**
+  - `cloud/src/admin.ts`, `cloud/migrations/0003_tiers_passwords.sql`;
+  - `src/ui/EmailSignIn.svelte`, `src/ui/AdminView.svelte`;
+  - `passwordKey` in `src/lib/account.svelte.ts`.
 
 ## Cloud sync and merged collections (built 2026-09-25, [ADR 0040](../adr/0040-cloud-sync-and-merged-collections.md))
 - **Profile screen:**

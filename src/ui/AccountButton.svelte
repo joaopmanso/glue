@@ -2,6 +2,7 @@
   /* The optional GLUE account in the header: "Sign in" (Google) or your avatar with a small menu. */
   import { account } from '../lib/account.svelte';
   import { themes } from '../lib/themes.svelte';
+  import EmailSignIn from './EmailSignIn.svelte';
 
   let open = $state(false);
   let gbox = $state<HTMLDivElement>();
@@ -32,9 +33,10 @@
   {#if open}
     <div class="pop" role="dialog" aria-label="GLUE account" id="account-pop">
       {#if account.signedIn}
-        <p class="who"><b>{account.user?.name ?? 'Signed in'}</b><span>{account.user?.email}</span></p>
+        <p class="who"><b>{account.user?.name ?? 'Signed in'}</b><span>{account.user?.email}{account.user?.tier ? ' · ' + account.user.tier + ' plan' : ''}</span></p>
         <p class="fine">{account.devices.length} device{account.devices.length === 1 ? '' : 's'}{homes ? ' · ' + homes + ' GLUE Home' : ''} · {account.connected ? 'connected' : 'connecting…'}</p>
         <div class="acts">
+          {#if account.isAdmin}<a class="mini" id="admin-link" href="#/admin" onclick={() => (open = false)}>Admin</a>{/if}
           <button type="button" class="mini" id="sign-out" onclick={() => { open = false; void account.signOut(); }}>Sign out</button>
           {#if !confirmDelete}<button type="button" class="mini danger" onclick={() => (confirmDelete = true)}>Delete account…</button>
           {:else}<button type="button" class="mini danger" id="delete-account" onclick={() => { open = false; void account.deleteAccount().catch(e => (account.error = (e as Error).message)); }}>Delete it: devices and codes too</button>{/if}
@@ -44,6 +46,7 @@
         <h3>GLUE account <small>optional</small></h3>
         <p>Sign in to reach <b>GLUE Home</b> on the computer with your main collection from anywhere, and to see your devices. Without an account, GLUE works exactly as it does now.</p>
         <div class="gbtn" id="google-btn" bind:this={gbox}></div>
+        <EmailSignIn idPrefix="pw" />
         {#if account.error}<p class="err" id="account-error">{account.error}</p>{/if}
         <p class="fine">Your music and your library never leave your computers. The account keeps your name, email and device list.</p>
       {/if}
@@ -71,6 +74,7 @@
   .fine { color: var(--muted) !important; font-size: 11.5px; }
   .err { color: var(--bad) !important; }
   .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  a.mini { text-decoration: none; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini:hover { border-color: var(--accent); color: var(--accent); }
   .mini.danger { color: var(--bad); }

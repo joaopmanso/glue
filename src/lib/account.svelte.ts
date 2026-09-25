@@ -7,7 +7,17 @@ export const API_BASE = readPref('apiBase', 'https://glue-api.joaopmanso.workers
 export const GOOGLE_CLIENT_ID = '486502590189-93o8r488c7gst4bviqvbsuflke7ujd06.apps.googleusercontent.com';
 const GIS_URL = 'https://accounts.google.com/gsi/client';
 
-export interface CloudUser { id: string; email: string | null; name: string | null; picture: string | null }
+export type Tier = 'free' | 'paid' | 'admin';
+export interface CloudUser { id: string; email: string | null; name: string | null; picture: string | null; tier?: Tier; providers?: string[] }
+
+/** The password never leaves the browser: it's stretched here (PBKDF2, salted with the email) and the
+    server keeps only a salted hash of the result (ADR 0041). */
+export async function passwordKey(email: string, password: string): Promise<string> {
+  const enc = new TextEncoder(), base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('glue-v1:' + email.trim().toLowerCase()), iterations: 300_000 }, base, 256));
+  let s = ''; for (const b of bits) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 export interface CloudDevice { id: string; kind: 'browser' | 'home'; name: string; platform: string | null; createdAt: number; lastSeen: number | null }
 interface Session { access: string; refresh: string; deviceId: string }
 
@@ -36,6 +46,7 @@ class Account {
   private gis: Promise<GoogleId> | null = null;
 
   get signedIn() { return this.phase === 'signed-in' && !!this.user; }
+  get isAdmin() { return this.signedIn && this.user?.tier === 'admin'; }
   private get refreshToken() { return readPref('cloud.refresh', ''); }
   private set refreshToken(v: string) { writePref('cloud.refresh', v); }
 
@@ -71,6 +82,19 @@ class Account {
       s.onerror = () => { this.gis = null; reject(new Error('Couldn’t reach Google sign-in')); };
       document.head.appendChild(s);
     });
+  }
+
+  /** Email + password: sign in, or make an account (no email check for now). */
+  async withPassword(email: string, password: string, register?: { name: string }) {
+    this.phase = 'working'; this.error = '';
+    try {
+      const key = await passwordKey(email, password);
+      const s = await this.post<Session & { user: CloudUser }>(register ? '/v1/auth/register' : '/v1/auth/password', { email: email.trim(), key, name: register?.name, deviceId: readPref('cloud.device', '') || undefined, deviceName: browserName(), platform: navigator.platform || '' });
+      this.keep(s);
+      this.user = s.user;
+      await this.loadMe();
+      this.connect();
+    } catch (e) { this.phase = 'signed-out'; this.error = (e as Error).message; throw e; }
   }
 
   async withGoogle(credential: string) {

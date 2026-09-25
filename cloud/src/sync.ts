@@ -6,7 +6,8 @@ import type { Env } from './api';
 
 export const MAX_FILE = 1_800_000;        // base64 characters per file (D1 rows are at most 2 MB)
 export const MAX_FILES = 5000;            // per profile per device
-export const MAX_BYTES = 300_000_000;     // stored per user, base64
+/** Stored per user (base64), by tier (ADR 0041). Everyone is on paid for now. */
+export const MAX_BYTES: Record<string, number> = { free: 50_000_000, paid: 300_000_000, admin: 1_000_000_000 };
 
 export class SyncError extends Error { constructor(readonly status: number, msg: string) { super(msg); } }
 const PATH = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+){0,5}$/, ID = /^[\w-]{1,48}$/, HASH = /^[0-9a-f]{64}$/;
@@ -47,7 +48,8 @@ export async function putFile(env: Env, a: Access, q: URLSearchParams, text: str
   const known = await env.DB.prepare('SELECT 1 FROM sync_profiles WHERE user_id = ? AND device_id = ? AND profile_id = ?').bind(a.sub, a.dev, profile).first();
   if (!known) throw new SyncError(409, 'send the manifest first');
   const used = await env.DB.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM sync_files WHERE user_id = ?').bind(a.sub).first<{ n: number }>();
-  if ((used?.n ?? 0) + text.length > MAX_BYTES) throw new SyncError(507, 'cloud storage for this account is full');
+  const tier = (await env.DB.prepare('SELECT tier FROM users WHERE id = ?').bind(a.sub).first<{ tier: string }>())?.tier ?? 'free';
+  if ((used?.n ?? 0) + text.length > (MAX_BYTES[tier] ?? MAX_BYTES.free)) throw new SyncError(507, 'cloud storage for this account is full');
   await env.DB.prepare('INSERT INTO sync_files (user_id, device_id, profile_id, path, hash, size, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (user_id, device_id, profile_id, path) DO UPDATE SET hash = excluded.hash, size = excluded.size, data = excluded.data, updated_at = excluded.updated_at')
     .bind(a.sub, a.dev, profile, path, hash, size, text, now).run();
   return { ok: true };

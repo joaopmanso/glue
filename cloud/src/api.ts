@@ -1,13 +1,15 @@
 /* GLUE Cloud API (ADR 0036): Google sign-in, sessions, devices, pairing GLUE Home, and the door to
    the per-user signaling room. Plain request → response, so tests run it against real SQLite. */
 import * as sync from './sync';
+import * as admin from './admin';
 import { normCode, pairingCode, randomId, randomToken, sha256, signAccess, verifyAccess, verifyGoogle, type Access, type JwkSet } from './crypto';
 
 /** The parts of Cloudflare D1 we use (tests pass a node:sqlite shim with the same shape). */
 export interface Stmt { bind(...v: unknown[]): Stmt; first<T = Record<string, unknown>>(): Promise<T | null>; all<T = Record<string, unknown>>(): Promise<{ results: T[] }>; run(): Promise<{ meta: { changes: number } }> }
 export interface DB { prepare(sql: string): Stmt; batch(s: Stmt[]): Promise<unknown[]> }
 export interface SignalNS { idFromName(n: string): unknown; get(id: unknown): { fetch(r: Request): Promise<Response> } }
-export interface Env { DB: DB; SESSION_KEY: string; GOOGLE_CLIENT_ID: string; ALLOWED_ORIGINS: string; SIGNAL?: SignalNS }
+/** ADMIN_EMAILS: comma-separated; admin only through a Google-verified email (ADR 0041). */
+export interface Env { DB: DB; SESSION_KEY: string; GOOGLE_CLIENT_ID: string; ALLOWED_ORIGINS: string; ADMIN_EMAILS?: string; SIGNAL?: SignalNS }
 export interface Deps { now: () => number; googleKeys: () => Promise<JwkSet> }
 
 const DAY = 864e5;
@@ -36,6 +38,8 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
 
     if (m === 'GET' && path === '/v1/health') return reply({ ok: true });
     if (m === 'POST' && path === '/v1/auth/google') return reply(await signInGoogle(env, deps, await body(), now));
+    if (m === 'POST' && path === '/v1/auth/register') return reply(await register(env, await body(), now, req.headers.get('CF-Connecting-IP') ?? 'local'));
+    if (m === 'POST' && path === '/v1/auth/password') return reply(await signInPassword(env, await body(), now, req.headers.get('CF-Connecting-IP') ?? 'local'));
     if (m === 'POST' && path === '/v1/auth/refresh') return reply(await refresh(env, await body(), now));
     if (m === 'POST' && path === '/v1/auth/device') return reply(await deviceSignIn(env, await body(), now));
     if (m === 'POST' && path === '/v1/pairing/claim') return reply(await claim(env, await body(), now, req.headers.get('CF-Connecting-IP') ?? 'local'));
@@ -56,6 +60,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     // Everything else needs a signed-in device.
     const a = await authed(env, (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''), now);
     if (m === 'GET' && path === '/v1/me') return reply(await me(env, a));
+    if (path.startsWith('/v1/admin/')) return reply(await admin.route(env, a, m, path, url.searchParams, m === 'GET' || m === 'DELETE' ? {} : await body(), now));
     if (m === 'POST' && path === '/v1/pairing') {
       await env.DB.prepare('DELETE FROM pairing_codes WHERE expires_at < ?').bind(now).run();
       const open = await env.DB.prepare('SELECT COUNT(*) AS n FROM pairing_codes WHERE user_id = ? AND used_at IS NULL').bind(a.sub).first<{ n: number }>();
@@ -109,7 +114,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     }
     throw new HttpError(404, 'not found');
   } catch (e) {
-    if (e instanceof HttpError || e instanceof sync.SyncError) return reply({ error: e.message }, e.status);
+    if (e instanceof HttpError || e instanceof sync.SyncError || e instanceof admin.AdminError) return reply({ error: e.message }, e.status);
     console.error(e);
     return reply({ error: 'server error' }, 500);
   }
@@ -144,7 +149,14 @@ async function signInGoogle(env: Env, deps: Deps, b: Record<string, unknown>, no
       env.DB.prepare('INSERT INTO identities (provider, subject, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)').bind('google', c.sub, userId, c.email ?? null, now),
     ]);
   } else await env.DB.prepare('UPDATE users SET email = ?, name = ?, picture = ? WHERE id = ?').bind(c.email ?? null, c.name ?? null, c.picture ?? null, userId).run();
-  // This browser: reuse its device record when it has one (and it's still ours), else register it.
+  // The admin: only a Google-verified email on the list (a password account can't claim it).
+  if (c.email && c.email_verified !== false && (env.ADMIN_EMAILS ?? '').toLowerCase().split(',').map(s => s.trim()).includes(c.email.toLowerCase()))
+    await env.DB.prepare("UPDATE users SET tier = 'admin' WHERE id = ?").bind(userId).run();
+  return browserSession(env, userId, b, now);
+}
+
+/** This browser: reuse its device record when it has one (and it's still ours), else register it. */
+async function browserSession(env: Env, userId: string, b: Record<string, unknown>, now: number) {
   const want = str(b.deviceId, 40);
   let dev = want ? await env.DB.prepare('SELECT * FROM devices WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND kind = ?').bind(want, userId, 'browser').first<DeviceRow>() : null;
   if (!dev) {
@@ -152,7 +164,42 @@ async function signInGoogle(env: Env, deps: Deps, b: Record<string, unknown>, no
     await env.DB.prepare('INSERT INTO devices (id, user_id, kind, name, platform, public_key, created_at, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, userId, 'browser', name, str(b.platform, 60) || null, str(b.publicKey, 2000) || null, now, now).run();
     dev = { id } as DeviceRow;
   }
-  return { ...(await session(env, userId, dev.id, now)), user: { id: userId, email: c.email ?? null, name: c.name ?? null, picture: c.picture ?? null } };
+  const u = await env.DB.prepare('SELECT id, email, name, picture, tier FROM users WHERE id = ?').bind(userId).first<{ id: string; email: string | null; name: string | null; picture: string | null; tier: string }>();
+  return { ...(await session(env, userId, dev.id, now)), user: u };
+}
+
+// ---- Email + password (ADR 0041): no email check yet, so an email proves nothing ------------------
+const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/, KEY = /^[\w-]{40,60}$/;
+async function limit(env: Env, key: string, max: number, now: number) {
+  const row = await env.DB.prepare('SELECT count, window_start FROM attempts WHERE key = ?').bind(key).first<{ count: number; window_start: number }>();
+  if (row && now - row.window_start < CLAIM_WINDOW && row.count >= max) throw new HttpError(429, 'too many attempts; wait 10 minutes');
+  if (!row || now - row.window_start >= CLAIM_WINDOW) await env.DB.prepare('INSERT OR REPLACE INTO attempts (key, count, window_start) VALUES (?, 1, ?)').bind(key, now).run();
+  else await env.DB.prepare('UPDATE attempts SET count = count + 1 WHERE key = ?').bind(key).run();
+}
+const pwHash = (salt: string, key: string) => sha256(salt + ':' + key);
+function same(a: string, b: string) { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
+
+async function register(env: Env, b: Record<string, unknown>, now: number, ip: string) {
+  await limit(env, 'reg:' + ip, 10, now);
+  const email = str(b.email, 254).toLowerCase(), key = str(b.key, 60), name = str(b.name, 60);
+  if (!EMAIL.test(email)) throw bad('that doesn’t look like an email address');
+  if (!KEY.test(key)) throw bad('password missing');
+  if (await env.DB.prepare('SELECT 1 FROM password_logins WHERE email = ?').bind(email).first()) throw new HttpError(409, 'there’s already an account with this email: sign in instead');
+  const userId = randomId(), salt = randomToken(16);
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO users (id, email, name, picture, created_at) VALUES (?, ?, ?, NULL, ?)').bind(userId, email, name || email.split('@')[0], now),
+    env.DB.prepare('INSERT INTO identities (provider, subject, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)').bind('password', email, userId, email, now),
+    env.DB.prepare('INSERT INTO password_logins (email, user_id, salt, hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').bind(email, userId, salt, await pwHash(salt, key), now, now),
+  ]);
+  return browserSession(env, userId, b, now);
+}
+async function signInPassword(env: Env, b: Record<string, unknown>, now: number, ip: string) {
+  const email = str(b.email, 254).toLowerCase(), key = str(b.key, 60);
+  await limit(env, 'pw:' + email, 10, now);
+  await limit(env, 'pwip:' + ip, 30, now);
+  const row = email && KEY.test(key) ? await env.DB.prepare('SELECT user_id, salt, hash FROM password_logins WHERE email = ?').bind(email).first<{ user_id: string; salt: string; hash: string }>() : null;
+  if (!row || !same(await pwHash(row.salt, key), row.hash)) throw new HttpError(401, 'wrong email or password');
+  return browserSession(env, row.user_id, b, now);
 }
 
 /** Refresh tokens rotate: each is good once, and a new one comes back. */
@@ -199,8 +246,9 @@ async function claim(env: Env, b: Record<string, unknown>, now: number, ip: stri
 }
 
 async function me(env: Env, a: Access) {
-  const u = await env.DB.prepare('SELECT id, email, name, picture, created_at FROM users WHERE id = ?').bind(a.sub).first<{ id: string; email: string | null; name: string | null; picture: string | null; created_at: number }>();
+  const u = await env.DB.prepare('SELECT id, email, name, picture, created_at, tier FROM users WHERE id = ?').bind(a.sub).first<{ id: string; email: string | null; name: string | null; picture: string | null; created_at: number; tier: string }>();
   if (!u) throw new HttpError(401, 'sign in again');
   const ds = await env.DB.prepare('SELECT * FROM devices WHERE user_id = ? AND revoked_at IS NULL ORDER BY kind DESC, created_at').bind(a.sub).all<DeviceRow>();
-  return { user: { id: u.id, email: u.email, name: u.name, picture: u.picture, createdAt: u.created_at }, thisDevice: a.dev, devices: ds.results.map(device) };
+  const ids = (await env.DB.prepare('SELECT provider FROM identities WHERE user_id = ?').bind(a.sub).all<{ provider: string }>()).results.map(r => r.provider);
+  return { user: { id: u.id, email: u.email, name: u.name, picture: u.picture, createdAt: u.created_at, tier: u.tier, providers: ids }, thisDevice: a.dev, devices: ds.results.map(device) };
 }
