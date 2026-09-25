@@ -5,6 +5,16 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · Merged collections: instant after a reload, duplicates across devices, full track page
+- A reload showed only this device's songs and then fetched the other device's again: the cloud's
+  list of merges wasn't in yet, so the copy in the GLUE folder wasn't used. Now it opens from the
+  copy at once, and a sync only fetches what changed ("Updating from Desktop… 3 of 12 changed
+  files"; "Getting Desktop's songs…" only the first time).
+- Duplicates: a section "On more than one device" lists songs on several devices with each copy's
+  device, format and quality ("Best copy" when one is better).
+- Another device's track page shows the same verdict, readouts, tempo / key wheel and evidence
+  widgets as a local one, built from its stored summary; only the spectrum views need the file.
+
 ## 2026-09-25 · Merged collections load in seconds, songs appear as they come
 - On a 7k-song desktop the laptop sat at "Updating from Desktop…" for minutes and then showed
   nothing: one request and one saved file per shard (1,167 of them), everything at the end, and

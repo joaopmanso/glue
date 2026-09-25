@@ -10,6 +10,10 @@
   import { fmtBytes, fmtTime } from '../../core/format';
   import { keyLabel } from '../../core/audio/keys';
   import Results from '../Results.svelte';
+  import Sidebar from '../Sidebar.svelte';
+  import Evidence from '../Evidence.svelte';
+  import { fmtKHz } from '../../core/format';
+  import type { MusicResult } from '../../core/types';
   import { nowPlaying, playable } from '../../lib/nowPlaying.svelte';
   import Stars from './Stars.svelte';
   import { auto } from '../../lib/auto.svelte';
@@ -110,6 +114,26 @@ canPlay = true;
     return () => player.defer(null);   // a waiting source belongs to this page only
   });
 
+  /** Another device's track: the verdict, tempo and key widgets built from its stored summary. */
+  const remoteView = $derived.by(() => {
+    const a = summary, t = track;
+    if (phase !== 'remote' || !a || a.error || !t) return null;
+    const f = t.format;
+    const declared = f ? (f.lossless ? (f.bits ? f.bits + '-bit / ' : '') + +(f.sampleRate / 1000).toFixed(1) + ' kHz' : (f.bitrate ? f.bitrate + ' kbps ' : '') + f.codec) : t.fileName.split('.').pop()?.toUpperCase() || '—';
+    const music: MusicResult | null = a.bpm || a.key ? { bpm: a.bpm, bpmConf: 1, key: a.key ? { ...a.key, runnerUp: null } as unknown as MusicResult['key'] : null } : null;
+    return {
+      grade: a.grade, label: a.label, headline: a.headline,
+      sub: 'Measured on ' + elsewhere + (a.at ? ', ' + new Date(a.at).toLocaleDateString() : '') + '.',
+      cells: [
+        { k: 'Declared', val: declared, sub: f?.container ?? t.fileName.split('.').pop()?.toUpperCase() ?? '', tone: '' },
+        { k: 'Measured bandwidth', val: a.fc ? fmtKHz(a.fc) : '—', sub: a.wall ? 'sharp wall' : a.full ? 'reaches the top' : 'gradual fade', tone: a.grade === 'bad' ? 'bad' : a.grade === 'warn' ? 'warn' : 'ok' },
+        { k: 'Effective depth', val: a.effBits ? a.effBits + '-bit' : '—', sub: a.effBits ? 'of ' + a.declaredBits + ' declared' : f?.lossless === false ? 'not meaningful for lossy' : 'not measured', tone: a.effBits && a.effBits < a.declaredBits ? 'warn' : '' },
+        { k: 'Likely origin', val: a.origin || '—', sub: 'from spectrum and tags', tone: '' },
+      ],
+      music, findings: a.findings,
+    };
+  });
+
   function stars(n: number | null) { return n == null ? '—' : '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 - n)); }
 </script>
 
@@ -183,12 +207,14 @@ canPlay = true;
       <div class="notice" id="track-elsewhere">
         <span>This track’s file is on <b>{elsewhere}</b>. Its details and analysis come from there. Playing and analysing it on this computer comes with GLUE Home streaming, which isn’t available yet.</span>
       </div>
-      {#if summary && !summary.error}
-        <section class="remote-sum">
-          <p><b>{summary.label}</b> · {summary.headline}</p>
-          <p class="mono">{summary.bpm ? 'BPM ' + summary.bpm : ''}{summary.bpm && summary.key ? ' · ' : ''}{summary.key ? 'Key ' + keyLabel(summary.key, app.keyNotation) : ''}</p>
-          {#if summary.findings.length}<ul>{#each summary.findings as f (f.title)}<li data-sev={f.sev}>{f.title}</li>{/each}</ul>{/if}
-        </section>
+      {#if remoteView}
+        <div class="remote-res" id="remote-analysis">
+          <Sidebar summary={remoteView} />
+          <div class="remote-col">
+            <Evidence findings={remoteView.findings} elsewhere={elsewhere ?? ''} />
+            <p class="fine">The spectrogram and spectrum need the audio file, so they show when the track plays on this computer.</p>
+          </div>
+        </div>
       {/if}
     {:else if phase === 'need-access'}
       <div class="notice">GLUE needs your permission to read “{track.fileKey ? track.fileName : root?.root.name}” again. <button type="button" class="btn" onclick={() => load(true)}>Allow and analyse</button></div>
@@ -243,10 +269,10 @@ canPlay = true;
   .dj td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line); color: var(--ink-2); }
   .dj .mco td { color: var(--accent); }
   .stars { color: var(--warn); letter-spacing: 1px; }
-  .remote-sum { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 12px 16px; display: grid; gap: 6px; font-size: 13.5px; color: var(--ink-2); }
-  .remote-sum b { color: var(--ink); }
-  .remote-sum .mono { font-family: var(--font-mono); font-size: 12.5px; }
-  .remote-sum ul { margin: 2px 0 0; padding-left: 18px; }
+  .remote-res { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .remote-col { display: grid; gap: 10px; }
+  .fine { color: var(--muted); font-size: 12.5px; }
+  @media (max-width: 900px) { .remote-res { grid-template-columns: 1fr; } }
   .notice { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; }
   @media (max-width: 1000px) { .info { grid-template-columns: 1fr; } }
 </style>

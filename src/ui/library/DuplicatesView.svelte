@@ -8,10 +8,18 @@
   import { keyLabel } from '../../core/audio/keys';
   import { fmtTime } from '../../core/format';
   import type { Track } from '../../store/types';
+  import { copyScore } from '../../lib/dupes.svelte';
+  import { deviceColor } from '../../lib/devices';
 
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
   const same = $derived(dupes.groups.filter(g => g.kind === 'same'));
   const probable = $derived(dupes.groups.filter(g => g.kind === 'probable'));
+  // The same song on several devices of a merged collection: each device's copy, the best first.
+  const devices = $derived([...lib.copies].map(([id, cs]) => {
+    const copies = [...cs].sort((a, b) => copyScore(b.track, b.analysis) - copyScore(a.track, a.analysis));
+    // "Best copy" only when one is better (identical copies on two computers are just that).
+    return { id, copies, better: copies.length > 1 && copyScore(copies[0].track, copies[0].analysis) > copyScore(copies[1].track, copies[1].analysis) };
+  }));
 
   function where(t: Track) {
     if (t.fileKey) return t.fileName;
@@ -93,7 +101,32 @@
     <h3 class="label">Check these</h3>
     {#each probable as g (g.key)}{@render group(g)}{/each}
   {/if}
-  {#if !dupes.groups.length && !dupes.running}<p class="empty">No duplicates found.</p>{/if}
+  {#if devices.length}
+    <h3 class="label" id="dupes-devices">On more than one device <small>{devices.length.toLocaleString()} song{devices.length === 1 ? '' : 's'}</small></h3>
+    {#each devices as d (d.id)}
+      <section class="grp" data-kind="devices">
+        <header>
+          <span class="kind devs">Same song</span><span class="sim">on {d.copies.map(c => c.device).join(' and ')}</span>
+          <a class="mini" href={'#/track/' + d.id} onclick={e => { e.preventDefault(); router.go('#/track/' + d.id); }}>Open</a>
+        </header>
+        <ul>
+          {#each d.copies as c, i (c.device + c.track.id)}
+            <li class:best={i === 0 && d.better}>
+              <span class="dchip" style:--c={deviceColor(c.device)}>{c.device}</span>
+              <div class="who"><b>{c.track.title || c.track.fileName}</b><span>{c.track.artist}</span><small title={c.track.relPath ?? c.track.fileName}>{c.track.relPath ?? c.track.fileName}</small></div>
+              <span class="mono fmt">{fmt(c.track)}</span>
+              <span class="mono">{c.track.duration ? fmtTime(c.track.duration) : ''}</span>
+              <span class="mono">{c.analysis?.bpm ? Math.round(c.analysis.bpm) : ''} {c.analysis?.key ? keyLabel(c.analysis.key, app.keyNotation) : ''}</span>
+              <span>{#if c.analysis && !c.analysis.error}<span class="q" data-grade={c.analysis.grade}>{c.analysis.label}</span>{/if}</span>
+              <span class="lists"></span>
+              <span class="act">{#if i === 0 && d.better}<span class="bestb" title="Best quality of the copies">Best copy</span>{/if}</span>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/each}
+  {/if}
+  {#if !dupes.groups.length && !devices.length && !dupes.running}<p class="empty">No duplicates found.</p>{/if}
 </div>
 
 <style>
@@ -107,9 +140,14 @@
   .grp header { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
   .kind { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
   .kind.probable { color: var(--warn); }
+  .kind.devs { color: var(--ink-2); }
+  .dchip { justify-self: start; font-size: 11px; line-height: 16px; padding: 0 6px 0 5px; border-radius: 3px; background: color-mix(in srgb, var(--c) 14%, transparent); border-left: 3px solid var(--c); color: var(--ink-2); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .who b { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  h3 small { color: var(--muted); font-weight: 500; margin-left: 6px; }
+  a.mini { text-decoration: none; }
   .sim { color: var(--muted); font-size: 12.5px; flex: 1; }
   ul { list-style: none; margin: 0; padding: 0; }
-  li { display: grid; grid-template-columns: 28px minmax(200px, 1fr) 130px 50px 70px 150px 110px 210px; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
+  li { display: grid; grid-template-columns: minmax(28px, auto) minmax(200px, 1fr) 130px 50px 70px 150px 110px 210px; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
   li:last-child { border-bottom: 0; }
   li.best { background: color-mix(in srgb, var(--ok) 7%, transparent); }
   .who { display: grid; min-width: 0; line-height: 1.35; }

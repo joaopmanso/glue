@@ -29,6 +29,9 @@ describe('a merged collection in the local library (ADR 0042)', () => {
     expect(o.analysis.get(r.id)?.label).toBe('Lossless');
     expect(o.onDevices.get('a1')).toEqual(['Laptop', 'Desktop']);
     expect(o.onDevices.get('a2')).toEqual(['Laptop']);
+    // For Duplicates: the songs on both devices, with each device's copy.
+    expect([...o.copies.keys()]).toEqual(['a1']);
+    expect(o.copies.get('a1')!.map(c => [c.device, c.track.id])).toEqual([['Laptop', 'a1'], ['Desktop', 'd1']]);
   });
   it('shows the other devices’ songs in shared playlists, and their own playlists', () => {
     const r = o.tracks[0].id;

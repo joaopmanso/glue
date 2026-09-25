@@ -4,9 +4,12 @@
   import { harmonicNeighbours, keyLabel, type KeyNotation } from '../core/audio/keys';
   import { wheelSvg } from './render/wheel';
   import { theme } from './render/canvas';
+  import type { MusicResult } from '../core/types';
 
   const NOTATIONS: [KeyNotation, string][] = [['camelot', 'Camelot'], ['open', 'Open Key'], ['musical', 'Musical']];
-  const music = $derived(app.res?.music ?? null);
+  /** music: given instead of the live analysis (another device's track, from its stored summary). */
+  let { music: given = undefined }: { music?: MusicResult | null } = $props();
+  const music = $derived(given !== undefined ? given : app.res?.music ?? null);
   const key = $derived(music?.key ?? null);
   const n = $derived(app.keyNotation);
   const bpm = $derived.by(() => {
@@ -49,7 +52,7 @@
       <p class="mix-note" id="m-mix" title={key ? 'Harmonic mixing: one step either way round the wheel, or across to the relative ' + (key.mode === 'major' ? 'minor' : 'major') + '.' : ''}>
         {#if key}
           Mixes with {#each harmonicNeighbours(key) as k, i (i)}<b>{keyLabel(k, n)}</b>{i < 2 ? ' ' : ''}{/each}
-          {#if key.margin <= 0.05}<br>Close call: could be <b>{keyLabel(key.runnerUp, n)}</b>{/if}
+          {#if key.margin <= 0.05 && key.runnerUp}<br>Close call: could be <b>{keyLabel(key.runnerUp, n)}</b>{/if}
           {#if Math.abs(key.tuning) >= 10}<br>Tuned {key.tuning > 0 ? '+' : '−'}{Math.abs(Math.round(key.tuning))} ¢ from A440{/if}
         {/if}
       </p>

@@ -1121,13 +1121,14 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   const cloud = new Map<string, Stored>();                          // 'device/profile'
   let ops: { seq: number; device: string; profile: string; collection: string; op: unknown }[] = [], seq = 0;
   let links: { id: string; name: string; members: { device: string; profile: string; collection: string }[] }[] = [];
-  let slow = false, offline = false, bundles = 0;
+  let slow = false, offline = false, bundles = 0, hold: Promise<void> | null = null;
   const batches: number[] = [];
   await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
     const req = r.request(), u = new URL(req.url()), m = req.method(), p = u.pathname;
     const json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
     if (offline) return r.abort('internetdisconnected');
     if (slow && /^\/v1\/sync\/desk\//.test(p)) await new Promise(res => setTimeout(res, 1500));
+    if (hold && /^\/v1\/sync(\/links)?$/.test(p)) await hold;
     if (p === '/v1/health') return json({ ok: true });
     if (p === '/v1/auth/google') return json({ access: 'a', refresh: 'r', deviceId: 'b1', user });
     if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1' });
@@ -1226,6 +1227,8 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   const cid = [...files.keys()].find(k => /^collections\/\w+\/collection\.json$/.test(k))!.split('/')[1];
   const song = { id: 'zzdesk01', status: 'linked', rootId: 'deskroot', relPath: 'Desk Only Song.flac', importPath: null, fileName: 'Desk Only Song.flac', size: 5, mtime: 1, title: 'Desk Only Song', artist: 'Someone Else', album: '', genre: 'House', label: '', comment: '', year: '', duration: 200, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] };
   files.set(`collections/${cid}/tracks/zz.json`, { hash: 'h-zz', size: 1, data: gz({ schemaVersion: 1, items: { zzdesk01: song } }) });
+  const summary = { v: 3, at: '2026-09-20T10:00:00Z', grade: 'info', label: 'Lossy · not hi-res', headline: 'Lossy MP3, not hi-res', fc: 16000, wall: true, full: false, effBits: null, declaredBits: 16, origin: 'MP3 encode', bpm: 90, key: { tonic: 9, mode: 'minor', margin: 0.2, tuning: 0 }, findings: [{ sev: 'ok', title: 'Bandwidth fits the format' }, { sev: 'info', title: 'Lossy by design' }], fileSize: 5, fileMtime: 1 };
+  files.set(`collections/${cid}/analysis/zz.json`, { hash: 'h-azz', size: 1, data: gz({ schemaVersion: 1, items: { zzdesk01: summary } }) });
   files.set(`collections/${cid}/lists/dl1.json`, { hash: 'h-dl1', size: 1, data: gz({ schemaVersion: 1, id: 'dl1', kind: 'playlist', name: 'Desk list', parentId: null, position: 9, notes: '', items: ['zzdesk01'], origin: null, createdAt: '' }) });
   cloud.set('desk/' + pid, { ...copy, files, updatedAt: Date.now(), stats: { collections: [{ id: cid, name: 'My collection', tracks: 5 }] } });
 
@@ -1267,12 +1270,38 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await desk.locator('.c-title').dblclick();
   await expect(page.locator('#track-elsewhere')).toContainText('Desktop');
   await expect(page.getByRole('button', { name: 'Allow and analyse' })).toHaveCount(0);
+  // The same widgets as a local track, from the summary: verdict, readouts, tempo and key, evidence.
+  const ra = page.locator('#remote-analysis');
+  await expect(ra.locator('#v-pill')).toHaveText('Lossy · not hi-res');
+  await expect(ra.locator('#readouts')).toContainText('16.0 kHz');
+  await expect(ra.locator('#m-bpm')).toContainText('90');
+  await expect(ra.locator('#m-key')).toHaveText('8A');
+  await expect(ra.locator('#evidence')).toContainText('Lossy by design');
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/remote-track.png', fullPage: true });
   await page.locator('.crumbs a').click();
+  // Songs on both devices are listed under Duplicates, with each device's copy.
+  await page.locator('.lside button', { hasText: 'Duplicates' }).click();
+  await expect(page.locator('#dupes-devices')).toContainText('4 songs');
+  await expect(page.locator('#dupes [data-kind="devices"]').first().locator('.dchip')).toHaveText(['Laptop', 'Desktop']);
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/dupes.png' });
+  await page.locator('.lside button', { hasText: 'All tracks' }).click();
   await desk.hover();
   await desk.locator('.c-rate button').nth(4).click({ position: { x: 10, y: 6 } });
   await expect.poll(() => ops.find(o => o.device === 'desk')?.op, { timeout: 10_000 }).toMatchObject({ t: 'track', id: 'zzdesk01', rating: 5 });
   // Nothing of the desktop's is saved into this computer's collection.
   expect([...cloud.get(key)!.files.keys()].some(k => k.endsWith('/zz.json') || k.endsWith('dl1.json'))).toBe(false);
+
+  // A reload shows the merged collection from the copy at once (before the cloud answers), and
+  // downloads nothing when nothing changed.
+  let release = () => {};
+  hold = new Promise(res => (release = res));
+  const before = bundles;
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(5, { timeout: 20_000 });
+  release(); hold = null;
+  await expect(page.locator('#cloud-loading')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator('.tr')).toHaveCount(5);
+  expect(bundles).toBe(before);
 
   // Offline: a reload shows the merged collection from the copy in the GLUE folder.
   offline = true;

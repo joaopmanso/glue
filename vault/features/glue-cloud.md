@@ -94,7 +94,8 @@ an account GLUE works exactly as today, all local.
   Filter › Device. Sidebar › Devices: each device's colour, songs, when it synced, a streaming-off
   mark, and click to show only its songs. The ⋯ menu floats where it fits.
 - **Other devices' songs:** no play button; the track page says where the file is (no permission
-  step) and shows the analysis summary from there. Ratings, notes, tags and shared playlists edited
+  step) and shows the verdict, readouts, tempo / key and evidence widgets from its stored summary.
+- **Duplicates › On more than one device:** each device's copy of songs on several devices. Ratings, notes, tags and shared playlists edited
   here are sent to the device that has the song.
 - **Code:** `core/library/overlay.ts`, `lib.applyOverlay`, `CollectionStore.ephemeral`,
   `lib/sync.svelte.ts` (`syncCollection`, `autoLink`, `mirror`), `lib/devices.ts`.

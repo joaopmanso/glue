@@ -3,8 +3,15 @@
   import { declaredLabel } from '../core/audio/verdict';
   import { fmtKHz } from '../core/format';
   import MusicCard from './MusicCard.svelte';
+  import type { MusicResult } from '../core/types';
 
-  const cells = $derived.by(() => {
+  /** summary: what to show without a live analysis (a track on another device: its stored summary). */
+  type Cell = { k: string; val: string; sub: string; tone: string };
+  let { summary = null }: { summary?: { grade: string; label: string; headline: string; sub: string; cells: Cell[]; music: MusicResult | null } | null } = $props();
+
+  const v = $derived(summary ?? app.verdict);
+  const cells = $derived.by((): Cell[] => {
+    if (summary) return summary.cells;
     const info = app.info, v = app.verdict;
     if (!info || !v) return [];
     const cut = v.cut;
@@ -31,13 +38,13 @@
   {#if app.info?.example}
     <p id="example-note" class="example-note"><span class="tag">EXAMPLE</span> A synthetic track generated in your browser: a 16 kHz lossy-style cutoff and 16-bit samples, labelled as 96 kHz / 24-bit FLAC. Open one of your own files to analyze it.</p>
   {/if}
-  {#if app.verdict}
-    <section id="verdict" class="verdict" data-grade={app.verdict.grade} aria-live="polite">
+  {#if v}
+    <section id="verdict" class="verdict" data-grade={v.grade} aria-live="polite">
       <div class="v-main">
-        <span class="pill" id="v-pill">{app.verdict.label}</span>
+        <span class="pill" id="v-pill">{v.label}</span>
         <div class="v-text">
-          <h2 id="v-head">{app.verdict.headline}</h2>
-          <p id="v-sub">{app.verdict.sub}</p>
+          <h2 id="v-head">{v.headline}</h2>
+          <p id="v-sub">{v.sub}</p>
         </div>
       </div>
       <div class="readouts" id="readouts">
@@ -47,5 +54,5 @@
       </div>
     </section>
   {/if}
-  <MusicCard />
+  <MusicCard music={summary ? summary.music : undefined} />
 </aside>

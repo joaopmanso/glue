@@ -7,7 +7,7 @@ import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
 import { ANALYSIS_VERSION, SCHEMA, VERDICT_VERSION, newId, type List, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
-import type { Overlay } from '../core/library/overlay';
+import type { Copy, Overlay } from '../core/library/overlay';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { findLibraries, type Detected } from '../core/library/detect';
 import { makeThumb } from '../core/library/thumb';
@@ -249,6 +249,8 @@ class Library {
 
   /** The devices whose songs the open collection shows (this one first); empty when it's only this one. */
   devicesShown = $state.raw<string[]>([]);
+  /** Songs on more than one device of the merged collection, with each device's copy (Duplicates). */
+  copies = $state.raw<Map<string, Copy[]>>(new Map());
   /** This device's playlists as saved, before other devices' songs were shown in them. */
   private overlayBase = new Map<string, { before: string[]; shown: string[] }>();
   /** Show (or take away) other devices' songs and playlists of a merged collection in the open local
@@ -257,6 +259,7 @@ class Library {
     const s = this.store;
     if (!s || this.cloud) return;
     this.devicesShown = o ? devices : [];
+    this.copies = o?.copies ?? new Map();
     for (const id of s.ephemeral) { s.tracks.delete(id); s.analysis.delete(id); s.lists.delete(id); }
     s.ephemeral.clear();
     for (const t of s.tracks.values()) if (t.onDevices) delete t.onDevices;
@@ -355,7 +358,7 @@ class Library {
   private async closeCollection() {
     this.stopAnalysis();
     await this.flush();
-    this.cloud = null; this.devicesShown = [];
+    this.cloud = null; this.devicesShown = []; this.copies = new Map();
     this.store = null; this.roots = []; this.overlayBase.clear();
     this.looseHandles.clear(); this.looseGranted = new Set();
   }

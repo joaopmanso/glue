@@ -237,6 +237,11 @@ class CloudSync {
       if (st && still()) await this.showOverlay(pid, cid, false, st.thisDevice, still).catch(() => {});
       return;
     }
+    // Right after a reload the cloud hasn't said which collections are merged yet: the cache has.
+    if (!this.groups.length) {
+      const st = await this.loadState();
+      if (st && still() && !this.groups.length && (!st.user || st.user === account.user?.id)) { this.remote = st.remote; this.groups = st.groups; }
+    }
     await this.showOverlay(pid, cid, false, account.thisDevice ?? '', still).catch(() => {});
     this.busy = 'Syncing with GLUE Cloud…';
     try {
@@ -313,11 +318,13 @@ class CloudSync {
         const member = (s: CollectionStore): MemberData => ({ device: { id: m.device, name: r.device.name }, profile: m.profile, collection: m.collection, meta: s.meta, tracks: [...s.tracks.values()], analysis: s.analysis, lists: [...s.lists.values()], sources: [] });
         if (online) this.busy = 'Updating from ' + r.device.name + '…';
         try {
-          const dir = await this.mirror(m.device, m.profile, online, async part => {
+          const dir = await this.mirror(m.device, m.profile, online, async (part, p) => {
             if (Date.now() - shownAt < 1000) return;
             const s = await CollectionStore.load(part, m.profile, m.collection).catch(() => null);
             if (!s || !still()) return;
-            this.busy = 'Updating from ' + r.device.name + '… ' + s.tracks.size.toLocaleString() + (expected ? ' of ' + expected.toLocaleString() : '') + ' songs';
+            // The first time the songs come in; after that only what changed there.
+            this.busy = p.first ? 'Getting ' + r.device.name + '’s songs… ' + s.tracks.size.toLocaleString() + (expected ? ' of ' + expected.toLocaleString() : '')
+              : 'Updating from ' + r.device.name + '… ' + p.done + ' of ' + p.total + ' changed file' + (p.total === 1 ? '' : 's');
             await show([...data, member(s)], [...used, m]);
             shownAt = Date.now();
           });
@@ -392,7 +399,7 @@ class CloudSync {
       cloud when online. Only files that changed come, many per request, playlists and songs first;
       `onPart` sees what has arrived after each batch. Offline, or while GLUE Cloud can't be reached:
       the last copy. A file that can't be had now is left for next time. */
-  private async mirror(device: string, profile: string, online: boolean, onPart?: (d: Dir) => Promise<void>): Promise<Dir> {
+  private async mirror(device: string, profile: string, online: boolean, onPart?: (d: Dir, p: { first: boolean; done: number; total: number }) => Promise<void>): Promise<Dir> {
     const root = await this.cacheRoot(), name = device + '-' + profile + '.json';
     const snap = (root && await readJSON<Snapshot>(root, name).catch(() => null)) || { v: 2, files: {} };
     const texts = new Map<string, string>();
@@ -412,7 +419,8 @@ class CloudSync {
     let changed = false;
     for (const p of Object.keys(snap.files)) if (!want.has(p)) { delete snap.files[p]; texts.delete(p); changed = true; }
     const todo = list.filter(f => snap.files[f.path]?.[0] !== f.hash).sort((x, y) => rank(x.path) - rank(y.path) || x.path.localeCompare(y.path));
-    let bundles = true;
+    let bundles = true, done = 0;
+    const total = todo.length;
     while (todo.length) {
       const group: typeof todo = [];
       let size = 0;
@@ -435,7 +443,8 @@ class CloudSync {
       changed ||= got.size > 0;
       // What didn't fit in the answer comes in the next request (unless nothing came: then next time).
       if (got.size) todo.unshift(...group.filter(f => !got.has(f.path)));
-      if (onPart && got.size) await onPart(await toDir());
+      done += got.size;
+      if (onPart && got.size) await onPart(await toDir(), { first: !had, done, total });
     }
     if (changed && root && !lib.readOnly) {
       await writeJSON(root, name, snap).catch(() => {});

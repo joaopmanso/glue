@@ -8,6 +8,9 @@ import type { AnalysisSummary, List, Track } from '../../store/types';
 import type { EditOp } from './cloudEdits';
 import { mergeCollections, translate, type Merged, type MemberData } from './mergeCollections';
 
+/** One device's copy of a song (for Duplicates: the same song on several devices). */
+export interface Copy { device: string; track: Track; analysis: AnalysisSummary | null }
+
 export interface Overlay {
   /** Songs only on other devices (ids 'r…', with `remote` and `onDevices`). */
   tracks: Track[];
@@ -18,6 +21,8 @@ export interface Overlay {
   onDevices: Map<string, string[]>;
   /** This device's playlists → songs the other devices have in them too (view ids, in order). */
   extraItems: Map<string, string[]>;
+  /** Songs on more than one device: view id → each device's copy (this one first). */
+  copies: Map<string, Copy[]>;
   /** View ids → merged ids, to send edits. */
   toMerged: { tracks: Map<string, string>; lists: Map<string, string> };
   merged: Merged;
@@ -31,18 +36,27 @@ export function buildOverlay(local: MemberData, others: MemberData[], group: { i
   const mg = mergeCollections(members, group);
   const toMerged = { tracks: new Map<string, string>(), lists: new Map<string, string>() };
   const viewTrack = new Map<string, string>(), viewList = new Map<string, string>();
-  const tracks: Track[] = [], analysis = new Map<string, AnalysisSummary>(), onDevices = new Map<string, string[]>();
+  const tracks: Track[] = [], analysis = new Map<string, AnalysisSummary>(), onDevices = new Map<string, string[]>(), copies = new Map<string, Copy[]>();
+  const byId = members.map(m => new Map(m.tracks.map(t => [t.id, t])));
+  const copiesOf = (origins: { m: number; id: string }[]): Copy[] | null => {
+    if (new Set(origins.map(o => members[o.m].device.id)).size < 2) return null;
+    return [...origins].sort((a, b) => a.m - b.m).map(o => ({ device: members[o.m].device.name, track: byId[o.m].get(o.id)!, analysis: members[o.m].analysis.get(o.id) ?? null })).filter(c => c.track);
+  };
 
   for (const t of mg.tracks) {
     const origins = mg.trackOrigins.get(t.id) ?? [];
     const mine = origins.find(o => o.m === 0);
     if (mine) {
       viewTrack.set(t.id, mine.id); toMerged.tracks.set(mine.id, t.id);
+      const cs = copiesOf(origins);
+      if (cs) copies.set(mine.id, cs);
       onDevices.set(mine.id, [local.device.name, ...(t.onDevices ?? []).filter(d => d !== local.device.name)]);
       continue;
     }
     const vid = REMOTE_PREFIX + t.id, owner = members[origins[0].m].device;
     viewTrack.set(t.id, vid); toMerged.tracks.set(vid, t.id);
+    const cs = copiesOf(origins);
+    if (cs) copies.set(vid, cs);
     tracks.push({ ...t, id: vid, sources: [], remote: { device: owner.id, name: owner.name } });
     const a = mg.analysis.get(t.id);
     if (a) analysis.set(vid, a);
@@ -63,7 +77,7 @@ export function buildOverlay(local: MemberData, others: MemberData[], group: { i
       if (extra.length) extraItems.set(vid, extra);
     } else lists.push({ ...l, id: vid, parentId: l.parentId ? viewList.get(l.parentId) ?? null : null, items });
   }
-  return { tracks, analysis, lists, onDevices, extraItems, toMerged, merged: mg };
+  return { tracks, analysis, lists, onDevices, extraItems, copies, toMerged, merged: mg };
 }
 
 /** Edits made in the library (view ids) → operations for each other device (member index ≥ 1 → ops).
