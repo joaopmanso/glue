@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "GLUE Home",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "io.github.joaopmanso.gluehome",
   "build": {
     "frontendDist": "../dist",
@@ -9,21 +9,75 @@
   },
   "app": {
     "windows": [
-      { "label": "settings", "title": "GLUE Home", "url": "index.html", "width": 480, "height": 720, "minWidth": 380, "minHeight": 520, "visible": false, "center": true },
-      { "label": "service", "title": "GLUE Home service", "url": "service.html", "width": 320, "height": 240, "visible": false, "skipTaskbar": true, "focus": false }
+      {
+        "label": "settings",
+        "title": "GLUE Home",
+        "url": "index.html",
+        "width": 480,
+        "height": 720,
+        "minWidth": 380,
+        "minHeight": 520,
+        "visible": false,
+        "center": true
+      },
+      {
+        "label": "service",
+        "title": "GLUE Home service",
+        "url": "service.html",
+        "width": 320,
+        "height": 240,
+        "visible": false,
+        "skipTaskbar": true,
+        "focus": false
+      }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "dmg", "app"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "targets": [
+      "nsis",
+      "dmg",
+      "app"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "shortDescription": "GLUE Home",
     "longDescription": "GLUE Home: your main computer, reachable from the GLUE website. Receives songs sent from your other computers.",
-    "windows": { "nsis": { "installMode": "currentUser" } },
-    "macOS": { "signingIdentity": "-", "minimumSystemVersion": "11.0" }
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
-    "deep-link": { "desktop": { "schemes": ["gluehome"] } }
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "gluehome"
+        ]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFRTNFNjZBN0FCQTFGOTkKUldTWkg3cDZhdWJqcnJYMEJzdlJEQTRMQW1lbFQzbmVORmptM1hKNGZ6QUJJQW9uUU1pcjY1NzkK",
+      "endpoints": [
+        "https://github.com/joaopmanso/glue/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

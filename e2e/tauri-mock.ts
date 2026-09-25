@@ -33,6 +33,18 @@ export const TAURI_MOCK = `(() => {
         case 'incoming_end': { const f = files[args.id - 1]; f.done = args.ok; return args.ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; }
         case 'set_status': case 'show_settings': return;
         case 'open_library': window.__opened = 'library'; return;
+        // Updates: window.__update is the newer version, if any.
+        case 'plugin:app|version': return '0.2.0';
+        case 'plugin:updater|check': return window.__update ? { rid: 1, currentVersion: '0.2.0', version: window.__update, date: '', body: '', rawJson: {} } : null;
+        case 'plugin:updater|download_and_install': window.__installed = window.__update; return;
+        case 'plugin:process|restart': window.__restarted = true; return;
+        // This computer's GLUE folder and music files (window.__glue: path → text, window.__disk: path → bytes).
+        case 'find_glue_folder': return window.__glueFolder ?? null;
+        case 'known_folders': return { home: 'C:\\\\Users\\\\dj', music: 'C:\\\\Users\\\\dj\\\\Music', documents: 'C:\\\\Users\\\\dj\\\\Documents', desktop: null, downloads: null, sep: '\\\\' };
+        case 'path_exists': return Object.keys(window.__disk ?? {}).some(p => p === args.path || p.startsWith(args.path + '\\\\'));
+        case 'glue_read': { const t = (window.__glue ?? {})[args.rel]; if (t === undefined) throw 'not found'; return t; }
+        case 'file_size': { const b = (window.__disk ?? {})[args.path]; if (!b) throw 'not found'; return b.length; }
+        case 'file_read': { const b = (window.__disk ?? {})[args.path]; if (!b) throw 'not found'; return new Uint8Array(b.slice(args.offset, args.offset + args.len)).buffer; }
         // ask() is a message dialog that answers with the clicked button's label.
         case 'plugin:dialog|message': { const b = args.buttons, labels = b && typeof b === 'object' ? Object.values(b)[0] : ['Yes', 'No']; return (window.__ask ?? true) ? labels[0] : labels[1]; }
         case 'plugin:dialog|open': return 'D:\\\\Incoming';

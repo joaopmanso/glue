@@ -706,8 +706,11 @@ class Library {
   }
 
   // ─── Files and background analysis ─────────────────────────────────────────
+  /** Another computer's songs, through its GLUE Home (lib/remoteFiles, ADR 0045). */
+  remoteFile: ((t: Track) => Promise<File>) | null = null;
+  canStream: ((t: Track) => boolean) | null = null;
   async fileFor(t: Track): Promise<File> {
-    if (t.remote) throw new Error(remoteFileMessage(t.remote.name));
+    if (t.remote) { if (this.remoteFile && this.canStream?.(t)) return this.remoteFile(t); throw new Error(remoteFileMessage(t.remote.name)); }
     if (this.cloud) throw new Error(remoteFileMessage(t.onDevices?.join(' and ') || this.cloud.title));
     if (t.fileKey) return this.looseFile(t, true);
     const r = this.rootState(t.rootId);
@@ -720,7 +723,8 @@ class Library {
   }
   /** Can this track's file be read right now without asking the user? */
   canRead(t: Track) {
-    if (t.status !== 'linked' || t.remote || this.cloud) return false;
+    if (t.status !== 'linked' || this.cloud) return false;
+    if (t.remote) return !!this.canStream?.(t);
     if (t.fileKey) return t.fileKey.startsWith('copy:') || this.looseGranted.has(t.id);
     return !!this.rootState(t.rootId)?.granted;
   }
@@ -990,7 +994,7 @@ async function quickTags(t: Track, file: File): Promise<Track> {
 
 /** Why another device's track can't be played or analysed here yet. */
 export function remoteFileMessage(device: string) {
-  return 'This track’s file is on ' + device + '. Playing and analysing it from another computer comes with GLUE Home streaming, which isn’t available yet.';
+  return 'This track’s file is on ' + device + '. To play it here, run GLUE Home on ' + device + '.';
 }
 
 /** What a cloud view shows: one device's collection, or a merged collection (see lib/sync). */

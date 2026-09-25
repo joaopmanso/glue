@@ -53,11 +53,11 @@ export function buildOverlay(local: MemberData, others: MemberData[], group: { i
       onDevices.set(mine.id, [local.device.name, ...(t.onDevices ?? []).filter(d => d !== local.device.name)]);
       continue;
     }
-    const vid = REMOTE_PREFIX + t.id, owner = members[origins[0].m].device;
+    const o = origins[0], m = members[o.m], owner = m.device, vid = REMOTE_PREFIX + t.id;
     viewTrack.set(t.id, vid); toMerged.tracks.set(vid, t.id);
     const cs = copiesOf(origins);
     if (cs) copies.set(vid, cs);
-    tracks.push({ ...t, id: vid, sources: [], remote: { device: owner.id, name: owner.name } });
+    tracks.push({ ...t, id: vid, sources: [], remote: { device: owner.id, name: owner.name, profile: m.profile, collection: m.collection, id: o.id } });
     const a = mg.analysis.get(t.id);
     if (a) analysis.set(vid, a);
   }

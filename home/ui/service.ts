@@ -3,12 +3,15 @@
    Restart come from the tray and the settings window. */
 import { API, bridge, type HomeConfig, type Received, type Status } from './bridge';
 import { stayOnline } from './cloud';
-import { ICE_SERVERS, MAX_FILE, isHandshake, type Ctrl, type Handshake } from '../../src/core/transfer';
+import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, isHandshake, type Ctrl, type Handshake, type StreamCtrl } from '../../src/core/transfer';
+import { trackPath } from './library';
+import { findUpdate, install } from './updates';
 
 let cfg: HomeConfig | null = null;
 let room: ReturnType<typeof stayOnline> | null = null;
 let state: Status['state'] = 'stopped', text = 'Starting…';
 let receiving: Status['receiving'] = null;
+let serving = 0;   // songs being sent to another computer right now
 const peers = new Map<string, RTCPeerConnection>();   // handshake id → connection
 
 const apiOf = (c: HomeConfig) => c.api || API;
@@ -42,7 +45,11 @@ function stop(say = true) {
 }
 /** Removed from the account on the website: forget the credential. */
 async function unpaired() {
+  const gone = cfg?.deviceId;
   stop(false);
+  // Connecting again with a new code removes the old device: then the settings hold the new one.
+  const now = await bridge.config().catch(() => null);
+  if (now && now.deviceId && now.deviceId !== gone) { cfg = now; start(); return; }
   if (cfg) { cfg = { ...cfg, deviceId: null, token: null, user: null }; await bridge.saveConfig(cfg).catch(() => {}); }
   report('removed', 'Removed from the GLUE account: connect again in the settings');
 }
@@ -56,7 +63,7 @@ async function onSignal(from: string, data: unknown) {
     peers.set(data.id, pc);
     pc.onicecandidate = e => say({ app: 'glue-send', t: 'ice', id: data.id, candidate: e.candidate?.toJSON() ?? null });
     pc.onconnectionstatechange = () => { if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) { peers.delete(data.id); pc.close(); } };
-    pc.ondatachannel = ev => receive(ev.channel, from);
+    pc.ondatachannel = ev => ev.channel.label === 'stream' ? serve(ev.channel) : receive(ev.channel, from);
     await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
@@ -109,10 +116,46 @@ function receive(dc: RTCDataChannel, from: string) {
   void from;
 }
 
+// ---- playing this computer's songs on another (ADR 0045) -----------------------------------------
+const TYPES: Record<string, string> = { mp3: 'audio/mpeg', flac: 'audio/flac', wav: 'audio/wav', aif: 'audio/aiff', aiff: 'audio/aiff', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', opus: 'audio/ogg', alac: 'audio/mp4' };
+function serve(dc: RTCDataChannel) {
+  dc.binaryType = 'arraybuffer';
+  dc.bufferedAmountLowThreshold = HIGH_WATER / 4;
+  const send = (c: StreamCtrl) => { if (dc.readyState === 'open') dc.send(JSON.stringify(c)); };
+  const drained = () => new Promise<void>(res => { if (dc.bufferedAmount <= HIGH_WATER) return res(); const f = () => { dc.removeEventListener('bufferedamountlow', f); res(); }; dc.addEventListener('bufferedamountlow', f); });
+  let chain: Promise<void> = Promise.resolve();
+  dc.onmessage = e => {
+    if (typeof e.data !== 'string') return;
+    const c = JSON.parse(e.data) as StreamCtrl;
+    if (c.t !== 'get') return;
+    chain = chain.then(async () => {
+      serving++;
+      try {
+        if (!cfg?.glue) throw new Error('GLUE Home doesn’t know this computer’s GLUE folder: choose it in its settings.');
+        const f = await trackPath(c.profile, c.collection, c.track, cfg);
+        // A music folder found by name: remember it (and GLUE Home may read it from now on).
+        if (f.folder && cfg) { cfg = { ...cfg, folders: { ...(cfg.folders ?? {}), [f.folder.id]: f.folder.path } }; await bridge.saveConfig(cfg); }
+        const size = await bridge.fileSize(f.path), type = TYPES[f.name.split('.').pop()?.toLowerCase() ?? ''] ?? '';
+        send({ t: 'meta', n: c.n, name: f.name, size, type });
+        for (let at = 0; at < size;) {
+          const block = new Uint8Array(await bridge.fileRead(f.path, at, 1024 * 1024));
+          if (!block.length) break;
+          for (let i = 0; i < block.length; i += CHUNK) { await drained(); if (dc.readyState !== 'open') return; dc.send(block.subarray(i, Math.min(block.length, i + CHUNK))); }
+          at += block.length;
+        }
+        send({ t: 'eof', n: c.n, type });
+      } catch (err) { send({ t: 'error', n: c.n, error: (err as Error).message || String(err) }); }
+      finally { serving--; }
+    });
+  };
+}
+
 // ---- wiring ---------------------------------------------------------------------------------------
 async function boot() {
   cfg = await bridge.config();
   if (cfg && cfg.running === undefined) cfg = { ...cfg, running: true };
+  // The website's GLUE folder, when it's in a usual place and none was chosen.
+  if (cfg && !cfg.glue) { const g = await bridge.findGlue().catch(() => null); if (g) { cfg = { ...cfg, glue: g }; await bridge.saveConfig(cfg).catch(() => {}); } }
   start();
   await bridge.onControl(async what => {
     if (!cfg) return;
@@ -128,5 +171,15 @@ async function boot() {
     else report(state, text);
   });
   await bridge.onAskStatus(() => report(state, text));
+  // Updates by itself: a minute after starting, then every six hours, when nothing is being sent.
+  const auto = async () => {
+    if (cfg?.autoUpdate === false || receiving || serving) return;
+    const u = await findUpdate().catch(() => null);
+    if (!u || receiving || serving) return;
+    report(state, 'Updating to ' + u.version + '…');
+    await install(u).catch(e => report(state, 'Update failed: ' + ((e as Error).message || e)));
+  };
+  setTimeout(() => void auto(), 60_000);
+  setInterval(() => void auto(), 6 * 3600e3);
 }
 void boot();

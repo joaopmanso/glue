@@ -24,7 +24,7 @@ describe('a merged collection in the local library (ADR 0042)', () => {
   it('keeps this device’s tracks and adds only the songs it doesn’t have', () => {
     expect(o.tracks).toHaveLength(1);
     const r = o.tracks[0];
-    expect(r).toMatchObject({ title: 'Only desktop', remote: { device: 'desk', name: 'Desktop' }, onDevices: ['Desktop'] });
+    expect(r).toMatchObject({ title: 'Only desktop', remote: { device: 'desk', name: 'Desktop', profile: 'p2', collection: 'c2', id: 'd2' }, onDevices: ['Desktop'] });
     expect(r.id.startsWith('r')).toBe(true);
     expect(o.analysis.get(r.id)?.label).toBe('Lossless');
     expect(o.onDevices.get('a1')).toEqual(['Laptop', 'Desktop']);

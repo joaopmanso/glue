@@ -20,7 +20,7 @@
   import GlueStick from './ui/GlueStick.svelte';
   import AccountButton from './ui/AccountButton.svelte';
   import AdminView from './ui/AdminView.svelte';
-  import ConnectHome from './ui/ConnectHome.svelte';
+  import './lib/remoteFiles.svelte';   // another computer's songs through its GLUE Home (ADR 0045)
   import { account } from './lib/account.svelte';
   import './lib/sync.svelte';   // cloud sync hooks (ADR 0040)
   import { auto } from './lib/auto.svelte';
@@ -162,8 +162,6 @@
     <footer>Decoding uses your browser’s audio engine (WAV and AIFF are read directly). Chrome and Firefox can’t decode ALAC or DSD; Safari handles ALAC.</footer>
   {:else if route.name === 'admin'}
     <AdminView />
-  {:else if route.name === 'connect-home'}
-    <ConnectHome />
   {:else if !inLibrary || lib.onboarding === 'music'}
     <Welcome />
   {:else if route.name === 'track'}

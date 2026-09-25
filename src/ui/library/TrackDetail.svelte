@@ -53,7 +53,14 @@
     if (!t) return;
     const key = 'track:' + t.id;
     loaded = t.id;
-    // Nothing to ask for: streaming from another computer comes with GLUE Home (not available yet).
+    // Another computer's song: its summary; through its GLUE Home it can also be played and analysed here.
+    if (t.remote || lib.cloud) { if (!ask) { phase = 'remote'; return; } }
+    if (t.remote && lib.canRead(t)) {
+      phase = 'loading';
+      try { const file = await lib.fileFor(t); if (id !== t.id) return; await analyzeFile(file, key); if (app.error) { phase = 'error'; message = app.error.message; return; } stored = false; canPlay = true; phase = 'ready'; }
+      catch (e) { phase = 'error'; message = (e as Error).message || String(e); }
+      return;
+    }
     if (t.remote || lib.cloud) { phase = 'remote'; return; }
     if (!fresh) {
       const kept = await lib.trackDetails(t);
@@ -79,7 +86,7 @@
       await analyzeFile(file, key);
       if (app.error) { phase = 'error'; message = app.error.message; return; }
       stored = false; canPlay = true; phase = 'ready';
-      if (app.info && app.res) void lib.saveTrackDetails(lib.store?.tracks.get(t.id) ?? t, app.info, app.res);
+      if (app.info && app.res && !t.remote) void lib.saveTrackDetails(lib.store?.tracks.get(t.id) ?? t, app.info, app.res);
     } catch (e) { phase = 'error'; message = (e as Error).message || String(e); }
   }
   /** A stored analysis is on screen but the file needs permission before it can play. */
@@ -205,7 +212,12 @@ canPlay = true;
     {/if}
     {#if phase === 'remote'}
       <div class="notice" id="track-elsewhere">
-        <span>This track’s file is on <b>{elsewhere}</b>. Its details and analysis come from there. Playing and analysing it on this computer comes with GLUE Home streaming, which isn’t available yet.</span>
+        {#if track.remote && lib.canRead(track)}
+          <span>This track’s file is on <b>{elsewhere}</b>. Its GLUE Home can send it here to play, with the full analysis.</span>
+          <button type="button" class="btn" id="remote-load" onclick={() => load(true)}>Play and analyse from {elsewhere}</button>
+        {:else}
+          <span>This track’s file is on <b>{elsewhere}</b>. Its details and analysis come from there. To play it here, run GLUE Home on {elsewhere}.</span>
+        {/if}
       </div>
       {#if remoteView}
         <div class="remote-res" id="remote-analysis">

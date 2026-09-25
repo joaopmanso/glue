@@ -1,13 +1,14 @@
 name: GLUE Home
 
-# Builds GLUE Home (home/, ADR 0044) for Windows and macOS. Every push that touches it checks that
-# it builds; a tag home-v<version> (the version in home/src-tauri/tauri.conf.json) publishes the
-# installers as a GitHub release, which the website's download links point at (releases/latest).
+# Builds GLUE Home (home/, ADR 0044, 0045) for Windows and macOS. Every push that touches it checks
+# that it builds; a tag home-v<version> (the version in home/src-tauri/tauri.conf.json) publishes the
+# installers as a GitHub release, which the website's download links point at (releases/latest),
+# with signed update files and latest.json for GLUE Home's own updater.
 on:
   push:
     branches: [main]
     tags: ['home-v*']
-    paths: ['home/**', 'src/core/**', 'src/ui/GlueStick.svelte', '.github/workflows/home.yml', 'package.json', 'package-lock.json']
+    paths: ['home/**', 'src/core/**', 'src/store/types.ts', 'src/ui/GlueStick.svelte', '.github/workflows/home.yml', 'package.json', 'package-lock.json']
   workflow_dispatch:
 
 permissions:
@@ -25,10 +26,8 @@ jobs:
         include:
           - os: windows-latest
             args: --bundles nsis
-            out: GLUE-Home-Setup.exe
           - os: macos-latest
-            args: --bundles dmg --target universal-apple-darwin
-            out: GLUE-Home.dmg
+            args: --bundles app,dmg --target universal-apple-darwin
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -43,14 +42,26 @@ jobs:
       - run: npm run home:ui
       - name: Build
         working-directory: home
+        env:
+          # Signs the update files; GLUE Home only installs updates signed with this key.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx tauri build ${{ matrix.args }}
-      - name: Collect the installer
+      - name: Collect the installer and the update files
         shell: bash
         run: |
           mkdir -p out
-          if [ "$RUNNER_OS" = "Windows" ]; then f=$(ls home/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
-          else f=$(ls home/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1); fi
-          cp "$f" "out/${{ matrix.out }}"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            d=home/src-tauri/target/release/bundle/nsis
+            f=$(ls "$d"/*-setup.exe | head -1)
+            cp "$f" out/GLUE-Home-Setup.exe
+            cp "$f.sig" out/GLUE-Home-Setup.exe.sig
+          else
+            d=home/src-tauri/target/universal-apple-darwin/release/bundle
+            cp "$(ls "$d"/dmg/*.dmg | head -1)" out/GLUE-Home.dmg
+            cp "$(ls "$d"/macos/*.app.tar.gz | head -1)" out/GLUE-Home.app.tar.gz
+            cp "$(ls "$d"/macos/*.app.tar.gz.sig | head -1)" out/GLUE-Home.app.tar.gz.sig
+          fi
           ls -la out
       - name: Publish (tags only)
         if: startsWith(github.ref, 'refs/tags/home-v')
@@ -60,4 +71,27 @@ jobs:
         run: |
           tag="${GITHUB_REF#refs/tags/}"
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "GLUE Home ${tag#home-v}" --notes-file home/RELEASE.md || true
-          gh release upload "$tag" "out/${{ matrix.out }}" --clobber
+          gh release upload "$tag" out/* --clobber
+
+  # The updater's manifest: this version, and where each platform's signed update is.
+  manifest:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/home-v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: latest.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag"
+          gh release download "$tag" -p '*.sig' -D sigs
+          jq -n --arg v "${tag#home-v}" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg base "$base" \
+            --rawfile w sigs/GLUE-Home-Setup.exe.sig --rawfile m sigs/GLUE-Home.app.tar.gz.sig \
+            '{ version: $v, notes: "See the release on GitHub.", pub_date: $d, platforms: {
+                "windows-x86_64": { signature: ($w | rtrimstr("\n")), url: ($base + "/GLUE-Home-Setup.exe") },
+                "darwin-aarch64": { signature: ($m | rtrimstr("\n")), url: ($base + "/GLUE-Home.app.tar.gz") },
+                "darwin-x86_64": { signature: ($m | rtrimstr("\n")), url: ($base + "/GLUE-Home.app.tar.gz") } } }' > latest.json
+          cat latest.json
+          gh release upload "$tag" latest.json --clobber

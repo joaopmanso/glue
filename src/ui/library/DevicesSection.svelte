@@ -2,13 +2,16 @@
   /* Sidebar › Devices (signed in only): this browser and the account's other devices, each in its
      colour (the Device column's), with its songs, when it was last seen, and that streaming from it
      is off until GLUE Home streaming exists. Clicking one shows only its songs (a merged collection,
-     ADR 0042). Rename or remove from ⋯; "+ GLUE Home" shows a pairing code (ADR 0036). */
+     ADR 0042). Rename or remove from ⋯; "+ GLUE Home" shows a pairing code for this computer's GLUE Home (ADR 0036, 0045).
+     A GLUE Home that serves a browser shows on that browser's row. */
   import { account, type CloudDevice } from '../../lib/account.svelte';
   import { sync } from '../../lib/sync.svelte';
   import { lib } from '../../lib/library.svelte';
   import { view, devicesOf, manyDevices } from '../../lib/view.svelte';
   import { deviceColor } from '../../lib/devices';
   import { sendToHome } from '../../lib/sendToHome.svelte';
+  import { companionOf } from '../../lib/remoteFiles.svelte';
+  import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import { HOME_DOWNLOADS, homeOs, homePairLink } from '../../lib/homeApp';
   import { AUDIO_EXT } from '../../core/library/tags';
 
@@ -22,14 +25,19 @@
     if (!songs.length) { lib.notice = 'Only songs can be sent to GLUE Home.'; return; }
     void sendToHome.send(id, songs).catch(e => (lib.notice = (e as Error).message));
   };
+  /** A computer's GLUE Home (ADR 0045): a GLUE Home row itself, or the companion of a browser row. */
+  const homeOf = (d: CloudDevice) => d.kind === 'home' ? d : companionOf(d.id);
+  // One row per computer: a GLUE Home that serves a listed browser shows on that browser's row.
+  const rows = $derived(account.devices.filter(d => !(d.kind === 'home' && d.companionOf && account.devices.some(b => b.id === d.companionOf))));
   function dropped(e: DragEvent, d: CloudDevice) {
     dropOn = null;
-    if (d.kind !== 'home' || !e.dataTransfer?.files.length) return;
+    const h = homeOf(d);
+    if (!h || !e.dataTransfer?.files.length) return;
     e.preventDefault();
     (e as DragEvent & { glueTaken?: boolean }).glueTaken = true;
-    send(d.id, [...e.dataTransfer.files]);
+    send(h.id, [...e.dataTransfer.files]);
   }
-  function pickSongs(d: CloudDevice) { menu = null; pickFor = d.id; picker?.click(); }
+  function pickSongs(h: CloudDevice) { menu = null; pickFor = h.id; picker?.click(); }
 
   let menu = $state<{ id: string; x: number; y: number; up: boolean } | null>(null);
   let pairing = $state<{ code: string; expiresAt: number } | null>(null);
@@ -98,26 +106,31 @@
 <section class="devs" id="devices">
   <div class="head">
     <h3 class="label">Devices</h3>
-    <span class="add"><button type="button" id="pair-home" title="Connect the computer with your main collection" onclick={startPairing}>+ GLUE Home</button></span>
+    <span class="add"><button type="button" id="pair-home" title="Install GLUE Home on this computer: its songs then play on your other computers" onclick={startPairing}>+ GLUE Home</button></span>
   </div>
   <ul>
-    {#each account.devices as d (d.id)}
+    {#each rows as d (d.id)}
       {@const on = d.id === account.thisDevice ? account.connected : account.online.has(d.id)}
+      {@const h = homeOf(d)}
+      {@const hOn = !!h && account.online.has(h.id)}
       {@const n = songs(d)}
       {@const at = syncedAt(d)}
       {@const me = d.id === account.thisDevice}
       {@const loading = !!sync.busy && sync.busy.includes(d.name)}
       <li>
         <div class="item dev" data-device={d.id} class:sel={only.includes(d.name)} class:droppable={dropOn === d.id} style:--c={deviceColor(d.name)} role="group" aria-label={d.name}
-          ondragover={e => { if (d.kind === 'home' && [...(e.dataTransfer?.types ?? [])].includes('Files')) { e.preventDefault(); dropOn = d.id; } }}
+          ondragover={e => { if (hOn && [...(e.dataTransfer?.types ?? [])].includes('Files')) { e.preventDefault(); dropOn = d.id; } }}
           ondragleave={() => { if (dropOn === d.id) dropOn = null; }} ondrop={e => dropped(e, d)}>
           <button type="button" class="dname" aria-pressed={only.includes(d.name)} title={only.includes(d.name) ? 'Show every device’s songs again' : 'Show only the songs on ' + d.name}
             onclick={() => view.toggleFilter('device', d.name)}>
             <i class="sw" class:on aria-hidden="true"></i>
-            <span class="txt"><b>{d.name}</b><small>{d.kind === 'home' ? 'GLUE Home · ' : ''}{seen(d)}{d.kind === 'home' && on ? ' · drop songs to send' : ''}{n != null ? ' · ' + n.toLocaleString() + ' song' + (n === 1 ? '' : 's') : ''}{!me && at ? ' · synced ' + ago(at) : ''}</small></span>
+            <span class="txt"><b>{d.name}</b><small>{d.kind === 'home' ? 'GLUE Home · ' : ''}{seen(d)}{h && d.kind !== 'home' ? ' · GLUE Home ' + (hOn ? 'on' : 'off') : ''}{hOn ? ' · drop songs to send' : ''}{n != null ? ' · ' + n.toLocaleString() + ' song' + (n === 1 ? '' : 's') : ''}{!me && at ? ' · synced ' + ago(at) : ''}</small></span>
           </button>
-          {#if loading}<span class="spin" title={'Updating from ' + d.name + '…'}></span>
-          {:else if !me}<span class="nostream" title={'Streaming from ' + d.name + ' is off: it comes with GLUE Home. Its songs show here and play on ' + d.name + '.'} aria-label="Streaming off">
+          {#if loading || (remoteFiles.loading && remoteFiles.loading.device === d.name)}<span class="spin" title={remoteFiles.loading ? 'Getting ' + remoteFiles.loading.name + ' from ' + d.name + '…' : 'Updating from ' + d.name + '…'}></span>
+          {:else if hOn && !me}<span class="stream" title={'Streaming on: ' + d.name + '’s songs play here through its GLUE Home.'} aria-label="Streaming on">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 9.5v-3M5 11V5M8 12.5v-9M11 11V5M14 9.5v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </span>
+          {:else if !me}<span class="nostream" title={'Streaming from ' + d.name + ' is off: ' + (h ? 'its GLUE Home isn’t running.' : 'install GLUE Home there (+ GLUE Home).') + ' Its songs show here and play on ' + d.name + '.'} aria-label="Streaming off">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 9.5v-3M5 11V5M8 12.5v-9M11 11V5M14 9.5v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M2 14 14 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           </span>{/if}
           <button type="button" class="more" class:open={menu?.id === d.id} title="More" aria-haspopup="menu" aria-expanded={menu?.id === d.id} onclick={e => openMenu(e, d)}>⋯</button>
@@ -125,7 +138,7 @@
       </li>
     {/each}
   </ul>
-  {#if account.devices.length > 1}<p class="fine"><span class="nostream" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 9.5v-3M5 11V5M8 12.5v-9M11 11V5M14 9.5v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M2 14 14 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> Streaming off: other devices’ songs show here and play where they are.</p>{/if}
+  {#if rows.length > 1}<p class="fine"><span class="nostream" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 9.5v-3M5 11V5M8 12.5v-9M11 11V5M14 9.5v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M2 14 14 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> A computer’s songs play here when GLUE Home runs on it (+ GLUE Home, on that computer).</p>{/if}
   {#if pairError}<p class="err">{pairError}</p>{/if}
 </section>
 
@@ -134,9 +147,11 @@
 
 {#if menu && menuDevice}
   {@const d = menuDevice}
+  {@const h = homeOf(menuDevice)}
   <div class="dmenu" role="menu" style:left={menu.x + 'px'} style:top={menu.up ? null : menu.y + 'px'} style:bottom={menu.up ? menu.y + 'px' : null}>
-    {#if d.kind === 'home'}<button type="button" role="menuitem" id="send-songs" disabled={!account.online.has(d.id)} title={account.online.has(d.id) ? 'Copy songs into its incoming folder' : d.name + ' is offline'} onclick={() => pickSongs(d)}>Send songs…</button>{/if}
+    {#if h}<button type="button" role="menuitem" id="send-songs" disabled={!account.online.has(h.id)} title={account.online.has(h.id) ? 'Copy songs into its incoming folder' : 'Its GLUE Home is offline'} onclick={() => pickSongs(h)}>Send songs…</button>{/if}
     <button type="button" role="menuitem" onclick={() => rename(d)}>Rename…</button>
+    {#if h && h.id !== d.id}<button type="button" role="menuitem" class="danger" onclick={() => remove(h)}>Disconnect its GLUE Home…</button>{/if}
     <button type="button" role="menuitem" class="danger" onclick={() => remove(d)}>{d.id === account.thisDevice ? 'Remove (signs out)…' : 'Remove…'}</button>
   </div>
 {/if}
@@ -144,8 +159,8 @@
 {#if pairing}
   <div class="scrim" role="presentation" onpointerdown={e => { if (e.target === e.currentTarget) pairing = null; }}>
     <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="pair-h" id="pair-dialog">
-      <h2 id="pair-h">Connect GLUE Home</h2>
-      <p>On the computer with your main collection, start GLUE Home and enter this code:</p>
+      <h2 id="pair-h">GLUE Home on this computer</h2>
+      <p>GLUE Home is this computer’s companion: it plays its songs to your other computers and takes songs sent to it. Install it here and enter this code (or use the button):</p>
       <p class="code" id="pair-code">{pairing.code}</p>
       <p class="fine">{left > 0 ? 'Works once, for ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + ' more.' : 'This code has expired.'} This window closes by itself when GLUE Home has joined.</p>
       <p><a class="btn" id="pair-open" href={homePairLink(pairing.code)}>Open GLUE Home on this computer</a></p>
@@ -177,7 +192,8 @@
   .txt b { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .txt small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nostream { display: inline-grid; place-items: center; color: var(--muted); opacity: .75; flex: none; }
-  .nostream svg { width: 14px; height: 14px; }
+  .nostream svg, .stream svg { width: 14px; height: 14px; }
+  .stream { display: inline-grid; place-items: center; color: var(--ok); flex: none; }
   .spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: spin .9s linear infinite; flex: none; margin: 0 2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .more { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 6px 2px; font-size: 13px; opacity: 0; border-radius: 4px; }

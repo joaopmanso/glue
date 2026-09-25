@@ -23,6 +23,14 @@ export type Ctrl =
   | { t: 'saved'; n: number; name: string }                        // GLUE Home: written (final name)
   | { t: 'failed'; n: number; error: string };                     // GLUE Home: couldn't write it
 
+/** On a 'stream' channel: the website asks for a song of the GLUE Home's own library by its ids;
+    GLUE Home answers with its size, the bytes (binary messages), and the end. One at a time. */
+export type StreamCtrl =
+  | { t: 'get'; n: number; profile: string; collection: string; track: string }
+  | { t: 'meta'; n: number; name: string; size: number; type?: string }
+  | { t: 'eof'; n: number; type?: string }
+  | { t: 'error'; n: number; error: string };
+
 export const isHandshake = (d: unknown): d is Handshake => !!d && typeof d === 'object' && (d as { app?: unknown }).app === 'glue-send';
 
 /** A file name that's safe in any folder on Windows and macOS (no paths, no reserved names). */

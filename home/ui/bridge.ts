@@ -17,6 +17,9 @@ export interface HomeConfig {
   running: boolean;             // the service should be on (Stop in the tray turns it off)
   askedAutostart: boolean;      // the "start with this computer?" question was answered
   received?: Received[];        // the last songs received
+  glue?: string | null;         // this computer's GLUE folder (the website's), read-only (ADR 0045)
+  folders?: Record<string, string>;   // music folder id → where it is on this computer
+  autoUpdate?: boolean;         // install updates by itself (on unless turned off)
 }
 export interface Received { name: string; path: string; from: string; at: number; size: number }
 
@@ -34,6 +37,13 @@ export const bridge = {
   trayStatus: (text: string, running: boolean) => invoke<void>('set_status', { text, running }),
   showSettings: () => invoke<void>('show_settings'),
   openLibrary: () => invoke<void>('open_library'),
+  // This computer's GLUE library (read-only) and its music files.
+  findGlue: () => invoke<string | null>('find_glue_folder'),
+  knownFolders: () => invoke<{ home: string | null; music: string | null; documents: string | null; desktop: string | null; downloads: string | null; sep: string }>('known_folders'),
+  exists: (path: string) => invoke<boolean>('path_exists', { path }),
+  glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
+  fileSize: (path: string) => invoke<number>('file_size', { path }),
+  fileRead: (path: string, offset: number, len: number) => invoke<ArrayBuffer>('file_read', { path, offset, len }),
   // Between the windows.
   onConfig: (f: (c: HomeConfig) => void) => listen<HomeConfig>('config', e => f(e.payload)),
   onControl: (f: (what: 'start' | 'stop' | 'restart') => void) => listen<'start' | 'stop' | 'restart'>('control', e => f(e.payload)),

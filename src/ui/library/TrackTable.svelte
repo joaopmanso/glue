@@ -28,7 +28,8 @@
   const isPlaylist = $derived(list?.kind === 'playlist');
   // The Device column only while more than one device's songs are on screen.
   const cols = $derived(manyDevices() ? columns.visible : columns.visible.filter(k => k !== 'device'));
-  const here = (r: Row) => r.t.status === 'linked' && !r.t.remote && !lib.cloud;
+  // Plays here: this computer's file, or another computer's through its GLUE Home.
+  const here = (r: Row) => r.t.status === 'linked' && !lib.cloud && (!r.t.remote || lib.canRead(r.t));
   // play button, "#" (playlists only), the chosen columns, the column menu button
   const widths = $derived([dragOut ? '42px' : '26px', ...(isPlaylist ? ['36px'] : []), ...cols.map(k => COLUMNS[k].width), '28px']);
   const template = $derived(widths.join(' '));
@@ -221,7 +222,7 @@
           onpointerdown={e => press(e, r.t.id)}
           onclick={e => { if (!drag.suppressClick) view.click(r.t.id, e, order); }} ondblclick={() => open(r.t.id)}>
           <span class="c-play">
-            {#if dragOut && here(r)}
+            {#if dragOut && here(r) && !r.t.remote}
               <span class="grip" draggable="true" role="button" tabindex="-1" aria-label="Drag out a copy of the file"
                 title="Drag to Explorer, the desktop or a USB stick to copy this file"
                 onpointerenter={() => void prepareTrack(r.t)}

@@ -161,6 +161,93 @@ fn incoming_end(t: State<'_, Transfers>, id: u32, ok: bool) -> Result<String, St
     Ok(fin.to_string_lossy().into_owned())
 }
 
+// ---- this computer's GLUE library (ADR 0045): read-only; the website stays its only writer ----------
+
+fn cfg_str(c: &Option<serde_json::Value>, key: &str) -> Option<PathBuf> {
+    c.as_ref().and_then(|c| c.get(key)).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(PathBuf::from)
+}
+
+/// Where the website keeps its GLUE folder, if it's in a usual place (it has an mco.json).
+#[tauri::command]
+fn find_glue_folder(app: AppHandle) -> Option<String> {
+    let p = app.path();
+    let bases = [p.document_dir(), p.home_dir(), p.audio_dir(), p.desktop_dir()];
+    for base in bases.into_iter().flatten() {
+        for name in ["GLUE", "MCO", "Glue"] {
+            let d = base.join(name);
+            if d.join("mco.json").is_file() {
+                return Some(d.to_string_lossy().into_owned());
+            }
+        }
+    }
+    None
+}
+
+/// The usual folders of this computer (to find music folders by name).
+#[tauri::command]
+fn known_folders(app: AppHandle) -> serde_json::Value {
+    let p = app.path();
+    let s = |r: tauri::Result<PathBuf>| r.ok().map(|d| d.to_string_lossy().into_owned());
+    serde_json::json!({ "home": s(p.home_dir()), "music": s(p.audio_dir()), "documents": s(p.document_dir()), "desktop": s(p.desktop_dir()), "downloads": s(p.download_dir()), "sep": std::path::MAIN_SEPARATOR.to_string() })
+}
+
+#[tauri::command]
+fn path_exists(path: String) -> bool {
+    PathBuf::from(path).exists()
+}
+
+/// A text file inside the GLUE folder (the library's JSON), by its path in there.
+#[tauri::command]
+fn glue_read(app: AppHandle, rel: String) -> Result<String, String> {
+    let root = cfg_str(&get_config(app), "glue").ok_or("no GLUE folder chosen")?;
+    if rel.split(['/', '\\']).any(|p| p == ".." || p.is_empty()) {
+        return Err("bad path".into());
+    }
+    fs::read_to_string(root.join(rel)).map_err(|e| e.to_string())
+}
+
+/// Files GLUE Home may read: in the GLUE folder, the music folders it located, the incoming folder.
+fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
+    let c = get_config(app.clone());
+    let mut roots: Vec<PathBuf> = [cfg_str(&c, "glue"), cfg_str(&c, "incoming")].into_iter().flatten().collect();
+    if let Some(m) = c.as_ref().and_then(|c| c.get("folders")).and_then(|v| v.as_object()) {
+        roots.extend(m.values().filter_map(|v| v.as_str()).map(PathBuf::from));
+    }
+    let p = fs::canonicalize(path).map_err(|e| e.to_string())?;
+    for r in roots {
+        if let Ok(r) = fs::canonicalize(r) {
+            if p.starts_with(&r) {
+                return Ok(p);
+            }
+        }
+    }
+    Err("not in a folder GLUE Home may read".into())
+}
+
+#[tauri::command]
+fn file_size(app: AppHandle, path: String) -> Result<u64, String> {
+    Ok(fs::metadata(allowed(&app, &path)?).map_err(|e| e.to_string())?.len())
+}
+
+/// Bytes of a song, from `offset` (at most `len`), as a raw answer.
+#[tauri::command]
+fn file_read(app: AppHandle, path: String, offset: u64, len: u32) -> Result<tauri::ipc::Response, String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = File::open(allowed(&app, &path)?).map_err(|e| e.to_string())?;
+    f.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
+    let mut buf = vec![0u8; len.min(4 * 1024 * 1024) as usize];
+    let mut n = 0;
+    while n < buf.len() {
+        let k = f.read(&mut buf[n..]).map_err(|e| e.to_string())?;
+        if k == 0 {
+            break;
+        }
+        n += k;
+    }
+    buf.truncate(n);
+    Ok(tauri::ipc::Response::new(buf))
+}
+
 /// The service reports its state: the tray's first line, tooltip and Start / Stop follow it.
 #[tauri::command]
 fn set_status(app: AppHandle, tray: State<'_, Tray>, text: String, running: bool) {
@@ -202,8 +289,11 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--background"])))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        // Updates from the GitHub releases, signed with the project's key (ADR 0045).
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, glue_read, file_size, file_read])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

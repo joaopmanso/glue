@@ -12,7 +12,8 @@ export type Tier = 'free' | 'paid' | 'admin';
 export interface CloudUser { id: string; email: string | null; name: string | null; picture: string | null; tier?: Tier; providers?: string[] }
 
 export { passwordKey } from '../core/password';
-export interface CloudDevice { id: string; kind: 'browser' | 'home'; name: string; platform: string | null; createdAt: number; lastSeen: number | null }
+/** companionOf: for a GLUE Home, the browser on the same computer that it serves (ADR 0045). */
+export interface CloudDevice { id: string; kind: 'browser' | 'home'; name: string; platform: string | null; createdAt: number; lastSeen: number | null; companionOf?: string | null }
 interface Session { access: string; refresh: string; deviceId: string }
 
 type GoogleId = { accounts: { id: { initialize(o: Record<string, unknown>): void; renderButton(el: HTMLElement, o: Record<string, unknown>): void; disableAutoSelect(): void } } };

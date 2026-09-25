@@ -12,7 +12,7 @@ const CLIENT = 'test-client.apps.googleusercontent.com', ORIGIN = 'https://joaop
 function d1(): DB {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
-  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
+  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql', '0004_companions.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
   const stmt = (sql: string, args: unknown[] = []): Stmt => ({
     bind: (...v) => stmt(sql, v),
     first: async <T,>() => (db.prepare(sql).get(...(args as never[])) as T) ?? null,
@@ -125,6 +125,21 @@ describe('GLUE Cloud: pairing GLUE Home and devices', () => {
     const me = await call('GET', '/v1/me', undefined, d.json.access);
     expect(me.json.thisDevice).toBe(c.json.deviceId);
     expect(me.json.devices.map((x: { kind: string; name: string }) => x.kind + ':' + x.name)).toEqual(['home:Studio PC', 'browser:Edge on Windows']);
+  });
+  it('a GLUE Home is the companion of the browser that made its code; connecting again replaces it (ADR 0045)', async () => {
+    const a = await signIn({}, { deviceName: 'Desktop' });
+    const claimWith = async (extra: Record<string, unknown> = {}) => (await call('POST', '/v1/pairing/claim', { code: (await call('POST', '/v1/pairing', {}, a.json.access)).json.code, name: 'Desktop', ...extra })).json;
+    const h1 = await claimWith();
+    expect(h1.companionOf).toEqual({ id: a.json.deviceId, name: 'Desktop' });
+    let me = (await call('GET', '/v1/me', undefined, a.json.access)).json;
+    expect(me.devices.find((d: { id: string }) => d.id === h1.deviceId)).toMatchObject({ kind: 'home', companionOf: a.json.deviceId });
+    // A new code for the same browser: the new GLUE Home replaces the old (proved with its token).
+    const h2 = await claimWith({ replaces: { deviceId: h1.deviceId, token: h1.token } });
+    me = (await call('GET', '/v1/me', undefined, a.json.access)).json;
+    expect(me.devices.filter((d: { kind: string }) => d.kind === 'home').map((d: { id: string }) => d.id)).toEqual([h2.deviceId]);
+    expect((await call('POST', '/v1/auth/device', { deviceId: h1.deviceId, token: h1.token })).status).toBe(401);
+    // GLUE Home's email sign-in is gone: codes only.
+    expect((await call('POST', '/v1/home/signin', { email: 'x@example.com', key: 'k'.repeat(43) })).status).not.toBe(200);
   });
   it('codes expire after 10 minutes', async () => {
     const a = await signIn();
@@ -280,17 +295,6 @@ describe('GLUE Cloud: email + password, tiers, admin (ADR 0041)', () => {
     const me = await call('GET', '/v1/me', undefined, ok.json.access);
     expect(me.json.user).toMatchObject({ tier: 'paid', providers: ['password'] });
     expect((await call('POST', '/v1/auth/register', { email: 'not-an-email', key: key('x') })).status).toBe(400);
-  });
-  it('GLUE Home signs in with email and password and becomes a home device (ADR 0044)', async () => {
-    const key = 'k'.repeat(43);
-    await call('POST', '/v1/auth/register', { email: 'home@example.com', key, name: 'H', deviceName: 'Edge' });
-    expect((await call('POST', '/v1/home/signin', { email: 'home@example.com', key: 'x'.repeat(43), name: 'Studio' })).status).toBe(401);
-    const h = await call('POST', '/v1/home/signin', { email: 'HOME@example.com', key, name: 'Studio', platform: 'win32' });
-    expect(h.status).toBe(200);
-    expect(h.json).toMatchObject({ name: 'Studio', user: { email: 'home@example.com' } });
-    const acc = await call('POST', '/v1/auth/device', { deviceId: h.json.deviceId, token: h.json.token });
-    const me = await call('GET', '/v1/me', undefined, acc.json.access);
-    expect(me.json.devices.find((d: { id: string }) => d.id === h.json.deviceId)).toMatchObject({ kind: 'home', name: 'Studio' });
   });
   it('limits password guesses per account', async () => {
     await call('POST', '/v1/auth/register', { email: 'dj@example.com', key: key('secret') });

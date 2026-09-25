@@ -1,9 +1,9 @@
-/* GLUE Home and GLUE Cloud (ADR 0036, 0044): join the account (a code from the website, or email and
-   password), trade the device credential for short access tokens, and stay in the signaling room. */
-import { passwordKey } from '../../src/core/password';
+/* GLUE Home and GLUE Cloud (ADR 0036, 0044, 0045): join the account with a code from the website on
+   this computer (GLUE Home becomes that browser's companion), trade the device credential for short
+   access tokens, and stay in the signaling room. */
 
 type Fetch = typeof fetch;
-export interface Joined { deviceId: string; token: string; name: string; user: { email: string | null; name: string | null } | null }
+export interface Joined { deviceId: string; token: string; name: string; user: { email: string | null; name: string | null } | null; companionOf?: { id: string; name: string } | null }
 
 async function post<T>(api: string, path: string, body: unknown, f: Fetch = fetch): Promise<T> {
   const r = await f(api + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -13,12 +13,10 @@ async function post<T>(api: string, path: string, body: unknown, f: Fetch = fetc
 }
 const platform = () => /Mac/i.test(navigator.userAgent) ? 'darwin' : /Win/i.test(navigator.userAgent) ? 'win32' : 'other';
 
-/** Join with a pairing code made on the website (sidebar › Devices › + GLUE Home). */
-export const claim = (api: string, code: string, name: string, f?: Fetch) => post<Joined>(api, '/v1/pairing/claim', { code, name, platform: platform() }, f);
-/** Join with the account's email and password (stretched here, as on the website). */
-export async function signIn(api: string, email: string, password: string, name: string, f?: Fetch) {
-  return post<Joined>(api, '/v1/home/signin', { email: email.trim(), key: await passwordKey(email, password), name, platform: platform() }, f);
-}
+/** Join with a pairing code made on the website (sidebar › Devices › + GLUE Home). `replaces`: this
+    GLUE Home's previous device, which goes (connecting again doesn't leave a second one). */
+export const claim = (api: string, code: string, name: string, replaces?: { deviceId: string; token: string } | null, f?: Fetch) =>
+  post<Joined>(api, '/v1/pairing/claim', { code, name, platform: platform(), ...(replaces ? { replaces } : {}) }, f);
 export const access = (api: string, deviceId: string, token: string, f?: Fetch) => post<{ access: string }>(api, '/v1/auth/device', { deviceId, token }, f).then(r => r.access);
 
 export type RoomEvent =

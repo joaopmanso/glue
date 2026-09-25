@@ -43,8 +43,9 @@ export interface Track {
   grouping?: string;            // the file's / DJ app's Grouping field
   tags?: string[];              // the user's tags; absent until edited, then the found ones (tagsOf) stand in
   onDevices?: string[];         // cloud views and merged collections: the devices that have this track (never saved)
-  /** A track from another device of a merged collection, shown here from the cloud (ADR 0042; never saved). */
-  remote?: { device: string; name: string };
+  /** A track from another device of a merged collection, shown here from the cloud (ADR 0042; never saved):
+      that device, and its own profile, collection and track ids (to stream it through GLUE Home, ADR 0045). */
+  remote?: { device: string; name: string; profile?: string; collection?: string; id?: string };
   sources: string[];            // ids of imported sources that contain this track
 }
 

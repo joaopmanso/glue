@@ -1,18 +1,40 @@
 <script lang="ts">
-  /* GLUE Home's settings (ADR 0044): the service's state and Start / Stop / Restart, the GLUE account
-     (email and password, Google in the browser, or a code from the website), the incoming folder,
-     start with this computer, and the songs received lately. */
+  /* GLUE Home's settings (ADR 0044, 0045): the service's state and Start / Stop / Restart; connecting
+     with a code from the website on this computer; this computer's GLUE folder and music folders (to
+     play its songs on your other computers); the incoming folder; start with this computer; the songs
+     received lately. */
   import { onMount } from 'svelte';
   import { API, WEBSITE, askYesNo, autostart, bridge, onPairLink, openFolder, openUrl, pickFolder, type HomeConfig, type Status } from './bridge';
-  import { claim, signIn, type Joined } from './cloud';
+  import { claim, type Joined } from './cloud';
+  import { describe, locate, type LibraryInfo } from './library';
+  import { findUpdate, install, version } from './updates';
+  import type { Update } from '@tauri-apps/plugin-updater';
   import GlueStick from '../../src/ui/GlueStick.svelte';
   import { fmtBytes } from '../../src/core/format';
 
   let cfg = $state<HomeConfig | null>(null);
   let status = $state<Status | null>(null);
-  let email = $state(''), password = $state(''), code = $state('');
+  let code = $state('');
+  let lib = $state<LibraryInfo | null>(null);
+  let found = $state<Record<string, string | null>>({});
   let busy = $state(''), error = $state('');
   let atLogin = $state(false);
+  // Updates: this version, a check on demand, installing (with progress).
+  let current = $state('');
+  let update = $state<Update | null>(null);
+  let upd = $state('');
+  async function checkUpdates() {
+    upd = 'Checking…'; update = null;
+    try { update = await findUpdate(); upd = update ? 'Version ' + update.version + ' is available.' : 'You have the latest version.'; }
+    catch (e) { upd = 'Couldn’t check for updates: ' + ((e as Error).message || e); }
+  }
+  async function installUpdate() {
+    if (!update) return;
+    const u = update;
+    upd = 'Downloading ' + u.version + '…';
+    try { await install(u, (got, total) => (upd = 'Downloading ' + u.version + '… ' + (total ? Math.round(got / total * 100) + '%' : Math.round(got / 1e6) + ' MB'))); }
+    catch (e) { upd = 'Couldn’t install the update: ' + ((e as Error).message || e); }
+  }
 
   const blank = async (): Promise<HomeConfig> => ({ deviceId: null, token: null, name: await bridge.deviceName().catch(() => 'GLUE Home'), user: null, incoming: await bridge.defaultIncoming().catch(() => null), running: true, askedAutostart: false, received: [] });
   const paired = $derived(!!cfg?.deviceId && !!cfg?.token);
@@ -27,14 +49,34 @@
   }
   async function joined(j: Joined) {
     await save({ deviceId: j.deviceId, token: j.token, name: j.name, user: j.user, running: true });
-    password = ''; code = ''; error = '';
+    code = ''; error = '';
   }
   async function run(label: string, f: () => Promise<void>) {
     busy = label; error = '';
     try { await f(); } catch (e) { error = (e as Error).message || String(e); } finally { busy = ''; }
   }
-  const withPassword = () => run('Signing in…', async () => joined(await signIn(api, email, password, cfg?.name || 'GLUE Home')));
-  const withCode = (c = code) => run('Connecting…', async () => joined(await claim(api, c, cfg?.name || 'GLUE Home')));
+  // Connecting again (a new code) replaces this GLUE Home's previous device in the account.
+  const withCode = (c = code) => run('Connecting…', async () => joined(await claim(api, c, cfg?.name || 'GLUE Home', cfg?.deviceId && cfg?.token ? { deviceId: cfg.deviceId, token: cfg.token } : null)));
+
+  // This computer's GLUE library: its profiles and collections, and where their music folders are.
+  async function scan() {
+    lib = cfg?.glue ? await describe() : null;
+    const next: Record<string, string | null> = {};
+    for (const p of lib?.profiles ?? []) for (const c of p.collections) for (const r of c.roots) if (!(r.id in next)) next[r.id] = cfg ? await locate(r, null, cfg) : null;
+    found = next;
+  }
+  async function chooseGlue() {
+    const f = await pickFolder(cfg?.glue ?? null);
+    if (!f) return;
+    await save({ glue: f });
+    await scan();
+    if (!lib) error = 'That folder isn’t a GLUE folder (it has no mco.json). Choose the folder GLUE on the website uses.';
+  }
+  async function chooseFolder2(id: string) {
+    const f = await pickFolder(found[id]);
+    if (f) { await save({ folders: { ...(cfg?.folders ?? {}), [id]: f } }); await scan(); }
+  }
+  const roots = $derived.by(() => { const m = new Map<string, { id: string; name: string; where: string }>(); for (const p of lib?.profiles ?? []) for (const c of p.collections) for (const r of c.roots) if (!m.has(r.id)) m.set(r.id, { id: r.id, name: r.name, where: p.name + ' · ' + c.name }); return [...m.values()]; });
   async function disconnect() {
     if (!(await askYesNo('Disconnect this computer from ' + (cfg?.user?.email ?? 'the GLUE account') + '? Songs can’t be sent to it until you connect again. Remove it from the website’s device list too (sidebar › Devices › ⋯ › Remove).', 'GLUE Home', 'Disconnect', 'Cancel'))) return;
     await save({ deviceId: null, token: null, user: null });
@@ -52,10 +94,14 @@
     void (async () => {
       cfg = (await bridge.config()) ?? await blank();
       if (!cfg.incoming) cfg = { ...cfg, incoming: await bridge.defaultIncoming().catch(() => null) };
-      await bridge.onConfig(c => (cfg = c));
+      await bridge.onConfig(c => { const glueChanged = c.glue !== cfg?.glue; cfg = c; if (glueChanged) void scan(); });
+      // The website's GLUE folder, if it's in a usual place.
+      if (!cfg.glue) { const g = await bridge.findGlue().catch(() => null); if (g) await save({ glue: g }); }
+      await scan().catch(() => {});
       await bridge.onStatus(s => (status = s));
       await bridge.askStatus();
       atLogin = await (await autostart()).isEnabled().catch(() => false);
+      current = await version().catch(() => '');
       // gluehome://pair?code=… from the website's "Open GLUE Home".
       await onPairLink(c => { void bridge.showSettings(); void withCode(c); }).catch(() => {});
       // The first time: start with this computer?
@@ -92,17 +138,16 @@
     <h2>GLUE account</h2>
     {#if paired}
       <p id="account">Connected to <b>{cfg?.user?.email ?? 'your account'}</b> as <b>{cfg?.name}</b>.</p>
+      <details><summary>Connect again with a new code</summary>
+        <form class="code" onsubmit={e => { e.preventDefault(); void withCode(); }}>
+          <label>Code <input id="code-again" placeholder="ABCD-EFGH" autocomplete="off" spellcheck="false" bind:value={code} required></label>
+          <button type="submit" disabled={!!busy}>Connect</button>
+        </form>
+      </details>
       <button type="button" class="link" onclick={disconnect}>Disconnect this computer</button>
     {:else}
-      <form onsubmit={e => { e.preventDefault(); void withPassword(); }}>
-        <label>Email <input type="email" id="email" autocomplete="username" bind:value={email} required></label>
-        <label>Password <input type="password" id="password" autocomplete="current-password" bind:value={password} required></label>
-        <button type="submit" class="primary" id="sign-in" disabled={!!busy}>Sign in</button>
-      </form>
-      <div class="or"><span>or</span></div>
-      <button type="button" id="google" onclick={() => openUrl(WEBSITE + '#/connect-home')}>Sign in with Google in your browser</button>
-      <p class="fine">Your browser opens the GLUE website; sign in there and it connects this computer.</p>
-      <div class="or"><span>or</span></div>
+      <p class="fine">On the GLUE website <b>on this computer</b>: sidebar › Devices › <b>+ GLUE Home</b>. Then press “Open GLUE Home on this computer”, or type the code here. GLUE Home becomes this computer’s companion.</p>
+      <button type="button" id="get-code" onclick={() => openUrl(WEBSITE)}>Open the GLUE website</button>
       <form class="code" onsubmit={e => { e.preventDefault(); void withCode(); }}>
         <label>Code from the website <small>(sidebar › Devices › + GLUE Home)</small>
           <input id="code" placeholder="ABCD-EFGH" autocomplete="off" spellcheck="false" bind:value={code} required></label>
@@ -115,6 +160,27 @@
   </section>
 
   <section>
+    <h2>This computer’s library</h2>
+    <p class="fine">GLUE Home reads the library the GLUE website uses on this computer (it never changes it), so its songs play on your other computers.</p>
+    <div class="folder"><code id="glue-folder" title={cfg?.glue ?? ''}>{cfg?.glue ?? 'GLUE folder not found yet'}</code></div>
+    <div class="row"><button type="button" id="choose-glue" onclick={chooseGlue}>{cfg?.glue ? 'Choose another…' : 'Choose the GLUE folder…'}</button></div>
+    {#if lib}
+      <ul id="profiles">
+        {#each lib.profiles as p (p.id)}<li><span><b>{p.name}</b> · {p.collections.map(c => c.name).join(', ')}</span></li>{/each}
+      </ul>
+      {#if roots.length}
+        <h3>Music folders</h3>
+        <ul id="music-folders">
+          {#each roots as r (r.id)}
+            <li data-root={r.id}><span title={found[r.id] ?? ''}><b>{r.name}</b> <small>{found[r.id] ?? 'not found on this computer'}</small></span>
+              <button type="button" class="mini" onclick={() => chooseFolder2(r.id)}>{found[r.id] ? 'Change…' : 'Choose…'}</button></li>
+          {/each}
+        </ul>
+      {/if}
+    {/if}
+  </section>
+
+  <section>
     <h2>Incoming folder</h2>
     <p class="fine">Songs sent to this computer are saved here. In GLUE on this computer, add this folder as a music folder once: new songs then show up in your library.</p>
     <div class="folder"><code id="incoming" title={cfg?.incoming ?? ''}>{cfg?.incoming ?? '…'}</code></div>
@@ -122,6 +188,17 @@
       <button type="button" id="choose-incoming" onclick={chooseFolder}>Choose…</button>
       {#if cfg?.incoming}<button type="button" onclick={() => openFolder(cfg!.incoming!).catch(e => (error = (e as Error).message))}>Open folder</button>{/if}
     </div>
+  </section>
+
+  <section>
+    <h2>Updates</h2>
+    <p class="fine" id="version">GLUE Home {current}</p>
+    <div class="row">
+      <button type="button" id="check-updates" onclick={checkUpdates}>Check for updates</button>
+      {#if update}<button type="button" class="primary" id="install-update" onclick={installUpdate}>Install and restart</button>{/if}
+    </div>
+    {#if upd}<p class="fine" id="update-state" role="status">{upd}</p>{/if}
+    <label class="check"><input type="checkbox" id="auto-update" checked={cfg?.autoUpdate !== false} onchange={e => save({ autoUpdate: e.currentTarget.checked })}> Install updates by itself</label>
   </section>
 
   {#if status?.receiving || status?.received.length}
@@ -166,12 +243,16 @@
   .code { grid-template-columns: 1fr auto; align-items: end; }
   #code { font-family: var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
   .check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink); }
-  .or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
-  .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   .folder code { display: block; font: 12.5px var(--font-mono); background: var(--ground); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
   li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
   li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   li small { color: var(--muted); white-space: nowrap; }
   .now { color: var(--accent); font-size: 13px; }
+  h3 { font-size: 12.5px; margin: 4px 0 0; color: var(--ink-2); }
+  li small { margin-left: 6px; }
+  button.mini { padding: 2px 10px; font-size: 12px; flex: none; }
+  li { align-items: center; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+  details form { margin-top: 8px; }
 </style>
