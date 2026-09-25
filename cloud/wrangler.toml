@@ -1,0 +1,24 @@
+# GLUE Cloud (ADR 0036): deployed by .github/workflows/cloud.yml, or `npm run deploy` in cloud/.
+name = "glue-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+GOOGLE_CLIENT_ID = "486502590189-93o8r488c7gst4bviqvbsuflke7ujd06.apps.googleusercontent.com"
+ALLOWED_ORIGINS = "https://joaopmanso.github.io,http://localhost:5174,http://localhost:5175"
+# SESSION_KEY is a secret: `wrangler secret put SESSION_KEY`.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "glue"
+database_id = "TO_BE_CREATED"
+migrations_dir = "migrations"
+
+[[durable_objects.bindings]]
+name = "SIGNAL"
+class_name = "Signal"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Signal"]

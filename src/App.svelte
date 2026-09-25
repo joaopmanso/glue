@@ -18,11 +18,13 @@
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
   import TagEditor from './ui/library/TagEditor.svelte';
   import GlueStick from './ui/GlueStick.svelte';
+  import AccountButton from './ui/AccountButton.svelte';
+  import { account } from './lib/account.svelte';
   import { auto } from './lib/auto.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
   import { themes } from './lib/themes.svelte';
 
-  onMount(() => { void lib.boot(); });
+  onMount(() => { void lib.boot(); void account.init(); });
 
   const route = $derived(router.current);
   const inLibrary = $derived(lib.phase === 'library');
@@ -118,6 +120,7 @@
           <span class="dot" style:background={lib.profile.color}>{lib.profile.name.slice(0, 1).toUpperCase()}</span>{lib.profile.name}
         </button>
       {/if}
+      <AccountButton />
       <button type="button" class="modebtn" id="mode-toggle" title={themes.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={themes.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} onclick={() => themes.toggleMode()}>
         {#if themes.resolved === 'dark'}
           <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="currentColor"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>

@@ -11,6 +11,8 @@
   import { auto } from '../../lib/auto.svelte';
   import { canDragOut, startPlaylistDrag } from '../../lib/dragout';
   import { allTags, tagColorOf } from '../../lib/tags.svelte';
+  import { account } from '../../lib/account.svelte';
+  import DevicesSection from './DevicesSection.svelte';
   import { cleanTag } from '../../core/library/tagging';
   const dragOut = canDragOut();
 
@@ -314,6 +316,7 @@
       </ul>
     </details>
   </section>
+  {#if account.signedIn}<DevicesSection />{/if}
 </nav>
 
 <style>

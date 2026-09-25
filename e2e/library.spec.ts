@@ -1042,3 +1042,69 @@ test('opening another track’s page doesn’t stop what’s playing; playing th
   await page.locator('.crumbs a').click();
   await expect(page.locator('#lib-now')).toHaveText('Fixture FLAC');
 });
+
+test('GLUE account: Google sign-in, devices, pairing a GLUE Home, staying signed in, signing out', async ({ page }) => {
+  // Google's script, the API and the signaling room are stand-ins; the website code is real.
+  await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+    window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+      renderButton(el) { const b = document.createElement('button'); b.id = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake-id-token' }); el.appendChild(b); } } } };` }));
+  const devices = [{ id: 'b1', kind: 'browser', name: 'Edge on Windows', platform: 'Win32', createdAt: 1, lastSeen: 1 }];
+  let refreshes = 0, lastRefresh = '';
+  const user = { id: 'u1', email: 'dj@example.com', name: 'DJ Test', picture: null };
+  await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
+    const u = new URL(r.request().url()), m = r.request().method(), json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
+    if (u.pathname === '/v1/health') return json({ ok: true });
+    if (u.pathname === '/v1/auth/google') { expect(r.request().postDataJSON().credential).toBe('fake-id-token'); lastRefresh = 'r0'; return json({ access: 'a0', refresh: 'r0', deviceId: 'b1', user }); }
+    if (u.pathname === '/v1/auth/refresh') { const got = r.request().postDataJSON().refresh; if (got !== lastRefresh) return json({ error: 'sign in again' }, 401); lastRefresh = 'r' + ++refreshes; return json({ access: 'a' + refreshes, refresh: lastRefresh, deviceId: 'b1' }); }
+    if (u.pathname === '/v1/auth/logout') return json({ ok: true });
+    if (u.pathname === '/v1/me') return json({ user, thisDevice: 'b1', devices });
+    if (u.pathname === '/v1/pairing' && m === 'POST') return json({ code: 'K7QM-2XPB', expiresAt: Date.now() + 600_000 });
+    if (u.pathname === '/v1/devices/h1' && m === 'PATCH') { devices[1].name = r.request().postDataJSON().name; return json({ device: devices[1] }); }
+    return json({ error: 'not found' }, 404);
+  });
+  let room: import('@playwright/test').WebSocketRoute | null = null;
+  await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { room = ws; ws.send(JSON.stringify({ type: 'presence', online: ['b1'] })); ws.onMessage(() => {}); });
+
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await expect(page.locator('#devices')).toHaveCount(0);                                  // no account: nothing changes
+  await page.click('#account-btn');
+  await expect(page.locator('#account-pop')).toContainText('optional');
+  await page.click('#fake-google');
+  await expect(page.locator('#account-btn')).toHaveText(/D/);
+  const devs = page.locator('#devices');
+  await expect(devs).toContainText('Edge on Windows');
+  await expect(devs).toContainText('this browser');
+  await expect(devs.locator('[data-device="b1"] .dot')).toHaveClass(/on/);
+
+  // Pair a GLUE Home: the code shows; when the new device comes online the dialog closes itself.
+  await page.click('#pair-home');
+  await expect(page.locator('#pair-code')).toHaveText('K7QM-2XPB');
+  devices.push({ id: 'h1', kind: 'home', name: 'Studio PC', platform: 'win32', createdAt: 2, lastSeen: 2 });
+  room!.send(JSON.stringify({ type: 'presence', online: ['b1', 'h1'] }));
+  await expect(page.locator('#pair-dialog')).toHaveCount(0);
+  await expect(devs.locator('[data-device="h1"]')).toContainText('GLUE Home · online');
+  await expect(devs.locator('[data-device="h1"] .dot')).toHaveClass(/on/);
+  page.once('dialog', d => d.accept('Studio'));
+  await devs.locator('[data-device="h1"]').hover();
+  await devs.locator('[data-device="h1"] .more').click();
+  await page.getByRole('menuitem', { name: 'Rename…' }).click();
+  await expect(devs.locator('[data-device="h1"]')).toContainText('Studio');
+  room!.send(JSON.stringify({ type: 'presence', online: ['b1'] }));
+  await expect(devs.locator('[data-device="h1"]')).toContainText('last seen');
+
+  // A reload stays signed in (the refresh token rotates); signing out forgets it.
+  await page.reload();
+  await expect(page.locator('#devices')).toContainText('Studio', { timeout: 15_000 });
+  expect(refreshes).toBeGreaterThan(0);
+  await page.click('#account-btn');
+  await page.click('#sign-out');
+  await expect(page.locator('#account-btn')).toHaveText('Sign in');
+  await expect(page.locator('#devices')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('#account-btn')).toHaveText('Sign in', { timeout: 15_000 });
+});

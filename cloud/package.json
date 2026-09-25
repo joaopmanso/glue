@@ -1,0 +1,13 @@
+{
+  "name": "glue-cloud",
+  "private": true,
+  "description": "GLUE Cloud API: accounts, devices, pairing, signaling (ADR 0036). Tests live in ../tests/cloud.test.ts.",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler d1 migrations apply glue --remote && wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "4.140.0"
+  }
+}

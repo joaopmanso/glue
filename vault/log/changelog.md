@@ -5,6 +5,14 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · GLUE Cloud phase 1 built (deploy waits on D1 access)
+- Accounts (Google), devices, pairing codes, per-user signaling room: `cloud/` (Worker + D1 +
+  Durable Object). Website: Sign in, Sidebar › Devices, pairing dialog. GLUE Home preview in `home/`.
+  [GLUE Cloud](../features/glue-cloud.md), ADR 0036 accepted.
+- Tests: API on real SQLite, pairing, e2e with stand-ins, and a local smoke test against `wrangler
+  dev`. That smoke test found that close handshakes don't reach clients locally, so the room now
+  says `removed` / `replaced` first.
+
 ## 2026-09-25 · Header on smaller windows; stem separation speed
 - Fixed: below about 1,700 px wide the header's profile / theme buttons were pushed off screen. The
   track table's column minimums (more since Overview and Tags) widened the whole page. The page

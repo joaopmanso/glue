@@ -1,6 +1,6 @@
 ---
-status: planned
-milestone: M6 (proposed)
+status: in-progress
+milestone: M6
 updated: 2026-09-25
 adrs: [0036, 0037, 0038]
 ---
@@ -69,11 +69,39 @@ an account GLUE works exactly as today, all local.
   - `src/lib/devices.svelte.ts` for devices, presence and pairing;
   - `src/lib/account.svelte.ts` for sign-in.
 
+## Built (phase 1, 2026-09-25)
+- **API**, a Cloudflare Worker in `cloud/`:
+  - `src/api.ts`: Google sign-in (ID token checked against Google's keys), rotating refresh
+    tokens, devices, pairing codes, account deletion;
+  - `src/crypto.ts`: tokens and signatures;
+  - `src/signal.ts`: the per-user room (a Durable Object with hibernating WebSockets), for presence
+    and relayed signals;
+  - `migrations/0001_init.sql` for D1;
+  - deployed by `.github/workflows/cloud.yml`, which skips until the D1 database exists.
+  - Address: `glue-api.joaopmanso.workers.dev`.
+  - Secrets: GitHub secrets `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`; a local copy outside the
+    repo in `%USERPROFILE%\.glue-secrets\cloudflare.env`; `SESSION_KEY` as a Worker secret.
+- **Website:**
+  - `src/lib/account.svelte.ts` handles sign-in, sessions, devices, pairing and presence;
+  - the header's **Sign in** (`AccountButton`) appears only when the API answers;
+  - Sidebar › **Devices** (`DevicesSection`): online dots, rename, remove, "+ GLUE Home" with
+    the pairing code (the dialog closes when GLUE Home joins).
+- **GLUE Home preview** (`home/src/`), Node 24 running the TypeScript directly:
+  `node home/src/main.ts pair CODE`, then `run`. It keeps a private device credential in
+  `~/.glue-home/config.json`, stays online, reconnects, and stops when removed.
+- **Tests:**
+  - `tests/cloud.test.ts`: the API on real SQLite, with test-signed Google tokens;
+  - `tests/home.test.ts`: pairing;
+  - e2e "GLUE account…": Google, API and room stand-ins;
+  - `cloud/smoke-local.ts` against `wrangler dev`: pair, presence, signal, revoke.
+- **Local-runtime quirk:** close handshakes from the room didn't reach clients in `wrangler dev`.
+  The room now sends `removed` / `replaced` messages before closing, and clients act on those.
+
 ## Phases
 First release: phases 1–3 (user, 2026-09-25).
 
-1. **Accounts & devices:**
-   - optional Google / Apple sign-in in the website, a device list, pairing codes;
+1. **Accounts & devices** (built, deploy pending):
+   - optional Google sign-in, a device list, pairing codes;
    - GLUE Home skeleton: pair, stay online, show status.
 2. **Remote library:** browse, stream with seeking, download, copy to this computer; TURN
    fallback.

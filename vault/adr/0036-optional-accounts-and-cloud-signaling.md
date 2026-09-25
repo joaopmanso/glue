@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-25
 ---
 # 0036. Optional accounts and a small free cloud service (Cloudflare) for devices and signaling
@@ -16,7 +16,10 @@ The user wants a cloud tier (2026-09-25):
 [ADR 0002](0002-static-client-only-app.md) says client-only: no server, no accounts. This keeps its
 core (audio and library data never go to us) but adds a server for identity and connections.
 
-## Decision (proposed)
+## Decision
+Accepted 2026-09-25, when the user set up the Google client and the Cloudflare account. While
+testing, sign-in is **Google only**; email sign-in waits for a sending domain (the user didn't want
+to pay for an email service yet).
 - **Accounts are optional.** With no account the site is exactly as today. Signing in adds
   devices and GLUE Home.
 - **Cloudflare free tier**, one vendor at $0 at our scale, with no pausing

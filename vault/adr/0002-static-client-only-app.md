@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; "no server, no accounts" superseded by 0036 (optional accounts); audio still never leaves the user's own devices
 date: 2026-09-23
 ---
 # 0002. Build a static, client-only web app with no server

@@ -50,6 +50,9 @@ After working:
   `src/workers/` module workers · `src/lib/` state + orchestration (`library.svelte.ts` library,
   `pool.ts` background analysis, `app.svelte.ts` analyze-a-file, `player`, `stems`, `route`, `view`) ·
   `src/ui/` components (`ui/library/` for the library) + canvas renderers.
+- `cloud/`: the GLUE Cloud Worker (API, D1 migrations, signaling Durable Object). Tests in
+  `tests/cloud.test.ts`; deploy via `.github/workflows/cloud.yml`. `home/`: GLUE Home (Node 24, run the
+  `.ts` directly). Cloud credentials: GitHub secrets, never in the repo.
 - Routes: `#/` library, `#/track/<id>` track page, `#/analyze` analyze a file.
 - E2E library tests use a temporary persistent browser profile and fake the folder pickers with OPFS
   folders (`e2e/library.spec.ts`); Playwright's default contexts crash when reading a stored handle.
