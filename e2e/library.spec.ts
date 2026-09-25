@@ -1594,7 +1594,11 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   await page.selectOption('#move-to', 'rm');
   await expect(page.locator('.tr')).toHaveCount(2, { timeout: 20_000 });
   expect(await home.evaluate(() => (window as unknown as { __files: { name: string; moved?: string }[] }).__files.find(f => f.name === 'flac-96k-24.flac')?.moved)).toBe('D:\\Music');
-
+  // Opening the page again: TO BE SORTED is back as soon as the desktop's GLUE Home is online (not at
+  // the next 30-second round).
+  await page.reload();
+  await page.locator('.lside').getByText('TO BE SORTED').click({ timeout: 15_000 });
+  await expect(page.locator('.tr')).toHaveCount(2);
 });
 
 test('GLUE Home opens the library: a GLUE tab that is open comes forward; "Use this tab instead" moves the library', async ({ page }) => {
@@ -1752,6 +1756,7 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   await expect.poll(() => home.evaluate(() => Object.keys((window as unknown as { __cache: Record<string, unknown> }).__cache).some(k => k.endsWith('.summary.json'))), { timeout: 60_000 }).toBe(true);
   // The website learns the local link (once, over the account's channel).
   await expect.poll(() => page.evaluate(() => localStorage.getItem('mco.localHome')), { timeout: 40_000 }).toContain('47400');
+  await expect(page.locator('#local-link')).toHaveText(' · linked directly');
 
   // Now without GLUE Cloud: a reload shows TO BE SORTED at once, analysed, from GLUE Home directly.
   offline = true;

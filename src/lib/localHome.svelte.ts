@@ -7,17 +7,26 @@ import { readPref, writePref } from './prefs';
 export interface LocalLink { home: string; port: number; token: string; version: string }
 const PREF = 'localHome';
 
-async function hello(port: number, ms = 1200): Promise<{ app: string; version: string; device: string } | null> {
+/** Why the last try failed (shown in Devices). */
+let why = '';
+async function hello(port: number, ms = 1500): Promise<{ app: string; version: string; device: string } | null> {
   try {
     const r = await fetch('http://127.0.0.1:' + port + '/hello', { signal: AbortSignal.timeout(ms) });
-    return r.ok ? await r.json() : null;
-  } catch { return null; }
+    if (!r.ok) { why = 'it answered ' + r.status; return null; }
+    return await r.json();
+  } catch (e) {
+    // Blocked by the browser (Local Network Access not allowed), not running, or no answer in time.
+    why = (e as Error).name === 'TimeoutError' ? 'no answer on 127.0.0.1:' + port : 'the browser couldn’t reach 127.0.0.1:' + port + ' (allow “apps and services on this device” for this site)';
+    return null;
+  }
 }
 
 class LocalHome {
   /** Working now: this computer's GLUE Home answers directly. */
   link = $state.raw<LocalLink | null>(null);
   private learning = false;
+  /** Why there's no link to this computer's GLUE Home, if it's running (for Devices). */
+  problem = $state('');
 
   /** The link to this GLUE Home, if it's the one on this computer and it answers. */
   for(home: string | null | undefined) { return home && this.link?.home === home ? this.link : null; }
@@ -39,7 +48,7 @@ class LocalHome {
     const known = JSON.parse(readPref(PREF, 'null') || 'null') as { home: string; port: number; token: string } | null;
     if (!known) return;
     const h = await hello(known.port);
-    if (h?.app === 'glue-home' && h.device === known.home) this.link = { ...known, version: h.version };
+    if (h?.app === 'glue-home' && h.device === known.home) { this.link = { ...known, version: h.version }; this.problem = ''; }
   }
   /** The first time (and after GLUE Home connected again): ask it over the account's channel. */
   async learn(home: string, ask: (home: string) => Promise<{ port: number; token: string | null }>) {
@@ -47,15 +56,19 @@ class LocalHome {
     this.learning = true;
     try {
       const a = await ask(home);
-      if (!a.port || !a.token) return;
-      const h = await hello(a.port);
-      if (h?.app !== 'glue-home' || h.device !== home) return;
+      if (!a.port || !a.token) { this.problem = 'this GLUE Home is too old for a direct link (update it)'; return; }
+      // Long enough for the browser's "access apps on this device" question to be answered.
+      const h = await hello(a.port, 60_000);
+      if (h?.app !== 'glue-home' || h.device !== home) { this.problem = h ? 'another GLUE Home answers on 127.0.0.1:' + a.port : why; return; }
       this.link = { home, port: a.port, token: a.token, version: h.version };
+      this.problem = '';
       writePref(PREF, JSON.stringify({ home, port: a.port, token: a.token }));
-    } catch { /* not now */ } finally { this.learning = false; }
+    } catch (e) { this.problem = 'it didn’t answer (' + (e as Error).message + ')'; } finally { this.learning = false; }
   }
   /** It stopped answering: check again (it may have restarted on another port). */
-  async check() { if (this.link && !(await hello(this.link.port))) this.link = null; }
+  async check() { if (this.link && !(await hello(this.link.port))) { this.link = null; this.problem = why; } }
+  /** The name of a GLUE Home's computer (its browser's, when it's a companion). */
+  computer(home: string) { const h = account.devices.find(d => d.id === home), b = h?.companionOf ? account.devices.find(d => d.id === h.companionOf) : null; return b?.name ?? h?.name ?? (this.for(home) ? this.deviceName : 'GLUE Home'); }
   get deviceName() { const me = account.thisDevice; return (me && account.devices.find(d => d.id === me)?.name) || 'This computer'; }
 }
 

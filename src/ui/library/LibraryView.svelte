@@ -124,7 +124,8 @@
     <h2>{title}<small>{count} track{count === 1 ? '' : 's'}</small></h2>
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks">
     <FilterMenu />
-    {#if sync.busy}<span class="cloudload" id="cloud-loading" role="status"><span class="spin"></span>{sync.busy}</span>{/if}
+    {#if sync.busy}<span class="cloudload" id="cloud-loading" role="status"><span class="spin"></span>{sync.busy}</span>
+    {:else if incoming.busy}<span class="cloudload" id="incoming-loading" role="status"><span class="spin"></span>{incoming.busy}</span>{/if}
     {#if current}<button type="button" class="ibtn" class:on={showInsights} id="insights-btn" aria-pressed={showInsights} title="Length, tempo, keys and tags of this playlist" onclick={toggleInsights}>Insights</button>{/if}
     {#if !lib.cloud}
     <div class="an" title="Tracks are analysed in the background, several at a time">

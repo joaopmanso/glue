@@ -5,6 +5,18 @@ updated: 2026-09-25
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-25 · TO BE SORTED without the wait; the direct link shows in Devices
+From the user's test of 0.4.0:
+- Laptop: TO BE SORTED took ~30 s (until the next round) when the desktop's GLUE Home came online
+  after the page asked. Now a GLUE Home coming online, or the sign-in finishing, is asked at once,
+  with "Looking for songs sent to Desktop…" while it answers.
+- Desktop: a song played "from Laptop" although the laptop has no GLUE Home. It came from the
+  desktop's own GLUE Home over the cloud channel, because the direct link wasn't up; the label now
+  names the computer the file comes from.
+- Devices shows "linked directly" (or "no direct link", with the reason on hover) on this computer's
+  row. The first handshake waits up to a minute, so the browser's "apps and services on this device"
+  question can be answered ([ADR 0048](../adr/0048-local-link-to-glue-home.md)).
+
 ## 2026-09-25 · GLUE Home 0.4.0: the local link; one row per song; folders are playlists
 - The website on a computer with GLUE Home talks to it directly, on `127.0.0.1` (ports 47400–47409,
   a token GLUE Home made), learned once over the account's channel

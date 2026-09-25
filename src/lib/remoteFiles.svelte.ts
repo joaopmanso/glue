@@ -142,7 +142,9 @@ class RemoteFiles {
         return f;
       });
     }
-    this.loading = { trackId: t.id, name: t.title || t.fileName, device: r.name, got: 0, size: t.size ?? 0 };
+    // Named after the computer the file comes from (a copy in an incoming folder may be on another one).
+    const from = src.incoming && src.home !== r.home ? localHome.computer(src.home) : r.name;
+    this.loading = { trackId: t.id, name: t.title || t.fileName, device: from, got: 0, size: t.size ?? 0 };
     const req: Req = src.incoming ? { t: 'get-incoming', name: src.incoming } : { t: 'get', profile: r.profile!, collection: r.collection!, track: r.id! };
     return this.ask(home, req, { onBytes: (got, size) => { if (this.loading) this.loading = { ...this.loading, got, size }; } })
       .then(a => {
@@ -151,7 +153,7 @@ class RemoteFiles {
         while (this.kept.size > KEEP) this.kept.delete(this.kept.keys().next().value!);
         return f;
       })
-      .catch(e => { throw new Error(r.name + ': ' + (e as Error).message); })
+      .catch(e => { throw new Error(from + ': ' + (e as Error).message); })
       .finally(() => { if (this.loading?.trackId === t.id) this.loading = null; });
   }
 

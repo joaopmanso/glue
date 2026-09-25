@@ -24,6 +24,10 @@ class Incoming {
   /** Per GLUE Home: what's in its incoming folder. */
   files = $state.raw<Map<string, IncomingFile[]>>(new Map());
   private timer = 0;
+  /** What it's asking now (shown with the cloud sync's status). */
+  busy = $state('');
+  private asked = new Set<string>();
+  private stopWatch: (() => void) | null = null;
   private touched = new Map<string, { onDevices: string[] | undefined; remote: Track['remote'] }>();
   /** Each TO BE SORTED row's waiting file: which GLUE Home, and its name there. */
   private src = new Map<string, { home: string; name: string }>();
@@ -32,6 +36,14 @@ class Incoming {
   start() {
     clearInterval(this.timer);
     this.timer = window.setInterval(() => void this.refresh(), EVERY);
+    // A GLUE Home that comes online (or the sign-in finishing) is asked at once, not at the next round.
+    this.stopWatch?.();
+    this.stopWatch = $effect.root(() => {
+      $effect(() => {
+        const homes = account.devices.filter(d => d.kind === 'home' && account.online.has(d.id)).map(d => d.id);
+        if (homes.some(h => !this.asked.has(h)) || (localHome.link && !this.asked.has(localHome.link.home))) queueMicrotask(() => void this.refresh());
+      });
+    });
     void (async () => {
       await localHome.find();
       // Until a collection is open there's nothing to show it in.
@@ -40,19 +52,28 @@ class Incoming {
     })();
   }
   /** Ask every GLUE Home what's waiting (this computer's first, directly), and show it. */
-  async refresh() {
+  private running: Promise<void> | null = null;
+  refresh() { return (this.running ??= this.ask().finally(() => { this.running = null; })); }
+  private async ask() {
     if (!lib.store || lib.cloud) { this.show(new Map()); return; }
     const next = new Map<string, IncomingFile[]>();
     const local = localHome.link;
-    if (local) { const l = await localHome.get<IncomingFile[]>('/incoming').catch(() => null); if (l) next.set(local.home, l); else void localHome.check(); }
-    if (account.signedIn) {
-      for (const h of account.devices.filter(d => d.kind === 'home' && account.online.has(d.id) && d.id !== local?.home)) {
+    const homes = account.signedIn ? account.devices.filter(d => d.kind === 'home' && account.online.has(d.id) && d.id !== local?.home) : [];
+    const first = homes.filter(h => !this.asked.has(h.id));
+    // Only the first time for each: after that it refreshes quietly.
+    if (first.length) this.busy = 'Looking for songs sent to ' + first.map(h => this.computer(h.id)).join(', ') + '…';
+    try {
+      if (local) { this.asked.add(local.home); const l = await localHome.get<IncomingFile[]>('/incoming').catch(() => null); if (l) next.set(local.home, l); else void localHome.check(); }
+      await Promise.all(homes.map(async h => {
         const l = await remoteFiles.incoming(h.id).catch(() => null);
+        this.asked.add(h.id);
         if (l) next.set(h.id, l);
-      }
-    }
+      }));
+    } finally { this.busy = ''; }
     this.show(next);
   }
+  /** The name of a GLUE Home's computer (its browser's, when it's a companion). */
+  computer(home: string) { return localHome.computer(home); }
   reshow() { this.show(this.files); }
   private show(files: Map<string, IncomingFile[]>) {
     const s = lib.store;
@@ -70,7 +91,7 @@ class Incoming {
     const tracks: Track[] = [], items: string[] = [], analysis = new Map<string, AnalysisSummary>();
     for (const [home, list] of files) {
       const h = account.devices.find(d => d.id === home), browser = h?.companionOf ?? home;
-      const device = account.devices.find(d => d.id === browser)?.name ?? h?.name ?? (localHome.for(home) ? localHome.deviceName : 'GLUE Home');
+      const device = this.computer(home);
       for (const f of list) {
         const same = (byName.get(f.name.toLowerCase()) ?? byName.get(plain(f.name)) ?? []).find(t => t.size == null || t.size === f.size);
         if (same) {
