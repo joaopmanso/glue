@@ -503,9 +503,12 @@ test('finds the same recording under different names and formats', async ({ page
   await expect(dupItem).toContainText('1', { timeout: 20_000 });
   await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×');
   await expect(page.locator('.tr', { hasText: 'Something else' }).locator('.dup')).toHaveCount(0);
-  await dupItem.click();
+  // The "2×" opens Duplicates on that track's group, with the track highlighted.
+  await page.locator('.tr', { hasText: 'HHH 04 RADIX' }).first().locator('.dup').click();
   const grp = page.locator('#dupes .grp');
   await expect(grp).toHaveCount(1);
+  await expect(grp.locator('li.focus')).toHaveCount(1);
+  await expect(grp.locator('li.focus')).toBeInViewport();
   await expect(grp).toContainText('Same recording');
   await expect(grp.locator('li')).toHaveCount(2);
   await expect(grp.locator('li.best')).toContainText('HHH 04 RADIX');

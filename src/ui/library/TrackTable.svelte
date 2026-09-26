@@ -114,7 +114,7 @@
     {@const g = dupes.groupOf.get(r.t.id)}
     <span class="c-title" title={r.t.fileName}>{r.t.title || r.t.fileName}</span>
     {#if g?.kind === 'same'}<button type="button" class="dup" title={'Same recording as ' + (g.ids.length - 1) + ' other track' + (g.ids.length > 2 ? 's' : '') + ': show duplicates'}
-      onclick={e => { e.stopPropagation(); view.select({ kind: 'dupes' }); }}>{g.ids.length}×</button>{/if}
+      onclick={e => { e.stopPropagation(); view.select({ kind: 'dupes' }); view.focusDupe = r.t.id; }}>{g.ids.length}×</button>{/if}
   {:else if k === 'artist'}<span class="c-artist">{r.t.artist}</span>
   {:else if k === 'album'}<span class="c-soft">{r.t.album}</span>
   {:else if k === 'genre'}<span class="c-soft">{r.t.genre}</span>

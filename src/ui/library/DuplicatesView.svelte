@@ -10,6 +10,8 @@
   import type { Track } from '../../store/types';
   import { copyScore } from '../../lib/dupes.svelte';
   import { deviceColor } from '../../lib/devices';
+  import { view } from '../../lib/view.svelte';
+  import { tick } from 'svelte';
 
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
   const same = $derived(dupes.groups.filter(g => g.kind === 'same'));
@@ -41,6 +43,18 @@
   /** Similarity 1 − 2·(bit error rate): unrelated audio is ~0, identical ~1; matches start at 0.4. */
   const strength = (sim: number) => sim >= 0.8 ? 'Near-identical audio' : sim >= 0.6 ? 'Strong match by sound' : 'Matched by sound';
   const listsOf = (id: string) => { void lib.version; return lib.listsContaining(id).filter(l => l.kind === 'playlist'); };
+
+  // Opened from a track's "2×": its group in the middle of the view, the track highlighted a moment.
+  let focused = $state<string | null>(null), box: HTMLElement;
+  $effect(() => {
+    const id = view.focusDupe;
+    if (!id) return;
+    view.focusDupe = null;
+    focused = id;
+    void tick().then(() => box?.querySelector(`[data-track="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center' }));
+    const t = setTimeout(() => { if (focused === id) focused = null; }, 2500);
+    return () => clearTimeout(t);
+  });
 </script>
 
 {#snippet group(g: DupGroup)}
@@ -58,7 +72,7 @@
         {@const t = lib.store?.tracks.get(id)}
         {@const a = lib.store?.analysis.get(id)}
         {#if t}
-          <li class:best={g.best === id}>
+          <li class:best={g.best === id} class:focus={focused === id} data-track={id}>
             <button type="button" class="pbtn" aria-label={nowPlaying.trackId === id && !player.paused ? 'Pause' : 'Play'} disabled={t.status !== 'linked'} onclick={() => play(id, g)}>
               {#if nowPlaying.trackId === id && !player.paused}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 1.5h3.2v11H2.5zM8.3 1.5h3.2v11H8.3z" fill="currentColor"/></svg>
               {:else}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9.5-5.5z" fill="currentColor"/></svg>{/if}
@@ -84,7 +98,7 @@
   </section>
 {/snippet}
 
-<div class="dv" id="dupes">
+<div class="dv" id="dupes" bind:this={box}>
   <div class="intro">
     <p>
       GLUE compares how tracks <b>sound</b>, so the same recording is found under any name, tag or format: a WAV and its MP3,
@@ -150,6 +164,7 @@
   li { display: grid; grid-template-columns: minmax(28px, auto) minmax(200px, 1fr) 130px 50px 70px 150px 110px 210px; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
   li:last-child { border-bottom: 0; }
   li.best { background: color-mix(in srgb, var(--ok) 7%, transparent); }
+  li.focus { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 12%, transparent); transition: background .4s; }
   .who { display: grid; min-width: 0; line-height: 1.35; }
   .who a { color: var(--ink); font-weight: 600; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .who a:hover { text-decoration: underline; }
