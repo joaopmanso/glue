@@ -9,12 +9,21 @@ type Entry = { name: string; kind: 'file' | 'directory'; size: number; mtime: nu
 
 const domError = (name: string, message: string) => Object.assign(new Error(message), { name });
 
+/** GLUE Home stopped answering (it was quit, or is restarting). */
+export class HomeDown extends Error {
+  constructor() { super('GLUE Home isn’t answering. GLUE carries on in the browser; start GLUE Home again to go back to it.'); this.name = 'HomeDown'; }
+}
+
 export class HomeDisk {
+  /** Told when a request can't reach GLUE Home at all. */
+  onDown: (() => void) | null = null;
   constructor(private base: string, private token: string) {}
 
   async call(path: string, params: Record<string, string>, init: RequestInit = {}): Promise<Response> {
     // The token in the address, not a header: requests stay "simple", with no CORS preflight each.
-    const r = await fetch(this.base + path + '?' + new URLSearchParams({ ...params, t: this.token }), init);
+    let r: Response;
+    try { r = await fetch(this.base + path + '?' + new URLSearchParams({ ...params, t: this.token }), init); }
+    catch { this.onDown?.(); throw new HomeDown(); }
     if (r.ok) return r;
     const msg = (await r.json().catch(() => ({})) as { error?: string }).error || 'GLUE Home said no (' + r.status + ')';
     // The same errors the browser's handles throw, so fsx and the store treat them alike.

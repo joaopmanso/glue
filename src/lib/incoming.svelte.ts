@@ -15,7 +15,7 @@ import { remoteFiles } from './remoteFiles.svelte';
 import { localHome } from './localHome.svelte';
 import { nameFields } from '../core/library/tags';
 import { INCOMING_ROOT, SCHEMA, type AnalysisSummary, type List, type Track, type TrackFormat } from '../store/types';
-import { homeMode } from '../platform';
+import { homeMode, onHomeDown } from '../platform';
 import type { IncomingFile } from '../core/transfer';
 
 export const TO_BE_SORTED = 'tobesorted';
@@ -183,5 +183,9 @@ class Incoming {
 }
 
 export const incoming = new Incoming();
+// Home mode (ADR 0051): GLUE Home stopping or coming back moves the open library between its disk and
+// the browser's own; a request that can't reach it has it checked at once.
+localHome.onChange = up => void (up ? lib.enterHomeMode() : lib.leaveHomeMode());
+onHomeDown(() => void localHome.check());
 // Other devices' songs were laid over again (new rows): mark those that are also waiting here again.
 lib.onOverlay = () => { if (incoming.files.size) queueMicrotask(() => incoming.reshow()); };

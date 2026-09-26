@@ -6,7 +6,8 @@ import { migrate } from './migrations';
 const now = () => new Date().toISOString();
 
 export class HomeStore {
-  private constructor(readonly root: Dir, public index: HomeIndex) {}
+  /** `root` changes when the library moves between GLUE Home's disk and the browser's (ADR 0051). */
+  private constructor(public root: Dir, public index: HomeIndex) {}
 
   static async open(root: Dir): Promise<HomeStore> {
     const index = await readJSON<HomeIndex>(root, 'mco.json');

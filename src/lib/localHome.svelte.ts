@@ -26,8 +26,24 @@ class LocalHome {
   /** Working now: this computer's GLUE Home answers directly. */
   link = $state.raw<LocalLink | null>(null);
   /** …and the platform layer uses its disk (Home mode, ADR 0051). */
-  private setLink(l: LocalLink | null) { this.link = l; setHomeLink(l); }
+  private setLink(l: LocalLink | null) {
+    const was = !!this.link;
+    this.link = l; setHomeLink(l);
+    if (was !== !!l) this.onChange?.(!!l);
+  }
+  /** GLUE Home stopped answering (false) or answers again (true). */
+  onChange: ((up: boolean) => void) | null = null;
   private finding: Promise<void> | null = null;
+  private watching = 0;
+  /** While it's away, look for it again every few seconds (it may be restarting, or started later). */
+  private watch() {
+    if (this.watching) return;
+    this.watching = window.setInterval(() => {
+      if (this.link) return;
+      this.finding = null;
+      void this.find();
+    }, 5_000);
+  }
   private learning = false;
   /** Why there's no link to this computer's GLUE Home, if it's running (for Devices). */
   problem = $state('');
@@ -48,7 +64,7 @@ class LocalHome {
   }
 
   /** On page load: the GLUE Home this browser met before, if it's running. */
-  find() { return (this.finding ??= this.findOnce()); }
+  find() { this.watch(); return (this.finding ??= this.findOnce()); }
   private async findOnce() {
     const known = JSON.parse(readPref(PREF, 'null') || 'null') as { home: string; port: number; token: string } | null;
     if (!known) return;

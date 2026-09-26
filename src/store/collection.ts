@@ -33,7 +33,8 @@ export class CollectionStore {
       never written to this collection's files. */
   readonly ephemeral = new Set<string>();
 
-  private constructor(readonly root: Dir, readonly base: string, public meta: Collection) {}
+  /** `root` changes when the library moves between GLUE Home's disk and the browser's (ADR 0051). */
+  private constructor(public root: Dir, readonly base: string, public meta: Collection) {}
 
   static async load(root: Dir, pid: string, cid: string): Promise<CollectionStore> {
     const base = `profiles/${pid}/collections/${cid}`;

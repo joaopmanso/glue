@@ -158,6 +158,11 @@
   {#if lib.notice}
     <div class="notice toast" role="status"><span>{lib.notice}</span><button type="button" aria-label="Dismiss" onclick={() => (lib.notice = '')}>×</button></div>
   {/if}
+  {#if lib.homeLost === 'needs-access'}
+    <div class="notice warn" id="home-lost">GLUE Home stopped. To carry on in the browser meanwhile, GLUE needs your permission to use its folder again. <button type="button" class="btn" onclick={() => lib.allowBrowserFolder()}>Allow</button></div>
+  {:else if lib.homeLost === 'no-folder'}
+    <div class="notice warn" id="home-lost">GLUE Home stopped. This browser has only used your GLUE folder through GLUE Home, so changes wait until GLUE Home is running again.</div>
+  {/if}
   {#if lib.readOnly}
     <div class="notice warn">GLUE is open in another tab, so this one is read-only. Close the other tab and reload to make changes here.</div>
   {/if}

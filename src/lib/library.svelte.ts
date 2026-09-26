@@ -147,6 +147,60 @@ class Library {
     if (last && this.home.index.profiles.some(p => p.id === last)) await this.openProfile(last);
     else this.phase = 'profiles';
   }
+  // ─── Home mode and back (ADR 0051) ────────────────────────────────────────
+  /** GLUE Home stopped while the library was open on its disk: '' (fine), 'needs-access' (the browser's
+      own folder needs a click to be used), 'no-folder' (this browser never had the folder itself). */
+  homeLost = $state<'' | 'needs-access' | 'no-folder'>('');
+  private switching = false;
+  /** On GLUE Home's disk now. */
+  get onHome() { return platform.isHomeDir(this.homeDir); }
+  /** GLUE Home stopped: carry on with the browser's own handles, the library staying open. Callers at
+      the same time share one switch. */
+  private leaving: Promise<void> | null = null;
+  leaveHomeMode() { return (this.leaving ??= this.leaveOnce().finally(() => { this.leaving = null; })); }
+  private async leaveOnce() {
+    if (!this.onHome) return;
+    platform.leaveHome();
+    const b = await platform.browserHome();
+    if (!b) { this.homeLost = 'no-folder'; return; }
+    if (!b.granted) { this.homeLost = 'needs-access'; return; }
+    await this.useDisk(b.dir);
+  }
+  /** The click that lets the browser use its own GLUE folder again (while GLUE Home is stopped). */
+  async allowBrowserFolder() {
+    const b = await platform.browserHome();
+    if (b && await platform.permission(b.dir, 'readwrite', true)) await this.useDisk(b.dir);
+  }
+  /** GLUE Home is back: onto its disk again, if it has this library's GLUE folder. */
+  async enterHomeMode() {
+    if (this.onHome || this.switching || !this.home) return;
+    const dir = await platform.homeDirFor(this.homeLost ? null : this.homeDir);
+    if (!dir) return;
+    // What was saved while GLUE Home was away is on disk first.
+    if (!this.homeLost) await this.flush();
+    await this.useDisk(dir);
+  }
+  /** Move the open library onto another disk: the same folder, reached another way. Unsaved changes
+      are written there; music folders and the incoming folder are looked up again. */
+  private async useDisk(dir: FileSystemDirectoryHandle) {
+    const home = this.home;
+    if (!home) return;
+    this.switching = true;
+    try {
+      this.homeDir = dir; home.root = dir; this.homeName = dir.name; this.homeLost = '';
+      const s = this.store;
+      if (s && !this.cloud) {
+        s.root = dir;
+        this.stopAnalysis();
+        await this.loadRoots();
+        await this.adoptIncoming();
+        this.version++;
+        this.scheduleFlush();
+        this.enqueueAll();
+      }
+    } finally { this.switching = false; }
+  }
+
   /** Only one tab writes to the GLUE folder; others open read-only. */
   private unlock: (() => void) | null = null;
   private async takeLock() {
@@ -766,6 +820,17 @@ class Library {
   remoteFile: ((t: Track) => Promise<File>) | null = null;
   canStream: ((t: Track) => boolean) | null = null;
   async fileFor(t: Track): Promise<File> {
+    try { return await this.fileFrom(t); }
+    catch (e) {
+      // GLUE Home stopped just now: carry on in the browser, and try once more from there.
+      if ((e as Error).name !== 'HomeDown') throw e;
+      await this.leaveHomeMode();
+      if (this.onHome || this.homeLost) throw e;
+      return this.fileFrom(t);
+    }
+  }
+  private async fileFrom(t: Track): Promise<File> {
+    if (t.rootId === INCOMING_ROOT && !t.remote && !this.rootState(INCOMING_ROOT)?.dir) throw new Error('This song is waiting in GLUE Home’s incoming folder: start GLUE Home to play it.');
     if (t.remote) { if (this.remoteFile && this.canStream?.(t)) return this.remoteFile(t); throw new Error(remoteFileMessage(t.remote.name)); }
     if (this.cloud) throw new Error(remoteFileMessage(t.onDevices?.join(' and ') || this.cloud.title));
     if (t.fileKey) return this.looseFile(t, true);
