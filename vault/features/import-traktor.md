@@ -57,3 +57,5 @@ user's library, the Engine record in `preparation` that their playlists use now 
   again by its place and content.
 - Live through GLUE Home (it finds Traktor's newest collection in Documents/Native Instruments), or
   through a music folder; in the browser, Refresh ([ADR 0065](../adr/0065-live-sync-through-glue-home.md)).
+- Traktor's own factory sounds and remix sets (in Native Instruments' folders) aren't imported
+  ([ADR 0066](../adr/0066-imported-records-find-their-files.md)).

@@ -198,6 +198,12 @@ export async function musicFolder(root: Root): Promise<Dir | null> {
   if (homeMode()) { const r = await homeRoots(); const at = root.id === INCOMING_ROOT ? r?.incoming : r?.folders[root.id]; return at && disk ? disk.dir(at) : null; }
   return root.handleKey.startsWith('home:') ? null : folderHandle(root.handleKey);
 }
+/** Where a music folder really is, as GLUE Home knows it (Home mode); null otherwise. */
+export async function musicFolderPath(root: Root): Promise<string | null> {
+  if (!homeMode()) return null;
+  const r = await homeRoots();
+  return (root.id === INCOMING_ROOT ? r?.incoming : r?.folders[root.id]) ?? null;
+}
 export async function folderHandle(key: string): Promise<Dir | null> {
   try { return (await idbGet<Dir>(key)) ?? null; } catch { return null; }
 }

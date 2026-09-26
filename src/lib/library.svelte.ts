@@ -7,7 +7,7 @@ import { importLists as importListsInto } from '../store/linked';
 
 const NO_DJ = new Map<string, DjValues>(), NO_LISTS = new Map<string, List[]>(), NO_LINKED = new Map<string, List>();
 import { CollectionStore } from '../store/collection';
-import { LOOSE, applyImport, applyScan, blankLibTrack, type ImportReport } from '../store/merge';
+import { LOOSE, applyImport, applyScan, blankLibTrack, tidyTracks, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
 import { ANALYSIS_VERSION, INCOMING_ROOT, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary, type List, type Prep, type Profile, type Root, type Track } from '../store/types';
@@ -426,6 +426,9 @@ class Library {
     this.analysis = { ...this.analysis, paused: s.meta.autoAnalyse === false };
     if (s.damaged.length) this.notice = 'Some files in your GLUE folder couldn’t be read and were set aside (' + s.damaged.join(', ') + ', saved as .damaged). Anything they held may need re-importing or re-scanning.';
     await this.loadRoots();
+    // Tracks naming imports that are gone, and tracks without a file whose file is here after all
+    // (music folders' places known by now).
+    if (!this.readOnly) { const t = tidyTracks(s); if (t.dropped || t.relinked) console.info('Tidied: ' + t.dropped + ' leftover tracks of removed imports, ' + t.relinked + ' tracks linked to their file'); }
     await this.loadLoose();
     await this.adoptIncoming();
     this.phase = 'library';
@@ -485,10 +488,15 @@ class Library {
   // ─── Music folders ─────────────────────────────────────────────────────────
   private async loadRoots() {
     const out: RootState[] = [];
+    let moved = false;
     for (const r of this.store?.meta.roots ?? []) {
       const dir = await platform.musicFolder(r);
+      // Where it is, from GLUE Home (it knows): an older guess from imported paths is put right.
+      const at = await platform.musicFolderPath(r);
+      if (at && r.absPath !== at && !this.readOnly) { r.absPath = at; moved = true; }
       out.push({ root: r, dir, granted: dir ? await platform.permission(dir, 'read', false) : false });
     }
+    if (moved) this.store?.saveMeta();
     this.roots = out;
   }
   rootState(id: string | null) { return this.roots.find(r => r.root.id === id) ?? null; }
@@ -711,9 +719,9 @@ class Library {
     for (const l of [...s.lists.values()]) if (l.origin?.sourceId === id && !l.parentId) s.deleteList(l.id);
     for (const l of [...s.lists.values()]) if (l.origin?.sourceId === id) s.deleteList(l.id);
     const drop: string[] = [], keep: Track[] = [];
-    for (const st of src.tracks) {
-      const t = s.tracks.get(st.trackId);
-      if (!t) continue;
+    // Every track naming it (an import's list can miss tracks that later took its records in).
+    for (const t of [...s.tracks.values()]) {
+      if (!t.sources.includes(id)) continue;
       const sources = t.sources.filter(x => x !== id);
       if (!sources.length && t.status === 'unlinked') drop.push(t.id); else keep.push({ ...t, sources });
     }

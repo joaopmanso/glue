@@ -24,6 +24,9 @@ export function parseTraktorNml(xml: string, fileName = 'collection.nml'): Impor
   for (const e of coll ? childrenNamed(coll, 'ENTRY') : []) {
     const loc = child(e, 'LOCATION')?.attrs;
     if (!loc || !loc.FILE) continue;
+    // Traktor's own content (factory sounds, remix sets, inside Native Instruments' folders) isn't the
+    // user's music: it would only fill "No file linked".
+    if (/\/:Native Instruments\/:/i.test(loc.DIR || '')) continue;
     const t = blankTrack(primaryKey(loc), nmlPath(loc));
     t.title = e.attrs.TITLE || ''; t.artist = e.attrs.ARTIST || '';
     t.album = child(e, 'ALBUM')?.attrs.TITLE || '';

@@ -135,3 +135,4 @@ Planned (GLUE):
 | [0062](adr/0062-add-to-playlist-mirrors-the-sidebar.md) | "Add to playlist" lists the playlists as the sidebar shows them | accepted |
 | [0063](adr/0063-dj-libraries-browsed-live.md) | DJ libraries are browsed live; playlists come into GLUE on demand and stay linked | accepted ("Live" amended by 0065) |
 | [0065](adr/0065-live-sync-through-glue-home.md) | Live sync of DJ libraries is GLUE Home's; in the browser alone, Refresh | accepted |
+| [0066](adr/0066-imported-records-find-their-files.md) | Imported records find their files by the folder's place; what an import no longer has goes | accepted |

@@ -1,7 +1,10 @@
 /* Link imported tracks to files in a granted folder (ADR 0020), and infer the folder's absolute path
-   (ADR 0012). Matching: same file name, then the longest run of equal trailing path segments;
-   file size breaks ties; anything still ambiguous stays unlinked. */
-export interface FileEntry { rootId: string; relPath: string; size: number; mtime: number }
+   (ADR 0012). Matching: same file name, then the longest run of equal trailing path segments, the
+   music folder's own place counting too ("../Music Collection/a.mp3", as Engine DJ writes paths, is
+   the a.mp3 in the folder called Music Collection, not the one in preparation/mp3); file size breaks
+   ties; anything still ambiguous stays unlinked. */
+/** under: where the music folder itself is (its path, or its name), for matching only. */
+export interface FileEntry { rootId: string; relPath: string; size: number; mtime: number; under?: string }
 export interface Linkable { id: string; importPath: string | null; fileName: string; size: number | null }
 
 const segs = (p: string) => p.replace(/\\/g, '/').split('/').filter(s => s && s !== '.' && s !== '..');
@@ -20,7 +23,7 @@ export function matchTracks(tracks: Linkable[], files: FileEntry[]): { links: Ma
     if (!cands.length) continue;
     let best: FileEntry[] = [], bestScore = 0;
     for (const f of cands) {
-      const fs = segs(f.relPath).map(s => s.toLowerCase());
+      const fs = [...segs(f.under ?? ''), ...segs(f.relPath)].map(s => s.toLowerCase());
       let k = 0; while (k < fs.length && k < tl.length && fs[fs.length - 1 - k] === tl[tl.length - 1 - k]) k++;
       if (k > bestScore) { bestScore = k; best = [f]; } else if (k === bestScore) best.push(f);
     }
@@ -30,7 +33,8 @@ export function matchTracks(tracks: Linkable[], files: FileEntry[]): { links: Ma
     links.set(t.id, f); used.add(f);
     // The part of the imported path before the matched relative path is where the root lives.
     const rel = segs(f.relPath);
-    if (t.importPath && bestScore === rel.length && ts.length > rel.length) {
+    // Only an absolute path says where the folder is (Engine DJ's "../Music Collection/…" doesn't).
+    if (t.importPath && /^([A-Za-z]:[\\/]|\/)/.test(t.importPath) && bestScore >= rel.length && ts.length > rel.length) {
       const sep = /^[A-Za-z]:/.test(ts[0]) ? '\\' : '/';
       const prefix = (sep === '\\' ? '' : '/') + ts.slice(0, ts.length - rel.length).join(sep);
       const v = votes.get(f.rootId) || new Map<string, number>();

@@ -5,6 +5,21 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · "No file linked" cleaned up: imported records find their files; leftovers go
+From the user: about 200 songs in "No file linked" with paths like `../Music Collection/…`, although the
+songs are there ([ADR 0066](../adr/0066-imported-records-find-their-files.md)).
+- **Matching counts the music folder's own place.** Engine DJ's relative paths name it: the same song
+  in two folders (Music Collection and preparation/mp3) is no longer a tie.
+- **Records without a file are matched again** each time their library is read, and when the
+  collection opens; they fold into the track with the file, keeping rating, notes, tags and playlists.
+- **What a library no longer has goes;** removing an import cleans every track naming it. That included
+  4 leftovers of an import removed earlier.
+- **Music folder locations** come from GLUE Home ("E:Music Collection" and "/preparation" were wrong
+  guesses: they're on F:).
+- **Traktor's factory sounds and remix sets** aren't imported (388 records).
+- **On the user's collection** (a dry run on a copy): 161 of 187 link, 4 go, 24 stay (genuine).
+- Tests: 159 unit (+6); e2e 40.
+
 ## 2026-09-26 · GLUE Home 0.10.0: DJ libraries followed live through GLUE Home; Refresh in the browser
 From the user's test: playlists made in Engine DJ never reached GLUE, because the library had come in
 through "+ Import" and GLUE didn't know where its file was. The user set the rule: live sync is GLUE

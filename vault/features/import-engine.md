@@ -111,3 +111,5 @@ user's library, the Engine record in `preparation` that their playlists use now 
 - **The user's hand-imported source** adopts the biggest database found (F:\Engine Library) with no
   click. A row shows ● while it's followed.
 - **In the browser alone:** Refresh (or Update when a newer file was seen).
+- **Engine DJ's relative paths** (`../Music Collection/…`) find their file by the music folder's name
+  ([ADR 0066](../adr/0066-imported-records-find-their-files.md)).

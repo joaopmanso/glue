@@ -21,11 +21,14 @@ export function blankLibTrack(fileName: string): Track {
   };
 }
 
+/** Where each music folder is (its path, or at least its name): matching counts it (match.ts). */
+const placeOf = (store: CollectionStore) => new Map(store.meta.roots.map(r => [r.id, r.absPath ?? r.name]));
+
 function linkedFiles(store: CollectionStore) {
-  const files: FileEntry[] = [], byFile = new Map<FileEntry, Track>();
+  const files: FileEntry[] = [], byFile = new Map<FileEntry, Track>(), under = placeOf(store);
   for (const t of store.tracks.values()) if (!t.remote && ((t.rootId && t.relPath) || t.fileKey)) {
     // Songs added on their own match by file name (and size) only.
-    const f = { rootId: t.rootId ?? LOOSE, relPath: t.relPath ?? t.fileName, size: t.size ?? 0, mtime: t.mtime ?? 0 };
+    const f = { rootId: t.rootId ?? LOOSE, relPath: t.relPath ?? t.fileName, size: t.size ?? 0, mtime: t.mtime ?? 0, under: t.rootId ? under.get(t.rootId) : undefined };
     files.push(f); byFile.set(f, t);
   }
   return { files, byFile };
@@ -66,7 +69,8 @@ function inferRoots(store: CollectionStore, rootPaths: Map<string, string>) {
 }
 
 /** lists: the playlists and folders the library has; linkedLists: what changed in GLUE's copies of them. */
-export interface ImportReport { sourceId: string; tracks: number; matched: number; linked: number; lists: number; linkedLists: LinkReport; entries?: ImportedLibrary['stats'] }
+/** dropped: tracks that were only this library's records and it no longer has. */
+export interface ImportReport { sourceId: string; tracks: number; matched: number; linked: number; lists: number; linkedLists: LinkReport; dropped: number; entries?: ImportedLibrary['stats'] }
 
 /** The tracks an earlier Engine DJ import holds of libraries this one doesn't have (another drive's),
     so a new import of the set keeps them and resolves playlist entries across all of them. */
@@ -93,16 +97,27 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   for (const t of store.tracks.values()) if (t.importPath && !t.remote) byImportPath.set(pathKey(t.importPath), t);
 
   const ext2track = new Map<string, Track>(), fresh: Track[] = [];
+  // A record GLUE knows as a track without a file (an earlier import that didn't find it) is matched
+  // again: once its file is found, that track folds into the one with the file.
+  const stray = new Map<string, Track>(), strayInto = new Map<string, Track>();
   const unmatched = lib.tracks.filter(it => {
     const t = byImportPath.get(pathKey(it.path));
-    if (t) { ext2track.set(it.externalId, t); return false; }
+    if (!t) return true;
+    ext2track.set(it.externalId, t);
+    if (t.status === 'linked' || t.fileKey) return false;
+    stray.set(it.externalId, t);
     return true;
   });
-  const matched = lib.tracks.length - unmatched.length;
+  const matched = lib.tracks.length - unmatched.length + stray.size;
   const { files, byFile } = linkedFiles(store);
-  const { links, rootPaths } = matchTracks(unmatched.map(it => ({ id: it.externalId, importPath: it.path, fileName: baseName(it.path), size: it.size })), files);
+  const { links, rootPaths } = matchTracks(unmatched.map(it => ({ id: it.externalId, importPath: it.path, fileName: baseName(it.path), size: it.size ?? stray.get(it.externalId)?.size ?? null })), files);
   for (const it of unmatched) {
-    const f = links.get(it.externalId);
+    const f = links.get(it.externalId), known = stray.get(it.externalId);
+    if (known) {
+      const to = f ? byFile.get(f) : undefined;
+      if (to && to.id !== known.id) { ext2track.set(it.externalId, to); strayInto.set(known.id, to); }
+      continue;
+    }
     let t = f ? byFile.get(f)! : undefined;
     if (!t) { t = blankLibTrack(baseName(it.path)); t.size = it.size; fresh.push(t); }
     ext2track.set(it.externalId, t);
@@ -118,7 +133,7 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
     const k = t.fileName.toLowerCase();
     (withFile.get(k) ?? withFile.set(k, []).get(k)!).push(t);
   }
-  const absorbed = new Map<string, Track>();   // unlinked track → the track with the file
+  const absorbed = new Map<string, Track>(strayInto);   // unlinked track → the track with the file
   const freshIds = new Set(fresh.map(t => t.id));
   for (const it of lib.tracks) {
     const t = ext2track.get(it.externalId)!;
@@ -153,6 +168,17 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
     sourceTracks.push({ externalId: it.externalId, trackId: t.id, bpm: it.bpm, key: it.key, rating: it.rating, playCount: it.playCount, cues: it.cues, dateAdded: it.dateAdded, path: it.path, ...(it.cueList.length ? { cueList: it.cueList } : {}) });
   }
   store.putTracks([...touched.values()]);
+  // What the library no longer has: the track stops naming it; one without a file and without any other
+  // import was only its record, and goes (it would stay in "No file linked" for good).
+  const stale: Track[] = [];
+  let dropped = 0;
+  for (const t of [...store.tracks.values()]) {
+    if (touched.has(t.id) || t.remote || store.ephemeral.has(t.id) || !t.sources.includes(sourceId)) continue;
+    const sources = t.sources.filter(x => x !== sourceId);
+    if (!sources.length && t.status === 'unlinked' && !t.fileKey) { store.removeTrack(t.id); dropped++; }
+    else stale.push({ ...t, sources });
+  }
+  if (stale.length) store.putTracks(stale);
 
   // The library's playlists are kept as its tree, browsed in the sidebar and brought in on demand; the
   // copies already in GLUE follow it (ADR 0063).
@@ -160,7 +186,7 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   const src: Source = { schemaVersion: SCHEMA, id: sourceId, app: lib.app, name: lib.name, fileName, importedAt: now(), tracks: sourceTracks, lists: lib.lists.length, tree, ...(existing?.origin ? { origin: existing.origin } : {}) };
   store.putSource(src);
   const linkedLists = syncLinkedLists(store, src, existing?.tree);
-  return { sourceId, tracks: lib.tracks.length, matched, linked: links.size, lists: lib.lists.length, linkedLists, entries: lib.stats };
+  return { sourceId, tracks: lib.tracks.length, matched, linked: links.size, lists: lib.lists.length, linkedLists, dropped, entries: lib.stats };
 }
 
 export interface ScanEntry { relPath: string; size: number; mtime: number; fileName: string }
@@ -182,7 +208,8 @@ export function applyScan(store: CollectionStore, rootId: string, entries: ScanE
 
   // Another device's tracks (a merged collection, ADR 0042) belong to that device.
   const unlinked = [...store.tracks.values()].filter(t => t.status === 'unlinked' && !t.remote);
-  const files = newFiles.map(e => ({ rootId, relPath: e.relPath, size: e.size, mtime: e.mtime }));
+  const under = placeOf(store).get(rootId);
+  const files = newFiles.map(e => ({ rootId, relPath: e.relPath, size: e.size, mtime: e.mtime, under }));
   const { links, rootPaths } = matchTracks(unlinked.map(t => ({ id: t.id, importPath: t.importPath, fileName: t.fileName, size: t.size })), files);
   const taken = new Set<string>();
   for (const t of unlinked) {
@@ -200,4 +227,35 @@ export function applyScan(store: CollectionStore, rootId: string, entries: ScanE
   }
   store.putTracks([...updates, ...added]);
   return { added, linked: links.size, missing };
+}
+
+/** A collection put right when it opens (the user's report, 2026-09-26):
+    - tracks naming imports that are gone lose that name; one left without a file and without any
+      import was only that import's record, and goes (removing an import once missed tracks that
+      weren't in its own list);
+    - tracks without a file are matched again with the path matcher (the music folders' own places
+      counting), and fold into the track that has the file.
+    Returns what changed. */
+export function tidyTracks(store: CollectionStore): { unlinked: number; dropped: number; relinked: number } {
+  const r = { unlinked: 0, dropped: 0, relinked: 0 };
+  const keep: Track[] = [], drop: string[] = [];
+  for (const t of store.tracks.values()) {
+    if (t.remote || store.ephemeral.has(t.id)) continue;
+    const sources = t.sources.filter(x => store.sources.has(x));
+    if (sources.length === t.sources.length) continue;
+    r.unlinked += t.sources.length - sources.length;
+    if (!sources.length && t.status === 'unlinked' && !t.fileKey) drop.push(t.id); else keep.push({ ...t, sources });
+  }
+  if (keep.length) store.putTracks(keep);
+  for (const id of drop) { store.removeTrack(id); r.dropped++; }
+  const strays = [...store.tracks.values()].filter(t => t.status === 'unlinked' && !t.remote && !t.fileKey && !store.ephemeral.has(t.id));
+  if (strays.length) {
+    const { files, byFile } = linkedFiles(store);
+    const { links } = matchTracks(strays.map(t => ({ id: t.id, importPath: t.importPath, fileName: t.fileName, size: t.size })), files);
+    const into = new Map<string, Track>();
+    for (const [id, f] of links) { const to = byFile.get(f); if (to && to.id !== id) into.set(id, to); }
+    absorbTracks(store, into);
+    r.relinked = into.size;
+  }
+  return r;
 }

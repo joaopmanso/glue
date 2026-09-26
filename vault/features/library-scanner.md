@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-24
+updated: 2026-09-26
 adrs: [0007, 0009, 0012, 0014, 0021]
 ---
 # Library & scanner
@@ -82,3 +82,10 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
   FLAC, WAV, AIFF, AAC…), with counts for the current view; any within a group, groups combined.
   Clicking a row's quality badge filters by it.
 
+## Imported records and their files (2026-09-26, [ADR 0066](../adr/0066-imported-records-find-their-files.md))
+- **Matching counts the music folder's own place,** so Engine DJ's relative `../Music Collection/x` is the
+  x in the Music Collection folder.
+- **Records without a file are matched again** each time their library is read and when the collection
+  opens; a match folds the record into the track with the file.
+- **What a library no longer has goes;** removing an import cleans every track naming it.
+- **Music folder locations** come from GLUE Home in Home mode, and are only guessed from absolute paths.
