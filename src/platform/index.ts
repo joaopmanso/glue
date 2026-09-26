@@ -5,7 +5,7 @@
    folders are GLUE Home's disk instead, chosen with GLUE Home's own folder dialog. */
 import { idbDel, idbGet, idbSet } from './idb';
 import { HomeDir, HomeDisk, type HomeRoots } from './homeDisk';
-import type { Root } from '../store/types';
+import { INCOMING_ROOT, type Root } from '../store/types';
 
 // ─── Home mode ───────────────────────────────────────────────────────────────
 let disk: HomeDisk | null = null, roots: HomeRoots | null = null, active = false;
@@ -149,7 +149,7 @@ export async function rememberFolder(dir: Dir): Promise<{ dir: Dir; key: string 
 }
 /** A collection's music folder: in Home mode where GLUE Home says it is, else the browser's handle. */
 export async function musicFolder(root: Root): Promise<Dir | null> {
-  if (homeMode()) { const r = await homeRoots(); const at = r?.folders[root.id]; return at && disk ? disk.dir(at) : null; }
+  if (homeMode()) { const r = await homeRoots(); const at = root.id === INCOMING_ROOT ? r?.incoming : r?.folders[root.id]; return at && disk ? disk.dir(at) : null; }
   return root.handleKey.startsWith('home:') ? null : folderHandle(root.handleKey);
 }
 export async function folderHandle(key: string): Promise<Dir | null> {

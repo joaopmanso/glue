@@ -244,7 +244,7 @@
     <input type="file" multiple accept="audio/*,.flac,.wav,.aif,.aiff,.aifc,.m4a,.mp4,.alac,.mp3,.aac,.ogg,.oga,.opus,.webm,.mka" bind:this={songInput} hidden id="songs-input"
       onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; void lib.addFileCopies(f); }}>
     <ul>
-      {#each lib.roots as r (r.root.id)}
+      {#each lib.musicFolders as r (r.root.id)}
         <li>
           <div class="item" class:sel={isSel({ kind: 'root', id: r.root.id })}>
             <button type="button" class="name" onclick={() => view.select({ kind: 'root', id: r.root.id })} title={r.root.absPath ?? 'Location on disk not known yet'}>📁 {r.root.name}</button>
@@ -267,7 +267,7 @@
       {#if loose}
         <li><button type="button" class="item name" class:sel={isSel({ kind: 'root', id: LOOSE })} onclick={() => view.select({ kind: 'root', id: LOOSE })} title="Songs added one by one">🎵 Added songs<span class="n">{loose}</span></button></li>
       {/if}
-      {#if !lib.roots.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). GLUE only reads them.' : 'Add songs, or drop them onto GLUE: they’re copied into GLUE’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
+      {#if !lib.musicFolders.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). GLUE only reads them.' : 'Add songs, or drop them onto GLUE: they’re copied into GLUE’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
     </ul>
   </section>
 

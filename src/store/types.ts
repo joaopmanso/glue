@@ -14,8 +14,12 @@ export interface CollectionRef { id: string; name: string }
     while signed in (ADR 0042); false = the user turned it off. */
 export interface Profile { schemaVersion: number; id: string; name: string; color: string; createdAt: string; collections: CollectionRef[]; lastCollection: string | null; cloudSync?: boolean }
 
-/** A music folder the user granted (handle lives in IndexedDB under `handleKey`). */
-export interface Root { id: string; name: string; absPath: string | null; handleKey: string; addedAt: string }
+/** A music folder the user granted (handle lives in IndexedDB under `handleKey`). `hidden`: a folder
+    GLUE keeps for itself, not listed under Music folders: GLUE Home's incoming folder (ADR 0051). */
+export interface Root { id: string; name: string; absPath: string | null; handleKey: string; addedAt: string; hidden?: boolean }
+/** The id of GLUE Home's incoming folder as a music folder of a collection (the same on every computer:
+    each computer's collection has its own). Its songs are TO BE SORTED. */
+export const INCOMING_ROOT = 'incoming';
 /** tags: tags made in GLUE, kept even while no track uses them (ADR 0032). cloudMerged: it has been
     merged with other devices once (ADR 0042), so an unmerge is kept rather than merged again. */
 export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean }

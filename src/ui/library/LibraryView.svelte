@@ -91,7 +91,11 @@
     const el = e.currentTarget as HTMLSelectElement, folder = el.value;
     el.value = '';
     if (!folder) return;
-    try { const n = await incoming.move(sel, folder); view.selected = new Set(); lib.notice = 'Moved ' + n + ' song' + (n === 1 ? '' : 's') + '. GLUE on that computer adds ' + (n === 1 ? 'it' : 'them') + ' to the library on its next scan of the folder.'; }
+    try {
+      const { moved: n, elsewhere } = await incoming.move(sel, folder);
+      view.selected = new Set();
+      lib.notice = 'Moved ' + n + ' song' + (n === 1 ? '' : 's') + '.' + (elsewhere ? ' GLUE on that computer adds ' + (elsewhere === 1 ? 'it' : 'them') + ' to the library on its next scan of the folder.' : '');
+    }
     catch (err) { lib.notice = (err as Error).message; }
   }
   function newCollection() { const n = prompt('Name of the new collection'); if (n) void lib.createCollection(n); }

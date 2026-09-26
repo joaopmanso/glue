@@ -1,7 +1,7 @@
 /* This computer's GLUE library, as GLUE Home sees it (ADR 0045): the website's GLUE folder, read-only
    (the website stays its only writer), and where its music folders are on disk: found by itself. */
 import { bridge, type HomeConfig } from './bridge';
-import { shardOf, type Collection, type HomeIndex, type Profile, type Track } from '../../src/store/types';
+import { INCOMING_ROOT, shardOf, type Collection, type HomeIndex, type Profile, type Track } from '../../src/store/types';
 
 async function json<T>(rel: string): Promise<T | null> {
   try { return JSON.parse(await bridge.glueRead(rel)) as T; } catch { return null; }
@@ -52,6 +52,8 @@ const slashes = (p: string) => p.replace(/\\/g, '/');
     knows the folder is, 4. a folder of that name in Music, Documents, home, Desktop or Downloads,
     5. a search of this computer's drives for a folder of that name with the song in it. */
 export async function locate(root: Collection['roots'][number], sample: Sample | null, cfg: HomeConfig, opts: { search?: boolean } = {}): Promise<string | null> {
+  // This computer's incoming folder (ADR 0051): wherever GLUE Home keeps it.
+  if (root.id === INCOMING_ROOT) return cfg.incoming || await bridge.defaultIncoming();
   known ??= await bridge.knownFolders();
   const ok = async (dir: string | null | undefined): Promise<boolean> => !!dir && await bridge.exists(sample ? join(dir, sample.relPath) : dir);
   const chosen = cfg.folders?.[root.id];
@@ -79,7 +81,7 @@ export async function locateAll(cfg: HomeConfig): Promise<{ folders: Record<stri
     if (!shared(cfg, p.id, c.id) || !c.roots.length) continue;
     const s = await samples(p.id, c.id, c.roots.map(r => r.id));
     for (const r of c.roots) {
-      if (folders[r.id]) continue;
+      if (folders[r.id] || r.id === INCOMING_ROOT) continue;
       if (!s.has(r.id)) continue;   // no songs in it (yet)
       const at = await locate(r, s.get(r.id)!, cfg);
       if (at) folders[r.id] = at; else missing.push({ id: r.id, name: r.name, collection: p.name + ' · ' + c.name });

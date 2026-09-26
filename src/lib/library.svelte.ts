@@ -5,7 +5,7 @@ import { CollectionStore } from '../store/collection';
 import { LOOSE, applyImport, applyScan, blankLibTrack, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
-import { ANALYSIS_VERSION, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary, type List, type Profile, type Root, type Track } from '../store/types';
+import { ANALYSIS_VERSION, INCOMING_ROOT, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary, type List, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
 import type { Copy, Overlay } from '../core/library/overlay';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
@@ -364,6 +364,7 @@ class Library {
     if (s.damaged.length) this.notice = 'Some files in your GLUE folder couldn’t be read and were set aside (' + s.damaged.join(', ') + ', saved as .damaged). Anything they held may need re-importing or re-scanning.';
     await this.loadRoots();
     await this.loadLoose();
+    await this.adoptIncoming();
     this.phase = 'library';
     this.version++;
     this.enqueueAll();
@@ -427,6 +428,30 @@ class Library {
     this.roots = out;
   }
   rootState(id: string | null) { return this.roots.find(r => r.root.id === id) ?? null; }
+  /** The music folders the user chose (not the ones GLUE keeps for itself, like the incoming folder). */
+  get musicFolders() { return this.roots.filter(r => !r.root.hidden); }
+
+  /** In Home mode, GLUE Home's incoming folder is a hidden music folder of the open collection (ADR
+      0051): songs sent to this computer are its own tracks, analysed and synced like any other, and
+      one row with other devices' copies of them. They're TO BE SORTED (lib/incoming). */
+  private async adoptIncoming() {
+    const s = this.store, inc = await platform.incomingFolder();
+    if (!s || !inc || this.readOnly || this.cloud) return;
+    let r = s.meta.roots.find(x => x.id === INCOMING_ROOT);
+    if (!r) { r = { id: INCOMING_ROOT, name: 'TO BE SORTED', absPath: inc.path, handleKey: 'home:' + INCOMING_ROOT, addedAt: now(), hidden: true }; s.meta.roots.push(r); s.saveMeta(); }
+    else if (r.absPath !== inc.path) { r.absPath = inc.path; s.saveMeta(); }
+    this.roots = [...this.roots.filter(x => x.root.id !== INCOMING_ROOT), { root: r, dir: inc.dir, granted: true }];
+    await this.scanRoot(INCOMING_ROOT, { quiet: true });
+  }
+  /** GLUE Home moved a song out of the incoming folder into a music folder (top level, under
+      `fileName`): the same track, now there. */
+  movedFromIncoming(id: string, rootId: string, fileName: string) {
+    const s = this.store, t = s?.tracks.get(id);
+    if (!s || !t || t.rootId !== INCOMING_ROOT) return;
+    s.putTrack({ ...t, rootId, relPath: fileName, fileName });
+  }
+  /** The incoming folder changed (a song arrived, or left it): scan it again. */
+  async rescanIncoming() { if (this.rootState(INCOMING_ROOT)?.dir && !this.job) await this.scanRoot(INCOMING_ROOT, { quiet: true }); }
 
   async addFolder(dropped?: FileSystemDirectoryHandle) {
     const s = this.store;
@@ -475,7 +500,8 @@ class Library {
     this.roots = this.roots.map(x => x.root.id === id ? { ...x, root: r } : x);
   }
 
-  async scanRoot(id: string) {
+  /** `quiet`: no message when it's done (the incoming folder, scanned whenever it changes). */
+  async scanRoot(id: string, opts: { quiet?: boolean } = {}) {
     const s = this.store, r = this.rootState(id);
     if (!s || !r?.dir || this.job) return;
     this.job = { text: 'Scanning ' + r.root.name + '…', done: 0, total: null };
@@ -512,9 +538,11 @@ class Library {
       if (linked) bits.push(linked + ' imported track' + (linked === 1 ? '' : 's') + ' linked');
       if (missing) bits.push(missing + ' missing');
       if (libraries.length) bits.push(libraries.length + ' DJ librar' + (libraries.length === 1 ? 'y' : 'ies') + ' found');
-      this.notice = r.root.name + ': ' + bits.join(', ') + '.';
+      // A song that left the incoming folder was moved away or deleted there: it's no longer waiting.
+      if (id === INCOMING_ROOT) for (const t of [...s.tracks.values()]) if (t.rootId === INCOMING_ROOT && t.status === 'missing' && !t.remote) s.removeTrack(t.id);
+      if (!opts.quiet) this.notice = r.root.name + ': ' + bits.join(', ') + '.';
       void this.detectLibraries();
-    } catch (e) { console.error(e); this.notice = 'Couldn’t scan ' + r.root.name + ': ' + ((e as Error).message || e); }
+    } catch (e) { console.error(e); if (!opts.quiet) this.notice = 'Couldn’t scan ' + r.root.name + ': ' + ((e as Error).message || e); }
     finally { this.job = null; }
     this.enqueueAll();
   }

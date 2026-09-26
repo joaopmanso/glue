@@ -1,21 +1,27 @@
-/* TO BE SORTED (ADR 0046, 0048): the songs waiting in the incoming folder of every GLUE Home of the
-   account, as one playlist at the top of the sidebar, until they're moved into a music folder.
-   - This computer's GLUE Home answers over the local link at once (no GLUE Cloud); the others over
-     the account's channel.
-   - Each song comes with the analysis GLUE Home made when it arrived.
+/* TO BE SORTED (ADR 0046, 0048, 0051): the songs waiting in the incoming folder of every GLUE Home of
+   the account, as one playlist at the top of the sidebar, until they're moved into a music folder.
+   - Home mode (this computer's GLUE Home is the website's disk, ADR 0051): its incoming folder is a
+     hidden music folder of the collection, so its songs are this computer's own tracks. GLUE Home's
+     listing is watched, and the folder scanned again when it changes. Other computers get them by
+     the cloud sync, like any other song.
+   - Other GLUE Homes (and this one outside Home mode) are asked over the account's channel (or the
+     local link); each song comes with the analysis GLUE Home made when it arrived.
    - A song the collection already has (the one sent from here, or another computer's) is that
      track: one row, on both computers, played from the nearest copy.
-   Shown, never saved into this computer's library. */
+   The playlist is shown, never saved. */
 import { account } from './account.svelte';
 import { lib } from './library.svelte';
 import { remoteFiles } from './remoteFiles.svelte';
 import { localHome } from './localHome.svelte';
 import { nameFields } from '../core/library/tags';
-import { SCHEMA, type AnalysisSummary, type List, type Track, type TrackFormat } from '../store/types';
+import { INCOMING_ROOT, SCHEMA, type AnalysisSummary, type List, type Track, type TrackFormat } from '../store/types';
+import { homeMode } from '../platform';
 import type { IncomingFile } from '../core/transfer';
 
 export const TO_BE_SORTED = 'tobesorted';
 const EVERY = 30_000;
+/** This computer's incoming folder in Home mode: a local request, so it's watched more often. */
+const EVERY_HERE = 5_000;
 function fnv(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0).toString(36); }
 /** "Song (2).mp3" was sent as "Song.mp3" (the name was taken there). */
 const plain = (n: string) => n.toLowerCase().replace(/ \(\d+\)(\.[^.]*)$/, '$1');
@@ -24,6 +30,9 @@ class Incoming {
   /** Per GLUE Home: what's in its incoming folder. */
   files = $state.raw<Map<string, IncomingFile[]>>(new Map());
   private timer = 0;
+  private hereTimer = 0;
+  /** What was in this computer's incoming folder last time (Home mode), to notice a change. */
+  private hereSeen = '';
   /** What it's asking now (shown with the cloud sync's status). */
   busy = $state('');
   private asked = new Set<string>();
@@ -36,6 +45,8 @@ class Incoming {
   start() {
     clearInterval(this.timer);
     this.timer = window.setInterval(() => void this.refresh(), EVERY);
+    clearInterval(this.hereTimer);
+    this.hereTimer = window.setInterval(() => void this.watchHere(), EVERY_HERE);
     // A GLUE Home that comes online (or the sign-in finishing) is asked at once, not at the next round.
     this.stopWatch?.();
     this.stopWatch = $effect.root(() => {
@@ -63,7 +74,9 @@ class Incoming {
     // Only the first time for each: after that it refreshes quietly.
     if (first.length) this.busy = 'Looking for songs sent to ' + first.map(h => this.computer(h.id)).join(', ') + '…';
     try {
-      if (local) { this.asked.add(local.home); const l = await localHome.get<IncomingFile[]>('/incoming').catch(() => null); if (l) next.set(local.home, l); else void localHome.check(); }
+      // In Home mode this computer's songs are its own tracks (watchHere); otherwise they're listed.
+      if (local && !homeMode()) { this.asked.add(local.home); const l = await localHome.get<IncomingFile[]>('/incoming').catch(() => null); if (l) next.set(local.home, l); else void localHome.check(); }
+      else if (local) await this.watchHere();
       await Promise.all(homes.map(async h => {
         const l = await remoteFiles.incoming(h.id).catch(() => null);
         this.asked.add(h.id);
@@ -71,6 +84,17 @@ class Incoming {
       }));
     } finally { this.busy = ''; }
     this.show(next);
+  }
+  /** Home mode: when this computer's incoming folder changed, scan it again and show the list. */
+  private async watchHere() {
+    if (!homeMode() || !lib.store || lib.cloud || !localHome.link) return;
+    const l = await localHome.get<IncomingFile[]>('/incoming').catch(() => null);
+    if (!l) { void localHome.check(); return; }
+    const seen = l.map(f => f.name + '|' + f.size + '|' + f.mtime).sort().join('\n');
+    if (seen === this.hereSeen) return;
+    this.hereSeen = seen;
+    await lib.rescanIncoming();
+    this.reshow();
   }
   /** The name of a GLUE Home's computer (its browser's, when it's a companion). */
   computer(home: string) { return localHome.computer(home); }
@@ -89,10 +113,23 @@ class Incoming {
       (byName.get(k) ?? byName.set(k, []).get(k)!).push(t);
     }
     const tracks: Track[] = [], items: string[] = [], analysis = new Map<string, AnalysisSummary>();
+    // Tracks in an incoming folder (ADR 0051): this computer's own, and other computers' by the sync.
+    const waiting = new Map<string, Track>();
+    const here = homeMode() ? localHome.link?.home : null;
+    for (const t of s.tracks.values()) {
+      if (t.rootId !== INCOMING_ROOT || t.status !== 'linked') continue;
+      items.push(t.id);
+      waiting.set((t.remote?.device ?? '') + '|' + t.fileName.toLowerCase(), t);
+      // This computer's own: moved by its GLUE Home.
+      if (!t.remote && here) this.src.set(t.id, { home: here, name: t.fileName });
+    }
     for (const [home, list] of files) {
       const h = account.devices.find(d => d.id === home), browser = h?.companionOf ?? home;
       const device = this.computer(home);
       for (const f of list) {
+        // Already here by the sync: that computer's own track in its incoming folder.
+        const synced = waiting.get(browser + '|' + f.name.toLowerCase());
+        if (synced) { this.src.set(synced.id, { home, name: f.name }); continue; }
         const same = (byName.get(f.name.toLowerCase()) ?? byName.get(plain(f.name)) ?? []).find(t => t.size == null || t.size === f.size);
         if (same) {
           // Already in the collection: that track, also on this computer now.
@@ -122,18 +159,24 @@ class Incoming {
     lib.showGroup('incoming', tracks, items.length ? [list] : [], analysis);
   }
 
-  /** Move songs of TO BE SORTED into a music folder on their computer (its GLUE Home does it). */
+  /** Move songs of TO BE SORTED into a music folder on their computer (its GLUE Home does it).
+      `elsewhere`: songs of other computers, which their website picks up on its next scan. */
   async move(ids: string[], folder: string) {
-    let moved = 0;
+    let moved = 0, elsewhere = 0;
     for (const id of ids) {
       const src = this.src.get(id);
       if (!src) continue;
-      if (localHome.for(src.home)) await localHome.post('/incoming/move?name=' + encodeURIComponent(src.name) + '&folder=' + encodeURIComponent(folder));
-      else await remoteFiles.moveIncoming(src.home, src.name, folder);
+      if (localHome.for(src.home)) {
+        const r = await localHome.post<{ path: string }>('/incoming/move?name=' + encodeURIComponent(src.name) + '&folder=' + encodeURIComponent(folder));
+        // Home mode: the same track, now in that folder (its analysis and playlists stay).
+        const t = lib.store?.tracks.get(id);
+        if (t?.rootId === INCOMING_ROOT && !t.remote) lib.movedFromIncoming(id, folder, r.path.split(/[\\/]/).pop() ?? t.fileName);
+        else elsewhere++;
+      } else { await remoteFiles.moveIncoming(src.home, src.name, folder); elsewhere++; }
       moved++;
     }
     await this.refresh();
-    return moved;
+    return { moved, elsewhere };
   }
   /** Where a TO BE SORTED song can go on its computer: that GLUE Home's music folders. */
   folders(home: string) { return localHome.for(home) ? localHome.get<{ id: string; name: string; collection: string }[]>('/folders') : remoteFiles.folders(home); }
