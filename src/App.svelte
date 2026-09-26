@@ -21,6 +21,8 @@
   import GlueStick from './ui/GlueStick.svelte';
   import AccountButton from './ui/AccountButton.svelte';
   import AdminView from './ui/AdminView.svelte';
+  import PerfHud from './ui/PerfHud.svelte';
+  import { perf } from './lib/perf';
   import './lib/remoteFiles.svelte';   // another computer's songs through its GLUE Home (ADR 0045)
   import './lib/homeHandover';         // this computer's analyses, handed to its GLUE Home (ADR 0046)
   import { incoming } from './lib/incoming.svelte';
@@ -175,6 +177,7 @@
 </div>
 {#if inLibrary && route.name === 'library' && lib.onboarding !== 'music'}<LibPlayer />{/if}
 <DragTag />
+{#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
 {#if inLibrary}<TagEditor />{/if}
 

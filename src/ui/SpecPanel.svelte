@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { time } from '../core/perf';
   import { themes } from '../lib/themes.svelte';
   import { untrack } from 'svelte';
   import { app } from '../lib/app.svelte';
@@ -25,7 +26,7 @@
   $effect(() => {
     const r = app.res, floor = app.dbFloor, lut = app.lut;
     if (!r) return;
-    img = buildSpecImage(r.spec, r.cols, r.rows, floor, lut, img ?? undefined);
+    img = time('draw:specimage', () => buildSpecImage(r.spec, r.cols, r.rows, floor, lut, img ?? undefined));
     untrack(() => imgVersion++);
   });
 
@@ -34,11 +35,13 @@
     const r = app.res;
     void imgVersion; void size; void player.frame; void player.pending; void player.time; void app.liveMode; void themes.version;
     if (!r || !specCv) return;
-    rect = drawSpec(specCv, {
+    const cv = specCv;
+    rect = time('draw:spec', () => drawSpec(cv, {
       res: r, verdict: app.verdict, img, lut: app.lut, dbFloor: app.dbFloor, markers: app.markers,
       playhead: !player.pending && player.ready && (player.started || !player.paused) ? player.time : null, hover,
-    });
-    if (app.liveOn && liveCv) player.live.draw(liveCv, rect.r, !!player.url && !player.pending, app.verdict?.cut ?? null, app.markers, app.liveMode, app.lut);
+    }));
+    const lc = liveCv, rr = rect.r;
+    if (app.liveOn && lc) time('draw:live', () => player.live.draw(lc, rr, !!player.url && !player.pending, app.verdict?.cut ?? null, app.markers, app.liveMode, app.lut));
   });
 
   $effect(() => {

@@ -2,6 +2,7 @@
   /* The Prepare tab (ADR 0052): the track's waveform with its beat grid, a player with tempo and key
      lock, a metronome, and the grid's corrections (saved on the track, overriding the analysis). */
   import { untrack } from 'svelte';
+  import { time } from '../../core/perf';
   import { lib } from '../../lib/library.svelte';
   import { player } from '../../lib/player.svelte';
   import { app } from '../../lib/app.svelte';
@@ -70,18 +71,19 @@
     overImg.width = Math.round(W * dpr); overImg.height = Math.round(H * dpr);
     const c = overImg.getContext('2d')!;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawWave(c, W, H, w, { scheme: sc, t0: 0, t1: w.duration, grid: g, playhead: null, cues: cs });
+    time('draw:overview', () => drawWave(c, W, H, w, { scheme: sc, t0: 0, t1: w.duration, grid: g, playhead: null, cues: cs }));
   });
   $effect(() => {
     const w = prepare.wave, g = grid, sc = scheme, s = span, now = t; void size; void player.frame; void overImg;
-    if (deck) { const { ctx, w: W, h: H } = fitCanvas(deck); drawWave(ctx, W, H, w, { scheme: sc, t0: now - s / 2, t1: now + s / 2, grid: g, playhead: now, numbers: true, cues, loop }); }
-    if (over && w && overImg) {
-      const { ctx, w: W, h: H } = fitCanvas(over);
-      ctx.clearRect(0, 0, W, H); ctx.drawImage(overImg, 0, 0, W, H);
+    if (deck) { const dk = deck; time('draw:deck', () => { const { ctx, w: W, h: H } = fitCanvas(dk); drawWave(ctx, W, H, w, { scheme: sc, t0: now - s / 2, t1: now + s / 2, grid: g, playhead: now, numbers: true, cues, loop }); }); }
+    const ov = over, oi = overImg;
+    if (ov && w && oi) time('draw:over', () => {
+      const { ctx, w: W, h: H } = fitCanvas(ov);
+      ctx.clearRect(0, 0, W, H); ctx.drawImage(oi, 0, 0, W, H);
       const x0 = (now - s / 2) / w.duration * W, x1 = (now + s / 2) / w.duration * W;
       ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x0, 0, x1 - x0, H);
       ctx.fillStyle = '#ff3b3b'; ctx.fillRect(Math.round(now / w.duration * W), 0, 2, H);
-    }
+    });
   });
   // 3D: the live view's ridges (captured while this tab shows them).
   $effect(() => {
@@ -92,7 +94,8 @@
   });
   $effect(() => {
     void player.frame; void size;
-    if (show3d && cv3d) player.live.draw(cv3d, 0, !!player.url, app.verdict?.cut ?? null, false, '3d', app.lut);
+    const c3 = cv3d;
+    if (show3d && c3) time('draw:3d', () => player.live.draw(c3, 0, !!player.url, app.verdict?.cut ?? null, false, '3d', app.lut));
   });
 
   // Click or drag on the deck view scrubs; on the overview, jumps.

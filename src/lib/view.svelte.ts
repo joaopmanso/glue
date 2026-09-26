@@ -1,5 +1,6 @@
 /* What the library view shows: the selected sidebar entry, search, sort and row selection. */
 import { lib } from './library.svelte';
+import { time } from '../core/perf';
 import { bpmShown } from './bpm';
 import { LOOSE } from '../store/merge';
 import { dupes } from './dupes.svelte';
@@ -59,7 +60,8 @@ class View {
   clearFilters(group?: FilterGroup) { this.filters = group ? { ...this.filters, [group]: [] } : NO_FILTERS(); }
 
   /** `unfiltered`: without the value filters; `except`: without one group's (to count its options). */
-  rows(notation: KeyNotation, opts: { unfiltered?: boolean; except?: FilterGroup } = {}): Row[] {
+  rows(notation: KeyNotation, opts: { unfiltered?: boolean; except?: FilterGroup } = {}): Row[] { return time('rows', () => this.rowsNow(notation, opts)); }
+  private rowsNow(notation: KeyNotation, opts: { unfiltered?: boolean; except?: FilterGroup }): Row[] {
     void lib.version;
     const s = lib.store;
     if (!s) return [];

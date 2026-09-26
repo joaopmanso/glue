@@ -7,6 +7,7 @@ import type { AnalysisReply } from '../workers/analysis.worker';
 import { blankInfo, parseContainer } from '../core/formats/parse';
 import { scanClues } from '../core/formats/clues';
 import { decodeAudio } from './analysis';
+import { time, timeAsync } from '../core/perf';
 
 import type { DetailsHeader } from '../store/details';
 export interface PoolResult { summary: AnalysisSummary; info: FileInfo; duration: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null }
@@ -52,24 +53,27 @@ export class AnalysisPool {
     if (file.size > MAX_BYTES) throw new Error('File too large to analyse in the background; open it to analyse.');
     const s = await this.slot();
     try {
-      const buf = await file.arrayBuffer();
+      const buf = await timeAsync('analysis.read', () => file.arrayBuffer());
       const u8 = new Uint8Array(buf);
-      let info: FileInfo;
-      try { info = parseContainer(u8); } catch { info = blankInfo(); }
-      info.fileName = file.name; info.fileSize = file.size;
-      info.clues = scanClues(u8, info);
+      // Main-thread work: the container, the clues, and copying decoded channels (ADR 0058 measures it).
+      const info = time('analysis.parse', () => {
+        let info: FileInfo;
+        try { info = parseContainer(u8); } catch { info = blankInfo(); }
+        info.fileName = file.name; info.fileSize = file.size;
+        info.clues = scanClues(u8, info);
+        return info;
+      });
       if (info.unsupported) throw new Error(info.unsupported);
       let job: AnalysisJob, transfer: Transferable[];
       if (info.pcm) { job = { type: 'pcm', buffer: buf, pcm: info.pcm, sr: info.sampleRate }; transfer = [buf]; }
       else {
-        const ab = await withDecoder(() => decodeAudio(buf, info.decodeRate || info.sampleRate || 48000));
-        const chs: Float32Array[] = [];
-        for (let c = 0; c < ab.numberOfChannels; c++) chs.push(new Float32Array(ab.getChannelData(c)));
+        const ab = await timeAsync('analysis.decode', () => withDecoder(() => decodeAudio(buf, info.decodeRate || info.sampleRate || 48000)));
+        const chs: Float32Array[] = time('analysis.copy', () => { const out: Float32Array[] = []; for (let c = 0; c < ab.numberOfChannels; c++) out.push(new Float32Array(ab.getChannelData(c))); return out; });
         job = { type: 'float', channels: chs, sr: ab.sampleRate, bits: info.lossless ? info.bits : 0 };
         transfer = chs.map(c => c.buffer);
         if (!info.channels) info.channels = ab.numberOfChannels;
       }
-      const r = await s.run({ job, summary: { info: { ...info, pcm: undefined }, size: file.size, mtime } }, transfer);
+      const r = await timeAsync('analysis.worker', () => s.run({ job, summary: { info: { ...info, pcm: undefined }, size: file.size, mtime } }, transfer));
       if (r.kind === 'error') throw new Error(r.message);
       if (r.kind !== 'summary') throw new Error('Unexpected reply from the analysis worker');
       if (!info.sampleRate) info.sampleRate = r.sr;

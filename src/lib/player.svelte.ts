@@ -1,6 +1,7 @@
 /* Audio player + live analyser. One <audio> element per source: a media element can feed only one
    AudioContext, and the live view wants one at the file's own sample rate. */
 import { fmtKHz, freqLabel, niceStep } from '../core/format';
+import { time } from '../core/perf';
 import { MONO, fitCanvas, theme } from '../ui/render/canvas';
 import type { Cutoff } from '../core/types';
 import { WF_BANDS, WF_DEPTH, WF_FPS, bandBins, drawWaterfall, type WaterfallFrame } from '../ui/render/waterfall';
@@ -198,7 +199,7 @@ class Player {
     const tick = (ts: number) => {
       if (this.el.paused) { this.raf = 0; return; }
       this.sync();
-      this.onFrame?.(ts);
+      if (this.onFrame) time('draw:capture', () => this.onFrame!(ts));
       this.frame++;
       this.raf = requestAnimationFrame(tick);
     };

@@ -3,6 +3,7 @@
      played part are a light overlay, so only the playing row changes while music plays.
      Click (or drag) to play from that spot, or to scrub the playing track. */
   import { thumbs } from '../../lib/thumbs.svelte';
+  import { time } from '../../core/perf';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { player } from '../../lib/player.svelte';
   import { app } from '../../lib/app.svelte';
@@ -22,9 +23,11 @@
   $effect(() => {
     const d = data, lut = app.lut, c = cv;
     if (!c || !d) return;
-    const ctx = c.getContext('2d')!, img = ctx.createImageData(THUMB_W, THUMB_H), px = img.data;
-    for (let i = 0; i < d.length; i++) { const li = d[i] * 3, p = i * 4; px[p] = lut[li]; px[p + 1] = lut[li + 1]; px[p + 2] = lut[li + 2]; px[p + 3] = 255; }
-    ctx.putImageData(img, 0, 0);
+    time('draw:thumb', () => {
+      const ctx = c.getContext('2d')!, img = ctx.createImageData(THUMB_W, THUMB_H), px = img.data;
+      for (let i = 0; i < d.length; i++) { const li = d[i] * 3, p = i * 4; px[p] = lut[li]; px[p + 1] = lut[li + 1]; px[p + 2] = lut[li + 2]; px[p + 3] = 255; }
+      ctx.putImageData(img, 0, 0);
+    });
   });
 
   const dur = $derived(t.duration || (nowPlaying.trackId === t.id ? player.duration : 0) || 0);

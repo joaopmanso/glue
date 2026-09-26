@@ -3,6 +3,7 @@
 import { DamagedFile, type Dir, listNames, readJSON, removePath, writeJSON, writeText } from './fsx';
 import { type AnalysisSummary, type Collection, type List, type Source, type Track, SCHEMA, shardOf } from './types';
 import { migrate } from './migrations';
+import { record, time, timeAsync } from '../core/perf';
 
 type Shard<T> = { schemaVersion: number; items: Record<string, T> };
 
@@ -36,7 +37,8 @@ export class CollectionStore {
   /** `root` changes when the library moves between GLUE Home's disk and the browser's (ADR 0051). */
   private constructor(public root: Dir, readonly base: string, public meta: Collection) {}
 
-  static async load(root: Dir, pid: string, cid: string): Promise<CollectionStore> {
+  static load(root: Dir, pid: string, cid: string): Promise<CollectionStore> { return timeAsync('store.load', () => CollectionStore.loadNow(root, pid, cid)); }
+  private static async loadNow(root: Dir, pid: string, cid: string): Promise<CollectionStore> {
     const base = `profiles/${pid}/collections/${cid}`;
     const meta = await readJSON<Collection>(root, base + '/collection.json');
     if (!meta) throw new Error('Collection not found in your GLUE folder.');
@@ -99,6 +101,7 @@ export class CollectionStore {
     if (!this.hasPending) return;
     const paths = [...this.dirty], gone = [...this.deleted];
     this.dirty.clear(); this.deleted.clear();
+    const t0 = performance.now();
     this.writing = (async () => {
       // Each file on its own: one failure must not hold back every other change.
       let first: unknown = null;
@@ -108,14 +111,14 @@ export class CollectionStore {
           catch (e) { this.deleted.add(p); first ??= e; }
         }
         for (const p of paths) {
-          const value = this.serialize(p);
+          const value = time('store.serialize', () => this.serialize(p));
           try {
             // Gone since it was marked (deleted before the save ran): remove its file instead.
             if (value === undefined) await removePath(this.root, `${this.base}/${p}`);
             else await writeJSON(this.root, `${this.base}/${p}`, value);
           } catch (e) { if (!this.deleted.has(p)) this.dirty.add(p); first ??= e; }   // retried next time
         }
-      } finally { this.writing = null; }
+      } finally { this.writing = null; record('store.flush', performance.now() - t0); }
       if (first) throw first;
     })();
     return this.writing;

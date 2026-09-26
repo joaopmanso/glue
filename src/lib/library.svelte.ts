@@ -1,6 +1,7 @@
 /* The library: GLUE folder → profile → collection, kept in memory and written back to JSON files.
    Components read `lib.version` to re-derive views after any change. */
 import { HomeStore } from '../store/home';
+import { record, timeAsync } from '../core/perf';
 import { CollectionStore } from '../store/collection';
 import { LOOSE, applyImport, applyScan, blankLibTrack, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
@@ -410,6 +411,7 @@ class Library {
   async openCollection(cid: string) {
     if (!this.home || !this.profile || !this.homeDir) return;
     await this.closeCollection();
+    const t0 = performance.now();
     const s = await CollectionStore.load(this.homeDir, this.profile.id, cid);
     s.onChange = () => { this.version++; this.onLocalChange?.(); };
     s.onDirty = () => this.scheduleFlush();
@@ -423,6 +425,7 @@ class Library {
     await this.adoptIncoming();
     this.phase = 'library';
     this.version++;
+    record('open.collection', performance.now() - t0);
     this.enqueueAll();
     this.onOpened?.();
     this.onCollectionOpened?.(this.profile.id, cid);
@@ -1101,7 +1104,7 @@ class Library {
     try { file = t.fileKey ? await this.looseFile(t, false) : await fileAt(this.rootState(t.rootId)!.dir!, t.relPath!); }
     catch (e) { if ((e as DOMException).name === 'NotFoundError') s.putTrack({ ...t, status: 'missing' }); return; }
     try {
-      const r = await pool.analyze(file, file.lastModified);
+      const r = await timeAsync('analysis.track', () => pool.analyze(file, file.lastModified));
       if (this.store !== s) return;
       // The stored analysis and fingerprint go first: once a track shows as analysed, its page opens instantly.
       if (r.details) await this.putDetails(t.id, r.details).catch(e => console.warn('Couldn’t store the track analysis', e));

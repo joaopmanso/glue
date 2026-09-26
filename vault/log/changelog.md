@@ -5,6 +5,24 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · Stack review; performance budgets and `?perf` (M7 phase 0)
+- **Stack review** ([ADR 0057](../adr/0057-keep-the-stack-fix-the-architecture.md)):
+  - GLUE keeps Svelte, TypeScript, Vite and Tauri; no React Native.
+  - The slow spots are GLUE's own design: row lists rebuilt on every change, and Canvas 2D drawing
+    on the main thread every frame.
+  - Plan: measure → data pipeline → GPU drawing → analysis off the main thread → a phone web app
+    (remote + offline).
+- **Measuring** ([ADR 0058](../adr/0058-performance-budgets.md)):
+  - `?perf` in the address shows a perf panel; "Copy" gives a full report;
+  - timers on loading, saving, the row list, analysis stages and every drawing step;
+  - a synthetic GLUE folder at any size;
+  - `e2e/perf.spec.ts` (`PERF=1`) measures open, switch, sort, search, scroll, background
+    changes and playback drawing against budgets.
+- **Baseline at 50k tracks** ([performance](../research/performance.md)): open 4.8 s, a sort up to
+  437 ms, a search keystroke 538 ms, 45 long frames in 5 s of background changes. The 3D views halve
+  the frame rate.
+- Tests: 137 unit (+2 synthetic folder); e2e unchanged (the perf test is opt-in).
+
 ## 2026-09-26 · GLUE Home 0.8.0: drop a playlist on the drag dock; a wider sidebar
 From the user's batch 4:
 - **Sidebar:**

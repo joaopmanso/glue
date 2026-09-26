@@ -64,7 +64,9 @@ Planned (GLUE):
 [profiles](features/profiles.md) ·
 [import: Serato](features/import-serato.md) ·
 [track detail](features/track-detail.md) ·
-[Prepare](features/prepare.md)
+[Prepare](features/prepare.md) ·
+[performance](features/performance.md) ·
+[phone app](features/phone-app.md)
 
 ## ADR index
 | # | Decision | Status |
@@ -125,3 +127,5 @@ Planned (GLUE):
 | [0054](adr/0054-drag-dock-in-glue-home.md) | Songs go into the DJ apps by dragging from a GLUE Home "drag dock" | accepted |
 | [0055](adr/0055-drag-dock-is-a-queue.md) | The drag dock is a queue | accepted |
 | [0056](adr/0056-playlists-drag-with-the-browser.md) | Playlists drag with the browser's drag-and-drop, so they can be dropped on the drag dock | accepted |
+| [0057](adr/0057-keep-the-stack-fix-the-architecture.md) | Keep Svelte, TypeScript, Vite and Tauri; fix how GLUE uses them (no React Native) | accepted |
+| [0058](adr/0058-performance-budgets.md) | Performance budgets, measured on a synthetic collection | accepted |
