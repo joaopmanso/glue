@@ -29,7 +29,7 @@ class Prepare {
     try {
       let w = s && dir ? await loadWaveform(dir, s.meta.id, t.id, file) : null;
       if (!w) {
-        w = await waveformOf(await jobOf(await lib.fileFor(t)));
+        w = await waveformOf(jobOf(await lib.fileFor(t)));
         if (s && dir) void writeWaveform(dir, s.meta.id, t.id, file, w).catch(e => console.warn('Couldn’t keep the waveform', e));
       }
       if (this.trackId !== t.id) return;

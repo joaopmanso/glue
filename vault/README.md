@@ -89,7 +89,7 @@ Planned (GLUE):
 | [0016](adr/0016-keep-legacy-page-for-parity.md) | Keep the original Speklone page as the parity reference | accepted |
 | [0017](adr/0017-no-installable-app-for-now.md) | No installable app for now | accepted |
 | [0018](adr/0018-local-profiles.md) | Local profiles, no password; profiles own collections | accepted |
-| [0019](adr/0019-background-analysis-decoding.md) | Background analysis: browser decoding + analysis worker pool | accepted |
+| [0019](adr/0019-background-analysis-decoding.md) | Background analysis: browser decoding + analysis worker pool | accepted (decoding superseded by 0060) |
 | [0020](adr/0020-imports-then-link-folders.md) | Imports bring metadata first; music folders linked afterwards | accepted |
 | [0021](adr/0021-single-songs.md) | Songs can be added one by one, kept by file handle | accepted |
 | [0022](adr/0022-pointer-drag-inside-mco.md) | Drags inside GLUE use pointer events, not HTML drag-and-drop | accepted |
@@ -130,3 +130,4 @@ Planned (GLUE):
 | [0057](adr/0057-keep-the-stack-fix-the-architecture.md) | Keep Svelte, TypeScript, Vite and Tauri; fix how GLUE uses them (no React Native) | accepted |
 | [0058](adr/0058-performance-budgets.md) | Performance budgets, measured on a synthetic collection | accepted |
 | [0059](adr/0059-indexes-rebuilt-by-change-counters.md) | Indexes over the collection, rebuilt by per-kind change counters | accepted |
+| [0060](adr/0060-decode-in-the-worker.md) | Read, parse and decode audio in the worker (mediabunny + WebCodecs) | accepted (supersedes 0019's decoding) |

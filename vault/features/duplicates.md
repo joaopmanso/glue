@@ -74,3 +74,5 @@ them at the best copy.
 - **Fixed:** analysed songs with no fingerprint whose file couldn't be read (a folder not connected,
   a missing file) made the scan and the fingerprint filling start each other over and over. They
   rescan now only when a fingerprint was made.
+- Fingerprints made again now decode in the worker ([ADR 0060](../adr/0060-decode-in-the-worker.md)):
+  on the user's desktop, they had held the page for 140–560 ms every few seconds.

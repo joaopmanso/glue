@@ -110,3 +110,7 @@ the Details page's Tempo card still said 114.7 (½× 57.3 · 2× 229.3).
   - a correction to 125 survives a reload and shows (as yours) in the library;
   - half-time shows 62.5, and the flip brings it back to 125;
   - Re-analyse removes the correction.
+
+## Decoding (2026-09-26)
+- The waveform's audio is decoded in the worker ([ADR 0060](../adr/0060-decode-in-the-worker.md)),
+  so opening the Prepare tab doesn't hold the page.

@@ -1,13 +1,12 @@
-/* Background analysis (ADR 0019): several tracks at once. Browser decoding (main thread only) is
-   limited to 2 at a time; the heavy part (spectrum, verdict, tempo, key) runs in a pool of workers
-   that return summaries only. WAV/AIFF skip the decoder: the worker reads their PCM directly. */
-import type { AnalysisJob, FileInfo } from '../core/types';
+/* Background analysis (ADR 0019): several tracks at once, in a pool of workers that return summaries
+   only. Each gets the file itself and reads, parses and decodes it there (ADR 0060), so the page never
+   waits on it. A format the worker can't decode is decoded on the page the old way (at most 2 at a
+   time), then analysed in the worker. */
+import type { FileInfo } from '../core/types';
 import type { AnalysisSummary } from '../store/types';
-import type { AnalysisReply } from '../workers/analysis.worker';
-import { blankInfo, parseContainer } from '../core/formats/parse';
-import { scanClues } from '../core/formats/clues';
-import { decodeAudio } from './analysis';
-import { time, timeAsync } from '../core/perf';
+import type { AnalysisReply, WorkerJob } from '../workers/analysis.worker';
+import { pageJob, transferOf } from './analysis';
+import { timeAsync } from '../core/perf';
 
 import type { DetailsHeader } from '../store/details';
 export interface PoolResult { summary: AnalysisSummary; info: FileInfo; duration: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null }
@@ -19,7 +18,7 @@ class Slot {
   private w: Worker | null = null;
   private waiting: { resolve: (r: AnalysisReply) => void; reject: (e: Error) => void } | null = null;
   private id = 0;
-  run(msg: { job: AnalysisJob; summary: { info: FileInfo; size: number; mtime: number } }, transfer: Transferable[]): Promise<AnalysisReply> {
+  run(msg: { job: WorkerJob; summary: { info: FileInfo | null; size: number; mtime: number } }, transfer: Transferable[]): Promise<AnalysisReply> {
     if (!this.w) {
       this.w = new Worker(new URL('../workers/analysis.worker.ts', import.meta.url), { type: 'module' });
       this.w.onmessage = (e: MessageEvent<AnalysisReply>) => { if (e.data.kind !== 'progress' && e.data.id === this.id) { const p = this.waiting; this.waiting = null; p?.resolve(e.data); } };
@@ -53,29 +52,16 @@ export class AnalysisPool {
     if (file.size > MAX_BYTES) throw new Error('File too large to analyse in the background; open it to analyse.');
     const s = await this.slot();
     try {
-      const buf = await timeAsync('analysis.read', () => file.arrayBuffer());
-      const u8 = new Uint8Array(buf);
-      // Main-thread work: the container, the clues, and copying decoded channels (ADR 0058 measures it).
-      const info = time('analysis.parse', () => {
-        let info: FileInfo;
-        try { info = parseContainer(u8); } catch { info = blankInfo(); }
-        info.fileName = file.name; info.fileSize = file.size;
-        info.clues = scanClues(u8, info);
-        return info;
-      });
-      if (info.unsupported) throw new Error(info.unsupported);
-      let job: AnalysisJob, transfer: Transferable[];
-      if (info.pcm) { job = { type: 'pcm', buffer: buf, pcm: info.pcm, sr: info.sampleRate }; transfer = [buf]; }
-      else {
-        const ab = await timeAsync('analysis.decode', () => withDecoder(() => decodeAudio(buf, info.decodeRate || info.sampleRate || 48000)));
-        const chs: Float32Array[] = time('analysis.copy', () => { const out: Float32Array[] = []; for (let c = 0; c < ab.numberOfChannels; c++) out.push(new Float32Array(ab.getChannelData(c))); return out; });
-        job = { type: 'float', channels: chs, sr: ab.sampleRate, bits: info.lossless ? info.bits : 0 };
-        transfer = chs.map(c => c.buffer);
-        if (!info.channels) info.channels = ab.numberOfChannels;
+      const summary = { info: null, size: file.size, mtime };
+      let r = await timeAsync('analysis.worker', () => s.run({ job: { type: 'file', file }, summary }, []));
+      if (r.kind === 'decode') {
+        // A codec the worker can't decode (ALAC in some browsers, HE-AAC it would decode at another rate).
+        const info = r.info, job = await timeAsync('analysis.pagedecode', () => withDecoder(() => pageJob(file, info)));
+        r = await timeAsync('analysis.worker', () => s.run({ job, summary: { ...summary, info } }, transferOf(job)));
       }
-      const r = await timeAsync('analysis.worker', () => s.run({ job, summary: { info: { ...info, pcm: undefined }, size: file.size, mtime } }, transfer));
       if (r.kind === 'error') throw new Error(r.message);
       if (r.kind !== 'summary') throw new Error('Unexpected reply from the analysis worker');
+      const info = r.info;
       if (!info.sampleRate) info.sampleRate = r.sr;
       if (!info.channels) info.channels = r.channels;
       if (!info.duration) info.duration = r.duration;

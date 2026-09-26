@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (decoding superseded by 0060)
 amended-by: 0023
 date: 2026-09-24
 ---

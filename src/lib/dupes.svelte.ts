@@ -83,7 +83,7 @@ class Dupes {
         const t = s.tracks.get(id);
         if (!t || !lib.canRead(t)) continue;
         try {
-          const fp = await fingerprintOf(await jobOf(await lib.fileFor(t)));
+          const fp = await fingerprintOf(jobOf(await lib.fileFor(t)));
           if (lib.store !== s) return;
           await writeFingerprint(dir, s.meta.id, id, fp);
           const a = s.analysis.get(id);

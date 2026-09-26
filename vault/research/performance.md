@@ -85,3 +85,30 @@ The same library from a copy of its GLUE folder (`PERF_FOLDER`, headless Edge, 1
 
 Still to do (the row index, next): sorts, searches and switches at about 100 ms here, and 300–540 ms
 at 50k; opening in 2–3 s.
+
+## Decoding on the page vs in the worker (2026-09-26, ADR 0060)
+- **`decodeAudioData` on the page** (5-minute files, headless Edge, first run):
+
+| Format | Decode | Long frames |
+|---|---|---|
+| MP3 320k | 637 ms | 181, 180, 58 ms |
+| FLAC | 390 ms | 55 ms |
+| AAC 256k | 593 ms | 54 ms |
+
+  Copying the channels took about 25 ms more.
+- **mediabunny + WebCodecs in a worker** (same files):
+  - 1.4–1.8 s per 5-minute file, with no long frames on the page;
+  - samples identical once trimmed (MP3 LAME delay 1,105; AAC priming 1,024).
+- **Background analysis of six 3-minute songs:**
+
+| | Frames over 50 ms | Worst frame | Per song |
+|---|---|---|---|
+| Before (page decode) | 4 | 83 ms | read 63 ms, parse 24 ms, decode 633 ms, copy 17 ms on the page; worker 2.5 s |
+| After (worker decode) | 0 | 49 ms | 3.5 s, all in the worker |
+
+- **The user's second report** (8.8k library, Chrome):
+  - open 1.75 s;
+  - Auto dialog: candidates 10 ms, generate 69 ms;
+  - GLUE Cloud overlay merge about 100 ms;
+  - stalls of 140–560 ms every 3.3 s from fingerprints made again on the page (fixed by ADR 0060);
+  - a 0.9 s "click" that was the native "Delete playlist?" confirm dialog.

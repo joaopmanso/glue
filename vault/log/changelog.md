@@ -5,6 +5,22 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · Decoding moves into the workers: no more stalls while songs are analysed (M7 phase 3)
+From the user's second `?perf` report: stalls of 140–560 ms every 3 s, from fingerprints being made
+again on the page ([ADR 0060](../adr/0060-decode-in-the-worker.md)).
+- **Analysis, fingerprints and the Prepare waveform** send the file to the worker, which reads,
+  parses and decodes it (mediabunny + WebCodecs).
+- **The same samples as before:** trimmed as the browser's decoder trims them (MP3 LAME delay and
+  padding, MP4 edit lists, Ogg's exact length). Checked for every format by `e2e/decode.spec.ts`.
+- **The page decodes only what a worker can't** (ALAC, HE-AAC), as before.
+- **Six 3-minute songs analysed:** 0 frames over 50 ms (was 4, up to 83 ms).
+- **New dependency:** mediabunny 1.60 (MPL-2.0, unmodified). The analysis worker grows to 382 kB; the
+  page's bundle is unchanged.
+- **Also found:** the 0.9 s "click" in the report was the native "Delete playlist?" dialog, which
+  holds the page while it's open.
+- Tests: 145 unit (+5 trim and MP3 tag); e2e 39 (+ decode parity); `PERF=1` adds a
+  background-analysis test.
+
 ## 2026-09-26 · Auto playlists and Duplicates fast again; change counters and indexes (M7 phase 1, step 1)
 From the user's `?perf` report, and the same library clicked through from a copy of its folder
 ([ADR 0059](../adr/0059-indexes-rebuilt-by-change-counters.md)):

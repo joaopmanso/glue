@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-24
+updated: 2026-09-26
 adrs: [0006, 0009, 0019, 0024]
 ---
 # Background analysis
@@ -59,3 +59,10 @@ the UI stuttering.
   big import needn't all be analysed. Off: the header shows how many aren't analysed; "Analyse" in the
   selection bar analyses chosen tracks; opening a track's page still analyses it.
 
+## Decoding in the worker (2026-09-26, [ADR 0060](../adr/0060-decode-in-the-worker.md))
+- **Each worker gets the file itself** and reads, parses and decodes it there: mediabunny demuxes,
+  WebCodecs decodes. The samples are trimmed as the browser's decoder trims them, so they're
+  identical to before, sample for sample.
+- **The page only decodes what a worker can't** (ALAC, HE-AAC), the old way.
+- **Six 3-minute songs analysed:** no frame over 50 ms, against 4 before (up to 83 ms). The user's
+  real stalls were 140–560 ms every few seconds.

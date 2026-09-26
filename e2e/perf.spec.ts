@@ -6,6 +6,7 @@
    test-results/perf.json and are printed. */
 import { test as base, expect, chromium, type Locator, type Page } from '@playwright/test';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -313,4 +314,42 @@ test('a real GLUE folder, step by step', async ({ page }) => {
   note(g, 'steps', steps);
   const st = await perf<Record<string, Stat>>(page, 'stats');
   note(g, 'stats', Object.fromEntries(Object.entries(st).filter(([k]) => !k.startsWith('input:')).map(([k, v]) => [k, { n: v.n, avg: Math.round(v.total / v.n), max: Math.round(v.max) }])));
+});
+
+/* Background analysis of real audio (ADR 0060): six 3-minute songs (MP3, FLAC, AAC) analysed while
+   the page is watched. Decoding in the worker must leave the page's frames alone. Needs ffmpeg. */
+test('background analysis of real songs: the page stays smooth', async ({ page }) => {
+  test.setTimeout(600_000);
+  const ff = process.env.FFMPEG || 'ffmpeg';
+  try { execFileSync(ff, ['-version'], { stdio: 'ignore' }); } catch { test.skip(true, 'needs ffmpeg'); }
+  const dir = mkdtempSync(join(tmpdir(), 'glue-perf-songs-'));
+  const songs: { n: string; b: string }[] = [];
+  for (const [i, [ext, args]] of ([['mp3', ['-b:a', '320k']], ['flac', []], ['m4a', ['-c:a', 'aac', '-b:a', '256k']], ['mp3', ['-b:a', '192k']], ['flac', []], ['m4a', ['-c:a', 'aac', '-b:a', '192k']]] as [string, string[]][]).entries()) {
+    const p = join(dir, `song ${i + 1}.${ext}`);
+    execFileSync(ff, ['-loglevel', 'error', '-y', '-f', 'lavfi', '-i', `anoisesrc=d=180:c=pink:a=0.2:seed=${i + 1}`, '-f', 'lavfi', '-i', `sine=f=${200 + i * 40}:d=180`, '-filter_complex', 'amix=inputs=2,aformat=channel_layouts=stereo', '-ar', '44100', ...args, p]);
+    songs.push({ n: `song ${i + 1}.${ext}`, b: readFileSync(p).toString('base64') });
+  }
+  await page.goto('./?perf#/analyze');
+  await page.evaluate(async songs => {
+    const root = await navigator.storage.getDirectory();
+    for (const name of ['MCO', 'Music', 'cache']) await root.removeEntry(name, { recursive: true }).catch(() => {});
+    await new Promise(r => { const q = indexedDB.deleteDatabase('mco'); q.onsuccess = q.onerror = r; });
+    const d = await (await root.getDirectoryHandle('Music', { create: true })).getDirectoryHandle('Sets', { create: true });
+    for (const s of songs) { const w = await (await d.getFileHandle(s.n, { create: true })).createWritable(); await w.write(Uint8Array.from(atob(s.b), c => c.charCodeAt(0))); await w.close(); }
+  }, songs);
+  await page.goto('./?perf#/');
+  await page.reload();
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'Perf');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await perf(page, 'reset');
+  await page.click('#add-folder');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 300_000 });
+  const s = await perf<Summary>(page, 'summary'), st = await perf<Record<string, Stat>>(page, 'stats');
+  const g = 'background analysis';
+  check(g, 'over50', s.over50, 0);
+  note(g, 'gapMax', Math.round(s.gapMax));
+  note(g, 'longFrames', s.longFrames);
+  note(g, 'spans', Object.fromEntries(Object.entries(st).filter(([k]) => k.startsWith('analysis.')).map(([k, v]) => [k, { n: v.n, avg: Math.round(v.total / v.n), max: Math.round(v.max) }])));
 });

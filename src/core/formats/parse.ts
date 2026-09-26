@@ -17,6 +17,34 @@ export function blankInfo(): FileInfo {
   return { container: 'Unknown', codec: 'Unknown', lossless: null, sampleRate: 0, bits: 0, channels: 0, duration: 0, bitrate: 0, bitrateMode: '', encoder: '', vendor: '', tags: {}, notes: [] };
 }
 
+/** An MP3's gapless trim (ADR 0060), as the browser's own decoder (FFmpeg) applies it: with a LAME,
+    Lavc or Lavf tag, skip `delay` + 529 samples at the start and stop at frames × spf − padding + 529.
+    Null without such a tag (nothing is trimmed then). Kept out of parseContainer, whose output is
+    compared with the legacy page's. */
+export function mp3Gapless(u8: Uint8Array): { start: number; until: number | null } | null {
+  const off = readStr(u8, 0, 3) === 'ID3' ? 10 + syncsafe(u8, 6) + ((u8[5] & 0x10) ? 10 : 0) : 0;
+  const lim = Math.min(u8.length - 4, off + (1 << 20));
+  let p = off, h: Mp3Header | null = null;
+  for (; p < lim; p++) {
+    h = mp3Header(u8, p);
+    if (h) { const n = mp3Header(u8, p + h.len); if (n && n.sr === h.sr && n.layer === h.layer) break; }
+    h = null;
+  }
+  if (!h) return null;
+  const side = h.v1 ? (h.ch === 1 ? 17 : 32) : (h.ch === 1 ? 9 : 17);
+  const x = p + 4 + side, tag = readStr(u8, x, 4);
+  if ((tag !== 'Xing' && tag !== 'Info') || x + 8 > u8.length) return null;
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), fl = dv.getUint32(x + 4);
+  let q = x + 8, frames = 0;
+  if (fl & 1) { frames = dv.getUint32(q); q += 4; }
+  if (fl & 2) q += 4;
+  if (fl & 4) q += 100;
+  if (fl & 8) q += 4;
+  if (q + 24 > u8.length || !/^(LAME|Lavc|Lavf)$/.test(readStr(u8, q, 4))) return null;
+  const delay = (u8[q + 21] << 4) | (u8[q + 22] >> 4), padding = ((u8[q + 22] & 15) << 8) | u8[q + 23];
+  return { start: delay + 529, until: frames ? frames * h.spf - padding + 529 : null };
+}
+
 export function parseContainer(u8: Uint8Array): FileInfo {
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
   const info = blankInfo();

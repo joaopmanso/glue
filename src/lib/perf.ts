@@ -70,6 +70,8 @@ class Perf {
       afterPaint: () => { const t0 = performance.now(); return new Promise<number>(r => requestAnimationFrame(() => setTimeout(() => r(performance.now() - t0), 0))); },
       /** A burst of changes like background analysis makes: n analyses re-stored, perSecond of them each second. */
       storm: (n: number, perSecond: number) => import('./perfStorm').then(m => m.storm(n, perSecond)),
+      /** A file decoded by the worker and by the page, compared (ADR 0060). */
+      decodeCheck: (url: string) => import('./decodeCheck').then(m => m.decodeCheck(url)),
     };
   }
 

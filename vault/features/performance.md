@@ -35,14 +35,16 @@ the address shows the numbers on screen, so anyone can check their own collectio
      ([ADR 0059](../adr/0059-indexes-rebuilt-by-change-counters.md)), which fixed the Auto dialog
      (2.2 s → 0.1 s) and Duplicates (0.8 s → under 0.1 s) on the user's library.
   2. GPU drawing.
-  3. Analysis off the main thread.
+  3. Analysis off the main thread. Decoding **shipped 2026-09-26**
+     ([ADR 0060](../adr/0060-decode-in-the-worker.md)), ahead of the rest of phase 1: on the user's
+     desktop it was the stall they felt. Still to do: GLUE Home decoding with Symphonia.
   4. The phone web app ([phone app](phone-app.md)).
 
 ## Acceptance
 - [x] Budgets written down and measured at 10k and 50k tracks ([ADR 0058](../adr/0058-performance-budgets.md)).
 - [ ] 50k tracks: open ≤ 2 s; a switch or sort ≤ 100 ms; search P95 ≤ 50 ms; no frame over 50 ms while scrolling or analysing (phase 1).
 - [ ] Playback: drawing ≤ 2 ms per frame, P95, on the track page and the Prepare tab, 3D included (phase 2).
-- [ ] Background analysis without main-thread decoding (phase 3).
+- [x] Background analysis without main-thread decoding (phase 3, [ADR 0060](../adr/0060-decode-in-the-worker.md)).
 
 ## Tests
 - `tests/synthetic.test.ts`: the synthetic GLUE folder loads through the real store and is the same
@@ -50,7 +52,9 @@ the address shows the numbers on screen, so anyone can check their own collectio
 - `e2e/perf.spec.ts`: `PERF=1`; `PERF_SIZES`, and `PERF_BUDGET=1` to enforce.
   `PERF_FOLDER=<GLUE folder>` opens a copy of a real library's JSON files (only read) and clicks
   through every view, list, tag, sort and search, the track page and the Auto dialog, listing the
-  slowest steps. Results go to
+  slowest steps. The "background analysis" test analyses six 3-minute songs (with ffmpeg) and counts
+  long frames.
+- `e2e/decode.spec.ts`: the worker's decode against the page's, sample for sample, for every format. Results go to
   `test-results/perf.json`, baselines to [research/performance.md](../research/performance.md).
 
 ## Limits & open questions

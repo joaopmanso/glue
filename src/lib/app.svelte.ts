@@ -6,7 +6,8 @@ import { classify } from '../core/audio/verdict';
 import { pcmToWav } from '../core/formats/wav';
 import { fmtRate } from '../core/format';
 import type { KeyNotation } from '../core/audio/keys';
-import { analyze, decodeAudio } from './analysis';
+import { NeedsPageDecode, analyze, decodeAudio } from './analysis';
+import type { WorkerJob } from '../workers/analysis.worker';
 import { buildLut, type PaletteName } from '../ui/render/palettes';
 import { readPref, writePref } from './prefs';
 
@@ -89,21 +90,32 @@ export async function analyzeFile(file: File, playKey: string | null = null) {
     if (info.unsupported) throw new Error(info.unsupported);
     // AIFF won't play in Chrome/Firefox: rewrap the same PCM as WAV, before the buffer goes to the worker.
     const playBlob = info.pcm && /^AIFF/.test(info.container) ? pcmToWav(u8, info.pcm, info.sampleRate) : file;
-    let job: AnalysisJob;
+    // The worker decodes (ADR 0060); a format it can't is decoded here, the old way.
+    const pageDecode = async (): Promise<AnalysisJob> => {
+      const rate = info!.decodeRate || info!.sampleRate || 48000;
+      if (!info!.sampleRate) info!.notes.push('Sample rate not found in the header; decoded at 48 kHz.');
+      const ab = await decodeAudio(buf, rate);
+      if (ab.sampleRate !== rate) info!.notes.push('The browser resampled this file to ' + fmtRate(ab.sampleRate) + ' while decoding.');
+      const chs: Float32Array[] = [];
+      for (let c = 0; c < ab.numberOfChannels; c++) chs.push(new Float32Array(ab.getChannelData(c)));
+      if (!info!.channels) info!.channels = ab.numberOfChannels;
+      return { type: 'float', channels: chs, sr: ab.sampleRate, bits: info!.lossless ? info!.bits : 0 };
+    };
+    let job: WorkerJob;
     if (info.pcm) job = { type: 'pcm', buffer: buf, pcm: info.pcm, sr: info.sampleRate };
     else {
       app.busy = { text: 'Decoding audio…', p: null };
-      const rate = info.decodeRate || info.sampleRate || 48000;
-      if (!info.sampleRate) info.notes.push('Sample rate not found in the header; decoded at 48 kHz.');
-      const ab = await decodeAudio(buf, rate);
-      if (ab.sampleRate !== rate) info.notes.push('The browser resampled this file to ' + fmtRate(ab.sampleRate) + ' while decoding.');
-      const chs: Float32Array[] = [];
-      for (let c = 0; c < ab.numberOfChannels; c++) chs.push(new Float32Array(ab.getChannelData(c)));
-      job = { type: 'float', channels: chs, sr: ab.sampleRate, bits: info.lossless ? info.bits : 0 };
-      if (!info.channels) info.channels = ab.numberOfChannels;
+      job = { type: 'file', file, info: { ...info, pcm: undefined } };
     }
     if (token !== current) return;
-    const res = await analyze(job, progress(token));
+    let res: AnalysisResult;
+    try { res = await analyze(job, progress(token)); }
+    catch (e) {
+      if (!(e instanceof NeedsPageDecode)) throw e;
+      job = await pageDecode();
+      if (token !== current) return;
+      res = await analyze(job, progress(token));
+    }
     if (token !== current) return;   // a newer file was opened meanwhile
     if (!info.sampleRate) info.sampleRate = res.sr;
     if (!info.duration) info.duration = res.duration;
