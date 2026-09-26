@@ -77,3 +77,9 @@ Reported by the user: an Engine import left most playlists empty, and said to im
     the drive, or + Import.
   - An Engine import made before this change used plain track ids, so it isn't carried into the set:
     import that library again.
+
+## A copy outside the music folders (2026-09-26)
+A record whose own file isn't in a music folder, but has the same file name and size as a track that
+has its file, is that track ([ADR 0053](../adr/0053-imported-copy-is-the-same-song.md)). On the
+user's library, the Engine record in `preparation` that their playlists use now plays the copy in
+`Music Collection`. An "Update" folds the tracks an earlier import left unlinked into it.

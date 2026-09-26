@@ -5,6 +5,17 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · Imported songs that are really a track you have ([ADR 0053](../adr/0053-imported-copy-is-the-same-song.md))
+- Reported by the user: after importing Engine DJ and Traktor, songs showed under "No file linked"
+  although the same song was in the library.
+- **The cause** (on the user's Engine library): two records of the song. The playlists use the copy in
+  `preparation`, which isn't a music folder; only the copy in `Music Collection` got linked.
+- **Now:** a record with no file of its own, whose file name and size equal exactly one track that has
+  its file, is that track (Traktor's kB sizes get 1 kB of slack). Re-importing ("Update") folds the
+  tracks left unlinked before into it, keeping the user's rating, notes, tags and Prepare settings,
+  and their playlist places.
+- Tests: 130 unit (2 new in `tests/merge.test.ts`), 38 e2e.
+
 ## 2026-09-26 · Engine DJ: the computer's and the drives' libraries as one set
 - Reported by the user: an Engine DJ import left most playlists empty and said to import another
   library.

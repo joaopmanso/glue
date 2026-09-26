@@ -73,3 +73,37 @@ describe('bringing libraries and folders into a collection (ADR 0020)', () => {
     expect(again.meta.roots).toHaveLength(1);
   });
 });
+
+describe('the same song in a folder GLUE doesn’t read (a second copy)', () => {
+  /** Engine-like: record 1 in "Music Collection" (a music folder here), record 2 a copy in
+      "preparation" (not a music folder) with the same name and size; the playlist uses the copy. */
+  function withCopy(): ImportedLibrary {
+    const inFolder = Object.assign(blankTrack('1', '../Music Collection/01-song.mp3'), { title: 'Song', size: 12057962 });
+    const copy = Object.assign(blankTrack('2', '../preparation/SOULSEEK/Album/01-song.mp3'), { title: 'Song', size: 12057962 });
+    return { app: 'engine', name: 'Engine DJ', tracks: [inFolder, copy], lists: [{ externalId: 'p', kind: 'playlist', name: 'DNB', parent: null, items: ['2'] }] };
+  }
+  it('is the track that has its file: one row, and the playlist plays it', async () => {
+    const { s } = await fresh();
+    applyScan(s, 'r1', [{ relPath: '01-song.mp3', size: 12057962, mtime: 5, fileName: '01-song.mp3' }]);
+    applyImport(s, withCopy(), 'm.db');
+    expect([...s.tracks.values()].map(t => t.status)).toEqual(['linked']);
+    const dnb = [...s.lists.values()].find(l => l.name === 'DNB')!, t = s.tracks.get(dnb.items[0])!;
+    expect(t.relPath).toBe('01-song.mp3');
+  });
+  it('a re-import folds a copy an earlier import left unlinked into it, keeping what the user set', async () => {
+    const { s } = await fresh();
+    applyScan(s, 'r1', [{ relPath: '01-song.mp3', size: 12057962, mtime: 5, fileName: '01-song.mp3' }]);
+    // As an earlier import left it: the copy as its own unlinked track, in a playlist of the user's.
+    const before = withCopy();
+    before.tracks[1].size = null;          // (it didn't know the size, so it stayed apart)
+    applyImport(s, before, 'm.db');
+    const stray = [...s.tracks.values()].find(t => t.status === 'unlinked')!;
+    s.putTrack({ ...stray, notes: 'big tune' });
+    s.putList({ schemaVersion: 1, id: 'mine', kind: 'playlist', name: 'Mine', parentId: null, position: 0, notes: '', items: [stray.id], origin: null, createdAt: '' });
+    applyImport(s, withCopy(), 'm.db');   // "Update"
+    const tracks = [...s.tracks.values()];
+    expect(tracks.length).toBe(1);
+    expect(tracks[0].notes).toBe('big tune');
+    expect(s.lists.get('mine')!.items).toEqual([tracks[0].id]);
+  });
+});

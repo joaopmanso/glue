@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-24
+updated: 2026-09-26
 adrs: [0010]
 ---
 # Import: Traktor
@@ -36,3 +36,9 @@ Reads Traktor's `collection.nml` (tracks, playlists, cues, key, BPM, ratings) as
 ## Detected automatically (2026-09-24)
 - Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
 - Cue points: CUE_V2 (beat-grid markers skipped) → position, hot cue, name, loops (LEN); rating likewise.
+
+## A copy outside the music folders (2026-09-26)
+A record whose own file isn't in a music folder, but has the same file name and size as a track that
+has its file, is that track ([ADR 0053](../adr/0053-imported-copy-is-the-same-song.md)). On the
+user's library, the Engine record in `preparation` that their playlists use now plays the copy in
+`Music Collection`. An "Update" folds the tracks an earlier import left unlinked into it.

@@ -30,6 +30,34 @@ function linkedFiles(store: CollectionStore) {
   return { files, byFile };
 }
 
+/** Fold tracks into others (the same song): their playlist places, other imports' links, and what the
+    user set on them (rating, notes, tags, Prepare) where the other has none; then they go. */
+export function absorbTracks(store: CollectionStore, into: Map<string, Track>) {
+  if (!into.size) return;
+  for (const l of [...store.lists.values()]) {
+    if (!l.items.some(id => into.has(id))) continue;
+    const items: string[] = [], seen = new Set<string>();
+    for (const id of l.items) { const to = into.get(id)?.id ?? id; if (!seen.has(to)) { seen.add(to); items.push(to); } }
+    store.putList({ ...l, items });
+  }
+  for (const src of [...store.sources.values()]) {
+    if (!src.tracks.some(st => into.has(st.trackId))) continue;
+    store.putSource({ ...src, tracks: src.tracks.map(st => into.has(st.trackId) ? { ...st, trackId: into.get(st.trackId)!.id } : st) });
+  }
+  for (const [fromId, to] of into) {
+    const from = store.tracks.get(fromId), cur = store.tracks.get(to.id);
+    if (!from || !cur) continue;
+    const t: Track = { ...cur, sources: [...new Set([...cur.sources, ...from.sources])] };
+    if (t.rating == null && from.rating != null) t.rating = from.rating;
+    if (!t.notes && from.notes) t.notes = from.notes;
+    if (!t.tags && from.tags) t.tags = from.tags;
+    if (!t.prep && from.prep) t.prep = from.prep;
+    if (!t.importPath && from.importPath) t.importPath = from.importPath;
+    store.putTrack(t);
+    store.removeTrack(fromId);
+  }
+}
+
 function inferRoots(store: CollectionStore, rootPaths: Map<string, string>) {
   let changed = false;
   for (const r of store.meta.roots) { const p = rootPaths.get(r.id); if (p && !r.absPath) { r.absPath = p; changed = true; } }
@@ -78,6 +106,35 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
     ext2track.set(it.externalId, t);
   }
   inferRoots(store, rootPaths);
+
+  // The same song elsewhere: a record whose own file isn't in a music folder (a copy in a folder GLUE
+  // doesn't read, e.g. Engine's "preparation" next to "Music Collection"), with the same file name and
+  // size as a track that has its file, is that track. Its playlists then play the copy GLUE has.
+  // (Traktor gives sizes in kB: 1 kB of slack.) A track made unlinked by an earlier import joins it.
+  const withFile = new Map<string, Track[]>();
+  for (const t of store.tracks.values()) if (!t.remote && t.status === 'linked' && t.size && ((t.rootId && t.relPath) || t.fileKey)) {
+    const k = t.fileName.toLowerCase();
+    (withFile.get(k) ?? withFile.set(k, []).get(k)!).push(t);
+  }
+  const absorbed = new Map<string, Track>();   // unlinked track → the track with the file
+  const freshIds = new Set(fresh.map(t => t.id));
+  for (const it of lib.tracks) {
+    const t = ext2track.get(it.externalId)!;
+    if (t.status === 'linked' && ((t.rootId && t.relPath) || t.fileKey)) continue;
+    const size = it.size ?? t.size;
+    if (!size) continue;
+    const same = (withFile.get(baseName(it.path).toLowerCase()) ?? []).filter(x => x.id !== t.id && Math.abs((x.size ?? 0) - size) <= 1024);
+    if (same.length !== 1) continue;
+    ext2track.set(it.externalId, same[0]);
+    if (!freshIds.has(t.id)) absorbed.set(t.id, same[0]);
+  }
+  const used = new Set(ext2track.values());
+  for (let i = fresh.length - 1; i >= 0; i--) if (!used.has(fresh[i])) fresh.splice(i, 1);
+  if (absorbed.size) {
+    absorbTracks(store, absorbed);
+    // Carry on from what was just saved (and never from a track that's gone).
+    for (const [k, t] of ext2track) { const id = (absorbed.get(t.id) ?? t).id; ext2track.set(k, store.tracks.get(id) ?? absorbed.get(t.id) ?? t); }
+  }
 
   const touched = new Map<string, Track>();
   const sourceTracks: SourceTrack[] = [];
