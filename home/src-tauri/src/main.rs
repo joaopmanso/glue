@@ -14,6 +14,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent, Wry};
 use tauri_plugin_opener::OpenerExt;
 
+mod disk;
 mod local;
 
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
@@ -51,6 +52,10 @@ pub(crate) fn get_config_impl(app: AppHandle) -> Option<serde_json::Value> {
 /// Save the settings (readable by this user only) and tell both windows.
 #[tauri::command]
 fn set_config(app: AppHandle, config: serde_json::Value) -> Result<(), String> {
+    set_config_impl(app, config)
+}
+
+pub(crate) fn set_config_impl(app: AppHandle, config: serde_json::Value) -> Result<(), String> {
     let p = config_path(&app)?;
     if let Some(dir) = p.parent() {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;

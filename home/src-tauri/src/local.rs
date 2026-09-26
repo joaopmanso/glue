@@ -24,7 +24,7 @@ pub fn start(app: AppHandle) {
     });
 }
 
-fn header(k: &str, v: &str) -> Header {
+pub(crate) fn header(k: &str, v: &str) -> Header {
     Header::from_bytes(k.as_bytes(), v.as_bytes()).unwrap()
 }
 
@@ -58,7 +58,7 @@ fn decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-fn type_of(name: &str) -> &'static str {
+pub(crate) fn type_of(name: &str) -> &'static str {
     match name.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
         "mp3" => "audio/mpeg",
         "flac" => "audio/flac",
@@ -75,21 +75,15 @@ fn type_of(name: &str) -> &'static str {
 fn handle(app: AppHandle, req: Request) {
     let origin = req.headers().iter().find(|h| h.field.equiv("Origin")).map(|h| h.value.as_str().to_string());
     let mut cors = vec![header("Vary", "Origin"), header("Access-Control-Allow-Private-Network", "true"), header("Access-Control-Allow-Headers", "x-glue-token, range, content-type"),
-        header("Access-Control-Allow-Methods", "GET, POST, OPTIONS"), header("Access-Control-Expose-Headers", "content-range, content-length, accept-ranges, x-glue-name")];
+        header("Access-Control-Allow-Methods", "GET, POST, OPTIONS"), header("Access-Control-Expose-Headers", "content-range, content-length, accept-ranges, x-glue-name, x-glue-mtime")];
     if let Some(o) = origin.as_deref() {
         if ORIGINS.contains(&o) {
             cors.push(header("Access-Control-Allow-Origin", o));
         }
     }
-    let reply = |req: Request, code: u16, body: Vec<u8>, ctype: &str, extra: Vec<Header>| {
-        let mut r = Response::from_data(body).with_status_code(StatusCode(code)).with_header(header("Content-Type", ctype));
-        for h in cors.iter().cloned().chain(extra) {
-            r.add_header(h);
-        }
-        let _ = req.respond(r);
-    };
+    let reply = |req: Request, code: u16, body: Vec<u8>, ctype: &str| respond(req, code, body, ctype, &cors);
     if req.method() == &Method::Options {
-        return reply(req, 204, vec![], "text/plain", vec![]);
+        return reply(req, 204, vec![], "text/plain");
     }
     let url = req.url().to_string();
     let path = url.split('?').next().unwrap_or("").to_string();
@@ -99,15 +93,17 @@ fn handle(app: AppHandle, req: Request) {
     let s = |key: &str| cfg.as_ref().and_then(|c| c.get(key)).and_then(|v| v.as_str()).unwrap_or("").to_string();
     if path == "/hello" {
         let body = serde_json::json!({ "app": "glue-home", "version": app.package_info().version.to_string(), "device": s("deviceId") });
-        return reply(req, 200, body.to_string().into_bytes(), "application/json", vec![]);
+        return reply(req, 200, body.to_string().into_bytes(), "application/json");
     }
     // Everything else: the token GLUE Home gave the website (a header, or ?t= for <audio src>).
     let token = req.headers().iter().find(|h| h.field.equiv("x-glue-token")).map(|h| h.value.as_str().to_string()).unwrap_or_else(|| arg("t"));
     let want = s("localToken");
     if want.is_empty() || token != want {
-        return reply(req, 401, b"{\"error\":\"not allowed\"}".to_vec(), "application/json", vec![]);
+        return reply(req, 401, b"{\"error\":\"not allowed\"}".to_vec(), "application/json");
     }
     match path.as_str() {
+        // The website's files, through GLUE Home (ADR 0051).
+        p if p.starts_with("/fs/") => crate::disk::handle(app.clone(), req, p, &arg, cors),
         "/incoming" => {
             let list: Vec<serde_json::Value> = crate::incoming_list_impl(app.clone()).into_iter().map(|mut f| {
                 // With the analysis GLUE Home made when the song arrived, if it's done.
@@ -121,7 +117,7 @@ fn handle(app: AppHandle, req: Request) {
                 }
                 f
             }).collect();
-            reply(req, 200, serde_json::to_vec(&list).unwrap_or_default(), "application/json", vec![])
+            reply(req, 200, serde_json::to_vec(&list).unwrap_or_default(), "application/json")
         }
         "/incoming/file" => {
             let name = crate::safe_name(&arg("name"));
@@ -129,8 +125,8 @@ fn handle(app: AppHandle, req: Request) {
             send_file(req, &p, type_of(&name), cors)
         }
         "/cache" => match crate::cache_path(&app, &arg("key")).ok().and_then(|p| std::fs::read(p).ok()) {
-            Some(b) => reply(req, 200, b, "application/octet-stream", vec![]),
-            None => reply(req, 404, b"{\"error\":\"not there\"}".to_vec(), "application/json", vec![]),
+            Some(b) => reply(req, 200, b, "application/octet-stream"),
+            None => reply(req, 404, b"{\"error\":\"not there\"}".to_vec(), "application/json"),
         },
         // The music folders GLUE Home found (songs can be moved there): id, the folder's name, where it is.
         "/folders" => {
@@ -139,22 +135,31 @@ fn handle(app: AppHandle, req: Request) {
                 let name = std::path::Path::new(p).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| p.to_string());
                 Some(serde_json::json!({ "id": id, "name": name, "collection": p }))
             }).collect()).unwrap_or_default();
-            reply(req, 200, serde_json::to_vec(&list).unwrap_or_default(), "application/json", vec![])
+            reply(req, 200, serde_json::to_vec(&list).unwrap_or_default(), "application/json")
         }
         "/incoming/move" if req.method() == &Method::Post => {
             let to = cfg.as_ref().and_then(|c| c.get("folders")).and_then(|f| f.get(arg("folder"))).and_then(|v| v.as_str()).map(|v| v.to_string());
             match to.map(|to| crate::incoming_move_impl(app.clone(), arg("name"), to)) {
-                Some(Ok(p)) => reply(req, 200, serde_json::json!({ "path": p }).to_string().into_bytes(), "application/json", vec![]),
-                Some(Err(e)) => reply(req, 400, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json", vec![]),
-                None => reply(req, 400, b"{\"error\":\"GLUE Home doesn't know that music folder\"}".to_vec(), "application/json", vec![]),
+                Some(Ok(p)) => reply(req, 200, serde_json::json!({ "path": p }).to_string().into_bytes(), "application/json"),
+                Some(Err(e)) => reply(req, 400, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json"),
+                None => reply(req, 400, b"{\"error\":\"GLUE Home doesn't know that music folder\"}".to_vec(), "application/json"),
             }
         }
-        _ => reply(req, 404, b"{\"error\":\"not found\"}".to_vec(), "application/json", vec![]),
+        _ => reply(req, 404, b"{\"error\":\"not found\"}".to_vec(), "application/json"),
     }
 }
 
+/// An answer with the CORS headers.
+pub(crate) fn respond(req: Request, code: u16, body: Vec<u8>, ctype: &str, cors: &[Header]) {
+    let mut r = Response::from_data(body).with_status_code(StatusCode(code)).with_header(header("Content-Type", ctype));
+    for h in cors.iter().cloned() {
+        r.add_header(h);
+    }
+    let _ = req.respond(r);
+}
+
 /// A file, whole or the byte range asked for (so the browser's <audio> plays and seeks at once).
-fn send_file(req: Request, path: &std::path::Path, ctype: &str, cors: Vec<Header>) {
+pub(crate) fn send_file(req: Request, path: &std::path::Path, ctype: &str, cors: Vec<Header>) {
     let Ok(mut f) = File::open(path) else {
         let mut r = Response::from_data(b"{\"error\":\"not there\"}".to_vec()).with_status_code(StatusCode(404));
         for h in cors {

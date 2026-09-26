@@ -2,6 +2,15 @@
 
 export type Dir = FileSystemDirectoryHandle;
 
+/** A folder that does whole paths in one step (GLUE Home's disk, ADR 0051). */
+interface Direct {
+  readAt(path: string): Promise<string | null>;
+  writeAt(path: string, data: string | Blob): Promise<void>;
+  removeAt(path: string): Promise<void>;
+  listAt(path: string, kind: 'file' | 'directory'): Promise<string[]>;
+}
+const direct = (d: Dir): Direct | null => typeof (d as unknown as Partial<Direct>).readAt === 'function' ? d as unknown as Direct : null;
+
 export async function subdir(root: Dir, parts: string[], create: boolean): Promise<Dir | null> {
   let d = root;
   for (const p of parts) {
@@ -13,6 +22,8 @@ export async function subdir(root: Dir, parts: string[], create: boolean): Promi
 const split = (path: string) => { const parts = path.split('/').filter(Boolean); return { dirs: parts.slice(0, -1), name: parts[parts.length - 1] }; };
 
 export async function readText(root: Dir, path: string): Promise<string | null> {
+  const fast = direct(root);
+  if (fast) return fast.readAt(path);
   const { dirs, name } = split(path);
   const d = await subdir(root, dirs, false);
   if (!d) return null;
@@ -34,6 +45,8 @@ export async function readJSON<T>(root: Dir, path: string): Promise<T | null> {
 
 /** Write through a writable stream: the browser writes a swap file and replaces the target on close. */
 export async function writeText(root: Dir, path: string, text: string): Promise<void> {
+  const fast = direct(root);
+  if (fast) return fast.writeAt(path, text);
   const { dirs, name } = split(path);
   const d = (await subdir(root, dirs, true))!;
   const fh = await d.getFileHandle(name, { create: true });
@@ -47,6 +60,8 @@ export function writeJSON(root: Dir, path: string, data: unknown) {
   return writeText(root, path, text);
 }
 export async function writeBlob(root: Dir, path: string, blob: Blob): Promise<void> {
+  const fast = direct(root);
+  if (fast) return fast.writeAt(path, blob);
   const { dirs, name } = split(path);
   const d = (await subdir(root, dirs, true))!;
   const w = await (await d.getFileHandle(name, { create: true })).createWritable();
@@ -55,6 +70,8 @@ export async function writeBlob(root: Dir, path: string, blob: Blob): Promise<vo
 }
 
 export async function removePath(root: Dir, path: string): Promise<void> {
+  const fast = direct(root);
+  if (fast) return fast.removeAt(path);
   const { dirs, name } = split(path);
   const d = await subdir(root, dirs, false);
   if (!d) return;
@@ -62,6 +79,8 @@ export async function removePath(root: Dir, path: string): Promise<void> {
 }
 
 export async function listNames(root: Dir, path: string, kind: 'file' | 'directory'): Promise<string[]> {
+  const fast = direct(root);
+  if (fast) return fast.listAt(path, kind);
   const d = await subdir(root, path.split('/').filter(Boolean), false);
   if (!d) return [];
   const out: string[] = [];

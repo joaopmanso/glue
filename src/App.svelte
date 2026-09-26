@@ -3,6 +3,7 @@
   import { app, analyzeFile } from './lib/app.svelte';
   import { player } from './lib/player.svelte';
   import { lib } from './lib/library.svelte';
+  import { localHome } from './lib/localHome.svelte';
   import { router } from './lib/route.svelte';
   import { importFiles } from './lib/importActions';
   import { AUDIO_EXT } from './core/library/tags';
@@ -31,7 +32,7 @@
   import { tabs } from './lib/tabs.svelte';
 
   // Opened from GLUE Home's tray icon while a GLUE tab is open: that one comes forward instead.
-  onMount(() => { incoming.start(); void account.init(); void tabs.fromHome().then(other => { if (!other) void lib.boot(); }); });
+  onMount(() => { incoming.start(); void account.init(); void tabs.fromHome().then(async other => { if (!other) { await localHome.find(); void lib.boot(); } }); });
   // The admin panel is for admins only: anyone else is sent back to the library (the API checks too).
   $effect(() => { if (route.name === 'admin' && account.ready && account.phase !== 'working' && !account.isAdmin) router.go('#/'); });
 

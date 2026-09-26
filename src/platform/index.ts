@@ -1,7 +1,35 @@
 /* Everything GLUE asks of the operating system goes through here (ADR 0007), so a desktop client can
    replace it later. Two web flavours: Chromium's File System Access pickers (full), and the
-   origin-private file system for Safari/Firefox (reduced: no music folders, files come by drop). */
+   origin-private file system for Safari/Firefox (reduced: no music folders, files come by drop).
+   Home mode (ADR 0051): where GLUE Home runs and knows the GLUE folder, the GLUE folder and the music
+   folders are GLUE Home's disk instead, chosen with GLUE Home's own folder dialog. */
 import { idbDel, idbGet, idbSet } from './idb';
+import { HomeDir, HomeDisk, type HomeRoots } from './homeDisk';
+import type { Root } from '../store/types';
+
+// ─── Home mode ───────────────────────────────────────────────────────────────
+let disk: HomeDisk | null = null, roots: HomeRoots | null = null, active = false;
+/** This computer's GLUE Home answers on the local link (or stopped answering: null). */
+export function setHomeLink(link: { port: number; token: string } | null) {
+  disk = link ? new HomeDisk('http://127.0.0.1:' + link.port, link.token) : null;
+  roots = null;
+  if (!disk) active = false;
+}
+/** The GLUE folder and music folders are GLUE Home's (decided when the GLUE folder opens). */
+export const homeMode = () => active && !!disk;
+async function homeRoots(fresh = false): Promise<HomeRoots | null> {
+  if (!disk) return null;
+  try { if (fresh || !roots) roots = await disk.roots(); return roots; } catch { return null; }
+}
+/** GLUE Home's incoming folder, in Home mode (ADR 0051). */
+export async function incomingFolder(): Promise<{ dir: Dir; path: string } | null> {
+  const r = homeMode() ? await homeRoots() : null;
+  return r && disk ? { dir: disk.dir(r.incoming), path: r.incoming } : null;
+}
+const sameText = async (a: Dir, b: Dir) => {
+  const read = async (d: Dir) => { try { return await (await (await d.getFileHandle('mco.json')).getFile()).text(); } catch { return null; } };
+  return (await read(a)) === (await read(b));
+};
 
 type Dir = FileSystemDirectoryHandle;
 type PermHandle = FileSystemHandle & {
@@ -11,7 +39,7 @@ type PermHandle = FileSystemHandle & {
 type Picker = (o: { id?: string; mode?: 'read' | 'readwrite'; startIn?: string | FileSystemHandle }) => Promise<Dir>;
 
 const picker = (): Picker | null => (window as unknown as { showDirectoryPicker?: Picker }).showDirectoryPicker ?? null;
-export const canPickFolders = () => !!picker() && window.isSecureContext;
+export const canPickFolders = () => homeMode() || (!!picker() && window.isSecureContext);
 
 const HOME_KEY = 'home';
 
@@ -21,6 +49,15 @@ export type HomeState = { dir: Dir; kind: 'folder' | 'private'; granted: boolean
 export async function restoreHome(): Promise<HomeState> {
   let saved: { dir: Dir; kind: 'folder' | 'private' } | undefined;
   try { saved = await idbGet(HOME_KEY); } catch { saved = undefined; }
+  // GLUE Home's GLUE folder, unless this browser keeps its data elsewhere (another folder, or the
+  // browser's own storage): then it stays in browser mode rather than show another library.
+  const r = await homeRoots(true);
+  if (r?.glue && disk) {
+    const dir = disk.dir(r.glue);
+    const mine = saved?.kind === 'folder' && await permission(saved.dir, 'readwrite', false) ? saved.dir : null;
+    if (!saved || (mine && await sameText(mine, dir))) { active = true; return { dir, kind: 'folder', granted: true }; }
+  }
+  active = false;
   if (!saved) return null;
   if (saved.kind === 'private') return { ...saved, dir: await navigator.storage.getDirectory(), granted: true };
   return { ...saved, granted: await permission(saved.dir, 'readwrite', false) };
@@ -28,12 +65,18 @@ export async function restoreHome(): Promise<HomeState> {
 
 /** Ask the user for the folder GLUE keeps its data in (they create "GLUE" inside Documents). */
 export async function pickHome(): Promise<Dir> {
+  if (disk) {
+    const r = await disk.pick('glue', 'Choose the folder GLUE keeps its data in');
+    if (!r.path) throw Object.assign(new Error('No folder chosen'), { name: 'AbortError' });
+    roots = null; active = true;
+    return disk.dir(r.path);
+  }
   const p = picker();
   if (!p) throw new Error('This browser can’t open folders.');
   return p({ id: 'mco-home', mode: 'readwrite', startIn: 'documents' });
 }
 /** Use this folder for GLUE's data from now on. */
-export const rememberHome = (dir: Dir) => idbSet(HOME_KEY, { dir, kind: 'folder' });
+export const rememberHome = async (dir: Dir) => { if (!(dir instanceof HomeDir)) await idbSet(HOME_KEY, { dir, kind: 'folder' }); };
 
 export interface FolderLook { hasMco: boolean; audio: number; folders: number; files: number }
 const AUDIO = /\.(flac|wav|aiff?|aifc|m4a|mp3|aac|ogg|opus|alac|wv)$/i;
@@ -85,8 +128,15 @@ export async function permission(h: FileSystemHandle, mode: 'read' | 'readwrite'
   } catch { return false; }
 }
 
-/** Ask for a music folder; its handle is stored under a key the collection remembers. */
-export async function pickMusicFolder(): Promise<{ dir: Dir; key: string }> {
+/** Ask for a music folder (`id`: the collection's id for it); its handle is stored under a key the
+    collection remembers. In Home mode GLUE Home remembers where it is, and says its path. */
+export async function pickMusicFolder(id: string): Promise<{ dir: Dir; key: string; path?: string }> {
+  if (homeMode() && disk) {
+    const r = await disk.pick(`folder:${id}`, 'Choose a music folder');
+    if (!r.path) throw Object.assign(new Error('No folder chosen'), { name: 'AbortError' });
+    roots = null;
+    return { dir: disk.dir(r.path), key: 'home:' + id, path: r.path };
+  }
   const p = picker();
   if (!p) throw new Error('This browser can’t open folders; drop files onto GLUE instead.');
   return rememberFolder(await p({ id: 'mco-music', mode: 'read', startIn: 'music' }));
@@ -96,6 +146,11 @@ export async function rememberFolder(dir: Dir): Promise<{ dir: Dir; key: string 
   const key = 'root:' + crypto.randomUUID();
   await idbSet(key, dir);
   return { dir, key };
+}
+/** A collection's music folder: in Home mode where GLUE Home says it is, else the browser's handle. */
+export async function musicFolder(root: Root): Promise<Dir | null> {
+  if (homeMode()) { const r = await homeRoots(); const at = r?.folders[root.id]; return at && disk ? disk.dir(at) : null; }
+  return root.handleKey.startsWith('home:') ? null : folderHandle(root.handleKey);
 }
 export async function folderHandle(key: string): Promise<Dir | null> {
   try { return (await idbGet<Dir>(key)) ?? null; } catch { return null; }

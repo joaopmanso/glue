@@ -6,6 +6,18 @@ import { migrate } from './migrations';
 
 type Shard<T> = { schemaVersion: number; items: Record<string, T> };
 
+/** Read files a few at a time, answers in the files' order (GLUE Home's disk answers over HTTP, where
+    one at a time is slow; a local folder doesn't mind). */
+async function readAll<T>(paths: string[], read: (p: string) => Promise<T>, atOnce = 12): Promise<T[]> {
+  const out = new Array<T>(paths.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(atOnce, paths.length) }, async () => {
+    while (next < paths.length) { const i = next++; out[i] = await read(paths[i]); }
+  }));
+  return out;
+}
+const jsonFiles = (names: string[]) => names.filter(f => f.endsWith('.json'));
+
 export class CollectionStore {
   readonly tracks = new Map<string, Track>();
   readonly analysis = new Map<string, AnalysisSummary>();
@@ -38,25 +50,15 @@ export class CollectionStore {
         return null;
       }
     };
-    const shards = async <T>(dir: string, kind: 'tracks' | 'analysis', into: Map<string, T>) => {
-      for (const f of await listNames(root, `${base}/${dir}`, 'file')) {
-        if (!f.endsWith('.json')) continue;
-        const sh = await read<Shard<T>>(`${base}/${dir}/${f}`);
-        if (sh) for (const [id, v] of Object.entries(migrate(kind, sh).items)) into.set(id, v);
-      }
+    const each = async <T>(dir: string) => {
+      const names = jsonFiles(await listNames(root, `${base}/${dir}`, 'file'));
+      return readAll(names, f => read<T>(`${base}/${dir}/${f}`));
     };
-    await shards('tracks', 'tracks', s.tracks);
-    await shards('analysis', 'analysis', s.analysis);
-    for (const f of await listNames(root, `${base}/lists`, 'file')) {
-      if (!f.endsWith('.json')) continue;
-      const l = await read<List>(`${base}/lists/${f}`);
-      if (l) s.lists.set(l.id, migrate('list', l));
-    }
-    for (const f of await listNames(root, `${base}/sources`, 'file')) {
-      if (!f.endsWith('.json')) continue;
-      const src = await read<Source>(`${base}/sources/${f}`);
-      if (src) s.sources.set(src.id, migrate('source', src));
-    }
+    const [tracks, analysis, lists, sources] = await Promise.all([each<Shard<Track>>('tracks'), each<Shard<AnalysisSummary>>('analysis'), each<List>('lists'), each<Source>('sources')]);
+    for (const sh of tracks) if (sh) for (const [id, v] of Object.entries(migrate('tracks', sh).items)) s.tracks.set(id, v);
+    for (const sh of analysis) if (sh) for (const [id, v] of Object.entries(migrate('analysis', sh).items)) s.analysis.set(id, v);
+    for (const l of lists) if (l) s.lists.set(l.id, migrate('list', l));
+    for (const src of sources) if (src) s.sources.set(src.id, migrate('source', src));
     return s;
   }
 

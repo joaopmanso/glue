@@ -3,6 +3,7 @@
    told this browser the first time (its port and a token, over the account's channel). */
 import { account } from './account.svelte';
 import { readPref, writePref } from './prefs';
+import { setHomeLink } from '../platform';
 
 export interface LocalLink { home: string; port: number; token: string; version: string }
 const PREF = 'localHome';
@@ -24,6 +25,9 @@ async function hello(port: number, ms = 1500): Promise<{ app: string; version: s
 class LocalHome {
   /** Working now: this computer's GLUE Home answers directly. */
   link = $state.raw<LocalLink | null>(null);
+  /** …and the platform layer uses its disk (Home mode, ADR 0051). */
+  private setLink(l: LocalLink | null) { this.link = l; setHomeLink(l); }
+  private finding: Promise<void> | null = null;
   private learning = false;
   /** Why there's no link to this computer's GLUE Home, if it's running (for Devices). */
   problem = $state('');
@@ -44,11 +48,12 @@ class LocalHome {
   }
 
   /** On page load: the GLUE Home this browser met before, if it's running. */
-  async find() {
+  find() { return (this.finding ??= this.findOnce()); }
+  private async findOnce() {
     const known = JSON.parse(readPref(PREF, 'null') || 'null') as { home: string; port: number; token: string } | null;
     if (!known) return;
     const h = await hello(known.port);
-    if (h?.app === 'glue-home' && h.device === known.home) { this.link = { ...known, version: h.version }; this.problem = ''; }
+    if (h?.app === 'glue-home' && h.device === known.home) { this.setLink({ ...known, version: h.version }); this.problem = ''; }
   }
   /** The first time (and after GLUE Home connected again): ask it over the account's channel. */
   async learn(home: string, ask: (home: string) => Promise<{ port: number; token: string | null }>) {
@@ -60,13 +65,13 @@ class LocalHome {
       // Long enough for the browser's "access apps on this device" question to be answered.
       const h = await hello(a.port, 60_000);
       if (h?.app !== 'glue-home' || h.device !== home) { this.problem = h ? 'another GLUE Home answers on 127.0.0.1:' + a.port : why; return; }
-      this.link = { home, port: a.port, token: a.token, version: h.version };
+      this.setLink({ home, port: a.port, token: a.token, version: h.version });
       this.problem = '';
       writePref(PREF, JSON.stringify({ home, port: a.port, token: a.token }));
     } catch (e) { this.problem = 'it didn’t answer (' + (e as Error).message + ')'; } finally { this.learning = false; }
   }
   /** It stopped answering: check again (it may have restarted on another port). */
-  async check() { if (this.link && !(await hello(this.link.port))) { this.link = null; this.problem = why; } }
+  async check() { if (this.link && !(await hello(this.link.port))) { this.setLink(null); this.problem = why; } }
   /** The name of a GLUE Home's computer (its browser's, when it's a companion). */
   computer(home: string) { const h = account.devices.find(d => d.id === home), b = h?.companionOf ? account.devices.find(d => d.id === h.companionOf) : null; return b?.name ?? h?.name ?? (this.for(home) ? this.deviceName : 'GLUE Home'); }
   get deviceName() { const me = account.thisDevice; return (me && account.devices.find(d => d.id === me)?.name) || 'This computer'; }

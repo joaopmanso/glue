@@ -10,7 +10,7 @@ export default defineConfig({
   root: here('./ui'),
   base: './',
   plugins: [svelte()],
-  server: { port: 5176, strictPort: true },
+  server: { port: 5176, strictPort: true, watch: { ignored: ['**/src-tauri/target/**'] } },
   preview: { port: 5176, strictPort: true },
   build: {
     outDir: here('./dist'),

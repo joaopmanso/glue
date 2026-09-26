@@ -9,6 +9,7 @@ import { ANALYSIS_VERSION, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary,
 import type { ImportedLibrary } from '../core/interop/types';
 import type { Copy, Overlay } from '../core/library/overlay';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
+import { fileHead, fileMeta } from '../core/library/files';
 import { findLibraries, type Detected } from '../core/library/detect';
 import { makeThumb } from '../core/library/thumb';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
@@ -420,7 +421,7 @@ class Library {
   private async loadRoots() {
     const out: RootState[] = [];
     for (const r of this.store?.meta.roots ?? []) {
-      const dir = await platform.folderHandle(r.handleKey);
+      const dir = await platform.musicFolder(r);
       out.push({ root: r, dir, granted: dir ? await platform.permission(dir, 'read', false) : false });
     }
     this.roots = out;
@@ -430,13 +431,14 @@ class Library {
   async addFolder(dropped?: FileSystemDirectoryHandle) {
     const s = this.store;
     if (!s) return;
-    let picked;
-    try { picked = dropped ? await platform.rememberFolder(dropped) : await platform.pickMusicFolder(); }
+    let picked: { dir: FileSystemDirectoryHandle; key: string; path?: string };
+    const id = newId();
+    try { picked = dropped ? await platform.rememberFolder(dropped) : await platform.pickMusicFolder(id); }
     catch (e) { if ((e as DOMException).name !== 'AbortError') this.notice = (e as Error).message; return; }
     if (dropped && !(await platform.permission(dropped, 'read', true))) { await platform.forgetFolder(picked.key); return; }
     const same = await Promise.all(this.roots.map(async r => r.dir ? r.dir.isSameEntry(picked.dir) : false));
     if (same.some(Boolean)) { this.notice = '“' + picked.dir.name + '” is already one of this collection’s music folders.'; await platform.forgetFolder(picked.key); return; }
-    const root: Root = { id: newId(), name: picked.dir.name, absPath: null, handleKey: picked.key, addedAt: now() };
+    const root: Root = { id, name: picked.dir.name, absPath: picked.path ?? null, handleKey: picked.key, addedAt: now() };
     s.meta.roots.push(root); s.saveMeta();
     this.roots = [...this.roots, { root, dir: picked.dir, granted: true }];
     await this.scanRoot(root.id);
@@ -446,9 +448,9 @@ class Library {
     const s = this.store, r = s?.meta.roots.find(x => x.id === id);
     if (!s || !r) return;
     let picked;
-    try { picked = await platform.pickMusicFolder(); } catch (e) { if ((e as DOMException).name !== 'AbortError') this.notice = (e as Error).message; return; }
+    try { picked = await platform.pickMusicFolder(id); } catch (e) { if ((e as DOMException).name !== 'AbortError') this.notice = (e as Error).message; return; }
     await platform.forgetFolder(r.handleKey);
-    r.handleKey = picked.key; s.saveMeta();
+    r.handleKey = picked.key; if (picked.path) r.absPath = picked.path; s.saveMeta();
     this.roots = this.roots.map(x => x.root.id === id ? { root: r, dir: picked.dir, granted: true } : x);
     await this.scanRoot(id);
   }
@@ -483,7 +485,7 @@ class Library {
       this.job = { text: 'Reading file details…', done: 0, total: files.length };
       const entries = [], handles = new Map<string, FileSystemFileHandle>();
       for (let i = 0; i < files.length; i++) {
-        const f = await files[i].handle.getFile();
+        const f = await fileMeta(files[i].handle);
         entries.push({ relPath: files[i].relPath, size: f.size, mtime: f.lastModified, fileName: f.name });
         handles.set(files[i].relPath, files[i].handle);
         if (i % 100 === 0) this.job = { text: 'Reading file details…', done: i, total: files.length };
@@ -503,7 +505,7 @@ class Library {
       const batch: Track[] = [];
       for (let i = 0; i < added.length; i++) {
         const t = added[i], h = handles.get(t.relPath!);
-        if (h) batch.push(await quickTags(t, await h.getFile()));
+        if (h) batch.push(await quickTags(t, await fileHead(h, TAG_BYTES)));
         if (batch.length >= 200 || i === added.length - 1) { s.putTracks(batch.splice(0)); this.job = { text: 'Reading tags…', done: i + 1, total: added.length }; }
       }
       const bits = [added.length + ' new track' + (added.length === 1 ? '' : 's')];
@@ -845,7 +847,7 @@ class Library {
       const fileKey = it.key ? await it.key() : null;
       const t: Track = { ...base, status: 'linked', rootId: it.rootId, relPath: it.relPath, fileKey, fileName: it.file.name, size: it.file.size, mtime: it.file.lastModified };
       if (it.handle) { this.looseHandles.set(t.id, it.handle); granted.add(t.id); }
-      out.push(await quickTags(t, it.file));
+      out.push(await quickTags(t, new Uint8Array(await it.file.slice(0, TAG_BYTES).arrayBuffer())));
       this.job = { text: this.job?.text ?? 'Adding songs…', done: i + 1, total: items.length };
     }
     this.looseGranted = granted;
@@ -1003,10 +1005,11 @@ class Library {
   private fail(e: unknown) { console.error(e); this.error = String((e as Error)?.message || e); this.phase = 'error'; }
 }
 
-async function quickTags(t: Track, file: File): Promise<Track> {
+/** Enough of a file's start for its tags (most files; the background analysis reads the rest). */
+const TAG_BYTES = 512 * 1024;
+async function quickTags(t: Track, head: Uint8Array): Promise<Track> {
   const out = { ...t };
   try {
-    const head = new Uint8Array(await file.slice(0, 512 * 1024).arrayBuffer());
     let info = blankInfo();
     try { info = parseContainer(head); } catch { /* partial file: tags may still be there */ }
     const f = tagFields(info.tags);

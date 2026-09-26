@@ -7,7 +7,8 @@ export default defineConfig({
   plugins: [svelte()],
   worker: { format: 'es' },
   build: { target: 'es2022', sourcemap: true },
-  server: { port: 5174 },
+  // GLUE Home's Rust build output is huge and locked while it builds: never watched.
+  server: { port: 5174, watch: { ignored: ['**/home/src-tauri/target/**'] } },
   preview: { port: 5174 },
   test: { include: ['tests/**/*.test.ts'], environment: 'node' },
 });
