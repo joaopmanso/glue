@@ -107,11 +107,25 @@ an account GLUE works exactly as today, all local.
   ([ADR 0050](../adr/0050-glue-home-as-the-computers-library.md), proposed); streaming that starts
   before the whole file is in.
 
+## Home mode (GLUE Home 0.5.0, 2026-09-26, [ADR 0051](../adr/0051-glue-home-as-local-engine.md), stages 1–2 of 5)
+- Where GLUE Home runs and knows the GLUE folder, the website uses GLUE Home's disk over the local
+  link (`/fs/*`, `src/platform/homeDisk.ts`): no folder permissions. Music folders are GLUE Home's,
+  and new ones are chosen with its dialog. With GLUE Home 0.4.0, or none, the website works as before.
+- Its incoming folder is a hidden music folder (id `incoming`) of the open collection, so songs sent
+  to this computer are its own tracks. TO BE SORTED lists them; moving one keeps the same track.
+- Next: the writer lease and browser fallback, GLUE Home syncing with no tab, analysis in GLUE Home
+  (stages 3–5).
+
 ## Known issues (2026-09-26)
-- **A song sent to a computer is unanalysed there when that computer's collection already has it
-  from another device** (the laptop's track, with the file waiting in the desktop's incoming folder):
-  no waveform, and the track page says "on Laptop, not analysed" with the analyse button, again after
-  a refresh. Playing works. Cause and fix: [handoff 2026-09-26](../log/2026-09-26-handoff.md).
+- ~~A song sent to a computer is unanalysed there when that computer's collection already has it
+  from another device.~~ Fixed by Home mode (0.5.0): the song is that computer's own track. Still to
+  be checked on the real laptop → desktop flow: that it's one row "on Laptop, Desktop" there.
+- **Debug builds of GLUE Home crashed** (heap corruption / access violation) during browser tests on
+  2026-09-26: 4 of ~12 runs, never with a debugger attached. The release build ran 10 of 10 cleanly.
+  Cause unknown; the suspects are native (WebView2 or the dev server's hot reload). Watch for it in
+  release builds.
+- Until stage 3: if GLUE Home stops while the page is open, saves fail and are retried until it's back.
+  Outside Home mode, the tracks in the incoming folder can't be read.
 
 ## GLUE Home app (built 2026-09-25, [ADR 0044](../adr/0044-glue-home-tauri-tray-app.md))
 - **Install:** Devices › + GLUE Home shows the download for this OS (GitHub release

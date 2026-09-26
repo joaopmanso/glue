@@ -5,6 +5,23 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · GLUE Home 0.5.0: Home mode (ADR 0051, stages 1–2)
+- **GLUE Home is the website's disk** on its computer. The GLUE folder and music folders are read and
+  written through its local link, so there are no folder permission prompts.
+  - Your real library (7,426 tracks) opens in about 1.9 s this way. Scans read sizes from folder
+    listings and tags from byte ranges, never whole songs.
+  - GLUE Home only allows the GLUE folder, its incoming folder and the music folders it knows, with
+    plain relative paths that must stay inside them once resolved.
+- **The incoming folder is a hidden music folder.** Songs sent to a computer are that computer's own
+  tracks: analysed, with waveforms and a full track page, and synced.
+  - This fixes the handoff bug: the sent song showed as the laptop's track, with "run GLUE Home on
+    Laptop".
+  - TO BE SORTED lists the folder, which is watched every 5 s.
+  - Move to music folder keeps the same track (its analysis and playlists stay).
+- Checked on the desktop against GLUE Home's release build and a copy of the GLUE folder. 118 unit
+  tests and the e2e suite pass. Not checked here: the merged row across computers (needs the account).
+- Dev: Vite no longer watches `home/src-tauri/target`; `Cargo.lock` is committed.
+
 ## 2026-09-26 · Decision: GLUE Home as the computer's disk and engine (ADR 0051)
 - The open bug (a song sent to the desktop shows no waveform there and its page says "run GLUE Home on
   Laptop") comes from the song staying the laptop's track on the desktop. Instead of patching that,

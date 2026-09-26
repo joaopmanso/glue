@@ -1,6 +1,6 @@
 [package]
 name = "glue-home"
-version = "0.4.0"
+version = "0.5.0"
 description = "GLUE Home: your main computer, reachable from the GLUE website"
 authors = ["joaopmanso"]
 edition = "2021"
