@@ -1,6 +1,6 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
-  import { view } from '../../lib/view.svelte';
+  import { view, FILTER_GROUPS } from '../../lib/view.svelte';
   import { router } from '../../lib/route.svelte';
   import LibSidebar from './LibSidebar.svelte';
   import TrackTable from './TrackTable.svelte';
@@ -13,8 +13,10 @@
   import { app } from '../../lib/app.svelte';
   import { LOOSE } from '../../store/merge';
   import { sync } from '../../lib/sync.svelte';
-  import { account } from '../../lib/account.svelte';
-  import { sendToHome } from '../../lib/sendToHome.svelte';
+  import { sendTracks } from '../../lib/sendToHome.svelte';
+  import { menu } from '../../lib/menu.svelte';
+  import { trackMenu } from '../../lib/trackMenu';
+  import { filterMenu } from '../../lib/filterMenu';
   import SendPanel from './SendPanel.svelte';
   import { drag } from '../../lib/drag.svelte';
   import { listTree } from '../../core/library/listTree';
@@ -84,17 +86,15 @@
     const n = lib.addToList(id, sel), l = lib.store?.lists.get(id);
     lib.notice = n ? 'Added ' + n + ' track' + (n === 1 ? '' : 's') + ' to ' + (l?.name ?? 'the playlist') + '.' : 'Already in ' + (l?.name ?? 'the playlist') + '.';
   }
-  // Send the selected songs (this computer's files) to a GLUE Home that's online (ADR 0044).
-  const homes = $derived(account.devices.filter(d => d.kind === 'home' && account.online.has(d.id)));
-  async function sendSelected(home: string, ids = sel) {
-    const ts = ids.map(id => lib.store?.tracks.get(id)).filter((t): t is NonNullable<typeof t> => !!t && t.status === 'linked' && !t.remote && !lib.cloud);
-    const files: File[] = [];
-    for (const t of ts) { try { files.push(await lib.fileFor(t)); } catch { /* skipped: not readable here */ } }
-    if (!files.length) { lib.notice = 'None of the selected tracks has a file on this computer to send.'; return; }
-    await sendToHome.send(home, files).catch(e => (lib.notice = (e as Error).message));
+  // Tracks dragged from the table onto a computer with GLUE Home (Devices): send their files there
+  // (ADR 0044). Sending the selection is in its menu (⋯, or right-click), for other computers only.
+  drag.onHome = (home, ids) => void sendTracks(home, ids);
+  /** ⋯ in the selection bar: the songs' menu, as on right-click (ADR 0067). */
+  function selMenu(el: Element) {
+    const order = view.rows(app.keyNotation).map(r => r.t.id), at = new Map(order.map((id, i) => [id, i]));
+    const ids = [...view.selected].sort((a, b) => (at.get(a) ?? Infinity) - (at.get(b) ?? Infinity));
+    menu.from(el, () => trackMenu(ids, { order }), 'Songs');
   }
-  // Tracks dragged from the table onto a computer with GLUE Home (Devices): send their files there.
-  drag.onHome = (home, ids) => void sendSelected(home, ids);
   // TO BE SORTED: move the selected songs into a music folder on their computer.
   const sorting = $derived(current?.id === TO_BE_SORTED);
   let folders = $state<{ home: string; list: HomeFolder[] } | null>(null);
@@ -217,11 +217,15 @@
               {#each folders.list as f (f.id)}<option value={f.id}>{f.name} ({f.collection})</option>{/each}
             </select>
           {/if}
-          {#each homes as h (h.id)}<button type="button" class="mini" data-send-home={h.id} title={'Copy the selected songs into ' + h.name + '’s incoming folder'} onclick={() => sendSelected(h.id)}>Send to {h.name}</button>{/each}
           {#if !lib.cloud}<button type="button" class="mini" id="remove-tracks" onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>{/if}
           <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
+          <button type="button" class="mini more" id="sel-more" title="Everything you can do with the selected songs (also on right-click)" aria-haspopup="menu" onclick={e => selMenu(e.currentTarget)}>⋯</button>
         {:else if view.filtering}
-          <span class="hint">Filtered: {view.filterValues.join(', ')}</span>
+          <span class="hint">Showing only</span>
+          {#each FILTER_GROUPS as { g } (g)}{#each view.filters[g] as v (v)}
+            <button type="button" class="chip" data-chip={g} title="Click to stop filtering by this; right-click for more" onclick={() => view.toggleFilter(g, v)}
+              oncontextmenu={e => menu.context(e, () => filterMenu(g, v), 'Filter')}>{v}<span aria-hidden="true">×</span></button>
+          {/each}{/each}
           <button type="button" class="mini" id="clear-filters" onclick={() => view.clearFilters()}>Clear filters</button>
         {:else if sortedPlaylist}
           <span class="hint">Sorted by {view.sort.key}. Drag to rearrange works in playlist order.</span>
@@ -293,5 +297,9 @@
   .ibtn:hover, .ibtn.on { border-color: var(--accent); color: var(--accent); }
   .selbar { min-height: 28px; display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--ink-2); flex-wrap: wrap; }
   .hint { color: var(--muted); font-size: 12.5px; }
+  .more { font-size: 13px; line-height: 1; padding: 1px 8px 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 12px; color: var(--ink); font-size: 12px; padding: 1px 8px 1px 10px; cursor: pointer; }
+  .chip span { color: var(--muted); }
+  .chip:hover span { color: var(--accent); }
   @media (max-width: 800px) { .main { grid-template-columns: minmax(0, 1fr); } .splitter { display: none; } .lib { height: auto; } }
 </style>

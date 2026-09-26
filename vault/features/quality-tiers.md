@@ -1,7 +1,7 @@
 ---
 status: planned
 milestone: M3
-updated: 2026-09-24
+updated: 2026-09-26
 adrs: [0013]
 ---
 # Quality tiers & filters
@@ -32,3 +32,10 @@ Caution-level findings (e.g. 20 kHz wall) keep the tier but add a "check" flag.
 ## Acceptance
 - [ ] Every analysed track has exactly one tier; the mapping is unit-tested per verdict type.
 - [ ] Toggling "Hide lossy" updates a 50,000-row table instantly.
+
+## Hiding filters (2026-09-26, [ADR 0067](../adr/0067-one-context-menu.md))
+- **Right-click a filter group or a value** (Filter menu, a column's ▾): Show only this, Clear, Hide
+  the ‹group› filter.
+  - A hidden group stops filtering and is listed under the Filter menu with "Show them".
+  - The Filter button's right-click ticks the groups on and off (per browser, pref `hiddenFilters`).
+- **When filtered,** the selection bar shows each value as a removable chip.

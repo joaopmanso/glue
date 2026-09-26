@@ -1,26 +1,38 @@
 <script lang="ts">
-  /* The table's value filters (quality, format, tags, genre): ticks for what's in the current view, with counts. */
+  /* The table's value filters (quality, format, tags, genre): ticks for what's in the current view, with counts.
+     Right-click a group or a value: show only it, clear it, or hide the group (ADR 0067). */
   import { view, FILTER_GROUPS, manyDevices } from '../../lib/view.svelte';
+  import { menu, SEP } from '../../lib/menu.svelte';
+  import { shownFilters } from '../../lib/filterMenu';
   import FilterList from './FilterList.svelte';
 
   let open = $state(false);
   const n = $derived(view.filterValues.length);
+  const hidden = $derived(FILTER_GROUPS.filter(x => view.hiddenFilters.includes(x.g)));
+  function buttonMenu(e: MouseEvent) {
+    menu.context(e, () => [{ head: 'Filters shown' }, ...shownFilters(), SEP, { label: 'Clear all filters', disabled: !n, run: () => view.clearFilters() }], 'Filters');
+  }
 </script>
 
-<svelte:window onpointerdown={e => { if (open && !(e.target as HTMLElement).closest('.fm')) open = false; }} onkeydown={e => { if (e.key === 'Escape') open = false; }} />
+<svelte:window onpointerdown={e => { if (open && !(e.target as HTMLElement).closest('.fm, .cmenu')) open = false; }} onkeydown={e => { if (e.key === 'Escape') open = false; }} />
 
 <span class="fm">
-  <button type="button" class="fbtn" class:on={n > 0} id="filter-btn" aria-haspopup="true" aria-expanded={open} onclick={() => (open = !open)}>
+  <button type="button" class="fbtn" class:on={n > 0} id="filter-btn" aria-haspopup="true" aria-expanded={open} onclick={() => (open = !open)} oncontextmenu={buttonMenu}>
     <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.5V13l-3 1.5V8.5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
     Filter{#if n}<b>{n}</b>{/if}
   </button>
   {#if open}
     <div class="pop" id="filter-menu" role="dialog" aria-label="Filter tracks">
-      {#each FILTER_GROUPS.filter(x => x.g !== 'device' || manyDevices()) as { g, title } (g)}<FilterList group={g} {title} search />{/each}
+      {#each FILTER_GROUPS.filter(x => (x.g !== 'device' || manyDevices()) && !view.hiddenFilters.includes(x.g)) as { g, title } (g)}<FilterList group={g} {title} search />{/each}
+      {#if hidden.length === FILTER_GROUPS.length}<p class="none">All the filters are hidden.</p>{/if}
       <div class="foot">
-        <span>Show only the ticked. Any of them within a group; all groups together.</span>
+        <span>Show only the ticked. Any of them within a group; all groups together. Right-click a filter to hide it.</span>
         <button type="button" disabled={!n} onclick={() => view.clearFilters()}>Clear all</button>
       </div>
+      {#if hidden.length}
+        <div class="hidden" id="hidden-filters">Hidden: {hidden.map(x => x.title).join(', ')}
+          <button type="button" class="linkish" onclick={() => view.showFilter()}>Show {hidden.length === 1 ? 'it' : 'them'}</button></div>
+      {/if}
     </div>
   {/if}
 </span>
@@ -35,5 +47,8 @@
   .foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); font-size: 11.5px; border-top: 1px solid var(--line); padding-top: 8px; }
   .foot button { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); padding: 3px 10px; cursor: pointer; font-size: 12px; }
   .foot button:disabled { opacity: .4; cursor: default; }
+  .hidden { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; margin-top: -6px; }
+  .none { grid-column: 1 / -1; color: var(--muted); font-size: 12.5px; margin: 0; }
+  .linkish { background: none; border: 0; padding: 0; margin-left: 6px; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
   @media (max-width: 600px) { .pop { width: min(520px, calc(100vw - 32px)); grid-template-columns: 1fr; } }
 </style>

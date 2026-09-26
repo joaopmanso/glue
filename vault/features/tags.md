@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-25
+updated: 2026-09-26
 adrs: [0032, 0029]
 ---
 # Tags
@@ -36,3 +36,8 @@ your files or DJ library count straight away; new ones are made by typing them.
 ## Later
 - Write tags back to files / DJ apps (after v1 write-back, ADR 0010).
 - Engine DJ, Traktor and Serato imports don't read a Grouping field yet.
+
+## Right-click (2026-09-26, [ADR 0067](../adr/0067-one-context-menu.md))
+- **A tag in the sidebar:** Show its songs, Show only it here, put it on or take it off the selected
+  songs, Rename…, Delete….
+- **A tag chip in a row:** "Show only tag ‹name›". A song's menu has Tags….

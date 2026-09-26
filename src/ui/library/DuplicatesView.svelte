@@ -12,6 +12,8 @@
   import { deviceColor } from '../../lib/devices';
   import { view } from '../../lib/view.svelte';
   import { tick } from 'svelte';
+  import { menu } from '../../lib/menu.svelte';
+  import { trackMenu } from '../../lib/trackMenu';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
 
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
@@ -93,7 +95,7 @@
         {@const t = lib.store?.tracks.get(id)}
         {@const a = lib.store?.analysis.get(id)}
         {#if t}
-          <li class:best={g.best === id} class:focus={focused === id} data-track={id}>
+          <li class:best={g.best === id} class:focus={focused === id} data-track={id} oncontextmenu={e => menu.context(e, () => trackMenu([id]), 'Song')}>
             <button type="button" class="pbtn" aria-label={nowPlaying.trackId === id && !player.paused ? 'Pause' : 'Play'} disabled={t.status !== 'linked'} onclick={() => play(id, g)}>
               {#if nowPlaying.trackId === id && !player.paused}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 1.5h3.2v11H2.5zM8.3 1.5h3.2v11H8.3z" fill="currentColor"/></svg>
               {:else}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9.5-5.5z" fill="currentColor"/></svg>{/if}

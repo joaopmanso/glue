@@ -5,6 +5,38 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · Right-click menus across the library page; "Send to" only for other computers
+From the user: "a weird 'Send to Desktop' button… it shouldn't be there", and a right-click menu for
+the library explorer, for several files and playlists, wherever it makes sense, and "right clicking
+a filter should allow me to hide it" ([ADR 0067](../adr/0067-one-context-menu.md),
+[feature](../features/context-menus.md)).
+- **One menu for the whole page**, with submenus, a find field for long ones, the keyboard (arrows,
+  → ←, letters, Esc, Shift+F10) and focus back where it was. The sidebar's ⋯ buttons open the same
+  menus.
+- **Songs** (one, or all the selected ones):
+  - play; details, Prepare;
+  - add to playlist (recent first), remove from this or any playlist, show in playlist;
+  - rating, tags, note; "Show only" the value under the pointer;
+  - build a playlist; analyse; duplicates;
+  - drag dock, send to another computer, move to a music folder, copy;
+  - remove from the collection.
+  In the table, the duplicates and the mini player; the selection bar has ⋯ for it.
+- **Everything else:**
+  - playlists and folders (play, new folder inside, Save as .m3u8, Show in ‹app›'s library, move
+    with a find field…);
+  - tags (on or off the selection);
+  - music folders, DJ libraries and their playlists, devices, section heads;
+  - column headers (sort, filter, hide, columns);
+  - the table's empty space.
+- **Hide things:**
+  - a Library entry (back from "N hidden · show…" or the section's menu);
+  - a filter group in the Filter menu (it stops filtering; listed as hidden, with "Show them");
+  - a column.
+  When filtered, the selection bar shows removable chips.
+- **"Send to ‹computer›"** left the selection bar for the songs' menu, and never offers this
+  computer's own GLUE Home.
+- Tests: e2e right-click menus (new); the playlist, send-songs and local-link tests follow the menus.
+
 ## 2026-09-26 · "No file linked" cleaned up: imported records find their files; leftovers go
 From the user: about 200 songs in "No file linked" with paths like `../Music Collection/…`, although the
 songs are there ([ADR 0066](../adr/0066-imported-records-find-their-files.md)).

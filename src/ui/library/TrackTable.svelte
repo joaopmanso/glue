@@ -1,7 +1,9 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
-  import { view, qualityOf, devicesOf, manyDevices, type Row, type FilterGroup, type SortKey } from '../../lib/view.svelte';
+  import { view, qualityOf, devicesOf, manyDevices, valuesOf, NO_GENRE, NO_TAGS, type Row, type FilterGroup, type SortKey } from '../../lib/view.svelte';
+  import { menu, SEP, tidy, type MenuEntry } from '../../lib/menu.svelte';
+  import { trackMenu } from '../../lib/trackMenu';
   import { deviceColor } from '../../lib/devices';
   import { tagsOf } from '../../core/library/tagging';
   import { tagColorOf } from '../../lib/tags.svelte';
@@ -68,11 +70,77 @@
   /** A column's value filter, opened from ▾ in its header. */
   let headFilter = $state<{ group: FilterGroup; key: ColKey; sort: SortKey | null; x: number; y: number } | null>(null);
   function openHeadFilter(e: MouseEvent, k: ColKey) {
+    if (headFilter?.key === k) { headFilter = null; return; }
+    showHeadFilter((e.currentTarget as HTMLElement).closest('[role="columnheader"]')!, k);
+  }
+  function showHeadFilter(th: Element, k: ColKey) {
     const c = COLUMNS[k];
     if (!c.filter) return;
-    if (headFilter?.key === k) { headFilter = null; return; }
-    const r = (e.currentTarget as HTMLElement).closest('[role="columnheader"]')!.getBoundingClientRect();
+    const r = th.getBoundingClientRect();
     headFilter = { group: c.filter, key: k, sort: c.sort, x: Math.max(8, Math.min(window.innerWidth - 268, r.left)), y: r.bottom + 4 };
+  }
+
+  // ─── Right-click (ADR 0067) ───
+  /** The selected songs in the order they're shown (ones filtered out of view last). */
+  function selectedInOrder() {
+    const at = new Map(order.map((id, i) => [id, i]));
+    return [...view.selected].sort((a, b) => (at.get(a) ?? Infinity) - (at.get(b) ?? Infinity));
+  }
+  const GROUP_NAME: Record<FilterGroup, string> = { quality: 'quality', format: 'format', tag: 'tag', genre: 'genre', device: 'device' };
+  /** The value of the cell under the pointer, for "Show only …": a genre, the tag or device clicked, a format. */
+  function onlyAt(el: HTMLElement, r: Row) {
+    const k = el.closest<HTMLElement>('[data-c]')?.dataset.c as ColKey | undefined, g = k ? COLUMNS[k].filter : undefined;
+    if (!g) return null;
+    const vals = valuesOf(g, r);
+    const value = g === 'tag' ? el.closest('.tg')?.textContent ?? (vals.length === 1 ? vals[0] : null)
+      : g === 'device' ? el.closest('.dv')?.textContent ?? (vals.length === 1 ? vals[0] : null) : vals[0];
+    if (!value) return null;
+    return { group: g, value, label: value === NO_TAGS ? 'songs without tags' : value === NO_GENRE ? 'songs without a genre' : GROUP_NAME[g] + ' “' + value + '”' };
+  }
+  function onContext(e: MouseEvent) {
+    const el = e.target as HTMLElement;
+    if (el.closest('input, textarea')) return;
+    const tr = el.closest<HTMLElement>('.tr'), r = tr ? rows[Number(tr.dataset.index)] : null;
+    if (r) {
+      // A song outside the selection becomes the selection, as in a file manager.
+      if (!view.selected.has(r.t.id)) { view.selected = new Set([r.t.id]); view.anchor = r.t.id; }
+      const ids = selectedInOrder(), only = onlyAt(el, r);
+      menu.context(e, () => trackMenu(ids, { order, only }), 'Songs', tr);
+    } else if (e.button !== 2 && view.selected.size) {
+      // The keyboard's menu key: the selection's menu, under its row.
+      const ids = selectedInOrder(), i = order.indexOf(view.anchor && view.selected.has(view.anchor) ? view.anchor : ids[0]);
+      menu.context(e, () => trackMenu(ids, { order }), 'Songs', scroller.querySelector('.tr[data-index="' + i + '"]') ?? scroller);
+    } else menu.context(e, tableMenu, 'Songs');
+  }
+  const columnsMenu = (): MenuEntry[] => [
+    ...columns.order.map(k => ({ label: COLUMNS[k].label, checked: !columns.hidden.includes(k), disabled: COLUMNS[k].fixed, stay: true, run: () => columns.toggle(k) })),
+    SEP, { label: 'Reset to default', run: () => columns.reset() },
+  ];
+  const tableMenu = (): MenuEntry[] => tidy([
+    { label: 'Select all', hint: 'Ctrl+A', disabled: !order.length, run: () => (view.selected = new Set(order)) },
+    view.selected.size > 0 && { label: 'Clear the selection', run: () => (view.selected = new Set()) },
+    view.filtering && { label: 'Clear filters', run: () => view.clearFilters() },
+    !!view.search.trim() && { label: 'Clear the search', run: () => (view.search = '') },
+    SEP,
+    { label: 'Columns', sub: columnsMenu },
+  ]);
+  function headMenu(k: ColKey, th: Element): MenuEntry[] {
+    const c = COLUMNS[k], g = c.filter, s = c.sort;
+    return tidy([
+      { head: c.label },
+      !!s && { label: 'Sort ascending', checked: view.sort.key === s && view.sort.dir === 1, run: () => (view.sort = { key: s!, dir: 1 }) },
+      !!s && { label: 'Sort descending', checked: view.sort.key === s && view.sort.dir === -1, run: () => (view.sort = { key: s!, dir: -1 }) },
+      SEP,
+      !!g && { label: 'Show only…', attrs: { 'data-m': 'col-filter' }, run: () => showHeadFilter(th, k) },
+      !!g && view.filters[g!].length > 0 && { label: 'Clear this filter', run: () => view.clearFilters(g) },
+      SEP,
+      !c.fixed && { label: 'Hide this column', attrs: { 'data-m': 'hide-col' }, run: () => columns.toggle(k) },
+      { label: 'Columns', sub: columnsMenu },
+    ]);
+  }
+  function onHeadContext(e: MouseEvent) {
+    const th = (e.target as HTMLElement).closest<HTMLElement>('.th[data-col]'), k = th?.dataset.col as ColKey | undefined;
+    menu.context(e, () => k && th ? headMenu(k, th) : columnsMenu(), 'Columns', th);
   }
   const tagIds = (id: string) => view.selected.has(id) ? [...view.selected] : [id];
 
@@ -183,7 +251,8 @@
 
 <div class="table" role="grid" aria-rowcount={rows.length} aria-multiselectable="true" style:--cols={template}>
   <div class="hwrap" bind:this={headWrap}>
-  <div class="thead" role="row" style:min-width={minWidth + 'px'}>
+  <!-- svelte-ignore a11y_interactive_supports_focus -->
+  <div class="thead" role="row" style:min-width={minWidth + 'px'} oncontextmenu={onHeadContext}>
     <span aria-hidden="true"></span>
     {#if isPlaylist}
       <button type="button" role="columnheader" class:on={view.sort.key === 'order'} title="Playlist order: drag rows to rearrange" onclick={() => view.sortBy('order')}
@@ -234,7 +303,7 @@
   </div>
   <!-- The body takes keyboard focus for the whole grid (arrows, Enter, Delete, Ctrl+A). -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => { scrollTop = scroller.scrollTop; if (headWrap) headWrap.scrollLeft = scroller.scrollLeft; }} tabindex="0" role="rowgroup" onkeydown={onKey}>
+  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => { scrollTop = scroller.scrollTop; if (headWrap) headWrap.scrollLeft = scroller.scrollLeft; }} tabindex="0" role="rowgroup" onkeydown={onKey} oncontextmenu={onContext}>
     <div class="spacer" style:height={rows.length * ROW + 'px'} style:min-width={minWidth + 'px'}>
       {#each visible as r, j (r.t.id)}
         {@const i = first + j}
@@ -298,7 +367,7 @@
   </div>
 {/if}
 
-<svelte:window onpointerdown={e => { const el = e.target as HTMLElement; if (colMenu && !el.closest('.cm')) colMenu = false; if (headFilter && !el.closest('.hfpop, .hf')) headFilter = null; }}
+<svelte:window onpointerdown={e => { const el = e.target as HTMLElement; if (colMenu && !el.closest('.cm')) colMenu = false; if (headFilter && !el.closest('.hfpop, .hf, .cmenu')) headFilter = null; }}
   onkeydown={e => { if (e.key === 'Escape') { colMenu = false; headFilter = null; } }} />
 
 <style>

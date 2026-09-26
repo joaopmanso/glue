@@ -9,7 +9,8 @@
   import { lib } from '../../lib/library.svelte';
   import { view, devicesOf, manyDevices } from '../../lib/view.svelte';
   import { deviceColor } from '../../lib/devices';
-  import { sendToHome } from '../../lib/sendToHome.svelte';
+  import { sendToHome, sendTargets, sendTracks } from '../../lib/sendToHome.svelte';
+  import { menu, SEP, tidy, type MenuEntry } from '../../lib/menu.svelte';
   import { companionOf } from '../../lib/remoteFiles.svelte';
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import { localHome } from '../../lib/localHome.svelte';
@@ -40,9 +41,8 @@
     (e as DragEvent & { glueTaken?: boolean }).glueTaken = true;
     send(h.id, [...e.dataTransfer.files]);
   }
-  function pickSongs(h: CloudDevice) { menu = null; pickFor = h.id; picker?.click(); }
+  function pickSongs(h: CloudDevice) { pickFor = h.id; picker?.click(); }
 
-  let menu = $state<{ id: string; x: number; y: number; up: boolean } | null>(null);
   let pairing = $state<{ code: string; expiresAt: number } | null>(null);
   let pairError = $state('');
   let now = $state(Date.now());
@@ -50,13 +50,6 @@
   $effect(() => { if (!pairing) return; const t = setInterval(() => (now = Date.now()), 1000); return () => clearInterval(t); });
   // The dialog closes itself once the new GLUE Home has joined.
   $effect(() => { const n = account.devices.filter(d => d.kind === 'home').length; if (pairing && n > homesAtStart) { pairing = null; } });
-  // The menu floats over the page (the sidebar would cut it off): it goes away when anything scrolls.
-  $effect(() => {
-    if (!menu) return;
-    const close = () => (menu = null);
-    addEventListener('scroll', close, true); addEventListener('resize', close);
-    return () => { removeEventListener('scroll', close, true); removeEventListener('resize', close); };
-  });
 
   async function startPairing() {
     pairError = '';
@@ -86,25 +79,34 @@
   const syncedAt = (d: CloudDevice) => Math.max(0, ...sync.remote.filter(r => r.device.id === d.id).map(r => r.updatedAt)) || null;
   const only = $derived(view.filters.device);
 
-  function openMenu(e: MouseEvent, d: CloudDevice) {
-    if (menu?.id === d.id) { menu = null; return; }
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect(), up = r.bottom + 100 > innerHeight;
-    menu = { id: d.id, x: Math.max(8, Math.min(innerWidth - 188, r.right - 180)), y: up ? innerHeight - r.top + 4 : r.bottom + 4, up };
+  /** ⋯ or right-click on a device (ADR 0067). */
+  let menuFor = $state<string | null>(null);
+  function deviceMenu(d: CloudDevice): MenuEntry[] {
+    const h = homeOf(d), on = !!h && account.online.has(h.id), sel = [...view.selected];
+    const canSend = !!h && sendTargets().some(x => x.id === h.id);
+    return tidy([
+      { label: only.includes(d.name) ? 'Show every device’s songs' : 'Show only its songs', run: () => view.toggleFilter('device', d.name) },
+      SEP,
+      !!h && { label: 'Send songs…', attrs: { id: 'send-songs' }, disabled: !on, title: on ? 'Copy songs into its incoming folder' : 'Its GLUE Home is offline', run: () => pickSongs(h!) },
+      canSend && sel.length > 0 && { label: 'Send the ' + (sel.length === 1 ? 'selected song' : sel.length + ' selected songs'), run: () => void sendTracks(h!.id, sel) },
+      SEP,
+      { label: 'Rename…', run: () => void rename(d) },
+      !!h && h.id !== d.id && { label: 'Disconnect its GLUE Home…', danger: true, run: () => void remove(h!) },
+      { label: d.id === account.thisDevice ? 'Remove (signs out)…' : 'Remove…', danger: true, run: () => void remove(d) },
+    ]);
   }
+  function openMenu(e: MouseEvent, d: CloudDevice) { menu.from(e.currentTarget as Element, () => deviceMenu(d), d.name); menuFor = d.id; }
   async function rename(d: CloudDevice) {
-    menu = null;
     const name = prompt('Name this device', d.name)?.trim();
     if (name && name !== d.name) await account.rename(d.id, name).catch(e => alert((e as Error).message));
   }
   async function remove(d: CloudDevice) {
-    menu = null;
     if (confirm('Remove “' + d.name + '” from your GLUE account? ' + (d.kind === 'home' ? 'It stops being reachable until you pair it again.' : 'It gets signed out.'))) await account.remove(d.id).catch(e => alert((e as Error).message));
   }
   const left = $derived(pairing ? Math.max(0, Math.round((pairing.expiresAt - now) / 1000)) : 0);
-  const menuDevice = $derived(menu ? account.devices.find(d => d.id === menu!.id) ?? null : null);
 </script>
 
-<svelte:window onpointerdown={e => { if (menu && !(e.target as HTMLElement).closest('.dmenu, .more')) menu = null; }} onkeydown={e => { if (e.key === 'Escape') { menu = null; pairing = null; } }} />
+<svelte:window onkeydown={e => { if (e.key === 'Escape') pairing = null; }} />
 
 <section class="devs" id="devices">
   <div class="head">
@@ -124,7 +126,8 @@
         <div class="item dev" data-device={d.id} class:sel={only.includes(d.name)} class:droppable={dropOn === d.id || (drag.target?.type === 'home' && drag.target.home === h?.id)} style:--c={deviceColor(d.name)} role="group" aria-label={d.name}
           data-drop={hOn ? 'home' : undefined} data-home={hOn ? h?.id : undefined}
           ondragover={e => { if (hOn && [...(e.dataTransfer?.types ?? [])].includes('Files')) { e.preventDefault(); dropOn = d.id; } }}
-          ondragleave={() => { if (dropOn === d.id) dropOn = null; }} ondrop={e => dropped(e, d)}>
+          ondragleave={() => { if (dropOn === d.id) dropOn = null; }} ondrop={e => dropped(e, d)}
+          oncontextmenu={e => { if (menu.context(e, () => deviceMenu(d), d.name)) menuFor = d.id; }}>
           <button type="button" class="dname" aria-pressed={only.includes(d.name)} title={only.includes(d.name) ? 'Show every device’s songs again' : 'Show only the songs on ' + d.name}
             onclick={() => view.toggleFilter('device', d.name)}>
             <i class="sw" class:on aria-hidden="true"></i>
@@ -137,7 +140,7 @@
           {:else if !me}<span class="nostream" title={'Streaming from ' + d.name + ' is off: ' + (h ? 'its GLUE Home isn’t running.' : 'install GLUE Home there (+ GLUE Home).') + ' Its songs show here and play on ' + d.name + '.'} aria-label="Streaming off">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 9.5v-3M5 11V5M8 12.5v-9M11 11V5M14 9.5v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M2 14 14 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           </span>{/if}
-          <button type="button" class="more" class:open={menu?.id === d.id} title="More" aria-haspopup="menu" aria-expanded={menu?.id === d.id} onclick={e => openMenu(e, d)}>⋯</button>
+          <button type="button" class="more" class:open={!!menu.at && menuFor === d.id} title="More (or right-click)" aria-haspopup="menu" aria-expanded={!!menu.at && menuFor === d.id} onclick={e => openMenu(e, d)}>⋯</button>
         </div>
       </li>
     {/each}
@@ -148,17 +151,6 @@
 
 <input type="file" multiple hidden bind:this={picker} accept="audio/*,.flac,.wav,.aif,.aiff,.m4a,.alac,.mp3,.aac,.ogg,.opus" id="send-input"
   onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; if (f.length && pickFor) send(pickFor, f); }}>
-
-{#if menu && menuDevice}
-  {@const d = menuDevice}
-  {@const h = homeOf(menuDevice)}
-  <div class="dmenu" role="menu" style:left={menu.x + 'px'} style:top={menu.up ? null : menu.y + 'px'} style:bottom={menu.up ? menu.y + 'px' : null}>
-    {#if h}<button type="button" role="menuitem" id="send-songs" disabled={!account.online.has(h.id)} title={account.online.has(h.id) ? 'Copy songs into its incoming folder' : 'Its GLUE Home is offline'} onclick={() => pickSongs(h)}>Send songs…</button>{/if}
-    <button type="button" role="menuitem" onclick={() => rename(d)}>Rename…</button>
-    {#if h && h.id !== d.id}<button type="button" role="menuitem" class="danger" onclick={() => remove(h)}>Disconnect its GLUE Home…</button>{/if}
-    <button type="button" role="menuitem" class="danger" onclick={() => remove(d)}>{d.id === account.thisDevice ? 'Remove (signs out)…' : 'Remove…'}</button>
-  </div>
-{/if}
 
 {#if pairing}
   <div class="scrim" role="presentation" onpointerdown={e => { if (e.target === e.currentTarget) pairing = null; }}>
@@ -207,11 +199,6 @@
   .dev:hover .more, .more.open, .more:focus-visible { opacity: 1; }
   .more:hover, .more.open { background: var(--surface); color: var(--ink); }
   .fine { display: flex; gap: 6px; align-items: flex-start; color: var(--muted); font-size: 11.5px; line-height: 1.35; padding: 2px 6px 0; }
-  .dmenu { position: fixed; z-index: 50; width: 180px; display: grid; gap: 2px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; font-size: 13px; box-shadow: 0 12px 30px rgb(0 0 0 / .45); }
-  .dmenu button { background: none; border: 0; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer; color: var(--ink); }
-  .dmenu button:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
-  .dmenu .danger { color: var(--bad); }
-  .dmenu button:disabled { opacity: .45; cursor: default; }
   .dlg a.mine { font-weight: 700; }
   .dlg p a:not(.btn) { color: var(--accent); }
   .dlg a.btn { text-decoration: none; display: inline-block; }

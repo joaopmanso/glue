@@ -9,6 +9,8 @@
   import { app } from '../../lib/app.svelte';
   import { fmtTime } from '../../core/format';
   import { keyLabel } from '../../core/audio/keys';
+  import { menu } from '../../lib/menu.svelte';
+  import { trackMenu } from '../../lib/trackMenu';
 
   const t = $derived(nowPlaying.track);
   const a = $derived.by(() => { void lib.version; return t ? lib.store?.analysis.get(t.id) ?? null : null; });
@@ -33,7 +35,8 @@
       <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M10 2h2v10h-2zM2 2v10l7.5-5z" fill="currentColor"/></svg>
     </button>
   </div>
-  <div class="now">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="now" oncontextmenu={e => { if (t) menu.context(e, () => trackMenu([t.id], { order: nowPlaying.queue }), 'Song'); }}>
     {#if t}
       <a class="title" href={'#/track/' + t.id} title="Open the track page" id="lib-now">{t.title || t.fileName}</a>
       <button type="button" class="locate" id="lib-locate" title="Show it in the list" aria-label="Show the playing track in the list" onclick={() => { view.reveal = t.id; if (router.current.name !== 'library') router.go('#/'); }}>⌖</button>

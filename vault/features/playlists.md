@@ -81,3 +81,15 @@ track is used.
   made a deleted playlist look like it was still there (its namesakes were).
 - DJ libraries' playlists are browsed under "DJ libraries" and imported on demand, linked to the DJ
   app ([ADR 0063](../adr/0063-dj-libraries-browsed-live.md)).
+
+## Right-click (2026-09-26, [ADR 0067](../adr/0067-one-context-menu.md))
+- **A playlist or folder in the sidebar** (right-click, or its ⋯):
+  - Open, Play;
+  - Rename, colour, Tags…;
+  - New playlist or folder inside;
+  - Move up, Move down, Move to ▸ (with a find field);
+  - drag dock, Save as .m3u8, Show in ‹app›'s library (linked copies);
+  - Delete….
+- **Songs:** Add to playlist ▸ (recent first), Remove from ‹this playlist›, Remove from playlist ▸,
+  Show in playlist ▸. For one song or all the selected ones.
+- See [right-click menus](context-menus.md).

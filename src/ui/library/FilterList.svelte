@@ -5,6 +5,8 @@
   import { lib } from '../../lib/library.svelte';
   import { tagColorOf } from '../../lib/tags.svelte';
   import { deviceColor } from '../../lib/devices';
+  import { menu } from '../../lib/menu.svelte';
+  import { filterMenu } from '../../lib/filterMenu';
 
   let { group, title = '', search = false }: { group: FilterGroup; title?: string; search?: boolean } = $props();
   let q = $state('');
@@ -21,13 +23,13 @@
   const total = $derived(counts.reduce((a, [, n]) => a + n, 0));
 </script>
 
-<fieldset class="fl" data-group={group}>
+<fieldset class="fl" data-group={group} oncontextmenu={e => { if (!(e.target as HTMLElement).closest('input[type="search"]')) menu.context(e, () => filterMenu(group, (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v), 'Filter'); }}>
   {#if title}<legend>{title}</legend>{/if}
   {#if search && counts.length > 8}<input class="fq" type="search" placeholder="Find…" bind:value={q} aria-label={'Find ' + (title || group)}>{/if}
   <label class="all"><input type="checkbox" checked={!chosen.length} disabled={!chosen.length} onchange={() => view.clearFilters(group)}> <span>All</span><small>{group === 'tag' ? '' : total}</small></label>
   <div class="vals">
     {#each shown as [value, count] (value)}
-      <label><input type="checkbox" checked={chosen.includes(value)} onchange={() => view.toggleFilter(group, value)}>
+      <label data-v={value}><input type="checkbox" checked={chosen.includes(value)} onchange={() => view.toggleFilter(group, value)}>
         {#if group === 'tag' && value !== 'No tags'}<i class="dot" style:background={tagColorOf(value)}></i>{:else if group === 'device'}<i class="dot sq" style:background={deviceColor(value)}></i>{/if}<span>{value}</span><small>{count}</small></label>
     {:else}<p class="none">{q ? 'No match.' : 'Nothing here.'}</p>{/each}
   </div>

@@ -49,6 +49,7 @@ Planned (GLUE):
 [background analysis](features/background-analysis.md) ·
 [quality tiers & filters](features/quality-tiers.md) ·
 [playlists](features/playlists.md) ·
+[right-click menus](features/context-menus.md) ·
 [ratings](features/ratings.md) ·
 [themes](features/themes.md) ·
 [automatic playlists](features/auto-playlists.md) ·
@@ -136,3 +137,4 @@ Planned (GLUE):
 | [0063](adr/0063-dj-libraries-browsed-live.md) | DJ libraries are browsed live; playlists come into GLUE on demand and stay linked | accepted ("Live" amended by 0065) |
 | [0065](adr/0065-live-sync-through-glue-home.md) | Live sync of DJ libraries is GLUE Home's; in the browser alone, Refresh | accepted |
 | [0066](adr/0066-imported-records-find-their-files.md) | Imported records find their files by the folder's place; what an import no longer has goes | accepted |
+| [0067](adr/0067-one-context-menu.md) | One context menu for the library page: right-click (or ⋯) on anything there | accepted |

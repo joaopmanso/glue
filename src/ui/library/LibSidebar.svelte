@@ -1,7 +1,11 @@
 <script lang="ts">
   import { dock } from '../../lib/dock.svelte';
-  import { sidebar, type SideKey } from '../../lib/sidebar.svelte';
-  import { lib } from '../../lib/library.svelte';
+  import { sidebar, type LibView, type SideKey } from '../../lib/sidebar.svelte';
+  import { lib, type RootState } from '../../lib/library.svelte';
+  import { menu, SEP, tidy, type MenuEntry } from '../../lib/menu.svelte';
+  import { nowPlaying } from '../../lib/nowPlaying.svelte';
+  import { downloadBlob } from '../../lib/download';
+  import { hasTag, tagsOf } from '../../core/library/tagging';
   import { view, type ViewSel } from '../../lib/view.svelte';
   import { importDetected, importFiles, importWithHome, pickSeratoFolder, refreshWithFile } from '../../lib/importActions';
   import { djWatch } from '../../lib/djWatch.svelte';
@@ -14,7 +18,7 @@
   import { drag } from '../../lib/drag.svelte';
   import { dupes } from '../../lib/dupes.svelte';
   import { auto } from '../../lib/auto.svelte';
-  import { canDragOut, startPlaylistDrag } from '../../lib/dragout';
+  import { canDragOut, playlistM3u8, startPlaylistDrag } from '../../lib/dragout';
   import { allTags, tagColorOf } from '../../lib/tags.svelte';
   import { account } from '../../lib/account.svelte';
   import DevicesSection from './DevicesSection.svelte';
@@ -52,10 +56,8 @@
   let open = $state<Record<string, boolean>>({});
   let fileInput = $state<HTMLInputElement>();
   let pathEdit = $state<string | null>(null);
-  let menuFor = $state<string | null>(null);   // the list whose ⋯ menu is open
   // DJ libraries browsed where they are (ADR 0063): each one's tree, opened folder by folder.
   let djOpen = $state<Record<string, boolean>>({});
-  let djMenu = $state<string | null>(null);
   const djKids = $derived.by(() => {
     void lib.version;
     const m = new Map<string, Map<string, SourceList[]>>();
@@ -82,14 +84,12 @@
   }
   /** Bring a DJ library's list (a folder with everything in it; '' = all) into GLUE, and show it. */
   function importDj(src: Source, ext: string, name: string) {
-    djMenu = null;
     const n = lib.importLists(src.id, [ext]), copy = lib.linkedCopy(src.id, ext);
     lib.notice = n ? 'Imported ' + (ext ? '“' + name + '”' : 'all of ' + name) + ' into GLUE: ' + n + ' playlist' + (n === 1 ? '' : 's') + ' or folder' + (n === 1 ? '' : 's') + ', kept in step with ' + (APP_NAMES[src.app] ?? src.app) + '.' : '“' + name + '” is in GLUE already.';
     if (!copy) return;
     for (let q = copy.parentId; q; q = lib.store?.lists.get(q)?.parentId ?? null) open[q] = true;
     view.select({ kind: 'list', id: copy.id });
   }
-  let tagMenu = $state<string | null>(null);   // the tag whose ⋯ menu is open
   const tags = $derived.by(() => { void lib.version; return allTags(); });
   // Tags can be hundreds: a scrolling list, filtered by name once there are more than a few.
   let tagFilter = $state('');
@@ -100,12 +100,10 @@
     if (view.selected.size) lib.tagTracks([...view.selected], [name]); else lib.rememberTags([name]);
   }
   function renameTag(name: string) {
-    tagMenu = null;
     const to = cleanTag(prompt('Rename the tag “' + name + '” (on every track and playlist)', name) ?? '');
     if (to && to !== name) { lib.renameTag(name, to); if (view.sel.kind === 'tag' && view.sel.name.toLowerCase() === name.toLowerCase()) view.select({ kind: 'tag', name: to }); }
   }
   function deleteTag(name: string, n: number) {
-    tagMenu = null;
     if (!confirm('Delete the tag “' + name + '”?' + (n ? ' It comes off ' + n + ' track' + (n === 1 ? '' : 's') + '; the tracks stay.' : ''))) return;
     lib.deleteTag(name);
     if (view.sel.kind === 'tag' && view.sel.name.toLowerCase() === name.toLowerCase()) view.select({ kind: 'all' });
@@ -123,7 +121,6 @@
   }
   function rename(l: List, name: string) { view.editing = null; if (name.trim() && name.trim() !== l.name) lib.updateList(l.id, { name: name.trim() }); }
   function remove(l: List) {
-    menuFor = null;
     const what = l.kind === 'folder' ? 'the folder “' + l.name + '” and everything in it' : 'the playlist “' + l.name + '”';
     if (confirm('Delete ' + what + '? The tracks stay in your collection.')) { lib.deleteList(l.id); if (isSel({ kind: 'list', id: l.id })) view.select({ kind: 'all' }); }
   }
@@ -153,12 +150,151 @@
     return all.filter(x => !inside(x)).sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b)));
   }
   function moveTo(l: List, parentId: string | null) {
-    menuFor = null;
     lib.placeList(l.id, parentId, Infinity);
     if (parentId) open[parentId] = true;
   }
   const focus = (el: HTMLInputElement) => { el.focus(); el.select(); };
+
+  // ─── Menus: right-click on a row or a section's head, or its ⋯ (ADR 0067) ───
+  /** The row whose menu is open (outlined meanwhile). */
+  let menuRow = $state<string | null>(null);
+  const menued = (key: string) => !!menu.at && menuRow === key;
+  function onMenu(e: MouseEvent, key: string, build: () => MenuEntry[], label: string) { if (menu.context(e, build, label)) menuRow = key; }
+  function onMore(el: Element, key: string, build: () => MenuEntry[], label: string) { menu.from(el, build, label); menuRow = key; }
+  const plural = (n: number, one: string) => n + ' ' + one + (n === 1 ? '' : 's');
+
+  const LIB_VIEWS: [ViewSel['kind'], string][] = [['all', 'All tracks'], ['recent', 'Recently added'], ['attention', 'Needs attention'], ['pending', 'Not analysed yet'], ['unlinked', 'No file linked'], ['dupes', 'Duplicates']];
+  const libShown = (): MenuEntry[] => tidy([
+    ...LIB_VIEWS.filter(([k]) => k !== 'all').map(([k, label]) => {
+      const v = k as LibView, on = !sidebar.hidden.has(v);
+      return { label, checked: on, stay: true, attrs: { 'data-view-shown': k }, run: () => (on ? hideView(v) : sidebar.show(v)) };
+    }),
+    sidebar.hidden.size > 0 && SEP,
+    sidebar.hidden.size > 0 && { label: 'Show them all', run: () => sidebar.show() },
+  ]);
+  function hideView(v: LibView) { sidebar.hide(v); if (view.sel.kind === v) view.select({ kind: 'all' }); }
+  function libMenu(k: ViewSel['kind'], label: string): MenuEntry[] {
+    return tidy([
+      { label: 'Open', run: () => view.select({ kind: k } as ViewSel) },
+      k !== 'all' && { label: 'Hide “' + label + '”', attrs: { 'data-m': 'hide-view' }, title: 'Take it out of the sidebar; bring it back by right-clicking “Library”', run: () => hideView(k as LibView) },
+      SEP,
+      { label: 'Shown in Library', sub: libShown },
+    ]);
+  }
+  /** A section's head: what its buttons do, and collapsing it. */
+  function secMenu(k: SideKey): MenuEntry[] {
+    const own: (MenuEntry | false)[] =
+      k === 'library' ? [{ head: 'Shown in Library' }, ...libShown()]
+      : k === 'playlists' ? [{ label: 'New playlist', run: () => newList('playlist') }, { label: 'New folder', run: () => newList('folder') }, { label: 'Build a playlist from your collection…', run: () => auto.show(null) }]
+      : k === 'tags' ? [{ label: 'New tag…', run: newTag }]
+      : k === 'music' ? [canPickFolders() && { label: 'Add a music folder…', run: () => void lib.addFolder() }, { label: 'Add songs…', run: () => void addSongs() }]
+      : [{ label: 'Import a library file…', run: () => { if (homeMode()) void importWithHome(); else fileInput?.click(); } }, { label: 'Look for libraries in another folder…', run: () => void lib.addLibraryPlace('documents') }];
+    return tidy([...own, SEP,
+      { label: sidebar.open(k) ? 'Collapse' : 'Expand', run: () => sidebar.toggle(k) },
+      { label: sidebar.focus === k ? 'Show all sections again' : 'Give it the full height', run: () => sidebar.maximize(k) }]);
+  }
+
+  /** A playlist's or folder's songs that can play here, in order. */
+  function playList(l: List) {
+    const ts = dock.tracksOf(l.id).filter(t => t.status === 'linked' && !lib.cloud && (!t.remote || lib.canRead(t)));
+    if (ts.length) void nowPlaying.play(ts[0].id, ts.map(t => t.id)); else lib.notice = 'Nothing in ' + l.name + ' can play here.';
+  }
+  function saveM3u8(l: List) {
+    const { text, missing } = playlistM3u8(l);
+    downloadBlob(new Blob([text], { type: 'audio/x-mpegurl' }), l.name.replace(/[\\/:*?"<>|]+/g, '_') + '.m3u8');
+    if (missing) lib.notice = plural(missing, 'song') + ' of ' + l.name + ' have no known place on disk: they’re comments in the file.';
+  }
+  /** A linked copy's original, in its DJ library's tree (ADR 0063). */
+  function showInDj(src: Source, ext: string) {
+    djOpen[src.id] = true;
+    const byExt = new Map((src.tree ?? []).map(x => [x.externalId, x]));
+    for (let q = byExt.get(ext)?.parent; q; q = byExt.get(q)?.parent) djOpen[src.id + ':' + q] = true;
+    view.select({ kind: 'dj', sourceId: src.id, id: ext });
+  }
+  function listMenu(l: List): MenuEntry[] {
+    const siblings = childrenOf(l.parentId ?? '', lib.version);
+    const src = l.origin ? lib.store?.sources.get(l.origin.sourceId) : undefined, ext = l.origin?.externalId ?? '';
+    const songs = dock.tracksOf(l.id).length;
+    return tidy([
+      { label: 'Open', run: () => { view.select({ kind: 'list', id: l.id }); if (l.kind === 'folder') open[l.id] = true; } },
+      songs > 0 && { label: 'Play', hint: String(songs), attrs: { 'data-m': 'play' }, run: () => playList(l) },
+      SEP,
+      { label: 'Rename', attrs: { 'data-m': 'rename' }, run: () => (view.editing = l.id) },
+      { colors: LIST_COLORS, value: l.color ?? null, pick: (c: string | null) => lib.setListColor(l.id, c) },
+      { label: 'Tags…', hint: l.tags?.length ? plural(l.tags.length, 'tag') : undefined, attrs: { 'data-m': 'tags' }, run: () => (view.tagFor = { listId: l.id, x: menu.point.x, y: menu.point.y }) },
+      l.kind === 'folder' && { label: 'New playlist inside', run: () => newList('playlist', l.id) },
+      l.kind === 'folder' && { label: 'New folder inside', run: () => newList('folder', l.id) },
+      SEP,
+      { label: 'Move up', disabled: siblings[0]?.id === l.id, run: () => lib.nudgeList(l.id, -1) },
+      { label: 'Move down', disabled: siblings[siblings.length - 1]?.id === l.id, run: () => lib.nudgeList(l.id, 1) },
+      {
+        label: 'Move to', find: 'Find a folder', attrs: { 'data-m': 'move-to' },
+        sub: () => [{ label: 'Top level', checked: !l.parentId, attrs: { 'data-move-to': '' }, run: () => moveTo(l, null) }, SEP,
+          ...moveTargets(l).map(f => ({ label: lib.listPath(f), checked: l.parentId === f.id, color: f.color ?? null, attrs: { 'data-move-to': f.id }, run: () => moveTo(l, f.id) }))],
+      },
+      SEP,
+      dock.available && { label: 'Add to drag dock', attrs: { 'data-dock-list': l.id }, run: () => void dock.add(dock.tracksOf(l.id), l.name) },
+      l.kind === 'playlist' && { label: 'Save as a playlist file (.m3u8)', run: () => saveM3u8(l) },
+      !!src && !!src.tree?.some(x => x.externalId === ext) && { label: 'Show in ' + (APP_NAMES[src.app] ?? src.app) + '’s library', run: () => showInDj(src, ext) },
+      SEP,
+      { label: 'Delete…', danger: true, attrs: { 'data-m': 'delete' }, run: () => remove(l) },
+    ]);
+  }
+  function tagMenu(t: { name: string; tracks: number }): MenuEntry[] {
+    const sel = [...view.selected], s = lib.store;
+    const having = sel.filter(id => { const tr = s?.tracks.get(id); return !!tr && hasTag(tagsOf(tr), t.name); }).length;
+    const only = view.filters.tag.some(x => x.toLowerCase() === t.name.toLowerCase());
+    return tidy([
+      { label: 'Show its songs', run: () => view.select({ kind: 'tag', name: t.name }) },
+      { label: only ? 'Stop showing only it here' : 'Show only it here', title: 'Filter the songs on screen by this tag', run: () => view.toggleFilter('tag', t.name) },
+      sel.length > having && { label: 'Put it on the ' + plural(sel.length - having, 'selected song'), attrs: { 'data-m': 'tag-on' }, run: () => lib.tagTracks(sel, [t.name]) },
+      having > 0 && { label: 'Take it off the ' + plural(having, 'selected song'), attrs: { 'data-m': 'tag-off' }, run: () => lib.tagTracks(sel, [], [t.name]) },
+      SEP,
+      { label: 'Rename…', run: () => renameTag(t.name) },
+      { label: 'Delete…', danger: true, run: () => deleteTag(t.name, t.tracks) },
+    ]);
+  }
+  function removeFolder(r: RootState) { if (confirm('Remove “' + r.root.name + '” from this collection? Its tracks stay but become unlinked. No files are deleted.')) void lib.removeFolder(r.root.id); }
+  function copyPath(path: string) { void navigator.clipboard.writeText(path).then(() => (lib.notice = 'Copied ' + path + '.'), () => (lib.notice = 'The browser didn’t allow copying.')); }
+  function folderMenu(r: RootState): MenuEntry[] {
+    const path = r.root.absPath;
+    return tidy([
+      { label: 'Show its songs', run: () => view.select({ kind: 'root', id: r.root.id }) },
+      !r.dir && { label: 'Find the folder…', run: () => void lib.relinkFolder(r.root.id) },
+      !!r.dir && !r.granted && { label: 'Allow access', run: () => void lib.reconnectFolder(r.root.id) },
+      { label: 'Scan again', run: () => void lib.scanRoot(r.root.id) },
+      SEP,
+      { label: 'Where is it on disk…', title: path ?? 'Not known yet', run: () => (pathEdit = r.root.id) },
+      !!path && { label: 'Copy its path', title: path, run: () => copyPath(path) },
+      dock.available && { label: 'Add its songs to the drag dock', run: () => void dock.add(dock.tracksOfFolder(r.root.id), r.root.name) },
+      SEP,
+      { label: 'Remove from collection…', danger: true, run: () => removeFolder(r) },
+    ]);
+  }
+  function removeSource(s: Source) { if (confirm('Remove the ' + (APP_NAMES[s.app] ?? s.app) + ' import and its playlists? Tracks with a linked file stay.')) lib.deleteSource(s.id); }
+  function sourceMenu(s: Source): MenuEntry[] {
+    const name = APP_NAMES[s.app] ?? s.app, st = djWatch.status[s.id], n = s.tree?.length ?? 0;
+    return tidy([
+      { label: 'Show its songs', run: () => view.select({ kind: 'source', id: s.id }) },
+      n > 0 && { label: djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists', run: () => (djOpen[s.id] = !djOpen[s.id]) },
+      n > 0 && { label: 'Import all ' + n + ' into GLUE', run: () => importDj(s, '', name) },
+      SEP,
+      live ? st !== 'live' && st !== 'reading' && { label: 'Find its file…', title: 'GLUE Home follows a library live once it knows its file', run: () => void importWithHome() }
+        : { label: 'Refresh', title: 'Read this library again', run: () => void refresh(s) },
+      SEP,
+      { label: 'Remove this import…', danger: true, run: () => removeSource(s) },
+    ]);
+  }
+  function djMenuOf(src: Source, l: SourceList): MenuEntry[] {
+    const copy = lib.linkedCopy(src.id, l.externalId), whole = !!copy && !copy.origin?.chain;
+    return tidy([
+      { label: 'Show its songs', run: () => view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }) },
+      { label: whole ? 'Import again (brings back what’s missing)' : 'Import to GLUE', attrs: { 'data-dj-import': l.externalId }, run: () => importDj(src, l.externalId, l.name) },
+      !!copy && { label: 'Open GLUE’s copy', run: () => view.select({ kind: 'list', id: copy!.id }) },
+    ]);
+  }
 </script>
+
 
 {#snippet djNode(src: Source, l: SourceList, depth: number)}
   {@const kids = kidsOf(src, l.externalId)}
@@ -166,35 +302,31 @@
   {@const copy = copyOf(src.id, l.externalId, lib.version)}
   {@const whole = !!copy && !copy.origin?.chain}
   <li>
-    <div class="item dj" class:sel={isSel({ kind: 'dj', sourceId: src.id, id: l.externalId })} style:padding-left={8 + depth * 14 + 'px'} data-dj={l.externalId}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="item dj" class:sel={isSel({ kind: 'dj', sourceId: src.id, id: l.externalId })} class:menued={menued('dj:' + key)} style:padding-left={8 + depth * 14 + 'px'} data-dj={l.externalId}
+      oncontextmenu={e => onMenu(e, 'dj:' + key, () => djMenuOf(src, l), l.name)}>
       {#if kids.length}<button type="button" class="twist" aria-label={djOpen[key] ? 'Collapse' : 'Expand'} onclick={() => (djOpen[key] = !djOpen[key])}>{djOpen[key] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
       {#if l.kind === 'folder'}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" fill="currentColor"/></svg>
       {:else}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5v8.2a2.3 2.3 0 1 0 1.5 2.1V5.5l5-1.3v5.4a2.3 2.3 0 1 0 1.5 2.1V1.2z" fill="currentColor"/></svg>{/if}
       <button type="button" class="name" title={l.name + ' in ' + (APP_NAMES[src.app] ?? src.app)} onclick={() => { view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }); if (kids.length) djOpen[key] = true; }}>{l.name}</button>
       {#if whole}<button type="button" class="ingl" title="In GLUE, kept in step: open GLUE's copy" onclick={() => view.select({ kind: 'list', id: copy!.id })}>✓</button>{/if}
       <span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>
-      <span class="tools" class:open={djMenu === key}>
-        <button type="button" class="more" title="More" aria-haspopup="menu" aria-expanded={djMenu === key} onclick={() => (djMenu = djMenu === key ? null : key)}>⋯</button>
+      <span class="tools" class:open={menued('dj:' + key)}>
+        <button type="button" class="more" title="More (or right-click)" aria-haspopup="menu" aria-expanded={menued('dj:' + key)} onclick={e => onMore(e.currentTarget, 'dj:' + key, () => djMenuOf(src, l), l.name)}>⋯</button>
       </span>
     </div>
-    {#if djMenu === key}
-      <div class="menu" role="menu" style:margin-left={8 + depth * 14 + 'px'}>
-        <button type="button" role="menuitem" data-dj-import={l.externalId} onclick={() => importDj(src, l.externalId, l.name)}>{whole ? 'Import again (brings back what’s missing)' : 'Import to GLUE'}</button>
-        {#if copy}<button type="button" role="menuitem" onclick={() => { djMenu = null; view.select({ kind: 'list', id: copy.id }); }}>Open GLUE’s copy</button>{/if}
-      </div>
-    {/if}
     {#if kids.length && djOpen[key]}<ul>{#each kids as k (k.externalId)}{@render djNode(src, k, depth + 1)}{/each}</ul>{/if}
   </li>
 {/snippet}
 
 {#snippet node(l: List, depth: number)}
   {@const kids = l.kind === 'folder' ? childrenOf(l.id, lib.version) : []}
-  {@const siblings = childrenOf(l.parentId ?? '', lib.version)}
   <li>
     <div class={'item ' + dropCls(l.id)} class:colored={!!l.color} class:sel={isSel({ kind: 'list', id: l.id })} class:lifted={drag.active && drag.payload?.kind === 'list' && drag.payload.id === l.id}
       style:padding-left={8 + depth * 14 + 'px'} style:--lc={l.color ?? null}
       role="treeitem" aria-selected={isSel({ kind: 'list', id: l.id })} aria-expanded={l.kind === 'folder' ? !!open[l.id] : undefined} tabindex="-1"
-      data-drop="list" data-id={l.id} draggable={view.editing !== l.id} ondragstart={e => startListDrag(e, l)} ondragend={() => drag.end()}>
+      data-drop="list" data-id={l.id} draggable={view.editing !== l.id} ondragstart={e => startListDrag(e, l)} ondragend={() => drag.end()}
+      class:menued={menued('l:' + l.id)} oncontextmenu={e => { if (view.editing !== l.id) onMenu(e, 'l:' + l.id, () => listMenu(l), l.name); }}>
       {#if l.kind === 'folder'}
         <button type="button" class="twist" aria-label={open[l.id] ? 'Collapse' : 'Expand'} onclick={() => (open[l.id] = !open[l.id])}>{open[l.id] ? '▾' : '▸'}</button>
         <svg class="icon" class:colored={!!l.color} viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" fill="currentColor"/></svg>
@@ -218,39 +350,16 @@
           {l.name}{#if l.origin}<span class="imp" title="Imported; refreshed when you import the library again">↓</span>{/if}
         </button>
         {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>{/if}
-        <span class="tools" class:open={menuFor === l.id}>
-          <button type="button" class="more" title="More" aria-haspopup="menu" aria-expanded={menuFor === l.id} onclick={() => (menuFor = menuFor === l.id ? null : l.id)}>⋯</button>
+        <span class="tools" class:open={menued('l:' + l.id)}>
+          <button type="button" class="more" title="More (or right-click)" aria-haspopup="menu" aria-expanded={menued('l:' + l.id)} onclick={e => onMore(e.currentTarget, 'l:' + l.id, () => listMenu(l), l.name)}>⋯</button>
         </span>
       {/if}
     </div>
-    {#if menuFor === l.id}
-      <div class="menu" role="menu" style:margin-left={8 + depth * 14 + 'px'}>
-        <div class="colors" role="group" aria-label="Colour">
-          <button type="button" class="sw none" class:on={!l.color} title="No colour" onclick={() => lib.setListColor(l.id, null)}>∅</button>
-          {#each LIST_COLORS as c (c)}<button type="button" class="sw" class:on={l.color === c} style:background={c} title="Colour" aria-label="Colour" onclick={() => lib.setListColor(l.id, c)}></button>{/each}
-        </div>
-        <button type="button" role="menuitem" onclick={() => { menuFor = null; view.editing = l.id; }}>Rename</button>
-        <button type="button" role="menuitem" data-tags-open onclick={e => { const el = e.currentTarget.closest('.menu')!.previousElementSibling ?? e.currentTarget; menuFor = null; view.editTags(el, { listId: l.id }); }}>Tags…{#if l.tags?.length}<small class="ltags"> {l.tags.join(', ')}</small>{/if}</button>
-        {#if l.kind === 'folder'}<button type="button" role="menuitem" onclick={() => { menuFor = null; newList('playlist', l.id); }}>New playlist inside</button>{/if}
-        {#if dock.available}<button type="button" role="menuitem" data-dock-list={l.id} onclick={() => { menuFor = null; void dock.add(dock.tracksOf(l.id), l.name); }}>Add to drag dock</button>{/if}
-        <button type="button" role="menuitem" disabled={siblings[0]?.id === l.id} onclick={() => lib.nudgeList(l.id, -1)}>Move up</button>
-        <button type="button" role="menuitem" disabled={siblings[siblings.length - 1]?.id === l.id} onclick={() => lib.nudgeList(l.id, 1)}>Move down</button>
-        <label class="moveto">Move to
-          <select value={l.parentId ?? ''} onchange={e => moveTo(l, e.currentTarget.value || null)}>
-            <option value="">Top level</option>
-            {#each moveTargets(l) as f (f.id)}<option value={f.id}>{lib.listPath(f)}</option>{/each}
-          </select>
-        </label>
-        <button type="button" role="menuitem" class="danger" onclick={() => remove(l)}>Delete…</button>
-      </div>
-    {/if}
     {#if kids.length && open[l.id]}
       <ul role="group">{#each kids as k (k.id)}{@render node(k, depth + 1)}{/each}</ul>
     {/if}
   </li>
 {/snippet}
-
-<svelte:window onpointerdown={e => { const el = e.target as HTMLElement; if (menuFor && !el.closest('.menu, .more')) menuFor = null; if (tagMenu && !el.closest('.menu, .more')) tagMenu = null; }} onkeydown={e => { if (e.key === 'Escape') { menuFor = null; tagMenu = null; } }} />
 
 {#snippet secHead(k: SideKey, label: string)}
   <h3 class="label"><button type="button" class="sechead" aria-expanded={sidebar.open(k)} data-sec={k} title={sidebar.open(k) ? 'Collapse' : 'Expand'} onclick={() => sidebar.toggle(k)}><span class="chev" class:shut={!sidebar.open(k)} aria-hidden="true">▾</span>{label}</button></h3>
@@ -261,18 +370,22 @@
 
 <nav class="lside" class:focused={!!sidebar.focus} aria-label="Library">
   <section class:max={sidebar.focus === 'library'}>
-    <div class="head">{@render secHead('library', 'Library')}<span class="add">{@render maxBtn('library')}</span></div>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="head" class:menued={menued('sec:library')} oncontextmenu={e => onMenu(e, 'sec:library', () => secMenu('library'), 'Section')}>{@render secHead('library', 'Library')}<span class="add">{@render maxBtn('library')}</span></div>
     {#if sidebar.open('library')}
     <ul>
-      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length + lib.copies.size]] as [k, label, n] (k)}
-        <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} onclick={() => view.select({ kind: k } as ViewSel)}>{label}<span class="n">{n ?? ''}</span></button></li>
+      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length + lib.copies.size]].filter(([k]) => !sidebar.hidden.has(k as LibView)) as [k, label, n] (k)}
+        <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} class:menued={menued('v:' + k)} data-view={k} onclick={() => view.select({ kind: k } as ViewSel)}
+          oncontextmenu={e => onMenu(e, 'v:' + k, () => libMenu(k as ViewSel['kind'], String(label)), String(label))}>{label}<span class="n">{n ?? ''}</span></button></li>
       {/each}
+      {#if sidebar.hidden.size}<li><button type="button" class="inline morev" id="hidden-views" title="Hidden by right-clicking them" onclick={e => onMore(e.currentTarget, 'sec:library', libShown, 'Shown in Library')}>{sidebar.hidden.size} hidden · show…</button></li>{/if}
     </ul>
     {/if}
   </section>
 
   <section class:max={sidebar.focus === 'playlists'}>
-    <div class="head">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="head" class:menued={menued('sec:playlists')} oncontextmenu={e => onMenu(e, 'sec:playlists', () => secMenu('playlists'), 'Section')}>
       {@render secHead('playlists', 'Playlists')}
       <span class="add">
         <button type="button" id="new-playlist" title="New playlist (or drop tracks here)" class:hot={drag.active && drag.target?.type === 'new'} data-drop="new" onclick={() => newList('playlist')}>+ Playlist</button>
@@ -291,7 +404,8 @@
   </section>
 
   <section class="tags-sec" class:max={sidebar.focus === 'tags'}>
-    <div class="head">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="head" class:menued={menued('sec:tags')} oncontextmenu={e => onMenu(e, 'sec:tags', () => secMenu('tags'), 'Section')}>
       {@render secHead('tags', 'Tags' + (tags.length ? ' · ' + tags.length : ''))}
       <span class="add"><button type="button" id="new-tag" title={view.selected.size ? 'Make a tag and put it on the selected tracks' : 'Make a tag'} onclick={newTag}>+ Tag</button>{@render maxBtn('tags')}</span>
     </div>
@@ -301,20 +415,16 @@
       {#each shownTags as t (t.name)}
         {@const hot = drag.active && drag.target?.type === 'tag' && drag.target.name === t.name}
         <li>
-          <div class="item tagitem" class:sel={view.sel.kind === 'tag' && view.sel.name.toLowerCase() === t.name.toLowerCase()} class:drop-add={hot} data-drop="tag" data-tag={t.name} style:--tc={tagColorOf(t.name)}>
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="item tagitem" class:sel={view.sel.kind === 'tag' && view.sel.name.toLowerCase() === t.name.toLowerCase()} class:drop-add={hot} data-drop="tag" data-tag={t.name} style:--tc={tagColorOf(t.name)}
+            class:menued={menued('t:' + t.name)} oncontextmenu={e => onMenu(e, 't:' + t.name, () => tagMenu(t), t.name)}>
             <i class="tdot" aria-hidden="true"></i>
             <button type="button" class="name" onclick={() => view.select({ kind: 'tag', name: t.name })}>{t.name}</button>
             {#if hot}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n" title={t.lists ? 'On ' + t.lists + ' playlist' + (t.lists === 1 ? '' : 's') + ' too' : ''}>{t.tracks}</span>{/if}
-            <span class="tools" class:open={tagMenu === t.name}>
-              <button type="button" class="more" title="More" aria-haspopup="menu" aria-expanded={tagMenu === t.name} onclick={() => (tagMenu = tagMenu === t.name ? null : t.name)}>⋯</button>
+            <span class="tools" class:open={menued('t:' + t.name)}>
+              <button type="button" class="more" title="More (or right-click)" aria-haspopup="menu" aria-expanded={menued('t:' + t.name)} onclick={e => onMore(e.currentTarget, 't:' + t.name, () => tagMenu(t), t.name)}>⋯</button>
             </span>
           </div>
-          {#if tagMenu === t.name}
-            <div class="menu" role="menu">
-              <button type="button" role="menuitem" onclick={() => renameTag(t.name)}>Rename…</button>
-              <button type="button" role="menuitem" class="danger" onclick={() => deleteTag(t.name, t.tracks)}>Delete…</button>
-            </div>
-          {/if}
         </li>
       {:else}
         <li class="empty">{tags.length ? 'No tag matches.' : 'No tags yet. Tag tracks from the Tags column, or drag tracks onto a tag here.'}</li>
@@ -325,7 +435,8 @@
 
   {#if !lib.cloud}
   <section class:max={sidebar.focus === 'music'}>
-    <div class="head">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="head" class:menued={menued('sec:music')} oncontextmenu={e => onMenu(e, 'sec:music', () => secMenu('music'), 'Section')}>
       {@render secHead('music', 'Music')}
       <span class="add">
         {#if canPickFolders()}<button type="button" id="add-folder" title="Add a folder of music" onclick={() => lib.addFolder()}>+ Folder</button>{/if}
@@ -339,7 +450,8 @@
     <ul>
       {#each lib.musicFolders as r (r.root.id)}
         <li>
-          <div class="item" class:sel={isSel({ kind: 'root', id: r.root.id })}>
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="item" class:sel={isSel({ kind: 'root', id: r.root.id })} class:menued={menued('r:' + r.root.id)} data-root={r.root.id} oncontextmenu={e => onMenu(e, 'r:' + r.root.id, () => folderMenu(r), r.root.name)}>
             <button type="button" class="name" onclick={() => view.select({ kind: 'root', id: r.root.id })} title={r.root.absPath ?? 'Location on disk not known yet'}>📁 {r.root.name}</button>
             {#if !r.dir}<button type="button" class="reconnect" title="GLUE lost its link to this folder (restored backup or cleared browser data): choose it again" onclick={() => lib.relinkFolder(r.root.id)}>Find folder</button>
             {:else if !r.granted}<button type="button" class="reconnect" onclick={() => lib.reconnectFolder(r.root.id)}>Allow</button>{/if}
@@ -347,7 +459,7 @@
               {#if dock.available}<button type="button" title="Add this folder's songs to the drag dock" data-dock-root={r.root.id} onclick={() => void dock.add(dock.tracksOfFolder(r.root.id), r.root.name)}>⇲</button>{/if}
               <button type="button" title="Scan again" onclick={() => lib.scanRoot(r.root.id)}>↻</button>
               <button type="button" title="Where is this folder on disk? (for exports)" onclick={() => (pathEdit = pathEdit === r.root.id ? null : r.root.id)}>⌖</button>
-              <button type="button" title="Remove from collection" onclick={() => { if (confirm('Remove “' + r.root.name + '” from this collection? Its tracks stay but become unlinked. No files are deleted.')) void lib.removeFolder(r.root.id); }}>×</button>
+              <button type="button" title="Remove from collection" onclick={() => removeFolder(r)}>×</button>
             </span>
           </div>
           {#if pathEdit === r.root.id}
@@ -359,7 +471,8 @@
         </li>
       {/each}
       {#if loose}
-        <li><button type="button" class="item name" class:sel={isSel({ kind: 'root', id: LOOSE })} onclick={() => view.select({ kind: 'root', id: LOOSE })} title="Songs added one by one">🎵 Added songs<span class="n">{loose}</span></button></li>
+        <li><button type="button" class="item name" class:sel={isSel({ kind: 'root', id: LOOSE })} class:menued={menued('r:' + LOOSE)} onclick={() => view.select({ kind: 'root', id: LOOSE })} title="Songs added one by one"
+          oncontextmenu={e => onMenu(e, 'r:' + LOOSE, () => [{ label: 'Show its songs', run: () => view.select({ kind: 'root', id: LOOSE }) }, { label: 'Add songs…', run: () => void addSongs() }], 'Added songs')}>🎵 Added songs<span class="n">{loose}</span></button></li>
       {/if}
       {#if !lib.musicFolders.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). GLUE only reads them.' : 'Add songs, or drop them onto GLUE: they’re copied into GLUE’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
     </ul>
@@ -367,7 +480,8 @@
   </section>
 
   <section class:max={sidebar.focus === 'dj'}>
-    <div class="head">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="head" class:menued={menued('sec:dj')} oncontextmenu={e => onMenu(e, 'sec:dj', () => secMenu('dj'), 'Section')}>
       {@render secHead('dj', 'DJ libraries')}
       <span class="add">
         <button type="button" id="find-libs" title="Allow another folder for GLUE to look for DJ libraries in" onclick={() => lib.addLibraryPlace('documents')}>Look in…</button>
@@ -385,7 +499,8 @@
         {@const d = lib.detected.find(x => x.sourceId === s.id)}
         {@const changed = d?.status === 'changed' && d.modified > (s.origin?.modified ?? 0) + 1000}
         <li>
-          <div class="item" class:sel={isSel({ kind: 'source', id: s.id })}>
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="item" class:sel={isSel({ kind: 'source', id: s.id })} class:menued={menued('s:' + s.id)} data-source={s.id} oncontextmenu={e => onMenu(e, 's:' + s.id, () => sourceMenu(s), APP_NAMES[s.app] ?? s.app)}>
             {#if s.tree?.length}<button type="button" class="twist" data-dj-open={s.id} aria-label={djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists'} onclick={() => (djOpen[s.id] = !djOpen[s.id])}>{djOpen[s.id] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
             <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}<small> {s.fileName}</small></button>
             <span class="n">{s.tracks.length}</span>
@@ -393,7 +508,7 @@
               {#if djWatch.status[s.id] === 'live' || djWatch.status[s.id] === 'reading'}<span class="live" class:reading={djWatch.status[s.id] === 'reading'} data-dj-live={s.id} title={djWatch.status[s.id] === 'reading' ? 'Reading its changes…' : 'Followed live through GLUE Home: its changes show here within seconds'}>●</span>
               {:else}<button type="button" class="update" data-dj-find={s.id} title="GLUE Home follows a library live once it knows its file: choose it" onclick={() => void importWithHome()}>Find its file…</button>{/if}
             {:else}<button type="button" class="refresh" class:update={changed} data-dj-refresh={s.id} title={changed ? 'Changed since GLUE read it (' + new Date(d!.modified).toLocaleString() + '): read it again' : 'Read this library again (with GLUE Home running, GLUE follows it live)'} onclick={() => void refresh(s)}>{changed ? 'Update' : 'Refresh'}</button>{/if}
-            <span class="tools keep"><button type="button" title="Remove this import" onclick={() => { if (confirm('Remove the ' + (APP_NAMES[s.app] ?? s.app) + ' import and its playlists? Tracks with a linked file stay.')) lib.deleteSource(s.id); }}>×</button></span>
+            <span class="tools keep"><button type="button" title="Remove this import" onclick={() => removeSource(s)}>×</button></span>
           </div>
           {#if djOpen[s.id] && s.tree?.length}
             <ul class="djtree" aria-label={(APP_NAMES[s.app] ?? s.app) + ' playlists'}>
@@ -460,6 +575,10 @@
   .item.sel { background: color-mix(in srgb, var(--accent) 16%, transparent); }
   .item { position: relative; }
   .item.lifted { opacity: .4; }
+  /* Its menu is open (right-click or ⋯). */
+  .item.menued, .head.menued { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 4px; }
+  .morev { font-size: 11.5px; color: var(--muted); padding: 2px 8px; text-decoration: none; }
+  .morev:hover { color: var(--accent); }
   .item.drop-add, .item.drop-into { background: color-mix(in srgb, var(--accent) 20%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
   .item.drop-before::before, .item.drop-after::after { content: ''; position: absolute; left: 6px; right: 6px; height: 2px; background: var(--accent); border-radius: 1px; pointer-events: none; }
   .item.drop-before::before { top: -1px; }
@@ -479,21 +598,8 @@
   .item:hover .tools.keep, .item:focus-within .tools.keep { visibility: visible; }
   .tdot { width: 9px; height: 9px; border-radius: 50%; background: var(--tc); flex: none; margin-right: 4px; }
   .tagitem { padding-left: 10px !important; }
-  .ltags { color: var(--muted); }
   .more-tags { padding: 4px 8px; font-size: 12px; }
   .more { font-size: 13px !important; line-height: 1; padding: 0 6px 2px !important; }
-  .menu { display: grid; gap: 2px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; margin: 2px 4px 6px; box-shadow: 0 8px 24px rgb(0 0 0 / .4); font-size: 13px; }
-  .menu > button { background: none; border: 0; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer; color: var(--ink); }
-  .menu > button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 15%, transparent); }
-  .menu > button:disabled { color: var(--muted); cursor: default; }
-  .menu .danger { color: var(--bad); }
-  .colors { display: flex; gap: 5px; padding: 4px 6px 6px; flex-wrap: wrap; }
-  .sw { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
-  .sw.on { border-color: var(--ink); }
-  .sw.none { background: none; border-color: var(--line-2); color: var(--muted); font-size: 10px; line-height: 1; }
-  .sw.none.on { border-color: var(--ink); }
-  .moveto { display: flex; align-items: center; gap: 8px; padding: 4px 8px; color: var(--ink-2); }
-  .moveto select { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 2px 4px; font-size: 12.5px; }
   .topzone { margin-top: 4px; padding: 6px 8px; border: 1px dashed var(--line-2); border-radius: 4px; color: var(--muted); font-size: 12px; text-align: center; }
   .topzone.on { border-color: var(--accent); color: var(--accent); }
   .add button.hot { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); }

@@ -1,6 +1,9 @@
 /* Send songs from this browser to a GLUE Home's incoming folder (ADR 0044): a WebRTC data channel,
    set up through the account's signaling room; the files go directly between the two computers. */
-import { account } from './account.svelte';
+import { account, type CloudDevice } from './account.svelte';
+import { lib } from './library.svelte';
+import { localHome } from './localHome.svelte';
+import type { Track } from '../store/types';
 import { CHUNK, HIGH_WATER, ICE_SERVERS, isHandshake, type Ctrl, type Handshake } from '../core/transfer';
 
 export interface Sending { home: string; homeName: string; files: { name: string; size: number; sent: number; state: 'waiting' | 'sending' | 'saved' | 'failed'; note: string }[]; phase: 'connecting' | 'sending' | 'done' | 'failed'; error: string }
@@ -90,3 +93,17 @@ class SendToHome {
 }
 
 export const sendToHome = new SendToHome();
+
+/** Where songs can be sent: other computers' GLUE Homes that are online. Not this computer's own: its
+    songs are here already (it once offered "Send to" the computer the user was on). */
+export function sendTargets(): CloudDevice[] {
+  return account.devices.filter(d => d.kind === 'home' && account.online.has(d.id) && !(account.thisDevice && d.companionOf === account.thisDevice) && localHome.link?.home !== d.id);
+}
+/** Send these songs' files (this computer's) to a GLUE Home's incoming folder. */
+export async function sendTracks(home: string, ids: string[]) {
+  const ts = ids.map(id => lib.store?.tracks.get(id)).filter((t): t is Track => !!t && t.status === 'linked' && !t.remote && !lib.cloud);
+  const files: File[] = [];
+  for (const t of ts) { try { files.push(await lib.fileFor(t)); } catch { /* skipped: not readable here */ } }
+  if (!files.length) { lib.notice = 'None of these songs has a file on this computer to send.'; return; }
+  await sendToHome.send(home, files).catch(e => (lib.notice = (e as Error).message));
+}

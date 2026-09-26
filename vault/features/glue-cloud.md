@@ -307,3 +307,10 @@ First release: phases 1–3 (user, 2026-09-25).
   store them in the GLUE folder (tens of MB for 10k tracks), or let GLUE Home compute them.
 - **Two writers:** the phase-1 rule (GLUE Home writes only files) avoids JSON conflicts. Remote
   edits need a real sync design.
+
+## Send to another computer: in the songs' menu (2026-09-26, [ADR 0067](../adr/0067-one-context-menu.md))
+- **"Send to ‹computer›" moved** from the selection bar into the songs' right-click menu. It's only
+  for other computers' GLUE Homes that are online.
+- **This computer's own GLUE Home is never offered** (`sendTargets()`). The user saw "Send to
+  Desktop" on the desktop itself.
+- **Also unchanged:** dragging songs onto a computer in Devices, and Devices › ⋯ › Send songs….

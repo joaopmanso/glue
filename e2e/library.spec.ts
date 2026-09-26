@@ -357,17 +357,18 @@ test('organises playlists (drag, menu, colours) and rates tracks in half stars',
   await drop('B', 'Gigs', 0.5);
   await expect(item('Gigs').locator('.twist')).toHaveAttribute('aria-label', 'Collapse');
   expect(await names()).toEqual(['C', 'A', 'Gigs', 'B']);
-  // Menu: move B back to the top level, then up, and colour it.
+  // Menu (⋯, or right-click, ADR 0067): move B back to the top level, then up, and colour it.
   await item('B').hover(); await item('B').locator('.more').click();
-  await page.locator('.menu select').selectOption('');
+  await page.locator('.cmenu [data-m="move-to"]').click();
+  await page.locator('.cmenu [data-move-to=""]').click();
   expect(await names()).toEqual(['C', 'A', 'Gigs', 'B']);   // top level, at the end
-  await item('B').hover(); await item('B').locator('.more').click();
+  await item('B').click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Move up' }).click();
   expect(await names()).toEqual(['C', 'A', 'B', 'Gigs']);
-  await page.locator('.menu .sw').nth(3).click();
+  await item('B').click({ button: 'right' });
+  await page.locator('.cmenu .sw').nth(3).click();
   await expect(item('B').locator('.icon')).toHaveClass(/colored/);
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.menu')).toHaveCount(0);
+  await expect(page.locator('.cmenu')).toHaveCount(0);
 
   // Drag a track onto a playlist: highlight with "+", then added.
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
@@ -396,6 +397,141 @@ test('organises playlists (drag, menu, colours) and rates tracks in half stars',
   await expect(page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.stars')).toHaveAttribute('aria-valuenow', '3', { timeout: 20_000 });
   expect(await names()).toEqual(['C', 'A', 'B', 'Gigs']);
   await expect(item('B').locator('.icon')).toHaveClass(/colored/);
+});
+
+test('right-click menus: songs (one or many, mouse or keyboard), playlists, tags, Library entries, columns and filters (ADR 0067)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  const row = (t: string) => page.locator('.tr', { hasText: t });
+  const cm = page.locator('.cmenu'), m = (k: string) => cm.locator('[data-m="' + k + '"]');
+  // Enough playlists for "Add to playlist" to get a find field.
+  for (let i = 1; i <= 8; i++) { await page.click('#new-playlist'); await page.keyboard.type('Set ' + i); await page.keyboard.press('Enter'); }
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+
+  // One song: right-click selects it and shows its menu. No "Send to": no other computer here.
+  await row('Fixture FLAC').locator('.c-title').click({ button: 'right' });
+  await expect(cm).toHaveCount(1);
+  await expect(row('Fixture FLAC')).toHaveClass(/sel/);
+  await expect(cm.locator('.chead').first()).toHaveText('Fixture FLAC');
+  await expect(m('details')).toBeVisible();
+  await expect(m('prepare')).toBeVisible();
+  await expect(page.locator('[data-send-home]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(cm).toHaveCount(0);
+  // Shift+right-click leaves the browser's own menu alone.
+  await row('Fixture FLAC').locator('.c-title').click({ button: 'right', modifiers: ['Shift'] });
+  await expect(cm).toHaveCount(0);
+
+  // Two songs: the selection stays; Add to playlist › New playlist… puts both in it.
+  await row('Fixture MP3').locator('.c-title').click({ modifiers: ['Control'] });
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await expect(cm.locator('.chead').first()).toHaveText('2 songs selected');
+  page.once('dialog', d => void d.accept('Warm-up'));
+  await m('add').hover();
+  if (process.env.SHOTS) { await expect(cm).toHaveCount(2); await page.screenshot({ path: process.env.SHOTS + '/menu-songs.png' }); }
+  await cm.locator('[data-m="new-playlist"]').click();
+  await expect(page.locator('.notice')).toContainText('Added 2 songs to Warm-up');
+  await expect(page.locator('.lside .tree .item', { hasText: 'Warm-up' })).toContainText('2');
+  // A rating on both at once.
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await cm.locator('.cstars button').nth(3).click({ position: { x: 12, y: 7 } });
+  await expect(cm).toHaveCount(0);
+  for (const t of ['Fixture FLAC', 'Fixture MP3']) await expect(row(t).locator('.stars')).toHaveAttribute('aria-valuenow', '4');
+
+  // The keyboard: a letter jumps, → opens the submenu with its find field, Enter picks.
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await expect(cm).toBeFocused();
+  await page.keyboard.press('a');
+  await expect(m('add')).toHaveClass(/\bon\b/);
+  await page.keyboard.press('ArrowRight');
+  await expect(cm).toHaveCount(2);
+  await expect(cm.nth(1).locator('input')).toBeFocused();
+  await page.keyboard.type('warm');
+  await page.keyboard.press('Enter');
+  await expect(cm).toHaveCount(0);
+  await expect(page.locator('.notice')).toContainText('in Warm-up already');
+  // The table's menu key (Shift+F10) opens the selection's menu too.
+  await page.locator('.table .body').focus();
+  await page.keyboard.press('Shift+F10');
+  await expect(cm.locator('.chead').first()).toHaveText('2 songs selected');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.table .body')).toBeFocused();   // focus goes back where it was
+
+  // In a playlist: "Remove from Warm-up".
+  await page.locator('.lside .tree .name', { hasText: 'Warm-up' }).click();
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await m('remove-here').click();
+  await expect(page.locator('.tr')).toHaveCount(1);
+
+  // A playlist in the sidebar: rename from its menu.
+  const pl = page.locator('.lside .tree .item', { hasText: 'Warm-up' });
+  await pl.click({ button: 'right' });
+  await expect(pl).toHaveClass(/menued/);
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/menu-playlist.png' });
+  await m('rename').click();
+  await page.keyboard.press('Control+A'); await page.keyboard.type('Opener'); await page.keyboard.press('Enter');
+  await expect(page.locator('.lside .tree .name', { hasText: 'Opener' })).toBeVisible();
+
+  // A tag in the sidebar puts itself on the selected songs.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await row('aiff-44k-24').locator('.c-title').click();
+  page.once('dialog', d => void d.accept('Peak'));
+  await page.click('#new-tag');
+  await row('Fixture FLAC').locator('.c-title').click();
+  await page.locator('.lside .tagitem', { hasText: 'Peak' }).click({ button: 'right' });
+  await m('tag-on').click();
+  await expect(page.locator('.lside .tagitem', { hasText: 'Peak' }).locator('.n')).toHaveText('2');
+  // Right-clicking a tag in a row offers "Show only" that tag.
+  await row('Fixture FLAC').locator('.tg', { hasText: 'Peak' }).click({ button: 'right' });
+  await expect(m('only')).toHaveText(/Show only tag “Peak”/);
+  await m('only').click();
+  await expect(page.locator('.tr')).toHaveCount(2);
+  await page.locator('.selbar').getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(page.locator('.selbar .chip')).toHaveText('Peak×');   // what's filtered, removable
+  await page.click('#clear-filters');
+
+  // Library entries: hide one, and bring it back.
+  await page.locator('.lside [data-view="recent"]').click({ button: 'right' });
+  await m('hide-view').click();
+  await expect(page.locator('.lside [data-view="recent"]')).toHaveCount(0);
+  await page.click('#hidden-views');
+  await cm.locator('[data-view-shown="recent"]').click();
+  await expect(cm.locator('[data-view-shown="recent"]')).toHaveAttribute('aria-checked', 'true');   // stays open, ticked
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.lside [data-view="recent"]')).toHaveCount(1);
+
+  // A column's header: hide it.
+  await page.locator('.th[data-col="genre"]').click({ button: 'right' });
+  await m('hide-col').click();
+  await expect(page.locator('.th[data-col="genre"]')).toHaveCount(0);
+
+  // Filters: right-click one in the Filter menu to hide it; it comes back from there.
+  await page.click('#filter-btn');
+  await page.locator('#filter-menu fieldset[data-group="format"] legend').click({ button: 'right' });
+  await m('hide-filter').click();
+  await expect(page.locator('#filter-menu fieldset[data-group="format"]')).toHaveCount(0);
+  await expect(page.locator('#hidden-filters')).toContainText('Format');
+  await page.locator('#hidden-filters button').click();
+  await expect(page.locator('#filter-menu fieldset[data-group="format"]')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+
+  // Remove from collection, from the menu.
+  page.once('dialog', d => void d.accept());
+  await row('aac').locator('.c-title').click({ button: 'right' });
+  await m('remove').click();
+  await expect(page.locator('.tr')).toHaveCount(3);
+
+  // The selection bar's ⋯ opens the same menu.
+  await row('Fixture FLAC').locator('.c-title').click();
+  await page.click('#sel-more');
+  await m('details').click();
+  await expect(page).toHaveURL(/#\/track\//);
 });
 
 test('drops on folders and "+ Playlist", reorders playlist rows, columns and notes', async ({ page }) => {
@@ -1633,9 +1769,9 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   expect(Buffer.from(files[1].bytes).equals(readFileSync(fixture('flac-96k-24.flac')))).toBe(true);
   await panel.getByRole('button', { name: 'Dismiss' }).click();
 
-  // From the library: select a track, "Send to Studio PC"; the name is taken there, so it's numbered.
-  await page.locator('.tr', { hasText: 'Fixture MP3' }).locator('.c-title').click();
-  await page.click('[data-send-home="h1"]');
+  // From the library: right-click a song, "Send to Studio PC"; the name is taken there, so it's numbered.
+  await page.locator('.tr', { hasText: 'Fixture MP3' }).locator('.c-title').click({ button: 'right' });
+  await page.click('.cmenu [data-send-home="h1"]');
   await expect(panel).toContainText('saved as mp3-128k (2).mp3', { timeout: 30_000 });
   files = await got();
   expect(files[2]).toMatchObject({ name: 'mp3-128k (2).mp3', done: true });
@@ -1841,6 +1977,13 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   // The website learns the local link (once, over the account's channel).
   await expect.poll(() => page.evaluate(() => localStorage.getItem('mco.localHome')), { timeout: 40_000 }).toContain('47400');
   await expect(page.locator('#local-link')).toHaveText(' · linked directly');
+  // A song's menu doesn't offer to send it to this computer's own GLUE Home: it's here already (the
+  // selection bar once had "Send to Desktop" on the desktop).
+  await page.locator('.lside').getByText('TO BE SORTED').click({ timeout: 20_000 });
+  await page.locator('.tr', { hasText: 'flac-96k-24' }).locator('.c-title').click({ button: 'right' });
+  await expect(page.locator('.cmenu [data-m="details"]')).toBeVisible();
+  await expect(page.locator('.cmenu [data-send-home]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
 
   // Now without GLUE Cloud: a reload shows TO BE SORTED at once, analysed, from GLUE Home directly.
   offline = true;

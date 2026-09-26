@@ -7,6 +7,7 @@ import { dupes } from './dupes.svelte';
 import type { AnalysisSummary, Source, Track } from '../store/types';
 import { keyLabel, type KeyNotation } from '../core/audio/keys';
 import { hasTag, tagsOf } from '../core/library/tagging';
+import { readPref, writePref } from './prefs';
 
 export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string };
 /** The table's value filters; each can also be opened from its column header. */
@@ -70,6 +71,11 @@ class View {
   }
   setFilter(group: FilterGroup, values: string[]) { this.filters = { ...this.filters, [group]: values }; }
   clearFilters(group?: FilterGroup) { this.filters = group ? { ...this.filters, [group]: [] } : NO_FILTERS(); }
+  /** Groups taken out of the Filter menu (right-click › Hide; ADR 0067), remembered in this browser.
+      Hiding one stops filtering by it: a filter that can't be seen mustn't hide songs. */
+  hiddenFilters = $state<FilterGroup[]>(((): FilterGroup[] => { try { const v = JSON.parse(readPref('hiddenFilters', '[]')); return Array.isArray(v) ? v.filter(g => FILTER_GROUPS.some(x => x.g === g)) : []; } catch { return []; } })());
+  hideFilter(g: FilterGroup) { if (!this.hiddenFilters.includes(g)) this.hiddenFilters = [...this.hiddenFilters, g]; this.clearFilters(g); writePref('hiddenFilters', JSON.stringify(this.hiddenFilters)); }
+  showFilter(g?: FilterGroup) { this.hiddenFilters = g ? this.hiddenFilters.filter(x => x !== g) : []; writePref('hiddenFilters', JSON.stringify(this.hiddenFilters)); }
 
   /** `unfiltered`: without the value filters; `except`: without one group's (to count its options). */
   rows(notation: KeyNotation, opts: { unfiltered?: boolean; except?: FilterGroup } = {}): Row[] { return time('rows', () => this.rowsNow(notation, opts)); }

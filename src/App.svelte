@@ -18,6 +18,7 @@
   import DragTag from './ui/library/DragTag.svelte';
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
   import TagEditor from './ui/library/TagEditor.svelte';
+  import ContextMenu from './ui/ContextMenu.svelte';
   import GlueStick from './ui/GlueStick.svelte';
   import AccountButton from './ui/AccountButton.svelte';
   import AdminView from './ui/AdminView.svelte';
@@ -181,6 +182,7 @@
 {#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
 {#if inLibrary}<TagEditor />{/if}
+<ContextMenu />
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}
   <div class="drop-overlay" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>
