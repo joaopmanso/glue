@@ -133,3 +133,4 @@ Planned (GLUE):
 | [0060](adr/0060-decode-in-the-worker.md) | Read, parse and decode audio in the worker (mediabunny + WebCodecs) | accepted (supersedes 0019's decoding) |
 | [0061](adr/0061-songs-onto-the-drag-dock.md) | Songs go onto the drag dock by dragging them there too | accepted |
 | [0062](adr/0062-add-to-playlist-mirrors-the-sidebar.md) | "Add to playlist" lists the playlists as the sidebar shows them | accepted |
+| [0063](adr/0063-dj-libraries-browsed-live.md) | DJ libraries are browsed live; playlists come into GLUE on demand and stay linked | accepted |

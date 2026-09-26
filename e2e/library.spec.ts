@@ -55,6 +55,15 @@ async function seed(page: Page) {
   }, files);
 }
 
+/** Every DJ library's playlists brought into GLUE (they're browsed, and imported on demand: ADR 0063). */
+async function importAllDj(page: Page) {
+  await expect(page.locator('[data-dj-open]').first()).toBeVisible({ timeout: 30_000 });
+  for (const b of await page.locator('[data-dj-open]').all()) if (await b.getAttribute('aria-label') !== 'Hide its playlists') await b.click();
+  for (const b of await page.locator('[data-dj-all]').all()) await b.click();
+  for (const b of await page.locator('[data-dj-open][aria-label="Hide its playlists"]').all()) await b.click();
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();   // an import shows GLUE's copy; back to all
+}
+
 const REKORDBOX = `<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><PRODUCT Name="rekordbox" Version="7.0.0"/>
 <COLLECTION Entries="3">
 <TRACK TrackID="1" Name="Hi-res claim" Artist="Tester" AverageBpm="120.00" Tonality="8A" Rating="255" Location="file://localhost/C:/Users/dj/Music/Sets/flac-96k-24.flac"/>
@@ -89,10 +98,20 @@ test('profile, collection, import, link folder, background analysis, playlists, 
   await expect(lossy.locator('.q')).not.toHaveText('…');
   await expect(page.locator('.tr', { hasText: 'Not on this computer' })).toContainText('no file');
 
-  // Imported playlist, in its original order, inside the rekordbox folder.
-  await page.locator('.lside .tree .name', { hasText: 'rekordbox' }).click();   // opens the folder
-  await page.locator('.lside .name', { hasText: 'Friday' }).click();
+  // The library's playlists are browsed where they are (ADR 0063): nothing was imported into GLUE's
+  // playlists; under DJ libraries, Friday shows its songs in its order, then comes into GLUE on demand,
+  // inside the library's folder.
+  await expect(page.locator('.lside .tree .name', { hasText: 'Friday' })).toHaveCount(0);
+  await page.locator('[data-dj-open]').first().click();
+  const fri = page.locator('#dj-libs .item.dj', { hasText: 'Friday' });
+  await fri.locator('.name').click();
   await expect(page.locator('.tr .c-title')).toHaveText(['Lossy one', 'Hi-res claim', 'Not on this computer']);
+  await fri.hover(); await fri.locator('.tools .more').click();
+  await page.locator('[data-dj-import]').click();
+  await expect(page.locator('.notice')).toContainText('Imported “Friday” into GLUE');
+  await expect(page.locator('.lside .tree .name', { hasText: /^Friday/ })).toHaveCount(1);
+  await expect(page.locator('.tr .c-title')).toHaveText(['Lossy one', 'Hi-res claim', 'Not on this computer']);   // GLUE's copy, shown
+  await expect(fri.locator('.ingl')).toBeVisible();
 
   // A new playlist, filled by dragging a row onto it.
   await page.click('#new-playlist');
@@ -122,6 +141,37 @@ test('profile, collection, import, link folder, background analysis, playlists, 
   await expect(page.locator('.detail')).toContainText('Friday');
   await expect(page.locator('#m-bpm')).toBeVisible();   // the fixtures are too short for a tempo
   await expect(page.locator('#play-btn')).toBeEnabled();
+});
+
+test('a DJ library found in the GLUE folder is browsed live, and GLUE’s copies follow it (ADR 0063)', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.on('console', m => console.log('PAGE', m.type(), m.text()));
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  const writeXml = (xml: string) => page.evaluate(async xml => {
+    const home = await (await navigator.storage.getDirectory()).getDirectoryHandle('MCO');
+    const w = await (await home.getFileHandle('rekordbox.xml', { create: true })).createWritable(); await w.write(xml); await w.close();
+  }, xml);
+  await writeXml(REKORDBOX);
+  await page.reload();   // opening the collection looks for libraries
+  await page.locator('#dj-libs .addlib').click({ timeout: 30_000 });
+  await expect(page.locator('.notice')).toContainText('3 tracks');
+  await page.locator('[data-dj-open]').click();
+  const dj = (name: string) => page.locator('#dj-libs .item.dj', { hasText: name });
+  await dj('Friday').hover(); await dj('Friday').locator('.tools .more').click();
+  await page.locator('[data-dj-import]').click();
+  await expect(page.locator('.lside .tree .name', { hasText: /^Friday/ })).toHaveCount(1);
+  // Changed in rekordbox: Friday renamed, a playlist added. GLUE follows within a few seconds.
+  await page.waitForTimeout(1500);
+  await writeXml(REKORDBOX.replace('Name="Friday"', 'Name="Friday late"').replace('</NODE></PLAYLISTS>', '<NODE Name="Saturday" Type="1" KeyType="0" Entries="1"><TRACK Key="1"/></NODE></NODE></PLAYLISTS>'));
+  await expect(page.locator('.lside .tree .name', { hasText: /^Friday late/ })).toHaveCount(1, { timeout: 20_000 });
+  await expect(dj('Saturday')).toHaveCount(1);
+  await expect(page.locator('.lside .tree .name', { hasText: /^Saturday/ })).toHaveCount(0);   // only what was imported
+  await expect(page.locator('.notice')).toContainText('rekordbox changed its playlists');
 });
 
 test('imports an Engine DJ m.db and a Serato database with crates', async ({ page }) => {
@@ -160,15 +210,18 @@ test('imports an Engine DJ m.db and a Serato database with crates', async ({ pag
   await expect(page.locator('.notice')).toContainText('Engine DJ', { timeout: 30_000 });
   await expect(page.locator('.notice')).toContainText('Serato');
   await expect(page.locator('.tr')).toHaveCount(4);   // every imported track matched a file already there
+  // Their playlists come into GLUE on demand (ADR 0063): all of both libraries here.
+  for (const b of await page.locator('[data-dj-open]').all()) await b.click();
+  for (const b of await page.locator('[data-dj-all]').all()) await b.click();
 
   await page.locator('.lside .tree .name', { hasText: 'Engine DJ' }).click();
-  await page.locator('.lside .name', { hasText: 'Peak time' }).click();
+  await page.locator('.lside .tree .name', { hasText: 'Peak time' }).click();
   await expect(page.locator('.tr')).toHaveCount(2);
   await expect(page.locator('.tr .c-title').first()).toHaveAttribute('title', 'mp3-128k.mp3');   // Engine's linked-list order
   await expect(page.locator('.tr [data-c="key"]').first()).not.toHaveText('');
   await page.locator('.lside .tree .name', { hasText: 'Serato' }).click();
   await page.locator('.lside .tree .name', { hasText: 'Warm' }).click();
-  await page.locator('.lside .name', { hasText: 'Opening' }).click();
+  await page.locator('.lside .tree .name', { hasText: 'Opening' }).click();
   await expect(page.locator('.tr')).toHaveCount(1);
 });
 
@@ -229,6 +282,7 @@ test('plays from the library and drops tracks onto playlists, new or in a closed
   await page.getByRole('button', { name: 'Create profile' }).click();
   await page.click('#onb-skip');   // the "add your music" step
   await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
+  await importAllDj(page);
   await page.click('#add-folder');
   await expect(page.locator('.tr')).toHaveCount(5, { timeout: 30_000 });
 
@@ -609,6 +663,7 @@ test('drags a track out as a file copy and a playlist out as an M3U8', async ({ 
   await page.getByRole('button', { name: 'Create profile' }).click();
   await page.click('#onb-skip');
   await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
+  await importAllDj(page);
   await page.click('#add-folder');
   await expect(page.locator('.tr')).toHaveCount(5, { timeout: 30_000 });
   // Record what each native drag carries.
@@ -875,6 +930,7 @@ test('rows show a mini spectrogram: click plays from that spot; imported ratings
   await page.getByRole('button', { name: 'Create profile' }).click();
   await page.click('#onb-skip');
   await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
+  await importAllDj(page);
   await page.click('#add-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
   const wave = (t: string) => page.locator('.tr', { hasText: t }).locator('[data-c="wave"] .wave');

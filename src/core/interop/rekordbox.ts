@@ -1,6 +1,6 @@
 /* rekordbox XML (Pioneer's official exchange format). Spec: cdn.rekordbox.com …/xml_format_list.pdf */
 import { child, childrenNamed, parseXml, type XNode } from './xml';
-import { blankTrack, fileUrlToPath, num, type ImportedLibrary, type ImportedList } from './types';
+import { blankTrack, fileUrlToPath, num, pathId, type ImportedLibrary, type ImportedList } from './types';
 
 export function isRekordboxXml(head: string) { return /<DJ_PLAYLISTS[\s>]/.test(head); }
 
@@ -30,10 +30,10 @@ export function parseRekordboxXml(xml: string, fileName = 'rekordbox.xml'): Impo
     byLocation.set(a.Location, id);
   }
   const lists: ImportedList[] = [];
-  let seq = 0;
+  const taken = new Set<string>();
   const walk = (node: XNode, parent: string | null) => {
     for (const n of childrenNamed(node, 'NODE')) {
-      const id = 'n' + (seq++) + ':' + (n.attrs.Name || '');
+      const id = pathId(parent, n.attrs.Name || '', taken);
       if (n.attrs.Type === '0') {
         lists.push({ externalId: id, kind: 'folder', name: n.attrs.Name || 'Folder', parent, items: [] });
         walk(n, id);

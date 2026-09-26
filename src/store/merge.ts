@@ -6,7 +6,8 @@ import { baseName, blankTrack, normPath } from '../core/interop/types';
 import { resolveEngine } from '../core/interop/engine';
 import { matchTracks, type FileEntry } from '../core/library/match';
 import type { CollectionStore } from './collection';
-import { type List, type Source, type SourceTrack, type Track, SCHEMA, newId } from './types';
+import { type List, type Source, type SourceList, type SourceTrack, type Track, SCHEMA, newId } from './types';
+import { syncLinkedLists, type LinkReport } from './linked';
 
 const now = () => new Date().toISOString();
 /** Pseudo root id for songs added on their own (never a real root). */
@@ -64,7 +65,8 @@ function inferRoots(store: CollectionStore, rootPaths: Map<string, string>) {
   if (changed) store.saveMeta();
 }
 
-export interface ImportReport { sourceId: string; tracks: number; matched: number; linked: number; lists: number; entries?: ImportedLibrary['stats'] }
+/** lists: the playlists and folders the library has; linkedLists: what changed in GLUE's copies of them. */
+export interface ImportReport { sourceId: string; tracks: number; matched: number; linked: number; lists: number; linkedLists: LinkReport; entries?: ImportedLibrary['stats'] }
 
 /** The tracks an earlier Engine DJ import holds of libraries this one doesn't have (another drive's),
     so a new import of the set keeps them and resolves playlist entries across all of them. */
@@ -152,25 +154,13 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   }
   store.putTracks([...touched.values()]);
 
-  // Imported playlists are refreshed on re-import: the old copies of this source's lists go.
-  for (const l of [...store.lists.values()]) if (l.origin?.sourceId === sourceId && store.lists.has(l.id)) store.deleteList(l.id);
-  const top: List = {
-    schemaVersion: SCHEMA, id: newId(), kind: 'folder', name: lib.name.replace(/\s*\(.*\)$/, '') || lib.name, parentId: null,
-    position: [...store.lists.values()].filter(l => !l.parentId).length, notes: 'Imported from ' + fileName, items: [],
-    origin: { sourceId, externalId: '' }, createdAt: now(),
-  };
-  store.putList(top);
-  const ext2list = new Map<string, string>(), counts = new Map<string, number>();
-  for (const il of lib.lists) {
-    const parentId = (il.parent && ext2list.get(il.parent)) || top.id;
-    const position = counts.get(parentId) ?? 0; counts.set(parentId, position + 1);
-    const id = newId(); ext2list.set(il.externalId, id);
-    const items = il.items.map(x => ext2track.get(x)?.id).filter((x): x is string => !!x);
-    store.putList({ schemaVersion: SCHEMA, id, kind: il.kind, name: il.name, parentId, position, notes: '', items, origin: { sourceId, externalId: il.externalId }, createdAt: now() });
-  }
-  const src: Source = { schemaVersion: SCHEMA, id: sourceId, app: lib.app, name: lib.name, fileName, importedAt: now(), tracks: sourceTracks, lists: lib.lists.length };
+  // The library's playlists are kept as its tree, browsed in the sidebar and brought in on demand; the
+  // copies already in GLUE follow it (ADR 0063).
+  const tree: SourceList[] = lib.lists.map(l => ({ externalId: l.externalId, kind: l.kind, name: l.name, parent: l.parent, items: l.items }));
+  const src: Source = { schemaVersion: SCHEMA, id: sourceId, app: lib.app, name: lib.name, fileName, importedAt: now(), tracks: sourceTracks, lists: lib.lists.length, tree, ...(existing?.origin ? { origin: existing.origin } : {}) };
   store.putSource(src);
-  return { sourceId, tracks: lib.tracks.length, matched, linked: links.size, lists: lib.lists.length, entries: lib.stats };
+  const linkedLists = syncLinkedLists(store, src, existing?.tree);
+  return { sourceId, tracks: lib.tracks.length, matched, linked: links.size, lists: lib.lists.length, linkedLists, entries: lib.stats };
 }
 
 export interface ScanEntry { relPath: string; size: number; mtime: number; fileName: string }

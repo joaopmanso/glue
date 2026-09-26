@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { HomeStore } from '../src/store/home';
 import { CollectionStore } from '../src/store/collection';
 import { applyImport, applyScan } from '../src/store/merge';
+import { importLists } from '../src/store/linked';
+import type { CollectionStore as Store } from '../src/store/collection';
+
+/** An import, then all its playlists brought in ("Import all", ADR 0063). */
+const importAll = (s: Store, ...a: Parameters<typeof applyImport> extends [unknown, ...infer R] ? R : never) => { const r = applyImport(s, ...a); importLists(s, s.sources.get(r.sourceId)!, ['']); return r; };
 import { blankTrack, type ImportedLibrary } from '../src/core/interop/types';
 import { MemDir, asDir } from './memfs';
 
@@ -24,7 +29,7 @@ function library(): ImportedLibrary {
 describe('bringing libraries and folders into a collection (ADR 0020)', () => {
   it('imports first, then links tracks when their folder is scanned', async () => {
     const { s } = await fresh();
-    const r = applyImport(s, library(), 'rekordbox.xml');
+    const r = importAll(s, library(), 'rekordbox.xml');
     expect(r).toMatchObject({ tracks: 2, lists: 2, linked: 0 });
     expect([...s.tracks.values()].every(t => t.status === 'unlinked')).toBe(true);
     const lists = [...s.lists.values()];
@@ -50,7 +55,7 @@ describe('bringing libraries and folders into a collection (ADR 0020)', () => {
   it('re-importing refreshes playlists without duplicating tracks; scanning first then importing merges', async () => {
     const { s } = await fresh();
     applyScan(s, 'r1', [{ relPath: 'House/a.flac', size: 100, mtime: 5, fileName: 'a.flac' }]);
-    const r1 = applyImport(s, library(), 'rekordbox.xml');
+    const r1 = importAll(s, library(), 'rekordbox.xml');
     expect(r1.linked).toBe(1);
     expect(s.tracks.size).toBe(2);
     const r2 = applyImport(s, library(), 'rekordbox.xml');
@@ -85,7 +90,7 @@ describe('the same song in a folder GLUE doesn’t read (a second copy)', () => 
   it('is the track that has its file: one row, and the playlist plays it', async () => {
     const { s } = await fresh();
     applyScan(s, 'r1', [{ relPath: '01-song.mp3', size: 12057962, mtime: 5, fileName: '01-song.mp3' }]);
-    applyImport(s, withCopy(), 'm.db');
+    importAll(s, withCopy(), 'm.db');
     expect([...s.tracks.values()].map(t => t.status)).toEqual(['linked']);
     const dnb = [...s.lists.values()].find(l => l.name === 'DNB')!, t = s.tracks.get(dnb.items[0])!;
     expect(t.relPath).toBe('01-song.mp3');

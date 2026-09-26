@@ -50,6 +50,16 @@ export function fileUrlToPath(url: string): string {
   if (/^\/[A-Za-z]:\//.test(s)) s = s.slice(1);   // /C:/… → C:/…
   return s;
 }
+/** A playlist's id from its place in the tree (ADR 0063): its parent's id and its name, numbered when
+    siblings share a name. It stays the same when other playlists come and go (an id from reading order
+    wouldn't), so GLUE's copies stay linked to it. */
+export function pathId(parent: string | null, name: string, taken: Set<string>): string {
+  const base = (parent ?? '') + '/' + name;
+  let id = base, k = 2;
+  while (taken.has(id)) id = base + '#' + k++;
+  taken.add(id);
+  return id;
+}
 export const normPath = (p: string) => p.replace(/\\/g, '/');
 export const baseName = (p: string) => normPath(p).split('/').pop() || p;
 export const num = (s: string | undefined | null): number | null => { if (s == null || s === '') return null; const v = Number(s); return Number.isFinite(v) ? v : null; };

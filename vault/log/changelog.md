@@ -5,6 +5,32 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · DJ libraries browsed live; playlists imported on demand, kept in step (M8 phase A)
+From the user: browse each DJ library's playlists in the sidebar instead of importing them all, import
+the ones wanted, and see changes made in Engine DJ ([ADR 0063](../adr/0063-dj-libraries-browsed-live.md)).
+- **Browse:**
+  - "DJ libraries" rows open into each library's tree;
+  - a playlist shows its songs without importing it;
+  - ⋯ → "Import to GLUE" or "Import all" brings them under the library's folder, linked.
+- **Linked copies follow the DJ app, in place:**
+  - renamed, songs changed, moved or deleted;
+  - new playlists inside folders imported whole come in too;
+  - lists the app didn't change keep the user's edits.
+  - The 761 Engine DJ and 14 Traktor copies already in GLUE stay, linked.
+- **Live:** a look at each library file's date every 5 s while in view; a newer file is read again in
+  a new worker (`interop.worker.ts`: sql.js and the XML parsers, now off the page for every import).
+  Engine's saves in progress are waited out.
+- **Stable ids:** Traktor by UUID; rekordbox XML and Traktor folders by path, with renames recognised.
+  Old copies are re-found by their path; one GLUE can't place becomes the user's own list, never
+  deleted.
+- **Libraries imported by hand** adopt their file when GLUE finds it, or with "Keep up to date…".
+- **Checked on the user's real Engine database** (a copy): read in 0.9 s in the worker, no long frame
+  on the page; the tree opens in 57 ms.
+- **Found for the next step** (writing back): Engine DJ 3.0.2 keeps the same playlist tree in every
+  database of a set, row for row, and its triggers keep the linked lists right.
+- Tests: 153 unit (+6 linked lists and renames); e2e 40 (browse and import on demand, and the live
+  update: a rekordbox.xml in the GLUE folder renamed and extended on disk).
+
 ## 2026-09-26 · "Add to playlist" as the sidebar shows it
 - The user's "deleted playlists still in Add to playlist": the dropdown listed all 780 lists by path,
   and the Engine DJ import repeats names across folders ("Heavy" in 19 places).

@@ -1,6 +1,6 @@
 /* Traktor collection.nml. LOCATION = VOLUME + DIR ("/:"-separated) + FILE. */
 import { child, childrenNamed, parseXml, type XNode } from './xml';
-import { blankTrack, num, type ImportedLibrary, type ImportedList } from './types';
+import { blankTrack, num, pathId, type ImportedLibrary, type ImportedList } from './types';
 
 export function isTraktorNml(head: string) { return /<NML[\s>]/.test(head); }
 
@@ -46,16 +46,17 @@ export function parseTraktorNml(xml: string, fileName = 'collection.nml'): Impor
     tracks.push(t);
   }
   const lists: ImportedList[] = [];
-  let seq = 0;
+  const taken = new Set<string>();
   const walk = (node: XNode, parent: string | null) => {
     const sub = child(node, 'SUBNODES');
     for (const n of sub ? childrenNamed(sub, 'NODE') : []) {
-      const id = 'n' + (seq++) + ':' + (n.attrs.NAME || '');
+      const id = pathId(parent, n.attrs.NAME || '', taken);
       if (n.attrs.TYPE === 'FOLDER') { lists.push({ externalId: id, kind: 'folder', name: n.attrs.NAME || 'Folder', parent, items: [] }); walk(n, id); }
       else if (n.attrs.TYPE === 'PLAYLIST') {
         const pl = child(n, 'PLAYLIST');
         const items = pl ? childrenNamed(pl, 'ENTRY').map(en => child(en, 'PRIMARYKEY')?.attrs.KEY || '').filter(Boolean) : [];
-        lists.push({ externalId: id, kind: 'playlist', name: n.attrs.NAME || 'Playlist', parent, items });
+        // Traktor's playlists carry a UUID: it stays through a rename (ADR 0063).
+        lists.push({ externalId: pl?.attrs.UUID ? 'u:' + pl.attrs.UUID : id, kind: 'playlist', name: n.attrs.NAME || 'Playlist', parent, items });
       }
     }
   };

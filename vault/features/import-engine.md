@@ -83,3 +83,24 @@ A record whose own file isn't in a music folder, but has the same file name and 
 has its file, is that track ([ADR 0053](../adr/0053-imported-copy-is-the-same-song.md)). On the
 user's library, the Engine record in `preparation` that their playlists use now plays the copy in
 `Music Collection`. An "Update" folds the tracks an earlier import left unlinked into it.
+
+## Browsed live, imported on demand (2026-09-26, [ADR 0063](../adr/0063-dj-libraries-browsed-live.md))
+- **Importing Engine DJ no longer makes playlists in GLUE.** Its row under "DJ libraries" opens into its
+  own tree. Choosing a playlist shows its songs, in its order.
+- **⋯ → "Import to GLUE"** (or "Import all … into GLUE") brings a playlist, or a folder with
+  everything in it, under the library's folder in GLUE, with the folders on the way as holders. ✓
+  marks what GLUE has.
+- **GLUE's copies stay linked and follow Engine DJ:** renamed, songs changed, moved, deleted, new
+  playlists inside folders GLUE has whole. Only lists Engine DJ changed are touched.
+- **Live:** GLUE looks at the file's date every 5 s while in view, and reads it again in a worker when
+  it's newer.
+- **Engine DJ specifics:**
+  - its playlist ids are its own, so renames need no guessing;
+  - a save in progress (a non-empty `m.db-journal`) waits for the next look;
+  - a library imported by hand is kept up to date once GLUE finds its file ("Keep up to date…" or
+    "Look in…"); of an Engine set, the biggest database.
+- **Measured on the user's database** (a copy, 163 MB, 761 playlists): read in 0.9 s in the worker,
+  no long frame on the page.
+- **Found about Engine DJ 3.0.2** (for writing back, next): every database of a set holds the same
+  playlist tree, row for row. Engine's triggers keep the linked lists (`nextListId`, `nextEntityId`)
+  right on insert and delete.

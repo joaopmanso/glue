@@ -87,7 +87,10 @@ export interface List {
   schemaVersion: number;
   id: string; kind: 'folder' | 'playlist'; name: string; parentId: string | null; position: number;
   notes: string; items: string[];                          // track ids, in order
-  origin: { sourceId: string; externalId: string } | null; // imported playlist / crate
+  /** A DJ library's playlist or folder brought into GLUE, and kept in step with it (ADR 0063). externalId ''
+      is the library's own folder. chain: a folder made only to hold what was imported below it, which
+      doesn't take the rest of the library's folder. */
+  origin: { sourceId: string; externalId: string; chain?: boolean } | null;
   color?: string | null;                                   // one of LIST_COLORS, or none
   auto?: Record<string, unknown>;                          // how an automatic playlist was made (options, seed, date)
   tags?: string[];                                         // the playlist's own tags
@@ -99,7 +102,10 @@ export interface SourceTrack { externalId: string; trackId: string; bpm: number 
 export type SourceApp = 'rekordbox' | 'engine' | 'serato' | 'traktor' | 'apple' | 'm3u';
 /** Where a detected library was imported from (place: a music folder id, 'home', or a remembered place), for Update. */
 export interface SourceOrigin { place: string; relPath: string; modified: number }
-export interface Source { schemaVersion: number; id: string; app: SourceApp; name: string; fileName: string; importedAt: string; tracks: SourceTrack[]; lists: number; origin?: SourceOrigin }
+/** A DJ library's playlist or folder as the library has it (ADR 0063). items: its tracks' externalIds. */
+export interface SourceList { externalId: string; kind: 'folder' | 'playlist'; name: string; parent: string | null; items: string[] }
+/** tree: the library's playlists as last read, browsed in the sidebar; they come into GLUE on demand. */
+export interface Source { schemaVersion: number; id: string; app: SourceApp; name: string; fileName: string; importedAt: string; tracks: SourceTrack[]; lists: number; origin?: SourceOrigin; tree?: SourceList[] }
 
 export const newId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 export const shardOf = (id: string) => id.slice(0, 2);

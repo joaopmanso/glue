@@ -79,3 +79,5 @@ track is used.
   - then each import in its own group, marked "replaced when you import it again".
 - Why: with 761 Engine DJ playlists whose names repeat across folders, a flat list sorted by path
   made a deleted playlist look like it was still there (its namesakes were).
+- DJ libraries' playlists are browsed under "DJ libraries" and imported on demand, linked to the DJ
+  app ([ADR 0063](../adr/0063-dj-libraries-browsed-live.md)).

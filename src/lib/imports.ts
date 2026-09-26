@@ -43,15 +43,3 @@ export async function parseLibraryFiles(files: File[]): Promise<{ libs: { lib: I
   if (crates.length && !libs.some(l => l.lib.app === 'serato')) skipped.push(...crates.map(c => c.name + ' (needs Serato’s “database V2” too)'));
   return { libs, skipped };
 }
-
-/** Serato keeps its library in a _Serato_ folder: "database V2" plus Subcrates/*.crate. */
-export async function readSeratoFolder(dir: FileSystemDirectoryHandle): Promise<ImportedLibrary> {
-  const db = new Uint8Array(await (await (await dir.getFileHandle('database V2')).getFile()).arrayBuffer());
-  const crates: { fileName: string; bytes: Uint8Array }[] = [];
-  try {
-    const sub = await dir.getDirectoryHandle('Subcrates');
-    for await (const [name, h] of (sub as unknown as { entries(): AsyncIterable<[string, FileSystemHandle]> }).entries())
-      if (h.kind === 'file' && /\.crate$/i.test(name)) crates.push({ fileName: name, bytes: new Uint8Array(await (await (h as FileSystemFileHandle).getFile()).arrayBuffer()) });
-  } catch { /* no crates */ }
-  return buildSeratoLibrary(db, crates);
-}

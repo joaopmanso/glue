@@ -3,8 +3,9 @@
 import { HomeStore } from '../store/home';
 import { record, time, timeAsync } from '../core/perf';
 import { djValues, listsByTrack, type DjValues } from '../core/library/indexes';
+import { importLists as importListsInto } from '../store/linked';
 
-const NO_DJ = new Map<string, DjValues>(), NO_LISTS = new Map<string, List[]>();
+const NO_DJ = new Map<string, DjValues>(), NO_LISTS = new Map<string, List[]>(), NO_LINKED = new Map<string, List>();
 import { CollectionStore } from '../store/collection';
 import { LOOSE, applyImport, applyScan, blankLibTrack, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
@@ -647,6 +648,14 @@ class Library {
         }
       }
       if (this.store === s) this.detected = found;
+      // A library imported by hand (no place remembered) found here: it's kept up to date from now on
+      // (ADR 0063). Of several (an Engine DJ set), the biggest file: the computer's own library.
+      // modified 0: the next look reads it once, and keeps its tree.
+      for (const src of s.sources.values()) {
+        if (src.origin || this.store !== s) continue;
+        const d = found.filter(x => x.sourceId === src.id).sort((a, b) => b.size - a.size)[0];
+        if (d) this.markOrigin(src.id, { place: d.place, relPath: d.relPath, modified: 0 });
+      }
     } catch (e) { console.warn('Library detection failed', e); }
     finally { this.detecting = false; }
     if (this.detectAgain) { this.detectAgain = false; await this.detectLibraries(); }
@@ -675,6 +684,19 @@ class Library {
     const r = applyImport(s, lib, fileName);
     this.enqueueAll();
     return r;
+  }
+  /** Bring a DJ library's lists into GLUE, linked to it (ADR 0063); '' = all of them. */
+  importLists(sourceId: string, ids: string[]): number {
+    const s = this.store, src = s?.sources.get(sourceId);
+    return s && src ? importListsInto(s, src, ids) : 0;
+  }
+  /** GLUE's copy of a DJ library's list, when it has one. */
+  linkedCopy(sourceId: string, externalId: string): List | null {
+    return this.memo('linked', s => s.rev.lists, s => {
+      const m = new Map<string, List>();
+      for (const l of s.lists.values()) if (l.origin) m.set(l.origin.sourceId + '\n' + l.origin.externalId, l);
+      return m;
+    }, NO_LINKED).get(sourceId + '\n' + externalId) ?? null;
   }
   deleteSource(id: string) {
     const s = this.store, src = s?.sources.get(id);

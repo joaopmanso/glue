@@ -48,6 +48,7 @@
       case 'dupes': return 'Duplicates';
       case 'list': { const l = st?.lists.get(s.id); return l ? lib.listPath(l) : 'Playlist'; }
       case 'source': { const x = st?.sources.get(s.id); return x ? (APP_NAMES[x.app] ?? x.app) + ' import' : 'Import'; }
+      case 'dj': { const x = st?.sources.get(s.sourceId), l = x?.tree?.find(y => y.externalId === s.id); return (l?.name ?? 'Playlist') + ' · ' + (x ? APP_NAMES[x.app] ?? x.app : ''); }
       case 'tag': return 'Tagged “' + s.name + '”';
       case 'root': return s.id === LOOSE ? 'Added songs' : lib.rootState(s.id)?.root.name ?? 'Folder';
     }

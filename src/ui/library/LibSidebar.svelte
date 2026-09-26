@@ -7,7 +7,7 @@
   import { IMPORT_ACCEPT } from '../../lib/imports';
   import { canKeepFiles, canPickFolders, pickAudioFiles } from '../../platform';
   import { LOOSE } from '../../store/merge';
-  import { LIST_COLORS, type List } from '../../store/types';
+  import { LIST_COLORS, type List, type Source, type SourceList } from '../../store/types';
   import { drag } from '../../lib/drag.svelte';
   import { dupes } from '../../lib/dupes.svelte';
   import { auto } from '../../lib/auto.svelte';
@@ -50,6 +50,31 @@
   let fileInput = $state<HTMLInputElement>();
   let pathEdit = $state<string | null>(null);
   let menuFor = $state<string | null>(null);   // the list whose ⋯ menu is open
+  // DJ libraries browsed where they are (ADR 0063): each one's tree, opened folder by folder.
+  let djOpen = $state<Record<string, boolean>>({});
+  let djMenu = $state<string | null>(null);
+  const djKids = $derived.by(() => {
+    void lib.version;
+    const m = new Map<string, Map<string, SourceList[]>>();
+    for (const src of lib.store?.sources.values() ?? []) {
+      const k = new Map<string, SourceList[]>();
+      for (const l of src.tree ?? []) { const par = l.parent ?? ''; (k.get(par) ?? k.set(par, []).get(par)!).push(l); }
+      m.set(src.id, k);
+    }
+    return m;
+  });
+  /** GLUE's copy of a DJ list (the version argument makes it follow changes). */
+  const copyOf = (sourceId: string, ext: string, _version: number) => lib.linkedCopy(sourceId, ext);
+  const kidsOf = (src: Source, parent: string | null) => djKids.get(src.id)?.get(parent ?? '') ?? [];
+  /** Bring a DJ library's list (a folder with everything in it; '' = all) into GLUE, and show it. */
+  function importDj(src: Source, ext: string, name: string) {
+    djMenu = null;
+    const n = lib.importLists(src.id, [ext]), copy = lib.linkedCopy(src.id, ext);
+    lib.notice = n ? 'Imported ' + (ext ? '“' + name + '”' : 'all of ' + name) + ' into GLUE: ' + n + ' playlist' + (n === 1 ? '' : 's') + ' or folder' + (n === 1 ? '' : 's') + ', kept in step with ' + (APP_NAMES[src.app] ?? src.app) + '.' : '“' + name + '” is in GLUE already.';
+    if (!copy) return;
+    for (let q = copy.parentId; q; q = lib.store?.lists.get(q)?.parentId ?? null) open[q] = true;
+    view.select({ kind: 'list', id: copy.id });
+  }
   let tagMenu = $state<string | null>(null);   // the tag whose ⋯ menu is open
   const tags = $derived.by(() => { void lib.version; return allTags(); });
   // Tags can be hundreds: a scrolling list, filtered by name once there are more than a few.
@@ -120,6 +145,33 @@
   }
   const focus = (el: HTMLInputElement) => { el.focus(); el.select(); };
 </script>
+
+{#snippet djNode(src: Source, l: SourceList, depth: number)}
+  {@const kids = kidsOf(src, l.externalId)}
+  {@const key = src.id + ':' + l.externalId}
+  {@const copy = copyOf(src.id, l.externalId, lib.version)}
+  {@const whole = !!copy && !copy.origin?.chain}
+  <li>
+    <div class="item dj" class:sel={isSel({ kind: 'dj', sourceId: src.id, id: l.externalId })} style:padding-left={8 + depth * 14 + 'px'} data-dj={l.externalId}>
+      {#if kids.length}<button type="button" class="twist" aria-label={djOpen[key] ? 'Collapse' : 'Expand'} onclick={() => (djOpen[key] = !djOpen[key])}>{djOpen[key] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
+      {#if l.kind === 'folder'}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" fill="currentColor"/></svg>
+      {:else}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5v8.2a2.3 2.3 0 1 0 1.5 2.1V5.5l5-1.3v5.4a2.3 2.3 0 1 0 1.5 2.1V1.2z" fill="currentColor"/></svg>{/if}
+      <button type="button" class="name" title={l.name + ' in ' + (APP_NAMES[src.app] ?? src.app)} onclick={() => { view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }); if (kids.length) djOpen[key] = true; }}>{l.name}</button>
+      {#if whole}<button type="button" class="ingl" title="In GLUE, kept in step: open GLUE's copy" onclick={() => view.select({ kind: 'list', id: copy!.id })}>✓</button>{/if}
+      <span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>
+      <span class="tools" class:open={djMenu === key}>
+        <button type="button" class="more" title="More" aria-haspopup="menu" aria-expanded={djMenu === key} onclick={() => (djMenu = djMenu === key ? null : key)}>⋯</button>
+      </span>
+    </div>
+    {#if djMenu === key}
+      <div class="menu" role="menu" style:margin-left={8 + depth * 14 + 'px'}>
+        <button type="button" role="menuitem" data-dj-import={l.externalId} onclick={() => importDj(src, l.externalId, l.name)}>{whole ? 'Import again (brings back what’s missing)' : 'Import to GLUE'}</button>
+        {#if copy}<button type="button" role="menuitem" onclick={() => { djMenu = null; view.select({ kind: 'list', id: copy.id }); }}>Open GLUE’s copy</button>{/if}
+      </div>
+    {/if}
+    {#if kids.length && djOpen[key]}<ul>{#each kids as k (k.externalId)}{@render djNode(src, k, depth + 1)}{/each}</ul>{/if}
+  </li>
+{/snippet}
 
 {#snippet node(l: List, depth: number)}
   {@const kids = l.kind === 'folder' ? childrenOf(l.id, lib.version) : []}
@@ -317,11 +369,19 @@
         {@const d = lib.detected.find(x => x.sourceId === s.id)}
         <li>
           <div class="item" class:sel={isSel({ kind: 'source', id: s.id })}>
+            {#if s.tree?.length}<button type="button" class="twist" data-dj-open={s.id} aria-label={djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists'} onclick={() => (djOpen[s.id] = !djOpen[s.id])}>{djOpen[s.id] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
             <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}<small> {s.fileName}</small></button>
-            {#if d?.status === 'changed'}<button type="button" class="update" title={'Changed since you imported it (' + new Date(d.modified).toLocaleString() + ')'} onclick={() => importDetected(d)}>Update</button>
+            {#if d?.status === 'changed' && d.modified > (s.origin?.modified ?? 0) + 1000}<button type="button" class="update" title={'Changed since you imported it (' + new Date(d.modified).toLocaleString() + ')'} onclick={() => importDetected(d)}>Update</button>
+            {:else if !s.origin}<button type="button" class="update" data-dj-find={s.id} title="GLUE doesn't know where this library is, so it can't follow its changes: choose the folder it's in (for Engine DJ, the drive or its “Engine Library” folder)" onclick={() => lib.addLibraryPlace('music')}>Keep up to date…</button>
             {:else}<span class="n">{s.tracks.length}</span>{/if}
             <span class="tools"><button type="button" title="Remove this import" onclick={() => { if (confirm('Remove the ' + (APP_NAMES[s.app] ?? s.app) + ' import and its playlists? Tracks with a linked file stay.')) lib.deleteSource(s.id); }}>×</button></span>
           </div>
+          {#if djOpen[s.id] && s.tree?.length}
+            <ul class="djtree" aria-label={(APP_NAMES[s.app] ?? s.app) + ' playlists'}>
+              <li class="djall"><button type="button" class="inline" data-dj-all={s.id} onclick={() => importDj(s, '', APP_NAMES[s.app] ?? s.app)}>Import all {s.tree.length} into GLUE</button></li>
+              {#each kidsOf(s, null) as l (l.externalId)}{@render djNode(s, l, 1)}{/each}
+            </ul>
+          {/if}
         </li>
       {/each}
       {#each lib.detected.filter(d => d.status === 'new') as d (d.place + d.relPath)}
@@ -439,4 +499,7 @@
   .howto { display: grid; gap: 6px; padding: 4px 8px 4px 10px; color: var(--ink-2); font-size: 12.5px; }
   .found { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 4px 8px; background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 4px; font-size: 12.5px; }
   .inline { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font-size: inherit; }
+  .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; }
+  .djtree { list-style: none; margin: 0; padding: 0; }
+  .djall { padding: 2px 0 4px 30px; font-size: 12px; }
 </style>

@@ -4,11 +4,11 @@ import { time } from '../core/perf';
 import { bpmShown } from './bpm';
 import { LOOSE } from '../store/merge';
 import { dupes } from './dupes.svelte';
-import type { AnalysisSummary, Track } from '../store/types';
+import type { AnalysisSummary, Source, Track } from '../store/types';
 import { keyLabel, type KeyNotation } from '../core/audio/keys';
 import { hasTag, tagsOf } from '../core/library/tagging';
 
-export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string };
+export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string };
 /** The table's value filters; each can also be opened from its column header. */
 export type FilterGroup = 'quality' | 'format' | 'tag' | 'genre' | 'device';
 export const FILTER_GROUPS: { g: FilterGroup; title: string }[] = [{ g: 'quality', title: 'Quality' }, { g: 'format', title: 'Format' }, { g: 'tag', title: 'Tags' }, { g: 'genre', title: 'Genre' }, { g: 'device', title: 'Device' }];
@@ -19,6 +19,18 @@ export type SortKey = 'title' | 'artist' | 'album' | 'genre' | 'bpm' | 'key' | '
 export interface Row { t: Track; a: AnalysisSummary | null; n: number; dj: { bpm: number | null; key: string | null; rating: number | null } | null }
 
 const QUALITY_RANK: Record<string, number> = { ok: 0, info: 1, warn: 2, bad: 3 };
+
+/** A DJ library's list as GLUE tracks, in order, each once. */
+export function djTracks(src: Source | undefined, id: string): string[] {
+  if (!src?.tree) return [];
+  const trackOf = new Map(src.tracks.map(st => [st.externalId, st.trackId])), kids = new Map<string, string[]>();
+  const byExt = new Map(src.tree.map(l => [l.externalId, l]));
+  for (const l of src.tree) if (l.parent) (kids.get(l.parent) ?? kids.set(l.parent, []).get(l.parent)!).push(l.externalId);
+  const out = new Set<string>();
+  const walk = (ext: string) => { for (const x of byExt.get(ext)?.items ?? []) { const t = trackOf.get(x); if (t) out.add(t); } for (const k of kids.get(ext) ?? []) walk(k); };
+  walk(id);
+  return [...out];
+}
 
 class View {
   sel = $state<ViewSel>({ kind: 'all' });
@@ -33,7 +45,7 @@ class View {
   reveal = $state<string | null>(null);
   anchor: string | null = null;
 
-  select(s: ViewSel) { this.sel = s; this.selected = new Set(); this.anchor = null; if (s.kind !== 'list' && this.sort.key === 'order') this.sort = { key: 'added', dir: -1 }; else if (s.kind === 'list') this.sort = { key: 'order', dir: 1 }; }
+  select(s: ViewSel) { this.sel = s; this.selected = new Set(); this.anchor = null; const ordered = s.kind === 'list' || s.kind === 'dj'; if (!ordered && this.sort.key === 'order') this.sort = { key: 'added', dir: -1 }; else if (ordered) this.sort = { key: 'order', dir: 1 }; }
   /** "#" (playlist order) always sorts ascending: it's the order you arrange by dragging. */
   sortBy(k: SortKey) { this.sort = k === 'order' ? { key: k, dir: 1 } : this.sort.key === k ? { key: k, dir: this.sort.dir === 1 ? -1 : 1 } : { key: k, dir: k === 'added' ? -1 : 1 }; }
   /** The track whose note editor is open, and where. */
@@ -77,6 +89,9 @@ class View {
         tracks = [...ids].map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
       } else tracks = l.items.map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
     } else if (sel.kind === 'source') tracks = [...s.tracks.values()].filter(t => t.sources.includes(sel.id));
+    // A DJ library's playlist, browsed where it is (ADR 0063): its songs in its order; a folder's own, then
+    // those of the lists inside it.
+    else if (sel.kind === 'dj') tracks = djTracks(s.sources.get(sel.sourceId), sel.id).map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
     else if (sel.kind === 'tag') tracks = [...s.tracks.values()].filter(t => hasTag(tagsOf(t), sel.name));
     else if (sel.kind === 'root') tracks = [...s.tracks.values()].filter(t => sel.id === LOOSE ? !!t.fileKey : t.rootId === sel.id);
     else {
