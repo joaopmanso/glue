@@ -110,6 +110,9 @@
       <button type="button" class="mini" id="dupes-rescan" disabled={dupes.running} onclick={() => dupes.scan()}>Check again</button>
     </span>
   </div>
+  {#if dupes.missing}
+    <p class="note" id="dupes-missing">{dupes.missing.toLocaleString()} analysed song{dupes.missing === 1 ? ' has' : 's have'} no fingerprint in this browser (analysed in another browser or on another computer). {dupes.filling ? 'Making them now: ' + dupes.filled.toLocaleString() + ' done…' : 'They’re made in the background as the files can be read.'} Duplicates among them show as they're done.</p>
+  {/if}
   {#if pending}<p class="note">{pending} track{pending === 1 ? '' : 's'} still being analysed; duplicates among them appear when they’re done.</p>{/if}
   {#each same as g (g.key)}{@render group(g)}{/each}
   {#if probable.length}

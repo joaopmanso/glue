@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: Speklone
-updated: 2026-09-24
+updated: 2026-09-26
 adrs: [0002]
 ---
 # Deployment
@@ -36,3 +36,14 @@ Publishes the app as a static site on GitHub Pages.
 - Vite `base: '/glue/'`. Local preview: `npm run build && npm run preview` → http://localhost:5174/glue/.
 - Playwright browser tests run locally against the preview server with the installed Edge
   (`npx playwright test`); not in CI yet.
+
+## GLUE Home builds faster: the Rust build cache (2026-09-26)
+- Asked by the user: GLUE Home's workflow took about 10 minutes.
+- Measured on the 0.6.0 release: Windows 7 min (6.5 min compiling), macOS 5 min (5.1 min compiling,
+  both chips). The npm install was cached; Rust wasn't, so all ~400 crates were compiled each time.
+- **Now:** `Swatinem/rust-cache` for `home/src-tauri`, one cache per OS.
+  - Only builds on `main` save it; release tags read it (GitHub keeps a tag's cache private to that
+    tag).
+  - The release optimisation (LTO, one codegen unit) stays, so the last step still takes a while.
+- Expected: roughly 2–3 minutes per job once `main` has filled the cache **[UNVERIFIED until the
+  next release is measured]**.

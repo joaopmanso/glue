@@ -94,16 +94,22 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     expect(home.calls).toContain('/fs/roots');
     await expect(page.locator('.lside')).not.toContainText('📁 TO BE SORTED');   // not a music folder
 
-    // The drag dock (ADR 0054): opened from the library, it holds the selected songs (folder + path),
-    // or the open playlist's when nothing is selected.
+    // The drag dock (ADR 0054), a queue: the selected songs (music folder + path), then a whole music
+    // folder; a song already in it isn't added twice.
     await page.locator('.lside .name', { hasText: 'All tracks' }).click();
     await page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.c-title').click();
-    await page.click('#drag-dock');
+    await page.click('#dock-add');
     await expect.poll(() => home.dockShown).toBe(true);
-    await expect.poll(() => home.dock?.items.map(i => i.path)).toEqual(['Sets/aiff-44k-24.aiff']);
+    await expect.poll(() => home.dock.map(i => i.path)).toEqual(['Sets/aiff-44k-24.aiff']);
     await page.locator('.tr', { hasText: 'Fixture MP3' }).first().locator('.c-title').click({ modifiers: ['Control'] });
-    await expect.poll(() => home.dock?.items.length).toBe(2);
-    await expect.poll(() => home.dock?.title).toBe('2 songs');
+    await page.click('#dock-add');
+    await expect.poll(() => home.dock.length).toBe(2);
+    await page.locator('.lside .item', { hasText: '📁 Music' }).hover();
+    await page.locator('[data-dock-root]').first().click();
+    const inMusic = ['Sets/aac-128k.m4a', 'Sets/aiff-44k-24.aiff', 'Sets/flac-96k-24.flac', 'Sets/mp3-128k.mp3'];
+    await expect.poll(() => inMusic.every(p => home.dock.some(d => d.path === p))).toBe(true);
+    expect(new Set(home.dock.map(d => d.root + d.path)).size).toBe(home.dock.length);   // nothing twice
+    await expect(page.locator('.notice')).toContainText('in it)');
 
     // GLUE Home stops. A track still opens and plays, from the browser's own folder.
     await home.stop();

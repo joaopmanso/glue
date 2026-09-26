@@ -127,6 +127,10 @@ an account GLUE works exactly as today, all local.
 - Needed because the DJ apps refuse anything a web page drags
   ([research](../research/drag-to-dj-apps.md)).
 
+- **A queue since 0.7.0** ([ADR 0055](../adr/0055-drag-dock-is-a-queue.md)): "+ Dock" adds the
+  selected songs, "Add to drag dock" a playlist or folder (with what's inside), ⇲ a music folder. The
+  dock removes one song (×) or clears them all.
+
 ## Known issues (2026-09-26)
 - ~~A song sent to a computer is unanalysed there when that computer's collection already has it
   from another device.~~ Fixed by Home mode (0.5.0): the song is that computer's own track. Still to

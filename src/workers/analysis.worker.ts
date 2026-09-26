@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 import { monoOf, runJob } from '../core/audio/analyze';
 import { computeWaveform, type Waveform } from '../core/audio/waveform';
+import { fingerprint, type Fingerprint } from '../core/audio/fingerprint';
 import { classify } from '../core/audio/verdict';
 import { summarize } from '../core/library/summary';
 import { encodeDetails, type DetailsHeader } from '../store/details';
@@ -12,12 +13,14 @@ import type { AnalysisSummary } from '../store/types';
 export type AnalysisRequest =
   | { id: number; job: AnalysisJob }
   | { id: number; wave: Exclude<AnalysisJob, { type: 'demo' }> }
+  | { id: number; fp: Exclude<AnalysisJob, { type: 'demo' }> }
   | { id: number; job: AnalysisJob; summary: { info: FileInfo; size: number; mtime: number } };
 export type AnalysisReply =
   | { id: number; kind: 'progress'; stage: string; p: number }
   | { id: number; kind: 'done'; out: AnalysisResult }
   | { id: number; kind: 'summary'; out: AnalysisSummary; duration: number; sr: number; channels: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null }
   | { id: number; kind: 'wave'; out: Waveform }
+  | { id: number; kind: 'fp'; out: Fingerprint }
   | { id: number; kind: 'error'; message: string };
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
@@ -29,6 +32,12 @@ scope.onmessage = async (e: MessageEvent<AnalysisRequest>) => {
     if ('wave' in e.data) {
       const { mono, sr } = monoOf(e.data.wave), out = computeWaveform(mono, sr);
       scope.postMessage({ id, kind: 'wave', out } satisfies AnalysisReply, [out.low.buffer, out.mid.buffer, out.high.buffer, out.peak.buffer, out.env.buffer]);
+      return;
+    }
+    // Just the fingerprint (duplicates), for a song analysed in another browser.
+    if ('fp' in e.data) {
+      const { mono, sr } = monoOf(e.data.fp), out = fingerprint(mono, sr);
+      scope.postMessage({ id, kind: 'fp', out } satisfies AnalysisReply, [out.words.buffer, out.loud.buffer]);
       return;
     }
     const { job } = e.data;

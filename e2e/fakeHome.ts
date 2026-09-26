@@ -13,8 +13,8 @@ export class FakeHome {
   readonly device = 'e2e-home';
   /** Paths asked for, in order (to see which disk the page uses). */
   calls: string[] = [];
-  /** What the website last put in the drag dock (ADR 0054), and whether it was shown. */
-  dock: { title: string; items: { root: string; path: string }[] } | null = null;
+  /** The drag dock's queue (ADR 0054), and whether it was shown. */
+  dock: { root: string; path: string }[] = [];
   dockShown = false;
   private server: Server | null = null;
   constructor(readonly dirs: FakeHomeDirs) {}
@@ -50,10 +50,16 @@ export class FakeHome {
       return send(200, list);
     }
     if (u.pathname === '/dock/show' && method === 'POST') { this.dockShown = true; return send(200, {}); }
+    if (u.pathname === '/dock/clear' && method === 'POST') { this.dock = []; return send(200, {}); }
     if (u.pathname === '/dock' && method === 'POST') {
       const chunks: Buffer[] = [];
       req.on('data', c => chunks.push(Buffer.from(c)));
-      req.on('end', () => { this.dock = JSON.parse(Buffer.concat(chunks).toString() || '{}'); send(200, { songs: this.dock!.items.length }); });
+      req.on('end', () => {
+        const b = JSON.parse(Buffer.concat(chunks).toString() || '{}') as { mode?: string; items: { root: string; path: string }[] };
+        if (b.mode !== 'add') this.dock = [];
+        for (const i of b.items) if (!this.dock.some(d => d.root === i.root && d.path === i.path)) this.dock.push(i);
+        send(200, { songs: this.dock.length });
+      });
       return;
     }
     if (u.pathname === '/folders') return send(200, Object.entries(this.dirs.folders).map(([id, p]) => ({ id, name: basename(p), collection: p })));

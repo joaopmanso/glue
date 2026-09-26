@@ -67,6 +67,18 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await expect(row.locator('.c-num').first()).toHaveText(/^12[34]/);
   await expect(page.locator('.lside .name', { hasText: 'Duplicates' })).toContainText('1', { timeout: 30_000 });
 
+  // The sidebar's sections fold, and one can take the full height (the others fold meanwhile).
+  const allTracks = page.locator('.lside .name', { hasText: 'All tracks' });
+  await page.click('[data-sec="library"]');
+  await expect(allTracks).toHaveCount(0);
+  await page.click('[data-sec="library"]');
+  await expect(allTracks).toHaveCount(1);
+  await page.click('[data-max="music"]');
+  await expect(allTracks).toHaveCount(0);
+  await expect(page.locator('.lside .name', { hasText: '📁 Music' })).toBeVisible();
+  await page.click('[data-max="music"]');
+  await expect(allTracks).toHaveCount(1);
+
   // Prepare: the waveform draws, the BPM in use is the analysis's.
   await row.locator('.c-title').dblclick();
   await page.click('#tab-prepare');

@@ -3,28 +3,15 @@
    the edits, saved on the track (lib.setPrep). */
 import { lib } from './library.svelte';
 import { dupes } from './dupes.svelte';
-import { waveformOf, decodeAudio } from './analysis';
+import { waveformOf } from './analysis';
+import { jobOf } from './audioJob';
 import { beatGrid, type Waveform } from '../core/audio/waveform';
 import { bpmInUse } from '../core/library/bpm';
 import { anchorAt, nudge, retempo, tapBpm, type Grid } from '../core/library/grid';
-import { blankInfo, parseContainer } from '../core/formats/parse';
 import { loadWaveform, writeWaveform } from '../store/waveform';
 import * as platform from '../platform';
-import type { AnalysisJob } from '../core/types';
 import type { Track } from '../store/types';
 import type { CuePoint } from '../core/interop/types';
-
-/** A file's audio as a worker job: raw PCM when GLUE reads the format itself, else the browser decodes it. */
-async function jobOf(file: File): Promise<Exclude<AnalysisJob, { type: 'demo' }>> {
-  const buf = await file.arrayBuffer();
-  let info = blankInfo();
-  try { info = parseContainer(new Uint8Array(buf)); } catch { /* the browser decodes it */ }
-  if (info.pcm) return { type: 'pcm', buffer: buf, pcm: info.pcm, sr: info.sampleRate };
-  const ab = await decodeAudio(buf, info.decodeRate || info.sampleRate || 48000);
-  const channels: Float32Array[] = [];
-  for (let c = 0; c < ab.numberOfChannels; c++) channels.push(new Float32Array(ab.getChannelData(c)));
-  return { type: 'float', channels, sr: ab.sampleRate, bits: 0 };
-}
 
 class Prepare {
   trackId = $state<string | null>(null);

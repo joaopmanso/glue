@@ -40,6 +40,13 @@ jobs:
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: npm run home:ui
+      # The Rust build cache: the dependencies (~400 crates) are compiled once, not on every run. Only
+      # main's builds save it; release tags read it (a tag's own cache would be private to that tag).
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: home/src-tauri -> target
+          shared-key: home-${{ matrix.os }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build
         working-directory: home
         env:

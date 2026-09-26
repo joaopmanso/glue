@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { dock } from '../../lib/dock.svelte';
+  import { sidebar, type SideKey } from '../../lib/sidebar.svelte';
   import { lib } from '../../lib/library.svelte';
   import { view, type ViewSel } from '../../lib/view.svelte';
   import { importDetected, importFiles, pickSeratoFolder } from '../../lib/importActions';
@@ -49,9 +51,10 @@
   let pathEdit = $state<string | null>(null);
   let menuFor = $state<string | null>(null);   // the list whose ⋯ menu is open
   let tagMenu = $state<string | null>(null);   // the tag whose ⋯ menu is open
-  let allShown = $state(false);
-  const TAGS_SHOWN = 12;
   const tags = $derived.by(() => { void lib.version; return allTags(); });
+  // Tags can be hundreds: a scrolling list, filtered by name once there are more than a few.
+  let tagFilter = $state('');
+  const shownTags = $derived(tagFilter.trim() ? tags.filter(t => t.name.toLowerCase().includes(tagFilter.trim().toLowerCase())) : tags);
   function newTag() {
     const name = cleanTag(prompt(view.selected.size ? 'New tag for the ' + view.selected.size + ' selected track' + (view.selected.size === 1 ? '' : 's') : 'New tag') ?? '');
     if (!name) return;
@@ -156,6 +159,7 @@
         <button type="button" role="menuitem" onclick={() => { menuFor = null; view.editing = l.id; }}>Rename</button>
         <button type="button" role="menuitem" data-tags-open onclick={e => { const el = e.currentTarget.closest('.menu')!.previousElementSibling ?? e.currentTarget; menuFor = null; view.editTags(el, { listId: l.id }); }}>Tags…{#if l.tags?.length}<small class="ltags"> {l.tags.join(', ')}</small>{/if}</button>
         {#if l.kind === 'folder'}<button type="button" role="menuitem" onclick={() => { menuFor = null; newList('playlist', l.id); }}>New playlist inside</button>{/if}
+        {#if dock.available}<button type="button" role="menuitem" data-dock-list={l.id} onclick={() => { menuFor = null; void dock.add(dock.tracksOf(l.id), l.name); }}>Add to drag dock</button>{/if}
         <button type="button" role="menuitem" disabled={siblings[0]?.id === l.id} onclick={() => lib.nudgeList(l.id, -1)}>Move up</button>
         <button type="button" role="menuitem" disabled={siblings[siblings.length - 1]?.id === l.id} onclick={() => lib.nudgeList(l.id, 1)}>Move down</button>
         <label class="moveto">Move to
@@ -175,39 +179,53 @@
 
 <svelte:window onpointerdown={e => { const el = e.target as HTMLElement; if (menuFor && !el.closest('.menu, .more')) menuFor = null; if (tagMenu && !el.closest('.menu, .more')) tagMenu = null; }} onkeydown={e => { if (e.key === 'Escape') { menuFor = null; tagMenu = null; } }} />
 
-<nav class="lside" aria-label="Library">
-  <section>
-    <h3 class="label">Library</h3>
+{#snippet secHead(k: SideKey, label: string)}
+  <h3 class="label"><button type="button" class="sechead" aria-expanded={sidebar.open(k)} data-sec={k} title={sidebar.open(k) ? 'Collapse' : 'Expand'} onclick={() => sidebar.toggle(k)}><span class="chev" class:shut={!sidebar.open(k)} aria-hidden="true">▾</span>{label}</button></h3>
+{/snippet}
+{#snippet maxBtn(k: SideKey)}
+  <button type="button" class="maxb" class:on={sidebar.focus === k} data-max={k} title={sidebar.focus === k ? 'Show all sections again' : 'Give this section the full height'} aria-pressed={sidebar.focus === k} onclick={() => sidebar.maximize(k)}>{sidebar.focus === k ? '⤡' : '⤢'}</button>
+{/snippet}
+
+<nav class="lside" class:focused={!!sidebar.focus} aria-label="Library">
+  <section class:max={sidebar.focus === 'library'}>
+    <div class="head">{@render secHead('library', 'Library')}<span class="add">{@render maxBtn('library')}</span></div>
+    {#if sidebar.open('library')}
     <ul>
       {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length + lib.copies.size]] as [k, label, n] (k)}
         <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} onclick={() => view.select({ kind: k } as ViewSel)}>{label}<span class="n">{n ?? ''}</span></button></li>
       {/each}
     </ul>
+    {/if}
   </section>
 
-  <section>
+  <section class:max={sidebar.focus === 'playlists'}>
     <div class="head">
-      <h3 class="label">Playlists</h3>
+      {@render secHead('playlists', 'Playlists')}
       <span class="add">
         <button type="button" id="new-playlist" title="New playlist (or drop tracks here)" class:hot={drag.active && drag.target?.type === 'new'} data-drop="new" onclick={() => newList('playlist')}>+ Playlist</button>
         <button type="button" id="new-auto" title="Generate a playlist from your collection" onclick={() => auto.show(null)}>+ Auto</button>
         <button type="button" id="new-folder" title="New folder" onclick={() => newList('folder')}>+ Folder</button>
+        {@render maxBtn('playlists')}
       </span>
     </div>
+    {#if sidebar.open('playlists')}
     <ul class="tree" role="tree">
       {#each top as l (l.id)}{@render node(l, 0)}{/each}
       {#if !top.length}<li class="empty">No playlists yet. Create one, or import a DJ library.</li>{/if}
       {#if drag.active && drag.payload?.kind === 'list'}<li class="topzone" class:on={drag.target?.type === 'top'} data-drop="top">Move to the top level</li>{/if}
     </ul>
+    {/if}
   </section>
 
-  <section class="tags-sec">
+  <section class="tags-sec" class:max={sidebar.focus === 'tags'}>
     <div class="head">
-      <h3 class="label">Tags</h3>
-      <span class="add"><button type="button" id="new-tag" title={view.selected.size ? 'Make a tag and put it on the selected tracks' : 'Make a tag'} onclick={newTag}>+ Tag</button></span>
+      {@render secHead('tags', 'Tags' + (tags.length ? ' · ' + tags.length : ''))}
+      <span class="add"><button type="button" id="new-tag" title={view.selected.size ? 'Make a tag and put it on the selected tracks' : 'Make a tag'} onclick={newTag}>+ Tag</button>{@render maxBtn('tags')}</span>
     </div>
-    <ul>
-      {#each allShown ? tags : tags.slice(0, TAGS_SHOWN) as t (t.name)}
+    {#if sidebar.open('tags')}
+    {#if tags.length > 8}<input class="tfilter" id="tag-filter" type="search" placeholder="Filter {tags.length} tags" bind:value={tagFilter} aria-label="Filter tags">{/if}
+    <ul class="taglist">
+      {#each shownTags as t (t.name)}
         {@const hot = drag.active && drag.target?.type === 'tag' && drag.target.name === t.name}
         <li>
           <div class="item tagitem" class:sel={view.sel.kind === 'tag' && view.sel.name.toLowerCase() === t.name.toLowerCase()} class:drop-add={hot} data-drop="tag" data-tag={t.name} style:--tc={tagColorOf(t.name)}>
@@ -226,23 +244,25 @@
           {/if}
         </li>
       {:else}
-        <li class="empty">No tags yet. Tag tracks from the Tags column, or drag tracks onto a tag here.</li>
+        <li class="empty">{tags.length ? 'No tag matches.' : 'No tags yet. Tag tracks from the Tags column, or drag tracks onto a tag here.'}</li>
       {/each}
-      {#if tags.length > TAGS_SHOWN}<li><button type="button" class="inline more-tags" onclick={() => (allShown = !allShown)}>{allShown ? 'Show fewer' : 'Show all ' + tags.length + ' tags'}</button></li>{/if}
     </ul>
+    {/if}
   </section>
 
   {#if !lib.cloud}
-  <section>
+  <section class:max={sidebar.focus === 'music'}>
     <div class="head">
-      <h3 class="label">Music</h3>
+      {@render secHead('music', 'Music')}
       <span class="add">
         {#if canPickFolders()}<button type="button" id="add-folder" title="Add a folder of music" onclick={() => lib.addFolder()}>+ Folder</button>{/if}
         <button type="button" id="add-songs" title="Add individual songs" onclick={addSongs}>+ Songs</button>
+        {@render maxBtn('music')}
       </span>
     </div>
     <input type="file" multiple accept="audio/*,.flac,.wav,.aif,.aiff,.aifc,.m4a,.mp4,.alac,.mp3,.aac,.ogg,.oga,.opus,.webm,.mka" bind:this={songInput} hidden id="songs-input"
       onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; void lib.addFileCopies(f); }}>
+    {#if sidebar.open('music')}
     <ul>
       {#each lib.musicFolders as r (r.root.id)}
         <li>
@@ -251,6 +271,7 @@
             {#if !r.dir}<button type="button" class="reconnect" title="GLUE lost its link to this folder (restored backup or cleared browser data): choose it again" onclick={() => lib.relinkFolder(r.root.id)}>Find folder</button>
             {:else if !r.granted}<button type="button" class="reconnect" onclick={() => lib.reconnectFolder(r.root.id)}>Allow</button>{/if}
             <span class="tools">
+              {#if dock.available}<button type="button" title="Add this folder's songs to the drag dock" data-dock-root={r.root.id} onclick={() => void dock.add(dock.tracksOfFolder(r.root.id), r.root.name)}>⇲</button>{/if}
               <button type="button" title="Scan again" onclick={() => lib.scanRoot(r.root.id)}>↻</button>
               <button type="button" title="Where is this folder on disk? (for exports)" onclick={() => (pathEdit = pathEdit === r.root.id ? null : r.root.id)}>⌖</button>
               <button type="button" title="Remove from collection" onclick={() => { if (confirm('Remove “' + r.root.name + '” from this collection? Its tracks stay but become unlinked. No files are deleted.')) void lib.removeFolder(r.root.id); }}>×</button>
@@ -269,18 +290,21 @@
       {/if}
       {#if !lib.musicFolders.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). GLUE only reads them.' : 'Add songs, or drop them onto GLUE: they’re copied into GLUE’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
     </ul>
+    {/if}
   </section>
 
-  <section>
+  <section class:max={sidebar.focus === 'dj'}>
     <div class="head">
-      <h3 class="label">DJ libraries</h3>
+      {@render secHead('dj', 'DJ libraries')}
       <span class="add">
         <button type="button" id="find-libs" title="Allow another folder for GLUE to look for DJ libraries in" onclick={() => lib.addLibraryPlace('documents')}>Look in…</button>
         <button type="button" id="import-lib" onclick={() => fileInput?.click()} title="Choose a library file yourself: rekordbox XML, Engine DJ m.db, Traktor NML, iTunes / Apple Music XML, M3U">+ Import</button>
+        {@render maxBtn('dj')}
       </span>
     </div>
     <input type="file" multiple accept={IMPORT_ACCEPT} bind:this={fileInput} hidden id="import-input"
       onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; void importFiles(f); }}>
+    {#if sidebar.open('dj')}
     <ul id="dj-libs">
       {#each sources as s (s.id)}
         {@const d = lib.detected.find(x => x.sourceId === s.id)}
@@ -316,6 +340,7 @@
         <li><b>Apple Music</b> (Mac): File › Library › Export Library, saved in your GLUE folder.</li>
       </ul>
     </details>
+    {/if}
   </section>
   {/if}
   {#if account.signedIn && !lib.cloud}<DevicesSection />{/if}
@@ -326,6 +351,20 @@
   section { display: grid; gap: 4px; }
   ul { list-style: none; margin: 0; padding: 0; }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .sechead { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .sechead:hover { color: var(--ink); }
+  .chev { display: inline-block; font-size: 9px; transition: transform .12s; }
+  .chev.shut { transform: rotate(-90deg); }
+  .maxb { opacity: .55; }
+  .maxb:hover, .maxb.on { opacity: 1; }
+  /* A long tag list scrolls within the sidebar; a filter narrows it. */
+  .tfilter { width: 100%; box-sizing: border-box; background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); font-size: 12px; padding: 3px 7px; }
+  .taglist { max-height: 260px; overflow-y: auto; }
+  /* One section maximized: it takes the sidebar's height, its list scrolls; the others show their names. */
+  .lside.focused { display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+  .lside.focused section:not(.max) { flex: none; }
+  section.max { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  section.max > ul, section.max > .taglist { flex: 1; min-height: 0; overflow-y: auto; max-height: none; }
   .add { display: flex; gap: 4px; }
   .add button, .tools button, .found button, .reconnect, .path button { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 11.5px; padding: 1px 7px; cursor: pointer; }
   .add button:hover, .tools button:hover, .found button:hover { color: var(--accent); border-color: var(--accent); }

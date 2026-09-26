@@ -4,21 +4,29 @@
   <meta charset="utf-8">
   <title>GLUE drag dock</title>
   <style>
-    body { margin: 0; background: #111; color: #eee; font: 13px system-ui, sans-serif; user-select: none; height: 100vh; display: grid; }
-    #drag { margin: 8px; border: 2px dashed #555; border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; align-content: start; cursor: grab; overflow: hidden; }
+    body { margin: 0; background: #111; color: #eee; font: 13px system-ui, sans-serif; user-select: none; height: 100vh; display: flex; flex-direction: column; }
+    #drag { margin: 8px 8px 4px; border: 2px dashed #555; border-radius: 8px; padding: 9px 12px; display: grid; gap: 2px; cursor: grab; }
     #drag.has { border-color: #f5c518; }
     #drag:active { cursor: grabbing; }
     #title { font-weight: 700; color: #f5c518; }
     #hint { color: #999; font-size: 12px; }
-    #names { color: #ccc; font-size: 12px; white-space: pre; overflow: hidden; }
+    #bar { display: flex; justify-content: flex-end; padding: 0 8px; }
+    #clear { background: none; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 12px; padding: 2px 9px; cursor: pointer; }
+    #clear:hover { border-color: #f5c518; color: #f5c518; }
+    #list { list-style: none; margin: 4px 0 8px; padding: 0 8px; overflow-y: auto; flex: 1; min-height: 0; }
+    #list li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ccc; padding: 2px 0; border-bottom: 1px solid #222; }
+    #list li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #list li button { background: none; border: 0; color: #888; cursor: pointer; font-size: 14px; line-height: 1; }
+    #list li button:hover { color: #ff5a5a; }
   </style>
 </head>
 <body>
   <div id="drag" title="Drag into Engine DJ, Rekordbox or a folder">
-    <span id="title">Nothing selected</span>
-    <span id="hint">Select songs or a playlist in GLUE on this computer, then drag them from here.</span>
-    <span id="names"></span>
+    <span id="title">The dock is empty</span>
+    <span id="hint">In GLUE, use “+ Dock”, or “Add to drag dock” on a playlist or a folder.</span>
   </div>
+  <div id="bar"><button type="button" id="clear" hidden>Clear</button></div>
+  <ul id="list"></ul>
   <script type="module" src="./dock.ts"></script>
 </body>
 </html>

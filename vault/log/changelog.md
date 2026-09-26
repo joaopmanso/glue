@@ -5,6 +5,22 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · GLUE Home 0.7.0: the drag dock as a queue; duplicates across browsers; sidebar sections; faster GLUE Home builds
+From the user's batch 3 ([handoff](2026-09-26-handoff-2.md)):
+- **Duplicates:** songs analysed in another browser, or on the other computer (the GLUE folder is in
+  OneDrive), had no fingerprint in this browser and were skipped silently. Their fingerprints are now
+  made again in the background, and the Duplicates view says so. The user's two Mala copies have
+  identical fingerprints ([duplicates](../features/duplicates.md)).
+- **Drag dock:** a queue ([ADR 0055](../adr/0055-drag-dock-is-a-queue.md)): "+ Dock", "Add to drag
+  dock" on playlists and folders, ⇲ on music folders; × and Clear in the dock.
+- **Sidebar:**
+  - Each section folds from its name, and ⤢ gives one section the full height while the others fold
+    (remembered).
+  - Tags: all of them in a scrolling list, with a filter when there are more than 8 (no more "Show
+    all").
+- **GLUE Home's workflow** caches the Rust build ([deployment](../features/deployment.md)).
+- Tests: 135 unit; e2e 38 (dock queue, fingerprints made again, sidebar sections).
+
 ## 2026-09-26 · Prepare tab, step 2: cue points and loops
 - **Hot cues A–H** (pads, keys 1–8, Rekordbox colours), **memory cues** (named, jump, remove),
   **loops** of 1–16 beats that repeat while playing, saved as memory loops or hot loops. Q puts them on

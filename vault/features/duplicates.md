@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M5
-updated: 2026-09-25
+updated: 2026-09-26
 adrs: [0013, 0025]
 ---
 # Duplicates
@@ -51,3 +51,17 @@ them at the best copy.
 ## TO BE SORTED songs (2026-09-25, [ADR 0048](../adr/0048-local-link-to-glue-home.md))
 - A song waiting in a GLUE Home's incoming folder that the collection already has (same file name, or
   without " (2)", and same size) shows as that track, on both computers, not as a second row.
+
+## Fingerprints made again in another browser (2026-09-26)
+- Reported by the user: `Mala - Changes (SubMarine Bootleg).aiff` and `…_playable_v2.aiff` weren't grouped.
+- Measured on the real files: identical fingerprints (bit error rate 0 over 150 s), so the matching is
+  fine.
+- Both analyses said `fp: true`, but fingerprints live in the browser that made them (ADR 0025), and
+  the user's GLUE folder is in OneDrive. The browser in use had no fingerprint for them, and the scan
+  skipped such songs silently. **[UNVERIFIED]** for the user's browser (its storage can't be read from
+  outside), but it's the only way an identical pair isn't grouped.
+- **Now:** the scan counts analysed songs with no fingerprint in this browser. It makes just the
+  fingerprint again (decode + fingerprint in the analysis worker, no full analysis), one song at a
+  time, and checks again every 100 songs and at the end. Duplicates shows "N analysed songs have no
+  fingerprint in this browser … making them now".
+- e2e: deleting the browser's fingerprints brings the note up, and the group back.

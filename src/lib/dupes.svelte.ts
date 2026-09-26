@@ -4,7 +4,9 @@
    Recomputed after the background analysis settles, and on demand. */
 import { lib } from './library.svelte';
 import { cacheDir } from '../platform';
-import { readFingerprint } from '../store/fingerprints';
+import { readFingerprint, writeFingerprint } from '../store/fingerprints';
+import { fingerprintOf } from './analysis';
+import { jobOf } from './audioJob';
 import type { Fingerprint } from '../core/audio/fingerprint';
 import type { Match } from '../core/library/duplicates';
 import { groupMatches } from '../core/library/duplicates';
@@ -28,6 +30,12 @@ class Dupes {
   groups = $state.raw<DupGroup[]>([]);
   running = $state(false);
   at = $state<number | null>(null);
+  /** Analysed songs whose fingerprint isn't in this browser (analysed in another browser, or on
+      another computer: fingerprints stay where they were made). They're made again here. */
+  missing = $state(0);
+  filled = $state(0);
+  filling = $state(false);
+  private toFill: string[] = [];
   private worker: Worker | null = null;
   private reqId = 0;
   private timer = 0;
@@ -43,18 +51,47 @@ class Dupes {
     if (!s || !dir || this.running) return;
     this.running = true;
     try {
-      const cid = s.meta.id, tracks: { id: string; fp: Fingerprint }[] = [];
+      const cid = s.meta.id, tracks: { id: string; fp: Fingerprint }[] = [], without: string[] = [];
       for (const t of s.tracks.values()) {
-        if (!s.analysis.get(t.id)?.fp) continue;
-        const fp = await readFingerprint(dir, cid, t.id);
-        if (fp && fp.words.length) tracks.push({ id: t.id, fp });
+        const a = s.analysis.get(t.id);
+        if (!a || a.error || t.remote || s.ephemeral.has(t.id)) continue;
+        const fp = a.fp ? await readFingerprint(dir, cid, t.id) : null;
+        if (fp && fp.words.length) tracks.push({ id: t.id, fp }); else without.push(t.id);
       }
+      this.toFill = without; this.missing = without.length;
       const matches = tracks.length > 1 ? await this.match(tracks) : [];
       if (lib.store !== s) return;
       this.groups = this.build(matches);
       this.at = Date.now();
     } catch (e) { console.warn('Duplicate scan failed', e); }
     finally { this.running = false; }
+    if (this.toFill.length && !this.filling) void this.fill();
+  }
+
+  /** Make the missing fingerprints, one song at a time (just the fingerprint, not a full analysis),
+      looking for duplicates again every so often and at the end. */
+  private async fill() {
+    const s = lib.store, dir = await cacheDir();
+    if (!s || !dir || this.filling) return;
+    this.filling = true; this.filled = 0;
+    try {
+      for (const id of this.toFill) {
+        if (lib.store !== s) return;
+        const t = s.tracks.get(id);
+        if (!t || !lib.canRead(t)) continue;
+        try {
+          const fp = await fingerprintOf(await jobOf(await lib.fileFor(t)));
+          if (lib.store !== s) return;
+          await writeFingerprint(dir, s.meta.id, id, fp);
+          const a = s.analysis.get(id);
+          if (a && !a.fp) s.putAnalysis(id, { ...a, fp: true });
+        } catch (e) { console.warn('Couldn’t fingerprint', t.fileName, e); }
+        this.filled++;
+        if (this.filled % 100 === 0) { this.toFill = []; this.filling = false; await this.scan(); return; }
+      }
+      this.toFill = [];
+    } finally { this.filling = false; }
+    await this.scan();
   }
 
   private match(tracks: { id: string; fp: Fingerprint }[]): Promise<Match[]> {

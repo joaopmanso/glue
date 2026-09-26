@@ -2,6 +2,7 @@
    caller (the old page swapped results when a second file was dropped mid-analysis). */
 import type { AnalysisJob, AnalysisResult, ProgressFn } from '../core/types';
 import type { Waveform } from '../core/audio/waveform';
+import type { Fingerprint } from '../core/audio/fingerprint';
 import type { AnalysisReply } from '../workers/analysis.worker';
 import { runJob } from '../core/audio/analyze';
 
@@ -16,7 +17,7 @@ function getWorker(): Worker | null {
       const d = e.data, p = pending.get(d.id);
       if (!p) return;
       if (d.kind === 'progress') p.progress(d.stage, d.p);
-      else if (d.kind === 'done' || d.kind === 'wave') { pending.delete(d.id); (p.resolve as (r: unknown) => void)(d.out); }
+      else if (d.kind === 'done' || d.kind === 'wave' || d.kind === 'fp') { pending.delete(d.id); (p.resolve as (r: unknown) => void)(d.out); }
       else if (d.kind === 'error') { pending.delete(d.id); p.reject(new Error(d.message)); }
     };
     worker.onerror = e => {
@@ -50,6 +51,17 @@ export function waveformOf(job: Exclude<AnalysisJob, { type: 'demo' }>): Promise
   return new Promise<Waveform>((resolve, reject) => {
     pending.set(id, { resolve: resolve as (r: never) => void, reject, progress: () => {} });
     w.postMessage({ id, wave: job }, job.type === 'pcm' ? [job.buffer] : job.channels.map(c => c.buffer));
+  });
+}
+
+/** A song's fingerprint only (in the worker). */
+export function fingerprintOf(job: Exclude<AnalysisJob, { type: 'demo' }>): Promise<Fingerprint> {
+  const w = getWorker();
+  if (!w) return Promise.reject(new Error('The analysis worker isn’t available.'));
+  const id = nextId++;
+  return new Promise<Fingerprint>((resolve, reject) => {
+    pending.set(id, { resolve: resolve as (r: never) => void, reject, progress: () => {} });
+    w.postMessage({ id, fp: job }, job.type === 'pcm' ? [job.buffer] : job.channels.map(c => c.buffer));
   });
 }
 

@@ -513,6 +513,14 @@ test('finds the same recording under different names and formats', async ({ page
   await expect(grp.locator('li')).toHaveCount(2);
   await expect(grp.locator('li.best')).toContainText('HHH 04 RADIX');
 
+  // Songs analysed in another browser have no fingerprint in this one: they're made again here and
+  // the group comes back (as when the GLUE folder is shared between computers).
+  await page.evaluate(async () => { const c = await (await navigator.storage.getDirectory()).getDirectoryHandle('cache'); await c.removeEntry('fp', { recursive: true }); });
+  await page.click('#dupes-rescan');
+  await expect(page.locator('#dupes-missing')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('#dupes .grp')).toHaveCount(1, { timeout: 60_000 });
+  await expect(page.locator('#dupes-missing')).toHaveCount(0, { timeout: 60_000 });
+
   // "Not duplicates" hides the group, also after a reload.
   await grp.getByRole('button', { name: 'Not duplicates' }).click();
   await expect(page.locator('#dupes .grp')).toHaveCount(0);
