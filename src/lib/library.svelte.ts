@@ -5,7 +5,7 @@ import { CollectionStore } from '../store/collection';
 import { LOOSE, applyImport, applyScan, blankLibTrack, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
-import { ANALYSIS_VERSION, INCOMING_ROOT, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary, type List, type Profile, type Root, type Track } from '../store/types';
+import { ANALYSIS_VERSION, INCOMING_ROOT, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary, type List, type Prep, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
 import type { Copy, Overlay } from '../core/library/overlay';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
@@ -723,6 +723,24 @@ class Library {
   setTrackNotes(id: string, notes: string) {
     const t = this.store?.tracks.get(id);
     if (t && (t.notes ?? '') !== notes) this.store!.putTrack({ ...t, notes: notes || undefined });
+  }
+  /** The Prepare tab's settings for a track (ADR 0052): \`undefined\` removes one. */
+  setPrep(id: string, patch: Partial<Prep>) {
+    const s = this.store, t = s?.tracks.get(id);
+    if (!s || !t || this.readOnly) return;
+    const prep: Prep = { ...t.prep, ...patch };
+    for (const k of Object.keys(prep) as (keyof Prep)[]) if (prep[k] === undefined) delete prep[k];
+    s.putTrack({ ...t, prep: Object.keys(prep).length ? prep : undefined });
+  }
+  /** How BPMs are shown for a profile (ADR 0052). */
+  async setBpmRange(pid: string, range: Profile['bpmRange']) {
+    const home = this.home;
+    if (!home) return;
+    const p: Profile = { ...(this.profile?.id === pid ? this.profile : await home.loadProfile(pid)), bpmRange: range };
+    if (!range) delete p.bpmRange;
+    await home.saveProfile(p);
+    if (this.profile?.id === pid) this.profile = p;
+    this.version++;
   }
   /** Add and remove tags on tracks (ADR 0032). Tags new to the collection join its tag list. */
   tagTracks(ids: string[], add: string[], remove: string[] = []) {

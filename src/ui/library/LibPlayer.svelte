@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { bpmShown, fmtBpm } from '../../lib/bpm';
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import { player } from '../../lib/player.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
@@ -47,7 +48,7 @@
     <span class="mono">{fmtTime(d)}</span>
   </div>
   <div class="meta mono">
-    {#if a?.bpm}<span>{Math.round(a.bpm)} BPM</span>{/if}
+    {#if bpmShown(t, a)}<span>{fmtBpm(bpmShown(t, a)!)} BPM</span>{/if}
     {#if a?.key}<span>{keyLabel(a.key, app.keyNotation)}</span>{/if}
     {#if a && !a.error}<span class="q" data-grade={a.grade}>{a.label}</span>{/if}
   </div>

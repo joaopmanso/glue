@@ -1,5 +1,6 @@
 /* What the library view shows: the selected sidebar entry, search, sort and row selection. */
 import { lib } from './library.svelte';
+import { bpmShown } from './bpm';
 import { LOOSE } from '../store/merge';
 import { dupes } from './dupes.svelte';
 import type { AnalysisSummary, Track } from '../store/types';
@@ -102,7 +103,7 @@ class View {
     const val = (r: Row): string | number => {
       switch (key) {
         case 'order': return r.n;
-        case 'bpm': return r.a?.bpm ?? r.dj?.bpm ?? Infinity;
+        case 'bpm': return bpmShown(r.t, r.a, r.dj?.bpm) ?? Infinity;
         case 'key': return r.a?.key ? keyLabel(r.a.key, notation === 'musical' ? 'camelot' : notation).padStart(3, '0') : r.dj?.key ? '~' + r.dj.key : '~~';
         case 'duration': return r.t.duration ?? Infinity;
         case 'format': return r.t.format ? (r.t.format.lossless ? 0 : 1) * 1e7 - r.t.format.sampleRate * 10 - r.t.format.bits : Infinity;

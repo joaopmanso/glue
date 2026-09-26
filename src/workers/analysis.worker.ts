@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
-import { runJob } from '../core/audio/analyze';
+import { monoOf, runJob } from '../core/audio/analyze';
+import { computeWaveform, type Waveform } from '../core/audio/waveform';
 import { classify } from '../core/audio/verdict';
 import { summarize } from '../core/library/summary';
 import { encodeDetails, type DetailsHeader } from '../store/details';
@@ -10,18 +11,27 @@ import type { AnalysisSummary } from '../store/types';
 /** Full result (the detail view), or just the summary the library keeps (background analysis). */
 export type AnalysisRequest =
   | { id: number; job: AnalysisJob }
+  | { id: number; wave: Exclude<AnalysisJob, { type: 'demo' }> }
   | { id: number; job: AnalysisJob; summary: { info: FileInfo; size: number; mtime: number } };
 export type AnalysisReply =
   | { id: number; kind: 'progress'; stage: string; p: number }
   | { id: number; kind: 'done'; out: AnalysisResult }
   | { id: number; kind: 'summary'; out: AnalysisSummary; duration: number; sr: number; channels: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null }
+  | { id: number; kind: 'wave'; out: Waveform }
   | { id: number; kind: 'error'; message: string };
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
 scope.onmessage = async (e: MessageEvent<AnalysisRequest>) => {
-  const { id, job } = e.data;
+  const { id } = e.data;
   try {
+    // The Prepare tab's waveform and onset envelope (ADR 0052).
+    if ('wave' in e.data) {
+      const { mono, sr } = monoOf(e.data.wave), out = computeWaveform(mono, sr);
+      scope.postMessage({ id, kind: 'wave', out } satisfies AnalysisReply, [out.low.buffer, out.mid.buffer, out.high.buffer, out.peak.buffer, out.env.buffer]);
+      return;
+    }
+    const { job } = e.data;
     let last = 0;
     const out = runJob(job, (stage, p) => {
       const now = Date.now();

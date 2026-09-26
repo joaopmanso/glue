@@ -12,7 +12,18 @@ export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; last
 export interface CollectionRef { id: string; name: string }
 /** cloudSync: this device keeps a copy of the profile's data in GLUE Cloud (ADR 0040). Absent = on
     while signed in (ADR 0042); false = the user turned it off. */
-export interface Profile { schemaVersion: number; id: string; name: string; color: string; createdAt: string; collections: CollectionRef[]; lastCollection: string | null; cloudSync?: boolean }
+/** bpmRange: how BPMs are shown (ADR 0052): as detected (absent), folded into 60–120 ('half') or 120–240 ('full'). */
+export interface Profile { schemaVersion: number; id: string; name: string; color: string; createdAt: string; collections: CollectionRef[]; lastCollection: string | null; cloudSync?: boolean; bpmRange?: 'half' | 'full' }
+
+/** What the user set on a track's Prepare tab (ADR 0052). Overrides the analysis; "Re-analyse" clears
+    bpm, beat0 and bar (the grid), never the cues. */
+export interface Prep {
+  bpm?: number;       // the tempo, corrected
+  beat0?: number;     // the grid: the first beat's time (s)
+  bar?: number;       // which of each four beats is the bar's first (0–3)
+  flip?: boolean;     // shown at the other octave (a 140 track as 70)
+  cues?: import('../core/interop/types').CuePoint[];
+}
 
 /** A music folder the user granted (handle lives in IndexedDB under `handleKey`). `hidden`: a folder
     GLUE keeps for itself, not listed under Music folders: GLUE Home's incoming folder (ADR 0051). */
@@ -46,6 +57,7 @@ export interface Track {
   notes?: string;               // the user's own notes about the track
   grouping?: string;            // the file's / DJ app's Grouping field
   tags?: string[];              // the user's tags; absent until edited, then the found ones (tagsOf) stand in
+  prep?: Prep;                  // the Prepare tab: corrected tempo and grid, display flip, cues (ADR 0052)
   onDevices?: string[];         // cloud views and merged collections: the devices that have this track (never saved)
   /** A track from another device of a merged collection, shown here from the cloud (ADR 0042; never saved):
       that device, and its own profile, collection and track ids (to stream it through GLUE Home, ADR 0045). */

@@ -12,6 +12,7 @@
   import { deviceColor } from '../../lib/devices';
   import { view } from '../../lib/view.svelte';
   import { tick } from 'svelte';
+  import { bpmShown, fmtBpm } from '../../lib/bpm';
 
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
   const same = $derived(dupes.groups.filter(g => g.kind === 'same'));
@@ -84,7 +85,7 @@
             </div>
             <span class="mono fmt">{fmt(t)}</span>
             <span class="mono">{t.duration ? fmtTime(t.duration) : ''}</span>
-            <span class="mono">{a?.bpm ? Math.round(a.bpm) : ''} {a?.key ? keyLabel(a.key, app.keyNotation) : ''}</span>
+            <span class="mono">{bpmShown(t, a) ? fmtBpm(bpmShown(t, a)!) : ''} {a?.key ? keyLabel(a.key, app.keyNotation) : ''}</span>
             <span>{#if a && !a.error}<span class="q" data-grade={a.grade}>{a.label}</span>{/if}</span>
             <span class="lists">{listsOf(id).length ? 'in ' + listsOf(id).length + ' playlist' + (listsOf(id).length === 1 ? '' : 's') : 'in no playlist'}</span>
             <span class="act">

@@ -126,38 +126,52 @@ export function computeSpectrum(mono: Float32Array, sr: number, opt: { cols?: nu
   return { spec, cols, rows, ltas, N, binHz: sr / N };
 }
 
-/** Tempo and key from the mono mix, both on a ~11 kHz copy (nothing above that matters here). See ADR 0006. */
-export function analyzeMusic(mono: Float32Array, sr: number, progress: ProgressFn): MusicResult {
+/** The mono mix at ~11 kHz (nothing above that matters for tempo and key). */
+export function decimate(mono: Float32Array, sr: number) {
   const dec = Math.max(1, Math.floor(sr / 11025)), fs = sr / dec, len = Math.floor(mono.length / dec);
   const x = new Float32Array(len);
   for (let i = 0, p = 0; i < len; i++) { let s = 0; for (let k = 0; k < dec; k++) s += mono[p++]; x[i] = s / dec; }
+  return { x, fs };
+}
+
+/** How strongly something starts at each moment (spectral flux, the slow trend removed): the pulses
+    the tempo is found from, and the beat grid is placed on (ADR 0006, 0052). Frame f is the window
+    starting at f·hop samples of `x`; `fr` frames per second. */
+export function onsetEnvelope(x: Float32Array, fs: number, progress: ProgressFn = () => {}) {
+  const N = 1024, hop = 128, fft = makeFFT(N), win = new Float64Array(N), len = x.length;
+  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+  const frames = Math.max(0, Math.floor((len - N) / hop)), kMax = Math.min(N / 2, Math.round(8000 / fs * N));
+  const env = new Float32Array(frames), prev = new Float32Array(kMax), re = new Float64Array(N), im = new Float64Array(N);
+  for (let f = 0; f < frames; f++) {
+    const s = f * hop;
+    for (let i = 0; i < N; i++) { re[i] = x[s + i] * win[i]; im[i] = 0; }
+    fft(re, im);
+    let flux = 0;
+    for (let k = 1; k < kMax; k++) {
+      const v = Math.log(1 + 1000 * Math.sqrt(re[k] * re[k] + im[k] * im[k]) / N);
+      const d = v - prev[k]; if (d > 0) flux += d;
+      prev[k] = v;
+    }
+    env[f] = flux;
+    if ((f & 1023) === 0) progress('Detecting tempo and key', 0.5 * f / frames);
+  }
+  // remove the slow trend so only the pulses remain
+  const fr = fs / hop, w = Math.round(fr * 0.4), cs = new Float64Array(frames + 1);
+  for (let i = 0; i < frames; i++) cs[i + 1] = cs[i] + env[i];
+  const e = new Float32Array(frames);
+  for (let i = 0; i < frames; i++) { const a = Math.max(0, i - w), b = Math.min(frames, i + w + 1); e[i] = Math.max(0, env[i] - (cs[b] - cs[a]) / (b - a)); }
+  return { e, fr, frames, N, hop };
+}
+
+/** Tempo and key from the mono mix, both on a ~11 kHz copy (nothing above that matters here). See ADR 0006. */
+export function analyzeMusic(mono: Float32Array, sr: number, progress: ProgressFn): MusicResult {
+  const { x, fs } = decimate(mono, sr), len = x.length;
   const out: MusicResult = { bpm: null, bpmConf: 0, key: null };
   if (len < fs * 6) return out;   // too short to say anything
 
   // --- tempo: spectral-flux onset envelope, then a comb over its autocorrelation ---
   {
-    const N = 1024, hop = 128, fft = makeFFT(N), win = new Float64Array(N);
-    for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
-    const frames = Math.floor((len - N) / hop), kMax = Math.min(N / 2, Math.round(8000 / fs * N));
-    const env = new Float32Array(frames), prev = new Float32Array(kMax), re = new Float64Array(N), im = new Float64Array(N);
-    for (let f = 0; f < frames; f++) {
-      const s = f * hop;
-      for (let i = 0; i < N; i++) { re[i] = x[s + i] * win[i]; im[i] = 0; }
-      fft(re, im);
-      let flux = 0;
-      for (let k = 1; k < kMax; k++) {
-        const v = Math.log(1 + 1000 * Math.sqrt(re[k] * re[k] + im[k] * im[k]) / N);
-        const d = v - prev[k]; if (d > 0) flux += d;
-        prev[k] = v;
-      }
-      env[f] = flux;
-      if ((f & 1023) === 0) progress('Detecting tempo and key', 0.5 * f / frames);
-    }
-    // remove the slow trend so only the pulses remain
-    const fr = fs / hop, w = Math.round(fr * 0.4), cs = new Float64Array(frames + 1);
-    for (let i = 0; i < frames; i++) cs[i + 1] = cs[i] + env[i];
-    const e = new Float32Array(frames);
-    for (let i = 0; i < frames; i++) { const a = Math.max(0, i - w), b = Math.min(frames, i + w + 1); e[i] = Math.max(0, env[i] - (cs[b] - cs[a]) / (b - a)); }
+    const { e, fr, frames } = onsetEnvelope(x, fs, progress);
     const maxLag = Math.min(Math.floor(frames / 2), Math.ceil(fr) * 16 + 4), acf = new Float64Array(maxLag + 1);
     for (let L = 1; L <= maxLag; L++) { let s = 0; for (let i = L; i < frames; i++) s += e[i] * e[i - L]; acf[L] = s / (frames - L); }
     const at = (L: number) => { const i = Math.floor(L), t = L - i; return i + 1 > maxLag ? 0 : acf[i] * (1 - t) + acf[i + 1] * t; };
@@ -304,6 +318,19 @@ export function synthDemo(): { channels: Float32Array[]; sr: number; bits: numbe
 }
 
 /** Full analysis of one job: samples → spectrum → tempo/key. Runs in the worker (or main thread as fallback). */
+/** A job's audio as one mono signal (the average of its channels). */
+export function monoOf(job: Exclude<AnalysisJob, { type: 'demo' }>): { mono: Float32Array; sr: number } {
+  if (job.type === 'float') {
+    const chs = job.channels, len = chs[0]?.length ?? 0, mono = new Float32Array(len);
+    for (const c of chs) for (let i = 0; i < len; i++) mono[i] += c[i] / chs.length;
+    return { mono, sr: job.sr };
+  }
+  const p = job.pcm, read = makePcmReader(new Uint8Array(job.buffer), p), len = Math.floor(p.len / p.blockAlign);
+  const f = new Float64Array(p.ch), iv = new Int32Array(p.ch), mono = new Float32Array(len);
+  for (let i = 0; i < len; i++) { read(i, f, iv); let s = 0; for (let c = 0; c < p.ch; c++) s += f[c]; mono[i] = s / p.ch; }
+  return { mono, sr: job.sr };
+}
+
 export function runJob(input: AnalysisJob, progress: ProgressFn, opts: { fingerprint?: boolean } = {}): AnalysisResult {
   let job = input, demoPcm: Int16Array | null = null;
   if (job.type === 'demo') {

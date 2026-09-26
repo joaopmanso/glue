@@ -1,5 +1,6 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
+  import { bpmShown, fmtBpm } from '../../lib/bpm';
   import { view, qualityOf, devicesOf, manyDevices, type Row, type FilterGroup, type SortKey } from '../../lib/view.svelte';
   import { deviceColor } from '../../lib/devices';
   import { tagsOf } from '../../core/library/tagging';
@@ -63,7 +64,6 @@
     if (f.lossless) return codec + ' ' + (f.bits ? f.bits + '/' : '') + (f.sampleRate ? +(f.sampleRate / 1000).toFixed(1) : '');
     return codec + (f.bitrate ? ' ' + f.bitrate : '');
   }
-  const showBpm = (b: number) => Math.abs(b - Math.round(b)) < 0.05 ? String(Math.round(b)) : b.toFixed(1);
 
   function open(id: string) { router.go('#/track/' + id); }
   function play(id: string) {
@@ -132,8 +132,9 @@
   {:else if k === 'label'}<span class="c-soft">{r.t.label}</span>
   {:else if k === 'year'}<span class="c-num">{r.t.year}</span>
   {:else if k === 'bpm'}
-    {#if r.a?.bpm}<span class="c-num">{showBpm(r.a.bpm)}</span>
-    {:else if r.dj?.bpm}<span class="c-num from-dj" title="From your imported DJ library">{showBpm(r.dj.bpm)}</span>
+    {#if r.t.prep?.bpm}<span class="c-num mine" title="Your BPM (Prepare)">{fmtBpm(bpmShown(r.t, r.a)!)}</span>
+    {:else if r.a?.bpm}<span class="c-num">{fmtBpm(bpmShown(r.t, r.a)!)}</span>
+    {:else if r.dj?.bpm}<span class="c-num from-dj" title="From your imported DJ library">{fmtBpm(bpmShown(r.t, null, r.dj.bpm)!)}</span>
     {:else}<span></span>{/if}
   {:else if k === 'key'}
     {#if r.a?.key}<span class="c-num">{keyLabel(r.a.key, app.keyNotation)}</span>
@@ -361,6 +362,7 @@
   .note.has, .tr:hover .note.has { color: var(--accent); }
   .note:hover { background: var(--surface); color: var(--ink) !important; }
   .from-dj { color: var(--muted); font-style: italic; }
+  .mine { color: var(--accent); }
   .q { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; }
   .qbtn { background: none; cursor: pointer; }
   .qbtn:hover { background: color-mix(in srgb, currentColor 14%, transparent); }

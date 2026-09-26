@@ -32,6 +32,7 @@ class Auto {
   }
   private bpmOf(t: Track): number | null {
     const a = lib.store?.analysis.get(t.id);
+    if (t.prep?.bpm) return t.prep.bpm;   // the user's correction (Prepare)
     if (a?.bpm) return a.bpm;
     for (const s of lib.store?.sources.values() ?? []) { const st = s.tracks.find(x => x.trackId === t.id); if (st?.bpm) return st.bpm; }
     return null;

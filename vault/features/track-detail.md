@@ -1,10 +1,14 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-24
+updated: 2026-09-26
 adrs: [0019, 0023, 0024]
 ---
 # Track detail
+
+Since 2026-09-26 the page has two tabs: **Details** (this note) and **Prepare** (waveform, beat grid,
+metronome, tempo, corrections: [prepare](prepare.md), [ADR 0052](../adr/0052-prepare-tab.md)).
+"Re-analyse" also resets Prepare's BPM and grid corrections (cues stay).
 
 ## What it does
 Every song in a collection has its own page with everything GLUE knows about it: the full Speklone

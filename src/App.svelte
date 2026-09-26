@@ -168,7 +168,7 @@
   {:else if !inLibrary || lib.onboarding === 'music'}
     <Welcome />
   {:else if route.name === 'track'}
-    {#key route.id}<TrackDetail id={route.id} />{/key}
+    {#key route.id}<TrackDetail id={route.id} tab={route.tab} />{/key}
   {:else}
     <LibraryView />
   {/if}

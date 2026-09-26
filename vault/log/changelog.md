@@ -5,6 +5,21 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · Prepare tab, step 1: waveform, beat grid, metronome, tempo ([ADR 0052](../adr/0052-prepare-tab.md))
+- The track page has two tabs, **Details** and **Prepare** ([feature](../features/prepare.md)).
+- **Prepare:**
+  - a deck waveform and overview, in 4 colour schemes, with the beat grid and a 3D view;
+  - a tempo fader with key lock, and a metronome on the music's own clock;
+  - BPM and grid corrections (±, ×2, ÷2, tap, nudge, "Beat 1 here"), saved on the track and synced.
+    Re-analyse resets them.
+- **BPM shown as:** as detected, 60–120 or 120–240, chosen per profile on the profiles screen, plus a
+  per-track flip. The corrected BPM is used everywhere.
+- The waveform is made from the track's audio the first time Prepare opens, and kept in the browser.
+  The analysis is unchanged (the onset envelope was only moved into its own function; the parity tests
+  pass).
+- Grid placement measured on synthetic kicks: within 0.1 ms after correcting an 18.6 ms lag.
+- Tests: 127 unit, 38 e2e. Next: cues and loops (step 2), then the rekordbox XML export (step 3).
+
 ## 2026-09-26 · When GLUE Home stops; Duplicates from a track; a compact track page
 From the user's checks of 0.5.0 (everything else worked, including the sent song on the desktop):
 - **GLUE Home stopped:** opening a track said "Failed to fetch". The open library now carries on with

@@ -6,6 +6,7 @@
   import type { BackupManifest } from '../../store/backup';
   import type { ZipEntry } from '../../core/zip';
   import ThemePicker from '../ThemePicker.svelte';
+  import type { Profile } from '../../store/types';
   import CloudPanel from './CloudPanel.svelte';
   import Homepage from './Homepage.svelte';
   import { account } from '../../lib/account.svelte';
@@ -87,6 +88,12 @@
   const ago = (t: number | null) => { if (!t) return ''; const m = Math.round((Date.now() - t) / 60e3); return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
   const tracks = (m: BackupManifest) => m.collections.reduce((n, c) => n + c.tracks, 0);
   const step = $derived(lib.phase === 'welcome' || lib.phase === 'reconnect' ? 1 : lib.onboarding === 'music' ? 3 : 2);
+  // Each profile's BPM range (ADR 0052), from its profile file.
+  let bpmRanges = $state<Record<string, Profile['bpmRange']>>({});
+  $effect(() => {
+    const ids = lib.phase === 'profiles' ? lib.home?.index.profiles.map(p => p.id) ?? [] : [];
+    for (const id of ids) void lib.profileInfo(id)?.then(p => { if (p) bpmRanges[id] = p.bpmRange; });
+  });
 </script>
 
 {#snippet stepper()}
@@ -185,6 +192,11 @@
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7.2a3 3 0 0 0 .4-6 4.2 4.2 0 0 0-8.1 1.2 2.4 2.4 0 0 0 .5 4.8z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
                 {syncOn[p.id] && account.signedIn ? (sync.status[p.id]?.busy ? 'Syncing…' : sync.status[p.id]?.error ? 'Sync problem' : sync.status[p.id]?.at ? 'Synced ' + ago(sync.status[p.id].at) : 'Cloud sync on') : 'Cloud sync'}
               </button>
+              <label class="bpmr" title="How BPMs show in the library: as detected, folded into half-time (60–120) or full (120–240). A track can be flipped on its Prepare tab.">BPM
+                <select data-bpm-range={p.id} value={bpmRanges[p.id] ?? ''} onchange={e => { const v = e.currentTarget.value as '' | 'half' | 'full'; bpmRanges[p.id] = v || undefined; void lib.setBpmRange(p.id, v || undefined); }}>
+                  <option value="">as detected</option><option value="half">60–120</option><option value="full">120–240</option>
+                </select>
+              </label>
               <button type="button" title="Rename" onclick={() => { const n = prompt('Rename profile', p.name); if (n?.trim()) void lib.renameProfile(p.id, n); }}>Rename</button>
               <button type="button" class="del" title="Delete this profile" onclick={() => { if (confirm('Delete the profile “' + p.name + '” with all its collections and playlists? Download a backup first if you might want it back. Your music files aren’t touched.')) void lib.deleteProfile(p.id); }}>Delete</button>
             </span>
@@ -308,4 +320,6 @@
   .danger-zone { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); background: color-mix(in srgb, var(--bad) 6%, var(--surface)); }
   .btn.danger { background: var(--bad); color: #1a0505; }
   @media (max-width: 760px) { .paths { grid-template-columns: 1fr; } }
+  .bpmr { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; color: var(--ink-2); }
+  .bpmr select { background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); font-size: 12px; padding: 2px 4px; }
 </style>

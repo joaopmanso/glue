@@ -20,7 +20,7 @@
     for (const src of s.sources.values()) for (const st of src.tracks) if (st.bpm && !djBpm.has(st.trackId)) djBpm.set(st.trackId, st.bpm);
     return ids.map(id => s.tracks.get(id)).filter(t => !!t).map(t => {
       const a = s.analysis.get(t.id), ok = a && !a.error;
-      return { duration: t.duration, bpm: (ok && a.bpm) || djBpm.get(t.id) || null, key: ok && a.key ? { tonic: a.key.tonic, mode: a.key.mode } : null, tags: tagsOf(t), grade: ok ? a.grade : null };
+      return { duration: t.duration, bpm: t.prep?.bpm || (ok && a.bpm) || djBpm.get(t.id) || null, key: ok && a.key ? { tonic: a.key.tonic, mode: a.key.mode } : null, tags: tagsOf(t), grade: ok ? a.grade : null };
     });
   });
   const ins = $derived(insights(facts, k => keyLabel(k, app.keyNotation)));

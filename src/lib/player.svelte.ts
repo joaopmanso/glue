@@ -171,10 +171,14 @@ class Player {
   onFrame: ((ts: number) => void) | null = null;
   onEnded: (() => void) | null = null;   // the library player moves to the next track
   private raf = 0;
+  /** Playback speed (the Prepare tab's pitch fader, ADR 0052), and whether the pitch stays (key lock). */
+  rate = $state(1);
+  keyLock = $state(true);
 
   private bind(el: HTMLAudioElement) {
     el.preload = 'auto';
     el.volume = this.volume;
+    this.applyRate(el);
     el.addEventListener('loadedmetadata', () => { this.ready = true; if (!this.duration) this.duration = el.duration || 0; });
     el.addEventListener('play', () => { this.paused = false; this.startLoop(); });
     el.addEventListener('pause', () => { this.paused = true; this.live.last = 0; this.stopLoop(); this.sync(); });
@@ -266,6 +270,15 @@ class Player {
     if (play && this.el.paused) this.toggle();
   }
   setVolume(v: number) { this.volume = v; this.el.volume = v; }
+  setRate(rate: number, keyLock = this.keyLock) { this.rate = rate; this.keyLock = keyLock; this.applyRate(this.el); }
+  private applyRate(el: HTMLAudioElement) {
+    el.preservesPitch = this.keyLock;
+    // A new source resets playbackRate to the default rate: set both.
+    el.defaultPlaybackRate = this.rate; el.playbackRate = this.rate;
+  }
+  /** The AudioContext the music plays through (the live chain), so other sounds (the metronome) are on
+      its clock and output. Call inside a click, so it may start. */
+  audioClock(): AudioContext | null { this.live.start(this.el, this.fileSr); return this.live.ctx; }
   setLive(on: boolean) { this.liveOn = on; if (on && !this.el.paused) this.live.start(this.el, this.fileSr); }
 }
 

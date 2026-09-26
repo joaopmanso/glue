@@ -1,11 +1,12 @@
 /* Client for the analysis worker. Every request has an id, so replies can never reach the wrong
    caller (the old page swapped results when a second file was dropped mid-analysis). */
 import type { AnalysisJob, AnalysisResult, ProgressFn } from '../core/types';
+import type { Waveform } from '../core/audio/waveform';
 import type { AnalysisReply } from '../workers/analysis.worker';
 import { runJob } from '../core/audio/analyze';
 
 let worker: Worker | null = null, broken = false, nextId = 1;
-const pending = new Map<number, { resolve: (r: AnalysisResult) => void; reject: (e: Error) => void; progress: ProgressFn }>();
+const pending = new Map<number, { resolve: (r: never) => void; reject: (e: Error) => void; progress: ProgressFn }>();
 
 function getWorker(): Worker | null {
   if (worker || broken) return worker;
@@ -15,7 +16,7 @@ function getWorker(): Worker | null {
       const d = e.data, p = pending.get(d.id);
       if (!p) return;
       if (d.kind === 'progress') p.progress(d.stage, d.p);
-      else if (d.kind === 'done') { pending.delete(d.id); p.resolve(d.out); }
+      else if (d.kind === 'done' || d.kind === 'wave') { pending.delete(d.id); (p.resolve as (r: unknown) => void)(d.out); }
       else if (d.kind === 'error') { pending.delete(d.id); p.reject(new Error(d.message)); }
     };
     worker.onerror = e => {
@@ -35,9 +36,20 @@ export function analyze(job: AnalysisJob, progress: ProgressFn): Promise<Analysi
   if (!w) return new Promise((res, rej) => setTimeout(() => { try { res(runJob(job, progress)); } catch (e) { rej(e); } }, 30));
   const id = nextId++;
   return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject, progress });
+    pending.set(id, { resolve: resolve as (r: never) => void, reject, progress });
     const transfer: Transferable[] = job.type === 'pcm' ? [job.buffer] : job.type === 'float' ? job.channels.map(c => c.buffer) : [];
     w.postMessage({ id, job }, transfer);
+  });
+}
+
+/** The Prepare tab's waveform of a track's audio (in the worker). */
+export function waveformOf(job: Exclude<AnalysisJob, { type: 'demo' }>): Promise<Waveform> {
+  const w = getWorker();
+  if (!w) return Promise.reject(new Error('The analysis worker isn’t available.'));
+  const id = nextId++;
+  return new Promise<Waveform>((resolve, reject) => {
+    pending.set(id, { resolve: resolve as (r: never) => void, reject, progress: () => {} });
+    w.postMessage({ id, wave: job }, job.type === 'pcm' ? [job.buffer] : job.channels.map(c => c.buffer));
   });
 }
 

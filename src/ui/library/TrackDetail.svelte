@@ -21,8 +21,12 @@
   import { auto } from '../../lib/auto.svelte';
   import { tagsOf } from '../../core/library/tagging';
   import { tagColorOf } from '../../lib/tags.svelte';
+  import PrepareView from './PrepareView.svelte';
+  import { prepare } from '../../lib/prepare.svelte';
+  import type { TrackTab } from '../../lib/route.svelte';
 
-  let { id }: { id: string } = $props();
+  let { id, tab = 'details' }: { id: string; tab?: TrackTab } = $props();
+  const goTab = (t: TrackTab) => router.go('#/track/' + id + (t === 'prepare' ? '/prepare' : ''));
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
 
   const track = $derived.by(() => { void lib.version; return lib.store?.tracks.get(id) ?? null; });
@@ -139,6 +143,7 @@ canPlay = true;
 
   $effect(() => {
     void id;
+    if (tab !== 'details') return;   // Prepare reads the track itself (its waveform)
     untrack(() => { app.phase = 'start'; app.res = null; app.info = null; app.verdict = null; app.error = null; app.busy = null; });
     lib.prioritize(id);
     void load(false);
@@ -175,7 +180,7 @@ canPlay = true;
       {#if phase === 'ready'}
         <span class="src">{stored ? 'Stored analysis' : 'Just analysed'}</span>
         <button type="button" class="mini" id="auto-from-page" onclick={() => auto.show(id)}>Build playlist from this</button>
-        <button type="button" class="mini" id="reanalyse" title="Analyse the file again and replace the stored result" onclick={() => load(true, true)}>Re-analyse</button>
+        <button type="button" class="mini" id="reanalyse" title="Analyse the file again and replace the stored result" onclick={() => { const t = lib.store?.tracks.get(id); if (t) prepare.reset(t); void load(true, true); }}>Re-analyse</button>
       {/if}
       <button type="button" class="mini" disabled={pos <= 0} onclick={() => router.go('#/track/' + order[pos - 1])}>‹ Previous</button>
       <button type="button" class="mini" disabled={pos < 0 || pos >= order.length - 1} onclick={() => router.go('#/track/' + order[pos + 1])}>Next ›</button>
@@ -198,6 +203,14 @@ canPlay = true;
       {#if summary && !summary.error && !(phase === 'ready' && app.phase === 'result')}<span class="q" data-grade={summary.grade}>{summary.label}</span>{/if}
     </header>
 
+    <nav class="tabs" aria-label="Track page">
+      <button type="button" class:on={tab === 'details'} aria-current={tab === 'details' ? 'page' : undefined} id="tab-details" onclick={() => goTab('details')}>Details</button>
+      <button type="button" class:on={tab === 'prepare'} aria-current={tab === 'prepare' ? 'page' : undefined} id="tab-prepare" onclick={() => goTab('prepare')}>Prepare</button>
+    </nav>
+
+    {#if tab === 'prepare'}
+      <PrepareView {track} />
+    {:else}
     <section class="info" class:withdj={imported.length > 0}>
       <div class="meta">
         <p class="file mono" title={location}>{location || '—'}</p>
@@ -285,6 +298,7 @@ canPlay = true;
       </div>
     {/if}
     {#if app.phase === 'result' && phase === 'ready'}<Results />{/if}
+    {/if}
   {/if}
 </div>
 
@@ -296,6 +310,10 @@ canPlay = true;
   .src { color: var(--muted); font-size: 12px; margin-right: 4px; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini:disabled { opacity: .4; cursor: default; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ink-2); font-size: 13.5px; font-weight: 600; padding: 6px 14px; cursor: pointer; margin-bottom: -1px; }
+  .tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+  .tabs button:hover:not(.on) { color: var(--accent); }
   .th { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
   .tt { min-width: 0; }
   h2 { font-size: 24px; font-stretch: 112%; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
