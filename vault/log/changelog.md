@@ -5,6 +5,20 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · Engine DJ: the computer's and the drives' libraries as one set
+- Reported by the user: an Engine DJ import left most playlists empty and said to import another
+  library.
+- **The cause:** Engine DJ 3 keeps one playlist tree in every library (the computer's and each drive's),
+  and each entry names the library its song is in. GLUE imported one `m.db` at a time, and a second
+  import replaced the first (they're all `m.db`).
+- **Now:** each Engine import joins one Engine DJ source, and entries are resolved across every library
+  imported ([import: Engine DJ](../features/import-engine.md#engine-libraries-are-a-set-2026-09-26)).
+  On the user's libraries: 9 → 355 of 601 playlists with songs. The remaining ones are on 5 drives or
+  sticks that weren't connected, and the message now says so.
+- Known issue, not from this change: the e2e cloud-sync test failed once at its last step (one file
+  left in the cloud after "clean up"; 1 of about 6 full runs; passes alone). Likely an upload queued
+  before the clean-up landing after it. To look into.
+
 ## 2026-09-26 · Prepare tab, step 1: waveform, beat grid, metronome, tempo ([ADR 0052](../adr/0052-prepare-tab.md))
 - The track page has two tabs, **Details** and **Prepare** ([feature](../features/prepare.md)).
 - **Prepare:**

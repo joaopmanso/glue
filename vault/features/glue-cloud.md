@@ -130,6 +130,9 @@ an account GLUE works exactly as today, all local.
   release builds.
 - Outside Home mode (GLUE Home stopped), the songs in the incoming folder can't be played: they say to
   start GLUE Home.
+- **Clean-up can leave a file in the cloud** (seen once in the e2e cloud-sync test, 1 of about 6 full
+  runs, 2026-09-26: one file left after "clean up"). Likely an upload queued before the clean-up
+  landing after it. Not investigated yet.
 
 ## GLUE Home app (built 2026-09-25, [ADR 0044](../adr/0044-glue-home-tauri-tray-app.md))
 - **Install:** Devices › + GLUE Home shows the download for this OS (GitHub release

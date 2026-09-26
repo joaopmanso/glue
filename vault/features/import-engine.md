@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-25
+updated: 2026-09-26
 adrs: [0010]
 ---
 # Import: Engine DJ
@@ -47,4 +47,33 @@ See [research/dj-library-formats.md](../research/dj-library-formats.md#engine-dj
 - A playlist with children is a folder that keeps its own songs ([ADR 0049](../adr/0049-folders-are-playlists.md);
   until then they went into a same-named playlist inside it).
 - Entries pointing at another Engine library (`databaseUuid` ≠ `Information.uuid`) are counted and
-  reported, not matched.
+  reported, not matched. *(Replaced 2026-09-26, below.)*
+
+## Engine libraries are a set (2026-09-26)
+Reported by the user: an Engine import left most playlists empty, and said to import another library.
+
+- **What Engine DJ 3 does** (seen on the user's own databases, schema 3.0.2):
+  - The computer's library and each drive's (`C:Users…MusicEngine Library`, `F:Engine Library`,
+    `G:Engine Library`) each hold **the same playlist tree**: 760 playlists, the same 24,781 entries.
+  - Each entry names the library its song is in (`PlaylistEntity.databaseUuid`). On that computer they
+    named 8 libraries, 5 of them not connected (USB sticks or old drives).
+  - `Track.originDatabaseUuid` / `originTrackId` exist but were empty (no copies between libraries).
+- **Before:** one `m.db` was a whole library, so importing the computer's (14 tracks) filled 9 of 601
+  playlists. All of them are called `m.db`, so "import that one too" replaced the first import
+  instead of adding to it.
+- **Now:**
+  - Engine tracks are `uuid/trackId`, and playlist entries are resolved across **every Engine library
+    imported so far**. The collection keeps one Engine DJ source for the set; an import keeps the
+    earlier libraries' tracks (`carriedEngine` in `store/merge.ts`).
+  - Several `m.db` chosen together in + Import are combined (`combineEngine`), using the tree of the
+    one with the most songs.
+  - The message says how many entries belong to libraries not imported yet (and how many), and how
+    many point at songs gone from their library.
+- **On the user's databases:** C: alone, 9 of 601 playlists with songs (39 entries). C: then F: gives
+  355 of 601 (12,974 entries). Adding G: gives 13,039, every entry that can be resolved. The rest are
+  in the 5 libraries not connected.
+- Limits:
+  - A drive's library outside the music folders isn't found by itself: use DJ libraries › Look in… on
+    the drive, or + Import.
+  - An Engine import made before this change used plain track ids, so it isn't carried into the set:
+    import that library again.

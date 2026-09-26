@@ -1,8 +1,9 @@
 /* Bring imported libraries and scanned folders into a collection without duplicating tracks (ADR 0020).
    A track is the same track when its imported path matches one already known, or when the path
    matcher links it to a file in a music folder. */
-import type { ImportedLibrary } from '../core/interop/types';
-import { baseName, normPath } from '../core/interop/types';
+import type { ImportedLibrary, ImportedTrack } from '../core/interop/types';
+import { baseName, blankTrack, normPath } from '../core/interop/types';
+import { resolveEngine } from '../core/interop/engine';
 import { matchTracks, type FileEntry } from '../core/library/match';
 import type { CollectionStore } from './collection';
 import { type List, type Source, type SourceTrack, type Track, SCHEMA, newId } from './types';
@@ -37,8 +38,26 @@ function inferRoots(store: CollectionStore, rootPaths: Map<string, string>) {
 
 export interface ImportReport { sourceId: string; tracks: number; matched: number; linked: number; lists: number; entries?: ImportedLibrary['stats'] }
 
+/** The tracks an earlier Engine DJ import holds of libraries this one doesn't have (another drive's),
+    so a new import of the set keeps them and resolves playlist entries across all of them. */
+function carriedEngine(store: CollectionStore, existing: Source | undefined, lib: ImportedLibrary): ImportedTrack[] {
+  const have = new Set(lib.engine?.uuids ?? []);
+  const out: ImportedTrack[] = [];
+  for (const st of existing?.tracks ?? []) {
+    const i = st.externalId.indexOf('/'), uuid = i > 0 ? st.externalId.slice(0, i) : '';
+    if (!uuid || have.has(uuid)) continue;
+    const t = store.tracks.get(st.trackId), it = blankTrack(st.externalId, st.path);
+    if (t) { it.title = t.title; it.artist = t.artist; it.album = t.album; it.genre = t.genre; it.label = t.label; it.comment = t.comment; it.year = t.year; it.duration = t.duration; it.size = t.size; }
+    it.bpm = st.bpm; it.key = st.key; it.rating = st.rating; it.playCount = st.playCount; it.dateAdded = st.dateAdded; it.cues = st.cues; it.cueList = st.cueList ?? [];
+    out.push(it);
+  }
+  return out;
+}
+
 export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileName: string): ImportReport {
   const existing = [...store.sources.values()].find(s => s.app === lib.app && s.fileName === fileName);
+  // Engine DJ: one source for the whole set of libraries (they share one playlist tree).
+  if (lib.engine) lib = resolveEngine(lib, carriedEngine(store, existing, lib));
   const sourceId = existing?.id ?? newId();
   const byImportPath = new Map<string, Track>();
   for (const t of store.tracks.values()) if (t.importPath && !t.remote) byImportPath.set(pathKey(t.importPath), t);

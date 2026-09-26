@@ -4,7 +4,7 @@ import { isRekordboxXml, parseRekordboxXml } from '../core/interop/rekordbox';
 import { isTraktorNml, parseTraktorNml } from '../core/interop/traktor';
 import { isAppleLibrary, parseAppleLibrary } from '../core/interop/apple';
 import { buildSeratoLibrary, isSeratoDatabase } from '../core/interop/serato';
-import { isSqlite, parseEngineDb } from '../core/interop/engine';
+import { combineEngine, isSqlite, parseEngineDb } from '../core/interop/engine';
 import { parseM3u } from '../core/interop/m3u';
 
 export const IMPORT_ACCEPT = '.xml,.nml,.db,.m3u,.m3u8,.crate,*';
@@ -19,6 +19,7 @@ async function engine(bytes: Uint8Array, name: string) {
 /** Parse whatever library files were chosen. A Serato "database V2" takes any .crate files alongside. */
 export async function parseLibraryFiles(files: File[]): Promise<{ libs: { lib: ImportedLibrary; fileName: string }[]; skipped: string[] }> {
   const libs: { lib: ImportedLibrary; fileName: string }[] = [], skipped: string[] = [];
+  const engines: ImportedLibrary[] = [];   // Engine DJ libraries chosen together are one set
   const crates = files.filter(f => /\.crate$/i.test(f.name));
   for (const f of files) {
     if (crates.includes(f)) continue;
@@ -26,7 +27,7 @@ export async function parseLibraryFiles(files: File[]): Promise<{ libs: { lib: I
     const head = new TextDecoder().decode(bytes.subarray(0, 4096));
     try {
       const add = (l: ImportedLibrary) => libs.push({ lib: l, fileName: f.name });
-      if (isSqlite(bytes)) add(await engine(bytes, f.name));
+      if (isSqlite(bytes)) engines.push(await engine(bytes, f.name));
       else if (isSeratoDatabase(bytes)) add(buildSeratoLibrary(bytes, await Promise.all(crates.map(async c => ({ fileName: c.name, bytes: new Uint8Array(await c.arrayBuffer()) })))));
       else if (isRekordboxXml(head)) add(parseRekordboxXml(new TextDecoder().decode(bytes), f.name));
       else if (isTraktorNml(head)) add(parseTraktorNml(new TextDecoder().decode(bytes), f.name));
@@ -38,6 +39,7 @@ export async function parseLibraryFiles(files: File[]): Promise<{ libs: { lib: I
       else skipped.push(f.name);
     } catch (e) { console.error(e); skipped.push(f.name + ' (' + ((e as Error).message || 'unreadable') + ')'); }
   }
+  if (engines.length) libs.push({ lib: combineEngine(engines), fileName: 'm.db' });
   if (crates.length && !libs.some(l => l.lib.app === 'serato')) skipped.push(...crates.map(c => c.name + ' (needs Serato’s “database V2” too)'));
   return { libs, skipped };
 }

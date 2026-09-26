@@ -5,7 +5,7 @@ import { parseRekordboxXml } from '../src/core/interop/rekordbox';
 import { parseTraktorNml, nmlPath } from '../src/core/interop/traktor';
 import { parseAppleLibrary } from '../src/core/interop/apple';
 import { buildSeratoLibrary, parseSeratoDatabase } from '../src/core/interop/serato';
-import { parseEngineDb, engineKey, isSqlite } from '../src/core/interop/engine';
+import { parseEngineDb, combineEngine, resolveEngine, engineKey, isSqlite } from '../src/core/interop/engine';
 import { parseM3u } from '../src/core/interop/m3u';
 import { fileUrlToPath } from '../src/core/interop/types';
 import { matchTracks } from '../src/core/library/match';
@@ -140,8 +140,38 @@ describe('Engine DJ m.db', () => {
       INSERT INTO PlaylistEntity VALUES (200,20,1,'here',0),(201,22,2,'here',202),(202,22,1,'here',203),(203,22,7,'drive',0);`);
     const lib = parseEngineDb(db.export(), SQL); db.close();
     expect(lib.lists.map(l => [l.name, l.kind, l.items, l.parent])).toEqual([
-      ['2021', 'folder', ['1'], null], ['DNB', 'folder', [], '20'], ['Bangers', 'playlist', ['2', '1'], '21']]);
-    expect(lib.stats).toEqual({ entries: 4, matched: 3, otherLibraries: 1 });
+      ['2021', 'folder', ['here/1'], null], ['DNB', 'folder', [], '20'], ['Bangers', 'playlist', ['here/2', 'here/1'], '21']]);
+    expect(lib.stats).toEqual({ entries: 4, matched: 3, otherLibraries: 1, missingLibraries: 1, gone: 0, libraries: 1 });
+  });
+
+  /** An Engine DJ 3 library: its own tracks, and the playlist tree every library of the set shares. */
+  function engineLib(SQL: Awaited<ReturnType<typeof initSqlJs>>, uuid: string, tracks: [number, string][]) {
+    const db = new SQL.Database();
+    db.run(`CREATE TABLE Information (id INTEGER PRIMARY KEY, uuid TEXT);
+      CREATE TABLE Track (id INTEGER PRIMARY KEY, path TEXT, title TEXT);
+      CREATE TABLE Playlist (id INTEGER PRIMARY KEY, title TEXT, parentListId INTEGER, nextListId INTEGER);
+      CREATE TABLE PlaylistEntity (id INTEGER PRIMARY KEY, listId INTEGER, trackId INTEGER, databaseUuid TEXT, nextEntityId INTEGER);
+      INSERT INTO Information VALUES (1, '${uuid}');
+      INSERT INTO Playlist VALUES (10,'Friday',0,0);
+      INSERT INTO PlaylistEntity VALUES (100,10,1,'pc',101),(101,10,5,'drive',102),(102,10,9,'stick',103),(103,10,2,'pc',0);`);
+    for (const [id, path] of tracks) db.run('INSERT INTO Track VALUES (?, ?, ?)', [id, path, path]);
+    const out = parseEngineDb(db.export(), SQL); db.close();
+    return out;
+  }
+  it('resolves a playlist across the libraries of a set (Engine DJ 3), imported together or one after another', async () => {
+    const SQL = await initSqlJs();
+    const pc = engineLib(SQL, 'pc', [[1, '../Music/a.mp3']]), drive = engineLib(SQL, 'drive', [[5, '../Music Collection/e.mp3']]);
+    // Alone: the computer's song only; the drive's and the stick's are libraries not imported; track 2 is gone.
+    expect(pc.lists[0].items).toEqual(['pc/1']);
+    expect(pc.stats).toMatchObject({ entries: 4, matched: 1, otherLibraries: 2, missingLibraries: 2, gone: 1 });
+    // Together: the playlist once, in order, with the drive's song too.
+    const both = combineEngine([pc, drive]);
+    expect(both.lists.map(l => l.items)).toEqual([['pc/1', 'drive/5']]);
+    expect(both.tracks.map(t => t.externalId).sort()).toEqual(['drive/5', 'pc/1']);
+    expect(both.stats).toMatchObject({ matched: 2, otherLibraries: 1, missingLibraries: 1, libraries: 2 });
+    // One after another: the drive's import carries the computer's tracks (from the earlier import).
+    const later = resolveEngine(drive, pc.tracks);
+    expect(later.lists[0].items).toEqual(['pc/1', 'drive/5']);
   });
 });
 

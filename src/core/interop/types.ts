@@ -26,8 +26,16 @@ export interface ImportedList {
   parent: string | null;     // externalId of the parent folder
   items: string[];           // track externalIds, in order
 }
-/** stats: playlist entries read, matched to a track, and pointing at another library (Engine DJ). */
-export interface ImportedLibrary { app: SourceApp; name: string; tracks: ImportedTrack[]; lists: ImportedList[]; stats?: { entries: number; matched: number; otherLibraries: number } }
+/** stats (Engine DJ): playlist entries read and matched to a track; entries of Engine libraries that
+    weren't imported (`otherLibraries` entries in `missingLibraries` libraries); entries whose song is no
+    longer in its library (`gone`).
+    engine: the Engine libraries (database uuids) whose tracks this import holds, and every playlist
+    entry as "uuid/trackId", so later imports of the set's other libraries can resolve them. */
+export interface ImportedLibrary {
+  app: SourceApp; name: string; tracks: ImportedTrack[]; lists: ImportedList[];
+  stats?: { entries: number; matched: number; otherLibraries: number; missingLibraries?: number; gone?: number; libraries?: number };
+  engine?: { uuids: string[]; entries: Map<string, string[]> };
+}
 
 export const blankTrack = (externalId: string, path: string): ImportedTrack => ({
   externalId, path, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', grouping: '',

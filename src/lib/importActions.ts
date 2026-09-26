@@ -12,7 +12,12 @@ function report(name: string, r: ImportReport | null) {
   if (r.linked + r.matched) bits.push((r.linked + r.matched) + ' matched to tracks you already had');
   // Playlist entries (Engine DJ): how many found their song; some can point at another library.
   const e = r.entries;
-  if (e && e.entries) bits.push(e.matched.toLocaleString() + ' of ' + e.entries.toLocaleString() + ' playlist entries found their song' + (e.otherLibraries ? ' (' + e.otherLibraries.toLocaleString() + ' are songs of another Engine library, e.g. on a drive: import that one too)' : ''));
+  if (e && e.entries) {
+    bits.push(e.matched.toLocaleString() + ' of ' + e.entries.toLocaleString() + ' playlist entries found their song' + (e.libraries && e.libraries > 1 ? ' across ' + e.libraries + ' Engine libraries' : ''));
+    // Engine DJ 3 shares one playlist tree between the computer's library and each drive's.
+    if (e.otherLibraries) bits.push(e.otherLibraries.toLocaleString() + ' are songs of ' + (e.missingLibraries === 1 ? 'an Engine library' : (e.missingLibraries ?? 'other') + ' Engine libraries') + ' not imported yet (a drive or USB stick Engine DJ has used): connect it and import its Engine Library/Database2/m.db too; it joins this one');
+    if (e.gone) bits.push(e.gone.toLocaleString() + ' point at songs no longer in their library');
+  }
   return name + ': ' + bits.join(', ') + '.';
 }
 
