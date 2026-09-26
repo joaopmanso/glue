@@ -58,6 +58,17 @@ pub(crate) fn show(app: &AppHandle) {
 #[tauri::command]
 pub fn dock_items() -> serde_json::Value { state() }
 
+/// A playlist dropped on the dock window (the website's drag carries its songs, ADR 0056).
+#[tauri::command]
+pub fn dock_add(app: AppHandle, body: String) -> Result<usize, String> {
+    let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| format!("bad drop: {e}"))?;
+    let mut v = v;
+    v["mode"] = "add".into();
+    set(&app, &v.to_string())
+}
+
+pub(crate) fn current() -> serde_json::Value { state() }
+
 /// The dock's own buttons: take one song out, or all of them.
 #[tauri::command]
 pub fn dock_remove(app: AppHandle, index: usize) { { let mut q = DOCK.lock().unwrap(); if index < q.len() { q.remove(index); } } changed(&app); }

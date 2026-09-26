@@ -124,3 +124,4 @@ Planned (GLUE):
 | [0053](adr/0053-imported-copy-is-the-same-song.md) | An imported copy outside the music folders is the track that has the file | accepted |
 | [0054](adr/0054-drag-dock-in-glue-home.md) | Songs go into the DJ apps by dragging from a GLUE Home "drag dock" | accepted |
 | [0055](adr/0055-drag-dock-is-a-queue.md) | The drag dock is a queue | accepted |
+| [0056](adr/0056-playlists-drag-with-the-browser.md) | Playlists drag with the browser's drag-and-drop, so they can be dropped on the drag dock | accepted |

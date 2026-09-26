@@ -5,6 +5,19 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · GLUE Home 0.8.0: drop a playlist on the drag dock; a wider sidebar
+From the user's batch 4:
+- **Sidebar:**
+  - playlist rows fit, so opening the playlists no longer shows a sideways scroll bar;
+  - a handle between the sidebar and the songs sets its width (remembered; double-click resets)
+  ([playlists](../features/playlists.md)).
+- **Drag dock:**
+  - drag a playlist or folder from the sidebar onto the dock window to queue its songs
+    ([ADR 0056](../adr/0056-playlists-drag-with-the-browser.md));
+  - the "Drag dock" button is always shown in Home mode.
+- Checked with a real mouse: a playlist dropped from Edge onto the dock window was queued.
+- Tests: 135 unit; e2e 38 (the playlist's drag payload, sidebar width, rows that fit).
+
 ## 2026-09-26 · GLUE Home 0.7.0: the drag dock as a queue; duplicates across browsers; sidebar sections; faster GLUE Home builds
 From the user's batch 3 ([handoff](2026-09-26-handoff-2.md)):
 - **Duplicates:** songs analysed in another browser, or on the other computer (the GLUE folder is in

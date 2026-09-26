@@ -130,6 +130,12 @@ an account GLUE works exactly as today, all local.
 - **A queue since 0.7.0** ([ADR 0055](../adr/0055-drag-dock-is-a-queue.md)): "+ Dock" adds the
   selected songs, "Add to drag dock" a playlist or folder (with what's inside), ⇲ a music folder. The
   dock removes one song (×) or clears them all.
+- **Drop a playlist on it (0.8.0,** [ADR 0056](../adr/0056-playlists-drag-with-the-browser.md)**):**
+  - drag a playlist or folder by its name from the sidebar onto the dock window, which lights up while
+    something is over it;
+  - its songs join the queue.
+- The library's "Drag dock" button is always there in Home mode, at the right of the bar above the
+  songs, not only with a selection.
 
 ## Known issues (2026-09-26)
 - ~~A song sent to a computer is unanalysed there when that computer's collection already has it

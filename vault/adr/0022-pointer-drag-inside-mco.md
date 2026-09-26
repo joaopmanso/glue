@@ -19,6 +19,9 @@ child elements, and Playwright's simulated drags didn't reproduce any of it.
   highlight on the target playlist, insertion lines for reordering, dimmed sources. Escape cancels.
 - Native drag-and-drop stays only for files and folders dropped from the desktop.
 
+Amended by [ADR 0056](0056-playlists-drag-with-the-browser.md): playlist and folder rows use the
+browser's drag-and-drop again, so they can be dropped on GLUE Home's drag dock; tracks keep this one.
+
 ## Consequences
 - Re-renders during a drag are harmless; the feedback can be styled and tested with plain mouse moves.
 - Tracks can't be dragged out of MCO into other apps (Rekordbox takes playlists by exported files

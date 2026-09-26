@@ -19,6 +19,17 @@
   import { drag } from '../../lib/drag.svelte';
   import { incoming, TO_BE_SORTED } from '../../lib/incoming.svelte';
   import { dock } from '../../lib/dock.svelte';
+  // The sidebar's width, dragged on the handle between it and the songs (remembered).
+  let resizing = $state(false);
+  let sideW = $state(Math.min(560, Math.max(200, +readPref('sideWidth', '270') || 270)));
+  function startResize(e: PointerEvent) {
+    if (e.button !== 0) return;
+    const el = e.currentTarget as HTMLElement, x0 = e.clientX, w0 = sideW;
+    el.setPointerCapture(e.pointerId); resizing = true;
+    const move = (m: PointerEvent) => { sideW = Math.min(560, Math.max(200, w0 + m.clientX - x0)); };
+    const up = () => { resizing = false; el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); writePref('sideWidth', String(sideW)); };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
+  }
 
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import type { HomeFolder } from '../../core/transfer';
@@ -169,8 +180,11 @@
     <div class="notice warn">GLUE is open in another tab, so this one is read-only. Close the other tab and reload to make changes here.</div>
   {/if}
 
-  <div class="main">
+  <div class="main" style:--sidew={sideW + 'px'}>
     <LibSidebar />
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="splitter" class:on={resizing} role="separator" aria-orientation="vertical" aria-label="Sidebar width" title="Drag to make the sidebar wider or narrower (double-click: back to normal)"
+      onpointerdown={startResize} ondblclick={() => { sideW = 270; writePref('sideWidth', '270'); }}></div>
     <div class="right">
       <!-- Always laid out: a layout shift during dragstart makes Chromium cancel the drag. -->
       <div class="selbar">
@@ -186,8 +200,7 @@
           </select>
           {#if current && (current.kind === 'playlist' || sel.some(id => current.items.includes(id)))}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from {current.kind === 'folder' ? 'folder' : 'playlist'}</button>{/if}
           {#if dock.available}
-            <button type="button" class="mini" id="dock-add" disabled={!sel.length} title="Add the selected songs to GLUE Home's drag dock, to drag them into Engine DJ, Rekordbox or a folder" onclick={() => { const s = lib.store; if (s) void dock.add(sel.map(id => s.tracks.get(id)).filter(t => !!t)); }}>+ Dock{sel.length ? ' (' + sel.length + ')' : ''}</button>
-            <button type="button" class="mini" id="drag-dock" title="Show GLUE Home's drag dock" onclick={() => dock.show()}>Drag dock</button>
+            <button type="button" class="mini" id="dock-add" title="Add the selected songs to GLUE Home's drag dock, to drag them into Engine DJ, Rekordbox or a folder" onclick={() => { const s = lib.store; if (s) void dock.add(sel.map(id => s.tracks.get(id)).filter(t => !!t)); }}>+ Dock{sel.length ? ' (' + sel.length + ')' : ''}</button>
           {/if}
           {#if lib.analysis.paused}<button type="button" class="mini" id="analyse-selected" title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
           {#if sorting && folders}
@@ -209,6 +222,7 @@
         {:else}
           <span class="hint">Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection.</span>
         {/if}
+        {#if dock.available}<button type="button" class="mini dockbtn" id="drag-dock" title="Show GLUE Home's drag dock: add songs with “+ Dock”, or drag a playlist onto it, then drag them from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}
       </div>
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
       {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else}<TrackTable />{/if}
@@ -259,12 +273,16 @@
   .notice { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: var(--radius); padding: 7px 12px; font-size: 13px; }
   .notice.warn { background: color-mix(in srgb, var(--warn) 9%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
   .notice button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; }
-  .main { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 16px; min-height: 0; }
+  .main { display: grid; grid-template-columns: var(--sidew, 270px) 10px minmax(0, 1fr); gap: 6px; min-height: 0; }
+  .splitter { cursor: col-resize; position: relative; touch-action: none; }
+  .splitter::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; border-radius: 1px; background: var(--line); transition: background .12s; }
+  .splitter:hover::after, .splitter.on::after { background: var(--accent); }
+  .dockbtn { margin-left: auto; }
   .right { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
   .right > :global(.table), .right > :global(.dv) { flex: 1; }
   .ibtn { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
   .ibtn:hover, .ibtn.on { border-color: var(--accent); color: var(--accent); }
   .selbar { min-height: 28px; display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--ink-2); flex-wrap: wrap; }
   .hint { color: var(--muted); font-size: 12.5px; }
-  @media (max-width: 800px) { .main { grid-template-columns: minmax(0, 1fr); } .lib { height: auto; } }
+  @media (max-width: 800px) { .main { grid-template-columns: minmax(0, 1fr); } .splitter { display: none; } .lib { height: auto; } }
 </style>

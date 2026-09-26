@@ -462,7 +462,7 @@ fn main() {
         // Native file drags out of the drag dock (ADR 0054).
         .plugin(tauri_plugin_drag::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, dock::dock_items, dock::dock_remove, dock::dock_clear, dock::drag_icon])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

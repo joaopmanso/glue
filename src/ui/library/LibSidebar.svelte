@@ -88,9 +88,16 @@
     const what = l.kind === 'folder' ? 'the folder “' + l.name + '” and everything in it' : 'the playlist “' + l.name + '”';
     if (confirm('Delete ' + what + '? The tracks stay in your collection.')) { lib.deleteList(l.id); if (isSel({ kind: 'list', id: l.id })) view.select({ kind: 'all' }); }
   }
-  function pressList(e: PointerEvent, l: List) {
-    if (view.editing === l.id || (e.target as HTMLElement).closest('.tools, .twist, input, .drag-out')) return;
-    drag.begin(e, { kind: 'list', id: l.id, label: l.name });
+  /** A playlist (or folder) dragged by its row: around the tree, into folders, or out of the window
+      onto GLUE Home's drag dock, which adds its songs (ADR 0056). The music-note icon has its own drag
+      (the playlist as a file, ADR 0027). */
+  function startListDrag(e: DragEvent, l: List) {
+    const el = e.target as HTMLElement, dt = e.dataTransfer;
+    if (!dt || el.closest('.drag-out')) return;
+    if (view.editing === l.id || el.closest('input')) { e.preventDefault(); return; }
+    dt.setData('text/plain', dock.available ? dock.payload(dock.tracksOf(l.id)) : l.name);
+    dt.effectAllowed = 'copyMove';
+    drag.beginNative({ kind: 'list', id: l.id, label: l.name });
   }
   /** How the hovered list shows the pending drop. */
   function dropCls(id: string): string {
@@ -121,7 +128,7 @@
     <div class={'item ' + dropCls(l.id)} class:colored={!!l.color} class:sel={isSel({ kind: 'list', id: l.id })} class:lifted={drag.active && drag.payload?.kind === 'list' && drag.payload.id === l.id}
       style:padding-left={8 + depth * 14 + 'px'} style:--lc={l.color ?? null}
       role="treeitem" aria-selected={isSel({ kind: 'list', id: l.id })} aria-expanded={l.kind === 'folder' ? !!open[l.id] : undefined} tabindex="-1"
-      data-drop="list" data-id={l.id} onpointerdown={e => pressList(e, l)}>
+      data-drop="list" data-id={l.id} draggable={view.editing !== l.id} ondragstart={e => startListDrag(e, l)} ondragend={() => drag.end()}>
       {#if l.kind === 'folder'}
         <button type="button" class="twist" aria-label={open[l.id] ? 'Collapse' : 'Expand'} onclick={() => (open[l.id] = !open[l.id])}>{open[l.id] ? '▾' : '▸'}</button>
         <svg class="icon" class:colored={!!l.color} viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" fill="currentColor"/></svg>
@@ -347,7 +354,7 @@
 </nav>
 
 <style>
-  .lside { display: grid; gap: 18px; align-content: start; font-size: 13.5px; overflow-y: auto; padding-right: 4px; }
+  .lside { display: grid; gap: 18px; align-content: start; font-size: 13.5px; overflow-y: auto; overflow-x: hidden; padding-right: 4px; min-width: 0; }
   section { display: grid; gap: 4px; }
   ul { list-style: none; margin: 0; padding: 0; }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -368,7 +375,7 @@
   .add { display: flex; gap: 4px; }
   .add button, .tools button, .found button, .reconnect, .path button { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 11.5px; padding: 1px 7px; cursor: pointer; }
   .add button:hover, .tools button:hover, .found button:hover { color: var(--accent); border-color: var(--accent); }
-  .item { display: flex; align-items: center; gap: 4px; border-radius: 4px; min-height: 28px; padding-right: 4px; width: 100%; }
+  .item { display: flex; align-items: center; gap: 4px; border-radius: 4px; min-height: 28px; padding-right: 4px; width: 100%; box-sizing: border-box; min-width: 0; }
   button.item { background: none; border: 0; text-align: left; cursor: pointer; padding: 0 8px; }
   .item:hover { background: var(--raised); }
   .item.sel { background: color-mix(in srgb, var(--accent) 16%, transparent); }

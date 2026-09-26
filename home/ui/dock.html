@@ -7,6 +7,7 @@
     body { margin: 0; background: #111; color: #eee; font: 13px system-ui, sans-serif; user-select: none; height: 100vh; display: flex; flex-direction: column; }
     #drag { margin: 8px 8px 4px; border: 2px dashed #555; border-radius: 8px; padding: 9px 12px; display: grid; gap: 2px; cursor: grab; }
     #drag.has { border-color: #f5c518; }
+    body.over #drag { border-color: #f5c518; background: rgba(245, 197, 24, .12); }
     #drag:active { cursor: grabbing; }
     #title { font-weight: 700; color: #f5c518; }
     #hint { color: #999; font-size: 12px; }
@@ -23,7 +24,7 @@
 <body>
   <div id="drag" title="Drag into Engine DJ, Rekordbox or a folder">
     <span id="title">The dock is empty</span>
-    <span id="hint">In GLUE, use “+ Dock”, or “Add to drag dock” on a playlist or a folder.</span>
+    <span id="hint">Drag a playlist here from GLUE, or use “+ Dock” there.</span>
   </div>
   <div id="bar"><button type="button" id="clear" hidden>Clear</button></div>
   <ul id="list"></ul>

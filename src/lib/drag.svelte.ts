@@ -1,6 +1,8 @@
-/* Dragging inside GLUE (tracks onto playlists, playlists around the tree) with pointer events.
-   The browser's own drag-and-drop is kept only for files coming from the desktop: it paints its
-   own drag image, cancels a drag when the page re-renders under it, and can't be styled. */
+/* Dragging inside GLUE (tracks onto playlists, playlists around the tree).
+   - Tracks: pointer events (ADR 0022): the browser's drag-and-drop cancels a drag when the table
+     re-renders under it, which background analysis does all the time.
+   - Playlists: the browser's drag-and-drop (beginNative), so a playlist can also leave the window
+     onto GLUE Home's drag dock (ADR 0056). The same drop targets and drops, fed by dragover / drop. */
 import { lib } from './library.svelte';
 import { view } from './view.svelte';
 import { columns, type ColKey } from './columns.svelte';
@@ -23,6 +25,8 @@ const THRESHOLD = 5;   // px of movement before a press becomes a drag
 class Drag {
   payload = $state.raw<Payload | null>(null);
   active = $state(false);
+  /** The browser runs this drag (it paints the dragged row itself). */
+  native = $state(false);
   x = $state(0);
   y = $state(0);
   target = $state.raw<Target | null>(null);
@@ -66,13 +70,39 @@ class Drag {
   };
   private key = (e: KeyboardEvent) => { if (e.key === 'Escape') this.end(); };
 
+  /** A drag the browser runs (a playlist): targets from dragover, the drop from drop, ended by dragend. */
+  beginNative(payload: Payload) {
+    this.end();
+    this.payload = payload; this.active = true; this.native = true;
+    document.body.classList.add('mco-dragging');
+    window.addEventListener('dragover', this.nativeOver);
+    window.addEventListener('drop', this.nativeDrop);
+  }
+  private nativeOver = (e: DragEvent) => {
+    if (!this.payload) return;
+    this.x = e.clientX; this.y = e.clientY;
+    this.target = this.resolve(e.clientX, e.clientY);
+    if (this.target) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }
+  };
+  private nativeDrop = (e: DragEvent) => {
+    const p = this.payload, t = this.target;
+    if (!p) return;
+    e.preventDefault();
+    this.end();
+    this.suppressClick = true;
+    setTimeout(() => { this.suppressClick = false; });
+    if (t) this.drop(p, t);
+  };
+
   end() {
+    window.removeEventListener('dragover', this.nativeOver);
+    window.removeEventListener('drop', this.nativeDrop);
     window.removeEventListener('pointermove', this.move);
     window.removeEventListener('pointerup', this.up);
     window.removeEventListener('keydown', this.key);
     document.body.classList.remove('mco-dragging');
     clearTimeout(this.openTimer); this.openFor = null;
-    this.payload = null; this.active = false; this.target = null;
+    this.payload = null; this.active = false; this.native = false; this.target = null;
   }
 
   /** What's under the pointer. Drop targets mark themselves with data-drop="…". */

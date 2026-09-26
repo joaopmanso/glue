@@ -20,6 +20,8 @@ playlists or entire folders.
 - `POST /dock` takes `{ mode: "add" | "replace", items }`; the dock's own buttons call Tauri commands
   (`dock_remove`, `dock_clear`).
 - "Drag dock" in the library only shows the window.
+- Since GLUE Home 0.8.0 a playlist can also be dragged from the sidebar onto the dock window
+  ([ADR 0056](0056-playlists-drag-with-the-browser.md)).
 
 ## Alternatives considered
 - **Keep following the selection, with a "pin" to hold it:** two ways of filling it, and a click in

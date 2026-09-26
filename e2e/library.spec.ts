@@ -273,6 +273,16 @@ test('organises playlists (drag, menu, colours) and rates tracks in half stars',
   await page.click('#new-folder'); await page.keyboard.type('Gigs'); await page.keyboard.press('Enter');
   const names = () => page.locator('.lside .tree .name').allTextContents().then(a => a.map(x => x.trim()));
   expect(await names()).toEqual(['A', 'B', 'C', 'Gigs']);
+  // The rows fit the sidebar (no sideways scroll), and the handle beside it makes it wider (remembered).
+  const side = page.locator('.lside');
+  expect(await side.evaluate(el => { const r = el.getBoundingClientRect().right; return [...el.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > r + 0.5).length; })).toBe(0);
+  const w0 = (await side.boundingBox())!.width, h = (await page.locator('.splitter').boundingBox())!;
+  await page.mouse.move(h.x + 5, h.y + 100); await page.mouse.down();
+  await page.mouse.move(h.x + 105, h.y + 100, { steps: 5 }); await page.mouse.up();
+  await expect.poll(async () => Math.round((await side.boundingBox())!.width - w0)).toBe(100);
+  expect(await page.evaluate(() => localStorage.getItem('mco.sideWidth'))).toBe(String(Math.round(w0) + 100));
+  await page.locator('.splitter').dblclick();
+  await expect.poll(async () => Math.round((await side.boundingBox())!.width)).toBe(Math.round(w0));
 
   // Drag C above A.
   const item = (n: string) => page.locator('.lside .tree .item', { has: page.locator('.name', { hasText: new RegExp('^' + n + '$') }) });

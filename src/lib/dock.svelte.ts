@@ -27,6 +27,11 @@ class Dock {
       lib.notice = 'Added ' + items.length + ' song' + (items.length === 1 ? '' : 's') + (what ? ' of ' + what : '') + ' to the drag dock (' + r.songs + ' in it).' + (skipped ? ' ' + skipped + ' without a file on this computer left out.' : '');
     } catch (e) { lib.notice = 'The drag dock needs GLUE Home 0.6 or later: ' + (e as Error).message; }
   }
+  /** What a playlist drag carries for the dock window (it adds them when dropped there). */
+  payload(tracks: Track[]) {
+    const items = tracks.filter(t => !t.remote && t.status === 'linked' && t.rootId && t.relPath).map(t => ({ root: t.rootId!, path: t.relPath! }));
+    return 'GLUE-DOCK ' + JSON.stringify({ mode: 'add', items });
+  }
   async clear() { await localHome.post('/dock/clear').catch(() => {}); this.songs = 0; }
 
   /** A playlist's songs, or a folder's: its own, then each playlist inside it, in the sidebar's order. */

@@ -13,7 +13,7 @@ function show() {
   const n = dock.paths.length;
   $('drag').classList.toggle('has', n > 0);
   $('title').textContent = n ? 'Drag ' + n + ' song' + (n === 1 ? '' : 's') : 'The dock is empty';
-  $('hint').textContent = n ? 'Into Engine DJ, Rekordbox or a folder: all of them, in this order.' : 'In GLUE, use “+ Dock”, or “Add to drag dock” on a playlist or a folder.';
+  $('hint').textContent = n ? 'Into Engine DJ, Rekordbox or a folder: all of them, in this order.' : 'Drag a playlist here from GLUE, or use “+ Dock” there.';
   ($('clear') as HTMLButtonElement).hidden = !n;
   const list = $('list');
   list.replaceChildren(...dock.names.map((name, i) => {
@@ -31,6 +31,15 @@ $('drag').addEventListener('mousedown', e => {
   void startDrag({ item: dock.paths, icon, mode: 'copy' });
 });
 $('clear').addEventListener('click', () => void invoke('dock_clear'));
+
+// A playlist dragged from GLUE onto the dock: its songs join the queue (ADR 0056).
+document.addEventListener('dragover', e => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; document.body.classList.add('over'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('over'); });
+document.addEventListener('drop', e => {
+  e.preventDefault(); document.body.classList.remove('over');
+  const t = e.dataTransfer?.getData('text/plain') ?? '';
+  if (t.startsWith('GLUE-DOCK ')) void invoke('dock_add', { body: t.slice(10) });
+});
 
 void (async () => {
   icon = await invoke<string>('drag_icon').catch(() => '');

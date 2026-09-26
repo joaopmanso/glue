@@ -1,5 +1,6 @@
 <script lang="ts">
-  /* The small tag that follows the pointer during an in-app drag. */
+  /* The small tag that follows the pointer during an in-app drag (in a browser-run playlist drag, only
+     over a place it can be dropped: the browser paints the dragged row). */
   import { drag } from '../../lib/drag.svelte';
   import { lib } from '../../lib/library.svelte';
 
@@ -21,7 +22,7 @@
   const ok = $derived(!!drag.target);
 </script>
 
-{#if drag.active && drag.payload}
+{#if drag.active && drag.payload && (!drag.native || drag.target)}
   <div class="tag" class:ok style:transform={'translate(' + (drag.x + 14) + 'px, ' + (drag.y + 12) + 'px)'} aria-hidden="true">
     {#if ok && drag.payload.kind === 'tracks'}<span class="plus">+</span>{/if}{text}
   </div>

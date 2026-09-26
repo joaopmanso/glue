@@ -113,6 +113,7 @@ fn handle(app: AppHandle, req: Request) {
             }
         }
         "/dock/show" if req.method() == &Method::Post => { crate::dock::show(&app); reply(req, 200, b"{}".to_vec(), "application/json") }
+        "/dock" if req.method() == &Method::Get => reply(req, 200, crate::dock::current().to_string().into_bytes(), "application/json"),
         "/dock/clear" if req.method() == &Method::Post => { crate::dock::clear(&app); reply(req, 200, b"{}".to_vec(), "application/json") }
         // The website's files, through GLUE Home (ADR 0051).
         p if p.starts_with("/fs/") => crate::disk::handle(app.clone(), req, p, &arg, cors),

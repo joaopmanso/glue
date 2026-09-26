@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-25
+updated: 2026-09-26
 adrs: [0009, 0022]
 ---
 # Playlists, folders & smart lists
@@ -57,6 +57,15 @@ track is used.
 - A playlist opens in its own order ("#", always ascending) and rows can be dragged to rearrange it.
   Sorted by another column, "Keep this order" saves that order as the playlist's own.
 - A colour tints the playlist's whole row, with a bar on the left.
+
+## Sidebar width, playlist drags (2026-09-26)
+- The sidebar can be made wider or narrower with the handle between it and the songs (200–560 px,
+  remembered; double-click for the normal width), so long playlist names fit.
+- Rows no longer stick out on the right, so opening the playlists no longer shows a sideways scroll
+  bar.
+- Playlists and folders are dragged with the browser's drag-and-drop
+  ([ADR 0056](../adr/0056-playlists-drag-with-the-browser.md)). The drops inside GLUE are the same,
+  and the row can also be dropped on GLUE Home's drag dock.
 
 ## Folders are playlists (2026-09-25, [ADR 0049](../adr/0049-folders-are-playlists.md))
 - As in Engine DJ, a folder holds songs as well as playlists: drop tracks on it, or pick it in "Add to

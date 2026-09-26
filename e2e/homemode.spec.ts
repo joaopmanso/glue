@@ -110,6 +110,14 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     await expect.poll(() => inMusic.every(p => home.dock.some(d => d.path === p))).toBe(true);
     expect(new Set(home.dock.map(d => d.root + d.path)).size).toBe(home.dock.length);   // nothing twice
     await expect(page.locator('.notice')).toContainText('in it)');
+    // A playlist dragged by its row carries its songs for the dock window (ADR 0056).
+    const dt = await page.evaluateHandle(() => new DataTransfer());
+    const row = page.locator('.lside .item', { hasText: 'TO BE SORTED' });
+    await row.dispatchEvent('dragstart', { dataTransfer: dt });
+    const carried = await dt.evaluate(d => d.getData('text/plain'));
+    expect(carried.startsWith('GLUE-DOCK ')).toBe(true);
+    expect(JSON.parse(carried.slice(10)).items).toEqual([{ root: 'incoming', path: 'Sent song.mp3' }]);
+    await row.dispatchEvent('dragend');
 
     // GLUE Home stops. A track still opens and plays, from the browser's own folder.
     await home.stop();
