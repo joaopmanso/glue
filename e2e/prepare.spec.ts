@@ -92,6 +92,29 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.click('#prep-metronome');
   await expect(page.locator('#prep-metronome')).not.toHaveClass(/on/);
 
+  // Cues (step 2): hot cues A and B, a memory cue, a 4-beat loop saved; they stay after a reload.
+  const ov = page.locator('#prep-overview'), box = (await ov.boundingBox())!;
+  await page.click('[data-pad="A"]');
+  await expect(page.locator('[data-pad="A"]')).toHaveClass(/set/);
+  await ov.click({ position: { x: box.width * 10 / 30, y: box.height / 2 } });
+  await page.click('[data-pad="B"]');
+  await page.click('#prep-memory');
+  await page.click('[data-loop="4"]');
+  await page.click('#prep-loop-save');
+  await expect(page.locator('#prep-cues .mc')).toHaveCount(2);
+  await expect(page.locator('#prep-cues .mc').last()).toContainText('⟳');
+  await page.click('#prep-loop-exit');
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('[data-pad="B"]')).toHaveClass(/set/, { timeout: 30_000 });
+  await expect(page.locator('[data-pad="B"] small')).toHaveText(/^0:(09|10)\./);   // on a beat near 10 s
+  await expect(page.locator('[data-pad="C"]')).not.toHaveClass(/set/);
+  await expect(page.locator('#prep-cues .mc')).toHaveCount(2);
+  // Shift-click clears a pad.
+  await page.locator('[data-pad="A"]').click({ modifiers: ['Shift'] });
+  await expect(page.locator('[data-pad="A"]')).not.toHaveClass(/set/);
+
+  await expect(page.locator('#prep-copies')).toBeVisible({ timeout: 30_000 });   // Duplicates found the copy again (after the reload)
   // A correction: 125.00, saved on the track, shown (as yours) in the library, after a reload too.
   await page.fill('#prep-bpm-input', '125');
   await page.locator('#prep-bpm-input').press('Enter');
@@ -131,4 +154,8 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await expect(row.locator('.c-num.mine')).toHaveCount(0);
   await expect(copy.locator('.c-num.mine')).toHaveCount(0);
   await expect(row.locator('.c-num').first()).toHaveText(/^12[34]/);   // half-time, flipped: back to ~124
+  // Cues aren't analysis: Re-analyse kept them.
+  await row.locator('.c-title').dblclick();
+  await page.click('#tab-prepare');
+  await expect(page.locator('[data-pad="B"]')).toHaveClass(/set/, { timeout: 30_000 });
 });

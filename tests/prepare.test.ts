@@ -89,3 +89,37 @@ describe('Editing the grid (ADR 0052)', () => {
     expect(tapBpm([0, 500, 1000, 1500, 2000])).toBe(120);
   });
 });
+
+import { addMemory, autoLoop, hotCue, importable, removeCue, setHotCue, snap } from '../src/core/library/cueEdit';
+describe('Cue points and loops (ADR 0052, step 2)', () => {
+  const g = { bpm: 120, beat0: 0.25, bar: 0 };   // beats every 0.5 s from 0.25
+  it('quantizes to the nearest beat', () => {
+    expect(snap(10.1, g)).toBeCloseTo(10.25, 9);
+    expect(snap(10.4, g)).toBeCloseTo(10.25, 9);
+    expect(snap(10.6, g)).toBeCloseTo(10.75, 9);
+    expect(snap(3.3, null)).toBe(3.3);
+  });
+  it('sets a hot cue per pad, replacing that pad only, in time order', () => {
+    let c = setHotCue([], 0, 20);
+    c = setHotCue(c, 1, 5);
+    c = setHotCue(c, 0, 30);
+    expect(c.map(x => [x.num, x.t])).toEqual([[1, 5], [0, 30]]);
+    expect(hotCue(c, 0)!.color).toBe('#28e214');
+    expect(removeCue(c, hotCue(c, 1)!).map(x => x.num)).toEqual([0]);
+  });
+  it('adds memory cues and saved loops, not twice at the same place', () => {
+    let c = addMemory([], 12.5);
+    c = addMemory(c, 12.5);
+    c = addMemory(c, 12.5, 14.5);
+    expect(c.map(x => [x.kind, x.num, x.end])).toEqual([['cue', null, null], ['loop', null, 14.5]]);
+  });
+  it('makes a loop of whole beats from the beat at the playhead', () => {
+    const l = autoLoop(10.4, 4, g);
+    expect(l.a).toBeCloseTo(10.25, 9);
+    expect(l.b).toBeCloseTo(12.25, 9);
+  });
+  it('takes cues and loops from an import, not load / fade markers', () => {
+    const c = importable([{ t: 1, kind: 'load', num: null, name: '', color: null, end: null }, { t: 8, kind: 'cue', num: 2, name: 'Drop', color: null, end: null }]);
+    expect(c.map(x => [x.t, x.num, x.color])).toEqual([[8, 2, '#1566f6']]);
+  });
+});

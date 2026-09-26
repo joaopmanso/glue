@@ -1,5 +1,5 @@
 ---
-status: in-progress (step 1 shipped 2026-09-26; step 2 cues and loops next)
+status: in-progress (steps 1 and 2 shipped 2026-09-26; step 3, the rekordbox XML export, next)
 milestone: M4
 updated: 2026-09-26
 adrs: [0052, 0006, 0011]
@@ -63,6 +63,30 @@ tempos. Corrections override the analysis ([ADR 0052](../adr/0052-prepare-tab.md
 - **Not checked by a test:** that the clicks are *heard* in time with the music (headless browsers have
   no audio out). Check by ear on a real track, and report any constant offset: it would be added as a
   latency setting.
+
+## Shipped: step 2, cues and loops (2026-09-26)
+- **Hot cues A–H:** 8 pads in Rekordbox's colours.
+  - Click an empty pad: a cue at the playhead. Click a set pad: jump there. Right-click or shift-click:
+    clear. Keys 1–8.
+  - Setting a pad while a loop plays saves a hot loop.
+- **Q (quantize, on by default):** new cues and loops go on the nearest beat of the grid.
+- **Loops:** 1 / 2 / 4 / 8 / 16 beats from the beat at the playhead. They repeat while playing (the
+  player seeks back at the end). Exit loop; Save loop keeps it as a memory loop.
+- **Memory cues:** "+ Cue" at the playhead; a list to jump to, name (double-click) or remove. Saved
+  loops show ⟳.
+- **Drawn** on the deck and the overview: hot cues as coloured lettered flags, memory cues as red
+  marks, saved loops as bands. The library row's mini waveform uses the user's cues before an
+  import's.
+- **From a DJ app:** "Use the N cues from your DJ app" copies an import's cues and loops, not
+  Rekordbox's load and fade markers.
+- **Saved** as `Track.prep.cues` (the `CuePoint` shape imports use: hot cue num 0–7, memory null, loop
+  end).
+  - Re-analyse keeps them.
+  - They're copied to other copies of the same recording only when those have the same length (as
+    the grid).
+- Code: `core/library/cueEdit.ts` (pure, unit-tested); the panel is in `PrepareView.svelte`.
+- e2e: pads A and B, a memory cue, a saved 4-beat loop, all kept after a reload and after Re-analyse;
+  shift-click clears.
 
 ## The same BPM everywhere (2026-09-26)
 Reported by the user: after correcting a track to 172, the library showed it twice (172 and 229.3), and

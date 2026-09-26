@@ -14,6 +14,9 @@
   import { fmtTime } from '../../core/format';
   import { fmtBpm, shownBpm } from '../../core/library/bpm';
   import type { Track } from '../../store/types';
+  import type { CuePoint } from '../../core/interop/types';
+  import { HOT_COLORS, LETTERS, addMemory, autoLoop, hotCue, importable, removeCue, renameCue, setHotCue, snap } from '../../core/library/cueEdit';
+  import { cuesFor } from '../../lib/cues';
 
   let { track }: { track: Track } = $props();
   const key = $derived('track:' + track.id);
@@ -60,18 +63,18 @@
   // The overview only changes with the waveform, scheme, grid or size: drawn once to an image.
   let overImg: HTMLCanvasElement | null = null;
   $effect(() => {
-    const w = prepare.wave, g = grid, sc = scheme; void size;
+    const w = prepare.wave, g = grid, sc = scheme, cs = cues; void size;
     if (!over || !w) return;
     const { w: W, h: H } = fitCanvas(over), dpr = Math.min(2, window.devicePixelRatio || 1);
     overImg ??= document.createElement('canvas');
     overImg.width = Math.round(W * dpr); overImg.height = Math.round(H * dpr);
     const c = overImg.getContext('2d')!;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawWave(c, W, H, w, { scheme: sc, t0: 0, t1: w.duration, grid: g, playhead: null });
+    drawWave(c, W, H, w, { scheme: sc, t0: 0, t1: w.duration, grid: g, playhead: null, cues: cs });
   });
   $effect(() => {
     const w = prepare.wave, g = grid, sc = scheme, s = span, now = t; void size; void player.frame; void overImg;
-    if (deck) { const { ctx, w: W, h: H } = fitCanvas(deck); drawWave(ctx, W, H, w, { scheme: sc, t0: now - s / 2, t1: now + s / 2, grid: g, playhead: now, numbers: true }); }
+    if (deck) { const { ctx, w: W, h: H } = fitCanvas(deck); drawWave(ctx, W, H, w, { scheme: sc, t0: now - s / 2, t1: now + s / 2, grid: g, playhead: now, numbers: true, cues, loop }); }
     if (over && w && overImg) {
       const { ctx, w: W, h: H } = fitCanvas(over);
       ctx.clearRect(0, 0, W, H); ctx.drawImage(overImg, 0, 0, W, H);
@@ -116,9 +119,34 @@
     if (e.code === 'Space') { e.preventDefault(); toggle(); }
     else if (e.key === 't' || e.key === 'T') { if (mine) prepare.tap(tr, player.rate); }
     else if (e.key === 'm' || e.key === 'M') metronome.toggle(() => prepare.grid(lib.store?.tracks.get(track.id)));
+    else if (mine && /^[1-8]$/.test(e.key)) pad(+e.key - 1, e);
     else if (mine && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); prepare.nudge(tr, (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 0.001 : 0.005)); }
   }
   const cur = () => lib.store?.tracks.get(track.id) ?? track;
+
+  // ─── Cues and loops (step 2) ─────────────────────────────────────────────────
+  const cues = $derived.by(() => { void lib.version; return cur().prep?.cues ?? []; });
+  /** An import's cues, offered while the track has none of its own. */
+  const imported = $derived.by(() => { void lib.version; return cur().prep?.cues ? [] : importable(cuesFor(track.id)); });
+  const memory = $derived(cues.filter(c => c.num == null));
+  let quantize = $state(readPref('prepQ', '1') === '1');
+  $effect(() => writePref('prepQ', quantize ? '1' : '0'));
+  /** The loop playing now (auto loop, or a loop cue jumped to). */
+  let loop = $state<{ a: number; b: number } | null>(null);
+  const at = () => quantize ? snap(player.time, grid) : player.time;
+  const saveCues = (c: CuePoint[]) => prepare.setCues(cur(), c);
+  function pad(num: number, e?: MouseEvent | KeyboardEvent) {
+    const c = hotCue(cues, num);
+    if (e?.shiftKey || e?.altKey) { if (c) saveCues(removeCue(cues, c)); return; }
+    if (c) { jump(c); return; }
+    // An empty pad: a hot cue at the playhead, or the loop that's playing as a hot loop.
+    saveCues(loop ? setHotCue(cues, num, loop.a, loop.b) : setHotCue(cues, num, at()));
+  }
+  function jump(c: CuePoint) { if (!here) return; loop = c.end != null ? { a: c.t, b: c.end } : null; player.seek(c.t); }
+  function autoloop(beats: number) { if (!here) return; loop = autoLoop(player.time, beats, grid); }
+  // A loop plays round while it's on.
+  $effect(() => { void player.frame; const l = loop; if (l && here && !player.paused && player.time >= l.b - 0.004) player.seek(l.a); });
+  const fmtCue = (t: number) => Math.floor(t / 60) + ':' + (t % 60).toFixed(2).padStart(5, '0');
   const copies = $derived.by(() => { void lib.version; return prepare.copies(track); });
   let bpmText = $state('');
   $effect(() => { bpmText = grid ? grid.bpm.toFixed(2) : ''; });
@@ -196,9 +224,43 @@
         {:else}<span class="note">From the analysis</span>{/if}
       </div>
     </section>
+    <section class="cues" aria-label="Cue points and loops" id="prep-cues">
+      <div class="pads">
+        {#each LETTERS.split('') as L, i (L)}
+          {@const c = hotCue(cues, i)}
+          <button type="button" class="pad" class:set={!!c} style:--c={HOT_COLORS[i]} data-pad={L}
+            title={c ? L + ': ' + fmtCue(c.t) + (c.end != null ? ' (loop)' : '') + ' · click to jump · right-click or shift-click to clear' : 'Set hot cue ' + L + ' at the playhead (' + (i + 1) + ')'}
+            onclick={e => pad(i, e)} oncontextmenu={e => { e.preventDefault(); if (c) saveCues(removeCue(cues, c)); }}>
+            <b>{L}</b>{#if c}<small>{fmtCue(c.t)}</small>{/if}
+          </button>
+        {/each}
+        <label class="kl" title="Put new cues and loops on the nearest beat"><input type="checkbox" bind:checked={quantize}> Q</label>
+      </div>
+      <div class="grp">
+        <span class="k">Loop</span>
+        {#each [1, 2, 4, 8, 16] as n (n)}<button type="button" class="mini" class:on={!!loop && !!grid && Math.abs((loop.b - loop.a) - n * 60 / grid.bpm) < 0.001} disabled={!here} data-loop={n} onclick={() => autoloop(n)}>{n}</button>{/each}
+        {#if loop}
+          <button type="button" class="mini" id="prep-loop-exit" onclick={() => (loop = null)}>Exit loop</button>
+          <button type="button" class="mini" id="prep-loop-save" title="Keep this loop (as a memory loop)" onclick={() => { if (loop) saveCues(addMemory(cues, loop.a, loop.b)); }}>Save loop</button>
+        {/if}
+      </div>
+      <div class="grp mem">
+        <span class="k">Memory</span>
+        <button type="button" class="mini" id="prep-memory" disabled={!here} title="A memory cue at the playhead" onclick={() => saveCues(addMemory(cues, at()))}>+ Cue</button>
+        {#each memory as c (c.t + ':' + c.end)}
+          <span class="mc" style:--c={c.color ?? '#e91a2d'}>
+            <button type="button" class="mcj" title={'Jump to ' + fmtCue(c.t) + ' · double-click to name it'} onclick={() => jump(c)} ondblclick={() => { const n = prompt('Name this cue', c.name); if (n != null) saveCues(renameCue(cues, c, n.trim())); }}>{c.name || fmtCue(c.t)}{c.end != null ? ' ⟳' : ''}</button>
+            <button type="button" class="mcx" aria-label="Remove" onclick={() => saveCues(removeCue(cues, c))}>×</button>
+          </span>
+        {/each}
+      </div>
+      {#if imported.length}
+        <button type="button" class="mini" id="prep-import-cues" title="Take the cues and loops from your imported DJ library as this track's" onclick={() => saveCues(imported)}>Use the {imported.length} cue{imported.length === 1 ? '' : 's'} from your DJ app</button>
+      {/if}
+    </section>
     {#if show3d}<canvas class="c3d" bind:this={cv3d}></canvas>{/if}
     {#if message}<p class="err">{message}</p>{/if}
-    <p class="fine">Space plays · M metronome · T tap · ← → nudge the grid (shift: 1 ms) · wheel on the waveform zooms · drag it to scrub.</p>
+    <p class="fine">Space plays · 1–8 hot cues (shift: clear) · M metronome · T tap · ← → nudge the grid (shift: 1 ms) · wheel on the waveform zooms · drag it to scrub.</p>
   {/if}
 </div>
 
@@ -238,6 +300,19 @@
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
   .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .mini:disabled { opacity: .4; cursor: default; }
+  .cues { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 8px 12px; }
+  .pads { display: flex; gap: 5px; align-items: center; }
+  .pad { width: 54px; height: 38px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line-2)); background: color-mix(in srgb, var(--c) 6%, var(--ground)); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; line-height: 1.1; padding: 2px; }
+  .pad b { font-size: 13px; }
+  .pad small { font-family: var(--font-mono); font-size: 9.5px; }
+  .pad.set { background: color-mix(in srgb, var(--c) 30%, var(--ground)); color: var(--ink); border-color: var(--c); }
+  .pad:hover { border-color: var(--c); }
+  .mini.on { border-color: var(--accent); color: var(--accent); }
+  .mem { flex-wrap: wrap; }
+  .mc { display: inline-flex; align-items: center; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); border-radius: 4px; overflow: hidden; }
+  .mcj { background: color-mix(in srgb, var(--c) 14%, transparent); border: 0; color: var(--ink); font-family: var(--font-mono); font-size: 11.5px; padding: 2px 7px; cursor: pointer; }
+  .mcx { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 5px; }
+  .mcx:hover { color: var(--bad); }
   .c3d { width: 100%; height: 260px; display: block; border-radius: var(--radius); background: #000; }
   .fine { color: var(--muted); font-size: 12px; margin: 0; }
   .notice { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; }

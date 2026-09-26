@@ -12,6 +12,7 @@ import { loadWaveform, writeWaveform } from '../store/waveform';
 import * as platform from '../platform';
 import type { AnalysisJob } from '../core/types';
 import type { Track } from '../store/types';
+import type { CuePoint } from '../core/interop/types';
 
 /** A file's audio as a worker job: raw PCM when GLUE reads the format itself, else the browser decodes it. */
 async function jobOf(file: File): Promise<Exclude<AnalysisJob, { type: 'demo' }>> {
@@ -75,17 +76,19 @@ class Prepare {
     if (!g || g.kind !== 'same') return [];
     return g.ids.filter(id => id !== t.id).map(id => lib.store?.tracks.get(id)).filter((x): x is Track => !!x && !x.remote);
   }
-  /** Set on the track and its copies; the grid only on copies of the same length (the same start). */
+  /** Set on the track and its copies; the grid and the cues only on copies of the same length (the
+      same start: a copy with more silence first would have them in the wrong place). */
   private apply(t: Track, patch: Partial<NonNullable<Track['prep']>>) {
     lib.setPrep(t.id, patch);
-    const grid = 'beat0' in patch || 'bar' in patch;
     for (const c of this.copies(t)) {
       const sameStart = t.duration != null && c.duration != null && Math.abs(t.duration - c.duration) < 0.01;
       const p = { ...patch };
-      if (grid && !sameStart) { delete p.beat0; delete p.bar; }
-      lib.setPrep(c.id, p);
+      if (!sameStart) { delete p.beat0; delete p.bar; delete p.cues; }
+      if (Object.keys(p).length) lib.setPrep(c.id, p);
     }
   }
+  /** The track's cue points and loops (step 2); an empty list removes them. */
+  setCues(t: Track, cues: CuePoint[]) { this.apply(t, { cues: cues.length ? cues : undefined }); }
 
   // ─── Edits (saved on the track; they override the analysis) ────────────────
   private save(t: Track, g: Grid) { this.apply(t, { bpm: Math.round(g.bpm * 1000) / 1000, beat0: Math.round(g.beat0 * 100000) / 100000, bar: g.bar }); }

@@ -5,6 +5,16 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · Prepare tab, step 2: cue points and loops
+- **Hot cues A–H** (pads, keys 1–8, Rekordbox colours), **memory cues** (named, jump, remove),
+  **loops** of 1–16 beats that repeat while playing, saved as memory loops or hot loops. Q puts them on
+  the beat.
+- Drawn on the deck and overview; the library row's mini waveform shows them.
+- An import's cues can be taken over with one click.
+- Saved on the track and synced; Re-analyse keeps them
+  ([prepare](../features/prepare.md#shipped-step-2-cues-and-loops-2026-09-26)).
+- Tests: 135 unit (cue editing), 38 e2e (cues in the Prepare story).
+
 ## 2026-09-26 · GLUE Home 0.6.0: the drag dock ([ADR 0054](../adr/0054-drag-dock-in-glue-home.md))
 - Reported by the user: songs and playlists couldn't be dragged into Engine DJ or Rekordbox.
 - Tested on their desktop ([research](../research/drag-to-dj-apps.md)): Engine DJ takes a real file

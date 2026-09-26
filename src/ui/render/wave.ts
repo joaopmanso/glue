@@ -7,6 +7,7 @@
 import type { Waveform } from '../../core/audio/waveform';
 import { beatsBetween } from '../../core/audio/waveform';
 import { theme, withAlpha, MONO } from './canvas';
+import type { CuePoint } from '../../core/interop/types';
 
 export type Scheme = 'rgb' | 'blue' | 'bands' | 'mono';
 export const SCHEMES: { id: Scheme; name: string }[] = [
@@ -20,7 +21,8 @@ export interface WaveOpts {
   grid: GridView | null;
   playhead: number | null;           // s
   numbers?: boolean;                 // bar numbers on the grid (the deck view)
-  loop?: { a: number; b: number } | null;
+  loop?: { a: number; b: number } | null;   // the loop playing now
+  cues?: CuePoint[];                         // hot cues (flags with their letter), memory cues, saved loops
 }
 
 /** The loudest of each band over the points under one pixel column. */
@@ -78,6 +80,24 @@ export function drawWave(ctx: CanvasRenderingContext2D, W: number, H: number, w:
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(bx, bar ? 0 : H * 0.12); ctx.lineTo(bx, bar ? H : H * 0.88); ctx.stroke();
       if (bar && o.numbers) { ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.fillText(String(Math.floor((b.n - o.grid.bar) / 4) + 1), bx + 3, 3); }
+    }
+  }
+  // Cues: saved loops as bands, then a line and a flag per cue (hot cues lettered A–H).
+  for (const c of o.cues ?? []) {
+    if (c.end == null || c.end < o.t0 || c.t > o.t1) continue;
+    ctx.fillStyle = withAlpha(c.color ?? '#e91a2d', 0.16); ctx.fillRect(x(c.t), 0, x(c.end) - x(c.t), H);
+  }
+  ctx.font = 'bold 10px ' + MONO; ctx.textBaseline = 'top';
+  for (const c of o.cues ?? []) {
+    if (c.t < o.t0 || c.t > o.t1) continue;
+    const cx = Math.round(x(c.t)) + 0.5, col = c.color ?? '#e91a2d';
+    ctx.strokeStyle = col; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
+    if (c.num != null) {
+      ctx.fillStyle = col; ctx.fillRect(cx, H - 14, 13, 14);
+      ctx.fillStyle = '#000'; ctx.fillText('ABCDEFGH'[c.num] ?? '?', cx + 3, H - 12);
+    } else {
+      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(cx - 5, H); ctx.lineTo(cx + 5, H); ctx.lineTo(cx, H - 7); ctx.closePath(); ctx.fill();
     }
   }
   if (o.playhead != null) {
