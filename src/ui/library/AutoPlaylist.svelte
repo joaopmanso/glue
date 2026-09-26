@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { bpmShown, fmtBpm } from '../../lib/bpm';
   import { auto } from '../../lib/auto.svelte';
   import { lib } from '../../lib/library.svelte';
   import { app } from '../../lib/app.svelte';
@@ -68,7 +69,7 @@
           <legend>Start from</legend>
           {#if seed}
             <div class="tchip seed"><b>{seed.title || seed.fileName}</b><span>{seed.artist}</span>
-              <span class="mono">{an(seed.id)?.bpm ? Math.round(an(seed.id)!.bpm!) + ' BPM' : ''} {an(seed.id)?.key ? keyLabel(an(seed.id)!.key!, app.keyNotation) : ''}</span>
+              <span class="mono">{bpmShown(seed, an(seed.id)) ? fmtBpm(bpmShown(seed, an(seed.id))!) + ' BPM' : ''} {an(seed.id)?.key ? keyLabel(an(seed.id)!.key!, app.keyNotation) : ''}</span>
               <button type="button" aria-label="No starting track" onclick={() => (auto.form.seedId = null)}>×</button></div>
           {:else}<p class="hint">No starting track: GLUE chooses the first one too.</p>{/if}
         </fieldset>
@@ -189,7 +190,7 @@
                   </button>
                   <span class="who"><b>{t.title || t.fileName}</b><small>{t.artist}{#if s.fixed} · <i>{s.id === f.seedId ? 'start' : 'included'}</i>{/if}</small></span>
                   <span class="wv"><WaveCell {t} order={slotIds} /></span>
-                  <span class="mono bpm" title={s.bpmTarget ? 'Target ' + Math.round(s.bpmTarget) + ' BPM' : ''}>{a?.bpm ? Math.round(a.bpm) : '—'}</span>
+                  <span class="mono bpm" title={s.bpmTarget ? 'Target ' + Math.round(s.bpmTarget) + ' BPM' : ''}>{bpmShown(t, a) ? fmtBpm(bpmShown(t, a)!) : '—'}</span>
                   <span class="mono key">{#if i > 0}<i class={'fit ' + fitCls(s.keyFit)} title={fitTitle(s.keyFit)}></i>{/if}{a?.key ? keyLabel(a.key, app.keyNotation) : '—'}</span>
                   <span class="stars" aria-label={(t.rating ?? 0) + ' stars'}>{'★'.repeat(Math.round(t.rating ?? 0))}</span>
                   <span class="acts">

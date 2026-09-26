@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { router } from '../../lib/route.svelte';
+  import { view } from '../../lib/view.svelte';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import { player } from '../../lib/player.svelte';
@@ -34,6 +36,7 @@
   <div class="now">
     {#if t}
       <a class="title" href={'#/track/' + t.id} title="Open the track page" id="lib-now">{t.title || t.fileName}</a>
+      <button type="button" class="locate" id="lib-locate" title="Show it in the list" aria-label="Show the playing track in the list" onclick={() => { view.reveal = t.id; if (router.current.name !== 'library') router.go('#/'); }}>⌖</button>
       <span class="who">{t.artist}{#if remoteFiles.loading}<span> · getting it from {remoteFiles.loading.device}… {remoteFiles.loading.size ? Math.round(remoteFiles.loading.got / remoteFiles.loading.size * 100) + '%' : ''}</span>{:else if nowPlaying.error}<span class="err"> · {nowPlaying.error}</span>{:else if player.message}<span class="err"> · {player.message}</span>{/if}</span>
     {:else}
       <span class="who">Nothing playing. Click ▶ on a track, or select one and press Space.</span>
@@ -83,4 +86,6 @@
   .vol svg { width: 14px; height: 14px; }
   .vol input { width: 90px; accent-color: var(--accent); }
   @media (max-width: 900px) { .lplayer { grid-template-columns: auto 1fr auto; } .seek, .meta { display: none; } .vol input { width: 60px; } }
+  .locate { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; line-height: 1; }
+  .locate:hover { color: var(--accent); }
 </style>

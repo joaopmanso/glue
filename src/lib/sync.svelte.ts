@@ -68,6 +68,8 @@ class CloudSync {
   busy = $state('');
   private hashes = new Map<string, { size: number; mtime: number; hash: string }>();
   private timers = new Map<string, number>();
+  /** Uploads running now (deleting the cloud copy waits for them, or they'd put files back). */
+  private pushing = new Set<Promise<void>>();
   private lastPush = new Map<string, number>();
   private pullTimer = 0;
 
@@ -102,6 +104,11 @@ class CloudSync {
     this.timers.set(pid, window.setTimeout(() => void this.push(pid).catch(() => {}), wait));
   }
   async push(pid: string) {
+    const run = this.pushNow(pid);
+    this.pushing.add(run);
+    try { await run; } finally { this.pushing.delete(run); }
+  }
+  private async pushNow(pid: string) {
     const home = lib.homeHandle, profile = await lib.profileInfo(pid);
     if (!account.signedIn || !home || !syncOn(profile) || lib.readOnly) return;
     const pdir = await subdir(home, ['profiles', pid], false);
@@ -543,6 +550,10 @@ class CloudSync {
     await this.refresh(); await this.resync();
   }
   async deleteAll() {
+    // Uploads scheduled or running would put files back right after: none are left first.
+    for (const t of this.timers.values()) clearTimeout(t);
+    this.timers.clear();
+    await Promise.allSettled([...this.pushing]);
     await account.request('DELETE', '/v1/sync');
     const home = lib.homeHandle;
     if (home && !lib.readOnly) await removePath(home, 'cloud').catch(() => {});

@@ -28,6 +28,8 @@ class View {
   editing = $state<string | null>(null);
   /** Duplicates opened from a track's "2×": that track, to scroll to and highlight. */
   focusDupe = $state<string | null>(null);
+  /** Scroll the table to this track (the mini player's "show in list"). */
+  reveal = $state<string | null>(null);
   anchor: string | null = null;
 
   select(s: ViewSel) { this.sel = s; this.selected = new Set(); this.anchor = null; if (s.kind !== 'list' && this.sort.key === 'order') this.sort = { key: 'added', dir: -1 }; else if (s.kind === 'list') this.sort = { key: 'order', dir: 1 }; }

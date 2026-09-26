@@ -50,8 +50,11 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   const wav = beatWav(124, 0.2).toString('base64');
   await page.evaluate(async b64 => {
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('Music', { create: true });
-    const w = await (await dir.getFileHandle('Beat 124.wav', { create: true })).createWritable();
-    await w.write(Uint8Array.from(atob(b64), c => c.charCodeAt(0))); await w.close();
+    // The song, and a second copy of it under another name (the same recording, found by sound).
+    for (const name of ['Beat 124.wav', 'Other take.wav']) {
+      const w = await (await dir.getFileHandle(name, { create: true })).createWritable();
+      await w.write(Uint8Array.from(atob(b64), c => c.charCodeAt(0))); await w.close();
+    }
   }, wav);
   await page.goto('./');
   await page.click('#choose-home');
@@ -60,8 +63,9 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.click('#onb-skip');
   await page.click('#add-folder');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
-  const row = page.locator('.tr', { hasText: 'Beat 124' });
+  const row = page.locator('.tr', { hasText: 'Beat 124' }), copy = page.locator('.tr', { hasText: 'Other take' });
   await expect(row.locator('.c-num').first()).toHaveText(/^12[34]/);
+  await expect(page.locator('.lside .name', { hasText: 'Duplicates' })).toContainText('1', { timeout: 30_000 });
 
   // Prepare: the waveform draws, the BPM in use is the analysis's.
   await row.locator('.c-title').dblclick();
@@ -75,6 +79,7 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
     return n / (d.length / 4);
   });
   expect(lit).toBeGreaterThan(0.05);   // the overview isn't blank
+  await expect(page.locator('#prep-copies')).toContainText('the other copy');
 
   // Tempo +4%: the BPM shown follows the speed; the metronome switches on and off.
   await page.locator('#prep-tempo').evaluate((el: HTMLInputElement) => { el.value = '4'; el.dispatchEvent(new Event('input', { bubbles: true })); });
@@ -95,8 +100,13 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
   await page.reload();
   await expect(page.locator('#prep-bpm')).toContainText('125.00', { timeout: 30_000 });
+  // The Details tab's Tempo card and table show it too.
+  await page.click('#tab-details');
+  await expect(page.locator('#m-bpm')).toContainText('125', { timeout: 30_000 });
+  await expect(page.locator('#m-bpm-sub')).toContainText('your BPM');
   await page.goto('./#/');
   await expect(row.locator('.c-num.mine')).toHaveText('125');
+  await expect(copy.locator('.c-num.mine')).toHaveText('125');   // the other copy of the recording too
 
   // The profile shows BPMs half-time: 62.5; this track flipped back: 125.
   await page.locator('.top .who').click();
@@ -104,10 +114,13 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.locator('.profile', { hasText: 'DJ Test' }).click();
   await expect(row.locator('.c-num.mine')).toHaveText('62.5');
   await row.locator('.c-title').dblclick();
+  await expect(page.locator('#m-bpm')).toContainText('62.5', { timeout: 30_000 });
   await page.click('#tab-prepare');
+  await expect(page.locator('#prep-copies')).toBeVisible({ timeout: 30_000 });   // Duplicates found the copy again
   await page.locator('#prep-flip').check();
   await page.goto('./#/');
   await expect(row.locator('.c-num.mine')).toHaveText('125');
+  await expect(copy.locator('.c-num.mine')).toHaveText('125');
 
   // Re-analyse: the correction goes; the analysis's BPM (folded, flipped) is back.
   await row.locator('.c-title').dblclick();
@@ -116,5 +129,6 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await expect(page.locator('#v-pill')).not.toHaveText('', { timeout: 60_000 });
   await page.goto('./#/');
   await expect(row.locator('.c-num.mine')).toHaveCount(0);
+  await expect(copy.locator('.c-num.mine')).toHaveCount(0);
   await expect(row.locator('.c-num').first()).toHaveText(/^12[34]/);   // half-time, flipped: back to ~124
 });

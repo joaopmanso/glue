@@ -12,10 +12,14 @@
   const music = $derived(given !== undefined ? given : app.res?.music ?? null);
   const key = $derived(music?.key ?? null);
   const n = $derived(app.keyNotation);
+  const fmt = (b: number) => Math.abs(b - Math.round(b)) < 0.05 ? Math.round(b).toFixed(0) : b.toFixed(1);
   const bpm = $derived.by(() => {
+    // A library track: its BPM as the library shows it (a correction, the profile's range).
+    const v = app.bpmView;
+    if (v) return { show: fmt(v.bpm), sub: v.note };
     const b = music?.bpm;
     if (!b) return null;
-    return { show: Math.abs(b - Math.round(b)) < 0.05 ? Math.round(b).toFixed(0) : b.toFixed(1), half: (b / 2).toFixed(1), double: (b * 2).toFixed(1) };
+    return { show: fmt(b), sub: '½× ' + (b / 2).toFixed(1) + ' · 2× ' + (b * 2).toFixed(1) };
   });
   const wheel = $derived.by(() => { void themes.version; return wheelSvg(key, n, theme()); });
 </script>
@@ -27,7 +31,7 @@
         <span class="label">Tempo</span>
         {#if bpm}
           <span class="big" id="m-bpm">{bpm.show}<small>&nbsp;BPM</small></span>
-          <span class="sub" id="m-bpm-sub">½× {bpm.half} · 2× {bpm.double}</span>
+          <span class="sub" id="m-bpm-sub">{bpm.sub}</span>
         {:else}
           <span class="big" id="m-bpm">—</span><span class="sub" id="m-bpm-sub">no steady beat found</span>
         {/if}

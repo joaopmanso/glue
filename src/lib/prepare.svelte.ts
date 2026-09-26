@@ -2,6 +2,7 @@
    audio in the worker), the grid in use (the user's, else placed on the audio for the BPM in use), and
    the edits, saved on the track (lib.setPrep). */
 import { lib } from './library.svelte';
+import { dupes } from './dupes.svelte';
 import { waveformOf, decodeAudio } from './analysis';
 import { beatGrid, type Waveform } from '../core/audio/waveform';
 import { bpmInUse } from '../core/library/bpm';
@@ -67,8 +68,27 @@ class Prepare {
     return { bpm, ...g };
   }
 
+  /** The other copies of the same recording (Duplicates, by sound) in this collection: a correction
+      applies to them too, so the song has one BPM wherever it's shown. */
+  copies(t: Track): Track[] {
+    const g = dupes.groupOf.get(t.id);
+    if (!g || g.kind !== 'same') return [];
+    return g.ids.filter(id => id !== t.id).map(id => lib.store?.tracks.get(id)).filter((x): x is Track => !!x && !x.remote);
+  }
+  /** Set on the track and its copies; the grid only on copies of the same length (the same start). */
+  private apply(t: Track, patch: Partial<NonNullable<Track['prep']>>) {
+    lib.setPrep(t.id, patch);
+    const grid = 'beat0' in patch || 'bar' in patch;
+    for (const c of this.copies(t)) {
+      const sameStart = t.duration != null && c.duration != null && Math.abs(t.duration - c.duration) < 0.01;
+      const p = { ...patch };
+      if (grid && !sameStart) { delete p.beat0; delete p.bar; }
+      lib.setPrep(c.id, p);
+    }
+  }
+
   // ─── Edits (saved on the track; they override the analysis) ────────────────
-  private save(t: Track, g: Grid) { lib.setPrep(t.id, { bpm: Math.round(g.bpm * 1000) / 1000, beat0: Math.round(g.beat0 * 100000) / 100000, bar: g.bar }); }
+  private save(t: Track, g: Grid) { this.apply(t, { bpm: Math.round(g.bpm * 1000) / 1000, beat0: Math.round(g.beat0 * 100000) / 100000, bar: g.bar }); }
   setBpm(t: Track, bpm: number) { const g = this.grid(t); if (g && bpm >= 30 && bpm <= 300) this.save(t, retempo(g, bpm)); }
   nudge(t: Track, dt: number) { const g = this.grid(t); if (g) this.save(t, nudge(g, dt)); }
   beatHere(t: Track, at: number) { const g = this.grid(t); if (g) this.save(t, anchorAt(at, g.bpm)); }
@@ -82,10 +102,10 @@ class Prepare {
     return this.taps.length;
   }
   /** Place the grid on the audio again for the BPM in use (keeps a corrected BPM). */
-  replace(t: Track) { lib.setPrep(t.id, { beat0: undefined, bar: undefined }); }
+  replace(t: Track) { this.apply(t, { beat0: undefined, bar: undefined }); }
   /** Back to the analysis: BPM and grid (cues stay). */
-  reset(t: Track) { lib.setPrep(t.id, { bpm: undefined, beat0: undefined, bar: undefined }); }
-  flip(t: Track) { lib.setPrep(t.id, { flip: t.prep?.flip ? undefined : true }); }
+  reset(t: Track) { this.apply(t, { bpm: undefined, beat0: undefined, bar: undefined }); }
+  flip(t: Track) { this.apply(t, { flip: t.prep?.flip ? undefined : true }); }
 }
 
 export const prepare = new Prepare();

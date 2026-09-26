@@ -5,6 +5,19 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · The same BPM everywhere; the playing song stands out; cloud clean-up fixed
+From the user's batch ([handoff](2026-09-26-handoff-2.md)):
+- **BPM:**
+  - The Details page's Tempo card and the DJ-app table follow the correction, the profile's range and
+    the flip. Auto-playlist rows too.
+  - A correction, flip or reset applies to every copy of the same recording. The user's "duplicate
+    song" was two files of it ([prepare](../features/prepare.md#the-same-bpm-everywhere-2026-09-26)).
+- **Library:** the song that's playing has an accent bar, outline and tint in the table. The mini
+  player's ⌖ scrolls the table to it (from All tracks when the open list doesn't have it).
+- **Cloud:** "Delete everything in my cloud" cancels scheduled uploads and waits for a running one.
+  Before, an upload could put a file back right after; it showed as an intermittent e2e failure.
+- Tests: 130 unit; e2e 38 (Prepare covers copies and the Details page).
+
 ## 2026-09-26 · Imported songs that are really a track you have ([ADR 0053](../adr/0053-imported-copy-is-the-same-song.md))
 - Reported by the user: after importing Engine DJ and Traktor, songs showed under "No file linked"
   although the same song was in the library.

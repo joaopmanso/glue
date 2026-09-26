@@ -24,6 +24,16 @@
   const ROW = 30, OVERSCAN = 12;
 
   const rows = $derived(view.rows(app.keyNotation));
+  // "Show in list" (the mini player): the track in the middle of the table, from All tracks if this
+  // list doesn't have it.
+  $effect(() => {
+    const id = view.reveal, rs = rows;
+    if (!id || !scroller) return;
+    const i = rs.findIndex(r => r.t.id === id);
+    if (i < 0) { if (view.sel.kind !== 'all') view.select({ kind: 'all' }); else view.reveal = null; return; }
+    view.reveal = null;
+    scroller.scrollTop = Math.max(0, i * ROW - height / 2 + ROW / 2);
+  });
   const order = $derived(rows.map(r => r.t.id));
   const list = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   const isPlaylist = $derived(list?.kind === 'playlist');
@@ -355,6 +365,9 @@
   .tr:hover .pbtn, .tr.playing .pbtn, .pbtn:focus-visible { opacity: 1; }
   .pbtn:hover { background: var(--accent); color: var(--accent-ink); }
   .tr.playing .c-title, .tr.playing .pbtn { color: var(--accent); }
+  /* The song that's playing stands out wherever the list is scrolled. */
+  .tr.playing { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); z-index: 1; }
+  .tr.playing.sel { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .tr.playing .pbtn:hover { color: var(--accent-ink); }
   .note { background: none; border: 0; padding: 0; width: 22px; height: 22px; display: grid; place-items: center; color: var(--line-2); cursor: pointer; border-radius: 4px; }
   .note svg { width: 14px; height: 14px; }

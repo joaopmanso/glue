@@ -28,6 +28,9 @@ class AppState {
   palette = $state<PaletteName>('spek');
   lut = $state.raw<Uint8ClampedArray>(buildLut('spek'));
   markers = $state(true);
+  /** A library track's page: the BPM as the library shows it (the user's correction, the profile's
+      range), shown by the Tempo card instead of the analysis's (ADR 0052). */
+  bpmView = $state<{ bpm: number; note: string } | null>(null);
   keyNotation = $state<KeyNotation>(readPref('keyNotation', 'camelot') as KeyNotation);
   liveOn = $state(readPref('live', '0') === '1');
   liveMode = $state<'scroll' | '3d'>(readPref('liveMode', 'scroll') === '3d' ? '3d' : 'scroll');

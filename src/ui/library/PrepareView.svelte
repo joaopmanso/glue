@@ -119,6 +119,7 @@
     else if (mine && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); prepare.nudge(tr, (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 0.001 : 0.005)); }
   }
   const cur = () => lib.store?.tracks.get(track.id) ?? track;
+  const copies = $derived.by(() => { void lib.version; return prepare.copies(track); });
   let bpmText = $state('');
   $effect(() => { bpmText = grid ? grid.bpm.toFixed(2) : ''; });
 </script>
@@ -188,6 +189,7 @@
         </label>
       </div>
       <div class="grp end">
+        {#if copies.length}<span class="note" id="prep-copies" title={copies.map(c => c.fileName).join(', ')}>Also sets {copies.length === 1 ? 'the other copy' : 'the ' + copies.length + ' other copies'} of this recording</span>{/if}
         {#if corrected}
           <span class="note">Your correction{analysed ? ' (analysis: ' + fmtBpm(analysed) + ')' : ''}</span>
           <button type="button" class="mini" id="prep-reset" onclick={() => prepare.reset(cur())}>Reset to analysis</button>

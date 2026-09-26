@@ -64,6 +64,20 @@ tempos. Corrections override the analysis ([ADR 0052](../adr/0052-prepare-tab.md
   no audio out). Check by ear on a real track, and report any constant offset: it would be added as a
   latency setting.
 
+## The same BPM everywhere (2026-09-26)
+Reported by the user: after correcting a track to 172, the library showed it twice (172 and 229.3), and
+the Details page's Tempo card still said 114.7 (½× 57.3 · 2× 229.3).
+- The "two songs" were **two files** in Music Collection: `Mala - Changes (SubMarine Bootleg).aiff` and
+  `…_playable_v2.aiff`, 20 bytes apart, same audio. The correction was on one only.
+- **Copies:** a BPM correction, the flip and Reset apply to every copy in the same "same recording"
+  group (Duplicates, by sound). The grid is copied only to copies of the same length (within 10 ms).
+  Prepare says "Also sets the other copy of this recording".
+- **Details page:** the Tempo card and the DJ-app table's GLUE row show the BPM as the library does
+  (correction, profile range, flip), noting where it comes from ("your BPM (Prepare) · analysis
+  114.7"). The Analyze-a-file page keeps the plain analysis. Auto-playlist rows follow too.
+- Seen, not changed: the analysis said 114.67 (⅔ of 172, a triplet error) while Traktor (86) and Engine
+  (172) agree. Idea: flag tracks where the analysis disagrees with the DJ apps.
+
 ## Tests
 - Unit: beat phase on synthetic clicks (known offset), folding into ranges, prep reset.
 - e2e (`e2e/prepare.spec.ts`), on a synthetic 30 s beat at 124 BPM:

@@ -22,6 +22,7 @@
   import { tagsOf } from '../../core/library/tagging';
   import { tagColorOf } from '../../lib/tags.svelte';
   import PrepareView from './PrepareView.svelte';
+  import { bpmOf, bpmShown, fmtBpm } from '../../lib/bpm';
   import { prepare } from '../../lib/prepare.svelte';
   import type { TrackTab } from '../../lib/route.svelte';
 
@@ -39,6 +40,20 @@
     return out;
   });
   const root = $derived(track ? lib.rootState(track.rootId) : null);
+  // The BPM as the library shows it (the user's correction, the profile's range, the flip), for the
+  // Tempo card and the DJ-app table (ADR 0052).
+  const bpmView = $derived.by(() => {
+    void lib.version;
+    const t = track, a = summary, shown = bpmShown(t, a), inUse = bpmOf(t, a);
+    if (!t || !shown || !inUse) return null;
+    const bits: string[] = [];
+    if (t.prep?.bpm != null) bits.push('your BPM (Prepare)');
+    if (Math.abs(shown - inUse) > 0.01) bits.push(t.prep?.flip ? 'shown at the other octave' : lib.profile?.bpmRange === 'half' ? 'shown half-time (60–120)' : 'shown in 120–240');
+    if (a?.bpm && Math.abs(a.bpm - shown) > 0.05) bits.push('analysis ' + fmtBpm(a.bpm));
+    return { bpm: shown, note: bits.join(' · ') || '½× ' + (shown / 2).toFixed(1) + ' · 2× ' + (shown * 2).toFixed(1) };
+  });
+  $effect(() => { app.bpmView = bpmView; });
+  $effect(() => () => { app.bpmView = null; });
   const location = $derived(track?.fileKey ? track.fileName + (track.fileKey.startsWith('copy:') ? ' (a copy kept in GLUE)' : ' (added on its own)') : track?.relPath ? (root?.root.absPath ? root.root.absPath + (root.root.absPath.includes('\\') ? '\\' + track.relPath.replace(/\//g, '\\') : '/' + track.relPath) : (root?.root.name ?? '') + '/' + track.relPath) : track?.importPath ?? '');
 
   // Neighbours in the current library view, for previous / next.
@@ -242,8 +257,8 @@ canPlay = true;
             {#each imported as { app: name, st } (name + st.externalId)}
               <tr><td>{name}</td><td class="mono">{st.bpm ? +st.bpm.toFixed(2) : '—'}</td><td class="mono">{st.key ?? '—'}</td><td class="stars">{stars(st.rating)}</td><td class="mono">{st.playCount ?? '—'}</td><td class="mono">{st.cues || '—'}</td><td>{st.dateAdded ?? '—'}</td></tr>
             {/each}
-            {#if summary?.bpm || summary?.key}
-              <tr class="mco"><td>GLUE analysis</td><td class="mono">{summary.bpm ?? '—'}</td><td class="mono">{summary.key ? keyLabel(summary.key, app.keyNotation) : '—'}</td><td colspan="4"></td></tr>
+            {#if bpmView || summary?.key}
+              <tr class="mco"><td>{track.prep?.bpm != null ? 'GLUE (yours)' : 'GLUE analysis'}</td><td class="mono">{bpmView ? fmtBpm(bpmView.bpm) : '—'}</td><td class="mono">{summary?.key ? keyLabel(summary.key, app.keyNotation) : '—'}</td><td colspan="4"></td></tr>
             {/if}
           </tbody>
         </table>
