@@ -54,17 +54,19 @@ class Incoming {
         const homes = account.devices.filter(d => d.kind === 'home' && account.online.has(d.id)).map(d => d.id);
         if (homes.some(h => !this.asked.has(h)) || (localHome.link && !this.asked.has(localHome.link.home))) queueMicrotask(() => void this.refresh());
       });
+      // A collection opened (at start, however long that takes, or another one chosen): show it there.
+      $effect(() => { if (lib.store) queueMicrotask(() => void this.refresh()); });
     });
-    void (async () => {
-      await localHome.find();
-      // Until a collection is open there's nothing to show it in.
-      for (let i = 0; i < 40 && !lib.store; i++) await new Promise(r => setTimeout(r, 250));
-      await this.refresh();
-    })();
+    void localHome.find().then(() => this.refresh());
   }
   /** Ask every GLUE Home what's waiting (this computer's first, directly), and show it. */
   private running: Promise<void> | null = null;
-  refresh() { return (this.running ??= this.ask().finally(() => { this.running = null; })); }
+  private again = false;
+  /** Asked again while it's asking (a collection opened meanwhile): once more when it's done. */
+  refresh(): Promise<void> {
+    if (this.running) { this.again = true; return this.running; }
+    return (this.running = this.ask().finally(() => { this.running = null; if (this.again) { this.again = false; void this.refresh(); } }));
+  }
   private async ask() {
     if (!lib.store || lib.cloud) { this.show(new Map()); return; }
     const next = new Map<string, IncomingFile[]>();
@@ -92,9 +94,8 @@ class Incoming {
     if (!l) { void localHome.check(); return; }
     const seen = l.map(f => f.name + '|' + f.size + '|' + f.mtime).sort().join('\n');
     if (seen === this.hereSeen) return;
-    this.hereSeen = seen;
-    await lib.rescanIncoming();
-    this.reshow();
+    // Seen only once it's been scanned (a scan already running means: look again next time).
+    if (await lib.rescanIncoming()) this.hereSeen = seen;
   }
   /** The name of a GLUE Home's computer (its browser's, when it's a companion). */
   computer(home: string) { return localHome.computer(home); }
@@ -189,3 +190,5 @@ localHome.onChange = up => void (up ? lib.enterHomeMode() : lib.leaveHomeMode())
 onHomeDown(() => void localHome.check());
 // Other devices' songs were laid over again (new rows): mark those that are also waiting here again.
 lib.onOverlay = () => { if (incoming.files.size) queueMicrotask(() => incoming.reshow()); };
+// The incoming folder was scanned (Home mode): its songs are TO BE SORTED now.
+lib.onIncoming = () => incoming.reshow();

@@ -1729,6 +1729,8 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
     if (u.pathname === '/hello') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify({ app: 'glue-home', version: '0.3.2', device: 'h1' }) });
     const token = await home.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).localToken);
     if (u.searchParams.get('t') !== token) return r.fulfill({ status: 401, headers: cors, body: '{}' });
+    // What this GLUE Home (before 0.5.0) doesn't have, like /fs/*, is "not found" at once.
+    if (!['/incoming', '/incoming/file', '/cache'].includes(u.pathname)) return r.fulfill({ status: 404, headers: cors, body: '{}' });
     const w = await home.evaluate(() => { const x = window as unknown as { __files: { name: string; chunks: number[][]; done: boolean; moved?: string }[]; __cache: Record<string, number[]> }; return { files: x.__files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, bytes: f.chunks.flat() })), cache: x.__cache }; });
     const dec = (b: number[] | undefined) => b ? JSON.parse(Buffer.from(b).toString()) : null;
     if (u.pathname === '/incoming') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify(w.files.map(f => ({ name: f.name, size: f.bytes.length, mtime: 1, path: 'C:\\In\\' + f.name, summary: dec(w.cache['i/' + f.name + '.summary.json']) }))) });

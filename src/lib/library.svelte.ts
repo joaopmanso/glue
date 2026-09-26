@@ -312,6 +312,8 @@ class Library {
 
   /** Other devices' songs were laid over again (TO BE SORTED marks its songs again). */
   onOverlay: (() => void) | null = null;
+  /** The incoming folder was scanned (TO BE SORTED shows what's in it now). */
+  onIncoming: (() => void) | null = null;
   /** The devices whose songs the open collection shows (this one first); empty when it's only this one. */
   devicesShown = $state.raw<string[]>([]);
   /** Songs on more than one device of the merged collection, with each device's copy (Duplicates). */
@@ -496,6 +498,7 @@ class Library {
     else if (r.absPath !== inc.path) { r.absPath = inc.path; s.saveMeta(); }
     this.roots = [...this.roots.filter(x => x.root.id !== INCOMING_ROOT), { root: r, dir: inc.dir, granted: true }];
     await this.scanRoot(INCOMING_ROOT, { quiet: true });
+    this.onIncoming?.();
   }
   /** GLUE Home moved a song out of the incoming folder into a music folder (top level, under
       `fileName`): the same track, now there. */
@@ -505,7 +508,13 @@ class Library {
     s.putTrack({ ...t, rootId, relPath: fileName, fileName });
   }
   /** The incoming folder changed (a song arrived, or left it): scan it again. */
-  async rescanIncoming() { if (this.rootState(INCOMING_ROOT)?.dir && !this.job) await this.scanRoot(INCOMING_ROOT, { quiet: true }); }
+  /** False when it couldn't now (no folder, or another scan running): try again later. */
+  async rescanIncoming() {
+    if (!this.rootState(INCOMING_ROOT)?.dir || this.job) return false;
+    await this.scanRoot(INCOMING_ROOT, { quiet: true });
+    this.onIncoming?.();
+    return true;
+  }
 
   async addFolder(dropped?: FileSystemDirectoryHandle) {
     const s = this.store;

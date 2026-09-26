@@ -5,6 +5,21 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · When GLUE Home stops; Duplicates from a track; a compact track page
+From the user's checks of 0.5.0 (everything else worked, including the sent song on the desktop):
+- **GLUE Home stopped:** opening a track said "Failed to fetch". The open library now carries on with
+  the browser's own GLUE folder and music folders, and goes back to GLUE Home when it runs again
+  (checked every 5 s). A banner asks for a click if the browser needs permission again. Part of
+  [ADR 0051](../adr/0051-glue-home-as-local-engine.md) stage 3.
+- The "2×" on a track opens Duplicates **on that track**: its group scrolled into view, highlighted.
+- **Track page:** the header and details take about 50–110 px instead of about 330, so the verdict,
+  spectrogram and player are on the first screen. The quality badge shows once; notes are one line
+  that grows.
+- TO BE SORTED fills in as soon as a collection opens, and again after each scan of the incoming
+  folder. Before, a start-up slower than 10 s left it empty until the next round (30 s).
+- The page waits at most 3 s for GLUE Home at start-up before opening the library without it.
+- e2e: a stand-in GLUE Home (`e2e/fakeHome.ts`) and the Home mode story, stopping and starting it.
+
 ## 2026-09-26 · GLUE Home 0.5.0: Home mode (ADR 0051, stages 1–2)
 - **GLUE Home is the website's disk** on its computer. The GLUE folder and music folders are read and
   written through its local link, so there are no folder permission prompts.

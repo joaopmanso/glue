@@ -31,7 +31,8 @@ export class HomeDisk {
   }
   async json<T>(path: string, params: Record<string, string>, init?: RequestInit): Promise<T> { return (await this.call(path, params, init)).json() as Promise<T>; }
 
-  roots() { return this.json<HomeRoots>('/fs/roots', {}); }
+  /** Asked when the page opens: a GLUE Home that doesn't answer soon mustn't hold the library up. */
+  roots() { return this.json<HomeRoots>('/fs/roots', {}, { signal: AbortSignal.timeout(3_000) }); }
   /** This computer's folder dialog, shown by GLUE Home: the GLUE folder, or a collection's music folder. */
   pick(as: 'glue' | `folder:${string}`, title: string, start?: string) {
     return this.json<{ path: string | null; name?: string }>('/fs/pick', { as, title, ...(start ? { start } : {}) }, { method: 'POST' });

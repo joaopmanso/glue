@@ -186,36 +186,42 @@ canPlay = true;
     <p class="muted">This track isn’t in the open collection.</p>
   {:else}
     <header class="th">
-      <div>
+      <div class="tt">
         <h2>{track.title || track.fileName}</h2>
-        <p class="who">{[track.artist, track.album, track.year].filter(Boolean).join(' · ')}</p>
-        <div class="rate"><Stars value={track.rating ?? imported.find(x => x.st.rating)?.st.rating ?? null} dim={track.rating == null && imported.some(x => x.st.rating)} size={18} onset={v => lib.rateTracks([id], v)} />
-          <span>{track.rating != null ? track.rating + ' / 5' : imported.some(x => x.st.rating) ? 'rating from your DJ library' : 'not rated'}</span></div>
+        <div class="sub">
+          {#if track.artist || track.album || track.year}<span class="who">{[track.artist, track.album, track.year].filter(Boolean).join(' · ')}</span>{/if}
+          <span class="rate"><Stars value={track.rating ?? imported.find(x => x.st.rating)?.st.rating ?? null} dim={track.rating == null && imported.some(x => x.st.rating)} size={16} onset={v => lib.rateTracks([id], v)} />
+            <span>{track.rating != null ? track.rating + ' / 5' : imported.some(x => x.st.rating) ? 'rating from your DJ library' : 'not rated'}</span></span>
+        </div>
       </div>
-      {#if summary && !summary.error}<span class="q" data-grade={summary.grade}>{summary.label}</span>{/if}
+      <!-- The full analysis below shows the verdict; until then (or for another computer's song) it's here. -->
+      {#if summary && !summary.error && !(phase === 'ready' && app.phase === 'result')}<span class="q" data-grade={summary.grade}>{summary.label}</span>{/if}
     </header>
 
-    <section class="info">
-      <dl>
-        <div><dt class="label">File</dt><dd class="mono" title={location}>{location || '—'}</dd></div>
-        <div><dt class="label">Size</dt><dd>{track.size ? fmtBytes(track.size) : '—'}</dd></div>
-        <div><dt class="label">Length</dt><dd>{track.duration ? fmtTime(track.duration) : '—'}</dd></div>
-        <div><dt class="label">Genre</dt><dd>{track.genre || '—'}</dd></div>
-        <div><dt class="label">Label</dt><dd>{track.label || '—'}</dd></div>
-        <div><dt class="label">Added</dt><dd>{new Date(track.addedAt).toLocaleDateString()}</dd></div>
-        <div class="wide"><dt class="label">In playlists</dt><dd>
-          {#each lists as l, i (l.id)}<a href="#/" onclick={() => view.select({ kind: 'list', id: l.id })}>{lib.listPath(l)}</a>{i < lists.length - 1 ? ', ' : ''}{:else}none{/each}
-        </dd></div>
-        <div class="wide"><dt class="label">Tags</dt><dd class="tagsdd">
-          {#each tagsOf(track) as g (g)}<span class="tg" style:--c={tagColorOf(g)}>{g}</span>{/each}
-          <button type="button" class="tedit" id="track-tags" data-tags-open onclick={e => view.editTags(e.currentTarget, { ids: [id] })}>{tagsOf(track).length ? 'Edit' : '+ Add tags'}</button>
-        </dd></div>
-        {#if track.comment}<div class="wide"><dt class="label">Comment</dt><dd>{track.comment}</dd></div>{/if}
-        <div class="wide"><dt class="label"><label for="track-notes">Your notes</label></dt><dd class="notes">
-          <textarea id="track-notes" rows="2" placeholder="Cue ideas, mix-in points, where it works in a set…" value={track.notes ?? ''}
+    <section class="info" class:withdj={imported.length > 0}>
+      <div class="meta">
+        <p class="file mono" title={location}>{location || '—'}</p>
+        <dl>
+          <div><dt>Size</dt><dd>{track.size ? fmtBytes(track.size) : '—'}</dd></div>
+          <div><dt>Length</dt><dd>{track.duration ? fmtTime(track.duration) : '—'}</dd></div>
+          {#if track.genre}<div><dt>Genre</dt><dd>{track.genre}</dd></div>{/if}
+          {#if track.label}<div><dt>Label</dt><dd>{track.label}</dd></div>{/if}
+          <div><dt>Added</dt><dd>{new Date(track.addedAt).toLocaleDateString()}</dd></div>
+          <div class="grow"><dt>In playlists</dt><dd>
+            {#each lists as l, i (l.id)}<a href="#/" onclick={() => view.select({ kind: 'list', id: l.id })}>{lib.listPath(l)}</a>{i < lists.length - 1 ? ', ' : ''}{:else}none{/each}
+          </dd></div>
+          <div class="grow"><dt>Tags</dt><dd class="tagsdd">
+            {#each tagsOf(track) as g (g)}<span class="tg" style:--c={tagColorOf(g)}>{g}</span>{/each}
+            <button type="button" class="tedit" id="track-tags" data-tags-open onclick={e => view.editTags(e.currentTarget, { ids: [id] })}>{tagsOf(track).length ? 'Edit' : '+ Add tags'}</button>
+          </dd></div>
+        </dl>
+        {#if track.comment}<p class="comment"><span class="k">Comment</span> {track.comment}</p>{/if}
+        <label class="notes"><span class="k">Notes</span>
+          <textarea id="track-notes" rows="1" placeholder="Cue ideas, mix-in points, where it works in a set…" value={track.notes ?? ''}
+            oninput={e => { const el = e.currentTarget; el.style.height = ''; el.style.height = el.scrollHeight + 'px'; }}
             onchange={e => lib.setTrackNotes(id, e.currentTarget.value.trim() ? e.currentTarget.value : '')}></textarea>
-        </dd></div>
-      </dl>
+        </label>
+      </div>
       {#if imported.length}
         <table class="dj">
           <thead><tr><th>In</th><th>BPM</th><th>Key</th><th>Rating</th><th>Plays</th><th>Cues</th><th>Added</th></tr></thead>
@@ -283,30 +289,36 @@ canPlay = true;
 </div>
 
 <style>
-  .detail { display: grid; gap: 16px; }
+  .detail { display: grid; gap: 12px; }
   .crumbs { display: flex; justify-content: space-between; align-items: center; }
   .crumbs a { color: var(--accent); text-decoration: none; font-size: 13.5px; }
   .nav { display: flex; gap: 6px; align-items: center; }
   .src { color: var(--muted); font-size: 12px; margin-right: 4px; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini:disabled { opacity: .4; cursor: default; }
-  .th { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
-  h2 { font-size: 26px; font-stretch: 112%; }
+  .th { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+  .tt { min-width: 0; }
+  h2 { font-size: 24px; font-stretch: 112%; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: center; margin-top: 4px; }
   .who { color: var(--ink-2); }
-  .rate { display: flex; align-items: center; gap: 10px; margin-top: 6px; color: var(--muted); font-size: 12.5px; }
+  .rate { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
   .muted { color: var(--muted); }
   .q { font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; padding: 5px 11px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
   .q[data-grade="ok"] { color: var(--ok); } .q[data-grade="warn"] { color: var(--warn); } .q[data-grade="bad"] { color: var(--bad); } .q[data-grade="info"] { color: var(--muted); }
-  .info { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px 28px; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 14px 16px; }
-  dl { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 18px; }
-  dl .wide { grid-column: 1 / -1; }
-  dl div:first-child { grid-column: 1 / -1; }
-  dt { display: block; }
-  dd { margin: 0; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  dd.mono { font-size: 12px; }
-  dd.notes { white-space: normal; overflow: visible; }
-  dd.notes textarea { width: 100%; resize: vertical; background: var(--ground); border: 1px solid var(--line-2); border-radius: 5px; padding: 6px 8px; font: 13px/1.45 var(--font-sans); color: var(--ink); }
-  dd.notes textarea:focus { outline: none; border-color: var(--accent); }
+  .info { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px 24px; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 10px 14px; }
+  .info.withdj { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+  /* One band: the file, its facts, then notes; wrapping only when there is no room. */
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 26px; align-items: center; min-width: 0; }
+  .file { margin: 0; flex: 0 1 auto; max-width: 100%; font-size: 12px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  dl { margin: 0; flex: 1 1 auto; display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline; }
+  dl div { display: flex; gap: 7px; align-items: baseline; min-width: 0; }
+  dl .grow { flex: 1 1 auto; }
+  dt, .k { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  dd { margin: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .comment { margin: 0; flex: 1 1 100%; font-size: 13px; color: var(--ink-2); }
+  .notes { display: flex; flex: 1 1 340px; gap: 10px; align-items: baseline; }
+  .notes textarea { flex: 1; resize: none; overflow: hidden; min-height: 28px; background: var(--ground); border: 1px solid var(--line-2); border-radius: 5px; padding: 5px 8px; font: 13px/1.45 var(--font-sans); color: var(--ink); }
+  .notes textarea:focus { outline: none; border-color: var(--accent); }
   dd a { color: var(--accent); text-decoration: none; }
   .tagsdd { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; white-space: normal; overflow: visible; }
   .tg { font-size: 12px; line-height: 18px; padding: 0 8px; border-radius: 9px; background: color-mix(in srgb, var(--c) 20%, transparent); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); }
@@ -326,5 +338,5 @@ canPlay = true;
   .fine { color: var(--muted); font-size: 12.5px; }
   @media (max-width: 900px) { .remote-res { grid-template-columns: 1fr; } }
   .notice { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; }
-  @media (max-width: 1000px) { .info { grid-template-columns: 1fr; } }
+  @media (max-width: 1000px) { .info.withdj { grid-template-columns: 1fr; } }
 </style>
