@@ -71,3 +71,11 @@ track is used.
 - As in Engine DJ, a folder holds songs as well as playlists: drop tracks on it, or pick it in "Add to
   playlist"; "Remove from folder" takes its own songs out; the sidebar shows their count.
 - Opening a folder lists its own songs first, then its playlists' songs.
+
+## "Add to playlist" (2026-09-26, [ADR 0062](../adr/0062-add-to-playlist-mirrors-the-sidebar.md))
+- The dropdown has the playlists as the sidebar shows them:
+  - "+ New playlist…" first;
+  - then your own, in the sidebar's order, indented under their folders;
+  - then each import in its own group, marked "replaced when you import it again".
+- Why: with 761 Engine DJ playlists whose names repeat across folders, a flat list sorted by path
+  made a deleted playlist look like it was still there (its namesakes were).

@@ -5,6 +5,16 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · "Add to playlist" as the sidebar shows it
+- The user's "deleted playlists still in Add to playlist": the dropdown listed all 780 lists by path,
+  and the Engine DJ import repeats names across folders ("Heavy" in 19 places).
+- It now mirrors the sidebar ([ADR 0062](../adr/0062-add-to-playlist-mirrors-the-sidebar.md)):
+  - "+ New playlist…" first;
+  - then your own playlists, indented under their folders;
+  - then each import in its own group, marked "replaced when you import it again".
+- Lists the sidebar can't reach are left out.
+- Tests: 147 unit (+2 list tree); e2e 39 (the dropdown's groups).
+
 ## 2026-09-26 · GLUE Home 0.9.0: drag songs onto the drag dock
 From the user's feedback: only playlists could be dragged onto the dock; songs needed "+ Dock"
 ([ADR 0061](../adr/0061-songs-onto-the-drag-dock.md)).

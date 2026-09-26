@@ -17,6 +17,7 @@
   import { sendToHome } from '../../lib/sendToHome.svelte';
   import SendPanel from './SendPanel.svelte';
   import { drag } from '../../lib/drag.svelte';
+  import { listTree } from '../../core/library/listTree';
   import { incoming, TO_BE_SORTED } from '../../lib/incoming.svelte';
   import { dock } from '../../lib/dock.svelte';
   // The sidebar's width, dragged on the handle between it and the songs (remembered).
@@ -53,8 +54,11 @@
   });
   const count = $derived.by(() => { void lib.version; void view.search; return view.rows('camelot').length; });
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
-  // Folders are playlists too (ADR 0049): songs can be added to them.
-  const playlists = $derived.by(() => { void lib.version; return [...(lib.store?.lists.values() ?? [])].filter(l => l.id !== TO_BE_SORTED).sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b))); });
+  // Where songs can be added: the playlists as the sidebar shows them (ADR 0062), the user's own first,
+  // then each import's (replaced when it's imported again). Folders are playlists too (ADR 0049).
+  const targets = $derived.by(() => { void lib.version; return listTree(lib.store?.lists.values() ?? [], l => l.id === TO_BE_SORTED); });
+  const NBSP = String.fromCharCode(160);   // an option keeps no-break spaces (ordinary ones collapse)
+  const pad = (depth: number, folder: boolean) => NBSP.repeat(3 * depth) + (folder ? '📁' + NBSP : '');
   const current = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   const sel = $derived([...view.selected]);
   // Playlist insights (length, tempo, keys, tags): shown under a playlist's header; hideable.
@@ -195,8 +199,11 @@
           <button type="button" class="mini accent" id="auto-from" title={sel.length === 1 ? 'Generate a playlist that starts from this track' : 'Generate a playlist that includes all the selected tracks'} onclick={() => { const ordered = view.rows(app.keyNotation).map(r => r.t.id).filter(id => view.selected.has(id)); auto.show(ordered[0], ordered.slice(1)); }}>{sel.length === 1 ? 'Build playlist from this' : 'Build playlist with these ' + sel.length}</button>
           <select aria-label="Add to playlist" onchange={addTo}>
             <option value="">Add to playlist…</option>
-            {#each playlists as p (p.id)}<option value={p.id}>{lib.listPath(p)}</option>{/each}
             <option value="__new">+ New playlist…</option>
+            {#if targets.own.length}<optgroup label="Your playlists">{#each targets.own as e (e.list.id)}<option value={e.list.id}>{pad(e.depth, e.list.kind === 'folder')}{e.list.name}</option>{/each}</optgroup>{/if}
+            {#each targets.imports as g (g.top.id)}
+              <optgroup label={g.top.name + ' ↓ · replaced when you import it again'}>{#each g.entries as e (e.list.id)}<option value={e.list.id}>{pad(e.depth, e.list.kind === 'folder')}{e.list.name}</option>{/each}</optgroup>
+            {/each}
           </select>
           {#if current && (current.kind === 'playlist' || sel.some(id => current.items.includes(id)))}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from {current.kind === 'folder' ? 'folder' : 'playlist'}</button>{/if}
           {#if dock.available}

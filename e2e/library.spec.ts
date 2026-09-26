@@ -100,6 +100,10 @@ test('profile, collection, import, link folder, background analysis, playlists, 
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
   await page.locator('.tr', { hasText: 'aiff-44k-24' }).dragTo(page.locator('.lside .item', { hasText: 'Warm-up' }));
   await expect(page.locator('.notice')).toContainText('Added 1 track to Warm-up');
+  // "Add to playlist" lists them as the sidebar does (ADR 0062): the user's own, then each import.
+  await page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.c-title').click();
+  const groups = await page.locator('.selbar select[aria-label="Add to playlist"] optgroup').evaluateAll(gs => gs.map(g => [g.getAttribute('label'), [...g.querySelectorAll('option')].map(o => o.textContent!.replace(/ /g, ' ').trim())]));
+  expect(groups).toEqual([['Your playlists', ['Warm-up']], ['Rekordbox ↓ · replaced when you import it again', ['📁 Rekordbox', 'Friday']]]);
 
   // Everything is on disk: reload and it's all still there.
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
