@@ -113,8 +113,12 @@ an account GLUE works exactly as today, all local.
   and new ones are chosen with its dialog. With GLUE Home 0.4.0, or none, the website works as before.
 - Its incoming folder is a hidden music folder (id `incoming`) of the open collection, so songs sent
   to this computer are its own tracks. TO BE SORTED lists them; moving one keeps the same track.
-- Next: the writer lease and browser fallback, GLUE Home syncing with no tab, analysis in GLUE Home
-  (stages 3–5).
+- **When GLUE Home stops** (shipped 2026-09-26, part of stage 3): the open library carries on with the
+  browser's own GLUE folder and music folders, and goes back to GLUE Home when it runs again (checked
+  every 5 s); a banner asks for a click if the browser needs permission. The page waits at most 3 s
+  for GLUE Home at start-up.
+- Next: the writer lease and GLUE Home syncing with no tab (rest of stage 3), analysis in GLUE Home
+  (stage 4), clean-up (stage 5).
 
 ## Known issues (2026-09-26)
 - ~~A song sent to a computer is unanalysed there when that computer's collection already has it
@@ -124,8 +128,8 @@ an account GLUE works exactly as today, all local.
   2026-09-26: 4 of ~12 runs, never with a debugger attached. The release build ran 10 of 10 cleanly.
   Cause unknown; the suspects are native (WebView2 or the dev server's hot reload). Watch for it in
   release builds.
-- Until stage 3: if GLUE Home stops while the page is open, saves fail and are retried until it's back.
-  Outside Home mode, the tracks in the incoming folder can't be read.
+- Outside Home mode (GLUE Home stopped), the songs in the incoming folder can't be played: they say to
+  start GLUE Home.
 
 ## GLUE Home app (built 2026-09-25, [ADR 0044](../adr/0044-glue-home-tauri-tray-app.md))
 - **Install:** Devices › + GLUE Home shows the download for this OS (GitHub release

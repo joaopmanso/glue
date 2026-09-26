@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-24
+updated: 2026-09-26
 ---
 # GLUE vault
 
@@ -63,7 +63,8 @@ Planned (GLUE):
 [duplicates](features/duplicates.md) ·
 [profiles](features/profiles.md) ·
 [import: Serato](features/import-serato.md) ·
-[track detail](features/track-detail.md)
+[track detail](features/track-detail.md) ·
+[Prepare](features/prepare.md)
 
 ## ADR index
 | # | Decision | Status |
@@ -99,3 +100,24 @@ Planned (GLUE):
 | [0027](adr/0027-drag-out-with-downloadurl.md) | Dragging out to other apps uses Chromium's DownloadURL | accepted |
 | [0026](adr/0026-profile-backups-and-wipe.md) | Profile backups are zips; "delete all" removes only what GLUE made | accepted |
 | [0025](adr/0025-band-energy-fingerprints.md) | Band-energy fingerprints for "same recording", kept in the browser's cache (amends 0013) | accepted |
+| [0032](adr/0032-tags.md) | Tags as plain names on tracks and playlists; found tags stand in until edited | accepted |
+| [0033](adr/0033-tolerate-gentle-roll-offs.md) | Tolerate gentle top-end roll-offs; re-check stored verdicts when the rules change | accepted |
+| [0034](adr/0034-quiet-content-above-the-fade.md) | Count quiet content above a gentle fade (peak-hold reach) | accepted |
+| [0035](adr/0035-rename-to-glue.md) | Rename MCO to GLUE (Global Library Utility Exporter); keep internal identifiers | accepted (name spelled out by 0039) |
+| [0036](adr/0036-optional-accounts-and-cloud-signaling.md) | Optional accounts and a small free cloud service (Cloudflare) for devices and signaling | accepted; "no library data in the cloud" superseded by 0040 (opt-in cloud sync) |
+| [0037](adr/0037-p2p-webrtc-transport.md) | WebRTC data channels between the website and GLUE Home | proposed |
+| [0038](adr/0038-glue-home-app.md) | GLUE Home: a small Node.js/TypeScript app that serves the main computer's library | superseded by 0044 |
+| [0039](adr/0039-glue-unified.md) | GLUE stands for Global Library Unified Exporter | accepted |
+| [0040](adr/0040-cloud-sync-and-merged-collections.md) | Cloud sync of library data, merged collections, and edits that reach the owning device | accepted; partly superseded by 0042 (sync by default, automatic merge, merged collection in the library) |
+| [0041](adr/0041-passwords-tiers-admin.md) | Email + password accounts, user tiers, and an admin panel | accepted |
+| [0042](adr/0042-merged-collection-in-the-local-library.md) | Sync by default, merge by itself, and show the merged collection in this computer's library | accepted |
+| [0043](adr/0043-batched-sync-and-progressive-loading.md) | Sync many files per request, keep one copy file per device, and show songs as they arrive | accepted |
+| [0044](adr/0044-glue-home-tauri-tray-app.md) | GLUE Home is a Tauri tray app; the website sends songs to it over WebRTC | accepted; pairing and the device model refined by 0045 (companion, code only) |
+| [0045](adr/0045-glue-home-companion.md) | GLUE Home is the companion of the browser on its computer: code-only, streams its songs, updates itself | accepted |
+| [0046](adr/0046-glue-home-shares-analysis-and-sorts-incoming.md) | GLUE Home keeps and shares the analyses; TO BE SORTED lists its incoming folder | accepted |
+| [0047](adr/0047-stream-channel-requests-at-once.md) | Stream channel: requests at the same time, tagged bytes, time limits | accepted |
+| [0048](adr/0048-local-link-to-glue-home.md) | A local link to this computer's GLUE Home; songs analysed on arrival; one row per song | accepted |
+| [0049](adr/0049-folders-are-playlists.md) | Folders are playlists too (as in Engine DJ) | accepted |
+| [0050](adr/0050-glue-home-as-the-computers-library.md) | GLUE Home as the computer's library: saving and cloud sync move into it | superseded by 0051 |
+| [0051](adr/0051-glue-home-as-local-engine.md) | GLUE Home is the computer's disk and engine; the website stays at its public address | accepted |
+| [0052](adr/0052-prepare-tab.md) | A Prepare tab: waveform, beat grid, metronome and the user's corrections | accepted |
