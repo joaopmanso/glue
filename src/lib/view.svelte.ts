@@ -87,12 +87,7 @@ class View {
       else if (sel.kind === 'attention') tracks = tracks.filter(t => { const a = s.analysis.get(t.id); return a && (a.grade === 'bad' || a.grade === 'warn'); });
       else if (sel.kind === 'recent') { const cut = Date.now() - 30 * 864e5; tracks = tracks.filter(t => Date.parse(t.addedAt) >= cut); }
     }
-    const dj = new Map<string, { bpm: number | null; key: string | null; rating: number | null }>();
-    for (const src of s.sources.values()) for (const st of src.tracks) {
-      const cur = dj.get(st.trackId);
-      if (!cur) dj.set(st.trackId, { bpm: st.bpm, key: st.key, rating: st.rating || null });
-      else { cur.bpm ??= st.bpm; cur.key ??= st.key; cur.rating ??= st.rating || null; }
-    }
+    const dj = lib.djIndex();
     let rows: Row[] = tracks.map((t, n) => ({ t, a: s.analysis.get(t.id) ?? null, n, dj: dj.get(t.id) ?? null }));
     if (!opts.unfiltered && this.filtering) {
       const active = FILTER_GROUPS.filter(({ g }) => g !== opts.except && this.filters[g].length);

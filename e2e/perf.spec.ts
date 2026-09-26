@@ -68,6 +68,30 @@ const timed = (loc: Locator, what: 'click' | 'dblclick' = 'click') => loc.evalua
 }, what);
 const perf = <T>(page: Page, fn: string, ...args: unknown[]) => page.evaluate(([fn, args]) => (window as unknown as { __gluePerf: Record<string, (...a: unknown[]) => unknown> }).__gluePerf[fn as string](...(args as unknown[])), [fn, args] as const) as Promise<T>;
 
+/** A GLUE folder (path → text), served to the page and written into its private storage as "MCO". */
+async function seedFolder(page: Page, bundle: string) {
+  await page.route('**/__synth/bundle', r => r.fulfill({ status: 200, contentType: 'application/json', body: bundle }));
+  await page.goto('./?perf#/analyze');
+  await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    for (const name of ['MCO', 'Music', 'cache']) await root.removeEntry(name, { recursive: true }).catch(() => {});
+    await new Promise(r => { const q = indexedDB.deleteDatabase('mco'); q.onsuccess = q.onerror = r; });
+    const files = await (await fetch('./__synth/bundle')).json() as [string, string][];
+    const home = await root.getDirectoryHandle('MCO', { create: true });
+    const dirs = new Map<string, FileSystemDirectoryHandle>();
+    const dirOf = async (parts: string[]) => {
+      let d = home, key = '';
+      for (const p of parts) { key += '/' + p; let h = dirs.get(key); if (!h) dirs.set(key, h = await d.getDirectoryHandle(p, { create: true })); d = h; }
+      return d;
+    };
+    for (const [path, text] of files) {
+      const parts = path.split('/'), name = parts.pop()!;
+      const w = await (await (await dirOf(parts)).getFileHandle(name, { create: true })).createWritable();
+      await w.write(text); await w.close();
+    }
+  });
+}
+
 for (const n of SIZES) {
   test(`a library of ${n} tracks: open, switch, sort, search, scroll, background changes`, async ({ page }) => {
     test.setTimeout(900_000);
@@ -76,26 +100,7 @@ for (const n of SIZES) {
     const syn = synthetic(n, 1);
     const bundle = JSON.stringify([...syn.files]);
     note(g, 'jsonMB', Math.round(bundle.length / 1e5) / 10);
-    await page.route('**/__synth/bundle', r => r.fulfill({ status: 200, contentType: 'application/json', body: bundle }));
-    await page.goto('./?perf#/analyze');
-    await page.evaluate(async () => {
-      const root = await navigator.storage.getDirectory();
-      for (const name of ['MCO', 'Music', 'cache']) await root.removeEntry(name, { recursive: true }).catch(() => {});
-      await new Promise(r => { const q = indexedDB.deleteDatabase('mco'); q.onsuccess = q.onerror = r; });
-      const files = await (await fetch('./__synth/bundle')).json() as [string, string][];
-      const home = await root.getDirectoryHandle('MCO', { create: true });
-      const dirs = new Map<string, FileSystemDirectoryHandle>();
-      const dirOf = async (parts: string[]) => {
-        let d = home, key = '';
-        for (const p of parts) { key += '/' + p; let h = dirs.get(key); if (!h) dirs.set(key, h = await d.getDirectoryHandle(p, { create: true })); d = h; }
-        return d;
-      };
-      for (const [path, text] of files) {
-        const parts = path.split('/'), name = parts.pop()!;
-        const w = await (await (await dirOf(parts)).getFileHandle(name, { create: true })).createWritable();
-        await w.write(text); await w.close();
-      }
-    });
+    await seedFolder(page, bundle);
 
     // Open: from choosing the folder to the first rows on screen.
     await page.goto('./?perf#/');
@@ -221,4 +226,91 @@ test('playback: drawing per frame on the track page and the Prepare tab', async 
   await measure('Prepare deck');
   await page.locator('label.kl', { hasText: '3D' }).locator('input').check();
   await measure('Prepare deck + 3D');
+});
+
+/* PERF_FOLDER=<a GLUE folder>: a copy of a real library (its JSON files only: no audio, no cloud
+   copies), opened here and clicked through step by step, to find what makes it slow. The folder
+   itself is only read. */
+test('a real GLUE folder, step by step', async ({ page }) => {
+  const folder = process.env.PERF_FOLDER;
+  test.skip(!folder, 'PERF_FOLDER=<path to a GLUE folder>');
+  test.setTimeout(900_000);
+  const { readdirSync, statSync } = await import('node:fs');
+  const files: [string, string][] = [];
+  const walk = (dir: string, rel: string) => {
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name), r = rel ? rel + '/' + name : name;
+      if (statSync(p).isDirectory()) { if (rel || name === 'profiles') walk(p, r); }
+      else if (name.endsWith('.json') && (rel || name === 'mco.json')) files.push([r, readFileSync(p, 'utf8')]);
+    }
+  };
+  walk(folder!, '');
+  const bundle = JSON.stringify(files);
+  const g = 'real folder';
+  note(g, 'files', files.length);
+  note(g, 'jsonMB', Math.round(bundle.length / 1e5) / 10);
+  await seedFolder(page, bundle);
+  await page.goto('./?perf#/');
+  const t0 = Date.now();
+  await page.click('#choose-home');
+  await expect(page.locator('.tr').first()).toBeVisible({ timeout: 120_000 });
+  note(g, 'open', Date.now() - t0);
+  await page.waitForTimeout(3000);   // start-up work settles
+
+  // Each step: its time to the next paint, and any long frame it caused (with its script).
+  type Long = { at: number; ms: number; scripts: string[] };
+  const steps: { step: string; ms: number; long?: string }[] = [];
+  const longSince = async (before: number) => (await perf<Long[]>(page, 'long')).slice(before).map(l => Math.round(l.ms) + 'ms ' + (l.scripts[0] ?? '')).join(' | ');
+  const step = async (name: string, loc: Locator, what: 'click' | 'dblclick' = 'click') => {
+    if (!await loc.count()) { steps.push({ step: name + ' (not found)', ms: 0 }); return; }
+    const before = (await perf<Long[]>(page, 'long')).length;
+    const ms = await timed(loc.first(), what);
+    await page.waitForTimeout(400);
+    const long = await longSince(before);
+    steps.push({ step: name, ms: Math.round(ms), ...(long ? { long } : {}) });
+    if (name === 'view Duplicates') {
+      note(g, 'duplicateGroups', await page.locator('.grp').count());
+      for (let i = 0; i < 4; i++) { await page.locator('#dupes').evaluate(el => { el.scrollTop = el.scrollHeight; }); await page.waitForTimeout(300); }
+      note(g, 'duplicateGroupsAfterScroll', await page.locator('.grp').count());
+    }
+  };
+  const side = (text: string) => page.locator('.lside .item', { hasText: text }).first();
+  for (const name of ['All tracks', 'Recently added', 'Needs attention', 'Not analysed yet', 'No file linked', 'Duplicates', 'All tracks']) await step('view ' + name, side(name));
+  // Every folder and playlist in the tree, opening folders as they come (up to 60).
+  const seen = new Set<string>();
+  for (let round = 0; round < 60; round++) {
+    const items = page.locator('.lside .tree .item[data-drop="list"]');
+    let next: Locator | null = null, label = '';
+    for (let i = 0; i < await items.count(); i++) {
+      const it = items.nth(i), id = await it.getAttribute('data-id') ?? '';
+      if (!seen.has(id)) { seen.add(id); next = it; label = ((await it.locator('.name').textContent()) ?? '').trim() + ' (' + ((await it.locator('.n').textContent().catch(() => '')) ?? '').trim() + ')'; break; }
+    }
+    if (!next) break;
+    await step('list ' + label, next.locator('.name'));
+  }
+  const tags = page.locator('.lside .taglist .item');
+  for (let i = 0; i < Math.min(5, await tags.count()); i++) await step('tag ' + ((await tags.nth(i).textContent()) ?? '').trim().slice(0, 30), tags.nth(i));
+  await step('view All tracks', side('All tracks'));
+  const heads = page.locator('.thead .th .sortb');
+  for (let i = 0; i < await heads.count(); i++) {
+    const b = heads.nth(i), title = (await b.getAttribute('title')) ?? '';
+    if (title.startsWith('Sort by')) await step('sort ' + title.slice(8).split(' ·')[0], b);
+  }
+  const search = page.getByRole('searchbox', { name: 'Search tracks' });
+  for (const q of ['a', 'am', 'ama', 'house']) {
+    const before = (await perf<Long[]>(page, 'long')).length;
+    const ms = await search.evaluate(async (el, v) => { const input = el as HTMLInputElement, t0 = performance.now(); input.value = v; input.dispatchEvent(new Event('input', { bubbles: true })); await (window as unknown as { __gluePerf: { afterPaint(): Promise<number> } }).__gluePerf.afterPaint(); return performance.now() - t0; }, q);
+    const long = await longSince(before);
+    steps.push({ step: 'search "' + q + '"', ms: Math.round(ms), ...(long ? { long } : {}) });
+  }
+  await search.fill('');
+  await step('open a track page', page.locator('.tr .c-title').first(), 'dblclick');
+  await step('Prepare tab', page.locator('#tab-prepare'));
+  await step('back to the library', page.locator('.crumbs a').first());
+  await step('open Auto playlist', page.locator('.lside button', { hasText: 'Auto' }).first());
+  await step('make the auto playlist', page.locator('form.opts button[type="submit"]').first());
+  note(g, 'slowest', [...steps].sort((a, b) => b.ms - a.ms).slice(0, 12));
+  note(g, 'steps', steps);
+  const st = await perf<Record<string, Stat>>(page, 'stats');
+  note(g, 'stats', Object.fromEntries(Object.entries(st).filter(([k]) => !k.startsWith('input:')).map(([k, v]) => [k, { n: v.n, avg: Math.round(v.total / v.n), max: Math.round(v.max) }])));
 });

@@ -45,6 +45,23 @@
   const strength = (sim: number) => sim >= 0.8 ? 'Near-identical audio' : sim >= 0.6 ? 'Strong match by sound' : 'Matched by sound';
   const listsOf = (id: string) => { void lib.version; return lib.listsContaining(id).filter(l => l.kind === 'playlist'); };
 
+  // Drawn a part at a time (a big collection has hundreds of groups, and drawing them all at once
+  // held the page for half a second): the first ones, then more as the end comes near.
+  const STEP = 60;
+  let limit = $state(40), more = $state<HTMLElement>();
+  const sameShown = $derived(same.slice(0, limit));
+  const probableShown = $derived(probable.slice(0, Math.max(0, limit - same.length)));
+  const devicesShown = $derived(devices.slice(0, Math.max(0, limit - same.length - probable.length)));
+  const hidden = $derived(same.length + probable.length + devices.length - limit);
+  $effect(() => {
+    const el = more;
+    void limit;   // observed again after each step: still in view means more at once
+    if (!el) return;
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) limit += STEP; }, { rootMargin: '800px' });
+    io.observe(el);
+    return () => io.disconnect();
+  });
+
   // Opened from a track's "2×": its group in the middle of the view, the track highlighted a moment.
   let focused = $state<string | null>(null), box: HTMLElement;
   $effect(() => {
@@ -52,6 +69,9 @@
     if (!id) return;
     view.focusDupe = null;
     focused = id;
+    // Its group drawn first, if it's further down than what's shown.
+    const at = [...same, ...probable].findIndex(g => g.ids.includes(id));
+    if (at >= limit) limit = at + 10;
     void tick().then(() => box?.querySelector(`[data-track="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center' }));
     const t = setTimeout(() => { if (focused === id) focused = null; }, 2500);
     return () => clearTimeout(t);
@@ -114,14 +134,14 @@
     <p class="note" id="dupes-missing">{dupes.missing.toLocaleString()} analysed song{dupes.missing === 1 ? ' has' : 's have'} no fingerprint in this browser (analysed in another browser or on another computer). {dupes.filling ? 'Making them now: ' + dupes.filled.toLocaleString() + ' done…' : 'They’re made in the background as the files can be read.'} Duplicates among them show as they're done.</p>
   {/if}
   {#if pending}<p class="note">{pending} track{pending === 1 ? '' : 's'} still being analysed; duplicates among them appear when they’re done.</p>{/if}
-  {#each same as g (g.key)}{@render group(g)}{/each}
-  {#if probable.length}
+  {#each sameShown as g (g.key)}{@render group(g)}{/each}
+  {#if probableShown.length}
     <h3 class="label">Check these</h3>
-    {#each probable as g (g.key)}{@render group(g)}{/each}
+    {#each probableShown as g (g.key)}{@render group(g)}{/each}
   {/if}
-  {#if devices.length}
+  {#if devicesShown.length}
     <h3 class="label" id="dupes-devices">On more than one device <small>{devices.length.toLocaleString()} song{devices.length === 1 ? '' : 's'}</small></h3>
-    {#each devices as d (d.id)}
+    {#each devicesShown as d (d.id)}
       <section class="grp" data-kind="devices">
         <header>
           <span class="kind devs">Same song</span><span class="sim">on {d.copies.map(c => c.device).join(' and ')}</span>
@@ -144,10 +164,12 @@
       </section>
     {/each}
   {/if}
+  {#if hidden > 0}<p class="more" bind:this={more}>{hidden.toLocaleString()} more…</p>{/if}
   {#if !dupes.groups.length && !devices.length && !dupes.running}<p class="empty">No duplicates found.</p>{/if}
 </div>
 
 <style>
+  .more { color: var(--muted); font-size: 12.5px; padding: 8px 2px; }
   .dv { display: grid; gap: 12px; align-content: start; overflow-y: auto; min-height: 0; padding-right: 4px; }
   .intro { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; color: var(--ink-2); font-size: 13px; }
   .intro p { max-width: 900px; }

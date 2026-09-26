@@ -10,6 +10,7 @@ import { jobOf } from './audioJob';
 import type { Fingerprint } from '../core/audio/fingerprint';
 import type { Match } from '../core/library/duplicates';
 import { groupMatches } from '../core/library/duplicates';
+import { time } from '../core/perf';
 import type { DupReply, DupRequest } from '../workers/duplicates.worker';
 import type { AnalysisSummary, Track } from '../store/types';
 
@@ -61,7 +62,7 @@ class Dupes {
       this.toFill = without; this.missing = without.length;
       const matches = tracks.length > 1 ? await this.match(tracks) : [];
       if (lib.store !== s) return;
-      this.groups = this.build(matches);
+      this.groups = time('dupes.build', () => this.build(matches));
       this.at = Date.now();
     } catch (e) { console.warn('Duplicate scan failed', e); }
     finally { this.running = false; }
@@ -69,11 +70,13 @@ class Dupes {
   }
 
   /** Make the missing fingerprints, one song at a time (just the fingerprint, not a full analysis),
-      looking for duplicates again every so often and at the end. */
+      looking for duplicates again every 100 made and at the end. Only when some were made: songs whose
+      file can't be read now stay without one, and must not start the scan over and over. */
   private async fill() {
     const s = lib.store, dir = await cacheDir();
     if (!s || !dir || this.filling) return;
     this.filling = true; this.filled = 0;
+    let made = 0;
     try {
       for (const id of this.toFill) {
         if (lib.store !== s) return;
@@ -85,13 +88,14 @@ class Dupes {
           await writeFingerprint(dir, s.meta.id, id, fp);
           const a = s.analysis.get(id);
           if (a && !a.fp) s.putAnalysis(id, { ...a, fp: true });
+          made++;
         } catch (e) { console.warn('Couldn’t fingerprint', t.fileName, e); }
         this.filled++;
-        if (this.filled % 100 === 0) { this.toFill = []; this.filling = false; await this.scan(); return; }
+        if (made && made % 100 === 0) { this.toFill = []; this.filling = false; await this.scan(); return; }
       }
       this.toFill = [];
     } finally { this.filling = false; }
-    await this.scan();
+    if (made) await this.scan();
   }
 
   private match(tracks: { id: string; fp: Fingerprint }[]): Promise<Match[]> {

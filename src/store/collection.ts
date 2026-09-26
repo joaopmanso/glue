@@ -33,6 +33,9 @@ export class CollectionStore {
   /** Tracks, analyses and lists shown here but owned by another device (ADR 0042): kept in memory,
       never written to this collection's files. */
   readonly ephemeral = new Set<string>();
+  /** Changes counted by kind (ADR 0059): what's built from one part (DJ values from the imports,
+      playlist membership from the lists) is rebuilt only when that part changed. */
+  readonly rev = { tracks: 0, analysis: 0, lists: 0, sources: 0 };
 
   /** `root` changes when the library moves between GLUE Home's disk and the browser's (ADR 0051). */
   private constructor(public root: Dir, readonly base: string, public meta: Collection) {}
@@ -69,29 +72,52 @@ export class CollectionStore {
   private changed() { this.onChange?.(); }
 
   saveMeta() { this.mark('collection.json'); this.changed(); }
-  putTrack(t: Track) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); this.changed(); }
-  putTracks(ts: Track[]) { for (const t of ts) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); } this.changed(); }
+  putTrack(t: Track) { this.tracks.set(t.id, t); this.rev.tracks++; if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); this.changed(); }
+  putTracks(ts: Track[]) { for (const t of ts) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); } this.rev.tracks++; this.changed(); }
   removeTrack(id: string) {
     if (this.ephemeral.has(id)) return;   // another device's track: removed there, not here
-    this.tracks.delete(id); this.analysis.delete(id);
+    this.tracks.delete(id); this.analysis.delete(id); this.rev.tracks++; this.rev.analysis++;
     this.mark(`tracks/${shardOf(id)}.json`); this.mark(`analysis/${shardOf(id)}.json`);
     for (const l of this.lists.values()) if (l.items.includes(id)) this.putList({ ...l, items: l.items.filter(x => x !== id) });
     this.changed();
   }
-  putAnalysis(id: string, a: AnalysisSummary) { this.analysis.set(id, a); if (!this.ephemeral.has(id)) this.mark(`analysis/${shardOf(id)}.json`); this.changed(); }
-  putList(l: List) { this.lists.set(l.id, l); if (!this.ephemeral.has(l.id)) this.mark(`lists/${l.id}.json`); this.changed(); }
+  putAnalysis(id: string, a: AnalysisSummary) { this.analysis.set(id, a); this.rev.analysis++; if (!this.ephemeral.has(id)) this.mark(`analysis/${shardOf(id)}.json`); this.changed(); }
+  putList(l: List) { this.lists.set(l.id, l); this.rev.lists++; if (!this.ephemeral.has(l.id)) this.mark(`lists/${l.id}.json`); this.changed(); }
   deleteList(id: string) {
     const doomed = [id];
     for (let i = 0; i < doomed.length; i++) for (const l of this.lists.values()) if (l.parentId === doomed[i]) doomed.push(l.id);
+    this.rev.lists++;
     for (const d of doomed) { this.lists.delete(d); if (this.ephemeral.has(d)) continue; this.dirty.delete(`lists/${d}.json`); this.deleted.add(`lists/${d}.json`); }
     this.onDirty?.(); this.changed();
   }
-  putSource(s: Source) { this.sources.set(s.id, s); this.mark(`sources/${s.id}.json`); this.changed(); }
+  putSource(s: Source) { this.sources.set(s.id, s); this.rev.sources++; this.mark(`sources/${s.id}.json`); this.changed(); }
   deleteSource(id: string) {
-    this.sources.delete(id);
+    this.sources.delete(id); this.rev.sources++;
     this.dirty.delete(`sources/${id}.json`); this.deleted.add(`sources/${id}.json`);
     this.onDirty?.(); this.changed();
   }
+
+  // ─── Shown here, not saved (ADR 0042 other devices' songs, ADR 0051 TO BE SORTED) ───────────
+  // These don't count as the user's changes (no onChange: nothing to sync); the caller refreshes the view.
+  /** Show tracks, analyses and lists owned elsewhere: in memory only, never written. */
+  putShown(tracks: Iterable<Track>, lists: Iterable<List>, analysis?: Iterable<[string, AnalysisSummary]>) {
+    for (const t of tracks) { this.ephemeral.add(t.id); this.tracks.set(t.id, t); }
+    for (const [id, a] of analysis ?? []) this.analysis.set(id, a);
+    for (const l of lists) { this.ephemeral.add(l.id); this.lists.set(l.id, l); }
+    this.rev.tracks++; this.rev.analysis++; this.rev.lists++;
+  }
+  /** Take shown tracks, analyses and lists away again. */
+  dropShown(ids: Iterable<string>) {
+    for (const id of ids) { this.tracks.delete(id); this.analysis.delete(id); this.lists.delete(id); this.ephemeral.delete(id); }
+    this.rev.tracks++; this.rev.analysis++; this.rev.lists++;
+  }
+  /** One of this collection's lists, shown with other items (other devices' songs) without saving that. */
+  showItems(id: string, items: string[]) {
+    const l = this.lists.get(id);
+    if (l) { this.lists.set(id, { ...l, items }); this.rev.lists++; }
+  }
+  /** Tracks were changed in place (which devices have them): indexes over tracks must be rebuilt. */
+  touchTracks() { this.rev.tracks++; }
 
   get hasPending() { return this.dirty.size > 0 || this.deleted.size > 0; }
 

@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-25
+updated: 2026-09-26
 adrs: [0029, 0032, 0025, 0006]
 ---
 # Automatic playlists
@@ -32,3 +32,9 @@ harmonically, favouring the highest rated tracks, with some chance so every run 
 ## Later
 - Avoid songs played in recent shows / sessions ([shows & sessions](shows-sessions.md)); the
   options are stored on each generated playlist for that and for "generate again".
+
+## Speed (2026-09-26, [ADR 0059](../adr/0059-indexes-rebuilt-by-change-counters.md))
+- Each track's DJ-app BPM and rating come from an index built once per import change. Before, every
+  import's track list was searched per track, so opening the dialog took 2.2 s on an 8.8k library,
+  and every library change re-ran it while the dialog was open.
+- Now 0.1 s to open and 0.14 s to generate (candidates 9 ms, the generator 94 ms).

@@ -65,3 +65,12 @@ them at the best copy.
   time, and checks again every 100 songs and at the end. Duplicates shows "N analysed songs have no
   fingerprint in this browser … making them now".
 - e2e: deleting the browser's fingerprints brings the note up, and the group back.
+
+## Speed (2026-09-26, [ADR 0059](../adr/0059-indexes-rebuilt-by-change-counters.md))
+- The view draws 40 groups, then 60 more each time its end comes near. The user's library has 421
+  groups, and drawing them all held the page for 0.8 s. A track's "2×" draws down to its group first.
+- "In N playlists" comes from an index of playlists by track, not from searching every playlist
+  three times per row.
+- **Fixed:** analysed songs with no fingerprint whose file couldn't be read (a folder not connected,
+  a missing file) made the scan and the fingerprint filling start each other over and over. They
+  rescan now only when a fingerprint was made.

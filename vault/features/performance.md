@@ -20,6 +20,8 @@ the address shows the numbers on screen, so anyone can check their own collectio
   - drawing per frame;
   - long frames;
   - the last slow clicks and keys.
+- The report keeps only real clicks and keys, and matches each long frame with the interaction it
+  answered and where the page was.
 - **Reset** starts counting again. **Copy** puts the full report on the clipboard, to paste into a
   message.
 - Without `?perf`, nothing is measured.
@@ -29,7 +31,9 @@ the address shows the numbers on screen, so anyone can check their own collectio
   `window.__gluePerf`) and the panel: [ADR 0058](../adr/0058-performance-budgets.md).
 - The plan, in phases: [ADR 0057](../adr/0057-keep-the-stack-fix-the-architecture.md).
   0. Measure. **Shipped 2026-09-26.**
-  1. Data pipeline.
+  1. Data pipeline. First step **shipped 2026-09-26**: change counters and indexes
+     ([ADR 0059](../adr/0059-indexes-rebuilt-by-change-counters.md)), which fixed the Auto dialog
+     (2.2 s → 0.1 s) and Duplicates (0.8 s → under 0.1 s) on the user's library.
   2. GPU drawing.
   3. Analysis off the main thread.
   4. The phone web app ([phone app](phone-app.md)).
@@ -43,7 +47,10 @@ the address shows the numbers on screen, so anyone can check their own collectio
 ## Tests
 - `tests/synthetic.test.ts`: the synthetic GLUE folder loads through the real store and is the same
   for the same seed.
-- `e2e/perf.spec.ts`: `PERF=1`; `PERF_SIZES`, and `PERF_BUDGET=1` to enforce. Results go to
+- `e2e/perf.spec.ts`: `PERF=1`; `PERF_SIZES`, and `PERF_BUDGET=1` to enforce.
+  `PERF_FOLDER=<GLUE folder>` opens a copy of a real library's JSON files (only read) and clicks
+  through every view, list, tag, sort and search, the track page and the Auto dialog, listing the
+  slowest steps. Results go to
   `test-results/perf.json`, baselines to [research/performance.md](../research/performance.md).
 
 ## Limits & open questions

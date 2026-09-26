@@ -18,6 +18,7 @@ import { SCHEMA, shardOf, type Profile } from '../store/types';
 import { apply, baseline, diff, type Baseline, type EditOp } from '../core/library/cloudEdits';
 import { mergeCollections, translate, type Merged, type MemberData } from '../core/library/mergeCollections';
 import { buildOverlay, overlayOps, type Overlay } from '../core/library/overlay';
+import { time } from '../core/perf';
 
 export interface RemoteProfile {
   device: { id: string; name: string; kind: string }; profile: { id: string; name: string; color: string | null };
@@ -351,8 +352,8 @@ class CloudSync {
     if (!this.others.length) { if (this.overlay) { this.overlay = null; lib.applyOverlay(null); } return; }
     const own = lib.ownTracks();
     const local: MemberData = { device: { id: this.meId, name: this.deviceName(this.meId) }, profile: p.id, collection: s.meta.id, meta: s.meta, tracks: own, analysis: s.analysis, lists: lib.ownLists(), sources: [] };
-    const o = buildOverlay(local, this.others, g);
-    lib.applyOverlay(o, [local.device.name, ...new Set(this.others.map(d => d.device.name))]);
+    const o = time('sync.buildOverlay', () => buildOverlay(local, this.others, g));
+    time('sync.applyOverlay', () => lib.applyOverlay(o, [local.device.name, ...new Set(this.others.map(d => d.device.name))]));
     this.overlay = o; this.ownCount = own.length;
     this.overlayBase = baseline(s.tracks.values(), s.lists.values());
   }
@@ -502,7 +503,7 @@ class CloudSync {
       data.push({ device: { id: m.device, name: r.device.name }, profile: m.profile, collection: m.collection, meta: s.meta, tracks: [...s.tracks.values()], analysis: s.analysis, lists: [...s.lists.values()], sources: [...s.sources.values()] });
     }
     if (!data.length) throw new Error('None of this collection’s devices has synced yet.');
-    const mg = mergeCollections(data, g);
+    const mg = time('sync.mergeCollections', () => mergeCollections(data, g));
     const dir = new MemDir(), base = 'profiles/merged/collections/' + mg.meta.id;
     await dir.put(base + '/collection.json', JSON.stringify(mg.meta));
     const shard = <T,>(items: [string, T][], folder: string) => {

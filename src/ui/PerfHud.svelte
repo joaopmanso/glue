@@ -16,7 +16,7 @@
     stats = perfStats();
     const gaps = perf.gaps.slice(-600), work = perf.work.slice(-600);   // about the last 10 s
     recent = { drawP95: pct(work, 95), over50: gaps.filter(g => g > 50).length, gapMax: Math.max(0, ...gaps) };
-    slow = perf.events.slice(-5).reverse();
+    slow = perf.events.filter(e => e.ms >= 40).slice(-5).reverse();
   }
   onMount(() => { refresh(); const t = setInterval(refresh, 500); return () => clearInterval(t); });
 
@@ -24,8 +24,7 @@
   const line = (k: string) => { const s = stats[k]; return s ? `${ms(s.last)} ms (avg ${ms(s.total / s.n)}, max ${ms(s.max)}, ×${s.n})` : '–'; };
 
   async function copy() {
-    const report = { at: new Date().toISOString(), ua: navigator.userAgent, stats: perfStats(), summary: perf.summary(), long: perf.long.slice(-20), events: perf.events.slice(-40) };
-    try { await navigator.clipboard.writeText(JSON.stringify(report, null, 1)); copied = true; setTimeout(() => { copied = false; }, 1500); } catch { /* no clipboard */ }
+    try { await navigator.clipboard.writeText(JSON.stringify(perf.report(), null, 1)); copied = true; setTimeout(() => { copied = false; }, 1500); } catch { /* no clipboard */ }
   }
 </script>
 

@@ -5,6 +5,28 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · Auto playlists and Duplicates fast again; change counters and indexes (M7 phase 1, step 1)
+From the user's `?perf` report, and the same library clicked through from a copy of its folder
+([ADR 0059](../adr/0059-indexes-rebuilt-by-change-counters.md)):
+- **The Auto playlist builder:**
+  - opening it went from 2.2 s to 0.1 s, generating from 0.67 s to 0.14 s;
+  - cause: every track's DJ BPM and rating came from searching every import;
+  - it also recomputed on every library change while open.
+- **Duplicates:**
+  - it opens in under 0.1 s (was 0.8 s);
+  - it draws 40 groups, then more as you scroll;
+  - "in N playlists" comes from an index.
+- **Fixed:** an endless duplicate-scan loop when analysed songs had no fingerprint and no readable
+  file.
+- **Under the hood:** the store counts changes by kind (including other devices' songs and TO BE
+  SORTED, now set through store methods). Indexes of DJ values and playlist membership are rebuilt
+  only when their part changed.
+- **`?perf`:**
+  - the report now names the click behind each long frame and where the page was, without the
+    mouse-movement noise;
+  - `PERF_FOLDER` measures a real library step by step.
+- Tests: 140 unit (+3 indexes and change counters); e2e 38.
+
 ## 2026-09-26 · Stack review; performance budgets and `?perf` (M7 phase 0)
 - **Stack review** ([ADR 0057](../adr/0057-keep-the-stack-fix-the-architecture.md)):
   - GLUE keeps Svelte, TypeScript, Vite and Tauri; no React Native.

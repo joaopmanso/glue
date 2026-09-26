@@ -5,6 +5,7 @@ import { dupes } from './dupes.svelte';
 import { generate, replaceSlot, type AutoOptions, type Candidate, type Harmonic, type Slot } from '../core/library/autoplaylist';
 import type { Track } from '../store/types';
 import { tagsOf, uniqTags } from '../core/library/tagging';
+import { time } from '../core/perf';
 
 export interface AutoForm {
   seedId: string | null; include: string[]; avoidLists: string[];
@@ -25,17 +26,12 @@ class Auto {
   name = $state('');
   private seed = Math.floor(Math.random() * 1e9);
 
-  private ratingOf(t: Track): number | null {
-    if (t.rating != null) return t.rating;
-    for (const s of lib.store?.sources.values() ?? []) { const st = s.tracks.find(x => x.trackId === t.id); if (st?.rating) return st.rating; }
-    return null;
-  }
+  private ratingOf(t: Track): number | null { return t.rating ?? lib.djOf(t.id)?.rating ?? null; }
   private bpmOf(t: Track): number | null {
     const a = lib.store?.analysis.get(t.id);
     if (t.prep?.bpm) return t.prep.bpm;   // the user's correction (Prepare)
     if (a?.bpm) return a.bpm;
-    for (const s of lib.store?.sources.values() ?? []) { const st = s.tracks.find(x => x.trackId === t.id); if (st?.bpm) return st.bpm; }
-    return null;
+    return lib.djOf(t.id)?.bpm ?? null;
   }
   defaults(seedId: string | null): AutoForm {
     const t = seedId ? lib.store?.tracks.get(seedId) : null, bpm = t ? this.bpmOf(t) : null;
@@ -101,7 +97,7 @@ class Auto {
     };
   }
   run() {
-    const pool = this.candidates(), r = generate(pool, this.form.seedId, this.form.include, this.options());
+    const pool = time('auto.candidates', () => this.candidates()), r = time('auto.generate', () => generate(pool, this.form.seedId, this.form.include, this.options()));
     this.slots = r.slots; this.relaxed = r.relaxed; this.pool = r.pool;
     this.empty = r.slots.length ? '' : pool.length ? 'No track fits these settings. Try a wider tempo range, harmonic mixing “Prefer”, or a lower minimum rating.' : this.form.useTags && (this.form.tagMode === 'only' || this.form.avoidTags.length) ? 'No tracks have these tags (or all have a tag to avoid). Try “Prefer” instead of “Only”, or fewer tags to avoid.' : 'No tracks can be used yet: they need a file and an analysis. Wait for the analysis, turn it on, or allow tracks not analysed yet.';
   }

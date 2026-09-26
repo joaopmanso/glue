@@ -129,3 +129,4 @@ Planned (GLUE):
 | [0056](adr/0056-playlists-drag-with-the-browser.md) | Playlists drag with the browser's drag-and-drop, so they can be dropped on the drag dock | accepted |
 | [0057](adr/0057-keep-the-stack-fix-the-architecture.md) | Keep Svelte, TypeScript, Vite and Tauri; fix how GLUE uses them (no React Native) | accepted |
 | [0058](adr/0058-performance-budgets.md) | Performance budgets, measured on a synthetic collection | accepted |
+| [0059](adr/0059-indexes-rebuilt-by-change-counters.md) | Indexes over the collection, rebuilt by per-kind change counters | accepted |

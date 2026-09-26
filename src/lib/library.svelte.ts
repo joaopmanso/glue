@@ -1,7 +1,10 @@
 /* The library: GLUE folder → profile → collection, kept in memory and written back to JSON files.
    Components read `lib.version` to re-derive views after any change. */
 import { HomeStore } from '../store/home';
-import { record, timeAsync } from '../core/perf';
+import { record, time, timeAsync } from '../core/perf';
+import { djValues, listsByTrack, type DjValues } from '../core/library/indexes';
+
+const NO_DJ = new Map<string, DjValues>(), NO_LISTS = new Map<string, List[]>();
 import { CollectionStore } from '../store/collection';
 import { LOOSE, applyImport, applyScan, blankLibTrack, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
@@ -330,23 +333,24 @@ class Library {
     this.copies = o?.copies ?? new Map();
     this.dropGroup('overlay');
     for (const t of s.tracks.values()) if (t.onDevices && !s.ephemeral.has(t.id)) delete t.onDevices;
+    s.touchTracks();
     for (const [id, b] of this.overlayBase) {
       const l = s.lists.get(id);   // unless it was edited meanwhile (then it's saved with them)
-      if (l && l.items.join() === b.shown.join()) s.lists.set(id, { ...l, items: b.before });
+      if (l && l.items.join() === b.shown.join()) s.showItems(id, b.before);
     }
     this.overlayBase.clear();
     if (o) {
       const mine = this.group('overlay');
-      for (const t of o.tracks) { s.ephemeral.add(t.id); mine.add(t.id); s.tracks.set(t.id, t); }
-      for (const [id, a] of o.analysis) s.analysis.set(id, a);
-      for (const l of o.lists) { s.ephemeral.add(l.id); mine.add(l.id); s.lists.set(l.id, l); }
+      for (const t of o.tracks) mine.add(t.id);
+      for (const l of o.lists) mine.add(l.id);
+      s.putShown(o.tracks, o.lists, o.analysis);
       for (const [id, devs] of o.onDevices) { const t = s.tracks.get(id); if (t) t.onDevices = devs; }
       for (const [id, extra] of o.extraItems) {
         const l = s.lists.get(id);
         if (!l) continue;
         const shown = [...l.items, ...extra];
         this.overlayBase.set(id, { before: l.items, shown });
-        s.lists.set(id, { ...l, items: shown });
+        s.showItems(id, shown);
       }
     }
     this.version++;
@@ -358,7 +362,7 @@ class Library {
   private dropGroup(key: string) {
     const s = this.store, g = this.groups.get(key);
     if (!s || !g) return;
-    for (const id of g) { s.tracks.delete(id); s.analysis.delete(id); s.lists.delete(id); s.ephemeral.delete(id); }
+    s.dropShown(g);
     g.clear();
   }
   /** Show tracks and lists that aren't this collection's own (never saved). */
@@ -367,9 +371,9 @@ class Library {
     if (!s || this.cloud) return;
     this.dropGroup(key);
     const g = this.group(key);
-    for (const t of tracks) { s.ephemeral.add(t.id); g.add(t.id); s.tracks.set(t.id, t); }
-    for (const [id, a] of analysis ?? []) s.analysis.set(id, a);
-    for (const l of lists) { s.ephemeral.add(l.id); g.add(l.id); s.lists.set(l.id, l); }
+    for (const t of tracks) g.add(t.id);
+    for (const l of lists) g.add(l.id);
+    s.putShown(tracks, lists, analysis);
     this.version++;
   }
   /** This device's own tracks and playlists (without other devices' ones). */
@@ -838,7 +842,22 @@ class Library {
     for (let p = parentId; p; p = s.lists.get(p)?.parentId ?? null) if (p === id) return;
     this.updateList(id, { parentId, position: this.childLists(parentId).length });
   }
-  listsContaining(trackId: string): List[] { return [...(this.store?.lists.values() ?? [])].filter(l => l.items.includes(trackId)); }
+  // ─── Indexes, rebuilt only when their part of the store changed (ADR 0059) ─────
+  private memos = new Map<string, { store: CollectionStore; rev: number; value: unknown }>();
+  private memo<T>(key: string, rev: (s: CollectionStore) => number, build: (s: CollectionStore) => T, empty: T): T {
+    const s = this.store;
+    if (!s) return empty;
+    const r = rev(s), m = this.memos.get(key);
+    if (m && m.store === s && m.rev === r) return m.value as T;
+    const value = time('index.' + key, () => build(s));
+    this.memos.set(key, { store: s, rev: r, value });
+    return value;
+  }
+  /** What the imported DJ libraries say about each track (BPM, key, rating). */
+  djIndex(): Map<string, DjValues> { return this.memo('dj', s => s.rev.sources, s => djValues(s.sources.values()), NO_DJ); }
+  djOf(trackId: string): DjValues | null { return this.djIndex().get(trackId) ?? null; }
+  /** The playlists and folders a track is in, in the lists' order. */
+  listsContaining(trackId: string): List[] { return (this.memo('lists', s => s.rev.lists, s => listsByTrack(s.lists.values()), NO_LISTS).get(trackId) ?? []).slice(); }
   listPath(l: List): string {
     const names = [l.name];
     for (let p = l.parentId; p; p = this.store?.lists.get(p)?.parentId ?? null) names.unshift(this.store?.lists.get(p)?.name ?? '');

@@ -62,3 +62,26 @@ Readings:
   is about 90 ms per change, so 12 changes a second take most of the main thread.
 - **3D views:** 110 ridges × 220 points with a gradient each, drawn in 2D every frame, halve the frame
   rate even in headless (software) drawing.
+
+## The user's library, step by step (2026-09-26, ADR 0059)
+The user's `?perf` report (Chrome, their 8.8k-track library, GLUE Home's disk):
+- open 2.7 s (store load 2.67 s);
+- rows 7 ms average, 24 ms at most;
+- one click 1.7 s, one form submit 1.1 s, then 0.9 s handling a JSON response.
+
+The same library from a copy of its GLUE folder (`PERF_FOLDER`, headless Edge, 1,298 JSON files,
+14 MB):
+
+| Step | Before | After ADR 0059 |
+|---|---|---|
+| Open (choose folder → rows) | 3.4 s (store load 2.4 s) | 2.9 s |
+| Opening the Auto playlist builder | **2,176 ms** | 103 ms |
+| Generating an auto playlist | **673 ms** (candidates 558) | 143 ms (candidates 9, generator 94) |
+| Opening Duplicates (421 groups) | **797 ms** | under 100 ms (40 groups, more on scroll) |
+| Opening the Engine DJ folder (all its playlists' songs) | 192 ms | 178 ms |
+| Sorts | 67–108 ms | 84–106 ms |
+| Search keystroke | 42–105 ms | similar |
+| Duplicate scans during the sweep | 25 (a loop) | 1 |
+
+Still to do (the row index, next): sorts, searches and switches at about 100 ms here, and 300–540 ms
+at 50k; opening in 2–3 s.
