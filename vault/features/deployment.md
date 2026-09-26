@@ -45,5 +45,15 @@ Publishes the app as a static site on GitHub Pages.
   - Only builds on `main` save it; release tags read it (GitHub keeps a tag's cache private to that
     tag).
   - The release optimisation (LTO, one codegen unit) stays, so the last step still takes a while.
-- Expected: roughly 2–3 minutes per job once `main` has filled the cache **[UNVERIFIED until the
-  next release is measured]**.
+- **Measured** on GLUE Home 0.7.0 (2026-09-26), the release build reading the cache `main` had just
+  filled:
+
+  | Job | Before (cold) | With the cache |
+  |---|---|---|
+  | Windows | 7.9 min (compiling 6.6) | 3.9 min (compiling 2.6) |
+  | macOS | 6.5 min (compiling 5.8) | 4.6 min (compiling 4.0) |
+
+  A release now takes about 4.5 minutes, from about 8. macOS gains less: it compiles for both chips,
+  and the final optimised compile of GLUE Home itself isn't cached.
+- Further options, not done: a lighter check (no LTO) on `main`, since only tags publish, and one
+  build per commit instead of both `main` and the tag.
