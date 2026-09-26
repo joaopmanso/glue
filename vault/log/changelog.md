@@ -5,6 +5,17 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · GLUE Home 0.6.0: the drag dock ([ADR 0054](../adr/0054-drag-dock-in-glue-home.md))
+- Reported by the user: songs and playlists couldn't be dragged into Engine DJ or Rekordbox.
+- Tested on their desktop ([research](../research/drag-to-dj-apps.md)): Engine DJ takes a real file
+  from a native window and nothing a web page drags. GLUE Home can't take over a drag from the page.
+- **Now:** "Drag dock" in the library (Home mode) opens GLUE Home's small window. It holds the selected
+  songs (or the open playlist's), and dragging from it drops the real files into the DJ app or a
+  folder. Tested: a drag from the dock delivered the real file.
+- Tests: e2e Home mode covers filling the dock (the stand-in GLUE Home has `/dock`). The Home-mode
+  e2e's copy of the browser's folder now waits for the analysis and skips a file replaced mid-copy
+  (it failed once on a slow run).
+
 ## 2026-09-26 · The same BPM everywhere; the playing song stands out; cloud clean-up fixed
 From the user's batch ([handoff](2026-09-26-handoff-2.md)):
 - **BPM:**

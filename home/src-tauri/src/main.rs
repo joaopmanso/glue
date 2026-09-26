@@ -15,6 +15,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent, Wry};
 use tauri_plugin_opener::OpenerExt;
 
 mod disk;
+mod dock;
 mod local;
 
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
@@ -458,8 +459,10 @@ fn main() {
         // Updates from the GitHub releases, signed with the project's key (ADR 0045).
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // Native file drags out of the drag dock (ADR 0054).
+        .plugin(tauri_plugin_drag::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, dock::dock_items, dock::drag_icon])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]
@@ -471,6 +474,7 @@ fn main() {
             }
             let status = MenuItem::with_id(app, "status", "Starting…", false, None::<&str>)?;
             let library = MenuItem::with_id(app, "library", "Open GLUE library", true, None::<&str>)?;
+            let dock_item = MenuItem::with_id(app, "dock", "Drag dock", true, None::<&str>)?;
             let open = MenuItem::with_id(app, "open", "GLUE Home settings…", true, None::<&str>)?;
             let start = MenuItem::with_id(app, "start", "Start service", false, None::<&str>)?;
             let stop = MenuItem::with_id(app, "stop", "Stop service", true, None::<&str>)?;
@@ -478,7 +482,7 @@ fn main() {
             let quit = MenuItem::with_id(app, "quit", "Quit GLUE Home", true, None::<&str>)?;
             let (s1, s2) = (PredefinedMenuItem::separator(app)?, PredefinedMenuItem::separator(app)?);
             let s3 = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&status, &s1, &library, &open, &s3, &start, &stop, &restart, &s2, &quit])?;
+            let menu = Menu::with_items(app, &[&status, &s1, &library, &dock_item, &open, &s3, &start, &stop, &restart, &s2, &quit])?;
             let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
             TrayIconBuilder::with_id("main")
                 .icon(icon)
@@ -487,6 +491,7 @@ fn main() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, e| match e.id().as_ref() {
                     "library" => open_glue(app),
+                    "dock" => dock::show(app),
                     "open" => open_settings(app),
                     "start" | "stop" | "restart" => {
                         let _ = app.emit_to("service", "control", e.id().as_ref());
@@ -513,7 +518,7 @@ fn main() {
         .on_window_event(|w, e| {
             // Closing the settings window hides it; the service keeps running in the tray.
             if let WindowEvent::CloseRequested { api, .. } = e {
-                if w.label() == "settings" {
+                if w.label() == "settings" || w.label() == "dock" {
                     api.prevent_close();
                     let _ = w.hide();
                 }

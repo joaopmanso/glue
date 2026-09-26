@@ -18,6 +18,9 @@
   import SendPanel from './SendPanel.svelte';
   import { drag } from '../../lib/drag.svelte';
   import { incoming, TO_BE_SORTED } from '../../lib/incoming.svelte';
+  import { dock } from '../../lib/dock.svelte';
+  // The drag dock follows the selection (and the open playlist).
+  $effect(() => { void view.selected; void view.sel; void lib.version; dock.update(); });
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import type { HomeFolder } from '../../core/transfer';
 
@@ -183,6 +186,7 @@
             <option value="__new">+ New playlist…</option>
           </select>
           {#if current && (current.kind === 'playlist' || sel.some(id => current.items.includes(id)))}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from {current.kind === 'folder' ? 'folder' : 'playlist'}</button>{/if}
+          {#if dock.available}<button type="button" class="mini" id="drag-dock" class:on={dock.on} title="GLUE Home's drag dock: drag the selected songs (or this playlist) from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}
           {#if lib.analysis.paused}<button type="button" class="mini" id="analyse-selected" title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
           {#if sorting && folders}
             <select id="move-to" aria-label="Move to a music folder" onchange={moveTo}>

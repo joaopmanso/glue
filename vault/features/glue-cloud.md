@@ -120,6 +120,13 @@ an account GLUE works exactly as today, all local.
 - Next: the writer lease and GLUE Home syncing with no tab (rest of stage 3), analysis in GLUE Home
   (stage 4), clean-up (stage 5).
 
+## Drag dock (GLUE Home 0.6.0, 2026-09-26, [ADR 0054](../adr/0054-drag-dock-in-glue-home.md))
+- "Drag dock" in the library (Home mode) or the tray opens GLUE Home's small always-on-top window.
+- It holds the selected songs, or the open playlist's when nothing is selected. Dragging from it drops
+  the real files into Engine DJ, Rekordbox or a folder.
+- Needed because the DJ apps refuse anything a web page drags
+  ([research](../research/drag-to-dj-apps.md)).
+
 ## Known issues (2026-09-26)
 - ~~A song sent to a computer is unanalysed there when that computer's collection already has it
   from another device.~~ Fixed by Home mode (0.5.0): the song is that computer's own track. Still to

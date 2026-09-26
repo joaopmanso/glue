@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>GLUE drag dock</title>
+  <style>
+    body { margin: 0; background: #111; color: #eee; font: 13px system-ui, sans-serif; user-select: none; height: 100vh; display: grid; }
+    #drag { margin: 8px; border: 2px dashed #555; border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; align-content: start; cursor: grab; overflow: hidden; }
+    #drag.has { border-color: #f5c518; }
+    #drag:active { cursor: grabbing; }
+    #title { font-weight: 700; color: #f5c518; }
+    #hint { color: #999; font-size: 12px; }
+    #names { color: #ccc; font-size: 12px; white-space: pre; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div id="drag" title="Drag into Engine DJ, Rekordbox or a folder">
+    <span id="title">Nothing selected</span>
+    <span id="hint">Select songs or a playlist in GLUE on this computer, then drag them from here.</span>
+    <span id="names"></span>
+  </div>
+  <script type="module" src="./dock.ts"></script>
+</body>
+</html>

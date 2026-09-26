@@ -13,6 +13,9 @@ export class FakeHome {
   readonly device = 'e2e-home';
   /** Paths asked for, in order (to see which disk the page uses). */
   calls: string[] = [];
+  /** What the website last put in the drag dock (ADR 0054), and whether it was shown. */
+  dock: { title: string; items: { root: string; path: string }[] } | null = null;
+  dockShown = false;
   private server: Server | null = null;
   constructor(readonly dirs: FakeHomeDirs) {}
 
@@ -45,6 +48,13 @@ export class FakeHome {
     if (u.pathname === '/incoming') {
       const list = readdirSync(this.dirs.incoming).filter(n => !n.endsWith('.part')).map(n => { const s = statSync(join(this.dirs.incoming, n)); return { name: n, size: s.size, mtime: Math.round(s.mtimeMs), path: join(this.dirs.incoming, n) }; });
       return send(200, list);
+    }
+    if (u.pathname === '/dock/show' && method === 'POST') { this.dockShown = true; return send(200, {}); }
+    if (u.pathname === '/dock' && method === 'POST') {
+      const chunks: Buffer[] = [];
+      req.on('data', c => chunks.push(Buffer.from(c)));
+      req.on('end', () => { this.dock = JSON.parse(Buffer.concat(chunks).toString() || '{}'); send(200, { songs: this.dock!.items.length }); });
+      return;
     }
     if (u.pathname === '/folders') return send(200, Object.entries(this.dirs.folders).map(([id, p]) => ({ id, name: basename(p), collection: p })));
     if (u.pathname === '/incoming/move' && method === 'POST') {

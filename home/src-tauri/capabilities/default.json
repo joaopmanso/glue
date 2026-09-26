@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What GLUE Home's settings and service windows may use",
+  "description": "What GLUE Home's settings, service and drag dock windows may use",
   "windows": [
     "settings",
-    "service"
+    "service",
+    "dock"
   ],
   "permissions": [
     "core:default",
@@ -28,6 +29,7 @@
       ]
     },
     "updater:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "drag:default"
   ]
 }

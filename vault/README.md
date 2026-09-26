@@ -122,3 +122,4 @@ Planned (GLUE):
 | [0051](adr/0051-glue-home-as-local-engine.md) | GLUE Home is the computer's disk and engine; the website stays at its public address | accepted |
 | [0052](adr/0052-prepare-tab.md) | A Prepare tab: waveform, beat grid, metronome and the user's corrections | accepted |
 | [0053](adr/0053-imported-copy-is-the-same-song.md) | An imported copy outside the music folders is the track that has the file | accepted |
+| [0054](adr/0054-drag-dock-in-glue-home.md) | Songs go into the DJ apps by dragging from a GLUE Home "drag dock" | accepted |

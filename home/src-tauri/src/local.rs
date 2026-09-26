@@ -102,6 +102,17 @@ fn handle(app: AppHandle, req: Request) {
         return reply(req, 401, b"{\"error\":\"not allowed\"}".to_vec(), "application/json");
     }
     match path.as_str() {
+        // The drag dock (ADR 0054): what's selected on the website, to drag into the DJ apps.
+        "/dock" if req.method() == &Method::Post => {
+            let mut body = String::new();
+            let mut req = req;
+            let _ = std::io::Read::read_to_string(req.as_reader(), &mut body);
+            match crate::dock::set(&app, &body) {
+                Ok(n) => reply(req, 200, serde_json::json!({ "songs": n }).to_string().into_bytes(), "application/json"),
+                Err(e) => reply(req, 400, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json"),
+            }
+        }
+        "/dock/show" if req.method() == &Method::Post => { crate::dock::show(&app); reply(req, 200, b"{}".to_vec(), "application/json") }
         // The website's files, through GLUE Home (ADR 0051).
         p if p.starts_with("/fs/") => crate::disk::handle(app.clone(), req, p, &arg, cors),
         "/incoming" => {

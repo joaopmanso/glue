@@ -16,6 +16,6 @@ export default defineConfig({
     outDir: here('./dist'),
     emptyOutDir: true,
     target: 'es2022',
-    rollupOptions: { input: { index: here('./ui/index.html'), service: here('./ui/service.html') } },
+    rollupOptions: { input: { index: here('./ui/index.html'), service: here('./ui/service.html'), dock: here('./ui/dock.html') } },
   },
 });

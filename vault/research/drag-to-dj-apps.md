@@ -38,6 +38,12 @@ Chromium doesn't pass a page's `file:///` links on as the same Windows data, mos
 - A drag from Explorer (a real path) is what its manual documents. The table above suggests it
   behaves like Engine: native drags yes, web-page drags no **[UNVERIFIED]**.
 
+## The drag dock (built, [ADR 0054](../adr/0054-drag-dock-in-glue-home.md))
+- A drag from GLUE Home's dock window, with the dock filled through the local link, delivered the real
+  file: dropped on the desktop, it was copied there.
+- Engine DJ had quit by then, and wasn't restarted (the user may have been at the computer). It
+  accepted the same kind of drag (a real path) from the probe.
+
 ## What this means for GLUE
 - Dragging straight from the website into a DJ app isn't possible.
 - It works from a **native window of GLUE Home**: the drag has to start there, from a press on it.

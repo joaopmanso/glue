@@ -41,7 +41,9 @@ const readOpfs = (page: Page, top: string) => page.evaluate(async top => {
       const p = prefix ? prefix + '/' + name : name;
       if (h.kind === 'directory') await walk(h as FileSystemDirectoryHandle, p);
       else {
-        const b = new Uint8Array(await (await (h as FileSystemFileHandle).getFile()).arrayBuffer());
+        // A file the app replaces meanwhile (a save) can be gone for a moment: skip it.
+        let b: Uint8Array;
+        try { b = new Uint8Array(await (await (h as FileSystemFileHandle).getFile()).arrayBuffer()); } catch { continue; }
         let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
         out.push({ path: p, b64: btoa(s) });
       }
@@ -70,6 +72,7 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     await page.click('#onb-skip');
     await page.click('#add-folder');
     await expect(page.locator('.notice')).toContainText('4 new tracks', { timeout: 30_000 });
+    await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });   // no more writes while copying
     await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
 
     // The same folders on "this computer's disk", where GLUE Home knows them; a song was sent here.
@@ -90,6 +93,17 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     await expect(page.locator('.tr', { hasText: 'Fixture MP3' })).toBeVisible({ timeout: 20_000 });
     expect(home.calls).toContain('/fs/roots');
     await expect(page.locator('.lside')).not.toContainText('📁 TO BE SORTED');   // not a music folder
+
+    // The drag dock (ADR 0054): opened from the library, it holds the selected songs (folder + path),
+    // or the open playlist's when nothing is selected.
+    await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+    await page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.c-title').click();
+    await page.click('#drag-dock');
+    await expect.poll(() => home.dockShown).toBe(true);
+    await expect.poll(() => home.dock?.items.map(i => i.path)).toEqual(['Sets/aiff-44k-24.aiff']);
+    await page.locator('.tr', { hasText: 'Fixture MP3' }).first().locator('.c-title').click({ modifiers: ['Control'] });
+    await expect.poll(() => home.dock?.items.length).toBe(2);
+    await expect.poll(() => home.dock?.title).toBe('2 songs');
 
     // GLUE Home stops. A track still opens and plays, from the browser's own folder.
     await home.stop();

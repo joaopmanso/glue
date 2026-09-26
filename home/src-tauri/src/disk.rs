@@ -12,7 +12,7 @@ use tiny_http::{Header, Request};
 use crate::local::{respond, send_file};
 
 /// A refusal, as an HTTP status and a message for the website.
-type Fail = (u16, String);
+pub(crate) type Fail = (u16, String);
 
 fn fail(code: u16, msg: impl Into<String>) -> Fail {
     (code, msg.into())
@@ -54,7 +54,7 @@ fn root(app: &AppHandle, name: &str) -> Result<PathBuf, Fail> {
 }
 
 /// A '/'-separated path inside a root: plain names only (no '..', drive letters or stream names).
-fn inside(root: &Path, rel: &str) -> Result<PathBuf, Fail> {
+pub(crate) fn inside(root: &Path, rel: &str) -> Result<PathBuf, Fail> {
     let mut p = root.to_path_buf();
     for part in rel.split('/').filter(|s| !s.is_empty()) {
         if part == "." || part == ".." || part.contains(['\\', ':', '\0']) || part.chars().any(|c| c.is_control()) {
@@ -67,7 +67,7 @@ fn inside(root: &Path, rel: &str) -> Result<PathBuf, Fail> {
 
 /// Still inside the root once links are followed: the path itself if it exists, else its nearest
 /// existing folder.
-fn check(root: &Path, p: &Path) -> Result<(), Fail> {
+pub(crate) fn check(root: &Path, p: &Path) -> Result<(), Fail> {
     let mut at = p;
     loop {
         if let Ok(c) = fs::canonicalize(at) {

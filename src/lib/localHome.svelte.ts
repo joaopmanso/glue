@@ -56,8 +56,9 @@ class LocalHome {
     if (!r.ok) throw new Error((await r.json().catch(() => ({})) as { error?: string }).error || 'GLUE Home said no (' + r.status + ')');
     return (r.headers.get('content-type')?.includes('json') ? r.json() : r.arrayBuffer()) as Promise<T>;
   }
-  async post<T>(path: string): Promise<T> {
-    const r = await fetch(this.url(path), { method: 'POST', signal: AbortSignal.timeout(20_000) });
+  /** `body` goes as plain text (a "simple" request: no CORS preflight). */
+  async post<T>(path: string, body?: string): Promise<T> {
+    const r = await fetch(this.url(path), { method: 'POST', body, signal: AbortSignal.timeout(20_000) });
     const j = await r.json().catch(() => ({})) as T & { error?: string };
     if (!r.ok) throw new Error(j.error || 'GLUE Home said no (' + r.status + ')');
     return j;
