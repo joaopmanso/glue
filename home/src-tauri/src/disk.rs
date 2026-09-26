@@ -40,6 +40,13 @@ fn roots(app: &AppHandle) -> (Option<PathBuf>, PathBuf, Vec<(String, PathBuf)>) 
     (cfg_path(&c, "glue"), crate::incoming_dir(app), folders)
 }
 
+/// One of the GLUE folder, the incoming folder or a music folder (which can be written), not only a DJ
+/// library's folder (which is read only).
+fn regular(app: &AppHandle, dir: &Path) -> bool {
+    let (glue, incoming, folders) = roots(app);
+    glue.into_iter().chain(std::iter::once(incoming)).chain(folders.into_iter().map(|f| f.1)).any(|r| fs::canonicalize(&r).map(|c| c == dir).unwrap_or(false))
+}
+
 /// The root the website names, if it's one of GLUE Home's roots (compared once resolved).
 fn root(app: &AppHandle, name: &str) -> Result<PathBuf, Fail> {
     let want = fs::canonicalize(name).map_err(|_| fail(404, "that folder isn't there"))?;
@@ -49,6 +56,10 @@ fn root(app: &AppHandle, name: &str) -> Result<PathBuf, Fail> {
         if fs::canonicalize(&r).map(|c| c == want).unwrap_or(false) {
             return Ok(want);
         }
+    }
+    // The DJ libraries GLUE Home found (ADR 0065): read only.
+    if crate::libraries::is_library(app, &want) {
+        return Ok(want);
     }
     Err(fail(403, "not a folder GLUE Home may use"))
 }
@@ -120,7 +131,19 @@ pub fn handle(app: AppHandle, mut req: Request, path: &str, arg: &dyn Fn(&str) -
                 let (glue, incoming, folders) = roots(&app);
                 let _ = fs::create_dir_all(&incoming);
                 let folders: serde_json::Map<String, serde_json::Value> = folders.into_iter().map(|(id, p)| (id, p.to_string_lossy().into())).collect();
-                Ok(json(serde_json::json!({ "glue": glue.map(|p| p.to_string_lossy().into_owned()), "incoming": incoming.to_string_lossy(), "folders": folders, "sep": std::path::MAIN_SEPARATOR.to_string() })))
+                Ok(json(serde_json::json!({ "glue": glue.map(|p| p.to_string_lossy().into_owned()), "incoming": incoming.to_string_lossy(), "folders": folders, "libraries": crate::libraries::json(&app), "sep": std::path::MAIN_SEPARATOR.to_string() })))
+            }
+            // A DJ library file chosen with this computer's own dialog (ADR 0065): remembered, and followed
+            // live from now on. Its folder is a root, for reading.
+            "/fs/pickfile" => {
+                use tauri_plugin_dialog::DialogExt;
+                let Some(picked) = app.dialog().file().set_title(arg("title")).blocking_pick_file().and_then(|p| p.into_path().ok()) else {
+                    return Ok(json(serde_json::json!({ "path": null })));
+                };
+                crate::libraries::remember(&app, &picked).map_err(|e| fail(500, e))?;
+                let dir = picked.parent().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default();
+                let name = picked.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                Ok(json(serde_json::json!({ "path": picked.to_string_lossy(), "dir": dir, "file": name })))
             }
             // Choose a folder with this computer's own dialog: the GLUE folder (`as=glue`) or a music
             // folder of a collection (`as=folder:<id>`), which GLUE Home then remembers.
@@ -153,6 +176,9 @@ pub fn handle(app: AppHandle, mut req: Request, path: &str, arg: &dyn Fn(&str) -
             }
             _ => {
                 let (base, target) = locate(&app, arg)?;
+                if matches!(path, "/fs/write" | "/fs/mkdir" | "/fs/remove") && !regular(&app, &base) {
+                    return Err(fail(403, "a DJ library is read here, not written"));
+                }
                 match path {
                     "/fs/stat" => {
                         let m = fs::metadata(&target).map_err(io_fail)?;

@@ -46,6 +46,23 @@ async function homeRoots(fresh = false): Promise<HomeRoots | null> {
   if (!disk) return null;
   try { if (fresh || !roots) roots = await disk.roots(); return roots; } catch { return null; }
 }
+/** The DJ libraries GLUE Home follows (ADR 0065), in Home mode: the ones chosen with its dialog and the
+    ones it found (Engine DJ on every drive, Traktor). place: 'hl:' + the library's folder. */
+export async function homeLibraries(): Promise<{ place: string; name: string; dir: Dir; file: string }[]> {
+  const r = homeMode() ? await homeRoots(true) : null;
+  if (!r || !disk) return [];
+  return (r.libraries ?? []).map(l => ({ place: 'hl:' + l.dir, name: l.dir.split(/[\\/]/).filter(Boolean).pop() ?? l.dir, dir: disk!.dir(l.dir), file: l.file }));
+}
+/** A library folder GLUE Home follows, by its place ('hl:' + path), in Home mode. */
+export function homeLibraryDir(place: string): Dir | null {
+  return place.startsWith('hl:') && homeMode() && disk ? disk.dir(place.slice(3)) : null;
+}
+/** A DJ library file chosen with GLUE Home's own dialog (then followed live), in Home mode. */
+export async function pickLibraryFile(): Promise<{ place: string; dir: Dir; file: string } | null> {
+  if (!homeMode() || !disk) return null;
+  const r = await disk.pickFile('Choose a DJ library file (Engine DJ m.db, Traktor collection.nml, rekordbox XML…)');
+  return r.path && r.dir && r.file ? { place: 'hl:' + r.dir, dir: disk.dir(r.dir), file: r.file } : null;
+}
 /** GLUE Home's incoming folder, in Home mode (ADR 0051). */
 export async function incomingFolder(): Promise<{ dir: Dir; path: string } | null> {
   const r = homeMode() ? await homeRoots() : null;

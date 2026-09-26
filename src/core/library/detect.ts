@@ -14,6 +14,19 @@ const MAX_DIRS = 4000;   // keeps a look into a huge folder quick
 
 const head = async (h: FileSystemFileHandle, n = 600) => new TextDecoder().decode(await fileHead(h, n));
 
+/** What library one known file is (a file GLUE Home follows, ADR 0065), from its first bytes; null if
+    none. */
+export async function libraryAt(dir: FileSystemDirectoryHandle, relPath: string): Promise<Detected | null> {
+  const parts = relPath.split('/').filter(Boolean), name = parts.pop();
+  if (!name) return null;
+  let d = dir;
+  for (const p of parts) d = await d.getDirectoryHandle(p);
+  const h = await d.getFileHandle(name), f = await fileMeta(h), text = await head(h);
+  const kind: Detected['kind'] | null = text.startsWith('SQLite format 3') ? 'engine' : /<NML[\s>]/.test(text) ? 'traktor'
+    : /<DJ_PLAYLISTS[\s>]/.test(text) ? 'rekordbox' : /<plist[\s>]/.test(text) ? 'apple' : null;
+  return kind ? { kind, relPath, handle: h, modified: f.lastModified, size: f.size } : null;
+}
+
 export async function findLibraries(root: FileSystemDirectoryHandle, maxDepth = 3): Promise<Detected[]> {
   const out: Detected[] = [];
   let dirs = 0;

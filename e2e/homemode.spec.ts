@@ -175,3 +175,51 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('with GLUE Home a DJ library imported through its dialog is followed live (ADR 0065)', async ({ page }) => {
+  test.setTimeout(150_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-e2e-'));
+  const home = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} });
+  const xml = (fri: string, extra = '') => `<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><PRODUCT Name="rekordbox" Version="7.0.0"/>
+<COLLECTION Entries="2"><TRACK TrackID="1" Name="One" Artist="A" Location="file://localhost/D:/Music/one.mp3"/><TRACK TrackID="2" Name="Two" Artist="B" Location="file://localhost/D:/Music/two.mp3"/></COLLECTION>
+<PLAYLISTS><NODE Type="0" Name="ROOT" Count="1"><NODE Name="${fri}" Type="1" KeyType="0" Entries="2"><TRACK Key="2"/><TRACK Key="1"/></NODE>${extra}</NODE></PLAYLISTS></DJ_PLAYLISTS>`;
+  try {
+    await page.goto('./#/analyze');
+    await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); for (const n of ['MCO', 'Music']) await r.removeEntry(n, { recursive: true }).catch(() => {}); });
+    await page.goto('./');
+    await page.click('#choose-home');
+    await page.fill('#profile-name', 'DJ Test');
+    await page.getByRole('button', { name: 'Create profile' }).click();
+    await page.click('#onb-skip');
+    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+    for (const f of await readOpfs(page, 'MCO')) { mkdirSync(dirname(join(home.dirs.glue, f.path)), { recursive: true }); writeFileSync(join(home.dirs.glue, f.path), Buffer.from(f.b64, 'base64')); }
+    mkdirSync(home.dirs.incoming, { recursive: true });
+    await home.start();
+    await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), home.pref);
+    await page.reload();
+    await expect(page.locator('#import-lib')).toBeVisible({ timeout: 20_000 });
+
+    // Imported with GLUE Home's own file dialog: it knows the file from now on.
+    const djDir = join(tmp, 'DJ'), file = join(djDir, 'rekordbox.xml');
+    mkdirSync(djDir, { recursive: true });
+    writeFileSync(file, xml('Friday'));
+    home.pickFile = file;
+    await page.click('#import-lib');
+    await expect(page.locator('.notice')).toContainText('2 tracks', { timeout: 20_000 });
+    await expect(page.locator('[data-dj-live]')).toBeVisible({ timeout: 20_000 });
+    await page.locator('[data-dj-open]').click();
+    const dj = (name: string) => page.locator('#dj-libs .item.dj', { hasText: name });
+    await dj('Friday').hover(); await dj('Friday').locator('.tools .more').click();
+    await page.locator('[data-dj-import]').click();
+    await expect(page.locator('.lside .tree .name', { hasText: /^Friday/ })).toHaveCount(1);
+
+    // Changed in rekordbox: GLUE follows by itself, no click.
+    await page.waitForTimeout(1500);
+    writeFileSync(file, xml('Friday late', '<NODE Name="Saturday" Type="1" KeyType="0" Entries="1"><TRACK Key="1"/></NODE>'));
+    await expect(page.locator('.lside .tree .name', { hasText: /^Friday late/ })).toHaveCount(1, { timeout: 25_000 });
+    await expect(dj('Saturday')).toHaveCount(1);
+    await expect(page.locator('.notice')).toContainText('rekordbox changed its playlists');
+    // Looks are by date: the file itself was sent twice (the import and the change), however many looks.
+    expect(home.reads.filter(p => p === 'rekordbox.xml')).toHaveLength(2);
+  } finally { await home.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});

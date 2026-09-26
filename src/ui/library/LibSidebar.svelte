@@ -3,7 +3,10 @@
   import { sidebar, type SideKey } from '../../lib/sidebar.svelte';
   import { lib } from '../../lib/library.svelte';
   import { view, type ViewSel } from '../../lib/view.svelte';
-  import { importDetected, importFiles, pickSeratoFolder } from '../../lib/importActions';
+  import { importDetected, importFiles, importWithHome, pickSeratoFolder, refreshWithFile } from '../../lib/importActions';
+  import { djWatch } from '../../lib/djWatch.svelte';
+  import { localHome } from '../../lib/localHome.svelte';
+  import { homeMode } from '../../platform';
   import { IMPORT_ACCEPT } from '../../lib/imports';
   import { canKeepFiles, canPickFolders, pickAudioFiles } from '../../platform';
   import { LOOSE } from '../../store/merge';
@@ -66,6 +69,17 @@
   /** GLUE's copy of a DJ list (the version argument makes it follow changes). */
   const copyOf = (sourceId: string, ext: string, _version: number) => lib.linkedCopy(sourceId, ext);
   const kidsOf = (src: Source, parent: string | null) => djKids.get(src.id)?.get(parent ?? '') ?? [];
+  // Live following is GLUE Home's (ADR 0065); in the browser alone, a library is read again on Refresh.
+  const live = $derived.by(() => { void lib.version; return !!localHome.link && homeMode(); });
+  let refreshInput = $state<HTMLInputElement>(), refreshFor: string | null = null;
+  const chooseAgain = new Set<string>();
+  /** Refresh: read it again where GLUE can reach it; if it can't, the next Refresh asks for the file. */
+  async function refresh(src: Source) {
+    if (!src.origin || chooseAgain.has(src.id)) { refreshFor = src.id; refreshInput?.click(); return; }
+    if (await djWatch.refresh(src)) return;
+    chooseAgain.add(src.id);
+    lib.notice = 'GLUE can’t reach ' + (APP_NAMES[src.app] ?? src.app) + '’s file here: click Refresh again and choose it.';
+  }
   /** Bring a DJ library's list (a folder with everything in it; '' = all) into GLUE, and show it. */
   function importDj(src: Source, ext: string, name: string) {
     djMenu = null;
@@ -357,24 +371,29 @@
       {@render secHead('dj', 'DJ libraries')}
       <span class="add">
         <button type="button" id="find-libs" title="Allow another folder for GLUE to look for DJ libraries in" onclick={() => lib.addLibraryPlace('documents')}>Look in…</button>
-        <button type="button" id="import-lib" onclick={() => fileInput?.click()} title="Choose a library file yourself: rekordbox XML, Engine DJ m.db, Traktor NML, iTunes / Apple Music XML, M3U">+ Import</button>
+        <button type="button" id="import-lib" onclick={() => { if (homeMode()) void importWithHome(); else fileInput?.click(); }} title="Choose a library file yourself: rekordbox XML, Engine DJ m.db, Traktor NML, iTunes / Apple Music XML, M3U">+ Import</button>
         {@render maxBtn('dj')}
       </span>
     </div>
+    <input type="file" multiple accept={IMPORT_ACCEPT} bind:this={refreshInput} hidden id="refresh-input"
+      onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; if (refreshFor) { chooseAgain.delete(refreshFor); void refreshWithFile(refreshFor, f); } }}>
     <input type="file" multiple accept={IMPORT_ACCEPT} bind:this={fileInput} hidden id="import-input"
       onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; void importFiles(f); }}>
     {#if sidebar.open('dj')}
     <ul id="dj-libs">
       {#each sources as s (s.id)}
         {@const d = lib.detected.find(x => x.sourceId === s.id)}
+        {@const changed = d?.status === 'changed' && d.modified > (s.origin?.modified ?? 0) + 1000}
         <li>
           <div class="item" class:sel={isSel({ kind: 'source', id: s.id })}>
             {#if s.tree?.length}<button type="button" class="twist" data-dj-open={s.id} aria-label={djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists'} onclick={() => (djOpen[s.id] = !djOpen[s.id])}>{djOpen[s.id] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
             <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}<small> {s.fileName}</small></button>
-            {#if d?.status === 'changed' && d.modified > (s.origin?.modified ?? 0) + 1000}<button type="button" class="update" title={'Changed since you imported it (' + new Date(d.modified).toLocaleString() + ')'} onclick={() => importDetected(d)}>Update</button>
-            {:else if !s.origin}<button type="button" class="update" data-dj-find={s.id} title="GLUE doesn't know where this library is, so it can't follow its changes: choose the folder it's in (for Engine DJ, the drive or its “Engine Library” folder)" onclick={() => lib.addLibraryPlace('music')}>Keep up to date…</button>
-            {:else}<span class="n">{s.tracks.length}</span>{/if}
-            <span class="tools"><button type="button" title="Remove this import" onclick={() => { if (confirm('Remove the ' + (APP_NAMES[s.app] ?? s.app) + ' import and its playlists? Tracks with a linked file stay.')) lib.deleteSource(s.id); }}>×</button></span>
+            <span class="n">{s.tracks.length}</span>
+            {#if live}
+              {#if djWatch.status[s.id] === 'live' || djWatch.status[s.id] === 'reading'}<span class="live" class:reading={djWatch.status[s.id] === 'reading'} data-dj-live={s.id} title={djWatch.status[s.id] === 'reading' ? 'Reading its changes…' : 'Followed live through GLUE Home: its changes show here within seconds'}>●</span>
+              {:else}<button type="button" class="update" data-dj-find={s.id} title="GLUE Home follows a library live once it knows its file: choose it" onclick={() => void importWithHome()}>Find its file…</button>{/if}
+            {:else}<button type="button" class="refresh" class:update={changed} data-dj-refresh={s.id} title={changed ? 'Changed since GLUE read it (' + new Date(d!.modified).toLocaleString() + '): read it again' : 'Read this library again (with GLUE Home running, GLUE follows it live)'} onclick={() => void refresh(s)}>{changed ? 'Update' : 'Refresh'}</button>{/if}
+            <span class="tools keep"><button type="button" title="Remove this import" onclick={() => { if (confirm('Remove the ' + (APP_NAMES[s.app] ?? s.app) + ' import and its playlists? Tracks with a linked file stay.')) lib.deleteSource(s.id); }}>×</button></span>
           </div>
           {#if djOpen[s.id] && s.tree?.length}
             <ul class="djtree" aria-label={(APP_NAMES[s.app] ?? s.app) + ' playlists'}>
@@ -455,6 +474,9 @@
   .item.colored:hover { background: color-mix(in srgb, var(--lc) 22%, transparent); }
   .item.colored.sel { background: color-mix(in srgb, var(--lc) 30%, transparent); }
   .tools.open { display: flex; }
+  /* A library row keeps room for its tools: showing them on hover mustn't move its buttons. */
+  .tools.keep { display: flex; visibility: hidden; }
+  .item:hover .tools.keep, .item:focus-within .tools.keep { visibility: visible; }
   .tdot { width: 9px; height: 9px; border-radius: 50%; background: var(--tc); flex: none; margin-right: 4px; }
   .tagitem { padding-left: 10px !important; }
   .ltags { color: var(--muted); }
@@ -499,6 +521,10 @@
   .howto { display: grid; gap: 6px; padding: 4px 8px 4px 10px; color: var(--ink-2); font-size: 12.5px; }
   .found { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 4px 8px; background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 4px; font-size: 12.5px; }
   .inline { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font-size: inherit; }
+  .live { color: var(--ok, #3ecf8e); font-size: 10px; padding: 0 4px; cursor: help; }
+  .live.reading { color: var(--accent); animation: blink 1s infinite alternate; }
+  @keyframes blink { to { opacity: .35; } }
+  .refresh { font-size: 11px; padding: 1px 6px; }
   .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; }
   .djtree { list-style: none; margin: 0; padding: 0; }
   .djall { padding: 2px 0 4px 30px; font-size: 12px; }

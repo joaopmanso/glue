@@ -4,7 +4,8 @@
    subset GLUE uses, like store/memdir), so the store, scans and playback work on them unchanged.
    Sizes and dates come with each folder listing, so a scan never downloads a whole song. */
 
-export interface HomeRoots { glue: string | null; incoming: string; folders: Record<string, string>; sep: string }
+/** libraries: the DJ libraries GLUE Home follows (ADR 0065): each one's folder (a root, read only) and file in it. */
+export interface HomeRoots { glue: string | null; incoming: string; folders: Record<string, string>; sep: string; libraries?: { kind: string; dir: string; file: string }[] }
 type Entry = { name: string; kind: 'file' | 'directory'; size: number; mtime: number };
 
 const domError = (name: string, message: string) => Object.assign(new Error(message), { name });
@@ -36,6 +37,10 @@ export class HomeDisk {
   /** This computer's folder dialog, shown by GLUE Home: the GLUE folder, or a collection's music folder. */
   pick(as: 'glue' | `folder:${string}`, title: string, start?: string) {
     return this.json<{ path: string | null; name?: string }>('/fs/pick', { as, title, ...(start ? { start } : {}) }, { method: 'POST' });
+  }
+  /** This computer's file dialog, shown by GLUE Home: a DJ library file, remembered and followed live (ADR 0065). */
+  pickFile(title: string) {
+    return this.json<{ path: string | null; dir?: string; file?: string }>('/fs/pickfile', { title }, { method: 'POST' });
   }
   /** A root (the GLUE folder, a music folder, the incoming folder) as a folder handle. */
   dir(root: string): FileSystemDirectoryHandle {

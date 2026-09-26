@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (its "Live" part amended by 0065)
 date: 2026-09-26
 ---
 # 0063. DJ libraries are browsed live; playlists come into GLUE on demand and stay linked

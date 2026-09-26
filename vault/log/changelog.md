@@ -5,6 +5,23 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · GLUE Home 0.10.0: DJ libraries followed live through GLUE Home; Refresh in the browser
+From the user's test: playlists made in Engine DJ never reached GLUE, because the library had come in
+through "+ Import" and GLUE didn't know where its file was. The user set the rule: live sync is GLUE
+Home's, the browser has Refresh ([ADR 0065](../adr/0065-live-sync-through-glue-home.md)).
+- **GLUE Home finds DJ libraries:**
+  - Engine DJ on every drive and in Music; Traktor's newest collection;
+  - it remembers files imported with its own dialog ("+ Import" in Home mode);
+  - their folders are served read only (a write into one is refused).
+- **Hand-imported sources adopt the file found:** the user's Engine DJ source adopts F:\Engine Library
+  (the biggest of three found) with no click. A row shows ● while followed live, or "Find its file…".
+- **Browser alone:** Refresh (Update when a newer file was seen) reads the library again, or asks for
+  the file when GLUE can't reach it. "Keep up to date…" (a folder picker) is gone.
+- **Fixed:** hovering a library row showed its × and moved the buttons under the pointer, so a click
+  could land on the row instead.
+- Tests: 153 unit; e2e 41 (live through a fake GLUE Home's dialog, the file sent only when it
+  changes; Refresh in the browser).
+
 ## 2026-09-26 · DJ libraries browsed live; playlists imported on demand, kept in step (M8 phase A)
 From the user: browse each DJ library's playlists in the sidebar instead of importing them all, import
 the ones wanted, and see changes made in Engine DJ ([ADR 0063](../adr/0063-dj-libraries-browsed-live.md)).

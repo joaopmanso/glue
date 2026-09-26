@@ -1,6 +1,8 @@
 /* UI actions for bringing DJ libraries in. */
 import { lib } from './library.svelte';
 import { parseInWorker, seratoFiles } from './parseWorker';
+import * as platform from '../platform';
+import { libraryAt } from '../core/library/detect';
 import type { FoundLibrary } from '../core/library/scan';
 import type { Detected } from '../core/library/detect';
 import type { ImportedLibrary } from '../core/interop/types';
@@ -67,7 +69,11 @@ export async function importDetected(d: Detected & { place: string }) {
     const lines: string[] = [];
     for (const p of parsed) {
       const r = lib.importLibrary(p.lib, p.fileName);
-      if (r) { lib.markOrigin(r.sourceId, { place: d.place, relPath: d.relPath, modified: d.modified }); lines.push(report(p.lib.name, r)); }
+      if (!r) continue;
+      // An Engine DJ set keeps following the database it follows (the computer's own).
+      const had = lib.store?.sources.get(r.sourceId)?.origin;
+      if (!(had && p.lib.app === 'engine' && (had.place !== d.place || had.relPath !== d.relPath))) lib.markOrigin(r.sourceId, { place: d.place, relPath: d.relPath, modified: d.modified });
+      lines.push(report(p.lib.name, r));
     }
     lib.notice = lines.join(' ');
   } catch (e) { console.error(e); lib.notice = 'Couldn’t import ' + d.relPath + ': ' + ((e as Error).message || e); }
@@ -88,7 +94,7 @@ export async function pickSeratoFolder() {
 const APPS: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
 /** A library GLUE keeps in step changed (ADR 0063): read it again, quietly, and bring GLUE's tracks, its
     tree and GLUE's copies of its playlists up to date. Says so only when GLUE's copies changed. */
-export async function syncSource(sourceId: string, files: File[], modified: number) {
+export async function syncSource(sourceId: string, files: File[], modified: number, asked = false) {
   const src = lib.store?.sources.get(sourceId);
   if (!src?.origin) return;
   const r = await parseInWorker(files);
@@ -98,5 +104,33 @@ export async function syncSource(sourceId: string, files: File[], modified: numb
   if (!rep) return;
   lib.markOrigin(rep.sourceId, { ...src.origin, modified });
   const c = rep.linkedLists;
-  if (c.updated + c.added + c.removed) lib.notice = (APPS[src.app] ?? src.app) + ' changed its playlists: in GLUE ' + [c.updated && c.updated + ' updated', c.added && c.added + ' new', c.removed && c.removed + ' gone'].filter(Boolean).join(', ') + '.';
+  const what = [c.updated && c.updated + ' updated', c.added && c.added + ' new', c.removed && c.removed + ' gone'].filter(Boolean).join(', ');
+  if (what) lib.notice = (APPS[src.app] ?? src.app) + ' changed its playlists: in GLUE ' + what + '.';
+  else if (asked) lib.notice = (APPS[src.app] ?? src.app) + ' read again: ' + rep.tracks + ' tracks, ' + rep.lists + ' playlists or folders; GLUE’s copies were up to date.';
+}
+
+/** "Refresh" when GLUE can't reach the library's file (browser alone): the file chosen again. */
+export async function refreshWithFile(sourceId: string, files: File[]) {
+  const src = lib.store?.sources.get(sourceId);
+  if (!src || !files.length) return;
+  lib.job = { text: 'Reading ' + files[0].name + '…', done: 0, total: null };
+  try {
+    const r = await parseInWorker(files);
+    const p = r.libs.find(x => x.lib.app === src.app);
+    if (!p) { lib.notice = 'That isn’t ' + (APPS[src.app] ?? src.app) + '’s library file.'; return; }
+    const rep = lib.importLibrary(p.lib, src.fileName);
+    if (rep) lib.notice = report(p.lib.name, rep);
+  } catch (e) { lib.notice = 'Couldn’t read it: ' + ((e as Error).message || e); }
+  finally { lib.job = null; }
+}
+
+/** Home mode's Import (ADR 0065): a library file chosen with GLUE Home's own dialog. GLUE Home remembers
+    it, so it's followed live from then on. */
+export async function importWithHome() {
+  let picked: Awaited<ReturnType<typeof platform.pickLibraryFile>>;
+  try { picked = await platform.pickLibraryFile(); } catch (e) { lib.notice = 'GLUE Home couldn’t open its file dialog: ' + ((e as Error).message || e); return; }
+  if (!picked) return;
+  const d = await libraryAt(picked.dir, picked.file).catch(() => null);
+  if (!d) { lib.notice = picked.file + ' isn’t a DJ library GLUE can read (Engine DJ m.db, Traktor collection.nml, rekordbox or Apple Music XML).'; return; }
+  await importDetected({ ...d, place: picked.place });
 }

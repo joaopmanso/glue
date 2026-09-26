@@ -136,6 +136,9 @@ an account GLUE works exactly as today, all local.
   - its songs join the queue.
 - The library's "Drag dock" button is always there in Home mode, at the right of the bar above the
   songs, not only with a selection.
+- **DJ libraries followed live (0.10.0,** [ADR 0065](../adr/0065-live-sync-through-glue-home.md)**):** GLUE Home
+  finds Engine DJ and Traktor libraries, and remembers library files imported with its dialog; the
+  website follows them live through it. Their folders are read, never written, through /fs.
 - **Songs by dragging too (0.9.0,** [ADR 0061](../adr/0061-songs-onto-the-drag-dock.md)**):**
   - drag song rows (the selection, or that one song) out of the browser onto the dock window, or
     onto the "Drag dock" button;

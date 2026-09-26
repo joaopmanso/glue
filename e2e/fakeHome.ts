@@ -13,9 +13,14 @@ export class FakeHome {
   readonly device = 'e2e-home';
   /** Paths asked for, in order (to see which disk the page uses). */
   calls: string[] = [];
+  /** Files sent (/fs/file), by path in their root; " (part)" for a byte range. */
+  reads: string[] = [];
   /** The drag dock's queue (ADR 0054), and whether it was shown. */
   dock: { root: string; path: string }[] = [];
   dockShown = false;
+  /** DJ library files it follows (ADR 0065): each one's folder (a read-only root) and file; the next file its dialog picks. */
+  libraries: { kind: string; dir: string; file: string }[] = [];
+  pickFile: string | null = null;
   /** Where the dock window is on the screen (screen coordinates), for /dock/drop (ADR 0061). */
   dockRect: { x: number; y: number; w: number; h: number } | null = null;
   dockDrops: { x: number; y: number; on: boolean }[] = [];
@@ -34,11 +39,12 @@ export class FakeHome {
     return new Promise<void>(ok => { if (!this.server) return ok(); this.server.closeAllConnections(); this.server.close(() => ok()); this.server = null; });
   }
 
-  private roots() { return [this.dirs.glue, this.dirs.incoming, ...Object.values(this.dirs.folders)].map(p => resolve(p)); }
+  private roots() { return [this.dirs.glue, this.dirs.incoming, ...Object.values(this.dirs.folders), ...this.libraries.map(l => l.dir)].map(p => resolve(p)); }
 
   private handle(url: string, method: string, headers: Record<string, string | string[] | undefined>, req: NodeJS.ReadableStream, res: import('node:http').ServerResponse) {
     const u = new URL(url, 'http://127.0.0.1'), q = u.searchParams;
     this.calls.push(u.pathname);
+    if (u.pathname === '/fs/file') this.reads.push((q.get('path') ?? '') + (headers.range ? ' (part)' : ''));
     const origin = String(headers.origin ?? '');
     const send = (code: number, body: unknown, type = 'application/json') => {
       res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': origin || '*', 'Access-Control-Allow-Private-Network': 'true', 'Access-Control-Expose-Headers': 'content-range, x-glue-mtime' });
@@ -47,7 +53,14 @@ export class FakeHome {
     if (method === 'OPTIONS') return send(204, '');
     if (u.pathname === '/hello') return send(200, { app: 'glue-home', version: '0.5.0', device: this.device });
     if (q.get('t') !== this.token) return send(401, { error: 'not allowed' });
-    if (u.pathname === '/fs/roots') return send(200, { glue: this.dirs.glue, incoming: this.dirs.incoming, folders: this.dirs.folders, sep });
+    if (u.pathname === '/fs/roots') return send(200, { glue: this.dirs.glue, incoming: this.dirs.incoming, folders: this.dirs.folders, libraries: this.libraries, sep });
+    if (u.pathname === '/fs/pickfile') {
+      const f = this.pickFile;
+      if (!f) return send(200, { path: null });
+      const dir = resolve(f, '..'), file = basename(f);
+      if (!this.libraries.some(l => l.dir === dir && l.file === file)) this.libraries.push({ kind: 'picked', dir, file });
+      return send(200, { path: f, dir, file });
+    }
     if (u.pathname === '/incoming') {
       const list = readdirSync(this.dirs.incoming).filter(n => !n.endsWith('.part')).map(n => { const s = statSync(join(this.dirs.incoming, n)); return { name: n, size: s.size, mtime: Math.round(s.mtimeMs), path: join(this.dirs.incoming, n) }; });
       return send(200, list);

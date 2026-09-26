@@ -143,9 +143,8 @@ test('profile, collection, import, link folder, background analysis, playlists, 
   await expect(page.locator('#play-btn')).toBeEnabled();
 });
 
-test('a DJ library found in the GLUE folder is browsed live, and GLUE’s copies follow it (ADR 0063)', async ({ page }) => {
+test('a DJ library found in the GLUE folder: browsed, imported on demand, and read again on Refresh (ADR 0063, 0065)', async ({ page }) => {
   test.setTimeout(120_000);
-  page.on('console', m => console.log('PAGE', m.type(), m.text()));
   await seed(page);
   await page.goto('./');
   await page.click('#choose-home');
@@ -165,9 +164,11 @@ test('a DJ library found in the GLUE folder is browsed live, and GLUE’s copies
   await dj('Friday').hover(); await dj('Friday').locator('.tools .more').click();
   await page.locator('[data-dj-import]').click();
   await expect(page.locator('.lside .tree .name', { hasText: /^Friday/ })).toHaveCount(1);
-  // Changed in rekordbox: Friday renamed, a playlist added. GLUE follows within a few seconds.
+  // Changed in rekordbox: Friday renamed, a playlist added. In the browser alone GLUE reads it again on
+  // Refresh (live following is GLUE Home's).
   await page.waitForTimeout(1500);
   await writeXml(REKORDBOX.replace('Name="Friday"', 'Name="Friday late"').replace('</NODE></PLAYLISTS>', '<NODE Name="Saturday" Type="1" KeyType="0" Entries="1"><TRACK Key="1"/></NODE></NODE></PLAYLISTS>'));
+  await page.locator('[data-dj-refresh]').click();
   await expect(page.locator('.lside .tree .name', { hasText: /^Friday late/ })).toHaveCount(1, { timeout: 20_000 });
   await expect(dj('Saturday')).toHaveCount(1);
   await expect(page.locator('.lside .tree .name', { hasText: /^Saturday/ })).toHaveCount(0);   // only what was imported

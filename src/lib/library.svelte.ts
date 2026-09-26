@@ -15,7 +15,7 @@ import type { ImportedLibrary } from '../core/interop/types';
 import type { Copy, Overlay } from '../core/library/overlay';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { fileHead, fileMeta } from '../core/library/files';
-import { findLibraries, type Detected } from '../core/library/detect';
+import { findLibraries, libraryAt, type Detected } from '../core/library/detect';
 import { makeThumb } from '../core/library/thumb';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
 import { failed, summarize } from '../core/library/summary';
@@ -638,14 +638,21 @@ class Library {
       }
       this.places = states;
       const found: typeof this.detected = [];
-      for (const w of where) {
-        for (const d of await findLibraries(w.dir, w.place === 'home' ? 2 : 3)) {
-          if (found.some(x => x.place === w.place && x.relPath === d.relPath)) continue;
-          const src = [...s.sources.values()].find(x => x.origin?.place === w.place && x.origin.relPath === d.relPath)
-            ?? [...s.sources.values()].find(x => !x.origin && x.app === d.kind && x.fileName === (d.relPath.split('/').pop() ?? ''));
-          const status = !src ? 'new' : src.origin && d.modified > src.origin.modified + 1000 ? 'changed' : 'imported';
-          found.push({ ...d, place: w.place, placeName: w.name, status, sourceId: src?.id ?? null });
-        }
+      const add = (d: Detected, place: string, placeName: string) => {
+        if (found.some(x => x.place === place && x.relPath === d.relPath)) return;
+        const src = [...s.sources.values()].find(x => x.origin?.place === place && x.origin.relPath === d.relPath)
+          ?? [...s.sources.values()].find(x => !x.origin && x.app === d.kind && x.fileName === (d.relPath.split('/').pop() ?? ''))
+          // An Engine DJ set is one source: another database of it is part of that source.
+          ?? (d.kind === 'engine' ? [...s.sources.values()].find(x => x.app === 'engine') : undefined);
+        const own = src?.origin?.place === place && src.origin.relPath === d.relPath;
+        const status = !src ? 'new' : own && d.modified > src.origin!.modified + 1000 ? 'changed' : 'imported';
+        found.push({ ...d, place, placeName, status, sourceId: src?.id ?? null });
+      };
+      for (const w of where) for (const d of await findLibraries(w.dir, w.place === 'home' ? 2 : 3)) add(d, w.place, w.name);
+      // The DJ libraries GLUE Home follows (ADR 0065): their files are known, no looking around.
+      for (const h of await platform.homeLibraries()) {
+        const d = await libraryAt(h.dir, h.file).catch(() => null);
+        if (d) add(d, h.place, h.name);
       }
       if (this.store === s) this.detected = found;
       // A library imported by hand (no place remembered) found here: it's kept up to date from now on

@@ -16,6 +16,7 @@ use tauri_plugin_opener::OpenerExt;
 
 mod disk;
 mod dock;
+mod libraries;
 mod local;
 
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.

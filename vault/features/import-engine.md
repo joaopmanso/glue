@@ -104,3 +104,10 @@ user's library, the Engine record in `preparation` that their playlists use now 
 - **Found about Engine DJ 3.0.2** (for writing back, next): every database of a set holds the same
   playlist tree, row for row. Engine's triggers keep the linked lists (`nextListId`, `nextEntityId`)
   right on insert and delete.
+
+## Live through GLUE Home; Refresh in the browser (2026-09-26, [ADR 0065](../adr/0065-live-sync-through-glue-home.md))
+- **Live following needs GLUE Home.** It finds Engine DJ libraries on every drive and in Music, and
+  remembers library files chosen with its own dialog ("+ Import" in Home mode).
+- **The user's hand-imported source** adopts the biggest database found (F:\Engine Library) with no
+  click. A row shows ● while it's followed.
+- **In the browser alone:** Refresh (or Update when a newer file was seen).

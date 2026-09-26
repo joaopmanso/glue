@@ -55,3 +55,5 @@ user's library, the Engine record in `preparation` that their playlists use now 
   it's newer.
 - Traktor playlists are followed by their UUID; folders by their path, and a renamed folder is found
   again by its place and content.
+- Live through GLUE Home (it finds Traktor's newest collection in Documents/Native Instruments), or
+  through a music folder; in the browser, Refresh ([ADR 0065](../adr/0065-live-sync-through-glue-home.md)).
