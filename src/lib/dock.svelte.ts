@@ -5,6 +5,7 @@
 import { lib } from './library.svelte';
 import { localHome } from './localHome.svelte';
 import { homeMode } from '../platform';
+import { drag, type Payload } from './drag.svelte';
 import type { Track } from '../store/types';
 
 class Dock {
@@ -34,6 +35,31 @@ class Dock {
   }
   async clear() { await localHome.post('/dock/clear').catch(() => {}); this.songs = 0; }
 
+  /** Songs dragged in the library and let go outside the browser's window (ADR 0061): GLUE Home adds
+      them if that point is on the dock window. Let go anywhere else, nothing happens. */
+  async dropAt(tracks: Track[], x: number, y: number) {
+    if (!this.available) return;
+    const items = this.itemsOf(tracks);
+    if (!items.length) return;
+    try {
+      const r = await localHome.post<{ on: boolean; songs?: number }>('/dock/drop', JSON.stringify({ x, y, mode: 'add', items }));
+      if (!r.on) return;
+      this.songs = r.songs ?? this.songs;
+      lib.notice = 'Added ' + items.length + ' song' + (items.length === 1 ? '' : 's') + ' to the drag dock (' + this.songs + ' in it).';
+    } catch (e) {
+      if (/404/.test((e as Error).message)) lib.notice = 'Dropping songs on the drag dock needs GLUE Home 0.9 or later: it updates itself, or download it again.';
+    }
+  }
+  private itemsOf(tracks: Track[]) { return tracks.filter(t => !t.remote && t.status === 'linked' && t.rootId && t.relPath).map(t => ({ root: t.rootId!, path: t.relPath! })); }
+  /** The tracks a drag carries. */
+  tracksOfDrag(p: Payload): Track[] {
+    const s = lib.store;
+    if (!s) return [];
+    if (p.kind === 'tracks') return p.ids.map(id => s.tracks.get(id)).filter((t): t is Track => !!t);
+    if (p.kind === 'list') return this.tracksOf(p.id);
+    return [];
+  }
+
   /** A playlist's songs, or a folder's: its own, then each playlist inside it, in the sidebar's order. */
   tracksOf(listId: string): Track[] {
     const s = lib.store, out: Track[] = [], seen = new Set<string>();
@@ -54,3 +80,6 @@ class Dock {
 }
 
 export const dock = new Dock();
+// Drops on the "Drag dock" button, and song drags let go outside the window (ADR 0061).
+drag.onDock = p => void dock.add(dock.tracksOfDrag(p), p.kind === 'list' ? p.label : '');
+drag.onOutside = (p, x, y) => void dock.dropAt(dock.tracksOfDrag(p), x, y);

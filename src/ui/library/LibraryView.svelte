@@ -222,7 +222,7 @@
         {:else}
           <span class="hint">Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection.</span>
         {/if}
-        {#if dock.available}<button type="button" class="mini dockbtn" id="drag-dock" title="Show GLUE Home's drag dock: add songs with “+ Dock”, or drag a playlist onto it, then drag them from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}
+        {#if dock.available}<button type="button" class="mini dockbtn" id="drag-dock" data-drop="dock" class:hot={drag.active && drag.target?.type === 'dock'} title="Show GLUE Home's drag dock. Songs and playlists go in by dragging them onto it (or onto this button), or with “+ Dock”; then drag them from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}
       </div>
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
       {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else}<TrackTable />{/if}
@@ -278,6 +278,7 @@
   .splitter::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; border-radius: 1px; background: var(--line); transition: background .12s; }
   .splitter:hover::after, .splitter.on::after { background: var(--accent); }
   .dockbtn { margin-left: auto; }
+  .dockbtn.hot { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); }
   .right { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
   .right > :global(.table), .right > :global(.dv) { flex: 1; }
   .ibtn { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; font-size: 13px; color: var(--ink-2); }

@@ -19,7 +19,15 @@
   import WaveCell from './WaveCell.svelte';
   import { dupes } from '../../lib/dupes.svelte';
   import { canDragOut, prepareTrack, startTrackDrag } from '../../lib/dragout';
+  import { dock } from '../../lib/dock.svelte';
   const dragOut = canDragOut();
+  /** The handle's drag also carries the songs for GLUE Home's dock (ADR 0061): the selection when the
+      row is in it, else that song. */
+  const dockText = (id: string) => {
+    if (!dock.available) return null;
+    const ids = view.selected.has(id) ? [...view.selected] : [id];
+    return dock.payload(ids.map(x => lib.store?.tracks.get(x)).filter((t): t is NonNullable<typeof t> => !!t));
+  };
 
   const ROW = 30, OVERSCAN = 12;
 
@@ -243,7 +251,7 @@
               <span class="grip" draggable="true" role="button" tabindex="-1" aria-label="Drag out a copy of the file"
                 title="Drag to Explorer, the desktop or a USB stick to copy this file"
                 onpointerenter={() => void prepareTrack(r.t)}
-                ondragstart={e => { if (!startTrackDrag(e, r.t)) lib.notice = lib.canRead(r.t) ? 'Getting the file ready: drag again.' : 'GLUE needs permission to read this file first: play it or open its page.'; }}>
+                ondragstart={e => { if (!startTrackDrag(e, r.t, dockText(r.t.id))) lib.notice = lib.canRead(r.t) ? 'Getting the file ready: drag again.' : 'GLUE needs permission to read this file first: play it or open its page.'; }}>
                 <svg viewBox="0 0 6 14" aria-hidden="true"><circle cx="1.5" cy="2" r="1.1"/><circle cx="4.5" cy="2" r="1.1"/><circle cx="1.5" cy="7" r="1.1"/><circle cx="4.5" cy="7" r="1.1"/><circle cx="1.5" cy="12" r="1.1"/><circle cx="4.5" cy="12" r="1.1"/></svg>
               </span>
             {/if}

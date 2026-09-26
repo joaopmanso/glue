@@ -131,3 +131,4 @@ Planned (GLUE):
 | [0058](adr/0058-performance-budgets.md) | Performance budgets, measured on a synthetic collection | accepted |
 | [0059](adr/0059-indexes-rebuilt-by-change-counters.md) | Indexes over the collection, rebuilt by per-kind change counters | accepted |
 | [0060](adr/0060-decode-in-the-worker.md) | Read, parse and decode audio in the worker (mediabunny + WebCodecs) | accepted (supersedes 0019's decoding) |
+| [0061](adr/0061-songs-onto-the-drag-dock.md) | Songs go onto the drag dock by dragging them there too | accepted |

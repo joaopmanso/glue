@@ -112,6 +112,17 @@ fn handle(app: AppHandle, req: Request) {
                 Err(e) => reply(req, 400, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json"),
             }
         }
+        // Songs dragged out of the website's window, let go at a point on the screen (ADR 0061).
+        "/dock/drop" if req.method() == &Method::Post => {
+            let mut body = String::new();
+            let mut req = req;
+            let _ = std::io::Read::read_to_string(req.as_reader(), &mut body);
+            match crate::dock::drop_at(&app, &body) {
+                Ok(Some(n)) => reply(req, 200, serde_json::json!({ "on": true, "songs": n }).to_string().into_bytes(), "application/json"),
+                Ok(None) => reply(req, 200, serde_json::json!({ "on": false }).to_string().into_bytes(), "application/json"),
+                Err(e) => reply(req, 400, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json"),
+            }
+        }
         "/dock/show" if req.method() == &Method::Post => { crate::dock::show(&app); reply(req, 200, b"{}".to_vec(), "application/json") }
         "/dock" if req.method() == &Method::Get => reply(req, 200, crate::dock::current().to_string().into_bytes(), "application/json"),
         "/dock/clear" if req.method() == &Method::Post => { crate::dock::clear(&app); reply(req, 200, b"{}".to_vec(), "application/json") }

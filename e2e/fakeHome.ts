@@ -16,6 +16,9 @@ export class FakeHome {
   /** The drag dock's queue (ADR 0054), and whether it was shown. */
   dock: { root: string; path: string }[] = [];
   dockShown = false;
+  /** Where the dock window is on the screen (screen coordinates), for /dock/drop (ADR 0061). */
+  dockRect: { x: number; y: number; w: number; h: number } | null = null;
+  dockDrops: { x: number; y: number; on: boolean }[] = [];
   private server: Server | null = null;
   constructor(readonly dirs: FakeHomeDirs) {}
 
@@ -51,6 +54,18 @@ export class FakeHome {
     }
     if (u.pathname === '/dock/show' && method === 'POST') { this.dockShown = true; return send(200, {}); }
     if (u.pathname === '/dock/clear' && method === 'POST') { this.dock = []; return send(200, {}); }
+    if (u.pathname === '/dock/drop' && method === 'POST') {
+      const chunks: Buffer[] = [];
+      req.on('data', c => chunks.push(Buffer.from(c)));
+      req.on('end', () => {
+        const d = JSON.parse(Buffer.concat(chunks).toString() || '{}') as { x: number; y: number; items: { root: string; path: string }[] };
+        const r = this.dockRect, on = !!r && d.x >= r.x && d.x <= r.x + r.w && d.y >= r.y && d.y <= r.y + r.h;
+        this.dockDrops.push({ x: d.x, y: d.y, on });
+        if (on) for (const i of d.items) if (!this.dock.some(x => x.root === i.root && x.path === i.path)) this.dock.push(i);
+        send(200, on ? { on, songs: this.dock.length } : { on });
+      });
+      return;
+    }
     if (u.pathname === '/dock' && method === 'POST') {
       const chunks: Buffer[] = [];
       req.on('data', c => chunks.push(Buffer.from(c)));

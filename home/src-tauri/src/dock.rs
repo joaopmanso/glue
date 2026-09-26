@@ -44,6 +44,24 @@ pub(crate) fn set(app: &AppHandle, body: &str) -> Result<usize, String> {
     Ok(changed(app))
 }
 
+/// Songs dragged in the website and let go outside its window (ADR 0061): { x, y, items }, the point in
+/// the browser's screen coordinates (device-independent pixels). Added when that point is on the dock
+/// window (a few pixels of slack); None when it isn't (the drag was let go somewhere else).
+pub(crate) fn drop_at(app: &AppHandle, body: &str) -> Result<Option<usize>, String> {
+    let mut v: serde_json::Value = serde_json::from_str(body).map_err(|e| format!("bad request: {e}"))?;
+    let (Some(x), Some(y)) = (v.get("x").and_then(|x| x.as_f64()), v.get("y").and_then(|x| x.as_f64())) else { return Err("x and y are needed".into()) };
+    let Some(w) = app.get_webview_window("dock") else { return Ok(None) };
+    if !w.is_visible().unwrap_or(false) || w.is_minimized().unwrap_or(false) { return Ok(None); }
+    let (Ok(p), Ok(s), Ok(sf)) = (w.outer_position(), w.outer_size(), w.scale_factor()) else { return Ok(None) };
+    // The window's position and size are physical pixels; the browser's point isn't.
+    let (l, t) = (p.x as f64 / sf, p.y as f64 / sf);
+    let (r, b) = (l + s.width as f64 / sf, t + s.height as f64 / sf);
+    const SLACK: f64 = 8.0;
+    if x < l - SLACK || x > r + SLACK || y < t - SLACK || y > b + SLACK { return Ok(None); }
+    v["mode"] = "add".into();
+    set(app, &v.to_string()).map(Some)
+}
+
 pub(crate) fn clear(app: &AppHandle) { DOCK.lock().unwrap().clear(); changed(app); }
 
 /// Show the dock (the website's "Drag dock" button, or the tray).

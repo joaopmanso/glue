@@ -31,13 +31,14 @@ export function absolutePath(t: Track): string | null {
   return win ? base.replace(/[\\/]+$/, '') + '\\' + t.relPath.replace(/\//g, '\\') : base.replace(/\/+$/, '') + '/' + t.relPath;
 }
 
-/** dragstart for a track's handle. Returns false (and cancels) when the file isn't ready. */
-export function startTrackDrag(e: DragEvent, t: Track): boolean {
+/** dragstart for a track's handle. Returns false (and cancels) when the file isn't ready. `dock`: the
+    songs for GLUE Home's dock window, as text (ADR 0061); with it the drag goes even before the file is. */
+export function startTrackDrag(e: DragEvent, t: Track, dock: string | null = null): boolean {
   const url = ready.get(t.id), dt = e.dataTransfer;
-  if (!url || !dt) { e.preventDefault(); return false; }
+  if (!dt || (!url && !dock)) { e.preventDefault(); return false; }
   dt.effectAllowed = 'copy';
-  dt.setData('DownloadURL', mimeOf(t.fileName) + ':' + safeName(t.fileName) + ':' + url);
-  dt.setData('text/plain', absolutePath(t) ?? t.fileName);
+  if (url) dt.setData('DownloadURL', mimeOf(t.fileName) + ':' + safeName(t.fileName) + ':' + url);
+  dt.setData('text/plain', dock ?? absolutePath(t) ?? t.fileName);
   return true;
 }
 

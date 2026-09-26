@@ -5,6 +5,20 @@ updated: 2026-09-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-26 · GLUE Home 0.9.0: drag songs onto the drag dock
+From the user's feedback: only playlists could be dragged onto the dock; songs needed "+ Dock"
+([ADR 0061](../adr/0061-songs-onto-the-drag-dock.md)).
+- **Drag song rows out of the browser onto the dock window.** The page tells GLUE Home where the
+  drag was let go, and GLUE Home adds the songs if that's on the dock.
+- **Or drop them on the "Drag dock" button** (playlists too). The ⋮ handle's drag carries them for
+  the dock as well.
+- **Checked with a real mouse:** a song row dragged from Edge onto the dock window was queued.
+- **"Deleted playlists still in Add to playlist":** not reproduced. On a fresh load the dropdown
+  matches the folder exactly (780 lists). The Engine DJ import holds 761 of them, with names that
+  repeat in different folders ("Heavy" in 19 places), so deleting one leaves its namesakes listed.
+  Pending the user's answer.
+- Tests: 145 unit; e2e 39 (song drags onto the button and out of the window, on and off a fake dock).
+
 ## 2026-09-26 · Decoding moves into the workers: no more stalls while songs are analysed (M7 phase 3)
 From the user's second `?perf` report: stalls of 140–560 ms every 3 s, from fingerprints being made
 again on the page ([ADR 0060](../adr/0060-decode-in-the-worker.md)).

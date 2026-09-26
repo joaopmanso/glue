@@ -136,6 +136,11 @@ an account GLUE works exactly as today, all local.
   - its songs join the queue.
 - The library's "Drag dock" button is always there in Home mode, at the right of the bar above the
   songs, not only with a selection.
+- **Songs by dragging too (0.9.0,** [ADR 0061](../adr/0061-songs-onto-the-drag-dock.md)**):**
+  - drag song rows (the selection, or that one song) out of the browser onto the dock window, or
+    onto the "Drag dock" button;
+  - the ⋮ handle works too;
+  - GLUE Home checks that the point where the drag was let go is on the dock.
 
 ## Known issues (2026-09-26)
 - ~~A song sent to a computer is unanalysed there when that computer's collection already has it

@@ -118,6 +118,32 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     expect(carried.startsWith('GLUE-DOCK ')).toBe(true);
     expect(JSON.parse(carried.slice(10)).items).toEqual([{ root: 'incoming', path: 'Sent song.mp3' }]);
     await row.dispatchEvent('dragend');
+    // Songs go in by dragging too (ADR 0061): onto the "Drag dock" button, or out of the window onto
+    // the dock window itself (GLUE Home says whether the point is on it).
+    home.dock = [];
+    const song = page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.c-title');
+    const dragTo = async (to: { x: number; y: number }) => {
+      const a = (await song.boundingBox())!;
+      await page.mouse.move(a.x + 20, a.y + a.height / 2); await page.mouse.down();
+      await page.mouse.move(a.x + 60, a.y + a.height / 2 + 10, { steps: 4 });
+      await page.mouse.move(to.x, to.y, { steps: 6 }); await page.mouse.up();
+    };
+    await song.click();   // only this one selected (a selected row drags the whole selection)
+    const btn = (await page.locator('#drag-dock').boundingBox())!;
+    await dragTo({ x: btn.x + btn.width / 2, y: btn.y + btn.height / 2 });
+    await expect.poll(() => home.dock.map(i => i.path)).toEqual(['Sets/aiff-44k-24.aiff']);
+    home.dock = [];
+    // Let go outside the window: over the dock window, then somewhere else.
+    const at = await page.evaluate(() => ({ sx: screenX, sy: screenY + (outerHeight - innerHeight) }));
+    home.dockRect = { x: at.sx - 400, y: at.sy, w: 380, h: 800 };
+    await dragTo({ x: -60, y: 200 });
+    await expect.poll(() => home.dock.map(i => i.path)).toEqual(['Sets/aiff-44k-24.aiff']);
+    expect(home.dockDrops.at(-1)!.on).toBe(true);
+    home.dock = []; home.dockRect = { x: at.sx - 4000, y: at.sy, w: 10, h: 10 };
+    await dragTo({ x: -60, y: 200 });
+    await expect.poll(() => home.dockDrops.length).toBe(2);
+    expect(home.dockDrops.at(-1)!.on).toBe(false);
+    expect(home.dock).toEqual([]);
 
     // GLUE Home stops. A track still opens and plays, from the browser's own folder.
     await home.stop();

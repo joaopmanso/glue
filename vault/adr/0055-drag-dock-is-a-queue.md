@@ -21,7 +21,8 @@ playlists or entire folders.
   (`dock_remove`, `dock_clear`).
 - "Drag dock" in the library only shows the window.
 - Since GLUE Home 0.8.0 a playlist can also be dragged from the sidebar onto the dock window
-  ([ADR 0056](0056-playlists-drag-with-the-browser.md)).
+  ([ADR 0056](0056-playlists-drag-with-the-browser.md)), and since 0.9.0 songs too
+  ([ADR 0061](0061-songs-onto-the-drag-dock.md)).
 
 ## Alternatives considered
 - **Keep following the selection, with a "pin" to hold it:** two ways of filling it, and a click in

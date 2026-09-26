@@ -18,7 +18,8 @@ export type Target =
   | { type: 'row'; listId: string; index: number }          // reorder / insert inside the open playlist
   | { type: 'list'; id: string; at: 'before' | 'after' | 'into' }
   | { type: 'top' }                                         // the end of the top level
-  | { type: 'home'; home: string };                         // send the tracks' files to a GLUE Home (ADR 0046)
+  | { type: 'home'; home: string }                          // send the tracks' files to a GLUE Home (ADR 0046)
+  | { type: 'dock' };                                       // the "Drag dock" button: onto GLUE Home's dock (ADR 0061)
 
 const THRESHOLD = 5;   // px of movement before a press becomes a drag
 
@@ -38,6 +39,10 @@ class Drag {
   onOpenFolder: ((id: string) => void) | null = null;
   /** Tracks dropped on a computer with GLUE Home (Devices): send their files there. */
   onHome: ((home: string, ids: string[]) => void) | null = null;
+  /** Tracks or a playlist dropped on the "Drag dock" button. */
+  onDock: ((p: Payload) => void) | null = null;
+  /** Tracks let go outside the window (screen coordinates): GLUE Home's dock window may be there (ADR 0061). */
+  onOutside: ((p: Payload, screenX: number, screenY: number) => void) | null = null;
 
   begin(e: PointerEvent, payload: Payload) {
     if (e.button !== 0) return;
@@ -60,13 +65,15 @@ class Drag {
     this.x = e.clientX; this.y = e.clientY;
     this.target = this.resolve(e.clientX, e.clientY);
   };
-  private up = () => {
+  private up = (e: PointerEvent) => {
     const p = this.payload, t = this.target, was = this.active;
     this.end();
     if (!was) return;
     this.suppressClick = true;
     setTimeout(() => { this.suppressClick = false; });
     if (p && t) this.drop(p, t);
+    // The pointer stays with the page while the button is held, even outside the window.
+    else if (p?.kind === 'tracks' && (e.clientX < 0 || e.clientY < 0 || e.clientX >= innerWidth || e.clientY >= innerHeight)) this.onOutside?.(p, e.screenX, e.screenY);
   };
   private key = (e: KeyboardEvent) => { if (e.key === 'Escape') this.end(); };
 
@@ -121,6 +128,7 @@ class Drag {
     if (kind === 'tag') return p.kind === 'tracks' && el.dataset.tag ? { type: 'tag', name: el.dataset.tag } : null;
     if (kind === 'top') return p.kind === 'list' ? { type: 'top' } : null;
     if (kind === 'home') return p.kind === 'tracks' && el.dataset.home ? { type: 'home', home: el.dataset.home } : null;
+    if (kind === 'dock') return { type: 'dock' };
     if (kind === 'row') {
       if (p.kind !== 'tracks' || !el.dataset.list) return null;
       const r = el.getBoundingClientRect(), i = Number(el.dataset.index);
@@ -147,6 +155,7 @@ class Drag {
   }
 
   private drop(p: Payload, t: Target) {
+    if (t.type === 'dock') { this.onDock?.(p); return; }
     if (p.kind === 'column') { if (t.type === 'col') columns.place(p.key, t.key, t.at); return; }
     if (p.kind === 'tracks') {
       if (t.type === 'home') { this.onHome?.(t.home, p.ids); return; }

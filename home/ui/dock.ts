@@ -13,7 +13,7 @@ function show() {
   const n = dock.paths.length;
   $('drag').classList.toggle('has', n > 0);
   $('title').textContent = n ? 'Drag ' + n + ' song' + (n === 1 ? '' : 's') : 'The dock is empty';
-  $('hint').textContent = n ? 'Into Engine DJ, Rekordbox or a folder: all of them, in this order.' : 'Drag a playlist here from GLUE, or use “+ Dock” there.';
+  $('hint').textContent = n ? 'Into Engine DJ, Rekordbox or a folder: all of them, in this order.' : 'Drag songs or a playlist here from GLUE, or use “+ Dock” there.';
   ($('clear') as HTMLButtonElement).hidden = !n;
   const list = $('list');
   list.replaceChildren(...dock.names.map((name, i) => {
