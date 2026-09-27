@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CoverArt from './CoverArt.svelte';
   import { untrack } from 'svelte';
   import { lib } from '../../lib/library.svelte';
   import { app, analyzeFile, showResult } from '../../lib/app.svelte';
@@ -212,6 +213,7 @@ canPlay = true;
     <p class="muted">This track isn’t in the open collection.</p>
   {:else}
     <header class="th">
+      <CoverArt t={track} size={320} px={64} />
       <div class="tt">
         <h2>{track.title || track.fileName}</h2>
         <div class="sub">
@@ -221,8 +223,12 @@ canPlay = true;
         </div>
       </div>
       <!-- The full analysis below shows the verdict; until then (or for another computer's song) it's here. -->
-      {#if summary && !summary.error && !(phase === 'ready' && app.phase === 'result')}<span class="q" data-grade={summary.grade}>{summary.label}</span>{/if}
+      <div class="hacts">
+        {#if summary && !summary.error && !(phase === 'ready' && app.phase === 'result')}<span class="q" data-grade={summary.grade}>{summary.label}</span>{/if}
+        {#if !track.remote && !lib.cloud}<button type="button" class="edit" id="edit-info-btn" disabled={lib.readOnly} onclick={() => (view.infoFor = { ids: [id] })}>Edit info</button>{/if}
+      </div>
     </header>
+    {#if track.unwritten?.length}<p class="unw" id="info-unwritten">Edited in GLUE, not in the file yet ({track.unwritten.join(', ')}): GLUE Home writes {track.unwritten.length === 1 ? 'it' : 'them'} into the file when it runs on this computer.</p>{/if}
 
     <nav class="tabs" aria-label="Track page">
       <button type="button" class:on={tab === 'details'} aria-current={tab === 'details' ? 'page' : undefined} id="tab-details" onclick={() => goTab('details')}>Details</button>
@@ -240,6 +246,7 @@ canPlay = true;
           <div><dt>Length</dt><dd>{track.duration ? fmtTime(track.duration) : '—'}</dd></div>
           {#if track.genre}<div><dt>Genre</dt><dd>{track.genre}</dd></div>{/if}
           {#if track.label}<div><dt>Label</dt><dd>{track.label}</dd></div>{/if}
+          {#if track.grouping}<div><dt>Grouping</dt><dd>{track.grouping}</dd></div>{/if}
           <div><dt>Added</dt><dd>{new Date(track.addedAt).toLocaleDateString()}</dd></div>
           <div class="grow"><dt>In playlists</dt><dd class="inlists">
             <!-- Two at most here; the rest in a list (they once ran over the page, 2026-09-27). -->
@@ -338,7 +345,13 @@ canPlay = true;
   .tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
   .tabs button:hover:not(.on) { color: var(--accent); }
   .th { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
-  .tt { min-width: 0; }
+  .hacts { display: flex; gap: 10px; align-items: center; flex: none; }
+  .edit { background: none; border: 1px solid var(--line-2); border-radius: 6px; color: var(--ink-2); font-size: 12.5px; padding: 4px 11px; cursor: pointer; }
+  .edit:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .unw { margin: -4px 0 0; color: var(--muted); font-size: 12.5px; }
+  .tt { min-width: 0; flex: 1; }
+  .th :global(.cov) { border-radius: 5px; }
+  .th :global(.cov:not(.has)) { display: none; }
   h2 { font-size: 24px; font-stretch: 112%; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sub { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: center; margin-top: 4px; }
   .who { color: var(--ink-2); }

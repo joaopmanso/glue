@@ -130,6 +130,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     },
     SEP,
     { stars: rating, pick: (v: number | null) => lib.rateTracks(ids, v) },
+    { label: 'Edit info…', hint: one ? 'F2' : undefined, attrs: { 'data-m': 'info' }, disabled: cloud || lib.readOnly || ts.every(t => t.remote), title: cloud || ts.every(t => t.remote) ? 'Edit them on the computer that has them' : undefined, run: () => (view.infoFor = { ids }) },
     { label: 'Tags…', attrs: { 'data-m': 'tags', 'data-tags-open': '' }, run: () => (view.tagFor = { ids, x: at.x, y: at.y }) },
     one && { label: one.notes ? 'Edit note…' : 'Add a note…', attrs: { 'data-m': 'note' }, run: () => (view.noteFor = { id: one.id, x: at.x + 320, y: at.y }) },
     opts.only && {

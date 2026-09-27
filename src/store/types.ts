@@ -57,6 +57,11 @@ export interface Track {
   notes?: string;               // the user's own notes about the track
   grouping?: string;            // the file's / DJ app's Grouping field
   tags?: string[];              // the user's tags; absent until edited, then the found ones (tagsOf) stand in
+  /** Song info edited in GLUE (ADR 0071): never filled in again from the file or a DJ app. */
+  edited?: string[];
+  /** Of those, the ones not in the file yet: GLUE Home writes them when it runs. */
+  unwritten?: string[];
+  art?: string;                 // the cover's hash (ADR 0072): '' none; absent: not looked for yet
   prep?: Prep;                  // the Prepare tab: corrected tempo and grid, display flip, cues (ADR 0052)
   onDevices?: string[];         // cloud views and merged collections: the devices that have this track (never saved)
   /** A track from another device of a merged collection, shown here from the cloud (ADR 0042; never saved):

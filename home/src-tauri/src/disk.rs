@@ -174,6 +174,21 @@ pub fn handle(app: AppHandle, mut req: Request, path: &str, arg: &dyn Fn(&str) -
                 let name = picked.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| text.clone());
                 Ok(json(serde_json::json!({ "path": text, "name": name })))
             }
+            // Song info written into a music file (ADR 0071): {root, path, tags} in the body; its new size and date.
+            "/fs/tags" => {
+                let mut body = String::new();
+                std::io::Read::read_to_string(req.as_reader(), &mut body).map_err(io_fail)?;
+                let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| fail(400, e.to_string()))?;
+                let root = fs::canonicalize(v.get("root").and_then(|x| x.as_str()).unwrap_or("")).map_err(|_| fail(404, "that folder isn't there"))?;
+                if !crate::dupes::music_roots(&app).contains(&root) {
+                    return Err(fail(403, "not a music folder GLUE Home knows"));
+                }
+                let target = inside(&root, v.get("path").and_then(|x| x.as_str()).unwrap_or(""))?;
+                check(&root, &target)?;
+                let fields = v.get("tags").and_then(|x| x.as_object()).cloned().unwrap_or_default();
+                let (size, mtime) = crate::tags::write_tags(&target, &fields).map_err(|e| fail(500, e))?;
+                Ok(json(serde_json::json!({ "size": size, "mtime": mtime })))
+            }
             // Duplicates put aside or recycled (ADR 0070): items in the body, a result for each.
             "/fs/dupes" => {
                 let mut body = String::new();

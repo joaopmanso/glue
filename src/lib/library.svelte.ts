@@ -17,11 +17,12 @@ import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { fileHead, fileMeta } from '../core/library/files';
 import { findLibraries, libraryAt, type Detected } from '../core/library/detect';
 import { makeThumb, makeWaveThumb } from '../core/library/thumb';
-import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
+import { AUDIO_EXT, INFO_FIELDS, fillInfo, formatOf, nameFields, tagFields, type InfoField } from '../core/library/tags';
 import { failed, summarize } from '../core/library/summary';
 import { classify } from '../core/audio/verdict';
 import { addTags, cleanTag, removeTags, tagKey, tagsOf, uniqTags } from '../core/library/tagging';
-import { encodeDetails, loadDetails, removeDetails, writeDetails, type DetailsHeader } from '../store/details';
+import { encodeDetails, loadDetails, removeDetails, restampDetails, writeDetails, type DetailsHeader } from '../store/details';
+import type { Cover } from '../workers/cover';
 import { removeFingerprint, writeFingerprint } from '../store/fingerprints';
 import { buildBackup, readBackup, writeBackup, type BackupManifest } from '../store/backup';
 import type { ZipEntry } from '../core/zip';
@@ -90,6 +91,8 @@ class Library {
   onThumb: ((id: string, data: Uint8Array) => void) | null = null;
   /** …and its mini waveform (the user's list, 2026-09-27). */
   onWave: ((id: string, data: Uint8Array) => void) | null = null;
+  /** A cover found at analysis (ADR 0072): stored before the track names it. */
+  onArt: ((c: Cover) => Promise<void>) | null = null;
   /** A collection from GLUE Cloud on screen instead of a local one (ADR 0040): nothing is analysed,
       scanned or written to this computer; edits go to the device that owns the data. */
   cloud = $state.raw<CloudView | null>(null);
@@ -207,6 +210,7 @@ class Library {
         this.version++;
         this.scheduleFlush();
         this.enqueueAll();
+        void this.writeInfo();
       }
     } finally { this.switching = false; }
   }
@@ -445,6 +449,7 @@ class Library {
     this.version++;
     record('open.collection', performance.now() - t0);
     this.enqueueAll();
+    void this.writeInfo();
     this.onOpened?.();
     this.onCollectionOpened?.(this.profile.id, cid);
     void this.detectLibraries();
@@ -857,6 +862,65 @@ class Library {
     const r = rating == null || rating <= 0 ? null : Math.min(5, Math.round(rating * 2) / 2);
     s.putTracks(ids.map(id => s.tracks.get(id)).filter((t): t is Track => !!t).map(t => ({ ...t, rating: r })));
   }
+  /** Edit songs' info (ADR 0071): kept in GLUE at once, then written into the files of this computer's
+      music folders by GLUE Home (now, or when it next runs). Only the fields given change; a title
+      can't be emptied. */
+  editInfo(ids: string[], patch: { [K in InfoField]?: string }) {
+    const s = this.store;
+    if (!s || this.readOnly) return;
+    const out: Track[] = [];
+    for (const id of ids) {
+      const t = s.tracks.get(id);
+      if (!t || t.remote) continue;
+      const next: Track = { ...t }, changed: InfoField[] = [];
+      for (const k of INFO_FIELDS) {
+        const v = patch[k]?.trim();
+        if (v == null || (k === 'title' && !v) || (t[k] ?? '') === v) continue;
+        next[k] = v; changed.push(k);
+      }
+      if (!changed.length) continue;
+      next.edited = [...new Set([...t.edited ?? [], ...changed])];
+      if (t.rootId && t.relPath && !t.fileKey) next.unwritten = [...new Set([...t.unwritten ?? [], ...changed])];
+      out.push(next);
+    }
+    if (out.length) { s.putTracks(out); void this.writeInfo(); }
+  }
+  /** Songs whose edited info isn't in their file yet. */
+  unwrittenCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (t.unwritten?.length) n++; return n; }
+  private writing: Promise<void> | null = null;
+  /** Edited info into the files, through GLUE Home (Home mode only; the rest waits for it). */
+  writeInfo() { return (this.writing ??= this.writeInfoOnce().finally(() => { this.writing = null; })); }
+  private async writeInfoOnce() {
+    const tried = new Set<string>();
+    let failed = 0, why = '';
+    for (;;) {
+      const s = this.store;
+      if (!s || this.readOnly || this.cloud || !platform.homeMode()) return;
+      const t = [...s.tracks.values()].find(x => x.unwritten?.length && !tried.has(x.id));
+      if (!t) break;
+      tried.add(t.id);
+      const root = this.rootState(t.rootId)?.root;
+      if (!root || !t.relPath || t.status !== 'linked') continue;
+      const tags = Object.fromEntries(t.unwritten!.map(k => [k, t[k as InfoField] ?? '']));
+      try {
+        const r = await platform.writeTags(root, t.relPath, tags);
+        const now = s.tracks.get(t.id);
+        if (this.store !== s || !now) return;
+        // Edited again meanwhile: still to write.
+        const left = (now.unwritten ?? []).filter(k => !(k in tags) || (now[k as InfoField] ?? '') !== tags[k]);
+        s.putTrack({ ...now, size: r.size, mtime: r.mtime, unwritten: left.length ? left : undefined });
+        // The sound didn't change: the analysis stays the file's, so nothing is analysed again.
+        const a = s.analysis.get(t.id), was = { size: t.size, mtime: t.mtime };
+        if (a && a.fileSize === was.size && a.fileMtime === was.mtime) s.putAnalysis(t.id, { ...a, fileSize: r.size, fileMtime: r.mtime });
+        const cache = await platform.cacheDir();
+        if (cache) await restampDetails(cache, s.meta.id, t.id, was, r).catch(() => {});
+      } catch (e) {
+        if ((e as Error).name === 'HomeDown') return;
+        failed++; why = String((e as Error)?.message || e);
+      }
+    }
+    if (failed) this.notice = 'GLUE Home couldn’t write the info into ' + (failed === 1 ? 'one song’s file' : failed + ' songs’ files') + ': ' + why + ' GLUE keeps the edits, and tries again when GLUE Home next connects.';
+  }
   addToList(id: string, trackIds: string[], at?: number) {
     // Songs waiting in an incoming folder (TO BE SORTED) move into a music folder first.
     const waiting = trackIds.filter(t => this.store?.tracks.get(t)?.remote?.incoming);
@@ -1187,11 +1251,13 @@ class Library {
       if (this.store !== s) return;
       if (r.thumb) this.onThumb?.(t.id, r.thumb);
       if (r.wave) this.onWave?.(t.id, r.wave);
+      if (r.art) await this.onArt?.(r.art);
       s.putAnalysis(t.id, r.summary);
       const cur = s.tracks.get(t.id) ?? t;
       const f = tagFields(r.info.tags);
       const upd: Track = { ...cur, size: file.size, mtime: file.lastModified, format: formatOf(r.info), duration: r.duration || cur.duration };
-      for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year', 'grouping'] as const) if (!upd[k] && f[k]) upd[k] = f[k];
+      fillInfo(upd, f);
+      if (r.art !== undefined) upd.art = r.art?.hash ?? '';
       s.putTrack(upd);
       this.analysis = { ...this.analysis, done: this.analysis.done + 1 };
     } catch (e) {
@@ -1212,7 +1278,7 @@ async function quickTags(t: Track, head: Uint8Array): Promise<Track> {
     let info = blankInfo();
     try { info = parseContainer(head); } catch { /* partial file: tags may still be there */ }
     const f = tagFields(info.tags);
-    for (const k of ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year', 'grouping'] as const) if (!out[k] && f[k]) out[k] = f[k];
+    fillInfo(out, f);
     if (info.container !== 'Unknown') out.format = formatOf(info);
     if (info.duration && !out.duration) out.duration = info.duration;
   } catch { /* unreadable: fall back to the name */ }

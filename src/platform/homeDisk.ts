@@ -50,6 +50,10 @@ export class HomeDisk {
   dupes(mode: 'move' | 'trash', items: { root: string; path: string }[]) {
     return this.json<{ results: { ok: boolean; error?: string; to?: string }[] }>('/fs/dupes', {}, { method: 'POST', body: JSON.stringify({ mode, items }) });
   }
+  /** Song info written into a music file (ADR 0071): its new size and date. */
+  tags(root: string, path: string, tags: Record<string, string>) {
+    return this.json<{ size: number; mtime: number }>('/fs/tags', {}, { method: 'POST', body: JSON.stringify({ root, path, tags }) });
+  }
   /** A file's URL on the local link (for <audio src>: plays and seeks with byte ranges). */
   fileUrl(root: string, path: string) { return this.base + '/fs/file?' + new URLSearchParams({ root, path, t: this.token }); }
 }

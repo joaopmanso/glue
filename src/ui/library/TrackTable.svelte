@@ -17,9 +17,11 @@
   import { SCHEMES } from '../render/wave';
   import { keyLabel } from '../../core/audio/keys';
   import { fmtTime } from '../../core/format';
-  import type { TrackFormat } from '../../store/types';
+  import type { Track, TrackFormat } from '../../store/types';
+  import type { InfoField } from '../../core/library/tags';
   import Stars from './Stars.svelte';
   import WaveCell from './WaveCell.svelte';
+  import CoverArt from './CoverArt.svelte';
   import { dupes } from '../../lib/dupes.svelte';
   import { canDragOut, prepareTrack, startTrackDrag } from '../../lib/dragout';
   import { dock } from '../../lib/dock.svelte';
@@ -160,7 +162,7 @@
   }
   /** Fit a column to its widest value over all the rows (and its heading). Fixed drawings keep theirs. */
   function fitColumn(k: ColKey) {
-    const FIXED: Partial<Record<ColKey, number>> = { wave: 150, rating: 70, notes: 42 };
+    const FIXED: Partial<Record<ColKey, number>> = { wave: 150, cover: 58, rating: 70, notes: 42 };
     const th = headWrap?.querySelector<HTMLElement>('.th[data-col="' + k + '"]');
     // The heading's own text (its button stretches to the column).
     const range = document.createRange();
@@ -211,7 +213,43 @@
     return codec + (f.bitrate ? ' ' + f.bitrate : '');
   }
 
-  function open(id: string) { router.go(trackHref(id)); }
+  // Editing a cell in place (ADR 0071): F2, or a slow second click on the selected song. Enter keeps it,
+  // Esc drops it, Tab goes on to the next column that can be edited.
+  const EDITABLE: ColKey[] = ['title', 'artist', 'album', 'genre', 'label', 'year'];
+  let inline = $state<{ id: string; k: ColKey; v: string } | null>(null);
+  let slow = 0;
+  const editable = (t: Track | undefined) => !!t && !t.remote && !lib.cloud && !lib.readOnly;
+  function startInline(id: string, k?: ColKey) {
+    const t = lib.store?.tracks.get(id), shown = cols.filter(c => EDITABLE.includes(c));
+    const col = k && shown.includes(k) ? k : shown[0];
+    if (!editable(t) || !col) { if (editable(t)) view.infoFor = { ids: [id] }; return; }
+    inline = { id, k: col, v: t![col as InfoField] ?? '' };
+  }
+  function endInline(keep: boolean, step = 0) {
+    const cur = inline;
+    if (!cur) return;
+    inline = null;
+    if (keep) lib.editInfo([cur.id], { [cur.k]: cur.v });
+    if (step) { const shown = cols.filter(c => EDITABLE.includes(c)), next = shown[shown.indexOf(cur.k) + step]; if (next) startInline(cur.id, next); }
+    if (!step) scroller?.focus();
+  }
+  function inlineKey(e: KeyboardEvent) {
+    e.stopPropagation();   // the table's own keys (Space, Delete, arrows) stay out of the field
+    if (e.key === 'Enter') { e.preventDefault(); endInline(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); endInline(false); }
+    else if (e.key === 'Tab') { e.preventDefault(); endInline(true, e.shiftKey ? -1 : 1); }
+  }
+  const focusInline = (el: HTMLInputElement) => { el.focus(); el.select(); };
+  /** A click on the one selected song, on a cell that can be edited: edit it if no second click follows. */
+  function rowClick(e: MouseEvent, id: string) {
+    clearTimeout(slow);
+    const k = (e.target as HTMLElement).closest<HTMLElement>('.cell')?.dataset.c as ColKey | undefined;
+    const again = view.selected.size === 1 && view.selected.has(id) && e.detail === 1 && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
+    view.click(id, e, order);
+    if (again && k && EDITABLE.includes(k) && editable(lib.store?.tracks.get(id))) slow = window.setTimeout(() => startInline(id, k), 550);
+  }
+
+  function open(id: string) { clearTimeout(slow); router.go(trackHref(id)); }
   function play(id: string) {
     if (nowPlaying.trackId === id && player.url) player.toggle();
     else void nowPlaying.play(id, order);
@@ -219,6 +257,7 @@
   function onKey(e: KeyboardEvent) {
     const ids = [...view.selected];
     if (e.key === 'Enter' && ids.length === 1) { e.preventDefault(); open(ids[0]); }
+    else if (e.key === 'F2' && ids.length) { e.preventDefault(); if (ids.length === 1) startInline(ids[0]); else view.infoFor = { ids: order.filter(x => view.selected.has(x)) }; }
     else if (e.code === 'Space') {   // plays the selected track, or pauses / resumes the current one
       e.preventDefault();
       if (ids.length === 1 && ids[0] !== nowPlaying.trackId) play(ids[0]); else nowPlaying.toggle(ids[0], order);
@@ -256,9 +295,11 @@
 
 {#snippet cell(k: ColKey, r: Row)}
   {#if k === 'wave'}<WaveCell t={r.t} {order} />
+  {:else if k === 'cover'}<CoverArt t={r.t} zoom />
   {:else if k === 'title'}
     {@const g = dupes.groupOf.get(r.t.id)}
     <span class="c-title" title={r.t.fileName}>{r.t.title || r.t.fileName}</span>
+    {#if r.t.unwritten?.length}<span class="unw" title={'Edited in GLUE, not in the file yet (' + r.t.unwritten.join(', ') + '): GLUE Home writes it when it runs'}>●</span>{/if}
     {#if g?.kind === 'same'}<button type="button" class="dup" title={'Same recording as ' + (g.ids.length - 1) + ' other track' + (g.ids.length > 2 ? 's' : '') + ': show duplicates'}
       onclick={e => { e.stopPropagation(); view.select({ kind: 'dupes' }); view.focusDupe = r.t.id; }}>{g.ids.length}×</button>{/if}
   {:else if k === 'artist'}<span class="c-artist">{r.t.artist}</span>
@@ -376,7 +417,7 @@
           class:playing={nowPlaying.trackId === r.t.id} class:lifted={dragging?.has(r.t.id)}
           data-drop={canReorder ? 'row' : undefined} data-list={canReorder ? list?.id : undefined} data-index={i}
           onpointerdown={e => press(e, r.t.id)}
-          onclick={e => { if (!drag.suppressClick) view.click(r.t.id, e, order); }} ondblclick={() => open(r.t.id)}>
+          onclick={e => { if (!drag.suppressClick) rowClick(e, r.t.id); }} ondblclick={() => open(r.t.id)}>
           <span class="c-play">
             {#if dragOut && here(r) && !r.t.remote}
               <span class="grip" draggable="true" role="button" tabindex="-1" aria-label="Drag out a copy of the file"
@@ -398,7 +439,9 @@
             {/if}
           </span>
           {#if isPlaylist}<span class="c-n" class:grip={canReorder} title={canReorder ? 'Drag to rearrange' : ''}>{r.n + 1}</span>{/if}
-          {#each cols as k (k)}<span class="cell" data-c={k}>{@render cell(k, r)}</span>{/each}
+          {#each cols as k (k)}<span class="cell" data-c={k}>{#if inline && inline.id === r.t.id && inline.k === k}<input class="inl" data-inline={k} aria-label={COLUMNS[k].label}
+            bind:value={inline.v} use:focusInline onkeydown={inlineKey} onblur={() => { if (inline?.id === r.t.id && inline.k === k) endInline(true); }} onclick={e => e.stopPropagation()} ondblclick={e => e.stopPropagation()}
+            onpointerdown={e => e.stopPropagation()} />{:else}{@render cell(k, r)}{/if}</span>{/each}
           <span></span>
         </div>
       {/each}
@@ -494,6 +537,9 @@
   .dv { flex: none; font-size: 11px; line-height: 16px; padding: 0 6px 0 5px; border-radius: 3px; background: color-mix(in srgb, var(--c) 14%, transparent); border: 0; border-left: 3px solid var(--c); color: var(--ink-2); white-space: nowrap; cursor: pointer; }
   .dv:hover { background: color-mix(in srgb, var(--c) 26%, transparent); color: var(--ink); }
   .dup { flex: none; margin-left: 6px; background: none; border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); border-radius: 3px; font: 600 10.5px var(--font-mono); padding: 0 4px; cursor: pointer; }
+  .unw { flex: none; margin-left: 5px; color: var(--accent); font-size: 8px; line-height: 1; }
+  .inl { width: 100%; min-width: 0; height: 22px; background: var(--ground); border: 1px solid var(--accent); border-radius: 4px; padding: 0 6px; font: inherit; font-size: 13px; color: var(--ink); }
+  .inl:focus { outline: none; }
   .dup:hover { background: color-mix(in srgb, var(--warn) 15%, transparent); }
   .c-artist, .c-soft { color: var(--ink-2); }
   .c-n, .c-num { color: var(--ink-2); font-size: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }

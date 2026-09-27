@@ -2,12 +2,13 @@
 import { readPref, writePref } from './prefs';
 import type { FilterGroup, SortKey } from './view.svelte';
 
-export type ColKey = 'wave' | 'title' | 'artist' | 'album' | 'genre' | 'tags' | 'device' | 'label' | 'year' | 'bpm' | 'key' | 'duration' | 'rating' | 'notes' | 'format' | 'quality' | 'added';
+export type ColKey = 'wave' | 'cover' | 'title' | 'artist' | 'album' | 'genre' | 'tags' | 'device' | 'label' | 'year' | 'bpm' | 'key' | 'duration' | 'rating' | 'notes' | 'format' | 'quality' | 'added';
 /** filter: the value filter its header opens (▾). */
 export interface ColDef { label: string; width: string; sort: SortKey | null; mono?: boolean; fixed?: boolean; filter?: FilterGroup }
 
 export const COLUMNS: Record<ColKey, ColDef> = {
   wave: { label: 'Overview', width: '150px', sort: null },
+  cover: { label: 'Cover', width: '58px', sort: null },
   title: { label: 'Title', width: 'minmax(160px, 3fr)', sort: 'title', fixed: true },
   artist: { label: 'Artist', width: 'minmax(110px, 2fr)', sort: 'artist' },
   album: { label: 'Album', width: 'minmax(90px, 1.4fr)', sort: 'album' },
@@ -26,7 +27,7 @@ export const COLUMNS: Record<ColKey, ColDef> = {
   quality: { label: 'Quality', width: '150px', sort: 'quality', filter: 'quality' },
   added: { label: 'Added', width: '84px', sort: 'added', mono: true },
 };
-const DEFAULT_ORDER: ColKey[] = ['wave', 'title', 'artist', 'album', 'genre', 'tags', 'device', 'label', 'year', 'bpm', 'key', 'duration', 'rating', 'notes', 'format', 'quality', 'added'];
+const DEFAULT_ORDER: ColKey[] = ['wave', 'cover', 'title', 'artist', 'album', 'genre', 'tags', 'device', 'label', 'year', 'bpm', 'key', 'duration', 'rating', 'notes', 'format', 'quality', 'added'];
 const DEFAULT_HIDDEN: ColKey[] = ['label', 'year', 'added'];
 
 function load(): { order: ColKey[]; hidden: ColKey[]; widths: Partial<Record<ColKey, number>> } {

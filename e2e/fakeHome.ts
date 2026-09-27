@@ -2,7 +2,7 @@
    real folders in a temp dir, for e2e tests of Home mode. It can be stopped and started again, like
    quitting GLUE Home from the tray. Port 47450, away from a real GLUE Home (47400–47409). */
 import { createServer, type Server } from 'node:http';
-import { createReadStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve, sep } from 'node:path';
 
 export interface FakeHomeDirs { glue: string; incoming: string; folders: Record<string, string> }
@@ -27,6 +27,8 @@ export class FakeHome {
   /** Duplicates put aside (moved into `duplicates`) and recycled (removed, their paths kept here), ADR 0070. */
   duplicates = '';
   trashed: string[] = [];
+  /** Song info written into files (/fs/tags, ADR 0071): the file's path in its root, and the fields. The file is only touched. */
+  tagWrites: { path: string; tags: Record<string, string> }[] = [];
   private server: Server | null = null;
   constructor(readonly dirs: FakeHomeDirs) {}
 
@@ -110,6 +112,22 @@ export class FakeHome {
           return { ok: true, to };
         });
         send(200, { results });
+      });
+      return;
+    }
+    if (u.pathname === '/fs/tags' && method === 'POST') {
+      const chunks: Buffer[] = [];
+      req.on('data', c => chunks.push(Buffer.from(c)));
+      req.on('end', () => {
+        const b = JSON.parse(Buffer.concat(chunks).toString() || '{}') as { root: string; path: string; tags: Record<string, string> };
+        const root = resolve(b.root), file = join(root, ...b.path.split('/'));
+        if (![this.dirs.incoming, ...Object.values(this.dirs.folders)].map(x => resolve(x)).includes(root)) return send(403, { error: 'not a music folder GLUE Home knows' });
+        if (!existsSync(file)) return send(500, { error: 'not a file' });
+        this.tagWrites.push({ path: b.path, tags: b.tags });
+        const at = new Date(Math.round(statSync(file).mtimeMs) + 5000);
+        utimesSync(file, at, at);
+        const st = statSync(file);
+        send(200, { size: st.size, mtime: Math.round(st.mtimeMs) });
       });
       return;
     }

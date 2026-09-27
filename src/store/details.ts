@@ -84,6 +84,15 @@ export async function hasDetails(dir: Dir, cid: string, id: string, file: { size
   catch { return false; }
 }
 
+/** The file changed but its sound didn't (song info written into it, ADR 0071): the stored analysis
+    follows it to its new size and date, if it was the old file's. */
+export async function restampDetails(dir: Dir, cid: string, id: string, from: { size: number | null; mtime: number | null }, to: { size: number; mtime: number }) {
+  const p = paths(cid, id);
+  let header: DetailsHeader | null;
+  try { header = await readJSON<DetailsHeader>(dir, p.json); } catch { return; }
+  if (header && header.fileSize === from.size && header.fileMtime === from.mtime) await writeJSON(dir, p.json, { ...header, fileSize: to.size, fileMtime: to.mtime });
+}
+
 export async function removeDetails(dir: Dir, cid: string, id: string) {
   const p = paths(cid, id);
   await removePath(dir, p.json); await removePath(dir, p.bin);

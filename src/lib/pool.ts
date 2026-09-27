@@ -9,7 +9,9 @@ import { pageJob, transferOf } from './analysis';
 import { timeAsync } from '../core/perf';
 
 import type { DetailsHeader } from '../store/details';
-export interface PoolResult { summary: AnalysisSummary; info: FileInfo; duration: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null; wave: Uint8Array | null }
+import type { Cover } from '../workers/cover';
+/** art: the cover (null: none; undefined: not looked for). */
+export interface PoolResult { summary: AnalysisSummary; info: FileInfo; duration: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null; wave: Uint8Array | null; art?: Cover | null }
 
 const MAX_BYTES = 1.2e9;
 export const poolSize = () => Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
@@ -66,7 +68,7 @@ export class AnalysisPool {
       if (!info.channels) info.channels = r.channels;
       if (!info.duration) info.duration = r.duration;
       if (!info.bitrate && info.duration && info.lossless === false) info.bitrate = file.size * 8 / info.duration / 1000;
-      return { summary: r.out, info, duration: info.duration, details: r.details, fp: r.fp, thumb: r.thumb, wave: r.wave };
+      return { summary: r.out, info, duration: info.duration, details: r.details, fp: r.fp, thumb: r.thumb, wave: r.wave, art: r.art };
     } finally { this.release(s); }
   }
   stop() { for (const s of this.slots) s.stop(); }

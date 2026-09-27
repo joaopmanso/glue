@@ -3,6 +3,7 @@
   import { app, analyzeFile } from './lib/app.svelte';
   import { player } from './lib/player.svelte';
   import { lib } from './lib/library.svelte';
+  import { view } from './lib/view.svelte';
   import { localHome } from './lib/localHome.svelte';
   import { router } from './lib/route.svelte';
   import { importFiles } from './lib/importActions';
@@ -18,12 +19,14 @@
   import DragTag from './ui/library/DragTag.svelte';
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
   import TagEditor from './ui/library/TagEditor.svelte';
+  import EditInfo from './ui/library/EditInfo.svelte';
   import ContextMenu from './ui/ContextMenu.svelte';
   import GlueStick from './ui/GlueStick.svelte';
   import AccountButton from './ui/AccountButton.svelte';
   import AdminView from './ui/AdminView.svelte';
   import PerfHud from './ui/PerfHud.svelte';
   import { perf } from './lib/perf';
+  import './lib/covers.svelte';        // songs' covers, kept as they're found (ADR 0072)
   import './lib/remoteFiles.svelte';   // another computer's songs through its GLUE Home (ADR 0045)
   import './lib/homeHandover';         // this computer's analyses, handed to its GLUE Home (ADR 0046)
   import { incoming } from './lib/incoming.svelte';
@@ -182,6 +185,7 @@
 {#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
 {#if inLibrary}<TagEditor />{/if}
+{#if inLibrary && view.infoFor}{#key view.infoFor}<EditInfo />{/key}{/if}
 <ContextMenu />
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}

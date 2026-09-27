@@ -79,6 +79,21 @@ describe('bringing libraries and folders into a collection (ADR 0020)', () => {
   });
 });
 
+describe('song info edited in GLUE (ADR 0071)', () => {
+  it('is never filled in again from a DJ app, even when emptied', async () => {
+    const { s } = await fresh();
+    importAll(s, library(), 'rekordbox.xml');
+    const a = [...s.tracks.values()].find(t => t.title === 'A')!;
+    s.putTrack({ ...a, artist: '', title: 'A (edit)', edited: ['artist', 'title'] });
+    importAll(s, library(), 'rekordbox.xml');
+    expect(s.tracks.get(a.id)).toMatchObject({ title: 'A (edit)', artist: '' });
+    const b = [...s.tracks.values()].find(t => t.title === 'B')!;
+    s.putTrack({ ...b, title: '' });
+    importAll(s, library(), 'rekordbox.xml');
+    expect(s.tracks.get(b.id)!.title).toBe('B');
+  });
+});
+
 describe('the same song in a folder GLUE doesn’t read (a second copy)', () => {
   /** Engine-like: record 1 in "Music Collection" (a music folder here), record 2 a copy in
       "preparation" (not a music folder) with the same name and size; the playlist uses the copy. */

@@ -47,7 +47,8 @@ export function tidy(es: (MenuEntry | false | null | undefined)[]): MenuEntry[] 
   return out;
 }
 
-export interface MenuAt { x: number; y: number; below: DOMRect | null; build: () => MenuEntry[]; opener: Element | null; label: string; find: string; n: number }
+/** anchor: what it was opened on (the ⋯ button, the row right-clicked): it stays open while that doesn't move. */
+export interface MenuAt { x: number; y: number; below: DOMRect | null; build: () => MenuEntry[]; opener: Element | null; anchor: Element | null; label: string; find: string; n: number }
 
 class Menu {
   at = $state.raw<MenuAt | null>(null);
@@ -55,9 +56,9 @@ class Menu {
   point = { x: 0, y: 0 };
   private n = 0;
 
-  show(x: number, y: number, build: () => MenuEntry[], opts: { below?: DOMRect | null; opener?: Element | null; label?: string; find?: string } = {}) {
+  show(x: number, y: number, build: () => MenuEntry[], opts: { below?: DOMRect | null; opener?: Element | null; anchor?: Element | null; label?: string; find?: string } = {}) {
     this.point = { x, y };
-    this.at = { x, y, below: opts.below ?? null, build, opener: opts.opener ?? null, label: opts.label ?? 'Menu', find: opts.find ?? '', n: ++this.n };
+    this.at = { x, y, below: opts.below ?? null, build, opener: opts.opener ?? null, anchor: opts.anchor ?? opts.opener ?? null, label: opts.label ?? 'Menu', find: opts.find ?? '', n: ++this.n };
   }
   /** A contextmenu event: the menu at the pointer (or under the element, from the keyboard). With Shift,
       the browser's own menu instead. Returns whether it opened. */
@@ -68,9 +69,9 @@ class Menu {
     if (e.button !== 2 && at) {
       // From the keyboard: under a row, or inside the top of something big (the table).
       const r = at.getBoundingClientRect();
-      if (r.height > 80) this.show(r.left + 16, r.top + 16, build, { label }); else this.show(r.left + 16, r.bottom, build, { below: r, label });
+      if (r.height > 80) this.show(r.left + 16, r.top + 16, build, { label, anchor: at }); else this.show(r.left + 16, r.bottom, build, { below: r, label, anchor: at });
     }
-    else this.show(e.clientX, e.clientY, build, { label });
+    else this.show(e.clientX, e.clientY, build, { label, anchor: e.target instanceof Element ? e.target : at });
     return true;
   }
   /** From a ⋯ button: under it; clicking it again closes. `find`: a find field once it's long. */

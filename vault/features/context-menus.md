@@ -28,7 +28,7 @@ The sidebar's ⋯ buttons open the same menus. In the selection bar, ⋯ opens t
     - Remove from ‹this playlist›;
     - Remove from playlist ▸ (with "n of N" when several are selected);
     - Show in playlist ▸;
-    - rating stars; Tags…; Add/Edit a note…;
+    - rating stars; Edit info… (F2; [song info](song-info.md)); Tags…; Add/Edit a note…;
     - Show only ‹the value under the pointer›;
     - Build a playlist; Analyse now (while some aren't); Show its duplicates;
     - Add to drag dock (Home mode); Send to ‹another computer›;
@@ -88,6 +88,10 @@ The sidebar's ⋯ buttons open the same menus. In the selection bar, ⋯ opens t
   - a stack of panels, placed inside the window;
   - hover opens a submenu after 140 ms, and leaving it closes after 260 ms;
   - `stay` entries run and rebuild in place;
+  - it closes on a press outside, resizing, leaving the page, and a scroll that moves what it was
+    opened on (`MenuAt.anchor`: the ⋯ button, or what was right-clicked). Other scrolls leave it open:
+    the scroll that brought a ⋯ into view just before the click arrives a frame later, and used to
+    close the menu at once when the sidebar had to scroll (2026-09-27);
   - async submenus show "Loading…".
 - **`src/lib/trackMenu.ts`:** songs; `listPicker()` is the playlist tree (reused by the sidebar).
 - **`src/lib/filterMenu.ts`:** filters.

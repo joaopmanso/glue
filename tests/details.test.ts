@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runJob } from '../src/core/audio/analyze';
 import { classify } from '../src/core/audio/verdict';
-import { MAX_ROWS, decodeDetails, encodeDetails, hasDetails, loadDetails, writeDetails } from '../src/store/details';
+import { MAX_ROWS, decodeDetails, encodeDetails, hasDetails, loadDetails, restampDetails, writeDetails } from '../src/store/details';
 import type { FileInfo } from '../src/core/types';
 import { MemDir, asDir } from './memfs';
 
@@ -33,5 +33,15 @@ describe('stored track analysis (ADR 0023, 0024)', () => {
     expect(await loadDetails(dir, 'c1', 'ab12', { size: 10, mtime: 5 })).not.toBeNull();
     expect(await loadDetails(dir, 'c1', 'ab12', { size: 11, mtime: 5 })).toBeNull();
     expect(await loadDetails(dir, 'c1', 'nope', { size: 10, mtime: 5 })).toBeNull();
+  });
+  it('follows the file when only its tags were written (ADR 0071), not when it was another file', async () => {
+    const mem = new MemDir(), dir = asDir(mem);
+    await writeDetails(dir, 'c1', 'ab12', await encodeDetails(info, res, { size: 10, mtime: 5 }));
+    await restampDetails(dir, 'c1', 'ab12', { size: 99, mtime: 5 }, { size: 12, mtime: 9 });
+    expect(await hasDetails(dir, 'c1', 'ab12', { size: 10, mtime: 5 })).toBe(true);
+    await restampDetails(dir, 'c1', 'ab12', { size: 10, mtime: 5 }, { size: 12, mtime: 9 });
+    expect(await hasDetails(dir, 'c1', 'ab12', { size: 10, mtime: 5 })).toBe(false);
+    expect(await loadDetails(dir, 'c1', 'ab12', { size: 12, mtime: 9 })).not.toBeNull();
+    await restampDetails(dir, 'c1', 'nope', { size: 10, mtime: 5 }, { size: 12, mtime: 9 });
   });
 });

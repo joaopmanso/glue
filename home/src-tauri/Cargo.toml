@@ -1,6 +1,6 @@
 [package]
 name = "glue-home"
-version = "0.11.0"
+version = "0.12.0"
 description = "GLUE Home: your main computer, reachable from the GLUE website"
 authors = ["joaopmanso"]
 edition = "2021"
@@ -21,6 +21,7 @@ tauri-plugin-drag = "2"
 serde_json = "1"
 tiny_http = "0.12"
 trash = "5"
+lofty = "0.25"
 
 [profile.release]
 codegen-units = 1

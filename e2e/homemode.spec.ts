@@ -316,3 +316,109 @@ test('with GLUE Home, duplicates are cleaned up: the others moved aside or recyc
     await expect(page.locator('.tr')).toHaveCount(2);
   } finally { await home.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
+
+test('song info is edited in GLUE, kept while GLUE Home is away, and written into the files by it without analysing again (ADR 0071)', async ({ page }) => {
+  test.setTimeout(240_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-tags-e2e-'));
+  const home = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} });
+  try {
+    // The library, made in the browser: two songs.
+    await page.goto('./#/analyze');
+    const files = ['mp3-128k.mp3', 'flac-cover.flac'].map(n => ({ n, b: readFileSync(fixture(n)).toString('base64') }));
+    await page.evaluate(async files => {
+      const r = await navigator.storage.getDirectory();
+      for (const n of ['MCO', 'Music']) await r.removeEntry(n, { recursive: true }).catch(() => {});
+      const dir = await (await r.getDirectoryHandle('Music', { create: true })).getDirectoryHandle('Sets', { create: true });
+      for (const f of files) { const w = await (await dir.getFileHandle(f.n, { create: true })).createWritable(); await w.write(Uint8Array.from(atob(f.b), c => c.charCodeAt(0))); await w.close(); }
+    }, files);
+    await page.goto('./');
+    await page.click('#choose-home');
+    await page.fill('#profile-name', 'DJ Test');
+    await page.getByRole('button', { name: 'Create profile' }).click();
+    await page.click('#onb-skip');
+    await page.click('#add-folder');
+    await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
+    await expect(page.locator('.an')).toContainText('All analysed', { timeout: 120_000 });
+
+    // Without GLUE Home: F2 edits the title in place; it's kept in GLUE, marked "not in the file yet".
+    const mp3 = page.locator('.tr', { has: page.locator('.c-title[title="mp3-128k.mp3"]') });
+    await mp3.locator('.c-title').click();
+    await page.keyboard.press('F2');
+    await expect(page.locator('.inl[data-inline="title"]')).toBeFocused();
+    await page.keyboard.type('Night Drive');
+    // Tab keeps it and goes on to the artist.
+    await page.keyboard.press('Tab');
+    await expect(page.locator('.inl[data-inline="artist"]')).toBeFocused();
+    await page.keyboard.type('Test Artist');
+    await page.keyboard.press('Enter');
+    await expect(mp3.locator('.c-title')).toHaveText('Night Drive');
+    await expect(mp3.locator('.c-artist')).toHaveText('Test Artist');
+    await expect(mp3.locator('.unw')).toBeVisible();
+    // Esc drops an edit.
+    await page.keyboard.press('F2');
+    await page.keyboard.type('Nope');
+    await page.keyboard.press('Escape');
+    await expect(mp3.locator('.c-title')).toHaveText('Night Drive');
+    // A slow second click on the selected song edits the cell under it.
+    await mp3.locator('.c-artist').click();
+    await expect(page.locator('.inl[data-inline="artist"]')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.inl')).toHaveCount(0);
+    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+
+    // GLUE Home runs: the edit goes into the file, and the song isn't analysed again.
+    for (const [top, to] of [['MCO', home.dirs.glue], ['Music', join(tmp, 'Music')]] as const) {
+      for (const f of await readOpfs(page, top)) { mkdirSync(dirname(join(to, f.path)), { recursive: true }); writeFileSync(join(to, f.path), Buffer.from(f.b64, 'base64')); }
+    }
+    const profiles = join(home.dirs.glue, 'profiles'), pid = readdirSync(profiles)[0], cid = readdirSync(join(profiles, pid, 'collections'))[0];
+    const meta = JSON.parse(readFileSync(join(profiles, pid, 'collections', cid, 'collection.json'), 'utf8')) as { roots: { id: string }[] };
+    home.dirs.folders[meta.roots[0].id] = join(tmp, 'Music');
+    mkdirSync(home.dirs.incoming, { recursive: true });
+    await home.start();
+    await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), home.pref);
+    await page.reload();
+    await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
+    await expect.poll(() => home.tagWrites).toEqual([{ path: 'Sets/mp3-128k.mp3', tags: { title: 'Night Drive', artist: 'Test Artist' } }]);
+    await expect(page.locator('.tr .unw')).toHaveCount(0);
+    await page.waitForTimeout(2500);
+    await expect(page.locator('.an')).toContainText('All analysed');
+    expect(home.reads.filter(p => p.startsWith('Sets/'))).toEqual([]);
+
+    // Both songs at once, from the menu: fields that differ show "(mixed)"; only what changed is written.
+    await page.locator('.tr').first().locator('.c-title').click();
+    await page.keyboard.press('Control+a');
+    await page.locator('.tr').first().locator('.c-title').click({ button: 'right' });
+    await page.locator('.cmenu [data-m="info"]').click();
+    await expect(page.locator('#edit-info h2')).toHaveText('Edit the info of 2 songs');
+    await expect(page.locator('#edit-info [data-f="title"]')).toHaveAttribute('placeholder', '(mixed)');
+    await expect(page.locator('#edit-info [data-f="title"]')).toHaveValue('');
+    await page.fill('#edit-info [data-f="genre"]', 'Deep House');
+    if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/edit-info.png' });
+    await page.click('#info-save');
+    await expect(page.locator('#edit-info')).toHaveCount(0);
+    await expect.poll(() => home.tagWrites.length).toBe(3);
+    expect(home.tagWrites.slice(1).map(w => w.tags)).toEqual([{ genre: 'Deep House' }, { genre: 'Deep House' }]);
+    expect(home.tagWrites.slice(1).map(w => w.path).sort()).toEqual(['Sets/flac-cover.flac', 'Sets/mp3-128k.mp3']);
+
+    // The track page's Edit info.
+    await mp3.dblclick();
+    await page.click('#edit-info-btn');
+    await expect(page.locator('#edit-info [data-f="title"]')).toHaveValue('Night Drive');
+    await expect(page.locator('#edit-info [data-f="genre"]')).toHaveValue('Deep House');
+    await page.fill('#edit-info [data-f="album"]', 'Late Hours');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.th .who')).toContainText('Late Hours');
+    await expect.poll(() => home.tagWrites.at(-1)).toEqual({ path: 'Sets/mp3-128k.mp3', tags: { album: 'Late Hours' } });
+    await expect(page.locator('#info-unwritten')).toHaveCount(0);
+
+    // A cover this browser lost is read again through GLUE Home: only parts of the file (ADR 0072).
+    await page.goBack();
+    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+    await page.evaluate(async () => { const c = await (await navigator.storage.getDirectory()).getDirectoryHandle('cache'); await c.removeEntry('art', { recursive: true }); });
+    home.reads = [];
+    await page.reload();
+    await expect(page.locator('.tr .cell[data-c="cover"] img')).toHaveCount(1, { timeout: 20_000 });
+    expect(home.reads.filter(p => p === 'Sets/flac-cover.flac')).toEqual([]);
+    expect(home.reads.filter(p => p === 'Sets/flac-cover.flac (part)').length).toBeGreaterThan(0);
+  } finally { await home.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});

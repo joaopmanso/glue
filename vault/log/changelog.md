@@ -5,6 +5,30 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-27 · The user's list, batch 5: editing song info (GLUE Home 0.12), and covers
+- **Song info** ([ADR 0071](../adr/0071-song-info-written-through-glue-home.md), [song info](../features/song-info.md)):
+  - edit title, artist, album, genre, label and year in the table in place: F2, or a slow second
+    click; Tab goes on, Esc drops;
+  - "Edit info…" for several songs at once, "(mixed)" where they differ; "Edit info" on the track
+    page;
+  - kept in GLUE at once. GLUE Home 0.12 writes it into the files (`POST /fs/tags`, lofty): at once
+    in Home mode, otherwise when it next connects. A dot marks what isn't in the file yet;
+  - the song isn't analysed again: its size, date and stored analysis follow the file;
+  - an edited field is never filled in again from the file or a DJ library.
+- **Covers** ([ADR 0072](../adr/0072-covers-from-the-tags.md)):
+  - found at analysis (mediabunny reads the tags), kept as 64 and 320 px JPEGs by hash in the
+    browser's cache;
+  - a Cover column (hover to enlarge), and on the track page;
+  - songs analysed before get theirs as they come on screen, from their tags only (byte ranges
+    through GLUE Home).
+- Tests:
+  - Rust (tags per format, the cover kept);
+  - Vitest (edited fields stay, the stored analysis follows the file);
+  - e2e: song info in Home mode; covers.
+  - New fixtures `mp3-cover.mp3`, `flac-cover.flac`.
+- **Fix:** a ⋯ menu in a sidebar that had to scroll to show it closed the moment it opened. Menus now
+  close on a scroll only when what they were opened on moves ([right-click menus](../features/context-menus.md)).
+
 ## 2026-09-27 · The user's list, batch 4: GLUE Home 0.11, a desktop window; cleaning up duplicates
 - **GLUE Home's window** is a desktop app's: a header, the pages on the left, one pane that scrolls.
   760 × 540, at least 640 × 460, no scroll bars on the window.

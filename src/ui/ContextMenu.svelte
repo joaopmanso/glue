@@ -39,12 +39,17 @@
       void tick().then(() => { if (finding(panels[0])) focusIn(0); else els[0]?.focus({ preventScroll: true }); });
     });
   });
-  // Anything else happening on the page closes it: a press outside, scrolling, resizing, leaving the page.
+  // Anything else happening on the page closes it: a press outside, scrolling what it was opened on,
+  // resizing, leaving the page. A scroll that doesn't move it (another list; or the scroll that brought
+  // it into view just before the click, whose event comes a frame later) leaves the menu open.
   $effect(() => {
     if (!menu.at) return;
+    const anchor = menu.at.anchor, r0 = anchor?.getBoundingClientRect();
+    const moved = () => { if (!anchor?.isConnected || !r0) return true; const r = anchor.getBoundingClientRect(); return Math.abs(r.top - r0.top) > 1 || Math.abs(r.left - r0.left) > 1; };
     const outside = (e: Event) => {
       const t = e.target;
       if (t instanceof Element && (t.closest('.cmenu') || menu.at?.opener?.contains(t))) return;
+      if (e.type === 'scroll' && !moved()) return;
       dismiss();
     };
     const dismissNow = () => dismiss();

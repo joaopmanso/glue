@@ -40,9 +40,9 @@ test.beforeEach(async ({ page }) => {
 });
 test.afterEach(() => expect(errors).toEqual([]));
 
-async function seed(page: Page) {
+async function seed(page: Page, music = MUSIC) {
   await page.goto('./#/analyze');
-  const files = MUSIC.map(n => ({ n, b: readFileSync(fixture(n)).toString('base64') }));
+  const files = music.map(n => ({ n, b: readFileSync(fixture(n)).toString('base64') }));
   await page.evaluate(async files => {
     const root = await navigator.storage.getDirectory();
     for (const name of ['MCO', 'Music']) await root.removeEntry(name, { recursive: true }).catch(() => {});
@@ -425,6 +425,16 @@ test('right-click menus: songs (one or many, mouse or keyboard), playlists, tags
   await expect(m('details')).toBeVisible();
   await expect(m('prepare')).toBeVisible();
   await expect(page.locator('[data-send-home]')).toHaveCount(0);
+  // A scroll that doesn't move the song leaves it open (the one that brought the ⋯ into view comes a
+  // frame after the click); one that moves it closes it.
+  await page.locator('.lside').evaluate(el => el.dispatchEvent(new Event('scroll')));
+  await page.locator('.table .body').evaluate(el => el.dispatchEvent(new Event('scroll')));
+  await page.waitForTimeout(100);
+  await expect(cm).toHaveCount(1);
+  await page.locator('.table .body .spacer').evaluate(el => { el.style.marginTop = '40px'; el.parentElement!.dispatchEvent(new Event('scroll')); });
+  await expect(cm).toHaveCount(0);
+  await page.locator('.table .body .spacer').evaluate(el => { el.style.marginTop = ''; });
+  await row('Fixture FLAC').locator('.c-title').click({ button: 'right' });
   await page.keyboard.press('Escape');
   await expect(cm).toHaveCount(0);
   // Shift+right-click leaves the browser's own menu alone.
@@ -2237,4 +2247,49 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   await song.locator('.pbtn').click();
   await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
   expect(hits).toContain('/incoming/file');
+});
+
+test('covers: found at analysis, shown in the Cover column and on the track page, and read again from the tags when this browser lost them (ADR 0072)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await seed(page, ['mp3-cover.mp3', 'flac-cover.flac', 'mp3-128k.mp3']);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+  const cover = (name: string) => page.locator('.tr', { has: page.locator('.c-title[title="' + name + '"]') }).locator('.cell[data-c="cover"] img');
+  await expect(cover('mp3-cover.mp3')).toBeVisible();
+  await expect(cover('flac-cover.flac')).toBeVisible();
+  await expect(cover('mp3-128k.mp3')).toHaveCount(0);
+  // The same picture: one hash for both songs.
+  const h1 = await page.locator('.tr', { has: page.locator('.c-title[title="mp3-cover.mp3"]') }).locator('.cov').getAttribute('data-cover');
+  expect(h1).toMatch(/^[0-9a-f]{24}$/);
+  await expect(page.locator('.tr', { has: page.locator('.c-title[title="flac-cover.flac"]') }).locator('.cov')).toHaveAttribute('data-cover', h1!);
+  // Hovered: the large one.
+  await cover('mp3-cover.mp3').hover();
+  await expect(page.locator('img.big')).toBeVisible();
+  expect(await page.locator('img.big').evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(320);
+  // Beside the cell it came from.
+  const [cell, big] = [await cover('mp3-cover.mp3').boundingBox(), await page.locator('img.big').boundingBox()];
+  expect(Math.abs(big!.x - (cell!.x + cell!.width + 8))).toBeLessThan(4);
+  expect(big!.y).toBeLessThan(cell!.y + cell!.height);
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/covers.png' });
+  await page.mouse.move(900, 900);
+  await expect(page.locator('img.big')).toHaveCount(0);
+  // The track page.
+  await page.locator('.tr', { has: page.locator('.c-title[title="mp3-cover.mp3"]') }).dblclick();
+  await expect(page.locator('.th .cov img')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+
+  // This browser lost its cache: read again from the files' tags (no analysis).
+  await page.evaluate(async () => { const c = await (await navigator.storage.getDirectory()).getDirectoryHandle('cache'); await c.removeEntry('art', { recursive: true }); });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
+  await expect(cover('mp3-cover.mp3')).toBeVisible({ timeout: 20_000 });
+  await expect(cover('flac-cover.flac')).toBeVisible();
+  await expect(page.locator('.an')).toContainText('All analysed');
 });

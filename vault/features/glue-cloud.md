@@ -327,3 +327,11 @@ First release: phases 1–3 (user, 2026-09-25).
   user's folder, with a warning if it's inside a music folder.
 - **`POST /fs/dupes`:** move duplicates aside, or into the Recycle Bin (`trash` crate). It has the
   first Rust unit tests (`cargo test`).
+
+## GLUE Home 0.12 (2026-09-27)
+- **`POST /fs/tags {root, path, tags}`** writes song info edited in GLUE into a music file (`tags.rs`,
+  the `lofty` crate): into a copy, flushed, renamed over the file; the reply is its new size and date
+  ([ADR 0071](../adr/0071-song-info-written-through-glue-home.md), [song info](song-info.md)). Only
+  music folders and the incoming folder it knows.
+- **Covers** are read through the local link with byte ranges, only the tags' bytes
+  ([ADR 0072](../adr/0072-covers-from-the-tags.md)).

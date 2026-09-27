@@ -1,5 +1,6 @@
 /* What the library view shows: the selected sidebar entry, search, sort and row selection. */
 import { lib } from './library.svelte';
+import type { InfoField } from '../core/library/tags';
 import { time } from '../core/perf';
 import { bpmShown } from './bpm';
 import { LOOSE } from '../store/merge';
@@ -51,6 +52,8 @@ class View {
   sortBy(k: SortKey) { this.sort = k === 'order' ? { key: k, dir: 1 } : this.sort.key === k ? { key: k, dir: this.sort.dir === 1 ? -1 : 1 } : { key: k, dir: k === 'added' ? -1 : 1 }; }
   /** The track whose note editor is open, and where. */
   noteFor = $state<{ id: string; x: number; y: number } | null>(null);
+  /** The song info editor (ADR 0071): for these tracks, starting in a field. */
+  infoFor = $state<{ ids: string[]; field?: InfoField } | null>(null);
   /** The tag editor: for tracks or for a playlist, placed under (x, y). */
   tagFor = $state<{ ids: string[]; listId?: undefined; x: number; y: number } | { listId: string; ids?: undefined; x: number; y: number } | null>(null);
   /** Open the tag editor under an element (a second click on the same thing closes it). */

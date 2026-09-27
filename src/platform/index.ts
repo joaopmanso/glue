@@ -212,6 +212,21 @@ export async function cleanDuplicates(mode: 'move' | 'trash', items: { root: Roo
   try { return (await disk.dupes(mode, named)).results; }
   catch (e) { throw (e as Error).name === 'NotFoundError' ? new Error('Cleaning up duplicates needs GLUE Home 0.11 or later: it updates itself, or download it again.') : e; }
 }
+/** A music file's address on GLUE Home's local link (Home mode): read in parts, with byte ranges. */
+export async function fileLink(root: Root, path: string): Promise<string | null> {
+  if (!homeMode() || !disk) return null;
+  const at = await musicFolderPath(root);
+  return at ? disk.fileUrl(at, path) : null;
+}
+/** Song info written into a music file by GLUE Home (Home mode only, ADR 0071): the file's new size and date. */
+export async function writeTags(root: Root, path: string, tags: Record<string, string>): Promise<{ size: number; mtime: number }> {
+  if (!homeMode() || !disk) throw new Error('Writing into files needs GLUE Home on this computer.');
+  const at = await musicFolderPath(root);
+  if (!at) throw new Error('GLUE Home doesn’t know this music folder.');
+  try { return await disk.tags(at, path, tags); }
+  // An older GLUE Home has no /fs/tags: it looks for a folder named in the address, and finds none.
+  catch (e) { throw (e as Error).name === 'NotFoundError' ? new Error('Writing song info into files needs GLUE Home 0.12 or later: it updates itself, or download it again.') : e; }
+}
 export async function folderHandle(key: string): Promise<Dir | null> {
   try { return (await idbGet<Dir>(key)) ?? null; } catch { return null; }
 }

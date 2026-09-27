@@ -11,6 +11,7 @@ import type { AnalysisSummary } from '../store/types';
 import { blankInfo, parseContainer } from '../core/formats/parse';
 import { scanClues } from '../core/formats/clues';
 import { decodeHere } from './decode';
+import { coverOf, type Cover } from './cover';
 
 /** A job as the worker takes it: audio already decoded, or the file itself, read, parsed and decoded
     here (ADR 0060; `info`: what the page parsed already). */
@@ -27,7 +28,7 @@ export type AnalysisRequest =
 export type AnalysisReply =
   | { id: number; kind: 'progress'; stage: string; p: number }
   | { id: number; kind: 'done'; out: AnalysisResult }
-  | { id: number; kind: 'summary'; out: AnalysisSummary; info: FileInfo; duration: number; sr: number; channels: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null; wave: Uint8Array | null }
+  | { id: number; kind: 'summary'; out: AnalysisSummary; info: FileInfo; duration: number; sr: number; channels: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null; wave: Uint8Array | null; art?: Cover | null }
   | { id: number; kind: 'wave'; out: Waveform }
   | { id: number; kind: 'fp'; out: Fingerprint }
   | { id: number; kind: 'pcm'; out: Exclude<AnalysisJob, { type: 'demo' }> }
@@ -93,7 +94,11 @@ scope.onmessage = async (e: MessageEvent<AnalysisRequest>) => {
       const fp = out.fp ?? null, transfer: Transferable[] = details ? [details.bin.buffer] : [];
       if (fp) transfer.push(fp.words.buffer, fp.loud.buffer);
       const thumb = makeThumb(out), wave = makeWaveThumb(out); transfer.push(thumb.buffer, wave.buffer);
-      scope.postMessage({ id, kind: 'summary', out: { ...s, fp: !!fp }, info: plain(info), duration: out.duration, sr: out.sr, channels: out.channels, details, fp, thumb, wave } satisfies AnalysisReply, transfer);
+      // The cover, from the file's tags (ADR 0072); not looked for when the page decoded it.
+      const src = e.data.job.type === 'file' ? e.data.job.file : null;
+      const art = src ? await coverOf(src).catch(() => undefined) : undefined;
+      if (art) transfer.push(art.small.buffer, art.large.buffer);
+      scope.postMessage({ id, kind: 'summary', out: { ...s, fp: !!fp }, info: plain(info), duration: out.duration, sr: out.sr, channels: out.channels, details, fp, thumb, wave, art } satisfies AnalysisReply, transfer);
       return;
     }
     const transfer: Transferable[] = [out.spec.buffer, out.ltas.buffer];

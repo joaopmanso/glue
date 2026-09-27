@@ -17,6 +17,7 @@ use tauri_plugin_opener::OpenerExt;
 mod disk;
 mod dock;
 mod dupes;
+mod tags;
 mod libraries;
 mod local;
 

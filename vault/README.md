@@ -67,6 +67,7 @@ Planned (GLUE):
 [track detail](features/track-detail.md) ·
 [Prepare](features/prepare.md) ·
 [performance](features/performance.md) ·
+[song info & covers](features/song-info.md) ·
 [phone app](features/phone-app.md)
 
 ## ADR index
@@ -141,3 +142,5 @@ Planned (GLUE):
 | [0068](adr/0068-full-player.md) | A full player: a queue, an open view with the visualiser, the sound output; drivers through GLUE Home later | accepted |
 | [0070](adr/0070-glue-home-cleans-up-duplicates.md) | GLUE Home moves duplicate music files aside, or recycles them, when asked | accepted |
 | [0069](adr/0069-content-beyond-a-wall.md) | Content beyond a wall that follows the music isn't an encoder's cut; specks far under it are rounding | accepted |
+| [0071](adr/0071-song-info-written-through-glue-home.md) | Song info is edited in GLUE and written into the music files by GLUE Home | accepted |
+| [0072](adr/0072-covers-from-the-tags.md) | Covers come from the files' tags, kept as small JPEGs in the browser's cache | accepted |

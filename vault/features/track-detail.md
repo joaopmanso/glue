@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-09-27
-adrs: [0019, 0023, 0024]
+adrs: [0019, 0023, 0024, 0071, 0072]
 ---
 # Track detail
 
@@ -44,6 +44,12 @@ libraries say about it (BPM, key, rating, play count, cue count, date added).
 - Opening the page of the track that's playing keeps it playing (also on the way back to the library).
 - Since ADR 0024 the background analysis writes that stored analysis for every track, so even a first
   visit is instant once the background pass has reached the track.
+
+## The user's list, batch 5 (2026-09-27)
+- **"Edit info"** in the header opens the song info dialog; a line under the header names the fields
+  edited in GLUE but not in the file yet ([song info](song-info.md), [ADR 0071](../adr/0071-song-info-written-through-glue-home.md)).
+- **The cover** (64 px, from the 320 px one) before the title, when the song has one
+  ([ADR 0072](../adr/0072-covers-from-the-tags.md)). Grouping shows among the details.
 
 ## The user's list, batch 1 (2026-09-27)
 - **Songs open on the tab used last** (`trackTab`, `trackHref()` in `lib/route`). After Prepare,

@@ -33,13 +33,14 @@ test('a narrow window keeps the table drawing only the rows on screen, and the p
   const drawn = () => page.locator('.tr').count();
   expect(await drawn()).toBeLessThan(150);
 
-  for (const width of [780, 600, 420]) {
+  for (const [i, width] of [780, 600, 420].entries()) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));   // after the re-render
     // Still only what fits (plus a little overscan), and the page answers a click at once.
     await expect.poll(drawn).toBeGreaterThan(0);
     expect(await drawn(), width + ' px wide').toBeLessThan(150);
-    const row = page.locator('.tr').nth(2), t0 = Date.now();
+    // Another row each time: a second click on the selected song would start editing it (ADR 0071).
+    const row = page.locator('.tr').nth(2 + i), t0 = Date.now();
     await row.locator('.c-title').click({ timeout: 5_000 });
     await expect(row).toHaveClass(/sel/, { timeout: 1_000 });
     expect(Date.now() - t0, 'a click answered at ' + width + ' px').toBeLessThan(1_500);

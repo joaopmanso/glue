@@ -28,6 +28,16 @@ export function tagFields(tags: Record<string, string>): TagFields {
   return out;
 }
 
+/** The song info GLUE shows, fills in from files and DJ apps, and edits (ADR 0071). */
+export const INFO_FIELDS = ['title', 'artist', 'album', 'genre', 'label', 'comment', 'year', 'grouping'] as const;
+export type InfoField = typeof INFO_FIELDS[number];
+
+/** Fill a track's empty fields from a file's tags or a DJ app's record, never those edited in GLUE. */
+export function fillInfo<T extends { [K in InfoField]?: string } & { edited?: string[] }>(t: T, from: { [K in InfoField]?: string }): T {
+  for (const k of INFO_FIELDS) if (!t[k] && from[k] && !t.edited?.includes(k)) (t as Record<InfoField, string>)[k] = from[k]!;
+  return t;
+}
+
 /** "Artist - Title.ext" → fields, for files without tags. */
 export function nameFields(fileName: string): { artist: string; title: string } {
   const stem = fileName.replace(/\.[^.]+$/, '').replace(/^\d{1,3}[\s._-]+(?=\D)/, '');

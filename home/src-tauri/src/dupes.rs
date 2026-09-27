@@ -24,7 +24,7 @@ pub fn default_duplicates(app: AppHandle) -> String {
 }
 
 /// The music folders and the incoming folder, resolved (the only places duplicates are taken from).
-fn music_roots(app: &AppHandle) -> Vec<PathBuf> {
+pub(crate) fn music_roots(app: &AppHandle) -> Vec<PathBuf> {
     let c = crate::get_config_impl(app.clone());
     let folders = c.as_ref().and_then(|c| c.get("folders")).and_then(|v| v.as_object())
         .map(|m| m.values().filter_map(|v| v.as_str().map(PathBuf::from)).collect::<Vec<_>>())
