@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0007, 0009, 0012, 0014, 0021]
 ---
 # Library & scanner
@@ -89,3 +89,20 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
   opens; a match folds the record into the track with the file.
 - **What a library no longer has goes;** removing an import cleans every track naming it.
 - **Music folder locations** come from GLUE Home in Home mode, and are only guessed from absolute paths.
+
+## The table's columns (2026-09-27)
+- **Widths:**
+  - Drag a header's right edge to resize a column.
+  - Double-click the edge (or right-click › "Fit to its content") to fit its widest value over every
+    row and its heading (canvas `measureText` with the cell's font, at most 600 px). The Overview,
+    Rating and Notes columns fit their fixed drawing.
+  - Right-click › "Default width" undoes it; "Reset to default" clears them all.
+  - Kept per browser (in the `columns` pref).
+- **Overview: spectrogram or waveform** (right-click its header; pref `overview`, and the
+  waveform's colours `overviewScheme`, the Prepare page's schemes).
+  - **The mini waveform** (`makeWaveThumb` in `core/library/thumb.ts`): per column the level of
+    the lows (< 200 Hz), mids and highs (> 2.5 kHz) and of everything, from the analysis spectrogram,
+    each scaled to the song's loudest point with the Prepare waveform's curve (768 bytes a song).
+  - Made at analysis time, and for songs analysed before, once from the stored analysis, like the
+    spectrogram thumbnails (`lib/thumbs`, now two kinds: `thumbs` and `waves`).
+  - Drawn through the Prepare page's `drawWave`.

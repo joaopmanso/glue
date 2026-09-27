@@ -621,6 +621,50 @@ test('the user’s list, batch 1: the selection bar stays put, playlists on Deta
   await expect(page.locator('.lside')).toBeVisible();
 });
 
+test('the user’s list, batch 2: columns resize and fit (kept), the Overview as a waveform (also for songs analysed before)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+
+  // Drag the Artist header's right edge: 80 px wider.
+  const th = (k: string) => page.locator('.th[data-col="' + k + '"]');
+  const w0 = (await th('artist').boundingBox())!.width;
+  const b = (await th('artist').locator('.rz').boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 + 80, b.y + b.height / 2, { steps: 6 }); await page.mouse.up();
+  await expect.poll(async () => Math.round((await th('artist').boundingBox())!.width - w0)).toBeGreaterThanOrEqual(75);
+  // Double-click the Title's edge: it fits its longest title (these are short).
+  await th('title').locator('.rz').dblclick();
+  await expect.poll(async () => (await th('title').boundingBox())!.width).toBeLessThan(160);
+  // Kept over a reload.
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
+  expect(Math.round((await th('artist').boundingBox())!.width - w0)).toBeGreaterThanOrEqual(75);
+  expect((await th('title').boundingBox())!.width).toBeLessThan(160);
+
+  // The Overview as a waveform: right-click its header.
+  await th('wave').click({ button: 'right' });
+  await page.click('.cmenu [data-m="ov-waveform"]');
+  await expect(page.locator('.tr .wave canvas').first()).toHaveAttribute('height', '44', { timeout: 20_000 });
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/b2-waveform.png', clip: { x: 0, y: 200, width: 1920, height: 200 } });
+  // Songs analysed before waveforms existed get theirs from the stored analysis.
+  await page.evaluate(async () => { const c = await (await navigator.storage.getDirectory()).getDirectoryHandle('cache'); await c.removeEntry('wthumbs', { recursive: true }); });
+  await page.reload();
+  await expect(page.locator('.tr .wave canvas')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('.tr .wave canvas').first()).toHaveAttribute('height', '44');
+  // And back to the spectrogram.
+  await th('wave').click({ button: 'right' });
+  await page.click('.cmenu [data-m="ov-spectrogram"]');
+  await expect(page.locator('.tr .wave canvas').first()).toHaveAttribute('height', '16');
+});
+
 test('the player: a queue (menu, drags, reorder, remove), shuffle and repeat, kept over a reload; the open player, the visualiser, the output (ADR 0068)', async ({ page }) => {
   await seed(page);
   await page.goto('./');
@@ -889,6 +933,24 @@ test('finds the same recording under different names and formats', async ({ page
   await expect(grp).toContainText('Same recording');
   await expect(grp.locator('li')).toHaveCount(2);
   await expect(grp.locator('li.best')).toContainText('HHH 04 RADIX');
+
+  // Kept for next time: the result, and the fingerprints packed by shard, so duplicates show the moment
+  // a collection opens (with thousands of songs they took a minute or two, 2026-09-27).
+  const kept = await page.evaluate(async () => {
+    const c = await (await navigator.storage.getDirectory()).getDirectoryHandle('cache');
+    const list = async (d: FileSystemDirectoryHandle) => { const out: [string, FileSystemHandle][] = []; for await (const e of (d as unknown as { entries(): AsyncIterable<[string, FileSystemHandle]> }).entries()) out.push(e); return out; };
+    const results = (await list(await c.getDirectoryHandle('dupes'))).length;
+    let packs = 0;
+    for (const [, col] of await list(await c.getDirectoryHandle('fp'))) for (const [, sh] of await list(col as FileSystemDirectoryHandle)) if (sh.kind === 'directory') for (const [n] of await list(sh as FileSystemDirectoryHandle)) if (n === 'pack.bin') packs++;
+    return { results, packs };
+  });
+  expect(kept.results).toBe(1);
+  expect(kept.packs).toBeGreaterThan(0);
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(3, { timeout: 20_000 });
+  await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×', { timeout: 2_000 });
+  await page.locator('.tr', { hasText: 'HHH 04 RADIX' }).first().locator('.dup').click();
+  await expect(grp).toHaveCount(1);
 
   // Songs analysed in another browser have no fingerprint in this one: they're made again here and
   // the group comes back (as when the GLUE folder is shared between computers).

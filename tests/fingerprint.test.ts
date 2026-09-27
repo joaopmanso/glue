@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ber, fingerprint, FP_FRAME_SEC, popcount } from '../src/core/audio/fingerprint';
-import { findSameRecordings, groupMatches } from '../src/core/library/duplicates';
+import { findMatchesFor, findSameRecordings, groupMatches } from '../src/core/library/duplicates';
+import { decodePack, encodePack } from '../src/store/fingerprints';
 
 /** A seeded, non-repeating "track": random notes with decaying partials plus noise hits. */
 function track(seed: number, sr: number, secs: number): Float32Array {
@@ -52,5 +53,25 @@ describe('acoustic fingerprints (ADR 0025)', () => {
     let lo = 1;
     for (let off = -200; off <= 200; off += 7) lo = Math.min(lo, ber(fa, fc, off).ber);
     expect(lo).toBeGreaterThan(0.4);
+  });
+
+  it('matching only the new songs finds what a full match finds for them (2026-09-27)', () => {
+    const D = rip(C, 44100, 44100, 0.4), fd = fingerprint(D, 44100);
+    const all = [{ id: 'a', fp: fa }, { id: 'b', fp: fb }, { id: 'c', fp: fc }, { id: 'd', fp: fd }];
+    const key = (m: { a: string; b: string; ber: number }) => [m.a, m.b].sort().join('+') + ':' + m.ber.toFixed(4);
+    const full = findSameRecordings(all).map(key).sort();
+    expect(full).toHaveLength(2);                                   // a+b, c+d
+    for (const fresh of [['d'], ['b'], ['b', 'd'], ['a', 'b', 'c', 'd']]) {
+      const s = new Set(fresh), want = findSameRecordings(all).filter(m => s.has(m.a) || s.has(m.b)).map(key).sort();
+      expect(findMatchesFor(all, s).map(key).sort(), fresh.join()).toEqual(want);
+    }
+    expect(findMatchesFor(all, new Set())).toEqual([]);
+  });
+  it('packs fingerprints into one file per shard and reads them back', () => {
+    const back = decodePack(encodePack([{ id: 'a1', fp: fa }, { id: 'a2', fp: fc }]));
+    expect(back.map(e => e.id)).toEqual(['a1', 'a2']);
+    expect([...back[0].fp.words]).toEqual([...fa.words]);
+    expect([...back[1].fp.loud]).toEqual([...fc.loud]);
+    expect(decodePack(new Uint8Array([1, 2, 3]))).toEqual([]);
   });
 });

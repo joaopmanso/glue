@@ -16,7 +16,7 @@ import type { Copy, Overlay } from '../core/library/overlay';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { fileHead, fileMeta } from '../core/library/files';
 import { findLibraries, libraryAt, type Detected } from '../core/library/detect';
-import { makeThumb } from '../core/library/thumb';
+import { makeThumb, makeWaveThumb } from '../core/library/thumb';
 import { AUDIO_EXT, formatOf, nameFields, tagFields } from '../core/library/tags';
 import { failed, summarize } from '../core/library/summary';
 import { classify } from '../core/audio/verdict';
@@ -83,8 +83,13 @@ class Library {
   /** Hooks for derived views (duplicates): a collection opened / closed, the background analysis went quiet. */
   onOpened: (() => void) | null = null;
   onSettled: (() => void) | null = null;
+  /** A collection is about to show: the player restores its queue first, so a song started at once
+      isn't overwritten by the restored queue (a race once did, 2026-09-27). */
+  onQueue: ((cid: string) => void) | null = null;
   /** A track's mini spectrogram is ready (the thumbnail cache stores it). */
   onThumb: ((id: string, data: Uint8Array) => void) | null = null;
+  /** …and its mini waveform (the user's list, 2026-09-27). */
+  onWave: ((id: string, data: Uint8Array) => void) | null = null;
   /** A collection from GLUE Cloud on screen instead of a local one (ADR 0040): nothing is analysed,
       scanned or written to this computer; edits go to the device that owns the data. */
   cloud = $state.raw<CloudView | null>(null);
@@ -435,6 +440,7 @@ class Library {
     if (!this.readOnly) { const t = tidyTracks(s); if (t.dropped || t.relinked) console.info('Tidied: ' + t.dropped + ' leftover tracks of removed imports, ' + t.relinked + ' tracks linked to their file'); }
     await this.loadLoose();
     await this.adoptIncoming();
+    this.onQueue?.(cid);
     this.phase = 'library';
     this.version++;
     record('open.collection', performance.now() - t0);
@@ -1074,7 +1080,7 @@ class Library {
   }
   async saveTrackDetails(t: Track, info: FileInfo, res: AnalysisResult) {
     if (t.size == null || t.mtime == null) return;
-    try { await this.putDetails(t.id, await encodeDetails(info, res, { size: t.size, mtime: t.mtime })); this.onThumb?.(t.id, makeThumb(res)); }
+    try { await this.putDetails(t.id, await encodeDetails(info, res, { size: t.size, mtime: t.mtime })); this.onThumb?.(t.id, makeThumb(res)); this.onWave?.(t.id, makeWaveThumb(res)); }
     catch (e) { console.warn('Couldn’t store the track analysis', e); }
   }
   private async putDetails(id: string, d: { header: DetailsHeader; bin: Uint8Array }) {
@@ -1171,6 +1177,7 @@ class Library {
       if (r.fp) { const d = await platform.cacheDir(); if (d) await writeFingerprint(d, s.meta.id, t.id, r.fp).catch(e => console.warn('Couldn’t store the fingerprint', e)); }
       if (this.store !== s) return;
       if (r.thumb) this.onThumb?.(t.id, r.thumb);
+      if (r.wave) this.onWave?.(t.id, r.wave);
       s.putAnalysis(t.id, r.summary);
       const cur = s.tracks.get(t.id) ?? t;
       const f = tagFields(r.info.tags);

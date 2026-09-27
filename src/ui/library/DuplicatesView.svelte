@@ -3,7 +3,7 @@
   import { dupes, type DupGroup } from '../../lib/dupes.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { player } from '../../lib/player.svelte';
-  import { router } from '../../lib/route.svelte';
+  import { router, trackHref } from '../../lib/route.svelte';
   import { app } from '../../lib/app.svelte';
   import { keyLabel } from '../../core/audio/keys';
   import { fmtTime } from '../../core/format';
@@ -101,7 +101,7 @@
               {:else}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9.5-5.5z" fill="currentColor"/></svg>{/if}
             </button>
             <div class="who">
-              <a href={'#/track/' + id} onclick={e => { e.preventDefault(); router.go('#/track/' + id); }}>{t.title || t.fileName}</a>
+              <a href={trackHref(id)} onclick={e => { e.preventDefault(); router.go(trackHref(id)); }}>{t.title || t.fileName}</a>
               <span>{t.artist}</span>
               <small title={where(t)}>{where(t)}</small>
             </div>
@@ -129,7 +129,7 @@
     </p>
     <span class="scan">
       {#if dupes.running}Comparing…{:else if dupes.at}Checked {new Date(dupes.at).toLocaleTimeString()}{/if}
-      <button type="button" class="mini" id="dupes-rescan" disabled={dupes.running} onclick={() => dupes.scan()}>Check again</button>
+      <button type="button" class="mini" id="dupes-rescan" disabled={dupes.running} onclick={() => dupes.scan(true)}>Check again</button>
     </span>
   </div>
   {#if dupes.missing}
@@ -147,7 +147,7 @@
       <section class="grp" data-kind="devices">
         <header>
           <span class="kind devs">Same song</span><span class="sim">on {d.copies.map(c => c.device).join(' and ')}</span>
-          <a class="mini" href={'#/track/' + d.id} onclick={e => { e.preventDefault(); router.go('#/track/' + d.id); }}>Open</a>
+          <a class="mini" href={trackHref(d.id)} onclick={e => { e.preventDefault(); router.go(trackHref(d.id)); }}>Open</a>
         </header>
         <ul>
           {#each d.copies as c, i (c.device + c.track.id)}

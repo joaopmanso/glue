@@ -80,6 +80,38 @@ describe('verdicts on synthetic signals', () => {
     const steep = verdictOf(quantize(rolledOff(44100, 4, 17000, 20), 16), 44100, lossless(44100, 16));
     expect(steep.label).not.toBe('Transcoded');
   });
+  // The user's report (2026-09-27): a steep 17.3 kHz wall with quieter content above it in the loud
+  // moments, following the music (a mastering lowpass, then limiting on the kicks), is only a caution.
+  // The same wall with nothing but the floor above stays a transcode; specks far under the music in a
+  // lossy file are explained as the decoder's rounding.
+  const kicks = (sr: number, secs: number, cut: number, hf: number, bits: number | null) => {
+    const base = wallNoise(sr, secs, cut), full = rolledOff(sr, secs, 0, 0);
+    return base.map((ch, c) => {
+      const out = new Float32Array(ch.length);
+      let prev = 0;
+      for (let i = 0; i < ch.length; i++) {
+        // A smooth pulse twice a second (no jumps: they'd splatter above the wall by themselves).
+        const t = (i / sr) % 0.5, env = 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.cos(2 * Math.PI * t / 0.5), 4), d = full[c][i] - prev;
+        prev = full[c][i];
+        out[i] = ch[i] * env + (t < 0.03 ? d * hf * env : 0);   // high content only in the kicks' first 30 ms
+      }
+      return out;
+    });
+  };
+  it('a steep wall with content beyond it in the loud moments, following the music, is only a caution', () => {
+    const sr = 44100, info = Object.assign(lossless(sr, 16), { container: 'WAV', codec: 'PCM' });
+    const steep = verdictOf(quantize(kicks(sr, 6, 17300, 0.02, 16), 16), sr, info);
+    expect(steep.cut.wall).toBe(true);
+    expect(steep.label).toBe('Caution');
+    expect(steep.findings[0].title).toMatch(/^Steep top end at 17\.\d kHz, with content beyond$/);
+    expect(verdictOf(quantize(kicks(sr, 6, 17300, 0, 16), 16), sr, info).label).toBe('Transcoded');
+  });
+  it('specks far under the music above a lossy file’s wall are explained, and change nothing', () => {
+    const sr = 44100, info = Object.assign(blankInfo(), { container: 'MPEG audio', codec: 'MP3', lossless: false, bitrate: 192, sampleRate: sr, channels: 2, clues: [] });
+    const v = verdictOf(kicks(sr, 6, 16500, 0.00002, null), sr, info);
+    expect(v.label).toBe('Fake bitrate');
+    expect(v.findings[0].detail).toContain('decoder’s rounding');
+  });
   it('unknown format with a lossy wall is never called lossless', () => {
     const info = Object.assign(blankInfo(), { sampleRate: 48000, clues: [] });
     const v = verdictOf(bandLimitedNoise(48000, 6, 16000), 48000, info);

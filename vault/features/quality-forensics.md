@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: Speklone
-updated: 2026-09-25
+updated: 2026-09-27
 adrs: [0002, 0033, 0034]
 ---
 # Quality forensics
@@ -52,6 +52,16 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
 - [x] Real 48 kHz/24-bit AIFF → "Genuine 48 kHz lossless", content to 21.9 kHz.
 - [x] MP3 128k re-wrapped as 24-bit AIFF → Transcoded, wall at 16.7 kHz.
 - [x] Video MP4s with AAC audio → "Lossy AAC-LC, not hi-res"; video-only MP4 → clear message.
+
+## Walls with content beyond (2026-09-27, [ADR 0069](../adr/0069-content-beyond-a-wall.md))
+- **A lossless file with a wall, but with content beyond it** (loud moments well above the floor, following
+  the music) is a caution: "Steep top end at X kHz, with content beyond". It used to be
+  "Transcoded". It can be a steep mastering filter and then limiting, or a lossy source processed
+  again.
+- **A lossy file whose cutoff is too low for its bitrate** keeps its verdict. Specks above the wall
+  far under the music are explained as the decoder's rounding: they show only with the
+  spectrogram's floor set very low.
+- `VERDICT_VERSION` 4: stored cautions and suspects are worked out again when a collection opens.
 
 ## Limits & open questions
 - A 16-bit master with gain applied after conversion passes the 24-bit test.

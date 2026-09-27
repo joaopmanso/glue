@@ -5,7 +5,7 @@ import { fingerprint, type Fingerprint } from '../core/audio/fingerprint';
 import { classify } from '../core/audio/verdict';
 import { summarize } from '../core/library/summary';
 import { encodeDetails, type DetailsHeader } from '../store/details';
-import { makeThumb } from '../core/library/thumb';
+import { makeThumb, makeWaveThumb } from '../core/library/thumb';
 import type { AnalysisJob, AnalysisResult, FileInfo } from '../core/types';
 import type { AnalysisSummary } from '../store/types';
 import { blankInfo, parseContainer } from '../core/formats/parse';
@@ -27,7 +27,7 @@ export type AnalysisRequest =
 export type AnalysisReply =
   | { id: number; kind: 'progress'; stage: string; p: number }
   | { id: number; kind: 'done'; out: AnalysisResult }
-  | { id: number; kind: 'summary'; out: AnalysisSummary; info: FileInfo; duration: number; sr: number; channels: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null }
+  | { id: number; kind: 'summary'; out: AnalysisSummary; info: FileInfo; duration: number; sr: number; channels: number; details: { header: DetailsHeader; bin: Uint8Array } | null; fp: { words: Uint32Array; loud: Uint8Array } | null; thumb: Uint8Array | null; wave: Uint8Array | null }
   | { id: number; kind: 'wave'; out: Waveform }
   | { id: number; kind: 'fp'; out: Fingerprint }
   | { id: number; kind: 'pcm'; out: Exclude<AnalysisJob, { type: 'demo' }> }
@@ -92,8 +92,8 @@ scope.onmessage = async (e: MessageEvent<AnalysisRequest>) => {
       try { details = await encodeDetails(info, out, { size, mtime }); } catch { details = null; }
       const fp = out.fp ?? null, transfer: Transferable[] = details ? [details.bin.buffer] : [];
       if (fp) transfer.push(fp.words.buffer, fp.loud.buffer);
-      const thumb = makeThumb(out); transfer.push(thumb.buffer);
-      scope.postMessage({ id, kind: 'summary', out: { ...s, fp: !!fp }, info: plain(info), duration: out.duration, sr: out.sr, channels: out.channels, details, fp, thumb } satisfies AnalysisReply, transfer);
+      const thumb = makeThumb(out), wave = makeWaveThumb(out); transfer.push(thumb.buffer, wave.buffer);
+      scope.postMessage({ id, kind: 'summary', out: { ...s, fp: !!fp }, info: plain(info), duration: out.duration, sr: out.sr, channels: out.channels, details, fp, thumb, wave } satisfies AnalysisReply, transfer);
       return;
     }
     const transfer: Transferable[] = [out.spec.buffer, out.ltas.buffer];

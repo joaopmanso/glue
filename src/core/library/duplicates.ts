@@ -47,6 +47,11 @@ export function findSameRecordings(fps: { id: string; fp: Fingerprint }[]): Matc
     s = e;
   }
 
+  return confirm(fps, votes);
+}
+
+/** The pairs that got votes, checked by bit error rate at their best offsets. */
+function confirm(fps: { id: string; fp: Fingerprint }[], votes: Map<number, Map<number, number>>): Match[] {
   const out: Match[] = [];
   const minFrames = MIN_OVERLAP_SEC / FP_FRAME_SEC;
   for (const [pair, m] of votes) {
@@ -64,6 +69,49 @@ export function findSameRecordings(fps: { id: string; fp: Fingerprint }[]): Matc
     if (best.ber <= SAME_BER) out.push({ a: a.id, b: b.id, ber: best.ber, offsetSec: best.off * FP_FRAME_SEC, overlapSec: best.frames * FP_FRAME_SEC });
   }
   return out.sort((x, y) => x.ber - y.ber);
+}
+
+/** The matches involving the `fresh` songs (with every other song, and among themselves): the same ones
+    findSameRecordings finds for those pairs, without sorting every piece of the collection again
+    (2026-09-27). A piece's key is 17 bits, so pieces are counted per key, and only the fresh songs'
+    pieces are indexed. */
+export function findMatchesFor(fps: { id: string; fp: Fingerprint }[], fresh: Set<string>): Match[] {
+  const KEYS = 1 << 17, count = new Uint32Array(KEYS);
+  const isFresh = fps.map(x => fresh.has(x.id));
+  for (const { fp } of fps) for (let i = 0; i < fp.words.length; i++) {
+    if (fp.loud[i] < LOUD_MIN) continue;
+    const w = fp.words[i];
+    count[w & 0xffff]++; count[(w >>> 16) | 0x10000]++;
+  }
+  // The fresh songs' pieces by key (only keys rare enough to count), as start offsets into two arrays.
+  const start = new Uint32Array(KEYS + 1);
+  const each = (t: number, fn: (key: number, pos: number) => void) => {
+    const fp = fps[t].fp;
+    for (let i = 0; i < fp.words.length; i++) {
+      if (fp.loud[i] < LOUD_MIN) continue;
+      const w = fp.words[i], lo = w & 0xffff, hi = (w >>> 16) | 0x10000;
+      if (count[lo] >= 2 && count[lo] <= MAX_RUN) fn(lo, i);
+      if (count[hi] >= 2 && count[hi] <= MAX_RUN) fn(hi, i);
+    }
+  };
+  fps.forEach((_, t) => { if (isFresh[t]) each(t, k => { start[k + 1]++; }); });
+  for (let k = 0; k < KEYS; k++) start[k + 1] += start[k];
+  const fill = start.slice(0, KEYS), ft = new Int32Array(start[KEYS]), fpos = new Int32Array(start[KEYS]);
+  fps.forEach((_, t) => { if (isFresh[t]) each(t, (k, i) => { const j = fill[k]++; ft[j] = t; fpos[j] = i; }); });
+  // Votes, as in findSameRecordings: every pair of pieces with the same key, once.
+  const votes = new Map<number, Map<number, number>>();
+  fps.forEach((_, t) => each(t, (k, i) => {
+    for (let j = start[k]; j < start[k + 1]; j++) {
+      const f = ft[j];
+      if (f === t || (isFresh[t] && f > t)) continue;   // fresh with fresh: counted from one side
+      const [a, pa, b, pb] = f < t ? [f, fpos[j], t, i] : [t, i, f, fpos[j]];
+      const pair = a * 65536 + b, off = pb - pa;
+      let m = votes.get(pair);
+      if (!m) { m = new Map(); votes.set(pair, m); }
+      m.set(off, (m.get(off) ?? 0) + 1);
+    }
+  }));
+  return confirm(fps, votes);
 }
 
 /** Connected groups of matching tracks (union–find). */

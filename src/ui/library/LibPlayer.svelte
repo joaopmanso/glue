@@ -2,7 +2,7 @@
   /* The library's player bar (ADR 0068): shuffle, previous, play, next, repeat; the song; the seek bar;
      volume and the sound output; ▲ opens the player (the queue and the visualiser). Songs or playlists
      dropped on it are queued. */
-  import { onMount, untrack } from 'svelte';
+  import { onMount } from 'svelte';
   import { router, trackHref } from '../../lib/route.svelte';
   import { view } from '../../lib/view.svelte';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
@@ -28,8 +28,8 @@
   const queued = $derived(nowPlaying.q.upNext.length);
   const hot = $derived(drag.active && drag.target?.type === 'queue' && drag.target.index == null && !nowPlaying.expanded);
 
-  // Each collection has its own queue; songs and playlists dropped on the player join it.
-  $effect(() => { const id = lib.store?.meta.id ?? null; untrack(() => nowPlaying.restore(id)); });
+  // Songs and playlists dropped on the player join its queue (each collection's queue is restored by
+  // lib/nowPlaying as the collection opens).
   drag.onQueue = (p, index, which) => {
     const ids = p.kind === 'tracks' ? p.ids : p.kind === 'list' ? dock.tracksOf(p.id).map(x => x.id) : [];
     if (which === 'later' && index != null) nowPlaying.placeLater(ids, index); else nowPlaying.enqueue(ids, index ?? 'end');

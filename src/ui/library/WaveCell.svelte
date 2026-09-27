@@ -2,7 +2,9 @@
   /* A row's mini spectrogram (ADR 0031): drawn once from its 3 KB thumbnail; the playhead and the
      played part are a light overlay, so only the playing row changes while music plays.
      Click (or drag) to play from that spot, or to scrub the playing track. */
-  import { thumbs } from '../../lib/thumbs.svelte';
+  import { thumbs, waves } from '../../lib/thumbs.svelte';
+  import { overview } from '../../lib/columns.svelte';
+  import { drawWave } from '../render/wave';
   import { time } from '../../core/perf';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { player } from '../../lib/player.svelte';
@@ -15,14 +17,25 @@
 
   let { t, order }: { t: Track; order: string[] } = $props();
   let cv = $state<HTMLCanvasElement>();
-  const data = $derived.by(() => { void thumbs.version; return thumbs.get(t.id); });
+  // The spectrogram, or the waveform (right-click the Overview header; the user's list, 2026-09-27).
+  const wave = $derived(overview.kind === 'waveform');
+  const data = $derived.by(() => { void thumbs.version; void waves.version; return wave ? waves.get(t.id) : thumbs.get(t.id); });
   const here = $derived(t.status === 'linked' && (!t.remote || lib.canRead(t)));
-  $effect(() => { if (data === undefined && t.status === 'linked' && (!t.remote || here)) thumbs.request(t.id); });
+  $effect(() => { if (data === undefined && t.status === 'linked' && (!t.remote || here)) (wave ? waves : thumbs).request(t.id); });
 
-  // Draw through the spectrogram palette (the same one as the track page).
+  // Draw through the spectrogram palette (the same one as the track page), or as the Prepare page's
+  // waveform, mirrored, in its colour scheme.
+  const WAVE_H = 44;
   $effect(() => {
-    const d = data, lut = app.lut, c = cv;
+    const d = data, lut = app.lut, c = cv, scheme = overview.scheme, dur = t.duration || THUMB_W;
     if (!c || !d) return;
+    if (wave) {
+      time('draw:wave', () => {
+        const pick = (k: number) => { const a = new Uint8Array(THUMB_W); for (let x = 0; x < THUMB_W; x++) a[x] = d[x * 4 + k]; return a; };
+        drawWave(c.getContext('2d')!, THUMB_W, WAVE_H, { rate: THUMB_W / dur, low: pick(0), mid: pick(1), high: pick(2), peak: pick(3), env: new Uint8Array(0), envRate: 1, envT0: 0, duration: dur }, { scheme, t0: 0, t1: dur, grid: null, playhead: null });
+      });
+      return;
+    }
     time('draw:thumb', () => {
       const ctx = c.getContext('2d')!, img = ctx.createImageData(THUMB_W, THUMB_H), px = img.data;
       for (let i = 0; i < d.length; i++) { const li = d[i] * 3, p = i * 4; px[p] = lut[li]; px[p + 1] = lut[li + 1]; px[p + 2] = lut[li + 2]; px[p + 3] = 255; }
@@ -51,7 +64,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 <div class="wave" class:empty={!data} class:playing title={here ? 'Click to play from here' : t.remote ? 'On ' + t.remote.name + ': plays there' : ''}
   onpointerdown={down} onpointermove={move} onpointerup={() => (scrubbing = false)} onclick={e => e.stopPropagation()} ondblclick={e => e.stopPropagation()}>
-  {#if data}<canvas bind:this={cv} width={THUMB_W} height={THUMB_H} aria-hidden="true"></canvas>{/if}
+  {#if data}{#key wave}<canvas bind:this={cv} width={THUMB_W} height={wave ? WAVE_H : THUMB_H} aria-hidden="true"></canvas>{/key}{/if}
   {#if playing}
     <span class="played" style:width={at * 100 + '%'}></span>
     <span class="head" style:left={at * 100 + '%'}></span>

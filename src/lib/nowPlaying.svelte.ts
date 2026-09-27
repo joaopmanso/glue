@@ -138,5 +138,7 @@ player.onEnded = () => {
   if (router.current.name !== 'library' || !nowPlaying.trackId) return;
   if (nowPlaying.repeat === 'one') player.seek(0, true); else if (nowPlaying.hasNext) nowPlaying.next();
 };
+// Each collection's queue comes back as it opens (before its songs show).
+lib.onQueue = cid => nowPlaying.restore(cid);
 // The place in the song is kept every few seconds and when the page goes.
 if (typeof window !== 'undefined') { setInterval(() => { if (!player.paused) nowPlaying.save(); }, 5000); addEventListener('pagehide', () => nowPlaying.save()); }

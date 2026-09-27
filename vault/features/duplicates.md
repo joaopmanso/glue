@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M5
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0013, 0025]
 ---
 # Duplicates
@@ -76,3 +76,21 @@ them at the best copy.
   rescan now only when a fingerprint was made.
 - Fingerprints made again now decode in the worker ([ADR 0060](../adr/0060-decode-in-the-worker.md)):
   on the user's desktop, they had held the page for 140–560 ms every few seconds.
+
+## At once on opening (2026-09-27)
+- **The user's report:** only the 3 cross-device copies showed at first; the 559 local duplicates came
+  after one or two minutes, with or without GLUE Home.
+- **Cause:** every scan read one fingerprint file per analysed song, one after another, then matched
+  them all again (a sort of every fingerprint piece in the collection).
+- **Now:**
+  - **The last result is kept** (`cache/dupes/<collection>.json`: the songs fingerprinted and the
+    matches) and shown the moment a collection opens.
+  - **Fingerprints are packed** per shard (`fp/<collection>/<shard>/pack.bin`). A scan reads the
+    packs, then only the single files of songs fingerprinted since (8 at a time), and rewrites those
+    shards' packs.
+  - **Only the new songs are matched,** against all the others: `findMatchesFor` in
+    `core/library/duplicates.ts`. It gives the same votes as the full match for those pairs,
+    without sorting everything: a piece's key is 17 bits, so pieces are counted per key and only the
+    new songs' are indexed. Unit-tested to equal the full match for every subset.
+  - "Check again" still matches everything.
+- **Also:** the Duplicates page's links open songs on the tab used last.

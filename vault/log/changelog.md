@@ -5,6 +5,34 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-27 · The user's list, batch 3: quality false positives
+- **Measured on the user's two files** (read-only, GLUE's own analysis) ([ADR 0069](../adr/0069-content-beyond-a-wall.md)).
+  - **The WAV** ("Lossy audio in a WAV wrapper"): a 17.3 kHz wall, but content beyond it that
+    follows the music, 10–20 dB above the 16-bit floor. It's now a caution: "Steep top end at
+    17.3 kHz, with content beyond".
+  - **The MP3** ("Upconverted"): 192 kbps CBR by LAME 3.99.5 (not 320), cut at 17.0 kHz, where LAME
+    keeps 18.6+ kHz at that rate. The verdict stays. The specks above 20 kHz sit around −115 dB,
+    64 dB under the music: decoder rounding, now explained in the finding.
+- `VERDICT_VERSION` 4: stored cautions and suspects are worked out again.
+- Tests: synthetic verdict tests (a wall with content on the kicks; without; lossy specks).
+
+## 2026-09-27 · The user's list, batch 2: duplicates at once, column widths, the Overview as a waveform
+- **Duplicates show the moment a collection opens:** the last result is kept, fingerprints are
+  packed per shard, and only songs fingerprinted since are matched again (`findMatchesFor`, the same
+  result as a full match for them) ([duplicates](../features/duplicates.md)). It took one or two
+  minutes with thousands of songs.
+- **Columns:** drag a header's edge to resize; double-click it to fit its content; kept per
+  browser.
+- **Overview:** right-click its header for Spectrogram or Waveform (the Prepare page's colour
+  schemes). The mini waveform is made from the analysis spectrogram (at analysis time, and from the
+  stored analysis for older songs), so nothing is decoded again
+  ([library](../features/library-scanner.md)).
+- **Fix:** each collection's queue is restored as it opens, before its songs show. A song
+  started straight after "Back to the library" could have its new queue overwritten by the restored
+  one.
+- Tests: unit (incremental match, packs, mini waveform); e2e batch 2 (new) and the duplicates test
+  (kept result, at once after a reload).
+
 ## 2026-09-27 · The user's list, batch 1: quick fixes
 From the user's list (the plan's batch 1):
 - **The selection bar never moves the rows:** one fixed-height line; the actions always there,

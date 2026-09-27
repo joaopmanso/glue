@@ -29,26 +29,33 @@ export const COLUMNS: Record<ColKey, ColDef> = {
 const DEFAULT_ORDER: ColKey[] = ['wave', 'title', 'artist', 'album', 'genre', 'tags', 'device', 'label', 'year', 'bpm', 'key', 'duration', 'rating', 'notes', 'format', 'quality', 'added'];
 const DEFAULT_HIDDEN: ColKey[] = ['label', 'year', 'added'];
 
-function load(): { order: ColKey[]; hidden: ColKey[] } {
+function load(): { order: ColKey[]; hidden: ColKey[]; widths: Partial<Record<ColKey, number>> } {
   try {
-    const v = JSON.parse(readPref('columns', 'null')) as { order: ColKey[]; hidden: ColKey[] } | null;
+    const v = JSON.parse(readPref('columns', 'null')) as { order: ColKey[]; hidden: ColKey[]; widths?: Partial<Record<ColKey, number>> } | null;
     if (v && Array.isArray(v.order)) {
       const order = v.order.filter(k => k in COLUMNS);
       if (!order.includes('wave')) order.unshift('wave');   // the overview goes next to the play button
       // Columns added in later versions go after the column they follow by default.
       DEFAULT_ORDER.forEach((k, i) => { if (!order.includes(k)) { const j = i ? order.indexOf(DEFAULT_ORDER[i - 1]) : -1; order.splice(j + 1, 0, k); } });
-      return { order, hidden: (v.hidden ?? []).filter(k => k in COLUMNS && !COLUMNS[k].fixed) };
+      const widths = Object.fromEntries(Object.entries(v.widths ?? {}).filter(([k, w]) => k in COLUMNS && typeof w === 'number' && w >= 30)) as Partial<Record<ColKey, number>>;
+      return { order, hidden: (v.hidden ?? []).filter(k => k in COLUMNS && !COLUMNS[k].fixed), widths };
     }
   } catch { /* fall back to the defaults */ }
-  return { order: [...DEFAULT_ORDER], hidden: [...DEFAULT_HIDDEN] };
+  return { order: [...DEFAULT_ORDER], hidden: [...DEFAULT_HIDDEN], widths: {} };
 }
 
 class Columns {
   order = $state<ColKey[]>([]);
   hidden = $state<ColKey[]>([]);
-  constructor() { const v = load(); this.order = v.order; this.hidden = v.hidden; }
+  /** Widths the user set by dragging a header's edge or double-clicking it (px); the others as defined. */
+  widths = $state<Partial<Record<ColKey, number>>>({});
+  constructor() { const v = load(); this.order = v.order; this.hidden = v.hidden; this.widths = v.widths; }
+  width(k: ColKey) { const w = this.widths[k]; return w ? w + 'px' : COLUMNS[k].width; }
+  /** `save`: false while dragging (saved when it ends). */
+  setWidth(k: ColKey, w: number, save = true) { this.widths = { ...this.widths, [k]: Math.max(40, Math.min(900, Math.round(w))) }; if (save) this.save(); }
   get visible(): ColKey[] { return this.order.filter(k => !this.hidden.includes(k)); }
-  private save() { writePref('columns', JSON.stringify({ order: this.order, hidden: this.hidden })); }
+  clearWidth(k: ColKey) { const w = { ...this.widths }; delete w[k]; this.widths = w; this.save(); }
+  private save() { writePref('columns', JSON.stringify({ order: this.order, hidden: this.hidden, widths: this.widths })); }
   toggle(k: ColKey) {
     if (COLUMNS[k].fixed) return;
     this.hidden = this.hidden.includes(k) ? this.hidden.filter(x => x !== k) : [...this.hidden, k];
@@ -67,6 +74,18 @@ class Columns {
     [o[i], o[j]] = [o[j], o[i]];
     this.order = o; this.save();
   }
-  reset() { this.order = [...DEFAULT_ORDER]; this.hidden = [...DEFAULT_HIDDEN]; this.save(); }
+  reset() { this.order = [...DEFAULT_ORDER]; this.hidden = [...DEFAULT_HIDDEN]; this.widths = {}; this.save(); }
 }
 export const columns = new Columns();
+
+/** What the Overview column draws (the user's list, 2026-09-27): the mini spectrogram, or a mini
+    waveform in one of the Prepare page's colour schemes. Right-click its header to switch. */
+export type Overview = 'spectrogram' | 'waveform';
+export type OverviewScheme = 'rgb' | 'blue' | 'bands' | 'mono';
+class OverviewPrefs {
+  kind = $state<Overview>(readPref('overview', 'spectrogram') === 'waveform' ? 'waveform' : 'spectrogram');
+  scheme = $state<OverviewScheme>((['rgb', 'blue', 'bands', 'mono'] as const).find(x => x === readPref('overviewScheme', 'rgb')) ?? 'rgb');
+  set(kind: Overview) { this.kind = kind; writePref('overview', kind); }
+  setScheme(s: OverviewScheme) { this.scheme = s; writePref('overviewScheme', s); }
+}
+export const overview = new OverviewPrefs();

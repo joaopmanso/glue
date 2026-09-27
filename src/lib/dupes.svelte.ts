@@ -1,16 +1,20 @@
 /* Duplicate groups for the open collection (ADR 0013, 0025):
    - same recording: acoustic fingerprints match (any names, formats, rips);
    - probable: same normalised artist + title and length within 3 s, but no fingerprint match (yet).
-   Recomputed after the background analysis settles, and on demand. */
+   Recomputed after the background analysis settles, and on demand.
+   Fast to show (2026-09-27): the last result is kept and shown the moment a collection opens;
+   fingerprints come from one pack per shard; only songs fingerprinted since are matched again. */
 import { lib } from './library.svelte';
 import { cacheDir } from '../platform';
-import { readFingerprint, writeFingerprint } from '../store/fingerprints';
+import { readFingerprint, readPacks, writeFingerprint, writePack } from '../store/fingerprints';
+import { readJSON, writeJSON } from '../store/fsx';
+import { shardOf } from '../store/types';
 import { fingerprintOf } from './analysis';
 import { jobOf } from './audioJob';
 import type { Fingerprint } from '../core/audio/fingerprint';
 import type { Match } from '../core/library/duplicates';
 import { groupMatches } from '../core/library/duplicates';
-import { time } from '../core/perf';
+import { time, timeAsync } from '../core/perf';
 import type { DupReply, DupRequest } from '../workers/duplicates.worker';
 import type { AnalysisSummary, Track } from '../store/types';
 
@@ -26,6 +30,9 @@ export function copyScore(t: Track, a: AnalysisSummary | null): number {
 const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
   .replace(/\((original|extended|radio|club)?\s*(mix|edit|version)\)|\[[^\]]*\]|\bfeat\.?.*$|\bft\.?.*$/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 export const groupKey = (ids: string[]) => [...ids].sort().join('+');
+/** The last result, kept per collection: the songs that had a fingerprint, and what matched. */
+interface Saved { v: 1; at: number; ids: string[]; matches: Match[] }
+const savedPath = (cid: string) => 'dupes/' + cid + '.json';
 
 class Dupes {
   groups = $state.raw<DupGroup[]>([]);
@@ -40,30 +47,73 @@ class Dupes {
   private worker: Worker | null = null;
   private reqId = 0;
   private timer = 0;
+  /** What the last match found, and for which songs (to match only the new ones next time). */
+  private matches: Match[] = [];
+  private known: Set<string> | null = null;
 
   /** Group of a track, if any (for the table badge). */
   groupOf = $derived.by(() => { const m = new Map<string, DupGroup>(); for (const g of this.groups) for (const id of g.ids) m.set(id, g); return m; });
 
   schedule(ms = 1500) { clearTimeout(this.timer); this.timer = window.setTimeout(() => void this.scan(), ms); }
-  reset() { clearTimeout(this.timer); this.groups = []; this.at = null; }
+  reset() { clearTimeout(this.timer); this.groups = []; this.at = null; this.matches = []; this.known = null; }
 
-  async scan() {
+  /** A collection opened: its last result at once, then a check for what changed since. */
+  async open() {
+    const s = lib.store, dir = await cacheDir();
+    if (s && dir) {
+      const saved = await readJSON<Saved>(dir, savedPath(s.meta.id)).catch(() => null);
+      if (saved?.v === 1 && lib.store === s && !this.known) {
+        this.matches = saved.matches; this.known = new Set(saved.ids);
+        this.groups = time('dupes.build', () => this.build(saved.matches));
+        this.at = saved.at;
+      }
+    }
+    this.schedule(300);
+  }
+
+  /** `full`: match everything again ("Check again"), not just the songs fingerprinted since. */
+  async scan(full = false) {
     const s = lib.store, dir = await cacheDir();
     if (!s || !dir || this.running) return;
     this.running = true;
+    if (full) this.known = null;
     try {
       const cid = s.meta.id, tracks: { id: string; fp: Fingerprint }[] = [], without: string[] = [];
+      // Fingerprints: the packs first, then the single files of songs fingerprinted since (8 at a time).
+      const packed = await timeAsync('dupes.read', () => readPacks(dir, cid)), loose: string[] = [];
       for (const t of s.tracks.values()) {
         const a = s.analysis.get(t.id);
         if (!a || a.error || t.remote || s.ephemeral.has(t.id)) continue;
-        const fp = a.fp ? await readFingerprint(dir, cid, t.id) : null;
-        if (fp && fp.words.length) tracks.push({ id: t.id, fp }); else without.push(t.id);
+        const fp = a.fp ? packed.get(t.id) : null;
+        if (fp && fp.words.length) tracks.push({ id: t.id, fp });
+        else if (a.fp) loose.push(t.id); else without.push(t.id);
       }
-      this.toFill = without; this.missing = without.length;
-      const matches = tracks.length > 1 ? await this.match(tracks) : [];
+      const dirty = new Set<string>();
+      let i = 0;
+      await Promise.all(Array.from({ length: 8 }, async () => {
+        for (let id = loose[i++]; id !== undefined; id = loose[i++]) {
+          const fp = await readFingerprint(dir, cid, id);
+          if (fp && fp.words.length) { tracks.push({ id, fp }); dirty.add(shardOf(id)); } else without.push(id);
+        }
+      }));
       if (lib.store !== s) return;
-      this.groups = time('dupes.build', () => this.build(matches));
+      this.toFill = without; this.missing = without.length;
+      // Matching: only the songs fingerprinted since the last result, against all of them.
+      const ids = new Set(tracks.map(x => x.id)), known = this.known;
+      let matches: Match[];
+      if (known) {
+        const fresh = new Set([...ids].filter(id => !known.has(id)));
+        const kept = this.matches.filter(m => ids.has(m.a) && ids.has(m.b));
+        matches = fresh.size ? kept.concat(await this.match(tracks, fresh)) : kept;
+      } else matches = tracks.length > 1 ? await this.match(tracks) : [];
+      if (lib.store !== s) return;
+      const changed = !known || known.size !== ids.size || [...ids].some(id => !known.has(id)) || matches.length !== this.matches.length;
+      this.matches = matches; this.known = ids;
+      if (changed || !this.at) this.groups = time('dupes.build', () => this.build(matches));
       this.at = Date.now();
+      // Kept for next time: the result, and the packs of shards that had songs outside them.
+      if (changed) await writeJSON(dir, savedPath(cid), { v: 1, at: this.at, ids: [...ids], matches } satisfies Saved).catch(() => {});
+      for (const sh of dirty) await writePack(dir, cid, sh, tracks.filter(x => shardOf(x.id) === sh)).catch(() => {});
     } catch (e) { console.warn('Duplicate scan failed', e); }
     finally { this.running = false; }
     if (this.toFill.length && !this.filling) void this.fill();
@@ -98,7 +148,7 @@ class Dupes {
     if (made) await this.scan();
   }
 
-  private match(tracks: { id: string; fp: Fingerprint }[]): Promise<Match[]> {
+  private match(tracks: { id: string; fp: Fingerprint }[], fresh?: Set<string>): Promise<Match[]> {
     this.worker ??= new Worker(new URL('../workers/duplicates.worker.ts', import.meta.url), { type: 'module' });
     const id = ++this.reqId, w = this.worker;
     return new Promise((resolve, reject) => {
@@ -108,7 +158,7 @@ class Dupes {
         if ('error' in e.data) reject(new Error(e.data.error)); else resolve(e.data.matches);
       };
       w.addEventListener('message', on);
-      w.postMessage({ id, tracks } satisfies DupRequest);
+      w.postMessage({ id, tracks, fresh: fresh ? [...fresh] : undefined } satisfies DupRequest);
     });
   }
 
@@ -167,5 +217,5 @@ class Dupes {
 }
 
 export const dupes = new Dupes();
-lib.onOpened = () => { dupes.reset(); dupes.schedule(300); };
+lib.onOpened = () => { dupes.reset(); void dupes.open(); };
 lib.onSettled = () => dupes.schedule();

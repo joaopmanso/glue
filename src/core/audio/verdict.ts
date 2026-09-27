@@ -139,6 +139,37 @@ export function peakReach(spec: Float32Array, cols: number, rows: number, sr: nu
   return b1 * nyq / B;
 }
 
+/** Above a wall, in the loud moments (2026-09-27): how loud it gets (99th percentile over time of each
+    moment's peak just above the wall), how far under the music that is, and whether it moves with the
+    music below the wall. An encoder removes everything above its lowpass all the time, so content up
+    there that follows the music means something came after the cut: a steep mastering filter and then
+    limiting, or a lossy source processed again. Specks far under the music are a decoder's rounding. */
+export function beyondWall(spec: Float32Array, cols: number, rows: number, sr: number, cut: Cutoff): { level: number; below: number; corr: number; content: boolean } | null {
+  const nyq = sr / 2, binHz = nyq / rows, f0 = cut.fc + 700, f1 = Math.min(cut.fc + 3500, nyq * 0.98);
+  if (!spec?.length || !cols || rows < 64 || !cut.wall || f1 - f0 < 500 || cols < 8) return null;
+  const row = (f: number) => Math.max(0, Math.min(rows - 1, Math.round(f / binHz)));
+  // Per moment: the band's peak (for the level) and its mean power in dB (to follow the music).
+  const band = (a: number, b: number) => {
+    const r0 = row(a), r1 = Math.max(r0 + 1, row(b)), peak = new Float64Array(cols), mean = new Float64Array(cols);
+    for (let c = 0; c < cols; c++) {
+      let m = -Infinity, p = 0;
+      for (let r = r0; r < r1; r++) { const v = spec[c * rows + r]; if (v > m) m = v; p += Math.pow(10, v / 10); }
+      peak[c] = m; mean[c] = 10 * Math.log10(p / (r1 - r0) + 1e-30);
+    }
+    return { peak, mean };
+  };
+  const up = band(f0, f1), under = band(cut.fc - 2000, cut.fc - 500);
+  const level = [...up.peak].sort((x, y) => x - y)[Math.floor(0.99 * (cols - 1))];
+  const a = under.mean, b = up.mean;
+  let ma = 0, mb = 0; for (let i = 0; i < cols; i++) { ma += a[i]; mb += b[i]; } ma /= cols; mb /= cols;
+  let sab = 0, saa = 0, sbb = 0; for (let i = 0; i < cols; i++) { const x = a[i] - ma, y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; }
+  const corr = sab / Math.sqrt(saa * sbb + 1e-30);
+  return { level, below: cut.ref - level, corr, content: level >= Math.max(cut.ref - 45, cut.globalFloor + 12) && corr >= 0.3 };
+}
+/** The note for specks above a wall that are only rounding (they show with the spectrogram's floor set very low). */
+const specks = (w: ReturnType<typeof beyondWall>, floor: number) => w && !w.content && w.level > floor + 12
+  ? ' Specks above it, around ' + Math.round(w.level) + ' dB (' + Math.round(w.below) + ' dB under the music), are the decoder’s rounding, not content: they show when the spectrogram’s floor is set very low.' : '';
+
 /** What the verdict needs from the analysis (the spectrogram is optional: it refines gentle fades). */
 export interface VerdictInput { sr: number; stats: SampleStats; ltas: Float32Array; binHz: number; containerBits: number; spec?: Float32Array; cols?: number; rows?: number }
 type Head = { grade: Grade; label: string; headline: string; sub: string };
@@ -164,17 +195,23 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
   }
 
   const lossySig = cut.wall && !cut.full && fc < 20800;
+  const beyond = lossySig && res.spec && res.cols && res.rows ? beyondWall(res.spec, res.cols, res.rows, sr, cut) : null;
   const resampledFrom = findResample(cut, sr);
   const edge = (fc >= 19600 && cut.drop < 35) || (fc >= SOFT_WALL.hz && cut.drop < SOFT_WALL.drop);
 
   if (lossless) {
-    if (lossySig) {
+    if (lossySig && beyond?.content) {
+      // Content that follows the music carries on past the wall: not an encoder's lowpass alone (2026-09-27).
+      bwTone = 'warn';
+      origin = 'Steep lowpass';
+      add('warn', 'Steep top end at ' + kHz + ', with content beyond', 'The spectrum drops ' + Math.round(cut.drop) + ' dB at ' + kHz + ', as a lossy encoder’s lowpass would, but quieter content that follows the music carries on above it (about ' + Math.round(beyond.below) + ' dB under the music). An encoder removes everything above its cutoff, so something came after the cut: a steep mastering filter and then limiting, or a lossy source that was processed again. Not proof either way.');
+    } else if (lossySig) {
       const g = lossyGuess(fc, yt);
       origin = g.short;
       bwTone = edge ? 'warn' : 'bad';
       add(edge ? 'warn' : 'bad', 'Brick-wall cutoff at ' + kHz,
         'A lossless ' + fmtRate(sr) + ' file can carry content up to ' + fmtKHz(nyq) + '. Here it drops ' + Math.round(cut.drop) + ' dB within about a kilohertz at ' + kHz + ', which is what a lossy encoder’s lowpass filter leaves behind. Most likely source: ' + g.text + '.' +
-        (edge ? ' Some masters are lowpassed near 20 kHz on purpose, so this one is not conclusive.' : ''));
+        (edge ? ' Some masters are lowpassed near 20 kHz on purpose, so this one is not conclusive.' : '') + specks(beyond, cut.globalFloor));
       if (!edge) head = { grade: 'bad', label: 'Transcoded', headline: 'Lossy audio in ' + article(/^PCM/.test(info.codec) ? info.container.split(' ')[0] : info.codec) + ' wrapper', sub: 'The spectrum stops dead at ' + kHz + ', the signature of ' + g.short.replace(/^\w/, c => c.toLowerCase()) + (hiRes ? ', later upsampled to ' + fmtRate(sr) : '') + '. Converting to lossless can’t restore what the encoder removed.' };
     } else if (cut.full) {
       add('ok', 'Content reaches ' + fmtKHz(Math.max(fc, cut.fade)), hiRes ? 'Energy continues well past 24 kHz, beyond anything a CD (22.05 kHz) or 48 kHz master can hold.' : 'The spectrum runs all the way to the ' + fmtKHz(nyq) + ' limit of a ' + fmtRate(sr) + ' file.');
@@ -225,7 +262,8 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
       const sure = /^MP3/.test(info.codec) || !!info.lameLowpass;
       bwTone = sure ? 'bad' : 'warn';
       origin = sure ? 'Re-encode of ' + g.short.toLowerCase() : info.codec + ' encode';
-      add(sure ? 'bad' : 'warn', 'Cutoff too low for ' + Math.round(br) + ' kbps', 'An encode at this bitrate would normally keep content up to about ' + fmtKHz(exp.hz) + ' (' + exp.why + '). This one stops at ' + kHz + (sure ? ', so it was probably re-encoded from ' + g.text + '.' : '. That can mean a re-encode of a lower-quality file, or just a conservative encoder.'));
+      const w = res.spec && res.cols && res.rows ? beyondWall(res.spec, res.cols, res.rows, sr, cut) : null;
+      add(sure ? 'bad' : 'warn', 'Cutoff too low for ' + Math.round(br) + ' kbps', 'An encode at this bitrate would normally keep content up to about ' + fmtKHz(exp.hz) + ' (' + exp.why + '). This one stops at ' + kHz + (sure ? ', so it was probably re-encoded from ' + g.text + '.' : '. That can mean a re-encode of a lower-quality file, or just a conservative encoder.') + specks(w, cut.globalFloor));
       if (sure) head = { grade: 'bad', label: 'Fake bitrate', headline: 'Upconverted from a lower-quality file', sub: 'Labelled ' + info.codec + ' ' + Math.round(br) + ' kbps, but the content stops at ' + kHz + ', like ' + g.short.toLowerCase() + '. The extra bitrate stores nothing new.' };
     } else {
       origin = info.codec + ' encode';

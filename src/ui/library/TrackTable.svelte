@@ -13,7 +13,8 @@
   import { app } from '../../lib/app.svelte';
   import { router, trackHref } from '../../lib/route.svelte';
   import { drag } from '../../lib/drag.svelte';
-  import { columns, COLUMNS, type ColKey } from '../../lib/columns.svelte';
+  import { columns, COLUMNS, overview, type ColKey } from '../../lib/columns.svelte';
+  import { SCHEMES } from '../render/wave';
   import { keyLabel } from '../../core/audio/keys';
   import { fmtTime } from '../../core/format';
   import type { TrackFormat } from '../../store/types';
@@ -52,7 +53,7 @@
   // Plays here: this computer's file, or another computer's through its GLUE Home.
   const here = (r: Row) => r.t.status === 'linked' && !lib.cloud && (!r.t.remote || lib.canRead(r.t));
   // play button, "#" (playlists only), the chosen columns, the column menu button
-  const widths = $derived([dragOut ? '42px' : '26px', ...(isPlaylist ? ['36px'] : []), ...cols.map(k => COLUMNS[k].width), '28px']);
+  const widths = $derived([dragOut ? '42px' : '26px', ...(isPlaylist ? ['36px'] : []), ...cols.map(k => columns.width(k)), '28px']);
   const template = $derived(widths.join(' '));
   // The narrowest the columns can go (minimum widths, gaps, padding): below that the table scrolls sideways.
   const minWidth = $derived(widths.reduce((a, w) => a + (Number(/(\d+)px/.exec(w)?.[1]) || 0), 0) + 10 * (widths.length - 1) + 16);
@@ -126,6 +127,57 @@
     SEP,
     { label: 'Columns', sub: columnsMenu },
   ]);
+  // ─── Column widths: drag a header's right edge; double-click it to fit (the user's list, 2026-09-27) ───
+  function startColResize(e: PointerEvent, k: ColKey) {
+    if (e.button !== 0) return;
+    e.stopPropagation(); e.preventDefault();
+    const el = e.currentTarget as HTMLElement, w0 = el.closest('.th')!.getBoundingClientRect().width, x0 = e.clientX;
+    el.setPointerCapture(e.pointerId);
+    const move = (m: PointerEvent) => columns.setWidth(k, w0 + m.clientX - x0, false);
+    const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); columns.setWidth(k, columns.widths[k] ?? w0); };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
+  }
+  /** A cell's text, as drawn (for fitting its column). */
+  function textOf(k: ColKey, r: Row): string {
+    const t = r.t;
+    switch (k) {
+      case 'title': return (t.title || t.fileName) + (dupes.groupOf.get(t.id)?.kind === 'same' ? '  2× ' : '');
+      case 'artist': return t.artist;
+      case 'album': return t.album;
+      case 'genre': return t.genre;
+      case 'label': return t.label;
+      case 'year': return t.year ? String(t.year) : '';
+      case 'bpm': { const b = bpmShown(t, r.a, r.dj?.bpm ?? null); return b ? fmtBpm(b) : ''; }
+      case 'key': return r.a?.key ? keyLabel(r.a.key, app.keyNotation) : r.dj?.key ?? '';
+      case 'duration': return t.duration ? fmtTime(t.duration) : '';
+      case 'format': return fmt(t.format);
+      case 'added': return t.addedAt.slice(0, 10);
+      case 'quality': return (r.a?.label ?? '').toUpperCase();
+      case 'tags': return tagsOf(t).join('    ');
+      case 'device': return devicesOf(t).join('    ');
+      default: return '';
+    }
+  }
+  /** Fit a column to its widest value over all the rows (and its heading). Fixed drawings keep theirs. */
+  function fitColumn(k: ColKey) {
+    const FIXED: Partial<Record<ColKey, number>> = { wave: 150, rating: 70, notes: 42 };
+    const th = headWrap?.querySelector<HTMLElement>('.th[data-col="' + k + '"]');
+    // The heading's own text (its button stretches to the column).
+    const range = document.createRange();
+    if (th) range.selectNodeContents(th.querySelector('.sortb')!);
+    const head = th ? Math.ceil(range.getBoundingClientRect().width) + (th.querySelector('.hf') ? 22 : 0) + 12 : 40;
+    if (FIXED[k]) { columns.setWidth(k, Math.max(FIXED[k]!, head)); return; }
+    const inner = k === 'quality' ? ' .q' : k === 'tags' ? ' .tg' : k === 'device' ? ' .dv' : ' > span';
+    const sample = scroller.querySelector('.tr .cell[data-c="' + k + '"]' + inner) ?? scroller.querySelector('.tr .cell[data-c="' + k + '"]') ?? scroller;
+    const cs = getComputedStyle(sample), ctx = document.createElement('canvas').getContext('2d')!;
+    ctx.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    const spacing = parseFloat(cs.letterSpacing) || 0;
+    let w = 0;
+    for (const r of rows) { const tx = textOf(k, r); if (tx) w = Math.max(w, ctx.measureText(tx).width + spacing * tx.length); }
+    const pad = k === 'quality' ? 18 : k === 'tags' ? 14 * Math.max(1, ...rows.map(r => tagsOf(r.t).length)) : 8;
+    columns.setWidth(k, Math.min(600, Math.max(head, Math.ceil(w + pad))));
+  }
+
   function headMenu(k: ColKey, th: Element): MenuEntry[] {
     const c = COLUMNS[k], g = c.filter, s = c.sort;
     return tidy([
@@ -136,6 +188,12 @@
       !!g && { label: 'Show only…', attrs: { 'data-m': 'col-filter' }, run: () => showHeadFilter(th, k) },
       !!g && view.filters[g!].length > 0 && { label: 'Clear this filter', run: () => view.clearFilters(g) },
       SEP,
+      k === 'wave' && { label: 'Spectrogram', checked: overview.kind === 'spectrogram', attrs: { 'data-m': 'ov-spectrogram' }, run: () => overview.set('spectrogram') },
+      k === 'wave' && { label: 'Waveform', checked: overview.kind === 'waveform', attrs: { 'data-m': 'ov-waveform' }, run: () => overview.set('waveform') },
+      k === 'wave' && overview.kind === 'waveform' && { label: 'Waveform colours', sub: () => SCHEMES.map(x => ({ label: x.name, checked: overview.scheme === x.id, run: () => overview.setScheme(x.id) })) },
+      SEP,
+      { label: 'Fit to its content', hint: 'double-click the edge', attrs: { 'data-m': 'fit-col' }, run: () => fitColumn(k) },
+      !!columns.widths[k] && { label: 'Default width', run: () => columns.clearWidth(k) },
       !c.fixed && { label: 'Hide this column', attrs: { 'data-m': 'hide-col' }, run: () => columns.toggle(k) },
       { label: 'Columns', sub: columnsMenu },
     ]);
@@ -267,12 +325,14 @@
       <div role="columnheader" class="th" class:on={view.sort.key === c.sort} data-drop="col" data-col={k}
         class:col-before={colDrop?.key === k && colDrop.at === 'before'} class:col-after={colDrop?.key === k && colDrop.at === 'after'}
         class:lifted={drag.active && drag.payload?.kind === 'column' && drag.payload.key === k}
-        onpointerdown={e => { if (!(e.target as HTMLElement).closest('.hf')) drag.begin(e, { kind: 'column', key: k, label: c.label }); }}
+        onpointerdown={e => { if (!(e.target as HTMLElement).closest('.hf, .rz')) drag.begin(e, { kind: 'column', key: k, label: c.label }); }}
         aria-sort={view.sort.key === c.sort ? (view.sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
         <button type="button" class="sortb" title={c.sort ? 'Sort by ' + c.label.toLowerCase() + ' · drag to move the column' : 'Drag to move the column'}
           onclick={() => { if (!drag.suppressClick && c.sort) view.sortBy(c.sort); }}>
           {c.label}{#if view.sort.key === c.sort}<span class="arrow">{view.sort.dir === 1 ? '▲' : '▼'}</span>{/if}
         </button>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span class="rz" data-rz={k} title="Drag to resize · double-click to fit" onpointerdown={e => startColResize(e, k)} ondblclick={e => { e.stopPropagation(); fitColumn(k); }}></span>
         {#if c.filter}
           <button type="button" class="hf" class:active={filtered > 0} class:open={headFilter?.key === k} data-hf={k} aria-haspopup="dialog" aria-expanded={headFilter?.key === k}
             aria-label={'Filter by ' + c.label.toLowerCase()} title={filtered ? 'Filtered: ' + view.filters[c.filter].join(', ') : 'Show only some ' + c.label.toLowerCase() + ' values'}
@@ -377,9 +437,13 @@
   .hwrap { overflow: hidden; min-width: 0; }
   .thead, .tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 10px; padding: 0 6px 0 10px; }
   .thead { border-bottom: 1px solid var(--line); height: 32px; position: relative; z-index: 2; }
-  .th { display: flex; align-items: center; min-width: 0; height: 100%; gap: 2px; }
+  .th { display: flex; align-items: center; min-width: 0; height: 100%; gap: 2px; position: relative; }
   .th .sortb { flex: 1; min-width: 0; background: none; border: 0; padding: 0; text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 100%; }
   .th.on .sortb { color: var(--ink); }
+  /* The resize grip on a header's right edge. */
+  .rz { position: absolute; right: -6px; top: 6px; bottom: 6px; width: 7px; cursor: col-resize; z-index: 3; border-radius: 2px; }
+  .rz::after { content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 1px; background: var(--line); }
+  .th:hover .rz::after, .rz:hover::after { background: var(--accent); width: 2px; left: 2px; }
   .hf { flex: none; width: 18px; height: 18px; display: grid; place-items: center; border: 0; border-radius: 3px; background: none; color: var(--muted); cursor: pointer; padding: 0; opacity: .55; }
   .hf svg { width: 10px; height: 10px; }
   .th:hover .hf, .hf.open, .hf:focus-visible { opacity: 1; }
