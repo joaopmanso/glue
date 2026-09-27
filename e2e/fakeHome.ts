@@ -24,6 +24,9 @@ export class FakeHome {
   /** Where the dock window is on the screen (screen coordinates), for /dock/drop (ADR 0061). */
   dockRect: { x: number; y: number; w: number; h: number } | null = null;
   dockDrops: { x: number; y: number; on: boolean }[] = [];
+  /** Duplicates put aside (moved into `duplicates`) and recycled (removed, their paths kept here), ADR 0070. */
+  duplicates = '';
+  trashed: string[] = [];
   private server: Server | null = null;
   constructor(readonly dirs: FakeHomeDirs) {}
 
@@ -87,6 +90,26 @@ export class FakeHome {
         if (b.mode !== 'add') this.dock = [];
         for (const i of b.items) if (!this.dock.some(d => d.root === i.root && d.path === i.path)) this.dock.push(i);
         send(200, { songs: this.dock.length });
+      });
+      return;
+    }
+    if (u.pathname === '/fs/dupes' && method === 'POST') {
+      const chunks: Buffer[] = [];
+      req.on('data', c => chunks.push(Buffer.from(c)));
+      req.on('end', () => {
+        const b = JSON.parse(Buffer.concat(chunks).toString() || '{}') as { mode: 'move' | 'trash'; items: { root: string; path: string }[] };
+        const music = [this.dirs.incoming, ...Object.values(this.dirs.folders)].map(x => resolve(x));
+        const results = b.items.map(i => {
+          const root = resolve(i.root), from = join(root, ...i.path.split('/'));
+          if (!music.includes(root)) return { ok: false, error: 'not a music folder GLUE Home knows' };
+          if (!existsSync(from)) return { ok: false, error: 'not found' };
+          if (b.mode === 'trash') { rmSync(from); this.trashed.push(i.path); return { ok: true, to: null }; }
+          const to = join(this.duplicates, basename(root), ...i.path.split('/'));
+          mkdirSync(resolve(to, '..'), { recursive: true });
+          renameSync(from, to);
+          return { ok: true, to };
+        });
+        send(200, { results });
       });
       return;
     }

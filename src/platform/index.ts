@@ -204,6 +204,14 @@ export async function musicFolderPath(root: Root): Promise<string | null> {
   const r = await homeRoots();
   return (root.id === INCOMING_ROOT ? r?.incoming : r?.folders[root.id]) ?? null;
 }
+/** Songs' files put aside (GLUE Home's duplicates folder) or into the Recycle Bin, in Home mode only
+    (ADR 0070). Each item: its music folder and path; a result each, in order. */
+export async function cleanDuplicates(mode: 'move' | 'trash', items: { root: Root; path: string }[]): Promise<{ ok: boolean; error?: string; to?: string }[]> {
+  if (!homeMode() || !disk) throw new Error('Cleaning up files needs GLUE Home on this computer.');
+  const r = await homeRoots(), named = items.map(it => ({ root: (it.root.id === INCOMING_ROOT ? r?.incoming : r?.folders[it.root.id]) ?? '', path: it.path }));
+  try { return (await disk.dupes(mode, named)).results; }
+  catch (e) { throw (e as Error).name === 'NotFoundError' ? new Error('Cleaning up duplicates needs GLUE Home 0.11 or later: it updates itself, or download it again.') : e; }
+}
 export async function folderHandle(key: string): Promise<Dir | null> {
   try { return (await idbGet<Dir>(key)) ?? null; } catch { return null; }
 }

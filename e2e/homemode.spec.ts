@@ -3,7 +3,7 @@
    library carries on with the browser's own folders, then goes back to GLUE Home when it's running
    again. */
 import { test as base, expect, chromium, type Page } from '@playwright/test';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -221,5 +221,98 @@ test('with GLUE Home a DJ library imported through its dialog is followed live (
     await expect(page.locator('.notice')).toContainText('rekordbox changed its playlists');
     // Looks are by date: the file itself was sent twice (the import and the change), however many looks.
     expect(home.reads.filter(p => p === 'rekordbox.xml')).toHaveLength(2);
+  } finally { await home.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('with GLUE Home, duplicates are cleaned up: the others moved aside or recycled; playlists and ratings go to the copy that stays (ADR 0070)', async ({ page }) => {
+  test.setTimeout(300_000);
+  const { execFileSync } = await import('node:child_process');
+  const ff = process.env.FFMPEG || 'ffmpeg';
+  try { execFileSync(ff, ['-version'], { stdio: 'ignore' }); } catch { test.skip(true, 'needs ffmpeg to make MP3 rips'); }
+  // Two recordings (40 s each), each as a WAV and as a 48 kHz MP3 rip with 1.3 s of extra lead-in.
+  const wav = (seed: number) => {
+    let s = seed; const r = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+    const sr = 44100, x = new Float32Array(sr * 40);
+    for (let t0 = 0; t0 < 40; t0 += 0.25) {
+      const f = 110 * Math.pow(2, Math.floor(r() * 36) / 12), amp = 0.1 + r() * 0.2, a = Math.floor(t0 * sr);
+      for (let i = a; i < Math.min(x.length, a + sr * 0.6); i++) { const t = (i - a) / sr; x[i] += amp * Math.exp(-t * 6) * (Math.sin(2 * Math.PI * f * t) + 0.5 * Math.sin(4 * Math.PI * f * t)); }
+    }
+    const b = Buffer.alloc(44 + x.length * 2);
+    b.write('RIFF', 0); b.writeUInt32LE(36 + x.length * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+    b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(x.length * 2, 40);
+    for (let i = 0; i < x.length; i++) b.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(x[i] * 32767))), 44 + i * 2);
+    return b;
+  };
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-dupes-e2e-')), src = join(tmp, 'src');
+  mkdirSync(src);
+  writeFileSync(join(src, 'HHH 04 RADIX.wav'), wav(11)); writeFileSync(join(src, 'Other take.wav'), wav(99));
+  for (const [from, to] of [['HHH 04 RADIX.wav', 'HHH-Bebida.mp3'], ['Other take.wav', 'Other-rip.mp3']]) execFileSync(ff, ['-loglevel', 'error', '-y', '-i', join(src, from), '-af', 'adelay=1300', '-ar', '48000', '-b:a', '128k', join(src, to)]);
+  const home = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} });
+  home.duplicates = join(tmp, 'Dups');
+  try {
+    // The library, made in the browser.
+    await page.goto('./#/analyze');
+    const files = readdirSync(src).map(n => ({ n, b: readFileSync(join(src, n)).toString('base64') }));
+    await page.evaluate(async files => {
+      const dir = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('Music', { create: true })).getDirectoryHandle('Sets', { create: true });
+      for (const f of files) { const w = await (await dir.getFileHandle(f.n, { create: true })).createWritable(); await w.write(Uint8Array.from(atob(f.b), c => c.charCodeAt(0))); await w.close(); }
+    }, files);
+    await page.goto('./');
+    await page.click('#choose-home');
+    await page.fill('#profile-name', 'DJ Test');
+    await page.getByRole('button', { name: 'Create profile' }).click();
+    await page.click('#onb-skip');
+    await page.click('#add-folder');
+    await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+    await expect(page.locator('.an')).toContainText('All analysed', { timeout: 120_000 });
+    // The first rip is in a playlist, and rated.
+    const rip = page.locator('.tr', { hasText: 'HHH-Bebida' }).locator('.c-title');
+    await rip.click({ button: 'right' });
+    page.once('dialog', d => void d.accept('Gig'));
+    await page.locator('.cmenu [data-m="add"]').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
+    await rip.click({ button: 'right' });
+    await page.locator('.cmenu .cstars button').nth(3).click({ position: { x: 12, y: 7 } });
+    await expect(page.locator('.lside .name', { hasText: 'Duplicates' })).toContainText('2', { timeout: 60_000 });
+    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+
+    // The same folders on "this computer's disk", where GLUE Home knows them; then Home mode.
+    for (const [top, to] of [['MCO', home.dirs.glue], ['Music', join(tmp, 'Music')]] as const) {
+      for (const f of await readOpfs(page, top)) { mkdirSync(dirname(join(to, f.path)), { recursive: true }); writeFileSync(join(to, f.path), Buffer.from(f.b64, 'base64')); }
+    }
+    const profiles = join(home.dirs.glue, 'profiles'), pid = readdirSync(profiles)[0], cid = readdirSync(join(profiles, pid, 'collections'))[0];
+    const meta = JSON.parse(readFileSync(join(profiles, pid, 'collections', cid, 'collection.json'), 'utf8')) as { roots: { id: string }[] };
+    home.dirs.folders[meta.roots[0].id] = join(tmp, 'Music');
+    mkdirSync(home.dirs.incoming, { recursive: true });
+    await home.start();
+    await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), home.pref);
+    await page.reload();
+    await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+
+    // One group: "Move the others". The WAV stays; the MP3 goes into the duplicates folder.
+    await page.locator('.lside .name', { hasText: 'Duplicates' }).click();
+    const radix = page.locator('#dupes .grp', { hasText: 'HHH 04 RADIX' });
+    await radix.locator('[data-clean="move"]').click({ timeout: 30_000 });
+    await expect(page.locator('#clean-dialog')).toContainText('Sets/HHH-Bebida.mp3');
+    if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/dupes-clean.png' });
+    await page.click('#clean-go');
+    await expect(page.locator('.notice')).toContainText('Moved 1 file');
+    expect(existsSync(join(tmp, 'Dups', 'Music', 'Sets', 'HHH-Bebida.mp3'))).toBe(true);
+    expect(existsSync(join(tmp, 'Music', 'Sets', 'HHH-Bebida.mp3'))).toBe(false);
+    // The playlist has the WAV now, and the WAV took the rating.
+    await page.locator('.lside .tree .name', { hasText: 'Gig' }).click();
+    await expect(page.locator('.tr .c-title')).toHaveText(['HHH 04 RADIX']);
+    await expect(page.locator('.tr .stars').first()).toHaveAttribute('aria-valuenow', '4');
+
+    // The other group: ticked, then "Delete the others…" from the bar (the Recycle Bin).
+    await page.locator('.lside .name', { hasText: 'Duplicates' }).click();
+    await expect(page.locator('#dupes .grp[data-kind="same"]')).toHaveCount(1);
+    await page.locator('#dupes .grp', { hasText: 'Other take' }).locator('.gpick').check();
+    await page.click('#bulk-trash');
+    await expect(page.locator('#clean-dialog')).toContainText('Recycle Bin');
+    await page.click('#clean-go');
+    await expect(page.locator('.notice')).toContainText('to the Recycle Bin');
+    expect(home.trashed).toEqual(['Sets/Other-rip.mp3']);
+    await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+    await expect(page.locator('.tr')).toHaveCount(2);
   } finally { await home.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

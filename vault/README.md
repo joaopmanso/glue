@@ -139,4 +139,5 @@ Planned (GLUE):
 | [0066](adr/0066-imported-records-find-their-files.md) | Imported records find their files by the folder's place; what an import no longer has goes | accepted |
 | [0067](adr/0067-one-context-menu.md) | One context menu for the library page: right-click (or ⋯) on anything there | accepted |
 | [0068](adr/0068-full-player.md) | A full player: a queue, an open view with the visualiser, the sound output; drivers through GLUE Home later | accepted |
+| [0070](adr/0070-glue-home-cleans-up-duplicates.md) | GLUE Home moves duplicate music files aside, or recycles them, when asked | accepted |
 | [0069](adr/0069-content-beyond-a-wall.md) | Content beyond a wall that follows the music isn't an encoder's cut; specks far under it are rounding | accepted |

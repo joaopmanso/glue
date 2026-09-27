@@ -174,6 +174,12 @@ pub fn handle(app: AppHandle, mut req: Request, path: &str, arg: &dyn Fn(&str) -
                 let name = picked.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| text.clone());
                 Ok(json(serde_json::json!({ "path": text, "name": name })))
             }
+            // Duplicates put aside or recycled (ADR 0070): items in the body, a result for each.
+            "/fs/dupes" => {
+                let mut body = String::new();
+                std::io::Read::read_to_string(req.as_reader(), &mut body).map_err(io_fail)?;
+                Ok(json(crate::dupes::run(&app, &body)?))
+            }
             _ => {
                 let (base, target) = locate(&app, arg)?;
                 if matches!(path, "/fs/write" | "/fs/mkdir" | "/fs/remove") && !regular(&app, &base) {

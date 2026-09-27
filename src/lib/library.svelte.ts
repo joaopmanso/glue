@@ -7,7 +7,7 @@ import { importLists as importListsInto } from '../store/linked';
 
 const NO_DJ = new Map<string, DjValues>(), NO_LISTS = new Map<string, List[]>(), NO_LINKED = new Map<string, List>();
 import { CollectionStore } from '../store/collection';
-import { LOOSE, applyImport, applyScan, blankLibTrack, tidyTracks, type ImportReport } from '../store/merge';
+import { LOOSE, absorbTracks, applyImport, applyScan, blankLibTrack, tidyTracks, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
 import { ANALYSIS_VERSION, INCOMING_ROOT, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary, type List, type Prep, type Profile, type Root, type Track } from '../store/types';
@@ -1086,6 +1086,15 @@ class Library {
   private async putDetails(id: string, d: { header: DetailsHeader; bin: Uint8Array }) {
     const s = this.store, dir = await platform.cacheDir();
     if (s && dir) await writeDetails(dir, s.meta.id, id, d);
+  }
+  /** Copies whose files GLUE Home put aside or recycled (duplicates, ADR 0070) fold into the copy that
+      stays: its playlists' places, the DJ libraries' records, rating, notes, tags and Prepare. */
+  async foldCopies(into: Map<string, Track>) {
+    const s = this.store;
+    if (!s || !into.size) return;
+    absorbTracks(s, into);
+    const cache = await platform.cacheDir();
+    if (cache) for (const id of into.keys()) { await removeDetails(cache, s.meta.id, id).catch(() => {}); await removeFingerprint(cache, s.meta.id, id).catch(() => {}); }
   }
   /** Take tracks out of the collection. Files on disk are never touched (copies GLUE made are). */
   async removeTracks(ids: string[]) {

@@ -46,6 +46,10 @@ export class HomeDisk {
   dir(root: string): FileSystemDirectoryHandle {
     return new HomeDir(this, root, '', root.split(/[\\/]/).filter(Boolean).pop() ?? root) as unknown as FileSystemDirectoryHandle;
   }
+  /** Duplicates put aside in GLUE Home's duplicates folder, or into the Recycle Bin (ADR 0070): a result per item. */
+  dupes(mode: 'move' | 'trash', items: { root: string; path: string }[]) {
+    return this.json<{ results: { ok: boolean; error?: string; to?: string }[] }>('/fs/dupes', {}, { method: 'POST', body: JSON.stringify({ mode, items }) });
+  }
   /** A file's URL on the local link (for <audio src>: plays and seeks with byte ranges). */
   fileUrl(root: string, path: string) { return this.base + '/fs/file?' + new URLSearchParams({ root, path, t: this.token }); }
 }

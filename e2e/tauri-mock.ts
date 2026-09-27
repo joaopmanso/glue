@@ -29,6 +29,7 @@ export const TAURI_MOCK = `(() => {
         case 'get_config': return cfg();
         case 'set_config': localStorage.setItem('home-config', JSON.stringify(args.config)); send('config', args.config); return;
         case 'default_incoming': return 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming';
+        case 'default_duplicates': return 'C:\\\\Users\\\\dj\\\\GLUE duplicates';
         case 'device_name': return 'Studio PC';
         case 'incoming_begin': { const taken = n => files.some(f => f.name === n); let n = args.name, i = 2; while (taken(n)) n = args.name.replace(/(\\.[^.]*)?$/, ' (' + i++ + ')$1'); files.push({ name: n, chunks: [], done: false }); return [files.length, n]; }
         case 'incoming_write': files[Number(opts.headers['x-id']) - 1].chunks.push(Array.from(args)); return;

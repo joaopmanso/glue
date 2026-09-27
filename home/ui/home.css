@@ -16,5 +16,5 @@
   }
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.45 var(--font-sans); }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ground); color: var(--ink); font: 14px/1.45 var(--font-sans); }
 button, input { font: inherit; color: inherit; }

@@ -94,3 +94,16 @@ them at the best copy.
     new songs' are indexed. Unit-tested to equal the full match for every subset.
   - "Check again" still matches everything.
 - **Also:** the Duplicates page's links open songs on the tab used last.
+
+## Cleaning up (2026-09-27, [ADR 0070](../adr/0070-glue-home-cleans-up-duplicates.md))
+- **With GLUE Home,** each "same recording" group has two actions:
+  - "Move the others…" puts them in GLUE Home's duplicates folder (under their music folder's
+    name and path);
+  - "Delete the others…" sends them to the Recycle Bin.
+  Or tick several groups and use the bar.
+- **The best copy stays;** "Use in playlists" makes a copy the best (remembered).
+- **The confirmation** lists the files, the space freed, and any DJ library that still lists them.
+- **Each copy that went folds into the best one:** playlists, DJ libraries' records, rating, notes,
+  tags, Prepare. A copy that couldn't go changes nothing.
+- **Only "same recording" groups;** "probable" ones aren't confirmed by sound.
+- Without GLUE Home, the page says it's needed.

@@ -316,3 +316,14 @@ First release: phases 1–3 (user, 2026-09-25).
 - **Also unchanged:** dragging songs onto a computer in Devices, and Devices › ⋯ › Send songs….
 
 - **Pairing (2026-09-27):** a Copy button beside the pairing code.
+
+## GLUE Home 0.11 (2026-09-27)
+- **A desktop window:** a header (state, Open GLUE library), the pages on the left (Service, Account,
+  Library, Folders, Updates, Received) jumping to their section, and one pane that scrolls.
+  760 × 540, at least 640 × 460; the window itself never scrolls. It used to be a tall single column
+  with scroll bars.
+- **Folders:** Incoming, and the new Duplicates folder
+  ([ADR 0070](../adr/0070-glue-home-cleans-up-duplicates.md)). It defaults to `GLUE duplicates` in the
+  user's folder, with a warning if it's inside a music folder.
+- **`POST /fs/dupes`:** move duplicates aside, or into the Recycle Bin (`trash` crate). It has the
+  first Rust unit tests (`cargo test`).

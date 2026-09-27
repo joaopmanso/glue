@@ -15,6 +15,10 @@
   import { menu } from '../../lib/menu.svelte';
   import { trackMenu } from '../../lib/trackMenu';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
+  import { cleanUp, cleanUpPlan } from '../../lib/dupes.svelte';
+  import { homeMode } from '../../platform';
+  import { APP_NAMES } from '../../lib/view.svelte';
+  import { fmtBytes } from '../../core/format';
 
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
   const same = $derived(dupes.groups.filter(g => g.kind === 'same'));
@@ -43,6 +47,37 @@
     const n = dupes.useCopy(g, id), t = lib.store?.tracks.get(id);
     lib.notice = n ? 'Playlists now use ' + (t?.title || t?.fileName) + ' (' + n + ' playlist' + (n === 1 ? '' : 's') + ' updated).' : 'No playlist uses the other copies.';
   }
+  // ─── Cleaning up (ADR 0070): with GLUE Home, each group keeps its best copy; the others are put aside
+  // in GLUE Home's duplicates folder, or recycled. One group, or several ticked at once. ───
+  const canClean = $derived.by(() => { void lib.version; return homeMode(); });
+  let picked = $state<Set<string>>(new Set());
+  const pickedGroups = $derived(same.filter(g => picked.has(g.key)));
+  function pick(g: DupGroup, on: boolean) { const n = new Set(picked); if (on) n.add(g.key); else n.delete(g.key); picked = n; }
+  let ask = $state<{ mode: 'move' | 'trash'; groups: DupGroup[] } | null>(null);
+  const plan = $derived.by(() => { void lib.version; return ask ? cleanUpPlan(ask.groups) : []; });
+  const planBytes = $derived(plan.reduce((a, x) => a + (x.t.size ?? 0), 0));
+  /** DJ libraries that still list a copy that goes (they'll show it missing there). */
+  const planDj = $derived.by(() => {
+    const s = lib.store, apps = new Set<string>();
+    for (const x of plan) for (const id of x.t.sources) { const a = s?.sources.get(id)?.app; if (a) apps.add(APP_NAMES[a] ?? a); }
+    return [...apps];
+  });
+  let cleaning = $state(false);
+  async function doClean() {
+    if (!ask) return;
+    const mode = ask.mode, gs = ask.groups;
+    cleaning = true;
+    try {
+      const r = await cleanUp(gs, mode);
+      const what = r.done + ' file' + (r.done === 1 ? '' : 's') + ' (' + fmtBytes(r.bytes) + ')';
+      lib.notice = (mode === 'move' ? 'Moved ' + what + ' to GLUE Home’s duplicates folder.' : 'Moved ' + what + ' to the Recycle Bin.') +
+        (r.failed.length ? ' ' + r.failed.length + ' couldn’t go: ' + r.failed.slice(0, 3).map(f => f.name + ' (' + f.error + ')').join('; ') + (r.failed.length > 3 ? '…' : '') : '');
+      picked = new Set([...picked].filter(k => dupes.groups.some(g => g.key === k)));
+      ask = null;
+    } catch (e) { lib.notice = (e as Error).message; }
+    finally { cleaning = false; }
+  }
+
   /** Similarity 1 − 2·(bit error rate): unrelated audio is ~0, identical ~1; matches start at 0.4. */
   const strength = (sim: number) => sim >= 0.8 ? 'Near-identical audio' : sim >= 0.6 ? 'Strong match by sound' : 'Matched by sound';
   const listsOf = (id: string) => { void lib.version; return lib.listsContaining(id).filter(l => l.kind === 'playlist'); };
@@ -84,7 +119,12 @@
   <section class="grp" data-kind={g.kind}>
     <header>
       {#if g.kind === 'same'}
+        {#if canClean}<input type="checkbox" class="gpick" aria-label="Choose this group" checked={picked.has(g.key)} onchange={e => pick(g, e.currentTarget.checked)}>{/if}
         <span class="kind">Same recording</span><span class="sim">{strength(g.similarity ?? 0)}</span>
+        {#if canClean}
+          <button type="button" class="mini" data-clean="move" title="Keep the best copy; put the others in GLUE Home's duplicates folder (out of the library, not deleted)" onclick={() => (ask = { mode: 'move', groups: [g] })}>Move the others…</button>
+          <button type="button" class="mini danger" data-clean="trash" title="Keep the best copy; move the others' files to the Recycle Bin" onclick={() => (ask = { mode: 'trash', groups: [g] })}>Delete the others…</button>
+        {/if}
       {:else}
         <span class="kind probable">Probable</span><span class="sim">same artist and title, similar length; not confirmed by sound</span>
       {/if}
@@ -112,7 +152,7 @@
             <span class="lists">{listsOf(id).length ? 'in ' + listsOf(id).length + ' playlist' + (listsOf(id).length === 1 ? '' : 's') : 'in no playlist'}</span>
             <span class="act">
               {#if g.best === id}<span class="bestb" title="Best quality of the group">Best copy</span>{/if}
-              <button type="button" class="mini" title="Replace the other copies with this one in every playlist" onclick={() => keep(g, id)}>Use in playlists</button>
+              <button type="button" class="mini" title="Make this the copy to keep: every playlist uses it, and a clean-up keeps it" onclick={() => keep(g, id)}>Use in playlists</button>
             </span>
           </li>
         {/if}
@@ -125,7 +165,8 @@
   <div class="intro">
     <p>
       GLUE compares how tracks <b>sound</b>, so the same recording is found under any name, tag or format: a WAV and its MP3,
-      two rips, a re-download. Nothing is deleted; “Use in playlists” points your playlists at the copy you keep.
+      two rips, a re-download. “Use in playlists” makes a copy the one to keep and points your playlists at it.
+      {#if canClean}Then the others can be moved to GLUE Home’s duplicates folder or to the Recycle Bin: one group, or several ticked.{:else}Moving or deleting the other copies needs GLUE Home on this computer.{/if}
     </p>
     <span class="scan">
       {#if dupes.running}Comparing…{:else if dupes.at}Checked {new Date(dupes.at).toLocaleTimeString()}{/if}
@@ -136,6 +177,17 @@
     <p class="note" id="dupes-missing">{dupes.missing.toLocaleString()} analysed song{dupes.missing === 1 ? ' has' : 's have'} no fingerprint in this browser (analysed in another browser or on another computer). {dupes.filling ? 'Making them now: ' + dupes.filled.toLocaleString() + ' done…' : 'They’re made in the background as the files can be read.'} Duplicates among them show as they're done.</p>
   {/if}
   {#if pending}<p class="note">{pending} track{pending === 1 ? '' : 's'} still being analysed; duplicates among them appear when they’re done.</p>{/if}
+  {#if canClean && same.length}
+    <div class="bulk" id="dupes-bulk">
+      <span>{pickedGroups.length ? pickedGroups.length + ' group' + (pickedGroups.length === 1 ? '' : 's') + ' ticked' : 'Tick groups to clean several up at once'}</span>
+      <button type="button" class="mini" onclick={() => (picked = new Set(same.map(g => g.key)))}>Tick all {same.length}</button>
+      {#if pickedGroups.length}
+        <button type="button" class="mini" onclick={() => (picked = new Set())}>Untick</button>
+        <button type="button" class="mini" id="bulk-move" onclick={() => (ask = { mode: 'move', groups: pickedGroups })}>Move the others…</button>
+        <button type="button" class="mini danger" id="bulk-trash" onclick={() => (ask = { mode: 'trash', groups: pickedGroups })}>Delete the others…</button>
+      {/if}
+    </div>
+  {/if}
   {#each sameShown as g (g.key)}{@render group(g)}{/each}
   {#if probableShown.length}
     <h3 class="label">Check these</h3>
@@ -169,6 +221,27 @@
   {#if hidden > 0}<p class="more" bind:this={more}>{hidden.toLocaleString()} more…</p>{/if}
   {#if !dupes.groups.length && !devices.length && !dupes.running}<p class="empty">No duplicates found.</p>{/if}
 </div>
+
+{#if ask}
+  <div class="scrim" role="presentation" onpointerdown={e => { if (e.target === e.currentTarget && !cleaning) ask = null; }}>
+    <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="clean-h" id="clean-dialog">
+      <h2 id="clean-h">{ask.mode === 'move' ? 'Move' : 'Delete'} {plan.length} duplicate file{plan.length === 1 ? '' : 's'}?</h2>
+      <p>{ask.mode === 'move'
+        ? 'They go to GLUE Home’s duplicates folder, in their music folder’s name and path, and leave your library. Nothing is deleted.'
+        : 'They go to the Recycle Bin (you can still restore them from there) and leave your library.'}
+        Each group keeps its best copy, which takes over their playlists, rating, notes, tags and Prepare.</p>
+      <ul class="plan">
+        {#each plan.slice(0, 60) as x (x.t.id)}<li><span title={where(x.t)}>{where(x.t)}</span><small>{x.t.size ? fmtBytes(x.t.size) : ''}</small></li>{/each}
+        {#if plan.length > 60}<li class="more">…and {plan.length - 60} more</li>{/if}
+      </ul>
+      <p class="fine">{fmtBytes(planBytes)} in all.{planDj.length ? ' ' + planDj.join(' and ') + ' still list' + (planDj.length === 1 ? 's' : '') + ' some of these files: ' + (planDj.length === 1 ? 'it shows' : 'they show') + ' them as missing until you point ' + (planDj.length === 1 ? 'it' : 'them') + ' at the copy that stays.' : ''}</p>
+      <div class="acts">
+        <button type="button" class="btn-ghost" disabled={cleaning} onclick={() => (ask = null)}>Cancel</button>
+        <button type="button" class="btn" class:dangerbtn={ask.mode === 'trash'} id="clean-go" disabled={cleaning || !plan.length} onclick={doClean}>{cleaning ? 'Working…' : (ask.mode === 'move' ? 'Move ' : 'Delete ') + plan.length + ' file' + (plan.length === 1 ? '' : 's')}</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .more { color: var(--muted); font-size: 12.5px; padding: 8px 2px; }
@@ -212,5 +285,22 @@
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
   .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   h3 { margin-top: 8px; }
+  .gpick { margin: 0 2px 0 0; accent-color: var(--accent); }
+  .mini.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line-2)); }
+  .mini.danger:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
+  .bulk { position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 12.5px; color: var(--ink-2); }
+  .bulk span { flex: 1; }
+  .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; }
+  .dlg { width: min(620px, 100%); max-height: calc(100vh - 32px); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; display: grid; gap: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); min-height: 0; }
+  .dlg h2 { font-size: 20px; margin: 0; }
+  .dlg p { color: var(--ink-2); font-size: 13.5px; margin: 0; }
+  .dlg .fine { color: var(--muted); font-size: 12.5px; }
+  .plan { max-height: 40vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; display: grid; gap: 2px; }
+  .plan li { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; border: 0; font: 12px var(--font-mono); grid-template-columns: none; }
+  .plan li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+  .plan li small { color: var(--muted); white-space: nowrap; }
+  .plan .more { color: var(--muted); }
+  .acts { display: flex; gap: 8px; justify-content: flex-end; }
+  .dangerbtn { background: var(--bad); border-color: var(--bad); color: #fff; }
   @media (max-width: 1200px) { li { grid-template-columns: 28px minmax(160px, 1fr) 120px 140px 210px; } li > :nth-child(4), li > :nth-child(5), li > :nth-child(7) { display: none; } }
 </style>

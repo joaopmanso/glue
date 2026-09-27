@@ -33,7 +33,7 @@ export interface Root { id: string; name: string; absPath: string | null; handle
 export const INCOMING_ROOT = 'incoming';
 /** tags: tags made in GLUE, kept even while no track uses them (ADR 0032). cloudMerged: it has been
     merged with other devices once (ADR 0042), so an unmerge is kept rather than merged again. */
-export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean }
+export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean }
 
 export type TrackStatus = 'linked' | 'unlinked' | 'missing';
 export interface TrackFormat { container: string; codec: string; lossless: boolean | null; sampleRate: number; bits: number; bitrate: number; channels: number }

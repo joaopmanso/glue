@@ -165,6 +165,8 @@ test('a DJ library found in the GLUE folder: browsed, imported on demand, and re
   await dj('Friday').hover(); await dj('Friday').locator('.tools .more').click();
   await page.locator('[data-dj-import]').click();
   await expect(page.locator('.lside .tree .name', { hasText: /^Friday/ })).toHaveCount(1);
+  // Imported playlists show their app's badge in the Playlists pane (the user's follow-up, 2026-09-27).
+  await expect(page.locator('.lside .tree .name', { hasText: /^Friday/ }).locator('.imp .appicon[aria-label="rekordbox"]')).toBeVisible();
   // Changed in rekordbox: Friday renamed, a playlist added. In the browser alone GLUE reads it again on
   // Refresh (live following is GLUE Home's).
   await page.waitForTimeout(1500);

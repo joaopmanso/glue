@@ -22,6 +22,7 @@ export interface HomeConfig {
   autoUpdate?: boolean;         // install updates by itself (on unless turned off)
   serve?: Record<string, boolean>;    // 'profile/collection' → shared with other computers (on unless false)
   localToken?: string;          // what the website on this computer shows the local link (ADR 0048)
+  duplicates?: string | null;   // where duplicates the website puts aside go (ADR 0070)
 }
 export interface Received { name: string; path: string; from: string; at: number; size: number }
 
@@ -36,6 +37,7 @@ export const bridge = {
   config: () => invoke<HomeConfig | null>('get_config'),
   saveConfig: (config: HomeConfig) => invoke<void>('set_config', { config }),
   defaultIncoming: () => invoke<string>('default_incoming'),
+  defaultDuplicates: () => invoke<string>('default_duplicates'),
   deviceName: () => invoke<string>('device_name'),
   begin: (name: string) => invoke<[number, string]>('incoming_begin', { name }),
   write: (id: number, bytes: Uint8Array) => invoke<void>('incoming_write', bytes, { headers: { 'x-id': String(id) } }),

@@ -5,6 +5,20 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-27 · The user's list, batch 4: GLUE Home 0.11, a desktop window; cleaning up duplicates
+- **GLUE Home's window** is a desktop app's: a header, the pages on the left, one pane that scrolls.
+  760 × 540, at least 640 × 460, no scroll bars on the window.
+- **Duplicates** ([ADR 0070](../adr/0070-glue-home-cleans-up-duplicates.md)), with GLUE Home:
+  - per group, or several ticked groups from a bar: "Move the others…" (into GLUE Home's new
+    Duplicates folder) or "Delete the others…" (the Recycle Bin), after a confirmation that lists
+    the files, the space and the DJ libraries that still list them;
+  - the best copy stays and takes over the others' playlists, rating, notes, tags and Prepare;
+  - "Use in playlists" makes a copy the best.
+- **Playlists imported from a DJ library** show its app's badge in the Playlists pane (the user's
+  follow-up).
+- Tests: Rust `cargo test` (the move); e2e: the clean-up in Home mode (move, and recycle from the bar),
+  and GLUE Home's window at its smallest.
+
 ## 2026-09-27 · The user's list, batch 3: quality false positives
 - **Measured on the user's two files** (read-only, GLUE's own analysis) ([ADR 0069](../adr/0069-content-beyond-a-wall.md)).
   - **The WAV** ("Lossy audio in a WAV wrapper"): a 17.3 kHz wall, but content beyond it that

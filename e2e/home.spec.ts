@@ -40,6 +40,17 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   await expect(page.locator('#at-login')).toBeChecked();
   await expect(page.locator('#state-pill')).toHaveText('Not connected');
   await expect(page.locator('#incoming')).toContainText('GLUE Incoming');
+  // The duplicates folder (ADR 0070), and a desktop window: at its smallest size (640 × 460) the
+  // window never scrolls; only the pane does, and the pages on the left jump to their section.
+  await expect(page.locator('#duplicates')).toContainText('GLUE duplicates');
+  await expect(page.locator('#dup-inside')).toHaveCount(0);   // not inside a music folder (Music is one here)
+  await page.setViewportSize({ width: 640, height: 460 });
+  expect(await page.evaluate(() => [document.documentElement.scrollWidth <= innerWidth, document.documentElement.scrollHeight <= innerHeight])).toEqual([true, true]);
+  await page.click('nav [data-page="updates"]');
+  await expect(page.locator('#check-updates')).toBeInViewport();
+  await expect(page.locator('nav [data-page="updates"]')).toHaveClass(/on/);
+  if (process.env.SHOTS) { await page.setViewportSize({ width: 760, height: 540 }); await page.click('nav [data-page="service"]'); await page.screenshot({ path: process.env.SHOTS + '/home-window.png' }); }
+  await page.setViewportSize({ width: 1920, height: 960 });
   await expect(page.locator('#device-name')).toHaveValue('Studio PC');
   // Codes only: no email or Google sign-in.
   await expect(page.locator('#email, #password, #google')).toHaveCount(0);

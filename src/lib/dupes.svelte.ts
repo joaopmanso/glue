@@ -5,7 +5,7 @@
    Fast to show (2026-09-27): the last result is kept and shown the moment a collection opens;
    fingerprints come from one pack per shard; only songs fingerprinted since are matched again. */
 import { lib } from './library.svelte';
-import { cacheDir } from '../platform';
+import { cacheDir, cleanDuplicates } from '../platform';
 import { readFingerprint, readPacks, writeFingerprint, writePack } from '../store/fingerprints';
 import { readJSON, writeJSON } from '../store/fsx';
 import { shardOf } from '../store/types';
@@ -164,7 +164,8 @@ class Dupes {
 
   private build(matches: Match[]): DupGroup[] {
     const s = lib.store!, ignored = new Set(s.meta.ignoredDupes ?? []);
-    const best = (ids: string[]) => ids.reduce((b, id) => copyScore(s.tracks.get(id)!, s.analysis.get(id) ?? null) > copyScore(s.tracks.get(b)!, s.analysis.get(b) ?? null) ? id : b);
+    // The copy the user chose ("Use in playlists"), else the best by quality.
+    const best = (ids: string[]) => { const chosen = s.meta.dupBest?.[groupKey(ids)]; return chosen && ids.includes(chosen) ? chosen : ids.reduce((b, id) => copyScore(s.tracks.get(id)!, s.analysis.get(id) ?? null) > copyScore(s.tracks.get(b)!, s.analysis.get(b) ?? null) ? id : b); };
     const out: DupGroup[] = [];
     const inGroup = new Set<string>();
     for (const ids of groupMatches(matches)) {
@@ -192,6 +193,9 @@ class Dupes {
     return out.sort((a, b) => (a.kind === b.kind ? b.ids.length - a.ids.length : a.kind === 'same' ? -1 : 1));
   }
 
+  /** The groups again from the last matches (after songs left the collection). */
+  rebuild() { if (lib.store) this.groups = this.build(this.matches); }
+
   /** "Not duplicates": remember and hide this group. */
   ignore(g: DupGroup) {
     const s = lib.store;
@@ -200,10 +204,15 @@ class Dupes {
     s.saveMeta();
     this.groups = this.groups.filter(x => x.key !== g.key);
   }
-  /** Point every playlist at one copy (keeping each list's order; a list never gets it twice). */
+  /** Point every playlist at one copy (keeping each list's order; a list never gets it twice). That copy
+      becomes the group's best, the one a clean-up keeps (remembered). */
   useCopy(g: DupGroup, keep: string) {
     const s = lib.store;
     if (!s) return 0;
+    if (g.best !== keep) {
+      s.meta.dupBest = { ...s.meta.dupBest, [g.key]: keep }; s.saveMeta();
+      this.groups = this.groups.map(x => x.key === g.key ? { ...x, best: keep } : x);
+    }
     const others = new Set(g.ids.filter(id => id !== keep));
     let changed = 0;
     for (const l of [...s.lists.values()]) {
@@ -219,3 +228,38 @@ class Dupes {
 export const dupes = new Dupes();
 lib.onOpened = () => { dupes.reset(); void dupes.open(); };
 lib.onSettled = () => dupes.schedule();
+
+/** Keep each group's best copy and put the others aside in GLUE Home's duplicates folder, or into the
+    Recycle Bin (ADR 0070). Only "same recording" groups, only files on this computer. The files go
+    first; each copy that went folds into the best one (playlists, DJ libraries' records, rating,
+    notes, tags, Prepare), so a copy whose file couldn't be moved changes nothing. */
+export async function cleanUp(gs: DupGroup[], mode: 'move' | 'trash'): Promise<{ done: number; bytes: number; failed: { name: string; error: string }[] }> {
+  const s = lib.store;
+  if (!s) return { done: 0, bytes: 0, failed: [] };
+  const plan = cleanUpPlan(gs);
+  const results = await cleanDuplicates(mode, plan.map(p => ({ root: lib.rootState(p.t.rootId)!.root, path: p.t.relPath! })));
+  const into = new Map<string, Track>(), failed: { name: string; error: string }[] = [];
+  let bytes = 0;
+  plan.forEach((p, i) => {
+    if (results[i]?.ok) { into.set(p.t.id, p.best); bytes += p.t.size ?? 0; }
+    else failed.push({ name: p.t.fileName, error: results[i]?.error ?? 'GLUE Home didn’t say' });
+  });
+  await lib.foldCopies(into);
+  dupes.rebuild();
+  return { done: into.size, bytes, failed };
+}
+/** What a clean-up would take away: each group's other copies with a file on this computer. */
+export function cleanUpPlan(gs: DupGroup[]): { t: Track; best: Track; group: DupGroup }[] {
+  const s = lib.store, out: { t: Track; best: Track; group: DupGroup }[] = [];
+  if (!s) return out;
+  for (const g of gs) {
+    if (g.kind !== 'same') continue;
+    const best = s.tracks.get(g.best);
+    if (!best) continue;
+    for (const id of g.ids) {
+      const t = s.tracks.get(id);
+      if (t && id !== g.best && t.status === 'linked' && !t.remote && t.rootId && t.relPath && lib.rootState(t.rootId)) out.push({ t, best, group: g });
+    }
+  }
+  return out;
+}
