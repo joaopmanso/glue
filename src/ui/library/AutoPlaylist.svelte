@@ -185,7 +185,7 @@
               {#if t}
                 <li class:fixed={s.fixed}>
                   <span class="n mono">{i + 1}</span>
-                  <button type="button" class="pbtn" aria-label="Play" onclick={() => { if (nowPlaying.trackId === s.id && player.url) player.toggle(); else void nowPlaying.play(s.id, auto.slots.map(x => x.id)); }}>
+                  <button type="button" class="pbtn" aria-label="Play" onclick={() => { if (nowPlaying.trackId === s.id && player.url) player.toggle(); else void nowPlaying.play(s.id, auto.slots.map(x => x.id), 0, 'Playlist builder'); }}>
                     {#if nowPlaying.trackId === s.id && !player.paused}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 1.5h3.2v11H2.5zM8.3 1.5h3.2v11H8.3z" fill="currentColor"/></svg>{:else}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9.5-5.5z" fill="currentColor"/></svg>{/if}
                   </button>
                   <span class="who"><b>{t.title || t.fileName}</b><small>{t.artist}{#if s.fixed} · <i>{s.id === f.seedId ? 'start' : 'included'}</i>{/if}</small></span>

@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M3
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0067, 0062, 0044]
 ---
 # Right-click menus
@@ -21,7 +21,7 @@ The sidebar's ⋯ buttons open the same menus. In the selection bar, ⋯ opens t
   - **Selection:** right-clicking a song outside the selection selects it; inside it, the menu is
     for all the selected songs. The heading says which ("Fixture FLAC", "2 songs selected").
   - **Menu entries:**
-    - Play (or Play these N);
+    - Play (or Play these N); Play next, Add to queue (ADR 0068);
     - Open details; Prepare;
     - Add to playlist ▸ (New playlist…, Recent, then every playlist as the sidebar shows it; a tick
       when all of them are in it already);

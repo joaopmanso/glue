@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-26
+updated: 2026-09-27
 ---
 # Roadmap
 
@@ -19,6 +19,7 @@ Each milestone ships to the live site and ends with a review. Status: `planned` 
 | **M7 Performance & phone** | in-progress (phase 0 shipped 2026-09-26: budgets, synthetic 10k/50k collections, `?perf` panel, [baseline](../research/performance.md); phase 1 step 1 shipped 2026-09-26: change counters and indexes, [ADR 0059](../adr/0059-indexes-rebuilt-by-change-counters.md); phase 3 decoding shipped 2026-09-26: in the worker, [ADR 0060](../adr/0060-decode-in-the-worker.md)) | Keep the stack and fix its use ([ADR 0057](../adr/0057-keep-the-stack-fix-the-architecture.md)): 0 measure ([ADR 0058](../adr/0058-performance-budgets.md)), 1 data pipeline (incremental row index, finer change signals, batched analysis), 2 GPU drawing (WebGL2 renderers, one render loop), 3 analysis off the main thread (WebCodecs, Symphonia in GLUE Home), 4 phone web app, remote + offline ([phone app](../features/phone-app.md)). Features: [performance](../features/performance.md). |
 
 | **M8 DJ libraries, live** | in-progress (phase A shipped 2026-09-26: browsed live, imported on demand, linked copies follow the DJ app, [ADR 0063](../adr/0063-dj-libraries-browsed-live.md); live sync through GLUE Home 0.10.0, Refresh in the browser, [ADR 0065](../adr/0065-live-sync-through-glue-home.md)) | A: browse DJ libraries in the sidebar, import on demand, live updates. B: write back to Engine DJ through GLUE Home (opt-in, only while Engine DJ is closed, backups; ADR 0064 to come). C: Traktor NML and Serato crates written back; rekordbox via XML with cues and grids. |
+| **M9 Player & audio** | in-progress (phase 1 shipped 2026-09-27: queue, open player, visualiser, sound output in the browser, [ADR 0068](../adr/0068-full-player.md)) | 1: a queue (Next up, Next from the list, shuffle, repeat, remembered), the open player with the queue and festanqueiro/threejs-visualisers (latest release, checked daily), the output device the browser offers. 2: GLUE Home plays the music itself when it runs: WASAPI and ASIO through cpal, device and output channels, the website as its remote and screen ([research](../research/audio-output.md)). Feature: [player](../features/player.md). |
 
 ## Later (not scheduled)
 - **Desktop client** (Windows + macOS): auto-detect libraries anywhere on disk, read Rekordbox's

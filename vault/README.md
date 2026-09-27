@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-26
+updated: 2026-09-27
 ---
 # GLUE vault
 
@@ -138,3 +138,4 @@ Planned (GLUE):
 | [0065](adr/0065-live-sync-through-glue-home.md) | Live sync of DJ libraries is GLUE Home's; in the browser alone, Refresh | accepted |
 | [0066](adr/0066-imported-records-find-their-files.md) | Imported records find their files by the folder's place; what an import no longer has goes | accepted |
 | [0067](adr/0067-one-context-menu.md) | One context menu for the library page: right-click (or ⋯) on anything there | accepted |
+| [0068](adr/0068-full-player.md) | A full player: a queue, an open view with the visualiser, the sound output; drivers through GLUE Home later | accepted |

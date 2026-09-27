@@ -1,9 +1,35 @@
 ---
-updated: 2026-09-26
+updated: 2026-09-27
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-09-27 · A full player: queue, the open player with the visualiser, the sound output
+From the user: queue songs, "a right button with an arrow to expand the player to see the queue and
+manage it", choose the sound card and driver, and a visualiser from their own
+[threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers), at its latest release
+([ADR 0068](../adr/0068-full-player.md), [feature](../features/player.md),
+[research](../research/audio-output.md)).
+- **The queue:**
+  - "Next up" (right-click › Play next / Add to queue, for songs and playlists; drop songs or
+    playlists on the bar or the queue), then "Next from ‹list›";
+  - shuffle; repeat the list or the song; Previous through what played;
+  - remembered per collection, with the place in the song.
+- **▲ opens the player:**
+  - the song or the visualiser on the left, the queue on the right (drag to reorder, ×, Clear,
+    double-click, right-click);
+  - its top edge sizes it.
+- **The visualiser:** eight themes and their options, full screen, keys. Loaded only when shown (its
+  own 1.6 MB chunk).
+  - package.json pins v0.1.2.
+  - Every deploy installs the latest release when it's newer, and `visualisers.yml` checks daily
+    and deploys when there's a new one (main's ruleset stays as it is: nothing is committed).
+- **Sound output:** a menu of the outputs the browser offers, remembered; "List the sound cards…"
+  asks for the microphone once (Chromium's rule, nothing recorded).
+  - ASIO and WASAPI need GLUE Home to play the music itself: the next step (M9 phase 2).
+- **Also:** the bar's ⌖ sits beside the title again.
+- Tests: 169 unit (+10: the queue); e2e: the player (new).
 
 ## 2026-09-26 · Right-click menus across the library page; "Send to" only for other computers
 From the user: "a weird 'Send to Desktop' button… it shouldn't be there", and a right-click menu for

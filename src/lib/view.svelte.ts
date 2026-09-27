@@ -149,6 +149,25 @@ class View {
 }
 export const view = new View();
 
+export const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
+/** What a view is called (its heading; the player says it's playing from there). */
+export function viewTitle(s: ViewSel): string {
+  const st = lib.store;
+  switch (s.kind) {
+    case 'all': return 'All tracks';
+    case 'recent': return 'Recently added';
+    case 'pending': return 'Not analysed yet';
+    case 'attention': return 'Needs attention';
+    case 'unlinked': return 'No file linked';
+    case 'dupes': return 'Duplicates';
+    case 'list': { const l = st?.lists.get(s.id); return l ? lib.listPath(l) : 'Playlist'; }
+    case 'source': { const x = st?.sources.get(s.id); return x ? (APP_NAMES[x.app] ?? x.app) + ' import' : 'Import'; }
+    case 'dj': { const x = st?.sources.get(s.sourceId), l = x?.tree?.find(y => y.externalId === s.id); return (l?.name ?? 'Playlist') + ' · ' + (x ? APP_NAMES[x.app] ?? x.app : ''); }
+    case 'tag': return 'Tagged “' + s.name + '”';
+    case 'root': return s.id === LOOSE ? 'Added songs' : lib.rootState(s.id)?.root.name ?? 'Folder';
+  }
+}
+
 export const NO_TAGS = 'No tags', NO_GENRE = 'No genre';
 /** The values a row has for a filter group (tracks can have several tags). */
 export function valuesOf(g: FilterGroup, r: Row): string[] {

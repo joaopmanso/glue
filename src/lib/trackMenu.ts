@@ -54,6 +54,8 @@ export interface TrackMenuOpts {
   order?: string[];
   /** The value under the pointer, for "Show only …" (a genre, a tag, a format…). */
   only?: { group: FilterGroup; value: string; label: string } | null;
+  /** A song in the player's queue (ADR 0068). */
+  inQueue?: { which: 'upNext' | 'later'; index: number };
 }
 
 /** The menu for these songs (in the order they're shown). */
@@ -83,10 +85,15 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
 
   return tidy([
     { head: one ? one.title || one.fileName : plural(n, 'song') + ' selected' },
-    playable.length > 0 && {
+    playable.length > 0 && !opts.inQueue && {
       label: playing ? 'Pause' : one ? 'Play' : 'Play these ' + n, hint: one ? 'Space' : undefined, attrs: { 'data-m': 'play' },
       run: () => { if (playing) player.toggle(); else void nowPlaying.play(playable[0].id, one ? order : playable.map(t => t.id)); },
     },
+    opts.inQueue && { label: 'Play now', attrs: { 'data-m': 'play-now' }, run: () => nowPlaying.jumpTo(opts.inQueue!.which, opts.inQueue!.index) },
+    opts.inQueue && { label: 'Remove from the queue', attrs: { 'data-m': 'unqueue' }, run: () => nowPlaying.dequeue(opts.inQueue!.which, opts.inQueue!.index) },
+    !opts.inQueue && { label: 'Play next', attrs: { 'data-m': 'play-next' }, run: () => nowPlaying.enqueue(ids, 'next') },
+    !opts.inQueue && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(ids, 'end') },
+    SEP,
     one && { label: 'Open details', hint: 'Enter', attrs: { 'data-m': 'details' }, run: () => router.go('#/track/' + one.id) },
     one && { label: 'Prepare (grid, cues, loops)', attrs: { 'data-m': 'prepare' }, disabled: one.status !== 'linked' || cloud, title: one.status !== 'linked' ? 'Needs its file' : undefined, run: () => router.go('#/track/' + one.id + '/prepare') },
     SEP,

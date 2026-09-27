@@ -24,9 +24,22 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The player's visualiser follows festanqueiro/threejs-visualisers' latest release (ADR 0068):
+      # installed here when it's newer than the pin, so the checks, tests and build below use it.
+      # visualisers.yml starts this workflow when a new release appears.
+      - name: Latest threejs-visualisers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest=$(gh api repos/festanqueiro/threejs-visualisers/releases/latest --jq .tag_name || true)
+          pinned=$(node -p "require('./package.json').dependencies['threejs-visualisers'].split('#')[1]")
+          echo "threejs-visualisers: pinned $pinned, latest ${latest:-unknown}"
+          if [ -n "$latest" ] && [ "$latest" != "$pinned" ]; then npm install --no-save "github:festanqueiro/threejs-visualisers#$latest"; fi
+          echo "${latest:-$pinned}" > visualisers.version
       - run: npm run check
       - run: npm test
       - run: npm run build
+      - run: cp visualisers.version dist/visualisers.txt
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

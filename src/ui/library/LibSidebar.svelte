@@ -197,7 +197,7 @@
   /** A playlist's or folder's songs that can play here, in order. */
   function playList(l: List) {
     const ts = dock.tracksOf(l.id).filter(t => t.status === 'linked' && !lib.cloud && (!t.remote || lib.canRead(t)));
-    if (ts.length) void nowPlaying.play(ts[0].id, ts.map(t => t.id)); else lib.notice = 'Nothing in ' + l.name + ' can play here.';
+    if (ts.length) void nowPlaying.play(ts[0].id, ts.map(t => t.id), 0, l.name); else lib.notice = 'Nothing in ' + l.name + ' can play here.';
   }
   function saveM3u8(l: List) {
     const { text, missing } = playlistM3u8(l);
@@ -218,6 +218,8 @@
     return tidy([
       { label: 'Open', run: () => { view.select({ kind: 'list', id: l.id }); if (l.kind === 'folder') open[l.id] = true; } },
       songs > 0 && { label: 'Play', hint: String(songs), attrs: { 'data-m': 'play' }, run: () => playList(l) },
+      songs > 0 && { label: 'Play next', attrs: { 'data-m': 'play-next' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'next') },
+      songs > 0 && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'end') },
       SEP,
       { label: 'Rename', attrs: { 'data-m': 'rename' }, run: () => (view.editing = l.id) },
       { colors: LIST_COLORS, value: l.color ?? null, pick: (c: string | null) => lib.setListColor(l.id, c) },

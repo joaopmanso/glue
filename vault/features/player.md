@@ -1,8 +1,8 @@
 ---
-status: shipped
-milestone: Speklone
-updated: 2026-09-25
-adrs: []
+status: in-progress
+milestone: M9
+updated: 2026-09-27
+adrs: [0068, 0067]
 ---
 # Player
 
@@ -26,3 +26,49 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
 - Fixed in M1: a quick pause/play inside one frame could start a second play loop (now exactly one
   animation-frame loop; `src/lib/player.svelte.ts`).
 - GLUE: becomes a global player bar that plays any selected track (M2).
+
+## The library's full player (2026-09-27, [ADR 0068](../adr/0068-full-player.md))
+- **The bar:** shuffle, previous, play, next, repeat (off, the list, the song); the song, ⌖ to show it
+  in the list; seek; BPM, key, quality; volume (click the speaker to mute); the sound output; ▲ opens
+  the player, with the number of songs queued.
+- **The queue:**
+  - **"Next up":** the songs you queued, played first, in their order. Add them with right-click ›
+    Play next or Add to queue (songs or a whole playlist), or by dropping songs or a playlist on the
+    bar or the queue.
+  - **"Next from ‹list›":** the rest of the list the song was started from (shuffled: all of it but
+    the song, in a random order).
+  - Previous walks back through what played (or restarts the song after 3 s).
+  - Queueing a song that's waiting further down moves it, so it doesn't play twice.
+  - With nothing loaded, play starts the first queued song.
+  - The queue, the song and the place in it are remembered per collection in this browser, with
+    shuffle and repeat. After a reload, play resumes there.
+- **The open player** (▲; drag its top edge to size it, remembered):
+  - **Left:** the song (title, artist, BPM, key, quality, where it's playing from) or the
+    visualiser.
+  - **Right:** the queue (what's playing, Next up, Next from, Played before):
+    - drag to reorder or move a song into Next up; × removes; Clear empties a section;
+    - double-click plays it now;
+    - right-click has the song's menu with Play now and Remove from the queue.
+- **Visualiser:**
+  - [threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers), the user's own, loaded
+    the first time it's shown; eight themes and their options (remembered).
+  - Full screen with F or a double-click; ← → and 1–9 switch themes.
+  - It reacts to an analyser tapped off the player, made again for each song.
+  - The deployed site uses its latest release, checked daily (`visualisers.yml`, `visualisers.txt`
+    on the site).
+- **Sound output:**
+  - The menu lists the outputs the browser offers. Chromium lists every sound card only once the page
+    may use the microphone: "List the sound cards…" asks, and nothing is recorded.
+  - The choice is remembered, and falls back to the default when the device goes away.
+  - Browsers play through the system's shared audio. ASIO / WASAPI drivers come with GLUE Home
+    (phase 2).
+- **Code:**
+  - `core/library/queue.ts` (pure queue steps), `lib/nowPlaying` (the queue, remembered),
+    `lib/player` (taps, `setSink`), `lib/output`, `lib/visualiser`;
+  - `ui/library/LibPlayer` and `PlayerPanel`; the drag target `queue`.
+- **Tests:**
+  - unit `tests/queue.test.ts`;
+  - e2e "the player: a queue …": menu, drags, reorder, remove, shuffle and repeat, the output menu,
+    the visualiser drawing and switching themes, and the queue and song kept over a reload.
+- **Next (phase 2):** GLUE Home plays the music itself when it runs (cpal: WASAPI, ASIO), with a
+  device and output channels to choose; the website is its remote and screen.

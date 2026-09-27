@@ -1,5 +1,7 @@
 /* Audio player + live analyser. One <audio> element per source: a media element can feed only one
-   AudioContext, and the live view wants one at the file's own sample rate. */
+   AudioContext, and the live view wants one at the file's own sample rate. The audio goes through
+   Web Audio (the "graph") only while something listens to it: the live view, the metronome, or a tap
+   such as the visualiser's (ADR 0068). The output device follows the user's choice either way. */
 import { fmtKHz, freqLabel, niceStep } from '../core/format';
 import { time } from '../core/perf';
 import { MONO, fitCanvas, theme } from '../ui/render/canvas';
@@ -13,11 +15,19 @@ const LIVE_OFFSET = 20 * Math.log10(2 / 0.42);
 const LIVE_COLS_PER_SEC = 60;
 const LIVE_W = 720;
 const CANT_PLAY = 'This browser can’t play this format, but the analysis above is unaffected.';
+/** An analyser on the playing element, made again for each new source (the visualiser's). */
+export type TapMaker = (ctx: BaseAudioContext) => AnalyserNode;
+/** Chromium's output-device choice, on an element or a context ('' = the system's default). */
+const toSink = (x: unknown, id: string) => (x as { setSinkId?: (id: string) => Promise<void> }).setSinkId?.(id);
 
 class Live {
   ctx: AudioContext | null = null;
   an: AnalyserNode | null = null;
   el: HTMLAudioElement | null = null;
+  src: MediaElementAudioSourceNode | null = null;
+  /** Analysers tapped off the source, by name; they end in a silent gain so the browser runs them. */
+  taps = new Map<string, AnalyserNode>();
+  private mute: GainNode | null = null;
   buf: Float32Array<ArrayBuffer> | null = null;
   peak: Float32Array | null = null;
   img: HTMLCanvasElement | null = null;
@@ -32,13 +42,18 @@ class Live {
 
   reset() {
     if (this.ctx) { try { void this.ctx.close(); } catch { /* already closed */ } }
-    this.ctx = null; this.an = null; this.el = null; this.drawn = false; this.last = 0; this.acc = 0; this.error = '';
+    this.ctx = null; this.an = null; this.el = null; this.src = null; this.mute = null; this.taps.clear(); this.drawn = false; this.last = 0; this.acc = 0; this.error = '';
     this.frames = []; this.wfAcc = 0;
   }
 
-  /** Attach to the player's element. Must run inside a user gesture so the context may start. */
-  start(el: HTMLAudioElement, fileSr: number) {
-    if (this.el === el && this.an && this.ctx) { if (this.ctx.state === 'suspended') void this.ctx.resume(); return; }
+  /** Attach to the player's element. Must run inside a user gesture so the context may start (or after
+      one: browsers let a page that was interacted with start audio). */
+  start(el: HTMLAudioElement, fileSr: number, makers: Map<string, TapMaker> = new Map(), sinkId = '') {
+    if (this.el === el && this.an && this.ctx) {
+      for (const [name, make] of makers) if (!this.taps.has(name)) this.addTap(name, make);
+      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      return;
+    }
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AC) { this.error = 'This browser has no Web Audio support.'; return; }
     const build = (rate: number) => {
@@ -49,10 +64,10 @@ class Live {
         an.smoothingTimeConstant = 0;
         an.minDecibels = -190; an.maxDecibels = 10;
         src.connect(an); an.connect(ctx.destination);
-        return { ctx, an };
+        return { ctx, an, src };
       } catch (e) { void ctx.close(); throw e; }
     };
-    let chain: { ctx: AudioContext; an: AnalyserNode };
+    let chain: { ctx: AudioContext; an: AnalyserNode; src: MediaElementAudioSourceNode };
     try { chain = build(fileSr); }
     catch { try { chain = build(0); } catch (e2) { this.error = 'The live view couldn’t attach to the player: ' + (e2 as Error).message; return; } }
     this.rows = Math.min(512, chain.an.frequencyBinCount);
@@ -65,12 +80,29 @@ class Live {
     this.peak = new Float32Array(this.rows);
     this.bands = bandBins(chain.an.frequencyBinCount, chain.ctx.sampleRate);
     this.frames = []; this.wfAcc = 0;
-    this.ctx = chain.ctx; this.an = chain.an; this.el = el; this.drawn = false; this.error = '';
+    this.ctx = chain.ctx; this.an = chain.an; this.src = chain.src; this.el = el; this.drawn = false; this.error = '';
+    if (sinkId) void toSink(chain.ctx, sinkId)?.catch(() => {});
+    for (const [name, make] of makers) this.addTap(name, make);
     const nyq = chain.ctx.sampleRate / 2, fileNyq = fileSr / 2;
     this.note = nyq < fileNyq * 0.99
       ? 'Limited to ' + fmtKHz(nyq) + ' by your audio output; the file goes to ' + fmtKHz(fileNyq) + '.'
       : 'What’s sounding now, scrolling right to left.';
     if (chain.ctx.state === 'suspended') void chain.ctx.resume();
+  }
+
+  addTap(name: string, make: TapMaker) {
+    const { ctx, src } = this;
+    if (!ctx || !src || this.taps.has(name)) return;
+    if (!this.mute) { this.mute = ctx.createGain(); this.mute.gain.value = 0; this.mute.connect(ctx.destination); }
+    const a = make(ctx);
+    src.connect(a); a.connect(this.mute);
+    this.taps.set(name, a);
+  }
+  removeTap(name: string) {
+    const a = this.taps.get(name);
+    if (!a) return;
+    try { this.src?.disconnect(a); a.disconnect(); } catch { /* already gone */ }
+    this.taps.delete(name);
   }
 
   capture(ts: number, lut: Uint8ClampedArray, floor: number) {
@@ -179,6 +211,7 @@ class Player {
   private bind(el: HTMLAudioElement) {
     el.preload = 'auto';
     el.volume = this.volume;
+    if (this.sinkId) void toSink(el, this.sinkId)?.catch(() => {});
     this.applyRate(el);
     el.addEventListener('loadedmetadata', () => { this.ready = true; if (!this.duration) this.duration = el.duration || 0; });
     el.addEventListener('play', () => { this.paused = false; this.startLoop(); });
@@ -243,7 +276,7 @@ class Player {
       const go = () => {
         a.currentTime = Math.min(t, a.duration || t);
         this.sync();
-        if (wasPlaying) { if (this.liveOn) this.live.start(a, this.fileSr); a.play().catch(() => {}); }
+        if (wasPlaying) { if (this.graphWanted) this.startGraph(a); a.play().catch(() => {}); }
       };
       if (a.readyState >= 1) go(); else a.addEventListener('loadedmetadata', go, { once: true });
     }
@@ -254,11 +287,11 @@ class Player {
     if (own && this.claim()) { this.play(); return; }
     if (!this.url) return;
     if (this.el.paused) {
-      if (this.liveOn) this.live.start(this.el, this.fileSr);   // inside the click, so the AudioContext may start
+      if (this.graphWanted) this.startGraph(this.el);   // inside the click, so the AudioContext may start
       this.el.play().catch(() => { this.message = CANT_PLAY; });
     } else this.el.pause();
   }
-  private play() { if (this.liveOn) this.live.start(this.el, this.fileSr); this.el.play().catch(() => { this.message = CANT_PLAY; }); }
+  private play() { if (this.graphWanted) this.startGraph(this.el); this.el.play().catch(() => { this.message = CANT_PLAY; }); }
   seek(t: number, play = false) {
     if (this.claim()) {
       const a = this.el, go = () => { this.seek(t); if (play) this.play(); };
@@ -279,8 +312,28 @@ class Player {
   }
   /** The AudioContext the music plays through (the live chain), so other sounds (the metronome) are on
       its clock and output. Call inside a click, so it may start. */
-  audioClock(): AudioContext | null { this.live.start(this.el, this.fileSr); return this.live.ctx; }
-  setLive(on: boolean) { this.liveOn = on; if (on && !this.el.paused) this.live.start(this.el, this.fileSr); }
+  audioClock(): AudioContext | null { this.startGraph(this.el); return this.live.ctx; }
+  setLive(on: boolean) { this.liveOn = on; if (on && !this.el.paused) this.startGraph(this.el); }
+
+  // ─── Taps and the output device (ADR 0068) ───
+  private makers = new Map<string, TapMaker>();
+  private get graphWanted() { return this.liveOn || this.makers.size > 0; }
+  private startGraph(el: HTMLAudioElement) { this.live.start(el, this.fileSr, this.makers, this.sinkId); }
+  /** Tap the music with an analyser (made again for each track); taking effect now if it's playing. */
+  tap(name: string, make: TapMaker) {
+    this.makers.set(name, make);
+    if (this.live.el === this.el) this.live.addTap(name, make); else if (!this.el.paused) this.startGraph(this.el);
+  }
+  untap(name: string) { this.makers.delete(name); this.live.removeTap(name); }
+  /** The current track's analyser for a tap, when the music runs through the graph. */
+  analyser(name: string): AnalyserNode | null { return this.live.el === this.el ? this.live.taps.get(name) ?? null : null; }
+  /** Where the music comes out ('' = the system's default device). */
+  sinkId = '';
+  async setSink(id: string) {
+    await toSink(this.el, id);
+    if (this.live.ctx) await toSink(this.live.ctx, id);
+    this.sinkId = id;
+  }
 }
 
 export interface SourceOpts { duration?: number; sampleRate?: number; keepPosition?: boolean; key?: string | null }

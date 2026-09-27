@@ -448,7 +448,9 @@ test('right-click menus: songs (one or many, mouse or keyboard), playlists, tags
   await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
   await expect(cm).toBeFocused();
   await page.keyboard.press('a');
-  await expect(m('add')).toHaveClass(/\bon\b/);
+  await expect(m('queue')).toHaveClass(/\bon\b/);   // “Add to queue” (ADR 0068)…
+  await page.keyboard.press('a');
+  await expect(m('add')).toHaveClass(/\bon\b/);     // …then the next one: “Add to playlist”
   await page.keyboard.press('ArrowRight');
   await expect(cm).toHaveCount(2);
   await expect(cm.nth(1).locator('input')).toBeFocused();
@@ -532,6 +534,91 @@ test('right-click menus: songs (one or many, mouse or keyboard), playlists, tags
   await page.click('#sel-more');
   await m('details').click();
   await expect(page).toHaveURL(/#\/track\//);
+});
+
+test('the player: a queue (menu, drags, reorder, remove), shuffle and repeat, kept over a reload; the open player, the visualiser, the output (ADR 0068)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  const row = (t: string) => page.locator('.tr', { hasText: t });
+  const m = (k: string) => page.locator('.cmenu [data-m="' + k + '"]');
+  const upNext = page.locator('#up-next .qr .qt b');
+
+  // Nothing playing: queue two songs from their menu; Play next goes first.
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await m('queue').click();
+  await expect(page.locator('.notice')).toContainText('Queued 1 song. Press play to start.');
+  await row('aac').locator('.c-title').click({ button: 'right' });
+  await m('play-next').click();
+  await expect(page.locator('#player-expand .badge')).toHaveText('2');
+  await page.click('#player-expand');
+  await expect(page.locator('#player-panel')).toBeVisible();
+  await expect(upNext).toHaveText(['Fixture AAC', 'Fixture MP3']);
+
+  // Play starts the first queued song.
+  await page.click('#lib-play');
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
+  await expect(page.locator('.qr.now')).toContainText('Fixture AAC');
+  await expect(upNext).toHaveText(['Fixture MP3']);
+  // A song started from the table: the rest of the list comes after what's queued.
+  await row('Fixture FLAC').hover(); await row('Fixture FLAC').locator('.pbtn').click();
+  await expect(page.locator('.qr.now')).toContainText('Fixture FLAC');
+  await expect(page.locator('.qsec', { hasText: 'Next from All tracks' })).toBeVisible();
+  await page.click('#player-next');
+  await expect(page.locator('.qr.now')).toContainText('Fixture MP3', { timeout: 20_000 });
+  await expect(page.locator('#up-next')).toHaveCount(0);
+
+  // A song dragged from the table onto the queue; two, then reordered by dragging; × removes.
+  await row('aiff-44k-24').dragTo(page.locator('.qdrop'));
+  await row('aac').dragTo(page.locator('.qdrop'));
+  await expect(upNext).toHaveText(['aiff-44k-24', 'Fixture AAC']);
+  await page.locator('#up-next .qr', { hasText: 'Fixture AAC' }).dragTo(page.locator('#up-next .qr', { hasText: 'aiff' }), { targetPosition: { x: 40, y: 3 } });
+  await expect(upNext).toHaveText(['Fixture AAC', 'aiff-44k-24']);
+  await page.locator('#up-next .qr', { hasText: 'aiff' }).hover();
+  await page.locator('#up-next .qr', { hasText: 'aiff' }).locator('.qx').click();
+  await expect(upNext).toHaveText(['Fixture AAC']);
+
+  // Shuffle and repeat (off → all → one).
+  await page.click('#player-shuffle');
+  await expect(page.locator('#player-shuffle')).toHaveAttribute('aria-pressed', 'true');
+  await page.click('#player-repeat'); await page.click('#player-repeat');
+  await expect(page.locator('#player-repeat')).toHaveAttribute('aria-label', 'Repeat: one');
+
+  // The output: the default one, and a note that drivers come with GLUE Home.
+  await page.click('#player-output');
+  await expect(page.locator('.cmenu [role="menuitemcheckbox"]', { hasText: 'Default output' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.cmenu')).toContainText('ASIO');
+  await page.keyboard.press('Escape');
+
+  // The visualiser: loads when shown, draws into a canvas, switches themes; hidden again.
+  await page.click('#viz-on');
+  await expect(page.locator('#player-panel .stage canvas')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#viz-theme option')).toHaveCount(8);
+  await page.selectOption('#viz-theme', 'warp');
+  await expect(page.locator('#viz-theme')).toHaveValue('warp');
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/player-viz.png' });
+  await page.click('#viz-off');
+  await expect(page.locator('#player-panel .stage')).toHaveCount(0);
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/player-queue.png' });
+
+  // Reloaded: the same song (not playing) and the same queue; shuffle and repeat too.
+  await page.click('#lib-play');
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Play');
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.waitForTimeout(600);   // the queue is written a moment after it changes
+  await page.reload();
+  await expect(page.locator('#lib-now')).toHaveText('Fixture MP3', { timeout: 20_000 });
+  await page.click('#player-expand');
+  await expect(upNext).toHaveText(['Fixture AAC']);
+  await expect(page.locator('#player-repeat')).toHaveAttribute('aria-label', 'Repeat: one');
+  await page.click('#lib-play');
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
+  await expect(page.locator('.qr.now')).toContainText('Fixture MP3');
 });
 
 test('drops on folders and "+ Playlist", reorders playlist rows, columns and notes', async ({ page }) => {
