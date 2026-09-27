@@ -9,7 +9,7 @@ import { view, viewTitle } from './view.svelte';
 import { readPref, writePref } from './prefs';
 import { blankInfo, parseContainer } from '../core/formats/parse';
 import { pcmToWav } from '../core/formats/wav';
-import { EMPTY_QUEUE, advance, back, clear, dequeue, enqueue, jump, prune, reshuffle, startFrom, type Queue, type Repeat } from '../core/library/queue';
+import { EMPTY_QUEUE, advance, back, clear, dequeue, enqueue, jump, placeLater, prune, reshuffle, startFrom, type Queue, type Repeat } from '../core/library/queue';
 import type { Track } from '../store/types';
 
 const plural = (n: number) => n + ' song' + (n === 1 ? '' : 's');
@@ -90,7 +90,9 @@ class NowPlaying {
     if (typeof at !== 'number') lib.notice = (at === 'next' ? plural(ok.length) + ' play next.' : 'Queued ' + plural(ok.length) + '.') + (this.q.current ? '' : ' Press play to start.');
   }
   dequeue(which: 'upNext' | 'later', i: number) { this.set(dequeue(this.q, which, i)); }
-  clearQueue(which: 'upNext' | 'later') { this.set(clear(this.q, which)); }
+  clearQueue(which: 'upNext' | 'later' | 'played') { this.set(clear(this.q, which)); }
+  /** Move songs to a place in the list's rest ("Next from"). */
+  placeLater(ids: string[], index: number) { this.set(placeLater(this.q, ids.filter(id => lib.store?.tracks.has(id)), index)); }
   /** Play a song from the queue now. */
   jumpTo(which: 'upNext' | 'later', i: number) { const j = jump(this.q, which, i); if (j) { this.set(j); void this.load(j.current!); } }
   setShuffle(on: boolean) { this.shuffle = on; writePref('shuffle', on ? '1' : '0'); this.set(reshuffle(this.q, on)); }

@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M6
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
@@ -314,3 +314,5 @@ First release: phases 1–3 (user, 2026-09-25).
 - **This computer's own GLUE Home is never offered** (`sendTargets()`). The user saw "Send to
   Desktop" on the desktop itself.
 - **Also unchanged:** dragging songs onto a computer in Devices, and Devices › ⋯ › Send songs….
+
+- **Pairing (2026-09-27):** a Copy button beside the pairing code.

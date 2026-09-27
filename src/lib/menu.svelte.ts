@@ -47,7 +47,7 @@ export function tidy(es: (MenuEntry | false | null | undefined)[]): MenuEntry[] 
   return out;
 }
 
-export interface MenuAt { x: number; y: number; below: DOMRect | null; build: () => MenuEntry[]; opener: Element | null; label: string; n: number }
+export interface MenuAt { x: number; y: number; below: DOMRect | null; build: () => MenuEntry[]; opener: Element | null; label: string; find: string; n: number }
 
 class Menu {
   at = $state.raw<MenuAt | null>(null);
@@ -55,9 +55,9 @@ class Menu {
   point = { x: 0, y: 0 };
   private n = 0;
 
-  show(x: number, y: number, build: () => MenuEntry[], opts: { below?: DOMRect | null; opener?: Element | null; label?: string } = {}) {
+  show(x: number, y: number, build: () => MenuEntry[], opts: { below?: DOMRect | null; opener?: Element | null; label?: string; find?: string } = {}) {
     this.point = { x, y };
-    this.at = { x, y, below: opts.below ?? null, build, opener: opts.opener ?? null, label: opts.label ?? 'Menu', n: ++this.n };
+    this.at = { x, y, below: opts.below ?? null, build, opener: opts.opener ?? null, label: opts.label ?? 'Menu', find: opts.find ?? '', n: ++this.n };
   }
   /** A contextmenu event: the menu at the pointer (or under the element, from the keyboard). With Shift,
       the browser's own menu instead. Returns whether it opened. */
@@ -73,11 +73,11 @@ class Menu {
     else this.show(e.clientX, e.clientY, build, { label });
     return true;
   }
-  /** From a ⋯ button: under it; clicking it again closes. */
-  from(el: Element, build: () => MenuEntry[], label = 'Menu') {
+  /** From a ⋯ button: under it; clicking it again closes. `find`: a find field once it's long. */
+  from(el: Element, build: () => MenuEntry[], label = 'Menu', find = '') {
     if (this.at?.opener === el) { this.close(); return; }
     const r = el.getBoundingClientRect();
-    this.show(r.left, r.bottom + 2, build, { below: r, opener: el, label });
+    this.show(r.left, r.bottom + 2, build, { below: r, opener: el, label, find });
   }
   close() { this.at = null; }
 }

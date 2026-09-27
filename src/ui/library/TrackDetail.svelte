@@ -3,7 +3,7 @@
   import { lib } from '../../lib/library.svelte';
   import { app, analyzeFile, showResult } from '../../lib/app.svelte';
   import { player } from '../../lib/player.svelte';
-  import { router } from '../../lib/route.svelte';
+  import { router, trackHref, trackTab } from '../../lib/route.svelte';
   import { view } from '../../lib/view.svelte';
   import { summarize } from '../../core/library/summary';
   import { formatOf } from '../../core/library/tags';
@@ -25,18 +25,24 @@
   import { bpmOf, bpmShown, fmtBpm } from '../../lib/bpm';
   import { prepare } from '../../lib/prepare.svelte';
   import type { TrackTab } from '../../lib/route.svelte';
+  import { menu, type MenuEntry } from '../../lib/menu.svelte';
+  import AppIcon from '../AppIcon.svelte';
 
   let { id, tab = 'details' }: { id: string; tab?: TrackTab } = $props();
-  const goTab = (t: TrackTab) => router.go('#/track/' + id + (t === 'prepare' ? '/prepare' : ''));
+  const goTab = (t: TrackTab) => router.go(trackHref(id, t));
+  // The tab shown becomes the one songs open on (the user's list, 2026-09-27).
+  $effect(() => trackTab.set(tab));
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
 
   const track = $derived.by(() => { void lib.version; return lib.store?.tracks.get(id) ?? null; });
   const summary = $derived.by(() => { void lib.version; return lib.store?.analysis.get(id) ?? null; });
   const lists = $derived.by(() => { void lib.version; return lib.listsContaining(id); });
+  /** Every playlist it's in, to open one. */
+  const allLists = (): MenuEntry[] => [{ head: 'In ' + lists.length + ' playlists' }, ...lists.map(l => ({ label: lib.listPath(l), detail: lib.listPath(l), color: l.color ?? null, run: () => { view.select({ kind: 'list', id: l.id }); view.selected = new Set([id]); view.reveal = id; router.go('#/'); } }))];
   const imported = $derived.by(() => {
     void lib.version;
     const out = [];
-    for (const s of lib.store?.sources.values() ?? []) { const st = s.tracks.find(x => x.trackId === id); if (st) out.push({ app: APP_NAMES[s.app] ?? s.app, st }); }
+    for (const s of lib.store?.sources.values() ?? []) { const st = s.tracks.find(x => x.trackId === id); if (st) out.push({ app: APP_NAMES[s.app] ?? s.app, kind: s.app, st }); }
     return out;
   });
   const root = $derived(track ? lib.rootState(track.rootId) : null);
@@ -197,8 +203,8 @@ canPlay = true;
         <button type="button" class="mini" id="auto-from-page" onclick={() => auto.show(id)}>Build playlist from this</button>
         <button type="button" class="mini" id="reanalyse" title="Analyse the file again and replace the stored result" onclick={() => { const t = lib.store?.tracks.get(id); if (t) prepare.reset(t); void load(true, true); }}>Re-analyse</button>
       {/if}
-      <button type="button" class="mini" disabled={pos <= 0} onclick={() => router.go('#/track/' + order[pos - 1])}>‹ Previous</button>
-      <button type="button" class="mini" disabled={pos < 0 || pos >= order.length - 1} onclick={() => router.go('#/track/' + order[pos + 1])}>Next ›</button>
+      <button type="button" class="mini" disabled={pos <= 0} onclick={() => router.go(trackHref(order[pos - 1], tab))}>‹ Previous</button>
+      <button type="button" class="mini" disabled={pos < 0 || pos >= order.length - 1} onclick={() => router.go(trackHref(order[pos + 1], tab))}>Next ›</button>
     </span>
   </nav>
 
@@ -235,8 +241,10 @@ canPlay = true;
           {#if track.genre}<div><dt>Genre</dt><dd>{track.genre}</dd></div>{/if}
           {#if track.label}<div><dt>Label</dt><dd>{track.label}</dd></div>{/if}
           <div><dt>Added</dt><dd>{new Date(track.addedAt).toLocaleDateString()}</dd></div>
-          <div class="grow"><dt>In playlists</dt><dd>
-            {#each lists as l, i (l.id)}<a href="#/" onclick={() => view.select({ kind: 'list', id: l.id })}>{lib.listPath(l)}</a>{i < lists.length - 1 ? ', ' : ''}{:else}none{/each}
+          <div class="grow"><dt>In playlists</dt><dd class="inlists">
+            <!-- Two at most here; the rest in a list (they once ran over the page, 2026-09-27). -->
+            {#each lists.slice(0, 2) as l, i (l.id)}<a href="#/" title={lib.listPath(l)} onclick={() => view.select({ kind: 'list', id: l.id })}>{lib.listPath(l)}</a>{i < Math.min(2, lists.length) - 1 ? ', ' : ''}{:else}none{/each}
+            {#if lists.length > 2}<button type="button" class="tedit" id="more-lists" aria-haspopup="menu" onclick={e => menu.from(e.currentTarget, allLists, 'In playlists', 'Find a playlist')}>+{lists.length - 2} more</button>{/if}
           </dd></div>
           <div class="grow"><dt>Tags</dt><dd class="tagsdd">
             {#each tagsOf(track) as g (g)}<span class="tg" style:--c={tagColorOf(g)}>{g}</span>{/each}
@@ -254,8 +262,8 @@ canPlay = true;
         <table class="dj">
           <thead><tr><th>In</th><th>BPM</th><th>Key</th><th>Rating</th><th>Plays</th><th>Cues</th><th>Added</th></tr></thead>
           <tbody>
-            {#each imported as { app: name, st } (name + st.externalId)}
-              <tr><td>{name}</td><td class="mono">{st.bpm ? +st.bpm.toFixed(2) : '—'}</td><td class="mono">{st.key ?? '—'}</td><td class="stars">{stars(st.rating)}</td><td class="mono">{st.playCount ?? '—'}</td><td class="mono">{st.cues || '—'}</td><td>{st.dateAdded ?? '—'}</td></tr>
+            {#each imported as { app: name, kind, st } (name + st.externalId)}
+              <tr><td><AppIcon app={kind} size={14} /> {name}</td><td class="mono">{st.bpm ? +st.bpm.toFixed(2) : '—'}</td><td class="mono">{st.key ?? '—'}</td><td class="stars">{stars(st.rating)}</td><td class="mono">{st.playCount ?? '—'}</td><td class="mono">{st.cues || '—'}</td><td>{st.dateAdded ?? '—'}</td></tr>
             {/each}
             {#if bpmView || summary?.key}
               <tr class="mco"><td>{track.prep?.bpm != null ? 'GLUE (yours)' : 'GLUE analysis'}</td><td class="mono">{bpmView ? fmtBpm(bpmView.bpm) : '—'}</td><td class="mono">{summary?.key ? keyLabel(summary.key, app.keyNotation) : '—'}</td><td colspan="4"></td></tr>
@@ -345,7 +353,10 @@ canPlay = true;
   .file { margin: 0; flex: 0 1 auto; max-width: 100%; font-size: 12px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   dl { margin: 0; flex: 1 1 auto; display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline; }
   dl div { display: flex; gap: 7px; align-items: baseline; min-width: 0; }
-  dl .grow { flex: 1 1 auto; }
+  dl .grow { flex: 1 1 auto; min-width: 0; }
+  .inlists { display: flex; align-items: baseline; min-width: 0; white-space: pre; }
+  .inlists a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inlists .tedit { flex: none; margin-left: 6px; }
   dt, .k { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
   dd { margin: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .comment { margin: 0; flex: 1 1 100%; font-size: 13px; color: var(--ink-2); }

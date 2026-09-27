@@ -104,6 +104,12 @@
     if (confirm('Remove “' + d.name + '” from your GLUE account? ' + (d.kind === 'home' ? 'It stops being reachable until you pair it again.' : 'It gets signed out.'))) await account.remove(d.id).catch(e => alert((e as Error).message));
   }
   const left = $derived(pairing ? Math.max(0, Math.round((pairing.expiresAt - now) / 1000)) : 0);
+  let copied = $state(false);
+  async function copyCode() {
+    if (!pairing) return;
+    try { await navigator.clipboard.writeText(pairing.code); copied = true; setTimeout(() => (copied = false), 2000); }
+    catch { pairError = 'The browser didn’t allow copying: select the code and copy it.'; }
+  }
 </script>
 
 <svelte:window onkeydown={e => { if (e.key === 'Escape') pairing = null; }} />
@@ -157,7 +163,8 @@
     <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="pair-h" id="pair-dialog">
       <h2 id="pair-h">GLUE Home on this computer</h2>
       <p>GLUE Home is this computer’s companion: it plays its songs to your other computers and takes songs sent to it. Install it here and enter this code (or use the button):</p>
-      <p class="code" id="pair-code">{pairing.code}</p>
+      <div class="codebox"><p class="code" id="pair-code">{pairing.code}</p>
+        <button type="button" class="btn-ghost" id="copy-code" onclick={copyCode}>{copied ? 'Copied' : 'Copy'}</button></div>
       <p class="fine">{left > 0 ? 'Works once, for ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + ' more.' : 'This code has expired.'} This window closes by itself when GLUE Home has joined.</p>
       <p><a class="btn" id="pair-open" href={homePairLink(pairing.code)}>Open GLUE Home on this computer</a></p>
       <p class="fine">Don’t have it yet?
@@ -207,6 +214,8 @@
   .dlg { width: min(460px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 22px; display: grid; gap: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); }
   .dlg h2 { font-size: 21px; }
   .dlg p { color: var(--ink-2); font-size: 14px; }
+  .codebox { display: flex; gap: 10px; align-items: center; }
+  .codebox .code { flex: 1; margin: 0; }
   .code { font: 700 34px/1.2 var(--font-mono); letter-spacing: .12em; color: var(--accent) !important; text-align: center; padding: 10px; border: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 8px; user-select: all; }
   .dlg .fine { display: block; padding: 0; font-size: 12px !important; }
   .acts { display: flex; gap: 8px; justify-content: flex-end; }

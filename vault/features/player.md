@@ -72,3 +72,10 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
     the visualiser drawing and switching themes, and the queue and song kept over a reload.
 - **Next (phase 2):** GLUE Home plays the music itself when it runs (cpal: WASAPI, ASIO), with a
   device and output channels to choose; the website is its remote and screen.
+
+## The queue, batch 1 (2026-09-27)
+- **"Next from" reorders by dragging too** (`placeLater` in `core/library/queue.ts`; the `queue`
+  drag target knows its section). Songs dropped into it leave Next up.
+- **Grips** show on hover.
+- **Menu:** "Move to the top" (Next up), "Play next" (Next from).
+- **"Played before"** folds, and has Clear.

@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0009, 0022]
 ---
 # Playlists, folders & smart lists
@@ -93,3 +93,10 @@ track is used.
 - **Songs:** Add to playlist ▸ (recent first), Remove from ‹this playlist›, Remove from playlist ▸,
   Show in playlist ▸. For one song or all the selected ones.
 - See [right-click menus](context-menus.md).
+
+## The sidebar folds (2026-09-27)
+- The button beside the view's title, or Ctrl+B, folds the sidebar to a thin strip (» brings it
+  back), for more columns. Remembered (pref `sideFolded`).
+- **DJ libraries show their app's badge** (`ui/AppIcon.svelte`): drawn for GLUE in each app's
+  colours and letters, not the apps' own logos. Shown in the sidebar, the Details "In" table and a
+  DJ library's heading.

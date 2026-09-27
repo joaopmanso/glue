@@ -177,6 +177,9 @@
   {:else if lib.phase === 'profiles'}
     {#if !lib.home?.index.profiles.length}{@render stepper()}{/if}
     <h2>Who’s using GLUE?</h2>
+    {#if lib.lastProfile && lib.home?.index.profiles.some(p => p.id === lib.lastProfile)}
+      <p class="back"><button type="button" class="btn" id="back-to-library" onclick={() => lib.backToLibrary()}>← Back to the library</button></p>
+    {/if}
     <p class="lede">Each profile has its own collections, playlists and ratings, all saved in <b>{lib.homeName}</b>.</p>
     {#if lib.home?.index.profiles.length}
       <ul class="profiles">
@@ -274,6 +277,7 @@
   h2 { font-size: 30px; font-stretch: 115%; }
   h3 { font-size: 16px; }
   .lede { color: var(--ink-2); font-size: 16px; max-width: 720px; }
+  .back { margin: -4px 0 4px; }
   .muted, .fine { color: var(--muted); }
   .fine { font-size: 12.5px; }
   .center { text-align: center; }

@@ -405,7 +405,11 @@ class Library {
     this.home = null; this.home = home;
   }
   async profileInfo(pid: string) { return this.profile?.id === pid ? this.profile : this.home ? this.home.loadProfile(pid) : null; }
-  switchProfile() { void this.closeCollection().then(() => { this.profile = null; this.phase = 'profiles'; }); }
+  /** The profile the profile screen was opened from: "Back to the library" and the logo return to it. */
+  lastProfile = $state<string | null>(null);
+  switchProfile() { const from = this.profile?.id ?? null; void this.closeCollection().then(() => { this.lastProfile = from; this.profile = null; this.phase = 'profiles'; }); }
+  /** Back to the profile the profile screen was opened from, if it's still there. */
+  backToLibrary() { const id = this.lastProfile; if (id && this.home?.index.profiles.some(p => p.id === id)) { void this.openProfile(id); return true; } return false; }
 
   async createCollection(name: string) {
     if (!this.home || !this.profile) return;

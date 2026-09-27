@@ -2,7 +2,7 @@
    song or all the selected ones. The selection bar keeps the most used of these as buttons. */
 import { lib } from './library.svelte';
 import { view, type FilterGroup } from './view.svelte';
-import { router } from './route.svelte';
+import { router, trackHref } from './route.svelte';
 import { nowPlaying } from './nowPlaying.svelte';
 import { player } from './player.svelte';
 import { auto } from './auto.svelte';
@@ -90,12 +90,14 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
       run: () => { if (playing) player.toggle(); else void nowPlaying.play(playable[0].id, one ? order : playable.map(t => t.id)); },
     },
     opts.inQueue && { label: 'Play now', attrs: { 'data-m': 'play-now' }, run: () => nowPlaying.jumpTo(opts.inQueue!.which, opts.inQueue!.index) },
+    opts.inQueue?.which === 'upNext' && opts.inQueue.index > 0 && { label: 'Move to the top', attrs: { 'data-m': 'queue-top' }, run: () => nowPlaying.enqueue(ids, 0) },
+    opts.inQueue?.which === 'later' && { label: 'Play next', attrs: { 'data-m': 'play-next' }, run: () => nowPlaying.enqueue(ids, 'next') },
     opts.inQueue && { label: 'Remove from the queue', attrs: { 'data-m': 'unqueue' }, run: () => nowPlaying.dequeue(opts.inQueue!.which, opts.inQueue!.index) },
     !opts.inQueue && { label: 'Play next', attrs: { 'data-m': 'play-next' }, run: () => nowPlaying.enqueue(ids, 'next') },
     !opts.inQueue && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(ids, 'end') },
     SEP,
-    one && { label: 'Open details', hint: 'Enter', attrs: { 'data-m': 'details' }, run: () => router.go('#/track/' + one.id) },
-    one && { label: 'Prepare (grid, cues, loops)', attrs: { 'data-m': 'prepare' }, disabled: one.status !== 'linked' || cloud, title: one.status !== 'linked' ? 'Needs its file' : undefined, run: () => router.go('#/track/' + one.id + '/prepare') },
+    one && { label: 'Open details', hint: 'Enter', attrs: { 'data-m': 'details' }, run: () => router.go(trackHref(one.id, 'details')) },
+    one && { label: 'Prepare (grid, cues, loops)', attrs: { 'data-m': 'prepare' }, disabled: one.status !== 'linked' || cloud, title: one.status !== 'linked' ? 'Needs its file' : undefined, run: () => router.go(trackHref(one.id, 'prepare')) },
     SEP,
     {
       label: 'Add to playlist', find: 'Find a playlist', attrs: { 'data-m': 'add' },

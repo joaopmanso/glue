@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-24
+updated: 2026-09-27
 adrs: [0018, 0009]
 ---
 # Profiles
@@ -34,3 +34,9 @@ collections list. See [ADR 0018](../adr/0018-local-profiles.md).
 
 - 2026-09-24: per-profile Backup / Rename / Delete buttons, restore from a backup zip, and a three-step
   first run ending with an "Add your music" step ([ADR 0026](../adr/0026-profile-backups-and-wipe.md)).
+
+## Back to the library (2026-09-27)
+- **"Who's using GLUE?"** has "← Back to the library", which reopens the profile it was opened from
+  (`lib.lastProfile`, `backToLibrary()`).
+- **The header's GLUE logo** does the same there. It used to stay on the profile screen, and clicking
+  the profile's name was the only way back.

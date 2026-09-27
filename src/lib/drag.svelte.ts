@@ -20,7 +20,7 @@ export type Target =
   | { type: 'top' }                                         // the end of the top level
   | { type: 'home'; home: string }                          // send the tracks' files to a GLUE Home (ADR 0046)
   | { type: 'dock' }                                        // the "Drag dock" button: onto GLUE Home's dock (ADR 0061)
-  | { type: 'queue'; index: number | null };               // the player's queue: at a place in Next up, or its end (ADR 0068)
+  | { type: 'queue'; which: 'upNext' | 'later'; index: number | null };   // the player's queue: a place in Next up or Next from, or Next up's end (ADR 0068)
 
 const THRESHOLD = 5;   // px of movement before a press becomes a drag
 
@@ -43,7 +43,7 @@ class Drag {
   /** Tracks or a playlist dropped on the "Drag dock" button. */
   onDock: ((p: Payload) => void) | null = null;
   /** Songs or a playlist dropped on the player or its queue (at a place in Next up, or its end). */
-  onQueue: ((p: Payload, index: number | null) => void) | null = null;
+  onQueue: ((p: Payload, index: number | null, which: 'upNext' | 'later') => void) | null = null;
   /** Tracks let go outside the window (screen coordinates): GLUE Home's dock window may be there (ADR 0061). */
   onOutside: ((p: Payload, screenX: number, screenY: number) => void) | null = null;
 
@@ -134,9 +134,10 @@ class Drag {
     if (kind === 'dock') return { type: 'dock' };
     if (kind === 'queue') {
       if (p.kind !== 'tracks' && p.kind !== 'list') return null;
-      if (el.dataset.index == null) return { type: 'queue', index: null };
+      const which = el.dataset.which === 'later' ? 'later' : 'upNext';
+      if (el.dataset.index == null) return { type: 'queue', which, index: null };
       const r = el.getBoundingClientRect(), i = Number(el.dataset.index);
-      return { type: 'queue', index: y < r.top + r.height / 2 ? i : i + 1 };
+      return { type: 'queue', which, index: y < r.top + r.height / 2 ? i : i + 1 };
     }
     if (kind === 'row') {
       if (p.kind !== 'tracks' || !el.dataset.list) return null;
@@ -165,7 +166,7 @@ class Drag {
 
   private drop(p: Payload, t: Target) {
     if (t.type === 'dock') { this.onDock?.(p); return; }
-    if (t.type === 'queue') { this.onQueue?.(p, t.index); return; }
+    if (t.type === 'queue') { this.onQueue?.(p, t.index, t.which); return; }
     if (p.kind === 'column') { if (t.type === 'col') columns.place(p.key, t.key, t.at); return; }
     if (p.kind === 'tracks') {
       if (t.type === 'home') { this.onHome?.(t.home, p.ids); return; }

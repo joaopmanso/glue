@@ -5,6 +5,22 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-27 · The user's list, batch 1: quick fixes
+From the user's list (the plan's batch 1):
+- **The selection bar never moves the rows:** one fixed-height line; the actions always there,
+  greyed out until songs are selected. A double-click used to open the wrong song as the rows
+  jumped.
+- **Details:** "In playlists" shows two and "+N more".
+- **Pairing:** a Copy button beside the code.
+- **The profile screen:** "← Back to the library", and the GLUE logo goes back too.
+- **Prepare by default** once used (until Details is chosen again).
+- **The queue:** "Next from" reorders by dragging, grips, "Move to the top" and "Play next";
+  "Played before" folds, with Clear.
+- **The sidebar folds away** (a button, or Ctrl+B) for more columns.
+- **DJ libraries show their app's badge,** drawn for GLUE.
+- Tests: e2e batch 1 (new); the copy button in the account test; the badge in the DJ-library test;
+  unit `placeLater`.
+
 ## 2026-09-27 · Fix: a narrow window froze the page
 From the user: narrowing the window below ~850 px froze the page until a reload.
 - **Cause:** below 800 px the layout lost its fixed height, so the song table grew as tall as all its

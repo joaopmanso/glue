@@ -35,8 +35,8 @@
       clearTimeout(timer);
       if (!at) { if (panels.length) { panels = []; restore(); } return; }
       if (!panels.length) back = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      panels = [load({ id: ++pid, label: at.label, build: at.build, entries: null, failed: '', active: -1, q: '', find: '', from: -1, x: at.x, y: at.y, below: at.below, beside: null })];
-      void tick().then(() => els[0]?.focus({ preventScroll: true }));
+      panels = [load({ id: ++pid, label: at.label, build: at.build, entries: null, failed: '', active: -1, q: '', find: at.find, from: -1, x: at.x, y: at.y, below: at.below, beside: null })];
+      void tick().then(() => { if (finding(panels[0])) focusIn(0); else els[0]?.focus({ preventScroll: true }); });
     });
   });
   // Anything else happening on the page closes it: a press outside, scrolling, resizing, leaving the page.

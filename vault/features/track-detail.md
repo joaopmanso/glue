@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0019, 0023, 0024]
 ---
 # Track detail
@@ -45,3 +45,10 @@ libraries say about it (BPM, key, rating, play count, cue count, date added).
 - Since ADR 0024 the background analysis writes that stored analysis for every track, so even a first
   visit is instant once the background pass has reached the track.
 
+## The user's list, batch 1 (2026-09-27)
+- **Songs open on the tab used last** (`trackTab`, `trackHref()` in `lib/route`). After Prepare,
+  double-click, Enter, the player's title and Duplicates open Prepare, until Details is chosen again.
+  - The song menu has both "Open details" and "Prepare".
+  - Previous and Next keep the tab.
+- **"In playlists" shows two;** "+N more" lists all of them (a find field once it's long). Clicking
+  one opens it with the song selected. They used to run over the rest of the line.

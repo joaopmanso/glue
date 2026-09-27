@@ -57,7 +57,9 @@
   }
 
   // Dragging songs in and around Next up (the drag system's "queue" target, ADR 0068).
-  const dropAt = $derived(drag.active && drag.target?.type === 'queue' ? drag.target.index : undefined);
+  const dropOn = $derived(drag.active && drag.target?.type === 'queue' ? drag.target : null);
+  const lastOf = (which: 'upNext' | 'later') => (which === 'upNext' ? q.upNext.length : Math.min(q.later.length, SHOWN)) - 1;
+  let showPlayed = $state(false);
   function press(e: PointerEvent, id: string) {
     if ((e.target as HTMLElement).closest('button')) return;
     const x = tr(id, lib.version);
@@ -77,10 +79,11 @@
   {#if x}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <li class="qr" class:now={which === 'now'} class:dim={x.status !== 'linked'} data-q={which} data-id={id}
-      class:drop-before={which === 'upNext' && dropAt === i} class:drop-after={which === 'upNext' && dropAt === i + 1 && i === q.upNext.length - 1}
-      data-drop={which === 'upNext' ? 'queue' : undefined} data-index={which === 'upNext' ? i : undefined}
+      class:drop-before={dropOn?.which === which && dropOn.index === i} class:drop-after={(which === 'upNext' || which === 'later') && dropOn?.which === which && dropOn.index === i + 1 && i === lastOf(which)}
+      data-drop={which === 'upNext' || which === 'later' ? 'queue' : undefined} data-which={which} data-index={which === 'upNext' || which === 'later' ? i : undefined}
       onpointerdown={e => { if (which !== 'now') press(e, id); }} ondblclick={() => { if (!drag.suppressClick) playRow(which, i, id); }}
       oncontextmenu={e => menu.context(e, () => trackMenu([id], which === 'upNext' || which === 'later' ? { inQueue: { which, index: i } } : {}), 'Song')}>
+      <span class="qgrip" aria-hidden="true">{which === 'upNext' || which === 'later' ? '⠿' : ''}</span>
       <span class="qn">{#if which === 'now'}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9.5-5.5z" fill="currentColor"/></svg>{:else if which === 'played'}↺{:else}{i + 1}{/if}</span>
       <span class="qt"><b>{x.title || x.fileName}</b><small>{x.artist}</small></span>
       <span class="qd mono">{x.duration ? fmtTime(x.duration) : ''}</span>
@@ -149,7 +152,7 @@
       {#if q.upNext.length}
         <ul class="qlist" id="up-next">{#each q.upNext as id, i (id + ':' + i)}{@render row(id, 'upNext', i)}{/each}</ul>
       {/if}
-      <div class="qdrop" class:hot={dropAt === null} data-drop="queue">{q.upNext.length ? 'Drop here to queue at the end' : 'Nothing queued. Drag songs or playlists here, or right-click › Add to queue.'}</div>
+      <div class="qdrop" class:hot={!!dropOn && dropOn.index === null} data-drop="queue" data-which="upNext">{q.upNext.length ? 'Drop here to queue at the end' : 'Nothing queued. Drag songs or playlists here, or right-click › Add to queue.'}</div>
 
       {#if q.later.length}
         <div class="qsec">
@@ -161,10 +164,11 @@
       {/if}
 
       {#if played.length}
-        <details class="qplayed">
-          <summary>Played before<small>{q.played.length}</small></summary>
-          <ul class="qlist">{#each played as id, i (id + ':' + i)}{@render row(id, 'played', i)}{/each}</ul>
-        </details>
+        <div class="qsec">
+          <button type="button" class="qtoggle" id="show-played" aria-expanded={showPlayed} onclick={() => (showPlayed = !showPlayed)}><span aria-hidden="true">{showPlayed ? '▾' : '▸'}</span> Played before<small>{q.played.length}</small></button>
+          <button type="button" class="qclear" id="clear-played" title="Forget what played (Previous then restarts the song)" onclick={() => nowPlaying.clearQueue('played')}>Clear</button>
+        </div>
+        {#if showPlayed}<ul class="qlist" id="played-before">{#each played as id, i (id + ':' + i)}{@render row(id, 'played', i)}{/each}</ul>{/if}
       {/if}
     </div>
   </div>
@@ -204,12 +208,12 @@
   .qsum { color: var(--muted); font-size: 12px; }
   .qscroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 14px; }
   .qsec { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px 4px; }
-  .qsec h4, .qplayed summary { margin: 0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .qsec h4 small, .qplayed summary small { margin-left: 8px; font-family: var(--font-mono); letter-spacing: 0; }
+  .qsec h4 { margin: 0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qsec h4 small { margin-left: 8px; font-family: var(--font-mono); letter-spacing: 0; }
   .qclear { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 11.5px; padding: 1px 8px; cursor: pointer; flex: none; }
   .qclear:hover { color: var(--accent); border-color: var(--accent); }
   .qlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
-  .qr { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 22px; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 5px; cursor: default; user-select: none; }
+  .qr { position: relative; display: grid; grid-template-columns: 10px 22px minmax(0, 1fr) auto 22px; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 5px; cursor: default; user-select: none; }
   .qr:hover { background: var(--raised); }
   .qr.now { background: color-mix(in srgb, var(--accent) 12%, transparent); }
   .qr.now .qt b, .qr.now .qn { color: var(--accent); }
@@ -228,7 +232,10 @@
   .qdrop { margin: 6px 6px 0; padding: 10px; border: 1px dashed var(--line-2); border-radius: 6px; color: var(--muted); font-size: 12px; text-align: center; }
   .qdrop.hot { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .qmore { color: var(--muted); font-size: 12px; padding: 6px 8px; margin: 0; }
-  .qplayed { margin-top: 10px; }
-  .qplayed summary { cursor: pointer; padding: 6px 8px; }
+  .qgrip { color: var(--muted); font-size: 11px; opacity: 0; cursor: grab; }
+  .qr:hover .qgrip { opacity: .8; }
+  .qtoggle { background: none; border: 0; padding: 0; cursor: pointer; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .qtoggle:hover { color: var(--ink); }
+  .qtoggle small { margin-left: 8px; font-family: var(--font-mono); letter-spacing: 0; }
   @media (max-width: 800px) { .pp { grid-template-columns: 1fr; grid-template-rows: 40% 60%; } .queue { border-left: 0; border-top: 1px solid var(--line); } }
 </style>

@@ -11,7 +11,7 @@
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { player } from '../../lib/player.svelte';
   import { app } from '../../lib/app.svelte';
-  import { router } from '../../lib/route.svelte';
+  import { router, trackHref } from '../../lib/route.svelte';
   import { drag } from '../../lib/drag.svelte';
   import { columns, COLUMNS, type ColKey } from '../../lib/columns.svelte';
   import { keyLabel } from '../../core/audio/keys';
@@ -153,7 +153,7 @@
     return codec + (f.bitrate ? ' ' + f.bitrate : '');
   }
 
-  function open(id: string) { router.go('#/track/' + id); }
+  function open(id: string) { router.go(trackHref(id)); }
   function play(id: string) {
     if (nowPlaying.trackId === id && player.url) player.toggle();
     else void nowPlaying.play(id, order);

@@ -158,6 +158,7 @@ test('a DJ library found in the GLUE folder: browsed, imported on demand, and re
   await writeXml(REKORDBOX);
   await page.reload();   // opening the collection looks for libraries
   await page.locator('#dj-libs .addlib').click({ timeout: 30_000 });
+  await expect(page.locator('#dj-libs .appicon[aria-label="rekordbox"]').first()).toBeVisible();   // its app's badge
   await expect(page.locator('.notice')).toContainText('3 tracks');
   await page.locator('[data-dj-open]').click();
   const dj = (name: string) => page.locator('#dj-libs .item.dj', { hasText: name });
@@ -534,6 +535,90 @@ test('right-click menus: songs (one or many, mouse or keyboard), playlists, tags
   await page.click('#sel-more');
   await m('details').click();
   await expect(page).toHaveURL(/#\/track\//);
+});
+
+test('the user’s list, batch 1: the selection bar stays put, playlists on Details, back to the library, Prepare by default, the queue’s order, the sidebar folds', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  const row = (t: string) => page.locator('.tr', { hasText: t });
+  const m = (k: string) => page.locator('.cmenu [data-m="' + k + '"]');
+
+  // Selecting a song doesn't move the rows (a double-click opened the wrong song as they jumped).
+  const y0 = (await row('Fixture FLAC').boundingBox())!.y;
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/b1-selbar-none.png', clip: { x: 0, y: 150, width: 1920, height: 160 } });
+  await expect(page.locator('#auto-from')).toBeDisabled();
+  await row('Fixture MP3').locator('.c-title').click();
+  await expect(page.locator('#auto-from')).toBeEnabled();
+  expect((await row('Fixture FLAC').boundingBox())!.y).toBe(y0);
+  await row('Fixture AAC').locator('.c-title').click({ modifiers: ['Control'] });
+  expect((await row('Fixture FLAC').boundingBox())!.y).toBe(y0);
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/b1-selbar-two.png', clip: { x: 0, y: 150, width: 1920, height: 160 } });
+
+  // In three playlists: Details shows two and "+1 more".
+  for (const n of ['One', 'Two', 'Three']) {
+    await row('Fixture FLAC').locator('.c-title').click({ button: 'right' });
+    page.once('dialog', d => void d.accept(n));
+    await m('add').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
+  }
+  await row('Fixture FLAC').dblclick();
+  await expect(page.locator('#more-lists')).toHaveText('+1 more');
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/b1-details.png', clip: { x: 0, y: 100, width: 1920, height: 400 } });
+  await page.click('#more-lists');
+  await expect(page.locator('.cmenu .citem')).toHaveCount(3);
+  await page.keyboard.press('Escape');
+
+  // Prepare becomes the default once used, until Details is chosen again.
+  await page.click('#tab-prepare');
+  await page.locator('.crumbs a').click();
+  await row('Fixture MP3').dblclick();
+  await expect(page).toHaveURL(/\/prepare$/);
+  await page.click('#tab-details');
+  await page.locator('.crumbs a').click();
+  await row('Fixture MP3').dblclick();
+  await expect(page).toHaveURL(/#\/track\/[\w-]+$/);
+  await page.locator('.crumbs a').click();
+
+  // The profile screen: "Back to the library", and the logo.
+  await page.locator('button.who').click();
+  await expect(page.locator('#back-to-library')).toBeVisible();
+  await page.click('#back-to-library');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
+  await page.locator('button.who').click();
+  await page.click('#home-link');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
+
+  // The queue: "Next from" reorders by dragging; "Played before" clears.
+  await page.click('#player-repeat'); await page.click('#player-repeat');   // repeat one: the 4-second fixtures mustn't move on meanwhile
+  const top = page.locator('.tr').first();
+  await top.hover(); await top.locator('.pbtn').click();
+  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
+  await page.click('#lib-play');   // paused: the 4-second fixtures would move on by themselves
+  await page.click('#player-expand');
+  const later = page.locator('#next-from .qr .qt b');
+  await expect(later).toHaveCount(3);
+  const names = await later.allTextContents();
+  await page.locator('#next-from .qr').nth(2).dragTo(page.locator('#next-from .qr').nth(0), { targetPosition: { x: 40, y: 3 } });
+  await expect(later).toHaveText([names[2], names[0], names[1]]);
+  await page.click('#player-next');
+  await expect(page.locator('#clear-played')).toBeVisible();
+  await page.click('#clear-played');
+  await expect(page.locator('#clear-played')).toHaveCount(0);
+  await page.click('#player-expand');
+
+  // The sidebar folds away (button or Ctrl+B), remembered.
+  await page.click('#side-toggle');
+  await expect(page.locator('.lside')).toHaveCount(0);
+  await expect(page.locator('#side-show')).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/b1-folded.png' });
+  await page.locator('.table .body').focus();
+  await page.keyboard.press('Control+b');
+  await expect(page.locator('.lside')).toBeVisible();
 });
 
 test('the player: a queue (menu, drags, reorder, remove), shuffle and repeat, kept over a reload; the open player, the visualiser, the output (ADR 0068)', async ({ page }) => {
@@ -1402,6 +1487,10 @@ test('GLUE account: Google sign-in, devices, pairing a GLUE Home, staying signed
   // Pair a GLUE Home: the code shows; when the new device comes online the dialog closes itself.
   await page.click('#pair-home');
   await expect(page.locator('#pair-code')).toHaveText('K7QM-2XPB');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.click('#copy-code');
+  await expect(page.locator('#copy-code')).toHaveText('Copied');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('K7QM-2XPB');
   devices.push({ id: 'h1', kind: 'home', name: 'Studio PC', platform: 'win32', createdAt: 2, lastSeen: 2 });
   room!.send(JSON.stringify({ type: 'presence', online: ['b1', 'h1'] }));
   await expect(page.locator('#pair-dialog')).toHaveCount(0);

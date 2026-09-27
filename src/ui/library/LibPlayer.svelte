@@ -3,7 +3,7 @@
      volume and the sound output; ▲ opens the player (the queue and the visualiser). Songs or playlists
      dropped on it are queued. */
   import { onMount, untrack } from 'svelte';
-  import { router } from '../../lib/route.svelte';
+  import { router, trackHref } from '../../lib/route.svelte';
   import { view } from '../../lib/view.svelte';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
@@ -30,9 +30,9 @@
 
   // Each collection has its own queue; songs and playlists dropped on the player join it.
   $effect(() => { const id = lib.store?.meta.id ?? null; untrack(() => nowPlaying.restore(id)); });
-  drag.onQueue = (p, index) => {
+  drag.onQueue = (p, index, which) => {
     const ids = p.kind === 'tracks' ? p.ids : p.kind === 'list' ? dock.tracksOf(p.id).map(x => x.id) : [];
-    nowPlaying.enqueue(ids, index ?? 'end');
+    if (which === 'later' && index != null) nowPlaying.placeLater(ids, index); else nowPlaying.enqueue(ids, index ?? 'end');
   };
   onMount(() => void output.start());
 
@@ -78,7 +78,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="now" oncontextmenu={e => { if (t) menu.context(e, () => trackMenu([t.id]), 'Song'); }}>
     {#if t}
-      <span class="line"><a class="title" href={'#/track/' + t.id} title="Open the track page" id="lib-now">{t.title || t.fileName}</a>
+      <span class="line"><a class="title" href={trackHref(t.id)} title="Open the track page" id="lib-now">{t.title || t.fileName}</a>
       <button type="button" class="locate" id="lib-locate" title="Show it in the list" aria-label="Show the playing track in the list" onclick={() => { view.reveal = t.id; if (router.current.name !== 'library') router.go('#/'); }}>⌖</button></span>
       <span class="who">{t.artist}{#if remoteFiles.loading}<span> · getting it from {remoteFiles.loading.device}… {remoteFiles.loading.size ? Math.round(remoteFiles.loading.got / remoteFiles.loading.size * 100) + '%' : ''}</span>{:else if nowPlaying.error}<span class="err"> · {nowPlaying.error}</span>{:else if player.message}<span class="err"> · {player.message}</span>{/if}</span>
     {:else if hot}

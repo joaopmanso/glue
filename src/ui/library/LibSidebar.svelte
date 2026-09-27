@@ -22,6 +22,7 @@
   import { allTags, tagColorOf } from '../../lib/tags.svelte';
   import { account } from '../../lib/account.svelte';
   import DevicesSection from './DevicesSection.svelte';
+  import AppIcon from '../AppIcon.svelte';
   import { cleanTag } from '../../core/library/tagging';
   const dragOut = canDragOut();
 
@@ -504,6 +505,7 @@
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="item" class:sel={isSel({ kind: 'source', id: s.id })} class:menued={menued('s:' + s.id)} data-source={s.id} oncontextmenu={e => onMenu(e, 's:' + s.id, () => sourceMenu(s), APP_NAMES[s.app] ?? s.app)}>
             {#if s.tree?.length}<button type="button" class="twist" data-dj-open={s.id} aria-label={djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists'} onclick={() => (djOpen[s.id] = !djOpen[s.id])}>{djOpen[s.id] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
+            <AppIcon app={s.app} />
             <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}<small> {s.fileName}</small></button>
             <span class="n">{s.tracks.length}</span>
             {#if live}
@@ -522,6 +524,7 @@
       {/each}
       {#each lib.detected.filter(d => d.status === 'new') as d (d.place + d.relPath)}
         <li class="found">
+          <AppIcon app={d.kind} size={18} />
           <span class="fwho"><b>{FOUND_NAMES[d.kind]}</b><small title={d.placeName + '/' + d.relPath}>{d.placeName}/{d.relPath}</small></span>
           <button type="button" class="addlib" onclick={() => importDetected(d)}>Add</button>
         </li>

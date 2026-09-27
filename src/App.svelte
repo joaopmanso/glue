@@ -115,7 +115,7 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <h1><a href="#/" aria-label="GLUE, Global Library Unified Exporter"><GlueStick /><b>G</b><span>lobal</span><b>L</b><span>ibrary</span><b>U</b><span>nified</span><b>E</b><span>xporter</span></a></h1>
+      <h1><a href="#/" id="home-link" aria-label="GLUE, Global Library Unified Exporter" onclick={() => { if (lib.phase === 'profiles') lib.backToLibrary(); }}><GlueStick /><b>G</b><span>lobal</span><b>L</b><span>ibrary</span><b>U</b><span>nified</span><b>E</b><span>xporter</span></a></h1>
       <nav class="tabs" aria-label="Sections">
         <a href="#/" class:on={route.name !== 'analyze' && route.name !== 'admin'}>Library</a>
         <a href="#/analyze" class:on={route.name === 'analyze'}>Analyze a file</a>

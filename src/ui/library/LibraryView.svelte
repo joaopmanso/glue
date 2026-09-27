@@ -1,7 +1,7 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
   import { view, viewTitle, FILTER_GROUPS } from '../../lib/view.svelte';
-  import { router } from '../../lib/route.svelte';
+  import { router, trackHref, trackTab } from '../../lib/route.svelte';
   import LibSidebar from './LibSidebar.svelte';
   import TrackTable from './TrackTable.svelte';
   import NoteEditor from './NoteEditor.svelte';
@@ -17,6 +17,7 @@
   import { trackMenu } from '../../lib/trackMenu';
   import { filterMenu } from '../../lib/filterMenu';
   import SendPanel from './SendPanel.svelte';
+  import AppIcon from '../AppIcon.svelte';
   import { drag } from '../../lib/drag.svelte';
   import { listTree } from '../../core/library/listTree';
   import { incoming, TO_BE_SORTED } from '../../lib/incoming.svelte';
@@ -24,6 +25,12 @@
   // The sidebar's width, dragged on the handle between it and the songs (remembered).
   let resizing = $state(false);
   let sideW = $state(Math.min(560, Math.max(200, +readPref('sideWidth', '270') || 270)));
+  // The sidebar folds away, for more columns (the user's list, 2026-09-27); remembered. Ctrl+B.
+  let folded = $state(readPref('sideFolded', '0') === '1');
+  function fold(on = !folded) { folded = on; writePref('sideFolded', on ? '1' : '0'); }
+  function foldKey(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'b' && !(e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) { e.preventDefault(); fold(); }
+  }
   function startResize(e: PointerEvent) {
     if (e.button !== 0) return;
     const el = e.currentTarget as HTMLElement, x0 = e.clientX, w0 = sideW;
@@ -37,6 +44,8 @@
   import type { HomeFolder } from '../../core/transfer';
 
   const title = $derived.by(() => { void lib.version; return viewTitle(view.sel); });
+  // A DJ library's view shows its app's badge.
+  const djApp = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'source' ? lib.store?.sources.get(s.id)?.app : s.kind === 'dj' ? lib.store?.sources.get(s.sourceId)?.app : undefined; });
   const count = $derived.by(() => { void lib.version; void view.search; return view.rows('camelot').length; });
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
   // Where songs can be added: the playlists as the sidebar shows them (ADR 0062), the user's own first,
@@ -106,6 +115,8 @@
   }
 </script>
 
+<svelte:window onkeydown={foldKey} />
+
 <div class="lib">
   {#if lib.cloud}
     <div class="cloudbar" id="cloud-banner" role="status">
@@ -125,7 +136,10 @@
   </div>
   {/if}
   <div class="headbar">
-    <h2>{title}<small>{count} track{count === 1 ? '' : 's'}</small></h2>
+    <button type="button" class="sidetog" id="side-toggle" aria-pressed={folded} title={folded ? 'Show the sidebar (Ctrl+B)' : 'Hide the sidebar, for more columns (Ctrl+B)'} aria-label={folded ? 'Show the sidebar' : 'Hide the sidebar'} onclick={() => fold()}>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.5v11" stroke="currentColor" stroke-width="1.3"/>{#if !folded}<path d="M2.8 5h1.9M2.8 7h1.9M2.8 9h1.9" stroke="currentColor" stroke-width="1.1"/>{/if}</svg>
+    </button>
+    <h2>{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}<small>{count} track{count === 1 ? '' : 's'}</small></h2>
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks">
     <FilterMenu />
     {#if sync.busy}<span class="cloudload" id="cloud-loading" role="status"><span class="spin"></span>{sync.busy}</span>
@@ -167,20 +181,45 @@
     <div class="notice warn">GLUE is open in another tab, so this one is read-only. Close the other tab and reload to make changes here.</div>
   {/if}
 
-  <div class="main" style:--sidew={sideW + 'px'}>
-    <LibSidebar />
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="splitter" class:on={resizing} role="separator" aria-orientation="vertical" aria-label="Sidebar width" title="Drag to make the sidebar wider or narrower (double-click: back to normal)"
-      onpointerdown={startResize} ondblclick={() => { sideW = 270; writePref('sideWidth', '270'); }}></div>
+  <div class="main" class:folded style:--sidew={sideW + 'px'}>
+    {#if folded}
+      <button type="button" class="sidestrip" id="side-show" title="Show the sidebar (Ctrl+B)" aria-label="Show the sidebar" onclick={() => fold(false)}>»</button>
+    {:else}
+      <LibSidebar />
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="splitter" class:on={resizing} role="separator" aria-orientation="vertical" aria-label="Sidebar width" title="Drag to make the sidebar wider or narrower (double-click: back to normal)"
+        onpointerdown={startResize} ondblclick={() => { sideW = 270; writePref('sideWidth', '270'); }}></div>
+    {/if}
     <div class="right">
-      <!-- Always laid out: a layout shift during dragstart makes Chromium cancel the drag. -->
-      <div class="selbar">
-        {#if sel.length}
-          <span>{sel.length} selected</span>
-          {#if sel.length === 1}<button type="button" class="mini" onclick={() => router.go('#/track/' + sel[0])}>Open details</button>{/if}
-          <button type="button" class="mini" id="tag-selected" data-tags-open onclick={e => view.editTags(e.currentTarget, { ids: sel })}>Tags…</button>
-          <button type="button" class="mini accent" id="auto-from" title={sel.length === 1 ? 'Generate a playlist that starts from this track' : 'Generate a playlist that includes all the selected tracks'} onclick={() => { const ordered = view.rows(app.keyNotation).map(r => r.t.id).filter(id => view.selected.has(id)); auto.show(ordered[0], ordered.slice(1)); }}>{sel.length === 1 ? 'Build playlist from this' : 'Build playlist with these ' + sel.length}</button>
-          <select aria-label="Add to playlist" onchange={addTo}>
+      <!-- One fixed-height row, always laid out: selecting songs never moves the table (a double-click
+           once opened the wrong song as the rows jumped, 2026-09-27), and a layout shift during
+           dragstart makes Chromium cancel the drag. The actions are always there, disabled until songs
+           are selected; what doesn't fit is in ⋯ (and on right-click). -->
+      <div class="selbar" class:has={sel.length > 0}>
+        <div class="selinfo">
+          {#if sel.length}
+            <span class="count">{sel.length} selected</span>
+            <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
+          {:else if view.filtering}
+            <span class="hint">Showing only</span>
+            {#each FILTER_GROUPS as { g } (g)}{#each view.filters[g] as v (v)}
+              <button type="button" class="chip" data-chip={g} title="Click to stop filtering by this; right-click for more" onclick={() => view.toggleFilter(g, v)}
+                oncontextmenu={e => menu.context(e, () => filterMenu(g, v), 'Filter')}>{v}<span aria-hidden="true">×</span></button>
+            {/each}{/each}
+            <button type="button" class="mini" id="clear-filters" onclick={() => view.clearFilters()}>Clear filters</button>
+          {:else if sortedPlaylist}
+            <span class="hint">Sorted by {view.sort.key}.</span>
+            <button type="button" class="mini" id="keep-order" onclick={keepOrder}>Keep this order</button>
+            <button type="button" class="mini" onclick={() => view.sortBy('order')}>Back to playlist order</button>
+          {:else}
+            <span class="hint" title="Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection.">Double-click a track for its page · drag tracks onto a playlist · right-click for more</span>
+          {/if}
+        </div>
+        <div class="selacts" title={sel.length ? '' : 'Select songs to use these'}>
+          <button type="button" class="mini opt2" id="open-details" disabled={sel.length !== 1} onclick={() => router.go(trackHref(sel[0]))}>{trackTab.last === 'prepare' ? 'Open Prepare' : 'Open details'}</button>
+          <button type="button" class="mini opt" id="tag-selected" data-tags-open disabled={!sel.length} onclick={e => view.editTags(e.currentTarget, { ids: sel })}>Tags…</button>
+          <button type="button" class="mini accent opt" id="auto-from" disabled={!sel.length} title={sel.length === 1 ? 'Generate a playlist that starts from this track' : 'Generate a playlist that includes all the selected tracks'} onclick={() => { const ordered = view.rows(app.keyNotation).map(r => r.t.id).filter(id => view.selected.has(id)); auto.show(ordered[0], ordered.slice(1)); }}>{sel.length > 1 ? 'Build playlist with these ' + sel.length : 'Build playlist from this'}</button>
+          <select aria-label="Add to playlist" disabled={!sel.length} onchange={addTo}>
             <option value="">Add to playlist…</option>
             <option value="__new">+ New playlist…</option>
             {#if targets.own.length}<optgroup label="Your playlists">{#each targets.own as e (e.list.id)}<option value={e.list.id}>{pad(e.depth, e.list.kind === 'folder')}{e.list.name}</option>{/each}</optgroup>{/if}
@@ -188,34 +227,20 @@
               <optgroup label={g.top.name + ' ↓ · replaced when you import it again'}>{#each g.entries as e (e.list.id)}<option value={e.list.id}>{pad(e.depth, e.list.kind === 'folder')}{e.list.name}</option>{/each}</optgroup>
             {/each}
           </select>
-          {#if current && (current.kind === 'playlist' || sel.some(id => current.items.includes(id)))}<button type="button" class="mini" onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from {current.kind === 'folder' ? 'folder' : 'playlist'}</button>{/if}
+          {#if current}<button type="button" class="mini" disabled={!sel.some(id => current.items.includes(id))} onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from {current.kind === 'folder' ? 'folder' : 'playlist'}</button>{/if}
           {#if dock.available}
-            <button type="button" class="mini" id="dock-add" title="Add the selected songs to GLUE Home's drag dock, to drag them into Engine DJ, Rekordbox or a folder" onclick={() => { const s = lib.store; if (s) void dock.add(sel.map(id => s.tracks.get(id)).filter(t => !!t)); }}>+ Dock{sel.length ? ' (' + sel.length + ')' : ''}</button>
+            <button type="button" class="mini opt" id="dock-add" disabled={!sel.length} title="Add the selected songs to GLUE Home's drag dock, to drag them into Engine DJ, Rekordbox or a folder" onclick={() => { const s = lib.store; if (s) void dock.add(sel.map(id => s.tracks.get(id)).filter(t => !!t)); }}>+ Dock{sel.length ? ' (' + sel.length + ')' : ''}</button>
           {/if}
-          {#if lib.analysis.paused}<button type="button" class="mini" id="analyse-selected" title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
-          {#if sorting && folders}
-            <select id="move-to" aria-label="Move to a music folder" onchange={moveTo}>
+          {#if lib.analysis.paused}<button type="button" class="mini opt" id="analyse-selected" disabled={!sel.length} title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
+          {#if sorting}
+            <select id="move-to" aria-label="Move to a music folder" disabled={!folders} onchange={moveTo}>
               <option value="">Move to music folder…</option>
-              {#each folders.list as f (f.id)}<option value={f.id}>{f.name} ({f.collection})</option>{/each}
+              {#each folders?.list ?? [] as f (f.id)}<option value={f.id}>{f.name} ({f.collection})</option>{/each}
             </select>
           {/if}
-          {#if !lib.cloud}<button type="button" class="mini" id="remove-tracks" onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>{/if}
-          <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
-          <button type="button" class="mini more" id="sel-more" title="Everything you can do with the selected songs (also on right-click)" aria-haspopup="menu" onclick={e => selMenu(e.currentTarget)}>⋯</button>
-        {:else if view.filtering}
-          <span class="hint">Showing only</span>
-          {#each FILTER_GROUPS as { g } (g)}{#each view.filters[g] as v (v)}
-            <button type="button" class="chip" data-chip={g} title="Click to stop filtering by this; right-click for more" onclick={() => view.toggleFilter(g, v)}
-              oncontextmenu={e => menu.context(e, () => filterMenu(g, v), 'Filter')}>{v}<span aria-hidden="true">×</span></button>
-          {/each}{/each}
-          <button type="button" class="mini" id="clear-filters" onclick={() => view.clearFilters()}>Clear filters</button>
-        {:else if sortedPlaylist}
-          <span class="hint">Sorted by {view.sort.key}. Drag to rearrange works in playlist order.</span>
-          <button type="button" class="mini" id="keep-order" onclick={keepOrder}>Keep this order</button>
-          <button type="button" class="mini" onclick={() => view.sortBy('order')}>Back to playlist order</button>
-        {:else}
-          <span class="hint">Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection.</span>
-        {/if}
+          {#if !lib.cloud}<button type="button" class="mini opt2" id="remove-tracks" disabled={!sel.length} onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>{/if}
+          <button type="button" class="mini more" id="sel-more" disabled={!sel.length} title="Everything you can do with the selected songs (also on right-click)" aria-haspopup="menu" onclick={e => selMenu(e.currentTarget)}>⋯</button>
+        </div>
         {#if dock.available}<button type="button" class="mini dockbtn" id="drag-dock" data-drop="dock" class:hot={drag.active && drag.target?.type === 'dock'} title="Show GLUE Home's drag dock. Songs and playlists go in by dragging them onto it (or onto this button), or with “+ Dock”; then drag them from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}
       </div>
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
@@ -268,6 +293,12 @@
   .notice.warn { background: color-mix(in srgb, var(--warn) 9%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
   .notice button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; }
   .main { display: grid; grid-template-columns: var(--sidew, 270px) 10px minmax(0, 1fr); gap: 6px; min-height: 0; }
+  .main.folded { grid-template-columns: 22px minmax(0, 1fr); }
+  .sidestrip { background: none; border: 1px solid var(--line); border-radius: var(--radius); color: var(--muted); cursor: pointer; font-size: 13px; padding: 0; display: grid; place-items: start center; padding-top: 8px; }
+  .sidestrip:hover { color: var(--accent); border-color: var(--accent); }
+  .sidetog { background: none; border: 1px solid var(--line-2); border-radius: 6px; width: 30px; height: 30px; display: grid; place-items: center; color: var(--muted); cursor: pointer; padding: 0; flex: none; }
+  .sidetog:hover, .sidetog[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+  .sidetog svg { width: 16px; height: 16px; }
   .splitter { cursor: col-resize; position: relative; touch-action: none; }
   .splitter::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; border-radius: 1px; background: var(--line); transition: background .12s; }
   .splitter:hover::after, .splitter.on::after { background: var(--accent); }
@@ -277,7 +308,16 @@
   .right > :global(.table), .right > :global(.dv) { flex: 1; }
   .ibtn { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
   .ibtn:hover, .ibtn.on { border-color: var(--accent); color: var(--accent); }
-  .selbar { min-height: 28px; display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--ink-2); flex-wrap: wrap; }
+  .selbar { height: 30px; flex: none; display: flex; gap: 12px; align-items: center; font-size: 13px; color: var(--ink-2); flex-wrap: nowrap; overflow: hidden; container-type: inline-size; }
+  .selinfo { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: center; overflow: hidden; white-space: nowrap; }
+  .selinfo .hint { overflow: hidden; text-overflow: ellipsis; }
+  .count { color: var(--ink); font-weight: 600; }
+  .selacts { flex: none; display: flex; gap: 6px; align-items: center; }
+  .selacts :disabled { opacity: .4; cursor: default; }
+  .selacts .mini:disabled:hover { border-color: var(--line-2); color: var(--ink-2); }
+  /* Narrower: the less used actions go (they're in ⋯ and on right-click). */
+  @container (max-width: 1100px) { .opt { display: none; } }
+  @container (max-width: 760px) { .opt2 { display: none; } }
   .hint { color: var(--muted); font-size: 12.5px; }
   .more { font-size: 13px; line-height: 1; padding: 1px 8px 4px; }
   .chip { display: inline-flex; align-items: center; gap: 6px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 12px; color: var(--ink); font-size: 12px; padding: 1px 8px 1px 10px; cursor: pointer; }
@@ -287,7 +327,8 @@
      keeps its height, so the table always has one and draws only the rows on screen (it froze drawing
      every row once, 2026-09-27). */
   @media (max-width: 800px) {
-    .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    .main, .main.folded { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    .sidestrip { height: 24px; place-items: center; padding-top: 0; }
     .main > :global(.lside) { max-height: 33vh; }
     .splitter { display: none; }
   }

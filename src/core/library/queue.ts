@@ -67,10 +67,18 @@ export function enqueue(q: Queue, ids: string[], at: 'next' | 'end' | number): Q
   return { ...q, upNext, later: q.later.filter(x => !moving.has(x)) };
 }
 
+/** Reorder the list's rest: `ids` go to `index` in it (songs from Next up or elsewhere move in there). */
+export function placeLater(q: Queue, ids: string[], index: number): Queue {
+  const add = [...new Set(ids)], moving = new Set(add);
+  const later = q.later.filter(x => !moving.has(x));
+  later.splice(q.later.slice(0, index).filter(x => !moving.has(x)).length, 0, ...add);
+  return { ...q, later, upNext: q.upNext.filter(x => !moving.has(x)) };
+}
+
 export function dequeue(q: Queue, which: 'upNext' | 'later', index: number): Queue {
   return which === 'upNext' ? { ...q, upNext: q.upNext.filter((_, i) => i !== index) } : { ...q, later: q.later.filter((_, i) => i !== index) };
 }
-export function clear(q: Queue, which: 'upNext' | 'later'): Queue { return { ...q, [which]: [] }; }
+export function clear(q: Queue, which: 'upNext' | 'later' | 'played'): Queue { return { ...q, [which]: [] }; }
 
 /** Play a song from the queue now. From the list's rest, the songs before it are skipped. */
 export function jump(q: Queue, which: 'upNext' | 'later', index: number): Queue | null {

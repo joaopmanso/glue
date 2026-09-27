@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_QUEUE, advance, back, clear, dequeue, enqueue, jump, prune, reshuffle, startFrom, type Queue } from '../src/core/library/queue';
+import { EMPTY_QUEUE, advance, back, clear, dequeue, enqueue, jump, placeLater, prune, reshuffle, startFrom, type Queue } from '../src/core/library/queue';
 
 const LIST = ['a', 'b', 'c', 'd', 'e'];
 const ok = () => true;
@@ -79,6 +79,17 @@ describe('the player’s queue (ADR 0068)', () => {
     expect(q).toMatchObject({ current: 'd', later: ['e'], upNext: ['x', 'y'] });
     expect(dequeue(q, 'upNext', 0).upNext).toEqual(['y']);
     expect(clear(q, 'upNext').upNext).toEqual([]);
+  });
+
+  it('the list’s rest can be reordered, and songs dropped into it leave Next up; history can be cleared', () => {
+    let q = enqueue(startFrom(EMPTY_QUEUE, 'a', LIST, 'List', false), ['x'], 'end');
+    q = placeLater(q, ['e'], 0);
+    expect(q.later).toEqual(['e', 'b', 'c', 'd']);
+    q = placeLater(q, ['b'], 4);                     // to the end (index past it)
+    expect(q.later).toEqual(['e', 'c', 'd', 'b']);
+    q = placeLater(q, ['x'], 1);                     // from Next up into the list
+    expect(q).toMatchObject({ upNext: [], later: ['e', 'x', 'c', 'd', 'b'] });
+    expect(clear(next(q)!, 'played').played).toEqual([]);
   });
 
   it('songs removed from the collection leave the queue', () => {
