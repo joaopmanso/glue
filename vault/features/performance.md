@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M7
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0057, 0058]
 ---
 # Performance
@@ -56,6 +56,21 @@ the address shows the numbers on screen, so anyone can check their own collectio
   long frames.
 - `e2e/decode.spec.ts`: the worker's decode against the page's, sample for sample, for every format. Results go to
   `test-results/perf.json`, baselines to [research/performance.md](../research/performance.md).
+
+## A narrow window froze the page (fixed 2026-09-27)
+- **The user's report:** narrowing the window below about 850 px froze the page, until a reload.
+- **Cause:**
+  - Below 800 px the library's layout dropped its fixed height (`.lib { height: auto }`).
+  - The table's body, which draws only the rows that fit its height, grew as tall as all its rows.
+  - So it drew every one: 7,000 rows, each with a canvas and a thumbnail request.
+- **Fix:**
+  - The narrow layout keeps the page's height: the sidebar on top (at most a third of the window,
+    scrolling), the songs below.
+  - The table never draws more rows than fit the window (`min(height, innerHeight)`), whatever the
+    layout does.
+- **Test:** `e2e/narrow.spec.ts` (always on) opens 3,000 synthetic songs at 1920 px, then 780, 600
+  and 420 px. Each time: fewer than 150 rows drawn, a click answered at once, the sidebar there, and
+  scrolling works. `seedFolder` moved to `e2e/seed.ts` (shared with perf.spec).
 
 ## Limits & open questions
 - Headless Edge draws in software, so drawing numbers are relative, not what a GPU gives.

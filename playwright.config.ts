@@ -3,6 +3,8 @@ import { defineConfig } from '@playwright/test';
 // By default runs against the production build under /glue/, the way GitHub Pages serves it.
 // BASE_URL=https://joaopmanso.github.io/glue/ runs the same tests against the live site.
 // Uses the installed Microsoft Edge (channel 'msedge'), so no browser download is needed.
+// Always a fresh build: a server left on the port fails the run instead of serving old code (a stale
+// dev server once did, 2026-09-27).
 const live = process.env.BASE_URL;
 export default defineConfig({
   testDir: 'e2e',
@@ -17,13 +19,13 @@ export default defineConfig({
   webServer: live ? undefined : [{
     command: 'npm run build && npm run preview -- --strictPort',
     url: 'http://localhost:5174/glue/',
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 120_000,
   }, {
     // GLUE Home's settings and service pages (home/ui), for e2e/home.spec.ts.
     command: 'npm run home:ui && npm run home:preview',
     url: 'http://localhost:5176/index.html',
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 120_000,
   }],
 });

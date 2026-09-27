@@ -5,6 +5,19 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-27 · Fix: a narrow window froze the page
+From the user: narrowing the window below ~850 px froze the page until a reload.
+- **Cause:** below 800 px the layout lost its fixed height, so the song table grew as tall as all its
+  rows and drew every one (7,000 rows with their canvases).
+- **Fix:** the narrow layout keeps the page's height (the sidebar on top, a third of the window at
+  most, the songs below), and the table never draws more rows than fit the window
+  ([performance](../features/performance.md)).
+- Test: `e2e/narrow.spec.ts` (3,000 songs; 780, 600 and 420 px wide).
+- **Tests always use a fresh build now** (`reuseExistingServer: false`).
+  - A dev server left running on the test port since the day before had been reused silently.
+  - It served code older than the source, and two player tests failed against it.
+  - On a fresh build they pass. A server on the port now fails the run instead.
+
 ## 2026-09-27 · A full player: queue, the open player with the visualiser, the sound output
 From the user: queue songs, "a right button with an arrow to expand the player to see the queue and
 manage it", choose the sound card and driver, and a visualiser from their own

@@ -62,9 +62,11 @@
   // the header follows them sideways.
   let headWrap = $state<HTMLDivElement>();
   let colMenuAt = $state({ right: 8, top: 40 });
-  let scrollTop = $state(0), height = $state(600);
+  let scrollTop = $state(0), height = $state(600), winH = $state(900);
   const first = $derived(Math.max(0, Math.floor(scrollTop / ROW) - OVERSCAN));
-  const last = $derived(Math.min(rows.length, Math.ceil((scrollTop + height) / ROW) + OVERSCAN));
+  // Never more rows than fit the window, whatever the layout says: a table without a height once drew
+  // all of them and froze the page (2026-09-27).
+  const last = $derived(Math.min(rows.length, Math.ceil((scrollTop + Math.min(height, winH)) / ROW) + OVERSCAN));
   const visible = $derived(rows.slice(first, last));
   let colMenu = $state(false);
   /** A column's value filter, opened from ▾ in its header. */
@@ -367,7 +369,7 @@
   </div>
 {/if}
 
-<svelte:window onpointerdown={e => { const el = e.target as HTMLElement; if (colMenu && !el.closest('.cm')) colMenu = false; if (headFilter && !el.closest('.hfpop, .hf, .cmenu')) headFilter = null; }}
+<svelte:window bind:innerHeight={winH} onpointerdown={e => { const el = e.target as HTMLElement; if (colMenu && !el.closest('.cm')) colMenu = false; if (headFilter && !el.closest('.hfpop, .hf, .cmenu')) headFilter = null; }}
   onkeydown={e => { if (e.key === 'Escape') { colMenu = false; headFilter = null; } }} />
 
 <style>

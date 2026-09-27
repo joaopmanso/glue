@@ -283,5 +283,12 @@
   .chip { display: inline-flex; align-items: center; gap: 6px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 12px; color: var(--ink); font-size: 12px; padding: 1px 8px 1px 10px; cursor: pointer; }
   .chip span { color: var(--muted); }
   .chip:hover span { color: var(--accent); }
-  @media (max-width: 800px) { .main { grid-template-columns: minmax(0, 1fr); } .splitter { display: none; } .lib { height: auto; } }
+  /* Narrow windows: the sidebar on top (at most a third of the height, scrolling), the songs below. The page
+     keeps its height, so the table always has one and draws only the rows on screen (it froze drawing
+     every row once, 2026-09-27). */
+  @media (max-width: 800px) {
+    .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    .main > :global(.lside) { max-height: 33vh; }
+    .splitter { display: none; }
+  }
 </style>
