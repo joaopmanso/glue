@@ -24,6 +24,10 @@ Newest first. Each entry: date, milestone, what changed, links.
   Now the rest of that list follows it (the table, Duplicates, the playlist builder;
   `nowPlaying.resumeFrom`).
 - Replaces the planned "shows & sessions".
+- **GLUE Home 0.13.1** is the release. 0.13.0's build stopped on Tauri's version check:
+  - installing `@tauri-apps/plugin-notification` (2.5) had also moved `@tauri-apps/api` to 2.12;
+  - crates.io has `tauri` 2.11 and `tauri-plugin-notification` 2.4.
+  - Both npm packages are now pinned to those minors (`~`).
 - Tests:
   - Vitest `events.test`;
   - e2e `events.spec` (calendar, folder, assign, version, flyer, delete, reminder);

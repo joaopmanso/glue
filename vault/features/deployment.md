@@ -57,3 +57,9 @@ Publishes the app as a static site on GitHub Pages.
   and the final optimised compile of GLUE Home itself isn't cached.
 - Further options, not done: a lighter check (no LTO) on `main`, since only tags publish, and one
   build per commit instead of both `main` and the tag.
+
+## Tauri's npm and Rust packages move together (2026-09-27)
+- `tauri build` refuses different major.minor versions of a Tauri npm package and its crate
+  (`@tauri-apps/api` and `tauri`, each plugin and its crate). A new plugin's npm package can pull a
+  newer `@tauri-apps/api` than crates.io's `tauri`: pin them (`~2.11.1`) and check with a local
+  `npx tauri build --no-bundle` in `home/` before tagging.

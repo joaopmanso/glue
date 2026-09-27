@@ -336,7 +336,7 @@ First release: phases 1–3 (user, 2026-09-25).
 - **Covers** are read through the local link with byte ranges, only the tags' bytes
   ([ADR 0072](../adr/0072-covers-from-the-tags.md)).
 
-## GLUE Home 0.13 (2026-09-27)
+## GLUE Home 0.13 (2026-09-27; released as 0.13.1)
 - **Reminders of events that need music** ([ADR 0074](../adr/0074-events-calendar.md), [events](events.md)):
   the service reads each collection's `events.json` (and then its playlists, with the new read-only
   `glue_list`) 90 s after starting and hourly, and sends a desktop notification once a day per event
