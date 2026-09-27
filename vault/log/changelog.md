@@ -5,6 +5,23 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-27 · The user's list, batch 6: stats, and a 3D view you can move
+- **Stats** ([stats](../features/stats.md)):
+  - for the collection (a chart button by its name), or "Stats…" on a playlist or folder, a tag, a
+    music folder, a DJ library or one of its playlists, a device, a Library entry, or several
+    selected songs;
+  - songs, playtime, size; artists, albums, labels, genres; verdicts and formats; tempo and keys; top
+    genres, artists and labels; years of release; songs added per month; rated and tagged.
+- **The live 3D view is on the GPU** (three.js, [ADR 0073](../adr/0073-3d-view-on-the-gpu.md)), on
+  Details and Prepare:
+  - drag to turn, wheel to zoom, right-drag to move, "Reset view";
+  - frequency labels along the front;
+  - redrawn only when something changed.
+  - It's the first step of M7 phase 2.
+- Tests:
+  - Vitest `stats.test`;
+  - e2e: stats from the button and menus; 3D drawn, turned, zoomed and reset; Prepare's 3D.
+
 ## 2026-09-27 · The user's list, batch 5: editing song info (GLUE Home 0.12), and covers
 - **Song info** ([ADR 0071](../adr/0071-song-info-written-through-glue-home.md), [song info](../features/song-info.md)):
   - edit title, artist, album, genre, label and year in the table in place: F2, or a slow second

@@ -68,6 +68,7 @@ Planned (GLUE):
 [Prepare](features/prepare.md) ·
 [performance](features/performance.md) ·
 [song info & covers](features/song-info.md) ·
+[stats](features/stats.md) ·
 [phone app](features/phone-app.md)
 
 ## ADR index
@@ -144,3 +145,4 @@ Planned (GLUE):
 | [0069](adr/0069-content-beyond-a-wall.md) | Content beyond a wall that follows the music isn't an encoder's cut; specks far under it are rounding | accepted |
 | [0071](adr/0071-song-info-written-through-glue-home.md) | Song info is edited in GLUE and written into the music files by GLUE Home | accepted |
 | [0072](adr/0072-covers-from-the-tags.md) | Covers come from the files' tags, kept as small JPEGs in the browser's cache | accepted |
+| [0073](adr/0073-3d-view-on-the-gpu.md) | The live 3D view is drawn by three.js on the GPU, and can be turned, zoomed and reset | accepted |

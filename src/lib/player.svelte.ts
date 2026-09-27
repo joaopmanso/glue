@@ -6,7 +6,7 @@ import { fmtKHz, freqLabel, niceStep } from '../core/format';
 import { time } from '../core/perf';
 import { MONO, fitCanvas, theme } from '../ui/render/canvas';
 import type { Cutoff } from '../core/types';
-import { WF_BANDS, WF_DEPTH, WF_FPS, bandBins, drawWaterfall, type WaterfallFrame } from '../ui/render/waterfall';
+import { WF_BANDS, WF_DEPTH, WF_FPS, bandBins, type WaterfallFrame } from '../ui/render/waterfall';
 
 // AnalyserNode scales by 1/N with a Blackman window (coherent gain 0.42); lift it so a
 // full-scale sine reads 0 dB, matching the main spectrogram.
@@ -38,6 +38,8 @@ class Live {
   bands: Int32Array | null = null;
   frames: WaterfallFrame[] = [];
   wfAcc = 0;
+  /** Frames pushed so far (the GPU view redraws when it changes). */
+  pushed = 0;
   note = $state('What’s sounding now, scrolling right to left.');
 
   reset() {
@@ -146,9 +148,11 @@ class Live {
     let prev = f.t[0];
     for (let b = 1; b < WF_BANDS - 1; b++) { const cur = f.t[b]; f.t[b] = Math.max(cur, (prev + 2 * cur + f.t[b + 1]) / 4); prev = cur; }
     this.frames.push(f);
+    this.pushed++;
   }
 
-  draw(cv: HTMLCanvasElement, rightMargin: number, hasSource: boolean, cut: Cutoff | null, markers: boolean, mode: 'scroll' | '3d' = 'scroll', lut?: Uint8ClampedArray) {
+  /** The scrolling view (the 3D one is ui/Live3D). */
+  draw(cv: HTMLCanvasElement, rightMargin: number, hasSource: boolean, cut: Cutoff | null, markers: boolean) {
     const { ctx, w, h } = fitCanvas(cv);
     ctx.clearRect(0, 0, w, h);
     const C = theme();
@@ -161,10 +165,6 @@ class Live {
       return;
     }
     const nyq = this.ctx.sampleRate / 2;
-    if (mode === '3d' && lut) {
-      drawWaterfall(ctx, { l: m.l, t: m.t, w: pw, h: ph }, this.frames, lut, nyq, C, markers && cut && (!cut.full || cut.wall) ? cut.fc : null, WF_DEPTH / WF_FPS);
-      return;
-    }
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(this.img, m.l, m.t, pw, ph);
     ctx.fillStyle = C.muted; ctx.strokeStyle = C.line2; ctx.lineWidth = 1;

@@ -10,6 +10,7 @@
   import type { PlotRect } from './render/canvas';
   import PlayerBar from './PlayerBar.svelte';
   import StemsBar from './StemsBar.svelte';
+  import Live3D from './Live3D.svelte';
 
   let specCv = $state<HTMLCanvasElement>();
   let liveCv = $state<HTMLCanvasElement>();
@@ -41,7 +42,7 @@
       playhead: !player.pending && player.ready && (player.started || !player.paused) ? player.time : null, hover,
     }));
     const lc = liveCv, rr = rect.r;
-    if (app.liveOn && lc) time('draw:live', () => player.live.draw(lc, rr, !!player.url && !player.pending, app.verdict?.cut ?? null, app.markers, app.liveMode, app.lut));
+    if (app.liveOn && lc && app.liveMode !== '3d') time('draw:live', () => player.live.draw(lc, rr, !!player.url && !player.pending, app.verdict?.cut ?? null, app.markers));
   });
 
   $effect(() => {
@@ -115,7 +116,12 @@
           </span>
           <span class="readout" id="live-note">{app.liveMode === '3d' ? 'Recent spectra running into the distance; frequency across on a log scale, level as height.' : player.live.note}</span>
         </div>
-        <div class="canvas-box" id="live-box" class:tall={app.liveMode === '3d'} bind:this={liveBox}><canvas id="live" bind:this={liveCv} aria-label={app.liveMode === '3d' ? 'Live 3D spectrum of the audio currently playing' : 'Live spectrogram of the audio currently playing'}></canvas></div>
+        <div class="canvas-box" id="live-box" class:tall={app.liveMode === '3d'} bind:this={liveBox}>
+          {#if app.liveMode === '3d'}
+            {@const c = app.verdict?.cut}
+            <Live3D cut={app.markers && c && (!c.full || c.wall) ? c.fc : null} />
+          {:else}<canvas id="live" bind:this={liveCv} aria-label="Live spectrogram of the audio currently playing"></canvas>{/if}
+        </div>
       </div>
     {/if}
   </div>

@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: Speklone
-updated: 2026-09-24
-adrs: []
+updated: 2026-09-27
+adrs: [0073]
 ---
 # Live view
 
@@ -30,4 +30,12 @@ using the same colours and floor, with the detected cutoff as a dashed line. Tog
   distance. Ridges get a light 3-band smoothing for looks; the scrolling view is unchanged.
 - Code: `src/ui/render/waterfall.ts`; frames captured in `Live.pushFrame` (36 per second, 220 bands).
 - Cost: measured the same frame time as the scrolling view (≈7 ms per frame, headless Edge).
+
+## 3D you can move (2026-09-27)
+- The 3D mode is drawn by three.js on the GPU ([ADR 0073](../adr/0073-3d-view-on-the-gpu.md)): a surface
+  of the same frames, a ridge every 4 frames, the front crest, floor lines with frequency labels, the
+  cutoff, fog.
+- Drag to turn, wheel to zoom, right-drag to move; "Reset view". Wider boxes get a wider surface.
+- Redrawn only when a spectrum arrives or the view moves. Without WebGL, the 2D drawing above.
+- Code: `src/ui/render/waterfall3d.ts`, `src/ui/Live3D.svelte` (also on the Prepare tab).
 

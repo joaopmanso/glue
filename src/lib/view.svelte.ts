@@ -52,6 +52,8 @@ class View {
   sortBy(k: SortKey) { this.sort = k === 'order' ? { key: k, dir: 1 } : this.sort.key === k ? { key: k, dir: this.sort.dir === 1 ? -1 : 1 } : { key: k, dir: k === 'added' ? -1 : 1 }; }
   /** The track whose note editor is open, and where. */
   noteFor = $state<{ id: string; x: number; y: number } | null>(null);
+  /** The Stats dialog: a sidebar entry's songs, or these songs. */
+  statsFor = $state<{ title: string; sel?: ViewSel; ids?: string[] } | null>(null);
   /** The song info editor (ADR 0071): for these tracks, starting in a field. */
   infoFor = $state<{ ids: string[]; field?: InfoField } | null>(null);
   /** The tag editor: for tracks or for a playlist, placed under (x, y). */
@@ -86,31 +88,7 @@ class View {
     void lib.version;
     const s = lib.store;
     if (!s) return [];
-    let tracks: Track[];
-    const sel = this.sel;
-    if (sel.kind === 'list') {
-      const l = s.lists.get(sel.id);
-      if (!l) return [];
-      if (l.kind === 'folder') {
-        // A folder is also a playlist (as in Engine DJ, ADR 0049): its own songs first, then its playlists'.
-        const ids = new Set<string>(l.items), walk = (pid: string) => { for (const c of s.lists.values()) if (c.parentId === pid) { c.items.forEach(i => ids.add(i)); walk(c.id); } };
-        walk(l.id);
-        tracks = [...ids].map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
-      } else tracks = l.items.map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
-    } else if (sel.kind === 'source') tracks = [...s.tracks.values()].filter(t => t.sources.includes(sel.id));
-    // A DJ library's playlist, browsed where it is (ADR 0063): its songs in its order; a folder's own, then
-    // those of the lists inside it.
-    else if (sel.kind === 'dj') tracks = djTracks(s.sources.get(sel.sourceId), sel.id).map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
-    else if (sel.kind === 'tag') tracks = [...s.tracks.values()].filter(t => hasTag(tagsOf(t), sel.name));
-    else if (sel.kind === 'root') tracks = [...s.tracks.values()].filter(t => sel.id === LOOSE ? !!t.fileKey : t.rootId === sel.id);
-    else {
-      tracks = [...s.tracks.values()];
-      if (sel.kind === 'dupes') tracks = dupes.groups.flatMap(g => g.ids).map(id => s.tracks.get(id)).filter((t): t is Track => !!t);
-      else if (sel.kind === 'pending') tracks = tracks.filter(t => lib.needsAnalysis(t));
-      else if (sel.kind === 'unlinked') tracks = tracks.filter(t => t.status !== 'linked');
-      else if (sel.kind === 'attention') tracks = tracks.filter(t => { const a = s.analysis.get(t.id); return a && (a.grade === 'bad' || a.grade === 'warn'); });
-      else if (sel.kind === 'recent') { const cut = Date.now() - 30 * 864e5; tracks = tracks.filter(t => Date.parse(t.addedAt) >= cut); }
-    }
+    const tracks = tracksFor(this.sel);
     const dj = lib.djIndex();
     let rows: Row[] = tracks.map((t, n) => ({ t, a: s.analysis.get(t.id) ?? null, n, dj: dj.get(t.id) ?? null }));
     if (!opts.unfiltered && this.filtering) {
@@ -154,6 +132,35 @@ export const view = new View();
 
 export const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
 /** What a view is called (its heading; the player says it's playing from there). */
+/** The songs a sidebar entry shows, in its order (before filters and search). */
+export function tracksFor(sel: ViewSel): Track[] {
+  const s = lib.store;
+  if (!s) return [];
+  const byIds = (ids: Iterable<string>) => [...ids].map(i => s.tracks.get(i)).filter((t): t is Track => !!t);
+  if (sel.kind === 'list') {
+    const l = s.lists.get(sel.id);
+    if (!l) return [];
+    if (l.kind !== 'folder') return byIds(l.items);
+    // A folder is also a playlist (as in Engine DJ, ADR 0049): its own songs first, then its playlists'.
+    const ids = new Set<string>(l.items), walk = (pid: string) => { for (const c of s.lists.values()) if (c.parentId === pid) { c.items.forEach(i => ids.add(i)); walk(c.id); } };
+    walk(l.id);
+    return byIds(ids);
+  }
+  if (sel.kind === 'source') return [...s.tracks.values()].filter(t => t.sources.includes(sel.id));
+  // A DJ library's playlist, browsed where it is (ADR 0063): its songs in its order; a folder's own, then
+  // those of the lists inside it.
+  if (sel.kind === 'dj') return byIds(djTracks(s.sources.get(sel.sourceId), sel.id));
+  if (sel.kind === 'tag') return [...s.tracks.values()].filter(t => hasTag(tagsOf(t), sel.name));
+  if (sel.kind === 'root') return [...s.tracks.values()].filter(t => sel.id === LOOSE ? !!t.fileKey : t.rootId === sel.id);
+  const all = [...s.tracks.values()];
+  if (sel.kind === 'dupes') return byIds(dupes.groups.flatMap(g => g.ids));
+  if (sel.kind === 'pending') return all.filter(t => lib.needsAnalysis(t));
+  if (sel.kind === 'unlinked') return all.filter(t => t.status !== 'linked');
+  if (sel.kind === 'attention') return all.filter(t => { const a = s.analysis.get(t.id); return a && (a.grade === 'bad' || a.grade === 'warn'); });
+  if (sel.kind === 'recent') { const cut = Date.now() - 30 * 864e5; return all.filter(t => Date.parse(t.addedAt) >= cut); }
+  return all;
+}
+
 export function viewTitle(s: ViewSel): string {
   const st = lib.store;
   switch (s.kind) {

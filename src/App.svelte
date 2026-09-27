@@ -20,6 +20,7 @@
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
   import TagEditor from './ui/library/TagEditor.svelte';
   import EditInfo from './ui/library/EditInfo.svelte';
+  import StatsDialog from './ui/library/StatsDialog.svelte';
   import ContextMenu from './ui/ContextMenu.svelte';
   import GlueStick from './ui/GlueStick.svelte';
   import AccountButton from './ui/AccountButton.svelte';
@@ -186,6 +187,7 @@
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
 {#if inLibrary}<TagEditor />{/if}
 {#if inLibrary && view.infoFor}{#key view.infoFor}<EditInfo />{/key}{/if}
+{#if inLibrary && view.statsFor}{#key view.statsFor}<StatsDialog />{/key}{/if}
 <ContextMenu />
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}

@@ -132,6 +132,7 @@
       <option value="__new">+ New collection…</option>
     </select>
     <button type="button" class="mini" title="Rename collection" onclick={renameCollection}>✎</button>
+    <button type="button" class="mini" id="stats-btn" title="Stats of this collection" aria-label="Stats of this collection" onclick={() => (view.statsFor = { title: lib.profile?.collections.find(c => c.id === lib.store?.meta.id)?.name ?? 'This collection', sel: { kind: 'all' } })}><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 12.5V7.5M5.3 12.5V3M8.7 12.5V5.5M12 12.5V1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
     <button type="button" class="mini" title="Delete collection" onclick={deleteCollection}>×</button>
   </div>
   {/if}
@@ -282,6 +283,8 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini:hover { border-color: var(--accent); color: var(--accent); }
+  #stats-btn { display: inline-grid; place-items: center; align-self: stretch; }
+  #stats-btn svg { width: 12px; height: 12px; }
   .mini.accent { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line-2)); }
   .status { display: grid; gap: 4px; font-size: 12.5px; color: var(--ink-2); }
   .status .row { display: flex; justify-content: space-between; }

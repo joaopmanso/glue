@@ -86,6 +86,7 @@
     const canSend = !!h && sendTargets().some(x => x.id === h.id);
     return tidy([
       { label: only.includes(d.name) ? 'Show every device’s songs' : 'Show only its songs', run: () => view.toggleFilter('device', d.name) },
+      shown.has(d.name) && { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: d.name, ids: [...lib.store?.tracks.values() ?? []].filter(t => devicesOf(t).includes(d.name)).map(t => t.id) }) },
       SEP,
       !!h && { label: 'Send songs…', attrs: { id: 'send-songs' }, disabled: !on, title: on ? 'Copy songs into its incoming folder' : 'Its GLUE Home is offline', run: () => pickSongs(h!) },
       canSend && sel.length > 0 && { label: 'Send the ' + (sel.length === 1 ? 'selected song' : sel.length + ' selected songs'), run: () => void sendTracks(h!.id, sel) },

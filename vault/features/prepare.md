@@ -15,7 +15,8 @@ tempos. Corrections override the analysis ([ADR 0052](../adr/0052-prepare-tab.md
 - **Waveform:** an overview of the whole track (click to seek), and a zoomed deck view scrolling under
   a fixed playhead.
   - Colour schemes: RGB (3-band, Rekordbox-like), Blue, Bands (stacked), Mono.
-  - The 3D view (as on Details) can be shown below it.
+  - The 3D view (as on Details) can be shown below it; it turns, zooms and resets
+    ([ADR 0073](../adr/0073-3d-view-on-the-gpu.md)).
 - **Beat grid** on both views: bar lines numbered, beats fainter.
 - **Metronome:** clicks on the grid (accent on beat 1), with its own volume.
 - **Tempo:** a pitch fader (±8 / ±16 / ±50 %) and key lock; the BPM shown follows the speed.

@@ -34,7 +34,8 @@ the address shows the numbers on screen, so anyone can check their own collectio
   1. Data pipeline. First step **shipped 2026-09-26**: change counters and indexes
      ([ADR 0059](../adr/0059-indexes-rebuilt-by-change-counters.md)), which fixed the Auto dialog
      (2.2 s → 0.1 s) and Duplicates (0.8 s → under 0.1 s) on the user's library.
-  2. GPU drawing.
+  2. GPU drawing. First step **shipped 2026-09-27**: the live 3D view in three.js, drawn only when
+     something changed ([ADR 0073](../adr/0073-3d-view-on-the-gpu.md)).
   3. Analysis off the main thread. Decoding **shipped 2026-09-26**
      ([ADR 0060](../adr/0060-decode-in-the-worker.md)), ahead of the rest of phase 1: on the user's
      desktop it was the stall they felt. Still to do: GLUE Home decoding with Symphonia.

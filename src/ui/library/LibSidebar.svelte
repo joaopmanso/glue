@@ -177,6 +177,7 @@
   function libMenu(k: ViewSel['kind'], label: string): MenuEntry[] {
     return tidy([
       { label: 'Open', run: () => view.select({ kind: k } as ViewSel) },
+      { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: label, sel: { kind: k } as ViewSel }) },
       k !== 'all' && { label: 'Hide “' + label + '”', attrs: { 'data-m': 'hide-view' }, title: 'Take it out of the sidebar; bring it back by right-clicking “Library”', run: () => hideView(k as LibView) },
       SEP,
       { label: 'Shown in Library', sub: libShown },
@@ -221,6 +222,7 @@
       songs > 0 && { label: 'Play', hint: String(songs), attrs: { 'data-m': 'play' }, run: () => playList(l) },
       songs > 0 && { label: 'Play next', attrs: { 'data-m': 'play-next' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'next') },
       songs > 0 && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'end') },
+      { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: l.name, sel: { kind: 'list', id: l.id } }) },
       SEP,
       { label: 'Rename', attrs: { 'data-m': 'rename' }, run: () => (view.editing = l.id) },
       { colors: LIST_COLORS, value: l.color ?? null, pick: (c: string | null) => lib.setListColor(l.id, c) },
@@ -250,6 +252,7 @@
     return tidy([
       { label: 'Show its songs', run: () => view.select({ kind: 'tag', name: t.name }) },
       { label: only ? 'Stop showing only it here' : 'Show only it here', title: 'Filter the songs on screen by this tag', run: () => view.toggleFilter('tag', t.name) },
+      { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: t.name, sel: { kind: 'tag', name: t.name } }) },
       sel.length > having && { label: 'Put it on the ' + plural(sel.length - having, 'selected song'), attrs: { 'data-m': 'tag-on' }, run: () => lib.tagTracks(sel, [t.name]) },
       having > 0 && { label: 'Take it off the ' + plural(having, 'selected song'), attrs: { 'data-m': 'tag-off' }, run: () => lib.tagTracks(sel, [], [t.name]) },
       SEP,
@@ -263,6 +266,7 @@
     const path = r.root.absPath;
     return tidy([
       { label: 'Show its songs', run: () => view.select({ kind: 'root', id: r.root.id }) },
+      { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: r.root.name, sel: { kind: 'root', id: r.root.id } }) },
       !r.dir && { label: 'Find the folder…', run: () => void lib.relinkFolder(r.root.id) },
       !!r.dir && !r.granted && { label: 'Allow access', run: () => void lib.reconnectFolder(r.root.id) },
       { label: 'Scan again', run: () => void lib.scanRoot(r.root.id) },
@@ -279,6 +283,7 @@
     const name = APP_NAMES[s.app] ?? s.app, st = djWatch.status[s.id], n = s.tree?.length ?? 0;
     return tidy([
       { label: 'Show its songs', run: () => view.select({ kind: 'source', id: s.id }) },
+      { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: name, sel: { kind: 'source', id: s.id } }) },
       n > 0 && { label: djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists', run: () => (djOpen[s.id] = !djOpen[s.id]) },
       n > 0 && { label: 'Import all ' + n + ' into GLUE', run: () => importDj(s, '', name) },
       SEP,
@@ -292,6 +297,7 @@
     const copy = lib.linkedCopy(src.id, l.externalId), whole = !!copy && !copy.origin?.chain;
     return tidy([
       { label: 'Show its songs', run: () => view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }) },
+      { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: l.name, sel: { kind: 'dj', sourceId: src.id, id: l.externalId } }) },
       { label: whole ? 'Import again (brings back what’s missing)' : 'Import to GLUE', attrs: { 'data-dj-import': l.externalId }, run: () => importDj(src, l.externalId, l.name) },
       !!copy && { label: 'Open GLUE’s copy', run: () => view.select({ kind: 'list', id: copy!.id }) },
     ]);

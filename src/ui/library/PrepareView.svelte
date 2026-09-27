@@ -1,6 +1,7 @@
 <script lang="ts">
   /* The Prepare tab (ADR 0052): the track's waveform with its beat grid, a player with tempo and key
      lock, a metronome, and the grid's corrections (saved on the track, overriding the analysis). */
+  import Live3D from '../Live3D.svelte';
   import { untrack } from 'svelte';
   import { time } from '../../core/perf';
   import { lib } from '../../lib/library.svelte';
@@ -58,7 +59,7 @@
   function toggle() { if (!here) return; player.toggle(); }
 
   // ─── Drawing ────────────────────────────────────────────────────────────────
-  let deck = $state<HTMLCanvasElement>(), over = $state<HTMLCanvasElement>(), cv3d = $state<HTMLCanvasElement>();
+  let deck = $state<HTMLCanvasElement>(), over = $state<HTMLCanvasElement>();
   let size = $state(0);
   $effect(() => { const ro = new ResizeObserver(() => size++); if (deck) ro.observe(deck); if (over) ro.observe(over); return () => ro.disconnect(); });
   // The overview only changes with the waveform, scheme, grid or size: drawn once to an image.
@@ -91,11 +92,6 @@
     player.setLive(true);
     player.onFrame = ts => { if (!player.pending) player.live.capture(ts, app.lut, app.dbFloor); };
     return () => { player.onFrame = null; };
-  });
-  $effect(() => {
-    void player.frame; void size;
-    const c3 = cv3d;
-    if (show3d && c3) time('draw:3d', () => player.live.draw(c3, 0, !!player.url, app.verdict?.cut ?? null, false, '3d', app.lut));
   });
 
   // Click or drag on the deck view scrubs; on the overview, jumps.
@@ -261,7 +257,7 @@
         <button type="button" class="mini" id="prep-import-cues" title="Take the cues and loops from your imported DJ library as this track's" onclick={() => saveCues(imported)}>Use the {imported.length} cue{imported.length === 1 ? '' : 's'} from your DJ app</button>
       {/if}
     </section>
-    {#if show3d}<canvas class="c3d" bind:this={cv3d}></canvas>{/if}
+    {#if show3d}<div class="c3d"><Live3D /></div>{/if}
     {#if message}<p class="err">{message}</p>{/if}
     <p class="fine">Space plays · 1–8 hot cues (shift: clear) · M metronome · T tap · ← → nudge the grid (shift: 1 ms) · wheel on the waveform zooms · drag it to scrub.</p>
   {/if}
@@ -316,7 +312,7 @@
   .mcj { background: color-mix(in srgb, var(--c) 14%, transparent); border: 0; color: var(--ink); font-family: var(--font-mono); font-size: 11.5px; padding: 2px 7px; cursor: pointer; }
   .mcx { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 5px; }
   .mcx:hover { color: var(--bad); }
-  .c3d { width: 100%; height: 260px; display: block; border-radius: var(--radius); background: #000; }
+  .c3d { width: 100%; height: 300px; border-radius: var(--radius); overflow: hidden; background: #000; }
   .fine { color: var(--muted); font-size: 12px; margin: 0; }
   .notice { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; }
 </style>

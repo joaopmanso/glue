@@ -2293,3 +2293,50 @@ test('covers: found at analysis, shown in the Cover column and on the track page
   await expect(cover('flac-cover.flac')).toBeVisible();
   await expect(page.locator('.an')).toContainText('All analysed');
 });
+
+test('stats: the collection from its button, a playlist from its menu, the selected songs (the user\'s list, 2026-09-27)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+  const dlg = page.locator('#stats-dialog');
+
+  // The whole collection.
+  await page.click('#stats-btn');
+  await expect(dlg.locator('#stats-h')).toContainText('My collection');
+  await expect(dlg.locator('#stat-songs b')).toHaveText('4');
+  await expect(dlg.locator('#stat-formats .bname')).toHaveText(['AAC', 'AIFF', 'FLAC', 'MP3']);
+  await expect(dlg.locator('#stat-grades i')).not.toHaveCount(0);
+  await expect(dlg.locator('#stat-added .hb')).toHaveCount(1);
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/stats.png' });
+  await page.keyboard.press('Escape');
+  await expect(dlg).toHaveCount(0);
+
+  // Two songs in a playlist: from its menu.
+  await page.locator('.tr').nth(0).locator('.c-title').click();
+  await page.locator('.tr').nth(1).locator('.c-title').click({ modifiers: ['Control'] });
+  await page.locator('.tr').nth(1).locator('.c-title').click({ button: 'right' });
+  // The selected songs first.
+  await page.locator('.cmenu [data-m="stats"]').click();
+  await expect(dlg.locator('#stats-h')).toContainText('2 songs selected');
+  await expect(dlg.locator('#stat-songs b')).toHaveText('2');
+  await dlg.locator('.x').click();
+  page.once('dialog', d => void d.accept('Gig'));
+  await page.locator('.tr').nth(1).locator('.c-title').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="add"]').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
+  await page.locator('.lside .tree .name', { hasText: 'Gig' }).click({ button: 'right' });
+  await page.locator('.cmenu [data-m="stats"]').click();
+  await expect(dlg.locator('#stats-h')).toContainText('Gig');
+  await expect(dlg.locator('#stat-songs b')).toHaveText('2');
+  // A Library entry too.
+  await page.keyboard.press('Escape');
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click({ button: 'right' });
+  await page.locator('.cmenu [data-m="stats"]').click();
+  await expect(dlg.locator('#stat-songs b')).toHaveText('4');
+});

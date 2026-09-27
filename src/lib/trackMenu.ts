@@ -139,6 +139,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     },
     SEP,
     { label: one ? 'Build a playlist from this' : 'Build a playlist with these ' + n, attrs: { 'data-m': 'auto' }, run: () => auto.show(ids[0], ids.slice(1)) },
+    !one && { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: plural(n, 'song') + ' selected', ids }) },
     needs > 0 && { label: 'Analyse now', hint: n > 1 ? String(needs) : undefined, attrs: { 'data-m': 'analyse' }, run: () => { const k = lib.analyseNow(ids); lib.notice = k ? 'Analysing ' + plural(k, 'song') + '.' : 'Nothing to analyse here that GLUE can read now.'; } },
     group && { label: 'Show its duplicates', hint: group.ids.length + '×', attrs: { 'data-m': 'dupes' }, run: () => { view.select({ kind: 'dupes' }); view.focusDupe = one!.id; } },
     SEP,

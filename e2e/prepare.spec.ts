@@ -92,6 +92,13 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   });
   expect(lit).toBeGreaterThan(0.05);   // the overview isn't blank
   await expect(page.locator('#prep-copies')).toContainText('the other copy');
+  // 3D: the live view's surface, which turns and resets (ADR 0073).
+  const threeD = page.locator('label.kl', { hasText: '3D' }).locator('input');
+  await threeD.check();
+  await expect(page.locator('.c3d #live3d')).toHaveAttribute('data-view', /\d/, { timeout: 15_000 });
+  await expect(page.locator('#reset-3d')).toBeVisible();
+  await threeD.uncheck();
+  await expect(page.locator('#live3d')).toHaveCount(0);
 
   // Tempo +4%: the BPM shown follows the speed; the metronome switches on and off.
   await page.locator('#prep-tempo').evaluate((el: HTMLInputElement) => { el.value = '4'; el.dispatchEvent(new Event('input', { bubbles: true })); });

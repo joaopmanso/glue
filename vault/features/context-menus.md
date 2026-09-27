@@ -29,6 +29,8 @@ The sidebar's ⋯ buttons open the same menus. In the selection bar, ⋯ opens t
     - Remove from playlist ▸ (with "n of N" when several are selected);
     - Show in playlist ▸;
     - rating stars; Edit info… (F2; [song info](song-info.md)); Tags…; Add/Edit a note…;
+    - Stats… (several songs; also on playlists, tags, folders, DJ libraries, devices and Library
+      entries: [stats](stats.md));
     - Show only ‹the value under the pointer›;
     - Build a playlist; Analyse now (while some aren't); Show its duplicates;
     - Add to drag dock (Home mode); Send to ‹another computer›;
