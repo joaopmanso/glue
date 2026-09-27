@@ -251,7 +251,7 @@
 
   function open(id: string) { clearTimeout(slow); router.go(trackHref(id)); }
   function play(id: string) {
-    if (nowPlaying.trackId === id && player.url) player.toggle();
+    if (nowPlaying.trackId === id && player.url) nowPlaying.resumeFrom(id, order);
     else void nowPlaying.play(id, order);
   }
   function onKey(e: KeyboardEvent) {

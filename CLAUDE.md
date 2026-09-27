@@ -70,7 +70,8 @@ After working:
   no Rust. `.github/workflows/home.yml` builds Windows + macOS on every change; a tag
   `home-v<version>` (version in `home/src-tauri/tauri.conf.json`) publishes the release the website
   links to. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts`.
-- Routes: `#/` library, `#/track/<id>` track page, `#/analyze` analyze a file, `#/admin`.
+- Routes: `#/` library, `#/track/<id>` track page, `#/events` calendar (`#/events/<id>` an event),
+  `#/analyze` analyze a file, `#/admin`.
 - GLUE Home updates are signed: private key = GitHub secret `TAURI_SIGNING_PRIVATE_KEY` (copy in
   `%USERPROFILE%\.glue-secrets\glue-home-updater.key`), public key in `tauri.conf.json`. Never print it.
 - E2E library tests use a temporary persistent browser profile and fake the folder pickers with OPFS

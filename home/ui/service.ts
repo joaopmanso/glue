@@ -8,6 +8,7 @@ import type { DetailsHeader } from '../../src/store/details';
 import * as cache from './cache';
 import { describe, locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
+import { checkReminders } from './reminders';
 
 let cfg: HomeConfig | null = null;
 let room: ReturnType<typeof stayOnline> | null = null;
@@ -15,12 +16,13 @@ let state: Status['state'] = 'stopped', text = 'Starting…';
 let receiving: Status['receiving'] = null;
 let serving = 0;   // songs being sent to another computer right now
 let library: Status['library'] = undefined;
+let reminders: Status['reminders'] = undefined;
 const peers = new Map<string, RTCPeerConnection>();   // handshake id → connection
 
 const apiOf = (c: HomeConfig) => c.api || API;
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background } };
+  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, reminders };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -283,5 +285,13 @@ async function boot() {
   };
   setTimeout(() => void auto(), 60_000);
   setInterval(() => void auto(), 6 * 3600e3);
+  // Events that need music (ADR 0074): a look soon after starting, then every hour; Check now in the settings.
+  const remind = async (again = false) => {
+    const r = await checkReminders(cfg, new Date(), again).catch(() => null);
+    if (r) { reminders = { at: Date.now(), coming: r.coming, sent: r.sent }; report(state, text); }
+  };
+  await bridge.onRemindNow(() => void remind(true));
+  setTimeout(() => void remind(), 90_000);
+  setInterval(() => void remind(), 3600e3);
 }
 void boot();

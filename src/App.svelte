@@ -21,6 +21,9 @@
   import TagEditor from './ui/library/TagEditor.svelte';
   import EditInfo from './ui/library/EditInfo.svelte';
   import StatsDialog from './ui/library/StatsDialog.svelte';
+  import CalendarView from './ui/events/CalendarView.svelte';
+  import EventPage from './ui/events/EventPage.svelte';
+  import { events } from './lib/events.svelte';
   import ContextMenu from './ui/ContextMenu.svelte';
   import GlueStick from './ui/GlueStick.svelte';
   import AccountButton from './ui/AccountButton.svelte';
@@ -46,6 +49,7 @@
 
   const route = $derived(router.current);
   const inLibrary = $derived(lib.phase === 'library');
+  const needing = $derived(inLibrary ? events.needing().length : 0);
   let dragDepth = 0;
   const hasFiles = (e: DragEvent) => [...(e.dataTransfer?.types || [])].includes('Files');
 
@@ -121,7 +125,8 @@
     <div class="brand">
       <h1><a href="#/" id="home-link" aria-label="GLUE, Global Library Unified Exporter" onclick={() => { if (lib.phase === 'profiles') lib.backToLibrary(); }}><GlueStick /><b>G</b><span>lobal</span><b>L</b><span>ibrary</span><b>U</b><span>nified</span><b>E</b><span>xporter</span></a></h1>
       <nav class="tabs" aria-label="Sections">
-        <a href="#/" class:on={route.name !== 'analyze' && route.name !== 'admin'}>Library</a>
+        <a href="#/" class:on={route.name === 'library' || route.name === 'track'}>Library</a>
+        <a href="#/events" id="calendar-tab" class:on={route.name === 'events' || route.name === 'event'}>Calendar{#if inLibrary && needing}<i class="badge" title={needing + ' event' + (needing === 1 ? '' : 's') + ' coming with no music yet'}>{needing}</i>{/if}</a>
         <a href="#/analyze" class:on={route.name === 'analyze'}>Analyze a file</a>
         {#if account.isAdmin}<a href="#/admin" id="admin-tab" class:on={route.name === 'admin'}>Admin</a>{/if}
       </nav>
@@ -177,11 +182,15 @@
     <Welcome />
   {:else if route.name === 'track'}
     {#key route.id}<TrackDetail id={route.id} tab={route.tab} />{/key}
+  {:else if route.name === 'events'}
+    <CalendarView />
+  {:else if route.name === 'event'}
+    {#key route.id}<EventPage id={route.id} />{/key}
   {:else}
     <LibraryView />
   {/if}
 </div>
-{#if inLibrary && route.name === 'library' && lib.onboarding !== 'music'}<LibPlayer />{/if}
+{#if inLibrary && (route.name === 'library' || route.name === 'events' || route.name === 'event') && lib.onboarding !== 'music'}<LibPlayer />{/if}
 <DragTag />
 {#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
@@ -206,6 +215,7 @@
   .tabs a { color: var(--muted); text-decoration: none; font-size: 13.5px; font-weight: 600; padding: 4px 10px; border-radius: 4px; }
   .tabs a:hover { color: var(--ink); }
   .tabs a.on { color: var(--ink); background: var(--raised); }
+  .badge { display: inline-block; margin-left: 5px; min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--warn); color: #111; font: 700 10.5px/16px var(--font-sans); font-style: normal; text-align: center; }
   .who { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 3px 12px 3px 3px; cursor: pointer; font-weight: 600; font-size: 13px; }
   .who:hover { border-color: var(--accent); }
   .dot { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #06121d; font-weight: 800; font-size: 12px; }

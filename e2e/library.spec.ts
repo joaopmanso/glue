@@ -2340,3 +2340,27 @@ test('stats: the collection from its button, a playlist from its menu, the selec
   await page.locator('.cmenu [data-m="stats"]').click();
   await expect(dlg.locator('#stat-songs b')).toHaveText('4');
 });
+
+test('▶ on the row of the song its page loaded: the rest of the list comes after it', async ({ page }) => {
+  test.setTimeout(120_000);
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+  const row = page.locator('.tr', { hasText: 'Fixture MP3' });
+  // Its page loads it into the player, with no list.
+  await row.dblclick();
+  await page.click('#play-btn');
+  await expect(page.locator('#play-btn')).toHaveAttribute('aria-label', /Pause/, { timeout: 20_000 });
+  await page.click('#play-btn');
+  await page.locator('.crumbs a').click();
+  // ▶ on its row resumes it, and the other three follow.
+  await row.hover(); await row.locator('.pbtn').click();
+  await page.click('#player-expand');
+  await expect(page.locator('#next-from .qr')).toHaveCount(3);
+});

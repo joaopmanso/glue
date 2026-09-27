@@ -1,9 +1,12 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { dock } from '../../lib/dock.svelte';
   import { sidebar, type LibView, type SideKey } from '../../lib/sidebar.svelte';
   import { lib, type RootState } from '../../lib/library.svelte';
   import { menu, SEP, tidy, type MenuEntry } from '../../lib/menu.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
+  import { events } from '../../lib/events.svelte';
+  import { router } from '../../lib/route.svelte';
   import { downloadBlob } from '../../lib/download';
   import { hasTag, tagsOf } from '../../core/library/tagging';
   import { view, type ViewSel } from '../../lib/view.svelte';
@@ -55,6 +58,13 @@
   const sources = $derived.by(() => { void lib.version; return [...(lib.store?.sources.values() ?? [])]; });
 
   let open = $state<Record<string, boolean>>({});
+  // The selected playlist is always in sight: the folders above it open (also after coming back from
+  // another page, which forgets them).
+  $effect(() => {
+    const sel = view.sel;
+    if (sel.kind !== 'list') return;
+    untrack(() => { for (let q = lib.store?.lists.get(sel.id)?.parentId; q; q = lib.store?.lists.get(q)?.parentId ?? null) open[q] = true; });
+  });
   let fileInput = $state<HTMLInputElement>();
   let pathEdit = $state<string | null>(null);
   // DJ libraries browsed where they are (ADR 0063): each one's tree, opened folder by folder.
@@ -216,9 +226,11 @@
   function listMenu(l: List): MenuEntry[] {
     const siblings = childrenOf(l.parentId ?? '', lib.version);
     const src = l.origin ? lib.store?.sources.get(l.origin.sourceId) : undefined, ext = l.origin?.externalId ?? '';
-    const songs = dock.tracksOf(l.id).length;
+    const songs = dock.tracksOf(l.id).length, ev = events.ofList(l.id);
     return tidy([
       { label: 'Open', run: () => { view.select({ kind: 'list', id: l.id }); if (l.kind === 'folder') open[l.id] = true; } },
+      !!ev && { label: 'Open the event', hint: ev.starts.slice(0, 10), attrs: { 'data-m': 'open-event' }, run: () => router.go('#/events/' + ev.id) },
+      l.event === '*' && { label: 'Open the calendar', run: () => router.go('#/events') },
       songs > 0 && { label: 'Play', hint: String(songs), attrs: { 'data-m': 'play' }, run: () => playList(l) },
       songs > 0 && { label: 'Play next', attrs: { 'data-m': 'play-next' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'next') },
       songs > 0 && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'end') },

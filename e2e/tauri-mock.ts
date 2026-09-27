@@ -14,6 +14,9 @@ export const TAURI_MOCK = `(() => {
   const cfg = () => JSON.parse(localStorage.getItem('home-config') || 'null');
   // A file on "disk": window.__disk, or a song received into the incoming folder (C:\\In\\<name>, or where it was saved).
   const disk = p => (window.__disk ?? {})[p] ?? files.find(f => f.done && !f.moved && (p === 'C:\\\\In\\\\' + f.name || p.endsWith('GLUE Incoming\\\\' + f.name)))?.chunks.flat();
+  // Tauri's notification plugin puts its own Notification in the page (ADR 0074): here it records them.
+  window.__notes = [];
+  window.Notification = class { static permission = 'granted'; static requestPermission() { return Promise.resolve('granted'); } constructor(title, o) { window.__notes.push({ title, body: o?.body ?? '' }); } };
   window.__TAURI_INTERNALS__ = {
     metadata: { currentWindow: { label }, currentWebview: { windowLabel: label, label } },
     transformCallback(cb) { const id = next++; cbs.set(id, cb); return id; },
@@ -54,6 +57,8 @@ export const TAURI_MOCK = `(() => {
         case 'incoming_move': { const f = files.find(x => x.name === args.name && x.done && !x.moved); if (!f) throw 'not found'; f.moved = args.to; return args.to + '\\\\' + f.name; }
         // window.__find: folder name → where the drive search finds it.
         case 'find_folder': return (window.__find ?? {})[args.name] ?? null;
+        case 'glue_list': return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
+        case 'plugin:notification|is_permission_granted': return true;
         case 'glue_read': { const t = (window.__glue ?? {})[args.rel]; if (t === undefined) throw 'not found'; return t; }
         case 'file_size': { const b = disk(args.path); if (!b) throw 'not found'; return b.length; }
         case 'file_read': { const b = disk(args.path); if (!b) throw 'not found'; return new Uint8Array(b.slice(args.offset, args.offset + args.len)).buffer; }

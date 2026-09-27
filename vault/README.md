@@ -55,7 +55,7 @@ Planned (GLUE):
 [automatic playlists](features/auto-playlists.md) ·
 [tags](features/tags.md) ·
 [GLUE Cloud](features/glue-cloud.md) ·
-[shows & sessions](features/shows-sessions.md) ·
+[events](features/events.md) (was [shows & sessions](features/shows-sessions.md)) ·
 [import: Rekordbox](features/import-rekordbox.md) ·
 [import: Engine DJ](features/import-engine.md) ·
 [import: Traktor](features/import-traktor.md) ·
@@ -146,3 +146,4 @@ Planned (GLUE):
 | [0071](adr/0071-song-info-written-through-glue-home.md) | Song info is edited in GLUE and written into the music files by GLUE Home | accepted |
 | [0072](adr/0072-covers-from-the-tags.md) | Covers come from the files' tags, kept as small JPEGs in the browser's cache | accepted |
 | [0073](adr/0073-3d-view-on-the-gpu.md) | The live 3D view is drawn by three.js on the GPU, and can be turned, zoomed and reset | accepted |
+| [0074](adr/0074-events-calendar.md) | Events: a calendar, each event with a folder of playlists; reminders in GLUE and from GLUE Home | accepted |

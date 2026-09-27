@@ -30,6 +30,7 @@
     },
     "updater:default",
     "process:allow-restart",
-    "drag:default"
+    "drag:default",
+    "notification:default"
   ]
 }

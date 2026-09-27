@@ -1,11 +1,14 @@
-/* Hash routes: #/ library · #/track/<id> track detail (…/prepare: its Prepare tab) · #/analyze analyse a single file · #/admin admin panel. */
+/* Hash routes: #/ library · #/track/<id> track detail (…/prepare: its Prepare tab) · #/events the calendar
+   (#/events/<id> an event, ADR 0074) · #/analyze analyse a single file · #/admin admin panel. */
 import { readPref, writePref } from './prefs';
 export type TrackTab = 'details' | 'prepare';
-export type Route = { name: 'library' } | { name: 'track'; id: string; tab: TrackTab } | { name: 'analyze' } | { name: 'admin' };
+export type Route = { name: 'library' } | { name: 'track'; id: string; tab: TrackTab } | { name: 'events' } | { name: 'event'; id: string } | { name: 'analyze' } | { name: 'admin' };
 
 function parse(h: string): Route {
   const m = /^#\/track\/([\w-]+)(\/prepare)?/.exec(h);
   if (m) return { name: 'track', id: m[1], tab: m[2] ? 'prepare' : 'details' };
+  const ev = /^#\/events(?:\/([\w-]+))?/.exec(h);
+  if (ev) return ev[1] ? { name: 'event', id: ev[1] } : { name: 'events' };
   if (h.startsWith('#/analyze')) return { name: 'analyze' };
   if (h.startsWith('#/admin')) return { name: 'admin' };
   return { name: 'library' };

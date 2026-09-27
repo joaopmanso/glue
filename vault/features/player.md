@@ -79,3 +79,8 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
 - **Grips** show on hover.
 - **Menu:** "Move to the top" (Next up), "Play next" (Next from).
 - **"Played before"** folds, and has Clear.
+
+## ▶ on the loaded song's row (2026-09-27)
+- A song loaded by its track page has no list after it. ▶ on its row in the library (or Duplicates,
+  or the playlist builder) now makes the rest of that list follow it (`nowPlaying.resumeFrom`); before,
+  it only resumed, and nothing came after it.

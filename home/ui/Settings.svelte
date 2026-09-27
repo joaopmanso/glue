@@ -217,6 +217,11 @@
             <p class="fine" id="analysis-state">Waveforms and analyses for your other computers: {status.analysis.running ? status.analysis.done.toLocaleString() + ' of ' + status.analysis.total.toLocaleString() + ' made here (the website on this computer hands over what it has)' : 'ready'}</p>
           {/if}
           <button type="button" class="link" onclick={chooseGlue}>Use another GLUE folder…</button>
+          <div class="remind">
+            <label class="check"><input type="checkbox" id="reminders" checked={cfg?.reminders !== false} onchange={e => save({ reminders: e.currentTarget.checked })}> Remind me of events that need music</label>
+            <button type="button" class="mini" id="remind-now" disabled={cfg?.reminders === false} onclick={() => void bridge.remindNow()}>Check now</button>
+          </div>
+          <p class="fine" id="remind-state">A notification once a day for each event coming within its reminder days (set on the event in GLUE’s Calendar) with no songs in its playlists.{#if status?.reminders} Last look {new Date(status.reminders.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: {status.reminders.coming ? status.reminders.coming + ' event' + (status.reminders.coming === 1 ? '' : 's') + ' need' + (status.reminders.coming === 1 ? 's' : '') + ' music' + (status.reminders.sent.length ? ' (notified now)' : '') : 'none needs music'}.{/if}</p>
         {/if}
       </section>
 
@@ -305,6 +310,7 @@
   .code { grid-template-columns: 1fr auto; align-items: end; }
   #code { font-family: var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
   .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+  .remind { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--line); }
   .frow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 8px 0; border-top: 1px solid var(--line); }
   .frow:first-of-type { border-top: 0; padding-top: 0; }
   .frow > div:first-child { display: grid; gap: 2px; }

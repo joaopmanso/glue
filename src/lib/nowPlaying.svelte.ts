@@ -81,6 +81,14 @@ class NowPlaying {
     else if (this.hasNext) this.next();
   }
 
+  /** ▶ on the row of the song that's loaded: play / pause. When it came without a list (its page loaded
+      it), the rest of this list comes after it now, as a click on another row would do. */
+  resumeFrom(id: string, ids: string[], from?: string) {
+    const q = this.q;
+    if (q.current === id && !q.fromIds.length && !q.upNext.length && ids.length > 1) this.set(startFrom(q, id, ids, from ?? viewTitle(view.sel), this.shuffle));
+    player.toggle();
+  }
+
   // ─── The queue ───
   /** Queue songs: right after this one ('next'), at the end of what's queued, or at a place in it. */
   enqueue(ids: string[], at: 'next' | 'end' | number = 'end') {

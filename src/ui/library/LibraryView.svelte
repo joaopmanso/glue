@@ -1,5 +1,6 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
+  import NeedsMusic from '../events/NeedsMusic.svelte';
   import { view, viewTitle, FILTER_GROUPS } from '../../lib/view.svelte';
   import { router, trackHref, trackTab } from '../../lib/route.svelte';
   import LibSidebar from './LibSidebar.svelte';
@@ -118,6 +119,7 @@
 <svelte:window onkeydown={foldKey} />
 
 <div class="lib">
+  {#if !lib.cloud}<NeedsMusic />{/if}
   {#if lib.cloud}
     <div class="cloudbar" id="cloud-banner" role="status">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7.2a3 3 0 0 0 .4-6 4.2 4.2 0 0 0-8.1 1.2 2.4 2.4 0 0 0 .5 4.8z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>

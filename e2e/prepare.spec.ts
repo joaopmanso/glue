@@ -154,7 +154,7 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.locator('.top .who').click();
   await page.locator('select[data-bpm-range]').selectOption('half');
   await page.locator('.profile', { hasText: 'DJ Test' }).click();
-  await expect(row.locator('.c-num.mine')).toHaveText('62.5');
+  await expect(row.locator('.c-num.mine')).toHaveText('62.5', { timeout: 20_000 });   // the profile opens its collection first
   await row.locator('.c-title').dblclick();
   await expect(page.locator('#m-bpm')).toContainText('62.5', { timeout: 30_000 });
   await page.click('#tab-prepare');

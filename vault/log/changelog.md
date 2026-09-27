@@ -5,6 +5,30 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-27 · The user's list, batch 7: events and reminders (GLUE Home 0.13)
+- **A Calendar tab** ([events](../features/events.md), [ADR 0074](../adr/0074-events-calendar.md)):
+  - a month of events, what's coming and what's been;
+  - an event's details: when, my set, where, lineup, flyer, link, notes, status, reminder days.
+- **An event's music:**
+  - its own folder in Playlists (Events › '2026-10-03 · Lux') for versions of playlists made for it;
+  - playlists assigned to it;
+  - each timed against the set; Play; Stats….
+- **Needs music:**
+  - a banner above the library and the calendar, and a count on the Calendar tab;
+  - GLUE Home 0.13 sends a desktop notification once a day per event (hourly look; Check now in its
+    settings).
+- **Also:**
+  - selecting a playlist opens the sidebar folders above it;
+  - the event page shows GLUE's notices.
+- **Fix:** ▶ on the row of the song its track page had loaded only resumed it, with nothing after it.
+  Now the rest of that list follows it (the table, Duplicates, the playlist builder;
+  `nowPlaying.resumeFrom`).
+- Replaces the planned "shows & sessions".
+- Tests:
+  - Vitest `events.test`;
+  - e2e `events.spec` (calendar, folder, assign, version, flyer, delete, reminder);
+  - `home.spec` (GLUE Home's reminders).
+
 ## 2026-09-27 · The user's list, batch 6: stats, and a 3D view you can move
 - **Stats** ([stats](../features/stats.md)):
   - for the collection (a chart button by its name), or "Stats…" on a playlist or folder, a tag, a

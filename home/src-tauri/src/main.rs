@@ -281,6 +281,17 @@ fn glue_read(app: AppHandle, rel: String) -> Result<String, String> {
     fs::read_to_string(root.join(rel)).map_err(|e| e.to_string())
 }
 
+/// The names of the files in a folder inside the GLUE folder (events' playlists, ADR 0074); none if it isn't there.
+#[tauri::command]
+fn glue_list(app: AppHandle, rel: String) -> Result<Vec<String>, String> {
+    let root = cfg_str(&get_config(app), "glue").ok_or("no GLUE folder chosen")?;
+    if rel.split(['/', '\\']).any(|p| p == ".." || p.is_empty()) {
+        return Err("bad path".into());
+    }
+    let Ok(dir) = fs::read_dir(root.join(rel)) else { return Ok(vec![]) };
+    Ok(dir.flatten().filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false)).map(|e| e.file_name().to_string_lossy().into_owned()).collect())
+}
+
 /// Files GLUE Home may read: in the GLUE folder, the music folders it located, the incoming folder.
 fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
     let c = get_config(app.clone());
@@ -464,8 +475,10 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         // Native file drags out of the drag dock (ADR 0054).
         .plugin(tauri_plugin_drag::init())
+        // Reminders of events that need music (ADR 0074).
+        .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

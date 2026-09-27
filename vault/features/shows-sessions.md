@@ -1,10 +1,14 @@
 ---
-status: planned
+status: superseded
 milestone: M4
-updated: 2026-09-24
+updated: 2026-09-27
 adrs: [0009, 0011]
 ---
 # Shows & sessions
+
+> **Superseded (2026-09-27)** by [events](events.md) ([ADR 0074](../adr/0074-events-calendar.md)): a calendar of events, each with a
+> folder of playlists (versions made for it) and assigned playlists, and reminders. The set checks
+> below (flow, clashes, suggestions) aren't built yet.
 
 ## What it does
 Prepare gigs. A **show** is an event (date, venue, city, notes). It contains **sessions**: ordered

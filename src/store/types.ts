@@ -99,6 +99,8 @@ export interface List {
   color?: string | null;                                   // one of LIST_COLORS, or none
   auto?: Record<string, unknown>;                          // how an automatic playlist was made (options, seed, date)
   tags?: string[];                                         // the playlist's own tags
+  /** An event's folder (its id), or the Events folder that holds them ('*') (ADR 0074). */
+  event?: string;
   createdAt: string;
 }
 

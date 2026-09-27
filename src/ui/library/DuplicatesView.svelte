@@ -41,7 +41,7 @@
     return f.lossless ? f.codec.replace(/^PCM.*/, f.container.replace(/ .*/, '')) + ' ' + (f.bits || '') + '/' + +(f.sampleRate / 1000).toFixed(1) : f.codec + ' ' + (f.bitrate || '') + ' kbps';
   }
   function play(id: string, g: DupGroup) {
-    if (nowPlaying.trackId === id && player.url) player.toggle(); else void nowPlaying.play(id, g.ids);
+    if (nowPlaying.trackId === id && player.url) nowPlaying.resumeFrom(id, g.ids); else void nowPlaying.play(id, g.ids);
   }
   function keep(g: DupGroup, id: string) {
     const n = dupes.useCopy(g, id), t = lib.store?.tracks.get(id);

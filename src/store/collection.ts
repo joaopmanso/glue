@@ -2,6 +2,7 @@
    Mutations mark files dirty; flush() writes only those, debounced by the caller. */
 import { DamagedFile, type Dir, listNames, readJSON, removePath, writeJSON, writeText } from './fsx';
 import { type AnalysisSummary, type Collection, type List, type Source, type Track, SCHEMA, shardOf } from './types';
+import type { GlueEvent } from '../core/library/events';
 import { migrate } from './migrations';
 import { record, time, timeAsync } from '../core/perf';
 
@@ -24,6 +25,8 @@ export class CollectionStore {
   readonly analysis = new Map<string, AnalysisSummary>();
   readonly lists = new Map<string, List>();
   readonly sources = new Map<string, Source>();
+  /** Events (ADR 0074): all in one file, `events.json`; their flyers beside it in `events/`. */
+  readonly events = new Map<string, GlueEvent>();
   readonly damaged: string[] = [];         // files that couldn't be read, kept aside as *.damaged
   private dirty = new Set<string>();       // relative paths to write
   private deleted = new Set<string>();     // relative paths to remove
@@ -35,7 +38,7 @@ export class CollectionStore {
   readonly ephemeral = new Set<string>();
   /** Changes counted by kind (ADR 0059): what's built from one part (DJ values from the imports,
       playlist membership from the lists) is rebuilt only when that part changed. */
-  readonly rev = { tracks: 0, analysis: 0, lists: 0, sources: 0 };
+  readonly rev = { tracks: 0, analysis: 0, lists: 0, sources: 0, events: 0 };
 
   /** `root` changes when the library moves between GLUE Home's disk and the browser's (ADR 0051). */
   private constructor(public root: Dir, readonly base: string, public meta: Collection) {}
@@ -60,11 +63,12 @@ export class CollectionStore {
       const names = jsonFiles(await listNames(root, `${base}/${dir}`, 'file'));
       return readAll(names, f => read<T>(`${base}/${dir}/${f}`));
     };
-    const [tracks, analysis, lists, sources] = await Promise.all([each<Shard<Track>>('tracks'), each<Shard<AnalysisSummary>>('analysis'), each<List>('lists'), each<Source>('sources')]);
+    const [tracks, analysis, lists, sources, events] = await Promise.all([each<Shard<Track>>('tracks'), each<Shard<AnalysisSummary>>('analysis'), each<List>('lists'), each<Source>('sources'), read<Shard<GlueEvent>>(`${base}/events.json`)]);
     for (const sh of tracks) if (sh) for (const [id, v] of Object.entries(migrate('tracks', sh).items)) s.tracks.set(id, v);
     for (const sh of analysis) if (sh) for (const [id, v] of Object.entries(migrate('analysis', sh).items)) s.analysis.set(id, v);
     for (const l of lists) if (l) s.lists.set(l.id, migrate('list', l));
     for (const src of sources) if (src) s.sources.set(src.id, migrate('source', src));
+    for (const [id, e] of Object.entries(events?.items ?? {})) s.events.set(id, e);
     return s;
   }
 
@@ -90,6 +94,8 @@ export class CollectionStore {
     for (const d of doomed) { this.lists.delete(d); if (this.ephemeral.has(d)) continue; this.dirty.delete(`lists/${d}.json`); this.deleted.add(`lists/${d}.json`); }
     this.onDirty?.(); this.changed();
   }
+  putEvent(e: GlueEvent) { this.events.set(e.id, e); this.rev.events++; this.mark('events.json'); this.changed(); }
+  deleteEvent(id: string) { this.events.delete(id); this.rev.events++; this.mark('events.json'); this.changed(); }
   putSource(s: Source) { this.sources.set(s.id, s); this.rev.sources++; this.mark(`sources/${s.id}.json`); this.changed(); }
   deleteSource(id: string) {
     this.sources.delete(id); this.rev.sources++;
@@ -152,6 +158,7 @@ export class CollectionStore {
 
   private serialize(p: string): unknown {
     if (p === 'collection.json') return this.meta;
+    if (p === 'events.json') return { schemaVersion: SCHEMA, items: Object.fromEntries(this.events) };
     const [dir, file] = p.split('/'), key = file.replace(/\.json$/, '');
     if (dir === 'tracks' || dir === 'analysis') {
       const src: Map<string, Track | AnalysisSummary> = dir === 'tracks' ? this.tracks : this.analysis;

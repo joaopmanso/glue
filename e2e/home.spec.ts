@@ -129,6 +129,42 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   expect(await page.evaluate(() => (window as unknown as { __calls: string[] }).__calls.filter(c => c === 'plugin:dialog|message').length)).toBe(0);
 });
 
+test('GLUE Home reminds of events that need music, once a day each; Check now; off (ADR 0074)', async ({ page }) => {
+  const ctx = page.context();
+  await ctx.addInitScript(TAURI_MOCK);
+  const day = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const ev = (id: string, name: string, inDays: number, extra: Record<string, unknown>) => ({ id, name, starts: day(inDays) + 'T23:00', ends: null, setStart: null, setEnd: null, venue: 'Club', address: '', city: '', lineup: [], flyer: null, url: '', notes: '', status: 'planned', remindDays: 7, folderId: null, lists: [], createdAt: '', ...extra });
+  const base = 'profiles/p1/collections/c1';
+  const glue = { ...LIBRARY,
+    [base + '/events.json']: JSON.stringify({ schemaVersion: 1, items: {
+      e1: ev('e1', 'Lux', 2, { folderId: 'f1' }),                 // its folder holds an empty playlist: needs music
+      e2: ev('e2', 'Fabric', 3, { lists: ['l2'] }),               // a playlist with a song is assigned
+      e3: ev('e3', 'Far away', 30, {}),                           // not yet
+      e4: ev('e4', 'Called off', 1, { status: 'cancelled' }) } }),
+    [base + '/lists/f1.json']: JSON.stringify({ id: 'f1', kind: 'folder', name: 'Lux', parentId: 'ev', items: [], event: 'e1' }),
+    [base + '/lists/v1.json']: JSON.stringify({ id: 'v1', kind: 'playlist', name: 'Set', parentId: 'f1', items: [] }),
+    [base + '/lists/l2.json']: JSON.stringify({ id: 'l2', kind: 'playlist', name: 'Peak', parentId: null, items: ['ab01'] }) };
+  await ctx.addInitScript(({ g, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = g; w.__glue = lib; w.__disk = {}; }, { g: GLUE, lib: glue });
+  await page.goto(HOME + 'index.html');
+  const service = await ctx.newPage();
+  await service.goto(HOME + 'service.html');
+  const notes = () => service.evaluate(() => (window as unknown as { __notes: { title: string; body: string }[] }).__notes);
+  await expect(page.locator('#glue-folder')).toHaveText(GLUE);
+  await expect(page.locator('#reminders')).toBeChecked();
+  await page.click('#remind-now');
+  await expect.poll(notes).toHaveLength(1);
+  expect((await notes())[0]).toEqual({ title: 'Lux needs music', body: expect.stringMatching(/in 2 days at Club. Open GLUE › Calendar/) });
+  await expect(page.locator('#remind-state')).toContainText('1 event needs music');
+  // Once a day: the hourly look doesn't repeat it (Check now does).
+  await service.evaluate(() => localStorage.getItem('glue-home-reminded')).then(v => expect(Object.keys(JSON.parse(v!))).toEqual(['c1/e1']));
+  await page.click('#remind-now');
+  await expect.poll(notes).toHaveLength(2);
+  // Off.
+  await page.locator('#reminders').uncheck();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).reminders)).toBe(false);
+  await expect(page.locator('#remind-now')).toBeDisabled();
+});
+
 test('GLUE Home opens with a gluehome://pair link and connects', async ({ page }) => {
   await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
     const p = new URL(r.request().url()).pathname, body = r.request().postDataJSON() ?? {};

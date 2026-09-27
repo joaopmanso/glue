@@ -80,7 +80,7 @@
         {#each GRADES as [k, name] (k)}<span data-grade={k}><i></i>{name} {st.grades[k]}</span>{/each}
         <span class="sep">Lossless {pct(st.lossless)}</span>
       </div>
-      <div class="cols">{@render bars('Formats', st.formats, 'stat-formats')}</div>
+      <div class="fcols">{@render bars('Formats', st.formats, 'stat-formats')}</div>
     </section>
 
     <section class="two">
@@ -151,7 +151,7 @@
   .legend span { display: inline-flex; align-items: center; gap: 5px; }
   .legend i { width: 9px; height: 9px; border-radius: 2px; background: var(--g); }
   .legend .sep { margin-left: auto; color: var(--ink); }
-  .cols { display: grid; grid-template-columns: minmax(0, 1fr); max-width: 420px; }
+  .fcols { display: grid; grid-template-columns: minmax(0, 1fr); max-width: 420px; }
   .blist { display: grid; gap: 3px; min-width: 0; align-content: start; }
   .brow { display: grid; grid-template-columns: minmax(60px, 1.1fr) 1fr 36px; gap: 8px; align-items: center; font-size: 12.5px; }
   .bname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }

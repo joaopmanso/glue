@@ -100,3 +100,9 @@ track is used.
 - **DJ libraries show their app's badge** (`ui/AppIcon.svelte`): drawn for GLUE in each app's
   colours and letters, not the apps' own logos. Shown in the sidebar, the Details "In" table and a
   DJ library's heading.
+
+## Events' folders (2026-09-27)
+- Each event has a folder under Playlists › Events ('2026-10-03 · Lux'); versions of playlists made
+  for it go there ([events](events.md), [ADR 0074](../adr/0074-events-calendar.md)). They're ordinary
+  folders; their menu adds "Open the event". Selecting a playlist opens the folders above it in the
+  sidebar.

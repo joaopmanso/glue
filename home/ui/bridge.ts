@@ -23,6 +23,7 @@ export interface HomeConfig {
   serve?: Record<string, boolean>;    // 'profile/collection' → shared with other computers (on unless false)
   localToken?: string;          // what the website on this computer shows the local link (ADR 0048)
   duplicates?: string | null;   // where duplicates the website puts aside go (ADR 0070)
+  reminders?: boolean;          // notify of events that need music (ADR 0074; on unless false)
 }
 export interface Received { name: string; path: string; from: string; at: number; size: number }
 
@@ -31,7 +32,9 @@ export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online
   /** Finding the music folders of the shared collections (by itself). */
   library?: { searching: boolean; found: number; missing: { id: string; name: string; collection: string }[] };
   /** Making mini spectrograms and analyses of the shared songs (ADR 0046). */
-  analysis?: { done: number; total: number; running: boolean } }
+  analysis?: { done: number; total: number; running: boolean };
+  /** The last look at the events (ADR 0074): when, how many need music, which were just notified. */
+  reminders?: { at: number; coming: number; sent: string[] } }
 
 export const bridge = {
   config: () => invoke<HomeConfig | null>('get_config'),
@@ -58,6 +61,7 @@ export const bridge = {
   incomingMove: (name: string, to: string) => invoke<string>('incoming_move', { name, to }),
   localPort: () => invoke<number>('local_port'),
   glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
+  glueList: (rel: string) => invoke<string[]>('glue_list', { rel }),
   fileSize: (path: string) => invoke<number>('file_size', { path }),
   fileRead: (path: string, offset: number, len: number) => invoke<ArrayBuffer>('file_read', { path, offset, len }),
   // Between the windows.
@@ -68,7 +72,19 @@ export const bridge = {
   status: (s: Status) => emit('status', s),
   askStatus: () => emit('status-request'),
   onAskStatus: (f: () => void) => listen('status-request', () => f()),
+  /** The settings' "Check now" for reminders. */
+  remindNow: () => emitTo('service', 'remind-now'),
+  onRemindNow: (f: () => void) => listen('remind-now', () => f()),
 };
+
+/** A desktop notification (ADR 0074); false when the OS doesn't allow them. */
+export async function notify(title: string, body: string): Promise<boolean> {
+  const n = await import('@tauri-apps/plugin-notification');
+  let ok = await n.isPermissionGranted();
+  if (!ok) ok = (await n.requestPermission()) === 'granted';
+  if (ok) n.sendNotification({ title, body });
+  return ok;
+}
 
 /** The OS: plugins loaded on demand, so the service window doesn't need them. */
 export async function pickFolder(start?: string | null): Promise<string | null> {
