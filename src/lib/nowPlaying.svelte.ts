@@ -7,8 +7,6 @@ import { player } from './player.svelte';
 import { router } from './route.svelte';
 import { view, viewTitle } from './view.svelte';
 import { readPref, writePref } from './prefs';
-import { blankInfo, parseContainer } from '../core/formats/parse';
-import { pcmToWav } from '../core/formats/wav';
 import { EMPTY_QUEUE, advance, back, clear, dequeue, enqueue, jump, placeLater, prune, reshuffle, startFrom, type Queue, type Repeat } from '../core/library/queue';
 import type { Track } from '../store/types';
 
@@ -48,9 +46,10 @@ class NowPlaying {
     if (t.remote && !lib.canRead(t)) { this.error = remoteFileMessage(t.remote.name); player.setSource(null); return; }
     this.loading = true;
     try {
-      const file = await lib.fileFor(t);   // may ask for permission: still inside the click
+      // Streamed when it can be (ADR 0076), else the file; may ask for permission: still inside the click.
+      const src = await lib.mediaFor(t);
       if (this.trackId !== id) return;
-      player.setSource(await playable(file), { duration: t.duration ?? undefined, sampleRate: t.format?.sampleRate || undefined, key: 'track:' + id });
+      player.setSource(src, { duration: t.duration ?? undefined, sampleRate: t.format?.sampleRate || undefined, key: 'track:' + id });
       if (startAt > 0) { const a = player.el, go = () => player.seek(startAt); if (a.readyState >= 1) go(); else a.addEventListener('loadedmetadata', go, { once: true }); }
       player.toggle();
     } catch (e) { if (this.trackId === id) { this.error = (e as Error).message || String(e); player.setSource(null); } }
@@ -129,14 +128,7 @@ class NowPlaying {
   }
 }
 
-/** Chrome and Firefox can't play AIFF: rewrap its PCM as WAV (same samples). */
-export async function playable(file: File): Promise<Blob> {
-  if (!/\.(aif|aiff|aifc)$/i.test(file.name)) return file;
-  const u8 = new Uint8Array(await file.arrayBuffer());
-  let info = blankInfo();
-  try { info = parseContainer(u8); } catch { return file; }
-  return info.pcm ? pcmToWav(u8, info.pcm, info.sampleRate) : file;
-}
+export { playable } from './playable';
 
 export const nowPlaying = new NowPlaying();
 // A track page that starts its own track makes it the library's now-playing track too.

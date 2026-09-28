@@ -84,3 +84,11 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
 - A song loaded by its track page has no list after it. ▶ on its row in the library (or Duplicates,
   or the playlist builder) now makes the rest of that list follow it (`nowPlaying.resumeFrom`); before,
   it only resumed, and nothing came after it.
+
+## Streaming (2026-09-28, [ADR 0076](../adr/0076-songs-stream-by-range.md))
+- A song plays as it comes instead of after the whole file:
+  - Home mode: from GLUE Home's local link, by byte range;
+  - another computer's song: from its GLUE Home through GLUE's streaming service worker.
+- Formats the browser doesn't play by itself (AIFF in Chrome), and older GLUE Homes, still come whole.
+- `lib.mediaFor`, `remoteFiles.stream`, `public/glue-stream-sw.js`; the player takes a Blob or an
+  address.

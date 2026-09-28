@@ -23,6 +23,7 @@ import { classify } from '../core/audio/verdict';
 import { addTags, cleanTag, removeTags, tagKey, tagsOf, uniqTags } from '../core/library/tagging';
 import { encodeDetails, loadDetails, removeDetails, restampDetails, writeDetails, type DetailsHeader } from '../store/details';
 import type { Cover } from '../workers/cover';
+import { playable, playsNatively, typeOfName } from './playable';
 import { removeFingerprint, writeFingerprint } from '../store/fingerprints';
 import { buildBackup, readBackup, writeBackup, type BackupManifest } from '../store/backup';
 import type { ZipEntry } from '../core/zip';
@@ -993,6 +994,18 @@ class Library {
   /** Another computer's songs, through its GLUE Home (lib/remoteFiles, ADR 0045). */
   remoteFile: ((t: Track) => Promise<File>) | null = null;
   canStream: ((t: Track) => boolean) | null = null;
+  /** Another computer's song as a stream (ADR 0076), when its GLUE Home can: an address; null otherwise. */
+  streamFor: ((t: Track) => Promise<string | null>) | null = null;
+  /** What to play a song from (ADR 0076): an address that streams (this computer's GLUE Home's local link,
+      or another computer's GLUE Home) when the browser plays the format by itself; otherwise the file. */
+  async mediaFor(t: Track): Promise<Blob | string> {
+    if (t.remote) { const u = await this.streamFor?.(t).catch(() => null); if (u) return u; }
+    else if (!this.cloud && !t.fileKey && t.rootId && t.relPath && t.status === 'linked' && platform.homeMode() && playsNatively(typeOfName(t.fileName))) {
+      const r = this.rootState(t.rootId), link = r ? await platform.fileLink(r.root, t.relPath) : null;
+      if (link) return link;
+    }
+    return playable(await this.fileFor(t));
+  }
   async fileFor(t: Track): Promise<File> {
     try { return await this.fileFrom(t); }
     catch (e) {

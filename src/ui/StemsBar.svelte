@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { lib } from '../lib/library.svelte';
+  import { playable } from '../lib/playable';
   import { app } from '../lib/app.svelte';
   import { player } from '../lib/player.svelte';
   import { stems, STEMS } from '../lib/stems.svelte';
@@ -11,7 +13,10 @@
   function run() {
     const src = app.playBlob, res = app.res;
     if (!src || !res) return;
-    void stems.run(src, () => app.playBlob === src);
+    // A streamed song: the separation needs every sample, so the whole file first.
+    const id = app.playKey?.startsWith('track:') ? app.playKey.slice(6) : null, t = id ? lib.store?.tracks.get(id) : null;
+    const whole = typeof src !== 'string' ? Promise.resolve(src) : t ? lib.fileFor(t).then(playable) : fetch(src).then(r => r.blob());
+    void whole.then(b => stems.run(b, () => app.playBlob === src)).catch(e => (stems.error = (e as Error).message));
   }
   // Play the current selection, keeping position and play state; the full mix is the original file.
   function apply() {

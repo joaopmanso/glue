@@ -1806,6 +1806,8 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await desk.locator('.pbtn').click();
   await expect(page.locator('#lib-now')).toHaveText('Desk Only Song');
   await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
+  // It streams (ADR 0076): byte ranges through the service worker, not the whole file first.
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByType('resource').some(e => e.name.includes('/__stream/')))).toBe(true);
   await page.click('#lib-play');
   // Its mini spectrogram comes from the desktop's GLUE Home (made there: ADR 0046).
   await expect(desk.locator('.wave canvas')).toBeVisible({ timeout: 45_000 });
@@ -2188,7 +2190,7 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   await expect(home.locator('#state')).toContainText('Online as Desktop');
   // GLUE Home's local server (its Rust side, stood in by the test): hello, the incoming folder with
   // each song's analysis, its files, its cache; only with the token it gave (except hello).
-  const hits: string[] = [];
+  const hits: string[] = [], served = new Map<string, number[]>();
   await ctx.route('http://127.0.0.1:47400/**', async r => {
     const u = new URL(r.request().url());
     hits.push(u.pathname);
@@ -2198,10 +2200,25 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
     if (u.searchParams.get('t') !== token) return r.fulfill({ status: 401, headers: cors, body: '{}' });
     // What this GLUE Home (before 0.5.0) doesn't have, like /fs/*, is "not found" at once.
     if (!['/incoming', '/incoming/file', '/cache'].includes(u.pathname)) return r.fulfill({ status: 404, headers: cors, body: '{}' });
+    const n = u.pathname === '/incoming/file' ? u.searchParams.get('name') ?? '' : '';
+    if (n && served.has(n)) {
+      const all = Buffer.from(served.get(n)!), m = /bytes=(\d+)-(\d*)/.exec(r.request().headers()['range'] ?? '');
+      const start = m ? Number(m[1]) : 0, end = m && m[2] ? Math.min(Number(m[2]), all.length - 1) : all.length - 1;
+      return r.fulfill({ status: m ? 206 : 200, contentType: 'audio/flac', headers: { ...cors, 'Accept-Ranges': 'bytes', ...(m ? { 'Content-Range': 'bytes ' + start + '-' + end + '/' + all.length } : {}) }, body: all.subarray(start, end + 1) });
+    }
     const w = await home.evaluate(() => { const x = window as unknown as { __files: { name: string; chunks: number[][]; done: boolean; moved?: string }[]; __cache: Record<string, number[]> }; return { files: x.__files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, bytes: f.chunks.flat() })), cache: x.__cache }; });
     const dec = (b: number[] | undefined) => b ? JSON.parse(Buffer.from(b).toString()) : null;
     if (u.pathname === '/incoming') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify(w.files.map(f => ({ name: f.name, size: f.bytes.length, mtime: 1, path: 'C:\\In\\' + f.name, summary: dec(w.cache['i/' + f.name + '.summary.json']) }))) });
-    if (u.pathname === '/incoming/file') { const f = w.files.find(x => x.name === u.searchParams.get('name')); return f ? r.fulfill({ contentType: 'audio/flac', headers: cors, body: Buffer.from(f.bytes) }) : r.fulfill({ status: 404, headers: cors, body: '{}' }); }
+    if (u.pathname === '/incoming/file') {
+      const f = w.files.find(x => x.name === u.searchParams.get('name'));
+      if (f) served.set(f.name, served.get(f.name) ?? f.bytes);   // read once: the player asks for several ranges
+      if (!f) return r.fulfill({ status: 404, headers: cors, body: '{}' });
+      // Byte ranges, as the real one serves them (songs stream from it: ADR 0076).
+      const m = /bytes=(\d+)-(\d*)/.exec(r.request().headers()['range'] ?? ''), all = Buffer.from(f.bytes);
+      if (!m) return r.fulfill({ contentType: 'audio/flac', headers: { ...cors, 'Accept-Ranges': 'bytes' }, body: all });
+      const start = Number(m[1]), end = m[2] ? Math.min(Number(m[2]), all.length - 1) : all.length - 1;
+      return r.fulfill({ status: 206, contentType: 'audio/flac', headers: { ...cors, 'Accept-Ranges': 'bytes', 'Content-Range': 'bytes ' + start + '-' + end + '/' + all.length }, body: all.subarray(start, end + 1) });
+    }
     if (u.pathname === '/cache') { const b = w.cache[u.searchParams.get('key')!]; return b ? r.fulfill({ contentType: 'application/octet-stream', headers: cors, body: Buffer.from(b) }) : r.fulfill({ status: 404, headers: cors, body: '{}' }); }
     return r.fulfill({ status: 404, headers: cors, body: '{}' });
   });
@@ -2249,6 +2266,9 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   await song.locator('.pbtn').click();
   await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
   expect(hits).toContain('/incoming/file');
+  // It streams (ADR 0076): the player keeps asking for ranges; stop it before the stand-in goes.
+  await page.click('#lib-play');
+  await ctx.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
 test('covers: found at analysis, shown in the Cover column and on the track page, and read again from the tags when this browser lost them (ADR 0072)', async ({ page }) => {

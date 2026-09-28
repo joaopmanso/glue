@@ -5,6 +5,19 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's second list, batch D: streaming (GLUE Home 0.14), macOS Cmd-Tab
+- **Songs stream instead of downloading first** ([ADR 0076](../adr/0076-songs-stream-by-range.md)):
+  - Home mode: from GLUE Home's local link, by byte range;
+  - another computer's song: from its GLUE Home over WebRTC, through GLUE's streaming service
+    worker, 512 kB first and then 2 MB at a time;
+  - seeking asks for the part it needs.
+  - AIFF in Chrome and older GLUE Homes still come whole.
+- **GLUE Home 0.14:** answers ranged requests. On macOS it stays in Cmd-Tab and the Dock while its
+  windows are open.
+- Tests: e2e: the desktop's song streams through `__stream/` (real service page, WebRTC); Home mode
+  reads only ranges.
+- Also: the account e2e ignores a GLUE Home running on the test computer.
+
 ## 2026-09-28 · The user's second list, batch C: genres and browsing
 - **Genres picked like tags:**
   - the collection's, those added before, and common ones; a new one is added by typing it;

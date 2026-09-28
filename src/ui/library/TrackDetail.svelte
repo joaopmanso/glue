@@ -121,8 +121,8 @@
       if (kept) {
         app.playKey = key;
         const playing = player.sourceKey === key && !!player.url;
-        let blob: Blob | null = null;
-        if (!playing && lib.canRead(t)) { try { blob = await playable(await lib.fileFor(t)); } catch { blob = null; } }
+        let blob: Blob | string | null = null;
+        if (!playing && lib.canRead(t)) { try { blob = await lib.mediaFor(t); } catch { blob = null; } }
         if (id !== t.id) return;
         showResult(kept.info, kept.res, blob);
         canPlay = playing || !!blob;
@@ -147,7 +147,7 @@
     const t = track;
     if (!t) return;
     try {
-      app.playBlob = await playable(await lib.fileFor(t));
+      app.playBlob = await lib.mediaFor(t);
 canPlay = true;
     } catch (e) { message = (e as Error).message || String(e); }
   }

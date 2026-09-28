@@ -171,6 +171,24 @@ function serve(dc: RTCDataChannel) {
         // A music folder found by name: remember it (and GLUE Home may read it from now on).
         if (f.folder && cfg) { cfg = { ...cfg, folders: { ...(cfg.folders ?? {}), [f.folder.id]: f.folder.path } }; await bridge.saveConfig(cfg); }
         await answer(c.n, null, { path: f.path, size: await bridge.fileSize(f.path) }, { name: f.name, type: typeOf(f.name) });
+      } else if (c.t === 'range') {
+        // Part of a song (streaming, ADR 0076): a collection's song, or one in the incoming folder.
+        let path: string, name: string;
+        if (c.incoming) {
+          const f = (await bridge.incomingList()).find(x => x.name === c.incoming);
+          if (!f) throw new Error('That song isn’t in the incoming folder any more.');
+          path = f.path; name = f.name;
+        } else {
+          const f = await trackPath(c.profile!, c.collection!, c.track!, need());
+          if (f.folder && cfg) { cfg = { ...cfg, folders: { ...(cfg.folders ?? {}), [f.folder.id]: f.folder.path } }; await bridge.saveConfig(cfg); }
+          path = f.path; name = f.name;
+        }
+        const total = await bridge.fileSize(path), start = Math.max(0, Math.min(c.start, total)), len = Math.max(0, Math.min(c.len, 8 * 1024 * 1024, total - start));
+        const parts: Uint8Array[] = [];
+        for (let at = 0; at < len;) { const b = new Uint8Array(await bridge.fileRead(path, start + at, Math.min(1024 * 1024, len - at))); if (!b.length) break; parts.push(b); at += b.length; }
+        const bytes = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
+        for (const p of parts) { bytes.set(p, at); at += p.length; }
+        await answer(c.n, { total, type: typeOf(name) }, bytes, { name });
       } else if (c.t === 'thumbs') {
         need();
         const found: [string, number][] = [], parts: Uint8Array[] = [];

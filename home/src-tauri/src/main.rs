@@ -458,9 +458,20 @@ fn open_settings(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.show();
         let _ = w.unminimize();
+        follow_windows(app);
         let _ = w.set_focus();
     }
 }
+
+/// macOS: GLUE Home is a menu-bar app, but while one of its windows is open it's a normal app, in the
+/// Cmd-Tab switcher and the Dock (it went missing from Cmd-Tab, the user's list 2026-09-28).
+#[cfg(target_os = "macos")]
+pub(crate) fn follow_windows(app: &AppHandle) {
+    let open = ["settings", "dock"].iter().any(|l| app.get_webview_window(l).and_then(|w| w.is_visible().ok()).unwrap_or(false));
+    let _ = app.set_activation_policy(if open { tauri::ActivationPolicy::Regular } else { tauri::ActivationPolicy::Accessory });
+}
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn follow_windows(_app: &AppHandle) {}
 
 fn main() {
     tauri::Builder::default()
@@ -537,6 +548,7 @@ fn main() {
                 if w.label() == "settings" || w.label() == "dock" {
                     api.prevent_close();
                     let _ = w.hide();
+                    follow_windows(w.app_handle());
                 }
             }
         })

@@ -43,6 +43,10 @@ fallback.
 ## Tests
 - A Playwright phone project (Chromium, plus WebKit iPhone for the layout); offline runs.
 
+## Streaming done (2026-09-28)
+- Byte-range streaming through a service worker is built ([ADR 0076](../adr/0076-songs-stream-by-range.md)); checked
+  in Edge. Safari on an iPhone is the open question below.
+
 ## Limits & open questions
 - **[UNVERIFIED]:**
   - Safari passing media byte ranges through a service worker;

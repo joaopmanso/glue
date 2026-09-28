@@ -420,5 +420,14 @@ test('song info is edited in GLUE, kept while GLUE Home is away, and written int
     await expect(page.locator('.tr .cell[data-c="cover"] img')).toHaveCount(1, { timeout: 20_000 });
     expect(home.reads.filter(p => p === 'Sets/flac-cover.flac')).toEqual([]);
     expect(home.reads.filter(p => p === 'Sets/flac-cover.flac (part)').length).toBeGreaterThan(0);
+
+    // Played in Home mode, a song streams from the local link by byte range; it isn't read whole first (ADR 0076).
+    home.reads = [];
+    const mp3row = page.locator('.tr', { has: page.locator('.c-title[title="mp3-128k.mp3"]') });
+    await mp3row.hover(); await mp3row.locator('.pbtn').click();
+    await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
+    await page.click('#lib-play');
+    expect(home.reads.filter(p => p === 'Sets/mp3-128k.mp3')).toEqual([]);
+    expect(home.reads.filter(p => p === 'Sets/mp3-128k.mp3 (part)').length).toBeGreaterThan(0);
   } finally { await home.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

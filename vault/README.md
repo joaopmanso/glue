@@ -149,3 +149,4 @@ Planned (GLUE):
 | [0073](adr/0073-3d-view-on-the-gpu.md) | The live 3D view is drawn by three.js on the GPU, and can be turned, zoomed and reset | accepted |
 | [0074](adr/0074-events-calendar.md) | Events: a calendar, each event with a folder of playlists; reminders in GLUE and from GLUE Home | accepted |
 | [0075](adr/0075-drop-outs-under-a-wall.md) | Drop-outs under a wall tell an encoder's lowpass from a mastering one (amends 0069) | accepted |
+| [0076](adr/0076-songs-stream-by-range.md) | Songs stream by byte range: the local link in Home mode, a service worker for other computers | accepted |

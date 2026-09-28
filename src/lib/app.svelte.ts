@@ -22,7 +22,8 @@ class AppState {
   info = $state.raw<FileInfo | null>(null);
   res = $state.raw<AnalysisResult | null>(null);
   verdict = $state.raw<Verdict | null>(null);
-  playBlob = $state.raw<Blob | null>(null);
+  /** What the page plays: the file, or an address that streams it (ADR 0076). */
+  playBlob = $state.raw<Blob | string | null>(null);
   /** The player source the result belongs to ('track:<id>'), or null for a one-off file. */
   playKey = $state<string | null>(null);
   dbFloor = $state(-120);
@@ -55,9 +56,9 @@ function progress(token: number) {
 }
 
 /** Show an analysis result (fresh, or stored from an earlier visit). */
-export function showResult(info: FileInfo, res: AnalysisResult, playBlob: Blob | null) { finish(info, res, playBlob); }
+export function showResult(info: FileInfo, res: AnalysisResult, playBlob: Blob | string | null) { finish(info, res, playBlob); }
 
-function finish(info: FileInfo, res: AnalysisResult, playBlob: Blob | null) {
+function finish(info: FileInfo, res: AnalysisResult, playBlob: Blob | string | null) {
   const verdict = classify(info, res);
   app.info = info; app.res = res; app.verdict = verdict; app.playBlob = playBlob;
   app.dbFloor = Math.max(-170, Math.min(-80, Math.round((verdict.cut.globalFloor - 8) / 10) * 10));

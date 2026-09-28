@@ -69,6 +69,7 @@ pub(crate) fn show(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("dock") {
         let _ = w.show();
         let _ = w.unminimize();
+        crate::follow_windows(app);
     }
 }
 

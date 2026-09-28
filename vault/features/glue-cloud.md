@@ -341,3 +341,9 @@ First release: phases 1–3 (user, 2026-09-25).
   the service reads each collection's `events.json` (and then its playlists, with the new read-only
   `glue_list`) 90 s after starting and hourly, and sends a desktop notification once a day per event
   (`tauri-plugin-notification`). Settings › This computer's library: turn them off, or Check now.
+
+## GLUE Home 0.14 (2026-09-28)
+- **Streaming** ([ADR 0076](../adr/0076-songs-stream-by-range.md)): `range {start, len}` requests on the
+  stream channel answer part of a song (or of a song in the incoming folder), at most 8 MB at a time.
+- **macOS:** while its settings or drag dock window is open, GLUE Home is a normal app (Cmd-Tab, the
+  Dock); a menu-bar app again once they're closed. It went missing from Cmd-Tab.

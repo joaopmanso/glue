@@ -28,6 +28,9 @@ export type Ctrl =
     messages), then `eof`; or an `error`. */
 export type StreamReq =
   | { t: 'get'; n: number; profile: string; collection: string; track: string }          // a song's file
+  /** Part of a song's file, for streaming (ADR 0076): a song of a collection, or one in the incoming folder.
+      data: { total, type } (the file's size and type); the bytes follow. GLUE Home 0.14 and later. */
+  | { t: 'range'; n: number; start: number; len: number; profile?: string; collection?: string; track?: string; incoming?: string }
   | { t: 'thumbs'; n: number; profile: string; collection: string; tracks: string[] }   // mini spectrograms (data: [id, size][])
   | { t: 'details'; n: number; profile: string; collection: string; track: string }     // the full analysis (data: its header)
   | { t: 'incoming'; n: number }                                                        // what's in the incoming folder (data: IncomingFile[])

@@ -9,6 +9,7 @@ import { localHome } from './localHome.svelte';
 import type { DetailsHeader } from '../store/details';
 import type { Track } from '../store/types';
 import { thumbs } from './thumbs.svelte';
+import { playsNatively, typeOfName } from './playable';
 
 /** The GLUE Home serving a browser device of the account, if there is one. */
 export function companionOf(browser: string): CloudDevice | null {
@@ -84,7 +85,7 @@ class RemoteFiles {
 
   /** One request to a GLUE Home: its answer's `data`, and the bytes that came with it. Several run at
       once; each gives up if its answer doesn't come. `upload`: bytes sent after the request. */
-  async ask(home: string, req: Req, opts: { onBytes?: (got: number, size: number) => void; upload?: Uint8Array } = {}): Promise<Answer> {
+  async ask(home: string, req: Req, opts: { onBytes?: (got: number, size: number) => void; upload?: Uint8Array; firstWait?: number } = {}): Promise<Answer> {
     const k = await this.link(home);
     const file = req.t === 'get' || req.t === 'get-incoming';
     // Wait for a free place (songs have fewer).
@@ -116,7 +117,7 @@ class RemoteFiles {
           bytes: b => { if (!head) return; parts.push(b.slice()); got += b.length; opts.onBytes?.(got, size); wait(IDLE_WAIT); },
           gone: () => { finish(); reject(new Error('the connection closed')); },
         });
-        wait(FIRST_WAIT);
+        wait(opts.firstWait ?? FIRST_WAIT);
         const dc = k.ch.dc;
         dc.send(JSON.stringify({ ...req, n }));
         if (opts.upload) {
@@ -155,6 +156,44 @@ class RemoteFiles {
       })
       .catch(e => { throw new Error(from + ': ' + (e as Error).message); })
       .finally(() => { if (this.loading?.trackId === t.id) this.loading = null; });
+  }
+
+  // ─── Streaming (ADR 0076) ───────────────────────────────────────────────────────────────────────
+  /** GLUE Homes that don't stream yet (older than 0.14): their songs come whole. */
+  private noRange = new Set<string>();
+  private streams = new Map<string, { home: string; req: RangeReq; type: string; total: number }>();
+  /** A song as an address that streams: this computer's GLUE Home's local link for its incoming folder,
+      or another computer's GLUE Home through the streaming service worker, when this browser plays the
+      format by itself. Null: take the whole file (get). */
+  async stream(t: Track): Promise<string | null> {
+    const r = t.remote, src = this.source(t), home = src?.home;
+    if (!r || !src || !home) return null;
+    const name = src.incoming ?? t.fileName;
+    if (!playsNatively(typeOfName(name))) return null;
+    if (src.incoming && localHome.for(home)) return localHome.url('/incoming/file?name=' + encodeURIComponent(src.incoming));
+    if (this.noRange.has(home) || !(await streamsReady())) return null;
+    const req: RangeReq = src.incoming ? { incoming: src.incoming } : { profile: r.profile!, collection: r.collection!, track: r.id! };
+    // One small ask first: the file's size and type, and whether this GLUE Home streams at all.
+    let head: Answer;
+    try { head = await this.ask(home, { t: 'range', ...req, start: 0, len: 2 }, { firstWait: 8000 }); }
+    catch (e) { if (/in time/.test((e as Error).message)) this.noRange.add(home); return null; }
+    const d = head.data as { total: number; type: string } | null;
+    if (!d?.total) return null;
+    const token = crypto.randomUUID();
+    this.streams.set(token, { home, req, type: d.type || typeOfName(name), total: d.total });
+    while (this.streams.size > 8) this.streams.delete(this.streams.keys().next().value!);
+    return new URL('__stream/' + token, document.baseURI).href;
+  }
+  /** The service worker asks for bytes of a stream: from its GLUE Home, a piece at a time. */
+  async answerStream(q: { token: string; start: number; end: number | null }): Promise<{ bytes: ArrayBuffer; total: number; type: string } | { unknown: true } | { error: string }> {
+    const s = this.streams.get(q.token);
+    if (!s) return { unknown: true };
+    // The first piece small (it starts at once), then 2 MB; what the player asks for when it says.
+    const len = q.end != null ? q.end - q.start + 1 : q.start === 0 ? 512 * 1024 : 2 * 1024 * 1024;
+    try {
+      const a = await this.ask(s.home, { t: 'range', ...s.req, start: q.start, len: Math.min(len, 8 * 1024 * 1024) });
+      return { bytes: a.bytes.slice().buffer, total: s.total, type: s.type };
+    } catch (e) { return { error: (e as Error).message }; }
   }
 
   /** Files of a GLUE Home's cache (the analyses of songs in its incoming folder): over the local link
@@ -224,6 +263,30 @@ class RemoteFiles {
 }
 
 export const remoteFiles = new RemoteFiles();
+type RangeReq = { profile?: string; collection?: string; track?: string; incoming?: string };
+
+/** The streaming service worker (public/glue-stream-sw.js), registered the first time a song streams;
+    false when this browser can't have one (not a secure page, or no service workers). */
+let workerReady: Promise<boolean> | null = null;
+function streamsReady(): Promise<boolean> {
+  return workerReady ??= (async () => {
+    const sw = typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined;
+    if (!sw || !window.isSecureContext) return false;
+    try {
+      await sw.register(new URL('glue-stream-sw.js', document.baseURI).href, { scope: './' });
+      if (!sw.controller) await new Promise<void>(res => { const t = setTimeout(res, 4000); sw.addEventListener('controllerchange', () => { clearTimeout(t); res(); }, { once: true }); });
+      return !!sw.controller;
+    } catch (e) { console.warn('No streaming: the service worker didn’t start', e); return false; }
+  })();
+}
+if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener('message', e => {
+    const q = (e.data as { glueStream?: { token: string; start: number; end: number | null } } | null)?.glueStream, port = e.ports[0];
+    if (!q || !port) return;
+    void remoteFiles.answerStream(q).then(a => port.postMessage(a, 'bytes' in a ? [a.bytes] : []));
+  });
+}
+lib.streamFor = t => remoteFiles.stream(t);
 // The library plays and analyses another computer's songs through this.
 lib.remoteFile = t => remoteFiles.get(t);
 lib.canStream = t => remoteFiles.canStream(t);

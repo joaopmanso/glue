@@ -244,15 +244,19 @@ class Player {
   /** What the source is ('track:<id>' for a library track), so pages can tell it's already loaded. */
   sourceKey = $state<string | null>(null);
   /** A page's own source waiting while another track keeps playing: it loads on this page's first play or seek. */
-  pending = $state.raw<{ blob: Blob; opts: SourceOpts } | null>(null);
+  pending = $state.raw<{ blob: Blob | string; opts: SourceOpts } | null>(null);
+  /** The address was made here (an object URL, revoked when replaced), not given (a stream's). */
+  private ownUrl = false;
   /** Told whenever a new source is loaded (the library player follows the track page this way). */
   onSource: ((key: string | null) => void) | null = null;
 
   /** Keep `blob` for later instead of interrupting what's playing (null forgets it). */
-  defer(blob: Blob | null, opts: SourceOpts = {}) { this.pending = blob ? { blob, opts } : null; }
+  defer(blob: Blob | string | null, opts: SourceOpts = {}) { this.pending = blob ? { blob, opts } : null; }
   private claim() { const p = this.pending; if (!p) return false; this.setSource(p.blob, p.opts); return true; }
 
-  setSource(blob: Blob | null, opts: SourceOpts = {}) {
+  /** A file (Blob), or an address that streams (ADR 0076: GLUE Home's local link, or a stream through the
+      service worker). */
+  setSource(blob: Blob | string | null, opts: SourceOpts = {}) {
     this.pending = null;
     if (opts.key !== undefined) this.sourceKey = opts.key; else if (!opts.keepPosition) this.sourceKey = null;
     this.onSource?.(this.sourceKey);
@@ -264,8 +268,11 @@ class Player {
     const a = new Audio();
     this.bind(a);
     this.el = a;
-    if (this.url) URL.revokeObjectURL(this.url);
-    this.url = blob ? URL.createObjectURL(blob) : null;
+    if (this.url && this.ownUrl) URL.revokeObjectURL(this.url);
+    this.ownUrl = blob instanceof Blob;
+    this.url = blob == null ? null : typeof blob === 'string' ? blob : URL.createObjectURL(blob);
+    // Another origin (the local link): asked with CORS, so the live view and the visualiser can read it.
+    if (typeof blob === 'string' && /^https?:/i.test(blob) && !blob.startsWith(location.origin)) a.crossOrigin = 'anonymous';
     this.ready = false; this.message = ''; this.paused = true;
     if (!opts.keepPosition) { this.time = 0; this.started = false; }
     if (opts.duration) this.duration = opts.duration; else if (!opts.keepPosition) this.duration = 0;
