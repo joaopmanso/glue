@@ -72,7 +72,15 @@ pub(crate) fn type_of(name: &str) -> &'static str {
     }
 }
 
+/// Each request, counted by its first two path parts ("/fs/file"), with the time it took (ADR 0083).
 fn handle(app: AppHandle, req: Request) {
+    let t0 = std::time::Instant::now();
+    let what = "local ".to_string() + &req.url().split('?').next().unwrap_or("").split('/').take(3).collect::<Vec<_>>().join("/");
+    answer(app, req);
+    crate::activity::note(&what, t0, 0);
+}
+
+fn answer(app: AppHandle, req: Request) {
     let origin = req.headers().iter().find(|h| h.field.equiv("Origin")).map(|h| h.value.as_str().to_string());
     let mut cors = vec![header("Vary", "Origin"), header("Access-Control-Allow-Private-Network", "true"), header("Access-Control-Allow-Headers", "x-glue-token, range, content-type"),
         header("Access-Control-Allow-Methods", "GET, POST, OPTIONS"), header("Access-Control-Expose-Headers", "content-range, content-length, accept-ranges, x-glue-name, x-glue-mtime")];

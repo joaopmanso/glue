@@ -20,6 +20,7 @@ mod dupes;
 mod tags;
 mod libraries;
 mod local;
+mod activity;
 
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
 const LIBRARY_URL: &str = "https://joaopmanso.github.io/glue/?open=home#/";
@@ -48,9 +49,23 @@ fn get_config(app: AppHandle) -> Option<serde_json::Value> {
     get_config_impl(app)
 }
 
+/// The settings as last read, with the file's date and size then: read again only when the file
+/// changed (every request of the local link and every file read asks for them; the user's report,
+/// 2026-09-28, of GLUE Home using the CPU while idle).
+static CONFIG: Mutex<Option<(std::time::SystemTime, u64, serde_json::Value)>> = Mutex::new(None);
+
 pub(crate) fn get_config_impl(app: AppHandle) -> Option<serde_json::Value> {
     let p = config_path(&app).ok()?;
-    serde_json::from_str(&fs::read_to_string(p).ok()?).ok()
+    let m = fs::metadata(&p).ok()?;
+    let (at, len) = (m.modified().ok()?, m.len());
+    if let Some((a, l, v)) = CONFIG.lock().unwrap().as_ref() {
+        if *a == at && *l == len {
+            return Some(v.clone());
+        }
+    }
+    let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(&p).ok()?).ok()?;
+    *CONFIG.lock().unwrap() = Some((at, len, v.clone()));
+    Some(v)
 }
 
 /// Save the settings (readable by this user only) and tell both windows.
@@ -73,6 +88,7 @@ pub(crate) fn set_config_impl(app: AppHandle, config: serde_json::Value) -> Resu
         let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600));
     }
     fs::rename(&tmp, &p).map_err(|e| e.to_string())?;
+    *CONFIG.lock().unwrap() = None;   // read again next time (its date may not have moved)
     let _ = app.emit("config", &config);
     Ok(())
 }
@@ -271,19 +287,36 @@ fn search(starts: Vec<PathBuf>, name: &str, sample: &str) -> Option<String> {
     None
 }
 
+/// The service page's file commands are `async`: they run off the main thread, where the windows and
+/// the tray live, and each is counted (the user's report, 2026-09-28; ADR 0083).
+fn count<T>(what: &str, t0: std::time::Instant, r: Result<T, String>, size: impl FnOnce(&T) -> u64) -> Result<T, String> {
+    activity::note(what, t0, r.as_ref().map(size).unwrap_or(0));
+    r
+}
+
+/// What GLUE Home was asked since it started (the settings show it).
+#[tauri::command]
+fn activity_now() -> serde_json::Value {
+    activity::snapshot()
+}
+
 /// A text file inside the GLUE folder (the library's JSON), by its path in there.
 #[tauri::command]
-fn glue_read(app: AppHandle, rel: String) -> Result<String, String> {
-    let root = cfg_str(&get_config(app), "glue").ok_or("no GLUE folder chosen")?;
-    if rel.split(['/', '\\']).any(|p| p == ".." || p.is_empty()) {
-        return Err("bad path".into());
-    }
-    fs::read_to_string(root.join(rel)).map_err(|e| e.to_string())
+async fn glue_read(app: AppHandle, rel: String) -> Result<String, String> {
+    let t0 = std::time::Instant::now();
+    let r = (|| {
+        let root = cfg_str(&get_config(app), "glue").ok_or("no GLUE folder chosen")?;
+        if rel.split(['/', '\\']).any(|p| p == ".." || p.is_empty()) {
+            return Err("bad path".into());
+        }
+        fs::read_to_string(root.join(&rel)).map_err(|e| e.to_string())
+    })();
+    count("bridge glue_read", t0, r, |s| s.len() as u64)
 }
 
 /// The names of the files in a folder inside the GLUE folder (events' playlists, ADR 0074); none if it isn't there.
 #[tauri::command]
-fn glue_list(app: AppHandle, rel: String) -> Result<Vec<String>, String> {
+async fn glue_list(app: AppHandle, rel: String) -> Result<Vec<String>, String> {
     let root = cfg_str(&get_config(app), "glue").ok_or("no GLUE folder chosen")?;
     if rel.split(['/', '\\']).any(|p| p == ".." || p.is_empty()) {
         return Err("bad path".into());
@@ -311,27 +344,33 @@ fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-fn file_size(app: AppHandle, path: String) -> Result<u64, String> {
-    Ok(fs::metadata(allowed(&app, &path)?).map_err(|e| e.to_string())?.len())
+async fn file_size(app: AppHandle, path: String) -> Result<u64, String> {
+    let t0 = std::time::Instant::now();
+    let r = allowed(&app, &path).and_then(|p| fs::metadata(p).map_err(|e| e.to_string())).map(|m| m.len());
+    count("bridge file_size", t0, r, |_| 0)
 }
 
 /// Bytes of a song, from `offset` (at most `len`), as a raw answer.
 #[tauri::command]
-fn file_read(app: AppHandle, path: String, offset: u64, len: u32) -> Result<tauri::ipc::Response, String> {
+async fn file_read(app: AppHandle, path: String, offset: u64, len: u32) -> Result<tauri::ipc::Response, String> {
     use std::io::{Read, Seek, SeekFrom};
-    let mut f = File::open(allowed(&app, &path)?).map_err(|e| e.to_string())?;
-    f.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
-    let mut buf = vec![0u8; len.min(4 * 1024 * 1024) as usize];
-    let mut n = 0;
-    while n < buf.len() {
-        let k = f.read(&mut buf[n..]).map_err(|e| e.to_string())?;
-        if k == 0 {
-            break;
+    let t0 = std::time::Instant::now();
+    let r = (|| {
+        let mut f = File::open(allowed(&app, &path)?).map_err(|e| e.to_string())?;
+        f.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
+        let mut buf = vec![0u8; len.min(4 * 1024 * 1024) as usize];
+        let mut n = 0;
+        while n < buf.len() {
+            let k = f.read(&mut buf[n..]).map_err(|e| e.to_string())?;
+            if k == 0 {
+                break;
+            }
+            n += k;
         }
-        n += k;
-    }
-    buf.truncate(n);
-    Ok(tauri::ipc::Response::new(buf))
+        buf.truncate(n);
+        Ok(buf)
+    })();
+    count("bridge file_read", t0, r, |b| b.len() as u64).map(tauri::ipc::Response::new)
 }
 
 // ---- GLUE Home's own cache: waveforms and full analyses of the shared songs (ADR 0046) --------------
@@ -344,39 +383,47 @@ pub(crate) fn cache_path(app: &AppHandle, rel: &str) -> Result<PathBuf, String> 
 }
 
 #[tauri::command]
-fn cache_read(app: AppHandle, rel: String) -> Result<tauri::ipc::Response, String> {
-    Ok(tauri::ipc::Response::new(fs::read(cache_path(&app, &rel)?).map_err(|e| e.to_string())?))
+async fn cache_read(app: AppHandle, rel: String) -> Result<tauri::ipc::Response, String> {
+    let t0 = std::time::Instant::now();
+    let r = cache_path(&app, &rel).and_then(|p| fs::read(p).map_err(|e| e.to_string()));
+    count("bridge cache_read", t0, r, |b| b.len() as u64).map(tauri::ipc::Response::new)
 }
 
 /// Write a cache file (a raw body; its path in the `x-rel` header).
 #[tauri::command]
-fn cache_write(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+async fn cache_write(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let t0 = std::time::Instant::now();
     let rel = request.headers().get("x-rel").and_then(|v| v.to_str().ok()).ok_or("no path")?.to_string();
     let tauri::ipc::InvokeBody::Raw(data) = request.body() else {
         return Err("expected bytes".into());
     };
-    let p = cache_path(&app, &rel)?;
-    if let Some(d) = p.parent() {
-        fs::create_dir_all(d).map_err(|e| e.to_string())?;
-    }
-    let tmp = p.with_extension("tmp");
-    fs::write(&tmp, data).map_err(|e| e.to_string())?;
-    fs::rename(&tmp, &p).map_err(|e| e.to_string())
+    let r = (|| {
+        let p = cache_path(&app, &rel)?;
+        if let Some(d) = p.parent() {
+            fs::create_dir_all(d).map_err(|e| e.to_string())?;
+        }
+        let tmp = p.with_extension("tmp");
+        fs::write(&tmp, data).map_err(|e| e.to_string())?;
+        fs::rename(&tmp, &p).map_err(|e| e.to_string())
+    })();
+    count("bridge cache_write", t0, r, |_| data.len() as u64)
 }
 
 /// The names of the files in a cache folder.
 #[tauri::command]
-fn cache_list(app: AppHandle, rel: String) -> Vec<String> {
-    let Ok(p) = cache_path(&app, &rel) else { return vec![] };
-    fs::read_dir(p).map(|d| d.flatten().filter(|e| e.path().is_file()).map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default()
+async fn cache_list(app: AppHandle, rel: String) -> Result<Vec<String>, String> {
+    let t0 = std::time::Instant::now();
+    let names: Vec<String> = cache_path(&app, &rel).ok().and_then(|p| fs::read_dir(p).ok()).map(|d| d.flatten().filter(|e| e.path().is_file()).map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default();
+    count("bridge cache_list", t0, Ok(names), |_| 0)
 }
 
 // ---- the incoming folder: what's waiting to be sorted (ADR 0046) -----------------------------------
 
 /// The songs in the incoming folder (not the ones still arriving).
 #[tauri::command]
-fn incoming_list(app: AppHandle) -> Vec<serde_json::Value> {
-    incoming_list_impl(app)
+async fn incoming_list(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    let t0 = std::time::Instant::now();
+    count("bridge incoming_list", t0, Ok(incoming_list_impl(app)), |_| 0)
 }
 
 pub(crate) fn incoming_list_impl(app: AppHandle) -> Vec<serde_json::Value> {
@@ -489,7 +536,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]
@@ -535,6 +582,7 @@ fn main() {
                 .build(app)?;
             app.manage(Tray { status, start, stop });
             // The website on this computer talks to GLUE Home directly (ADR 0048).
+            activity::start();
             local::start(app.handle().clone());
             // Started with the computer: stay in the tray. Opened by hand (or the first time): settings.
             if !std::env::args().any(|a| a == "--background") {

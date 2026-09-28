@@ -85,7 +85,7 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   expect(claims[1].replaces).toBeUndefined();
 
   // Connecting again with a new code replaces the previous device (it proves it's its own).
-  await page.locator('details summary').click();
+  await page.locator('details summary', { hasText: 'Connect again' }).click();
   await page.fill('#code-again', 'K7QM-2XPB');
   await page.locator('details button[type="submit"]').click();
   await expect.poll(() => claims.length).toBe(3);
@@ -177,4 +177,20 @@ test('GLUE Home opens with a gluehome://pair link and connects', async ({ page }
   await page.goto(HOME + 'index.html');
   await expect(page.locator('#account')).toContainText('dj@example.com');
   await expect(page.locator('#account')).toContainText('Mac mini');
+});
+
+test('GLUE Home shows what it was asked since it started, the most time first, and copies it (ADR 0083)', async ({ page }) => {
+  await page.addInitScript(TAURI_MOCK);
+  await page.addInitScript(() => localStorage.setItem('home-config', JSON.stringify({ deviceId: null, token: null, name: 'Desk', user: null, incoming: null, running: true, askedAutostart: true })));
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: HOME.slice(0, -1) });
+  await page.goto(HOME + 'index.html');
+  await page.locator('#activity summary').click();
+  const rows = page.locator('#activity tbody tr');
+  await expect(rows).toHaveCount(2);
+  // The mock's counts: 40 local-link lists took 30 ms, 3 file reads 12 ms.
+  await expect(rows.nth(0)).toContainText('This computer’s GLUE website: /fs/list');
+  await expect(rows.nth(1)).toContainText('Reading files: file_read');
+  await expect(rows.nth(1)).toContainText('3.1 MB');
+  await page.click('#activity-copy');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^GLUE Home .*running 2 min\r?\n.*\/fs\/list\t40\t30 ms/);   // Windows' clipboard ends lines with \r\n
 });

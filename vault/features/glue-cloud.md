@@ -1,8 +1,8 @@
 ---
 status: in-progress
 milestone: M6
-updated: 2026-09-27
-adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038]
+updated: 2026-09-28
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -175,7 +175,7 @@ an account GLUE works exactly as today, all local.
   - received songs.
 - **Sending:**
   - how: drop songs on the GLUE Home in Devices, ⋯ › Send songs…, or select tracks › Send to …;
-  - the path: a WebRTC data channel, direct only (no relay yet);
+  - the path: a WebRTC data channel, direct, or through the relay since 2026-09-28 (ADR 0081);
   - on arrival: `.part` then renamed; taken names get " (2)".
 - **Code:**
   - `home/src-tauri/src/main.rs`, `home/ui/{Settings.svelte,service.ts,cloud.ts,bridge.ts}`;
@@ -184,7 +184,7 @@ an account GLUE works exactly as today, all local.
 - **Tests:** `e2e/home.spec.ts` (settings, service controls, sign-in paths, deep link), e2e "send
   songs to a GLUE Home…" (a real WebRTC transfer, bytes compared), "GLUE Home opens the library…"
   (tabs), `tests/cloud.test.ts` (home sign-in).
-- **Open:** a TURN relay; OS keychain for the credential; code signing; picking up new files in
+- **Open:** OS keychain for the credential; code signing; picking up new files in
   the incoming folder without a scan.
 
 ## Merged collection in the library (built 2026-09-25, [ADR 0042](../adr/0042-merged-collection-in-the-local-library.md))
@@ -352,3 +352,22 @@ First release: phases 1–3 (user, 2026-09-25).
 - Each song of a cloud view points at a computer that has it and streams from its GLUE Home.
 - Devices (and Send songs…) shows in cloud views.
 - A browser without a GLUE folder, signed in, opens the account's library by itself (`lib/anywhere`).
+
+## The relay, covers, and what GLUE Home is asked (2026-09-28, GLUE Home 0.15)
+- **The relay** ([ADR 0081](../adr/0081-turn-relay.md)): streaming and sending songs away from home.
+  - `GET /v1/turn` hands signed-in devices day-long credentials for Cloudflare's TURN, made from the
+    owner's key.
+  - The key lives in the repository's secrets `TURN_KEY_ID` and `TURN_KEY_API_TOKEN`; the cloud
+    workflow gives them to the Worker.
+  - The website and GLUE Home ask once a day. Direct paths are tried first.
+  - The first 1,000 GB a month are free, then $0.05/GB. A per-account quota is needed before opening
+    GLUE Cloud to many users.
+- **Covers for other devices** ([ADR 0082](../adr/0082-covers-from-glue-home.md)):
+  - GLUE Home keeps them: handed over by the website, found by its own analyses, or read from a
+    song's tags on request.
+  - Devices ask for them with `art`, and keep them in their own cache. Never in GLUE Cloud.
+- **GLUE Home's CPU** ([ADR 0083](../adr/0083-glue-home-activity-off-the-main-thread.md)):
+  - Its file commands run off the main thread.
+  - The settings are kept in memory (they were read from disk for every request).
+  - Streaming looks up a song's path once a minute.
+  - Settings › Service › "What GLUE Home was asked" shows the counts since it started (Copy to share).

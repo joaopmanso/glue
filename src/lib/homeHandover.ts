@@ -1,6 +1,7 @@
-/* The website on a computer with GLUE Home hands its mini spectrograms and full analyses over to it
-   (ADR 0046), so GLUE Home can show them to the account's other computers without analysing every
-   song again. Only what GLUE Home doesn't have yet; once per collection per visit, then new ones. */
+/* The website on a computer with GLUE Home hands its mini spectrograms, full analyses (ADR 0046) and
+   covers (ADR 0082) over to it, so GLUE Home can show them to the account's other devices without
+   analysing every song again. Only what GLUE Home doesn't have yet; once per collection per visit, then
+   new ones. */
 import { account } from './account.svelte';
 import { lib } from './library.svelte';
 import { remoteFiles, companionOnline } from './remoteFiles.svelte';
@@ -32,8 +33,9 @@ export async function handOver() {
     const dir = await cacheDir();
     if (!dir) return;
     const a = await remoteFiles.ask(home.id, { t: 'have', profile: p.id, collection: cid });
-    const have = a.data as { thumbs: string[]; details: string[] };
-    const thumbs = new Set(have.thumbs), details = new Set(have.details);
+    // `art` (GLUE Home 0.15): the covers it keeps; an older one doesn't say, and isn't sent covers.
+    const have = a.data as { thumbs: string[]; details: string[]; art?: string[] };
+    const thumbs = new Set(have.thumbs), details = new Set(have.details), art = have.art ? new Set(have.art) : null;
     for (const t of lib.ownTracks()) {
       if (lib.store !== s) return;
       if (!thumbs.has(t.id)) {
@@ -44,6 +46,14 @@ export async function handOver() {
         const base = `details/${cid}/${shardOf(t.id)}/${t.id}`;
         const header = await readJSON<unknown>(dir, base + '.json').catch(() => null), bin = header ? await bytesAt(dir, base + '.bin') : null;
         if (header && bin) await remoteFiles.ask(home.id, { t: 'put', kind: 'details', profile: p.id, collection: cid, track: t.id, size: bin.length, header }, { upload: bin }).catch(() => {});
+      }
+      // Its cover (ADR 0082), once per picture: both sizes.
+      if (art && t.art && !art.has(t.art)) {
+        art.add(t.art);
+        for (const px of [64, 320] as const) {
+          const b = await bytesAt(dir, `art/${cid}/${t.art}-${px}.jpg`);
+          if (b) await remoteFiles.ask(home.id, { t: 'put', kind: 'art', profile: p.id, collection: cid, track: t.id, hash: t.art, px, size: b.length }, { upload: b }).catch(() => {});
+        }
       }
     }
     done.add(key);

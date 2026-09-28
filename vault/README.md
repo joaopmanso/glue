@@ -154,3 +154,6 @@ Planned (GLUE):
 | [0078](adr/0078-phone-layout.md) | On a narrow screen the library is a phone app: tabs, two-line rows, menus as sheets, a mini and full player | accepted |
 | [0079](adr/0079-touch-layout-and-playlists-by-touch.md) | Every touch device gets the touch layout, and manages playlists there: folders, select, drag to reorder, remove with Undo | accepted |
 | [0080](adr/0080-play-on-elements-a-tap-unlocked.md) | Songs play on audio elements a tap has unlocked (iOS), and failures say what the browser said | accepted |
+| [0081](adr/0081-turn-relay.md) | Connections that can't be direct go through Cloudflare's TURN relay, with the owner's key: credentials from GLUE Cloud, encrypted end to end | accepted |
+| [0082](adr/0082-covers-from-glue-home.md) | Other devices get covers from GLUE Home (kept there, or read from the tags) and keep them; never in GLUE Cloud | accepted |
+| [0083](adr/0083-glue-home-activity-off-the-main-thread.md) | GLUE Home counts what it's asked, and does its file work off the main thread | accepted |

@@ -2,17 +2,21 @@
    FLAC and Ogg pictures, MP4 and Matroska covers), made into small square JPEGs, 64 px for the table
    and 320 px to look at. Named by the picture's hash, so an album's songs share one. Only the tags are
    read: a file source reads the parts it needs, a URL (GLUE Home's local link) asks for those bytes.
-   Imported by workers only. */
-import { ALL_FORMATS, BlobSource, Input, UrlSource } from 'mediabunny';
+   Used in workers, and by GLUE Home's service page (ADR 0082). */
+import { ALL_FORMATS, BlobSource, CustomSource, Input, UrlSource } from 'mediabunny';
 
 export interface Cover { hash: string; small: Uint8Array; large: Uint8Array }
 export const COVER_SMALL = 64, COVER_LARGE = 320;
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 
+/** A file read a piece at a time by someone else (GLUE Home reads through its own disk, ADR 0082). */
+export interface Reader { size: number; read: (start: number, end: number) => Promise<Uint8Array> }
+
 /** The song's cover, or null when it has none; throws when the file can't be read. */
-export async function coverOf(src: Blob | string): Promise<Cover | null> {
-  const input = new Input({ source: typeof src === 'string' ? new UrlSource(src, { parallelism: 1, getRetryDelay: () => null }) : new BlobSource(src), formats: ALL_FORMATS });
+export async function coverOf(src: Blob | string | Reader): Promise<Cover | null> {
+  const source = typeof src === 'string' ? new UrlSource(src, { parallelism: 1, getRetryDelay: () => null }) : src instanceof Blob ? new BlobSource(src) : new CustomSource({ getSize: () => src.size, read: (s, e) => src.read(s, e) });
+  const input = new Input({ source, formats: ALL_FORMATS });
   try {
     const images = (await input.getMetadataTags()).images ?? [];
     const img = images.find(i => i.kind === 'coverFront') ?? images.find(i => i.kind !== 'coverBack') ?? images[0];

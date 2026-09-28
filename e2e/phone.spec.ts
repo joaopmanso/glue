@@ -34,13 +34,15 @@ test('a phone signs in and the library opens by itself: songs stream from the de
   // The desktop's collection in the cloud: two songs, their analyses, a playlist.
   const pid = 'pdesk', cid = 'cdesk';
   const song = (id: string, title: string, file: string) => ({ id, status: 'linked', rootId: 'deskroot', relPath: file, importPath: null, fileName: file, size: 5, mtime: 1, title, artist: 'Kloudmen', album: '', genre: 'Techno', label: '', comment: '', year: '2019', duration: 4, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] });
-  const tracks = { dk01: song('dk01', 'Genorale', 'Genorale.flac'), dk02: song('dk02', 'Manyaro', 'Manyaro.mp3') };
+  // dk03's cover is only in its file's tags: the phone gets it from the desktop's GLUE Home (ADR 0082).
+  const tracks = { dk01: song('dk01', 'Genorale', 'Genorale.flac'), dk02: song('dk02', 'Manyaro', 'Manyaro.mp3'), dk03: song('dk03', 'Covered', 'Covered.mp3') };
   const files = new Map<string, { hash: string; data: string }>([
     [`collections/${cid}/collection.json`, { hash: 'h1', data: gz({ schemaVersion: 1, id: cid, name: 'My collection', createdAt: '', roots: [{ id: 'deskroot', name: 'Music', absPath: null, handleKey: 'x', addedAt: '' }] }) }],
     [`collections/${cid}/tracks/dk.json`, { hash: 'h2', data: gz({ schemaVersion: 1, items: tracks }) }],
     [`collections/${cid}/lists/l1.json`, { hash: 'h3', data: gz({ schemaVersion: 1, id: 'l1', kind: 'playlist', name: 'Friday', parentId: null, position: 0, notes: '', items: ['dk02', 'dk01'], origin: null, createdAt: '' }) }],
   ]);
   const ops: { device: string; profile: string; collection: string; op: unknown }[] = [];
+  const turnAsked: string[] = [];
   await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
     window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
       renderButton(el) { const b = document.createElement('button'); b.className = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
@@ -51,6 +53,8 @@ test('a phone signs in and the library opens by itself: songs stream from the de
     if (p === '/v1/auth/google') return json({ access: 'a', refresh: 'r', deviceId: 'ph', user });
     if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'ph' });
     if (p === '/v1/me') return json({ user, thisDevice: 'ph', devices });
+    // The relay (ADR 0081): an address that doesn't exist, so the connection stays direct.
+    if (p === '/v1/turn') { turnAsked.push('phone'); return json({ iceServers: [{ urls: ['turn:relay.invalid:3478?transport=udp'], username: 'u', credential: 'c' }], ttl: 86400 }); }
     if (p === '/v1/sync' && m === 'GET') return json({ thisDevice: 'ph', profiles: [{ device: { id: 'desk', name: 'Desktop', kind: 'browser' }, profile: { id: pid, name: 'DJ', color: null }, stats: { collections: [{ id: cid, name: 'My collection', tracks: 2 }] }, files: files.size, stored: files.size, bytes: 1, updatedAt: Date.now(), complete: true }] });
     if (p === '/v1/sync/links' && m === 'GET') return json({ groups: [] });
     if (p === '/v1/sync/ops' && m === 'POST') { for (const o of req.postDataJSON().ops) ops.push(o); return json({ queued: 1 }); }
@@ -70,7 +74,10 @@ test('a phone signs in and the library opens by itself: songs stream from the de
 
   // The desktop's GLUE Home: its GLUE folder (read only) and the songs' files.
   const home = await page.context().newPage();
-  await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'h' }) }));
+  await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+    if (new URL(r.request().url()).pathname === '/v1/turn') { turnAsked.push('home'); return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ iceServers: [{ urls: ['turn:relay.invalid:3478?transport=udp'], username: 'u', credential: 'c' }], ttl: 86400 }) }); }
+    return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'h' }) });
+  });
   await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('hdesk'));
   await home.addInitScript(TAURI_MOCK);
   const glue = {
@@ -79,7 +86,7 @@ test('a phone signs in and the library opens by itself: songs stream from the de
     [`profiles/${pid}/collections/${cid}/collection.json`]: JSON.stringify({ schemaVersion: 1, id: cid, name: 'My collection', createdAt: '', roots: [{ id: 'deskroot', name: 'Music', absPath: null, handleKey: 'x', addedAt: '' }] }),
     [`profiles/${pid}/collections/${cid}/tracks/dk.json`]: JSON.stringify({ schemaVersion: 1, items: tracks }),
   };
-  const disk = { 'C:\\Users\\dj\\Music\\Genorale.flac': [...readFileSync(fixture('flac-96k-24.flac'))], 'C:\\Users\\dj\\Music\\Manyaro.mp3': [...readFileSync(fixture('mp3-128k.mp3'))] };
+  const disk = { 'C:\\Users\\dj\\Music\\Genorale.flac': [...readFileSync(fixture('flac-96k-24.flac'))], 'C:\\Users\\dj\\Music\\Manyaro.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\Covered.mp3': [...readFileSync(fixture('mp3-cover.mp3'))] };
   await home.addInitScript(({ glue, disk }) => {
     const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk;
     localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: 'C:\\Users\\dj\\Documents\\GLUE' }));
@@ -92,18 +99,23 @@ test('a phone signs in and the library opens by itself: songs stream from the de
   await expect(page.locator('#homepage')).toBeVisible();
   await page.locator('#cloud-panel .fake-google').click();
   const all = page.locator('#phone-library [data-view="all"]');
-  await expect(all).toContainText('2', { timeout: 30_000 });
+  await expect(all).toContainText('3', { timeout: 30_000 });
   await expect(page.locator('#phone .cloud')).toContainText('Desktop');
   // Nothing was made on the phone.
   expect(await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const names: string[] = []; for await (const [n] of (r as unknown as { entries(): AsyncIterable<[string, unknown]> }).entries()) names.push(n); return names.filter(n => n !== 'cache'); })).toEqual([]);
 
   // A song streams from the desktop's GLUE Home.
   await all.click();
+  // Its cover, from the desktop's GLUE Home, which read it from the song's tags.
+  await expect(page.locator('#phone-songs .row', { hasText: 'Covered' }).locator('.cov.has img')).toBeVisible({ timeout: 30_000 });
   const row = page.locator('#phone-songs .row', { hasText: 'Manyaro' });
   await expect(row).not.toHaveClass(/off/, { timeout: 20_000 });
   await row.click();
   await expect(page.locator('#phone-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => performance.getEntriesByType('resource').some(e => e.name.includes('/__stream/')))).toBe(true);
+  // Both ends asked GLUE Cloud for the relay before connecting.
+  expect(turnAsked).toContain('phone');
+  expect(turnAsked).toContain('home');
   await page.click('#phone-play');
 
   // A rating, from the song's sheet, goes to the desktop (applied there when GLUE opens).
@@ -126,7 +138,7 @@ test('a phone signs in and the library opens by itself: songs stream from the de
 
   // Next time on the phone: it opens by itself again.
   await page.reload();
-  await expect(page.locator('#phone-library [data-view="all"]')).toContainText('2', { timeout: 30_000 });
+  await expect(page.locator('#phone-library [data-view="all"]')).toContainText('3', { timeout: 30_000 });
   await home.close();
   expect(errors).toEqual([]);
 });

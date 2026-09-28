@@ -8,6 +8,7 @@ import { AnalysisPool } from '../../src/lib/pool';
 import { shardOf, type Track } from '../../src/store/types';
 import { DETAILS_VERSION, type DetailsHeader } from '../../src/store/details';
 import { incomingKey } from '../../src/core/transfer';
+import { coverOf, type Cover } from '../../src/workers/cover';
 
 const tKey = (p: string, c: string, id: string) => `t/${p}/${c}/${shardOf(id)}/${id}.bin`;
 const dKey = (p: string, c: string, id: string, ext: 'json' | 'bin') => `d/${p}/${c}/${shardOf(id)}/${id}.${ext}`;
@@ -35,6 +36,35 @@ export async function kept(p: string, c: string): Promise<{ thumbs: string[]; de
     for (const f of await bridge.cacheList(`d/${p}/${c}/${a + b}`)) if (f.endsWith('.json')) out.details.push(f.slice(0, -5));
   }
   return out;
+}
+
+// ---- covers (ADR 0082): for the account's other devices, never GLUE Cloud ----------------------------
+// `a/<hash>-<px>.jpg` (an album's songs share one), and per song the hash of its cover ('' for none) in
+// `c/<profile>/<collection>/<shard>/<id>.txt`, so its tags are read once.
+const aKey = (hash: string, px: 64 | 320) => `a/${hash}-${px}.jpg`;
+const cKey = (p: string, c: string, id: string) => `c/${p}/${c}/${shardOf(id)}/${id}.txt`;
+const SAFE_HASH = /^[0-9a-f]{8,64}$/;
+
+export async function art(hash: string, px: 64 | 320) { return SAFE_HASH.test(hash) ? read(aKey(hash, px)) : null; }
+export async function putArt(hash: string, px: 64 | 320, b: Uint8Array) { if (SAFE_HASH.test(hash)) await bridge.cacheWrite(aKey(hash, px), b); }
+/** The hashes of the covers kept (both sizes). */
+export async function artKept(): Promise<string[]> {
+  const files = new Set(await bridge.cacheList('a').catch(() => [] as string[]));
+  return [...files].filter(f => f.endsWith('-64.jpg') && files.has(f.slice(0, -7) + '-320.jpg')).map(f => f.slice(0, -7));
+}
+async function keepCover(p: string, c: string, id: string, cover: Cover | null) {
+  if (cover) { await putArt(cover.hash, 64, cover.small); await putArt(cover.hash, 320, cover.large); }
+  await bridge.cacheWrite(cKey(p, c, id), new TextEncoder().encode(cover?.hash ?? ''));
+}
+/** A song's cover hash ('' none): known, or read from its tags now (only the bytes the tags need). */
+export async function coverHash(p: string, c: string, id: string, cfg: HomeConfig): Promise<string> {
+  const known = await read(cKey(p, c, id));
+  if (known) return new TextDecoder().decode(known);
+  const f = await trackPath(p, c, id, cfg);
+  const size = await bridge.fileSize(f.path);
+  const cover = await coverOf({ size, read: async (s, e) => new Uint8Array(await bridge.fileRead(f.path, s, e - s)) });
+  await keepCover(p, c, id, cover);
+  return cover?.hash ?? '';
 }
 
 // ---- songs arriving in the incoming folder: analysed at once (ADR 0048) -------------------------------
@@ -67,6 +97,7 @@ async function analyse(p: string, c: string, id: string, cfg: HomeConfig): Promi
   const r = await Promise.race([p0.analyze(new File(parts, f.name), 0), new Promise<never>((_, no) => setTimeout(() => { p0.stop(); if (pool === p0) pool = null; no(new Error('the analysis took too long')); }, 120_000))]);
   if (r.thumb) await putThumb(p, c, id, r.thumb);
   if (r.details) await putDetails(p, c, id, r.details.header, r.details.bin);
+  if (r.art !== undefined) await keepCover(p, c, id, r.art);
   return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null };
 }
 

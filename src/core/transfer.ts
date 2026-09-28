@@ -37,8 +37,12 @@ export type StreamReq =
   | { t: 'get-incoming'; n: number; name: string }                                      // a song there
   | { t: 'move-incoming'; n: number; name: string; folder: string }                     // into a music folder (data: its new path)
   | { t: 'folders'; n: number }                                                         // the music folders GLUE Home found (data: HomeFolder[])
-  | { t: 'have'; n: number; profile: string; collection: string }                       // what it keeps (data: { thumbs, details } ids)
-  | { t: 'put'; n: number; kind: 'thumb' | 'details'; profile: string; collection: string; track: string; size: number; header?: unknown }   // the bytes follow, then `end`
+  | { t: 'have'; n: number; profile: string; collection: string }                       // what it keeps (data: { thumbs, details } ids, and art: the covers' hashes from 0.15)
+  /** kind 'art' (GLUE Home 0.15): a cover the website made (ADR 0082), `hash` and `px` (64 or 320); `track` names a song that has it. */
+  | { t: 'put'; n: number; kind: 'thumb' | 'details' | 'art'; profile: string; collection: string; track: string; size: number; header?: unknown; hash?: string; px?: 64 | 320 }   // the bytes follow, then `end`
+  /** Songs' covers (ADR 0082, GLUE Home 0.15): `hash` when the asker knows it; GLUE Home reads the song's tags for the rest.
+      data: [track, hash ('': none), size][]; the JPEGs follow. */
+  | { t: 'art'; n: number; profile: string; collection: string; px: 64 | 320; items: { track: string; hash?: string }[] }
   | { t: 'end'; n: number }
   | { t: 'local'; n: number }                                                           // the local link (data: { port, token }), for the website on the same computer (ADR 0048)
   | { t: 'cache'; n: number; keys: string[] };                                          // files of GLUE Home's cache (data: [key, size][])

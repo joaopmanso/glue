@@ -9,6 +9,7 @@ import * as cache from './cache';
 import { describe, locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
 import { checkReminders } from './reminders';
+import * as ice from './ice';
 
 let cfg: HomeConfig | null = null;
 let room: ReturnType<typeof stayOnline> | null = null;
@@ -18,11 +19,15 @@ let serving = 0;   // songs being sent to another computer right now
 let library: Status['library'] = undefined;
 let reminders: Status['reminders'] = undefined;
 const peers = new Map<string, RTCPeerConnection>();   // handshake id → connection
+const early = new Map<string, (RTCIceCandidateInit | null)[]>();   // candidates that came before their connection
+const located = new Map<string, { path: string; name: string; until: number }>();   // songs being streamed: where they are
+/** What other devices asked since GLUE Home started (ADR 0083), by kind: shown in the settings. */
+const served: Record<string, { calls: number; ms: number; bytes: number }> = {};
 
 const apiOf = (c: HomeConfig) => c.api || API;
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, reminders };
+  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, reminders, served: structuredClone(served) };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -35,7 +40,7 @@ function start() {
   if (!cfg.running) return report('stopped', 'Stopped');
   report('connecting', 'Connecting…');
   room = stayOnline(apiOf(cfg), cfg.deviceId, cfg.token, e => {
-    if (e.type === 'online') report('online', 'Online as ' + cfg!.name + (cfg!.user?.email ? ' · ' + cfg!.user.email : ''));
+    if (e.type === 'online') { report('online', 'Online as ' + cfg!.name + (cfg!.user?.email ? ' · ' + cfg!.user.email : '')); void ice.iceServers(apiOf(cfg!), cfg!.deviceId!, cfg!.token!); }
     else if (e.type === 'offline') report('offline', 'Offline: ' + e.why);
     else if (e.type === 'replaced') report('stopped', 'Stopped: GLUE Home started on another computer with this account’s same device');
     else if (e.type === 'removed') void unpaired();
@@ -64,16 +69,27 @@ async function onSignal(from: string, data: unknown) {
   if (!isHandshake(data) || !room) return;
   const say = (h: Handshake) => room?.send(from, h);
   if (data.t === 'offer') {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    // The relay's credentials (ADR 0081), asked for once a day: the other side's first candidates
+    // may come meanwhile, so they wait for the connection.
+    let servers = ice.iceNow();
+    if (!servers && cfg?.deviceId && cfg.token) { early.set(data.id, []); servers = await ice.iceServers(apiOf(cfg), cfg.deviceId, cfg.token); }
+    const pc = new RTCPeerConnection({ iceServers: servers ?? ICE_SERVERS });
     peers.set(data.id, pc);
+    const waiting = early.get(data.id) ?? [];
+    early.delete(data.id);
     pc.onicecandidate = e => say({ app: 'glue-send', t: 'ice', id: data.id, candidate: e.candidate?.toJSON() ?? null });
     pc.onconnectionstatechange = () => { if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) { peers.delete(data.id); pc.close(); } };
     pc.ondatachannel = ev => ev.channel.label === 'stream' ? serve(ev.channel) : receive(ev.channel, from);
     await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
+    for (const c of waiting) await pc.addIceCandidate(c ?? undefined).catch(() => {});
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     say({ app: 'glue-send', t: 'answer', id: data.id, sdp: answer.sdp ?? '' });
-  } else if (data.t === 'ice') await peers.get(data.id)?.addIceCandidate(data.candidate ?? undefined).catch(() => {});
+  } else if (data.t === 'ice') {
+    const wait = early.get(data.id);
+    if (wait) wait.push(data.candidate ?? null);
+    else await peers.get(data.id)?.addIceCandidate(data.candidate ?? undefined).catch(() => {});
+  }
   else if (data.t === 'bye') { peers.get(data.id)?.close(); peers.delete(data.id); }
 }
 
@@ -133,6 +149,7 @@ function serve(dc: RTCDataChannel) {
   /** An answer: `data`, then bytes (all at once, or read from a file in 1 MB steps), then the end. */
   const answer = async (n: number, data: unknown, bytes: Uint8Array | { path: string; size: number } | null, extra: { name?: string; type?: string } = {}) => {
     const size = bytes ? ('path' in bytes ? bytes.size : bytes.length) : 0;
+    const w = whatOf.get(n); if (w) served[w].bytes += size;
     send({ t: 'meta', n, size, data, ...extra });
     // Each binary message carries its request's number, so answers can go out at the same time (ADR 0047).
     const push = async (block: Uint8Array) => { for (let i = 0; i < block.length; i += CHUNK) { await drained(); if (dc.readyState !== 'open') return; dc.send(frame(n, block.subarray(i, Math.min(block.length, i + CHUNK)))); } };
@@ -145,8 +162,12 @@ function serve(dc: RTCDataChannel) {
   // What the website on this computer hands over ('put'): its bytes arrive after the request, by number.
   const uploads = new Map<number, { req: Extract<StreamReq, { t: 'put' }>; parts: Uint8Array[]; got: number }>();
   // Requests run at the same time: a slow one (an analysis) doesn't hold up the others.
-  const step = (f: () => Promise<void>, n: number) => {
-    void (async () => { serving++; try { await f(); } catch (err) { send({ t: 'error', n, error: (err as Error).message || String(err) }); } finally { serving--; } })();
+  // Each counted (ADR 0083): what other devices ask, how often, the time it takes.
+  const whatOf = new Map<number, string>();
+  const step = (f: () => Promise<void>, n: number, what: string) => {
+    const t0 = performance.now(), row = served[what] ??= { calls: 0, ms: 0, bytes: 0 };
+    whatOf.set(n, what);
+    void (async () => { serving++; try { await f(); } catch (err) { send({ t: 'error', n, error: (err as Error).message || String(err) }); } finally { serving--; row.calls++; row.ms += performance.now() - t0; whatOf.delete(n); } })();
   };
   dc.onmessage = e => {
     if (typeof e.data !== 'string') { const f = unframe(e.data as ArrayBuffer), u = uploads.get(f.n); if (u) { u.parts.push(f.data.slice()); u.got += f.data.length; } return; }
@@ -160,9 +181,10 @@ function serve(dc: RTCDataChannel) {
         for (const p of u.parts) { bytes.set(p, at); at += p.length; }
         const r = u.req;
         if (r.kind === 'thumb') await cache.putThumb(r.profile, r.collection, r.track, bytes);
+        else if (r.kind === 'art') { if (r.hash && (r.px === 64 || r.px === 320)) await cache.putArt(r.hash, r.px, bytes); }
         else await cache.putDetails(r.profile, r.collection, r.track, r.header as DetailsHeader, bytes);
         await answer(r.n, null, null);
-      }, c.n);
+      }, c.n, 'put ' + u.req.kind);
       return;
     }
     step(async () => {
@@ -179,9 +201,16 @@ function serve(dc: RTCDataChannel) {
           if (!f) throw new Error('That song isn’t in the incoming folder any more.');
           path = f.path; name = f.name;
         } else {
-          const f = await trackPath(c.profile!, c.collection!, c.track!, need());
-          if (f.folder && cfg) { cfg = { ...cfg, folders: { ...(cfg.folders ?? {}), [f.folder.id]: f.folder.path } }; await bridge.saveConfig(cfg); }
-          path = f.path; name = f.name;
+          // A song streams in many parts: where it is is looked up once a minute, not for each part.
+          const key = c.profile + '/' + c.collection + '/' + c.track, known = located.get(key);
+          if (known && known.until > Date.now()) ({ path, name } = known);
+          else {
+            const f = await trackPath(c.profile!, c.collection!, c.track!, need());
+            if (f.folder && cfg) { cfg = { ...cfg, folders: { ...(cfg.folders ?? {}), [f.folder.id]: f.folder.path } }; await bridge.saveConfig(cfg); }
+            path = f.path; name = f.name;
+            located.set(key, { path, name, until: Date.now() + 60_000 });
+            if (located.size > 200) located.delete(located.keys().next().value!);
+          }
         }
         const total = await bridge.fileSize(path), start = Math.max(0, Math.min(c.start, total)), len = Math.max(0, Math.min(c.len, 8 * 1024 * 1024, total - start));
         const parts: Uint8Array[] = [];
@@ -213,7 +242,20 @@ function serve(dc: RTCDataChannel) {
         if (!d) throw new Error('GLUE Home couldn’t analyse that song.');
         await answer(c.n, d.header, d.bin);
       } else if (c.t === 'have') {
-        await answer(c.n, await cache.kept(c.profile, c.collection), null);
+        await answer(c.n, { ...await cache.kept(c.profile, c.collection), art: await cache.artKept() }, null);
+      } else if (c.t === 'art') {
+        // Songs' covers (ADR 0082): kept, or read from the song's tags now (and kept for next time).
+        const conf = need(), px = c.px === 320 ? 320 : 64;
+        const found: [string, string, number][] = [], parts: Uint8Array[] = [];
+        for (const it of c.items.slice(0, 60)) {
+          let hash = it.hash ?? '', b = hash ? await cache.art(hash, px) : null;
+          if (!b) { hash = await cache.coverHash(c.profile, c.collection, it.track, conf).catch(() => ''); b = hash ? await cache.art(hash, px) : null; }
+          found.push([it.track, hash, b?.length ?? 0]);
+          if (b) parts.push(b);
+        }
+        const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
+        for (const p of parts) { all.set(p, at); at += p.length; }
+        await answer(c.n, found, all);
       } else if (c.t === 'incoming') {
         // With the analysis made when each song arrived.
         const list = await Promise.all((await bridge.incomingList()).map(async f => ({ name: f.name, size: f.size, mtime: f.mtime, summary: await cache.incomingSummary(f.name) })));
@@ -241,7 +283,7 @@ function serve(dc: RTCDataChannel) {
         await answer(c.n, await bridge.incomingMove(c.name, to), null);
         report(state, text);
       }
-    }, c.n);
+    }, c.n, c.t);
   };
 }
 

@@ -23,6 +23,8 @@ function d1(): DB {
 }
 
 let keys: CryptoKeyPair, jwks: JwkSet, env: Env, now = Date.UTC(2026, 8, 25);
+/** Stands in for Cloudflare's TURN service (ADR 0081). */
+let relay: typeof fetch | undefined;
 async function idToken(claims: Record<string, unknown>, kid = 'k1') {
   const enc = new TextEncoder();
   const body = b64url(enc.encode(JSON.stringify({ alg: 'RS256', kid, typ: 'JWT' }))) + '.' + b64url(enc.encode(JSON.stringify({
@@ -36,7 +38,7 @@ const call = async (method: string, path: string, body?: unknown, token?: string
   const r = await handle(new Request('https://glue-api.test' + path, {
     method, headers: { Origin: ORIGIN, ...(body ? { 'Content-Type': typeof body === 'string' ? 'text/plain' : 'application/json' } : {}), ...(token ? { Authorization: 'Bearer ' + token } : {}), ...extra },
     body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
-  }), env, { now: () => now, googleKeys: async () => jwks });
+  }), env, { now: () => now, googleKeys: async () => jwks, fetch: relay });
   const text = await r.text();
   let json: Record<string, any> = {};
   try { json = JSON.parse(text); } catch { /* a file body */ }
@@ -51,6 +53,7 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   now = Date.UTC(2026, 8, 25);
+  relay = undefined;
   env = { DB: d1(), SESSION_KEY: 'test-session-key-0123456789abcdef', GOOGLE_CLIENT_ID: CLIENT, ALLOWED_ORIGINS: ORIGIN + ',http://localhost:5174', ADMIN_EMAILS: 'boss@example.com' };
 });
 
@@ -332,5 +335,30 @@ describe('GLUE Cloud: email + password, tiers, admin (ADR 0041)', () => {
     expect((await call('POST', '/v1/admin/maintenance', { task: 'attempts' }, boss.json.access)).status).toBe(200);
     expect((await call('DELETE', '/v1/admin/users/' + id, undefined, boss.json.access)).status).toBe(200);
     expect((await call('GET', '/v1/me', undefined, dj.json.access)).status).toBe(401);
+  });
+});
+
+describe('GLUE Cloud: the relay (ADR 0081)', () => {
+  it('hands signed-in devices short-lived relay credentials from the TURN key, without port 53; none without a key', async () => {
+    const a = await signIn();
+    expect((await call('GET', '/v1/turn')).status).toBe(401);
+    // No key yet: nothing, and devices connect directly.
+    expect((await call('GET', '/v1/turn', undefined, a.json.access)).json).toEqual({ iceServers: [], ttl: 0 });
+    // With the key: Cloudflare's answer, less the URL browsers block.
+    env = { ...env, TURN_KEY_ID: 'key-1', TURN_KEY_API_TOKEN: 'secret-token' };
+    const asked: { url: string; auth: string | null; body: string }[] = [];
+    relay = (async (url: string, init: RequestInit) => {
+      asked.push({ url, auth: new Headers(init.headers).get('Authorization'), body: String(init.body) });
+      return new Response(JSON.stringify({ iceServers: [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.cloudflare.com:53'] }, { urls: ['turn:turn.cloudflare.com:3478?transport=udp', 'turn:turn.cloudflare.com:53?transport=udp', 'turns:turn.cloudflare.com:443?transport=tcp'], username: 'u', credential: 'c' }] }), { status: 201 });
+    }) as unknown as typeof fetch;
+    const r = await call('GET', '/v1/turn', undefined, a.json.access);
+    expect(asked).toEqual([{ url: 'https://rtc.live.cloudflare.com/v1/turn/keys/key-1/credentials/generate-ice-servers', auth: 'Bearer secret-token', body: '{"ttl":86400}' }]);
+    expect(r.json).toEqual({ ttl: 86400, iceServers: [
+      { urls: ['stun:stun.cloudflare.com:3478'] },
+      { urls: ['turn:turn.cloudflare.com:3478?transport=udp', 'turns:turn.cloudflare.com:443?transport=tcp'], username: 'u', credential: 'c' },
+    ] });
+    // The service failing: none, and the reason.
+    relay = (async () => new Response('no', { status: 503 })) as unknown as typeof fetch;
+    expect((await call('GET', '/v1/turn', undefined, a.json.access)).json).toMatchObject({ iceServers: [], ttl: 0, error: expect.stringContaining('503') });
   });
 });

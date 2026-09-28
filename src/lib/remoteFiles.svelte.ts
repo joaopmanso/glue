@@ -243,6 +243,31 @@ class RemoteFiles {
     return out;
   }
 
+  /** Covers of songs on other computers (ADR 0082), from their GLUE Home (0.15 and later): kept there, or
+      read from the songs' tags. Per track: its cover's hash ('' none) and the JPEG. */
+  async art(ts: Track[], px: 64 | 320): Promise<Map<string, { hash: string; bytes: Uint8Array | null }>> {
+    const out = new Map<string, { hash: string; bytes: Uint8Array | null }>(), groups = new Map<string, Track[]>();
+    for (const t of ts) {
+      const home = this.homeFor(t), r = t.remote;
+      if (!home || !r?.id || !r.profile || !r.collection || r.incoming) continue;
+      const k = home + '|' + r.profile + '|' + r.collection;
+      (groups.get(k) ?? groups.set(k, []).get(k)!).push(t);
+    }
+    for (const [k, list] of groups) {
+      const [home, profile, collection] = k.split('|');
+      const a = await this.ask(home, { t: 'art', profile, collection, px, items: list.map(t => ({ track: t.remote!.id!, ...(t.art ? { hash: t.art } : {}) })) }).catch(() => null);
+      if (!a) continue;
+      let at = 0;
+      for (const [id, hash, size] of a.data as [string, string, number][]) {
+        const t = list.find(x => x.remote!.id === id);
+        if (t) out.set(t.id, { hash, bytes: size ? a.bytes.slice(at, at + size) : null });
+        at += size;
+      }
+    }
+    return out;
+  }
+  artReachable(t: Track) { const r = t.remote; return !!r?.id && !r.incoming && !!this.homeFor(t) && account.online.has(this.homeFor(t)!); }
+
   /** The full analysis of a song on another computer (made there), without its audio. */
   async details(t: Track): Promise<{ header: DetailsHeader; bin: Uint8Array } | null> {
     const home = this.homeFor(t), r = t.remote;
@@ -290,4 +315,6 @@ lib.streamFor = t => remoteFiles.stream(t);
 // The library plays and analyses another computer's songs through this.
 lib.remoteFile = t => remoteFiles.get(t);
 lib.canStream = t => remoteFiles.canStream(t);
+lib.remoteArt = (ts, px) => remoteFiles.art(ts, px);
+lib.artReachable = t => remoteFiles.artReachable(t);
 thumbs.remote = ts => remoteFiles.thumbs(ts);

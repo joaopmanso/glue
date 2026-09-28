@@ -52,6 +52,7 @@ export const TAURI_MOCK = `(() => {
         // GLUE Home's own cache (in memory) and the incoming folder (the songs received, above).
         case 'cache_read': { const b = cache[args.rel]; if (!b) throw 'not found'; return new Uint8Array(b).buffer; }
         case 'cache_write': cache[opts.headers['x-rel']] = Array.from(args); return;
+        case 'activity_now': return { seconds: 120, counts: { 'bridge file_read': { calls: 3, ms: 12, bytes: 3145728 }, 'local /fs/list': { calls: 40, ms: 30, bytes: 0 } } };
         case 'cache_list': return Object.keys(cache).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
         case 'incoming_list': return files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, size: f.chunks.reduce((a, c) => a + c.length, 0), mtime: 1, path: 'C:\\\\In\\\\' + f.name }));
         case 'incoming_move': { const f = files.find(x => x.name === args.name && x.done && !x.moved); if (!f) throw 'not found'; f.moved = args.to; return args.to + '\\\\' + f.name; }

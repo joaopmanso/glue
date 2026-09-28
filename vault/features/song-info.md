@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M3
-updated: 2026-09-27
-adrs: [0071, 0072, 0051, 0024]
+updated: 2026-09-28
+adrs: [0071, 0072, 0051, 0024, 0082]
 ---
 # Song info and covers
 
@@ -98,3 +98,9 @@ column, and on their page.
 - A song has one genre (its file's Genre field); it's set through song info, so GLUE Home writes it
   into the file.
 - `lib/genres.svelte.ts` (`GENRE_PRESETS`, `allGenres`, `setGenre`), `ui/library/GenreEditor.svelte`.
+
+## Covers on other devices (2026-09-28, [ADR 0082](../adr/0082-covers-from-glue-home.md))
+- A phone (or any device showing another computer's songs) gets their covers from that computer's
+  GLUE Home, and keeps them in its own cache. Never through GLUE Cloud.
+- GLUE Home has them from the website's hand-over, from its own analyses, or from the song's tags,
+  read on request (only the bytes the tags need).

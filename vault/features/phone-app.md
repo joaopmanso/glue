@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M7
 updated: 2026-09-28
-adrs: [0057, 0076, 0077, 0078, 0079, 0080]
+adrs: [0057, 0076, 0077, 0078, 0079, 0080, 0081, 0082]
 ---
 # Phone app (remote + offline)
 
@@ -101,7 +101,10 @@ fallback.
 - **Toasts** go by themselves after a few seconds.
 - **iPhone playback:** songs start after the network answers, and play on by themselves
   ([ADR 0080](../adr/0080-play-on-elements-a-tap-unlocked.md)). Failures say what the browser said.
-- **Next** (batch H):
-  - streaming outside the home Wi-Fi (a TURN relay);
-  - covers from GLUE Home;
-  - GLUE Home's CPU use.
+
+## Away from home, and covers (2026-09-28, GLUE Home 0.15)
+- **Streaming and sending songs work away from the home Wi-Fi** through GLUE Cloud's relay, once
+  its key is set ([ADR 0081](../adr/0081-turn-relay.md)).
+- **Covers show on the phone:** from the computer's GLUE Home, then kept on the phone
+  ([ADR 0082](../adr/0082-covers-from-glue-home.md)).
+- **Open:** a real iPhone on mobile data, through the relay **[UNVERIFIED]**.

@@ -1,16 +1,18 @@
 /* A WebRTC data channel to a GLUE Home (ADR 0044, 0045), set up through the account's signaling
-   room: the room only relays the handshake; songs go directly between the two computers. */
+   room: the room only relays the handshake; songs go directly between the two devices, or through
+   GLUE Cloud's relay when they can't reach each other (ADR 0081), encrypted end to end either way. */
 import { account } from './account.svelte';
-import { ICE_SERVERS, isHandshake, type Handshake } from '../core/transfer';
+import { isHandshake, type Handshake } from '../core/transfer';
+import { hasRelay, iceServers } from './ice';
 
 export interface HomeChannel { dc: RTCDataChannel; close: () => void }
 
 /** Open a channel (`label`: 'files' to send songs, 'stream' to get them) to an online GLUE Home. */
-export function connectHome(home: string, label: 'files' | 'stream', opts: { timeout?: number; onFail?: (why: string) => void } = {}): Promise<HomeChannel> {
+export async function connectHome(home: string, label: 'files' | 'stream', opts: { timeout?: number; onFail?: (why: string) => void } = {}): Promise<HomeChannel> {
   const name = account.devices.find(d => d.id === home)?.name ?? 'GLUE Home';
-  if (!account.online.has(home)) return Promise.reject(new Error(name + '’s GLUE Home is offline: start it on that computer.'));
+  if (!account.online.has(home)) throw new Error(name + '’s GLUE Home is offline: start it on that computer.');
   const id = crypto.randomUUID();
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection({ iceServers: await iceServers() });
   const say = (h: Handshake) => { account.signal(home, h); };
   let off = () => {};
   let open = false, closed = false;
@@ -19,7 +21,7 @@ export function connectHome(home: string, label: 'files' | 'stream', opts: { tim
   dc.binaryType = 'arraybuffer';
   return new Promise<HomeChannel>((resolve, reject) => {
     const fail = (why: string) => { close(); if (!open) reject(new Error(why)); else opts.onFail?.(why); };
-    const timer = setTimeout(() => fail('Couldn’t connect to ' + name + '. Both computers need to reach each other directly for now (a relay comes later).'), opts.timeout ?? 20_000);
+    const timer = setTimeout(() => fail(hasRelay() ? 'Couldn’t connect to ' + name + ', even through the relay.' : 'Couldn’t connect to ' + name + ': without GLUE Cloud’s relay, both need to reach each other directly (on the same network, usually).'), opts.timeout ?? 20_000);
     off = account.onSignal((from, data) => {
       if (from !== home || !isHandshake(data) || data.id !== id) return;
       if (data.t === 'answer') void pc.setRemoteDescription({ type: 'answer', sdp: data.sdp }).catch(e => fail((e as Error).message));

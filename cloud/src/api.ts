@@ -2,6 +2,7 @@
    the per-user signaling room. Plain request → response, so tests run it against real SQLite. */
 import * as sync from './sync';
 import * as admin from './admin';
+import { turnServers, type TurnEnv } from './turn';
 import { normCode, pairingCode, randomId, randomToken, sha256, signAccess, verifyAccess, verifyGoogle, type Access, type JwkSet } from './crypto';
 
 /** The parts of Cloudflare D1 we use (tests pass a node:sqlite shim with the same shape). */
@@ -9,8 +10,9 @@ export interface Stmt { bind(...v: unknown[]): Stmt; first<T = Record<string, un
 export interface DB { prepare(sql: string): Stmt; batch(s: Stmt[]): Promise<unknown[]> }
 export interface SignalNS { idFromName(n: string): unknown; get(id: unknown): { fetch(r: Request): Promise<Response> } }
 /** ADMIN_EMAILS: comma-separated; admin only through a Google-verified email (ADR 0041). */
-export interface Env { DB: DB; SESSION_KEY: string; GOOGLE_CLIENT_ID: string; ALLOWED_ORIGINS: string; ADMIN_EMAILS?: string; SIGNAL?: SignalNS }
-export interface Deps { now: () => number; googleKeys: () => Promise<JwkSet> }
+export interface Env extends TurnEnv { DB: DB; SESSION_KEY: string; GOOGLE_CLIENT_ID: string; ALLOWED_ORIGINS: string; ADMIN_EMAILS?: string; SIGNAL?: SignalNS }
+/** fetch: for the relay's credentials (tests stand in for it). */
+export interface Deps { now: () => number; googleKeys: () => Promise<JwkSet>; fetch?: typeof fetch }
 
 const DAY = 864e5;
 export const REFRESH_TTL = 60 * DAY, DEVICE_TTL = 365 * DAY, CODE_TTL = 10 * 60e3, ACCESS_TTL = 3600;
@@ -61,6 +63,8 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     // Everything else needs a signed-in device.
     const a = await authed(env, (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''), now);
     if (m === 'GET' && path === '/v1/me') return reply(await me(env, a));
+    // The relay's credentials (ADR 0081): a failure leaves devices to connect directly.
+    if (m === 'GET' && path === '/v1/turn') return reply(await turnServers(env, deps.fetch ?? ((u, i) => fetch(u, i))).catch(e => ({ iceServers: [], ttl: 0, error: (e as Error).message })));
     if (path.startsWith('/v1/admin/')) return reply(await admin.route(env, a, m, path, url.searchParams, m === 'GET' || m === 'DELETE' ? {} : await body(), now));
     if (m === 'POST' && path === '/v1/pairing') {
       await env.DB.prepare('DELETE FROM pairing_codes WHERE expires_at < ?').bind(now).run();

@@ -26,15 +26,17 @@ class Covers {
   private seq = 0;
   private cid = '';
 
-  /** The track's cover hash as known now: '' none, undefined not looked for yet. */
-  hashOf(t: Track) { return t.art ?? this.found.get(t.id); }
-  /** A cover's picture: a URL, null (the song has none, or GLUE can't read it here), undefined (on its way). */
+  /** The track's cover hash as known now: '' none, undefined not looked for yet (what was just read from
+      the file, or from its computer's GLUE Home, first). */
+  hashOf(t: Track) { return this.found.get(t.id) ?? t.art; }
+  /** A cover's picture: a URL, null (the song has none, or GLUE can't get it here), undefined (on its way). */
   get(t: Track, size: CoverSize): string | null | undefined {
     this.checkCollection();
     const h = this.hashOf(t);
     if (h === '') return null;
-    if (h) { const u = this.urls.get(h + '-' + size); return u ?? (u === null && !this.canRead(t) ? null : undefined); }
-    return this.canRead(t) ? undefined : null;
+    const can = this.canRead(t) || this.canAsk(t);
+    if (h) { const u = this.urls.get(h + '-' + size); return u ?? (u === null && !can ? null : undefined); }
+    return can ? undefined : null;
   }
   /** Called from an effect while a cell shows `undefined`. */
   request(t: Track, size: CoverSize) {
@@ -42,7 +44,7 @@ class Covers {
     const h = this.hashOf(t);
     if (h === '') return;
     if (h && !this.urls.has(h + '-' + size)) { void this.load(t, h, size); return; }
-    this.fromTags(t);
+    if (this.canRead(t)) this.fromTags(t); else if (this.canAsk(t)) this.fromHome(t, size);
   }
   /** A fresh analysis found one: stored before the track names it. */
   async put(c: Cover) {
@@ -58,7 +60,7 @@ class Covers {
     if (cid === this.cid) return;
     this.cid = cid;
     for (const u of this.urls.values()) if (u) URL.revokeObjectURL(u);
-    this.urls.clear(); this.want = []; this.tried.clear(); this.found.clear();
+    this.urls.clear(); this.want = []; this.tried.clear(); this.found.clear(); this.homeWant.clear(); this.homeTried.clear();
   }
   private remember(k: string, u: string | null) {
     const old = this.urls.get(k);
@@ -68,6 +70,41 @@ class Covers {
     this.version++;
   }
   private canRead(t: Track) { return t.status === 'linked' && !t.remote && !lib.cloud && !!t.rootId && !!t.relPath && !t.fileKey; }
+  /** Another computer's song (a phone's cloud library, ADR 0077): its GLUE Home has the cover (ADR 0082). */
+  private canAsk(t: Track) { return !!t.remote && !!lib.artReachable?.(t); }
+
+  // ─── From another computer's GLUE Home (ADR 0082): the covers of the rows on screen, a batch at a time,
+  // kept in this device's cache (never in GLUE Cloud) so they show at once next time ───
+  private homeWant = new Map<string, { t: Track; size: CoverSize }>();
+  private homeTried = new Set<string>();
+  private homeTimer = 0;
+  private fromHome(t: Track, size: CoverSize) {
+    const k = t.id + '-' + size;
+    if (this.homeTried.has(k)) return;
+    this.homeTried.add(k);
+    this.homeWant.set(k, { t, size });
+    clearTimeout(this.homeTimer);
+    this.homeTimer = window.setTimeout(() => void this.askHomes(), 60);
+  }
+  private async askHomes() {
+    const cid = this.cid, s = lib.store, want = [...this.homeWant.values()];
+    this.homeWant.clear();
+    for (const size of [64, 320] as const) {
+      const ts = want.filter(w => w.size === size).map(w => w.t);
+      for (let i = 0; i < ts.length; i += 60) {
+        const got = await lib.remoteArt?.(ts.slice(i, i + 60), size).catch(() => null);
+        if (!got || this.cid !== cid || lib.store !== s) return;
+        const dir = await platform.cacheDir();
+        for (const [id, { hash, bytes }] of got) {
+          this.found.set(id, hash);
+          if (!hash || !bytes) continue;
+          if (dir) await writeBlob(dir, `art/${cid}/${hash}-${size}.jpg`, new Blob([bytes.slice()], { type: 'image/jpeg' })).catch(() => {});
+          this.remember(hash + '-' + size, URL.createObjectURL(new Blob([bytes.slice()], { type: 'image/jpeg' })));
+        }
+        this.version++;
+      }
+    }
+  }
 
   private async load(t: Track, hash: string, size: CoverSize) {
     const k = hash + '-' + size, cid = this.cid;
@@ -78,7 +115,8 @@ class Covers {
       const f = dir ? await fileAt(dir, `art/${cid}/${k}.jpg`).catch(() => null) : null;
       if (this.cid !== cid) return;
       this.remember(k, f ? URL.createObjectURL(f) : null);
-      if (!f) this.fromTags(t);   // not in this browser's cache: from the file again
+      // Not in this browser's cache: from the file again, or from its computer's GLUE Home.
+      if (!f) { if (this.canRead(t)) this.fromTags(t); else if (this.canAsk(t)) this.fromHome(t, size); }
     } finally { this.reading.delete(k); }
   }
 

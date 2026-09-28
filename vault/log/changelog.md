@@ -5,6 +5,31 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's third list, batch H: away from home, covers, GLUE Home's CPU (GLUE Home 0.15)
+- **Streaming and sending songs away from the home Wi-Fi** ([ADR 0081](../adr/0081-turn-relay.md)):
+  - GLUE Cloud hands out day-long credentials for Cloudflare's TURN relay (`GET /v1/turn`), from the
+    owner's key in the repository's secrets;
+  - the website and GLUE Home use them when a direct connection can't be made;
+  - the relay can't read what it passes.
+- **Covers on the phone** ([ADR 0082](../adr/0082-covers-from-glue-home.md)):
+  - GLUE Home keeps covers: handed over by the website, found by its analyses, or read from a song's
+    tags on request;
+  - the phone asks for the rows on screen and keeps them;
+  - never in GLUE Cloud.
+- **GLUE Home 0.15** ([ADR 0083](../adr/0083-glue-home-activity-off-the-main-thread.md)):
+  - its file work runs off the main thread;
+  - its settings are kept in memory (they were read from disk for every request);
+  - a streamed song's path is looked up once a minute;
+  - Settings › Service › "What GLUE Home was asked" shows the counts since it started, with Copy.
+- **Found while checking the CPU:** GLUE Home's own background analysis last ran on 2026-09-26. The
+  steady load came from answering the open GLUE tab and the phone on its main thread.
+- Tests:
+  - Vitest: `/v1/turn` (no key, a key, port 53 left out, the service failing);
+  - e2e `phone.spec`: a cover read from a song's tags by the desktop's GLUE Home shows on the phone;
+    both ends ask for the relay;
+  - e2e `home.spec`: the activity table and Copy;
+  - Rust: the counts.
+
 ## 2026-09-28 · The user's third list, batch G: playlists by touch, tablets, iPhone playback
 - **Playlists on phones and tablets** ([ADR 0079](../adr/0079-touch-layout-and-playlists-by-touch.md)):
   - new playlists and folders;

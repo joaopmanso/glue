@@ -4,7 +4,8 @@ import { account, type CloudDevice } from './account.svelte';
 import { lib } from './library.svelte';
 import { localHome } from './localHome.svelte';
 import type { Track } from '../store/types';
-import { CHUNK, HIGH_WATER, ICE_SERVERS, isHandshake, type Ctrl, type Handshake } from '../core/transfer';
+import { CHUNK, HIGH_WATER, isHandshake, type Ctrl, type Handshake } from '../core/transfer';
+import { iceServers } from './ice';
 
 export interface Sending { home: string; homeName: string; files: { name: string; size: number; sent: number; state: 'waiting' | 'sending' | 'saved' | 'failed'; note: string }[]; phase: 'connecting' | 'sending' | 'done' | 'failed'; error: string }
 
@@ -25,7 +26,7 @@ class SendToHome {
     if (!account.online.has(home)) { set({ phase: 'failed', error: homeName + ' is offline: start GLUE Home on that computer.' }); return; }
 
     const id = crypto.randomUUID();
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: await iceServers() });
     const say = (h: Handshake) => { if (!account.signal(home, h)) throw new Error('Not connected to GLUE Cloud.'); };
     const off = account.onSignal((from, data) => {
       if (from !== home || !isHandshake(data) || data.id !== id) return;

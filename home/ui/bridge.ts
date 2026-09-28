@@ -34,7 +34,11 @@ export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online
   /** Making mini spectrograms and analyses of the shared songs (ADR 0046). */
   analysis?: { done: number; total: number; running: boolean };
   /** The last look at the events (ADR 0074): when, how many need music, which were just notified. */
-  reminders?: { at: number; coming: number; sent: string[] } }
+  reminders?: { at: number; coming: number; sent: string[] };
+  /** What other devices asked since GLUE Home started, by kind (ADR 0083). */
+  served?: Record<string, Activity> }
+/** How many, the time spent (ms), the bytes. */
+export interface Activity { calls: number; ms: number; bytes: number }
 
 export const bridge = {
   config: () => invoke<HomeConfig | null>('get_config'),
@@ -57,6 +61,8 @@ export const bridge = {
   cacheRead: (rel: string) => invoke<ArrayBuffer>('cache_read', { rel }),
   cacheWrite: (rel: string, bytes: Uint8Array) => invoke<void>('cache_write', bytes, { headers: { 'x-rel': rel } }),
   cacheList: (rel: string) => invoke<string[]>('cache_list', { rel }),
+  /** What GLUE Home's own side was asked since it started: the local link, the service page's file reads (ADR 0083). */
+  activity: () => invoke<{ seconds: number; counts: Record<string, Activity> }>('activity_now'),
   incomingList: () => invoke<{ name: string; size: number; mtime: number; path: string }[]>('incoming_list'),
   incomingMove: (name: string, to: string) => invoke<string>('incoming_move', { name, to }),
   localPort: () => invoke<number>('local_port'),

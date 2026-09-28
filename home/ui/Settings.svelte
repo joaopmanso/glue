@@ -5,7 +5,7 @@
      received lately; the duplicates folder (ADR 0070). A desktop window: pages on the left, one pane
      that scrolls (2026-09-27). */
   import { onMount } from 'svelte';
-  import { API, WEBSITE, askYesNo, autostart, bridge, onPairLink, openFolder, openUrl, pickFolder, type HomeConfig, type Status } from './bridge';
+  import { API, WEBSITE, askYesNo, autostart, bridge, onPairLink, openFolder, openUrl, pickFolder, type Activity, type HomeConfig, type Status } from './bridge';
   import { claim, type Joined } from './cloud';
   import { collectionKey, describe, shared, type LibraryInfo } from './library';
   import { findUpdate, install, version } from './updates';
@@ -132,6 +132,23 @@
       }
     })().catch(e => (error = (e as Error).message));
   });
+  // What GLUE Home was asked since it started (ADR 0083): its own side (the local link, file reads) and
+  // what other devices asked its service page. To see what keeps it busy.
+  let own = $state<{ seconds: number; counts: Record<string, Activity> } | null>(null);
+  async function loadActivity() { await bridge.askStatus(); own = await bridge.activity().catch(() => null); }
+  const activity = $derived.by(() => {
+    const rows: { what: string; calls: number; ms: number; bytes: number }[] = [];
+    for (const [k, a] of Object.entries(own?.counts ?? {})) rows.push({ what: k.startsWith('local ') ? 'This computer’s GLUE website: ' + k.slice(6) : k.startsWith('bridge ') ? 'Reading files: ' + k.slice(7) : k, ...a });
+    for (const [k, a] of Object.entries(status?.served ?? {})) rows.push({ what: 'Other devices: ' + k, ...a });
+    return rows.sort((a, b) => b.ms - a.ms);
+  });
+  const mb = (b: number) => b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : b >= 1e3 ? Math.round(b / 1e3) + ' kB' : b ? b + ' B' : '';
+  const secs = (ms: number) => ms >= 60_000 ? (ms / 60_000).toFixed(1) + ' min' : ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
+  function copyActivity() {
+    const text = 'GLUE Home ' + current + ', running ' + Math.round((own?.seconds ?? 0) / 60) + ' min\n' + activity.map(r => [r.what, r.calls, secs(r.ms), mb(r.bytes)].join('\t')).join('\n');
+    void navigator.clipboard.writeText(text);
+  }
+
   const pill = $derived(status?.state === 'online' ? 'Online' : status?.state === 'connecting' ? 'Connecting' : status?.state === 'offline' ? 'Offline' : status?.state === 'stopped' ? 'Stopped' : 'Not connected');
 </script>
 
@@ -159,6 +176,17 @@
           <button type="button" id="svc-restart" disabled={!paired} onclick={() => bridge.control('restart')}>Restart</button>
         </div>
         <label class="check"><input type="checkbox" id="at-login" checked={atLogin} onchange={e => setAtLogin(e.currentTarget.checked)}> Start GLUE Home when this computer starts</label>
+        <details id="activity" ontoggle={e => { if (e.currentTarget.open) void loadActivity(); }}>
+          <summary>What GLUE Home was asked</summary>
+          <p class="fine">Since it started{own ? ' ' + Math.round(own.seconds / 60) + ' min ago' : ''}, the most time first: what keeps GLUE Home busy.</p>
+          {#if activity.length}
+            <table class="act">
+              <thead><tr><th>What</th><th>Times</th><th>Time</th><th>Data</th></tr></thead>
+              <tbody>{#each activity as r (r.what)}<tr><td>{r.what}</td><td>{r.calls.toLocaleString()}</td><td>{secs(r.ms)}</td><td>{mb(r.bytes)}</td></tr>{/each}</tbody>
+            </table>
+          {:else}<p class="fine">Nothing yet.</p>{/if}
+          <div class="row"><button type="button" id="activity-refresh" onclick={() => void loadActivity()}>Refresh</button><button type="button" id="activity-copy" disabled={!activity.length} onclick={copyActivity}>Copy</button></div>
+        </details>
       </section>
 
       <section id="sec-account">
@@ -294,6 +322,12 @@
   h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
   p { margin: 0; }
   .fine { color: var(--muted); font-size: 12.5px; }
+  #activity { margin-top: 10px; }
+  #activity summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+  .act { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
+  .act th { text-align: left; color: var(--muted); font-weight: 600; padding: 2px 6px 4px 0; }
+  .act td { padding: 3px 6px 3px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .act td:not(:first-child), .act th:not(:first-child) { text-align: right; white-space: nowrap; }
   .err { color: var(--bad); font-size: 12.5px; }
   .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   button { background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 13px; }

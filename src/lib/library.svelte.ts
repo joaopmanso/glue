@@ -998,6 +998,10 @@ class Library {
   canStream: ((t: Track) => boolean) | null = null;
   /** Another computer's song as a stream (ADR 0076), when its GLUE Home can: an address; null otherwise. */
   streamFor: ((t: Track) => Promise<string | null>) | null = null;
+  /** Other computers' songs' covers, from their GLUE Home (ADR 0082): per track, its hash ('' none) and the JPEG. */
+  remoteArt: ((ts: Track[], px: 64 | 320) => Promise<Map<string, { hash: string; bytes: Uint8Array | null }>>) | null = null;
+  /** Is there a GLUE Home to ask for this song's cover? */
+  artReachable: ((t: Track) => boolean) | null = null;
   /** What to play a song from (ADR 0076): an address that streams (this computer's GLUE Home's local link,
       or another computer's GLUE Home) when the browser plays the format by itself; otherwise the file. */
   async mediaFor(t: Track): Promise<Blob | string> {
