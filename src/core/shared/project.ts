@@ -1,0 +1,69 @@
+/* A shared collection's records as this computer sees them (ADR 0094), and back. Pure.
+   - A song's `copies[computer]` say where each computer has its file; this computer's becomes the
+     song's usual fields (rootId, relPath, status…). A song only other computers have is a `remote` row,
+     pointing at one of them (streamed through its GLUE Home).
+   - Analyses are per computer: this computer's, else another's.
+   - Music folders are per computer (`rootsBy`).
+   Only this computer's own parts are ever written back from here. */
+import type { AnalysisSummary, Collection, Root, Track } from '../../store/types';
+
+/** A computer's copy of a song: where its file is, and what only that file knows. */
+export const COPY_FIELDS = ['status', 'rootId', 'relPath', 'fileKey', 'importPath', 'size', 'mtime', 'unwritten', 'sources'] as const;
+type CopyField = typeof COPY_FIELDS[number];
+export type Copy = Pick<Track, CopyField>;
+/** A song as the shared collection holds it. */
+export type SharedTrack = Omit<Track, CopyField | 'onDevices' | 'remote'> & { copies: Record<string, Copy> };
+/** A shared collection's own file: the usual one, with each computer's music folders and profile. */
+export type SharedCollection = Omit<Collection, 'roots'> & { shared: true; rootsBy: Record<string, Root[]>; members: Record<string, { profile: string; name: string }> };
+
+export interface Here { me: string; collection: string; members: SharedCollection['members'] }
+
+const pick = <T extends object, K extends keyof T>(o: T, ks: readonly K[]) => { const out = {} as Pick<T, K>; for (const k of ks) if (o[k] !== undefined) out[k] = o[k]; return out; };
+
+/** The song as this computer shows it. */
+export function toLocal(s: SharedTrack, here: Here): Track {
+  const { copies, ...common } = s;
+  const who = Object.keys(copies ?? {});
+  const names = who.map(c => here.members[c]?.name ?? c);
+  const mine = copies?.[here.me];
+  if (mine) return { ...(common as Omit<Track, CopyField>), ...mine, sources: mine.sources ?? [], ...(who.length > 1 ? { onDevices: names } : {}) } as Track;
+  // Another computer's: shown as it is there, played from there.
+  const c = who.sort()[0], theirs = c ? copies[c] : undefined;
+  const t: Track = {
+    ...(common as Omit<Track, CopyField>), status: theirs?.status ?? 'unlinked', rootId: null, relPath: null, importPath: theirs?.importPath ?? null,
+    size: theirs?.size ?? null, mtime: theirs?.mtime ?? null, sources: [], onDevices: names,
+  } as Track;
+  if (c) t.remote = { device: c, name: here.members[c]?.name ?? c, profile: here.members[c]?.profile, collection: here.collection, id: s.id };
+  return t;
+}
+
+/** The song as the shared collection holds it: this computer's copy from `t` (unless it's another's
+    song), everyone else's as they were. */
+export function toShared(t: Track, here: Here, prev?: SharedTrack): SharedTrack {
+  const { onDevices: _d, remote, ...rest } = t;
+  const common = { ...rest } as Record<string, unknown>;
+  for (const k of COPY_FIELDS) delete common[k];
+  const copies = { ...(prev?.copies ?? {}) };
+  if (!remote) copies[here.me] = pick(t, COPY_FIELDS) as Copy;
+  return { ...(common as Omit<SharedTrack, 'copies'>), copies };
+}
+
+/** Analyses by computer: this computer's, else another's (its song's), else none. */
+export function analysisHere(by: Record<string, AnalysisSummary> | undefined, me: string): AnalysisSummary | undefined {
+  if (!by) return undefined;
+  return by[me] ?? by[Object.keys(by).sort()[0]];
+}
+/** This computer's analysis into the shared record (others' kept). */
+export function analysisShared(a: AnalysisSummary, me: string, prev?: Record<string, AnalysisSummary>): Record<string, AnalysisSummary> {
+  return { ...(prev ?? {}), [me]: a };
+}
+
+/** The collection as this computer sees it: its own music folders. */
+export function collectionHere(c: SharedCollection, me: string): Collection {
+  const { rootsBy, members: _m, shared: _s, ...rest } = c;
+  return { ...rest, roots: rootsBy?.[me] ?? [] };
+}
+export function collectionShared(c: Collection, me: string, prev: SharedCollection | undefined, member: { profile: string; name: string }): SharedCollection {
+  const { roots, ...rest } = c;
+  return { ...rest, shared: true, rootsBy: { ...(prev?.rootsBy ?? {}), [me]: roots }, members: { ...(prev?.members ?? {}), [me]: member } };
+}

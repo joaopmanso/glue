@@ -5,6 +5,21 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The shared collection, step 2b: projection, merge and the sync engine
+- `src/core/shared/merge3.ts` merges three ways ([ADR 0094](../adr/0094-one-shared-collection-in-glue-cloud.md)):
+  - field by field;
+  - each computer's own parts (a song's copy, its analysis, its music folders) are that computer's;
+  - sets merge as sets, and playlist songs merge three ways;
+  - a clash keeps the cloud's value and is reported.
+- `src/core/shared/project.ts` shows a song as this computer sees it: its own copy, or a remote row
+  pointing at a computer that has it. It writes back only this computer's copy.
+- `src/store/shared/engine.ts` pulls what changed since the cursor (merging what changed on both
+  sides) and pushes what changed here (stale files are merged and sent again). It keeps the agreed
+  copy and the clashes in `cloud/shared/<cid>.json`, and runs the same in a tab and in GLUE Home.
+- Nothing uses it yet (step 2c).
+- Tests: merge3, the projection, and the engine against an in-memory GLUE Cloud with two devices
+  (merges, clashes, deletions).
+
 ## 2026-09-28 · The shared collection, step 2a: GLUE Cloud's side (migration 0006)
 - **GLUE Cloud can hold one copy of a collection for all the account's devices**
   ([ADR 0094](../adr/0094-one-shared-collection-in-glue-cloud.md)):
