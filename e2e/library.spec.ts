@@ -1521,6 +1521,8 @@ test('opening another track’s page doesn’t stop what’s playing; playing th
 });
 
 test('GLUE account: Google sign-in, devices, pairing a GLUE Home, staying signed in, signing out', async ({ page }) => {
+  // A GLUE Home running on the test computer (the local link, 47400–47409) mustn't take part.
+  await page.route(/^http:\/\/127\.0\.0\.1:4740\d\//, r => r.abort());
   // Google's script, the API and the signaling room are stand-ins; the website code is real.
   await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
     window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
@@ -1567,7 +1569,7 @@ test('GLUE account: Google sign-in, devices, pairing a GLUE Home, staying signed
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('K7QM-2XPB');
   devices.push({ id: 'h1', kind: 'home', name: 'Studio PC', platform: 'win32', createdAt: 2, lastSeen: 2 });
   room!.send(JSON.stringify({ type: 'presence', online: ['b1', 'h1'] }));
-  await expect(page.locator('#pair-dialog')).toHaveCount(0);
+  await expect(page.locator('#pair-dialog')).toHaveCount(0, { timeout: 15_000 });   // after the device list comes back
   await expect(devs.locator('[data-device="h1"]')).toContainText('GLUE Home · online');
   await expect(devs.locator('[data-device="h1"] .sw')).toHaveClass(/on/);
   page.once('dialog', d => d.accept('Studio'));
@@ -2436,4 +2438,74 @@ test('the user\'s list, 2026-09-28, batch A: "Not a problem" on a caution; renam
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(680);
   await expect(page.locator('#tag-input')).toBeInViewport();
+});
+
+test('the user\'s list, 2026-09-28, batch C: genres picked like tags; browsing by artist, album, genre, label and year', async ({ page }) => {
+  test.setTimeout(150_000);
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  const row = (t: string) => page.locator('.tr', { hasText: t });
+
+  // A genre from the list (a common one): a slow second click on the selected song's genre; then a new
+  // one on two songs at once, from the song menu.
+  await row('Fixture MP3').locator('.c-title').click();
+  await page.waitForTimeout(700);
+  await row('Fixture MP3').locator('.c-genre').click();
+  await expect(page.locator('#genre-editor')).toBeVisible();
+  await page.locator('#genre-editor [data-genre="Techno"]').click();
+  await expect(row('Fixture MP3').locator('.c-genre')).toHaveText('Techno');
+  await row('Fixture FLAC').locator('.c-title').click();
+  await row('aiff-44k-24').locator('.c-title').click({ modifiers: ['Control'] });
+  await row('aiff-44k-24').locator('.c-title').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="genre"]').click();
+  await page.keyboard.type('Neurofunk');
+  await expect(page.locator('#genre-new')).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(row('Fixture FLAC').locator('.c-genre')).toHaveText('Neurofunk');
+  await expect(row('aiff-44k-24').locator('.c-genre')).toHaveText('Neurofunk');
+  // It's in the list now, with its songs, before the common ones.
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="genre"]').click();
+  await expect(page.locator('#genre-editor [data-genre="Neurofunk"] small')).toHaveText('2');
+  await expect(page.locator('#genre-editor .opt.on')).toHaveText(/Techno/);
+  await page.keyboard.press('Escape');
+
+  // Artists for the browse.
+  for (const [name, artist] of [['Fixture MP3', 'Kloudmen'], ['Fixture FLAC', 'kloudmen'], ['aiff-44k-24', 'Other']] as const) {
+    await row(name).locator('.c-title').click({ button: 'right' });
+    await page.locator('.cmenu [data-m="info"]').click();
+    await page.fill('#edit-info [data-f="artist"]', artist);
+    await page.click('#info-save');
+  }
+  await expect(page.locator('.lside [data-browse="artist"]')).toBeVisible();
+  await page.locator('.lside [data-browse="artist"]').click();
+  await expect(page.locator('#browse')).toBeVisible();
+  const kl = page.locator('#browse .it[data-key="kloudmen"]');
+  await expect(kl).toContainText('2 songs');   // one artist, however it's spelled
+  await expect(page.locator('#browse .it[data-key=""]')).toContainText('No artist');
+  await page.fill('#browse-find', 'oth');
+  await expect(page.locator('#browse .it')).toHaveCount(1);
+  await page.fill('#browse-find', '');
+  await kl.click();
+  await expect(page.locator('.headbar h2')).toContainText('Kloudmen');
+  await expect(page.locator('.tr')).toHaveCount(2);
+  await page.click('#browse-back');
+  await expect(page.locator('#browse')).toBeVisible();
+  // Genres too, with a song's menu on the list's right-click.
+  await page.locator('.lside [data-browse="genre"]').click();
+  await expect(page.locator('#browse .it[data-key="neurofunk"]')).toContainText('2 songs');
+  await page.locator('#browse .it[data-key="neurofunk"]').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="stats"]').click();
+  await expect(page.locator('#stats-dialog #stat-songs b')).toHaveText('2');
+  await page.keyboard.press('Escape');
+  // The track page's genre.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await row('Fixture MP3').locator('.c-title').dblclick();
+  await expect(page.locator('#track-genre')).toHaveText('Techno');
 });

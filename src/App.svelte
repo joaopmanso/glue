@@ -20,6 +20,7 @@
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
   import TagEditor from './ui/library/TagEditor.svelte';
   import EditInfo from './ui/library/EditInfo.svelte';
+  import GenreEditor from './ui/library/GenreEditor.svelte';
   import StatsDialog from './ui/library/StatsDialog.svelte';
   import CalendarView from './ui/events/CalendarView.svelte';
   import EventPage from './ui/events/EventPage.svelte';
@@ -194,7 +195,7 @@
 <DragTag />
 {#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
-{#if inLibrary}<TagEditor />{/if}
+{#if inLibrary}<TagEditor /><GenreEditor />{/if}
 {#if inLibrary && view.infoFor}{#key view.infoFor}<EditInfo />{/key}{/if}
 {#if inLibrary && view.statsFor}{#key view.statsFor}<StatsDialog />{/key}{/if}
 <ContextMenu />

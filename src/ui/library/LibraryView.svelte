@@ -1,6 +1,8 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
   import NeedsMusic from '../events/NeedsMusic.svelte';
+  import BrowseView from './BrowseView.svelte';
+  import { facetInfo } from '../../core/library/browse';
   import { view, viewTitle, FILTER_GROUPS } from '../../lib/view.svelte';
   import { router, trackHref, trackTab } from '../../lib/route.svelte';
   import LibSidebar from './LibSidebar.svelte';
@@ -142,9 +144,11 @@
     <button type="button" class="sidetog" id="side-toggle" aria-pressed={folded} title={folded ? 'Show the sidebar (Ctrl+B)' : 'Hide the sidebar, for more columns (Ctrl+B)'} aria-label={folded ? 'Show the sidebar' : 'Hide the sidebar'} onclick={() => fold()}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.5v11" stroke="currentColor" stroke-width="1.3"/>{#if !folded}<path d="M2.8 5h1.9M2.8 7h1.9M2.8 9h1.9" stroke="currentColor" stroke-width="1.1"/>{/if}</svg>
     </button>
-    <h2>{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}<small>{count} track{count === 1 ? '' : 's'}</small></h2>
+    <h2>{#if view.sel.kind === 'facet'}{@const by = view.sel.by}<button type="button" class="crumb" id="browse-back" title="Back to the list" onclick={() => view.select({ kind: 'browse', by })}>{facetInfo(by).name} ›</button>{/if}{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}{#if view.sel.kind !== 'browse'}<small>{count} track{count === 1 ? '' : 's'}</small>{/if}</h2>
+    {#if view.sel.kind !== 'browse'}
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks">
     <FilterMenu />
+    {/if}
     {#if sync.busy}<span class="cloudload" id="cloud-loading" role="status"><span class="spin"></span>{sync.busy}</span>
     {:else if incoming.busy}<span class="cloudload" id="incoming-loading" role="status"><span class="spin"></span>{incoming.busy}</span>{/if}
     {#if current}<button type="button" class="ibtn" class:on={showInsights} id="insights-btn" aria-pressed={showInsights} title="Length, tempo, keys and tags of this playlist" onclick={toggleInsights}>Insights</button>{/if}
@@ -198,6 +202,7 @@
            once opened the wrong song as the rows jumped, 2026-09-27), and a layout shift during
            dragstart makes Chromium cancel the drag. The actions are always there, disabled until songs
            are selected; what doesn't fit is in ⋯ (and on right-click). -->
+      {#if view.sel.kind !== 'browse'}
       <div class="selbar" class:has={sel.length > 0}>
         <div class="selinfo">
           {#if sel.length}
@@ -246,8 +251,9 @@
         </div>
         {#if dock.available}<button type="button" class="mini dockbtn" id="drag-dock" data-drop="dock" class:hot={drag.active && drag.target?.type === 'dock'} title="Show GLUE Home's drag dock. Songs and playlists go in by dragging them onto it (or onto this button), or with “+ Dock”; then drag them from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}
       </div>
+      {/if}
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
-      {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else}<TrackTable />{/if}
+      {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else if view.sel.kind === 'browse'}<BrowseView by={view.sel.by} />{:else}<TrackTable />{/if}
       <NoteEditor />
       <SendPanel />
     </div>
@@ -266,6 +272,7 @@
   .cloudbar small { color: var(--muted); font-size: 12px; }
   .colbar select, .selbar select { background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; font-size: 13px; }
   .colbar select { font-weight: 700; }
+  .crumb { background: none; border: 0; padding: 0 8px 0 0; color: var(--accent); font: inherit; font-size: .75em; font-weight: 600; cursor: pointer; }
   .headbar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
   h2 { font-size: 20px; flex: 1; min-width: 200px; display: flex; gap: 10px; align-items: baseline; }
   h2 small { font-size: 12.5px; font-weight: 500; color: var(--muted); }

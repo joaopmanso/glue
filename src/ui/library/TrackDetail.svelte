@@ -251,7 +251,7 @@ canPlay = true;
         <dl>
           <div><dt>Size</dt><dd>{track.size ? fmtBytes(track.size) : '—'}</dd></div>
           <div><dt>Length</dt><dd>{track.duration ? fmtTime(track.duration) : '—'}</dd></div>
-          {#if track.genre}<div><dt>Genre</dt><dd>{track.genre}</dd></div>{/if}
+          <div><dt>Genre</dt><dd><button type="button" class="tedit" id="track-genre" data-genre-open disabled={!!track.remote || !!lib.cloud || lib.readOnly} onclick={e => { const b = e.currentTarget.getBoundingClientRect(); view.genreFor = { ids: [id], x: b.left, y: b.bottom }; }}>{track.genre || '+ Genre'}</button></dd></div>
           {#if track.label}<div><dt>Label</dt><dd>{track.label}</dd></div>{/if}
           {#if track.grouping}<div><dt>Grouping</dt><dd>{track.grouping}</dd></div>{/if}
           <div><dt>Added</dt><dd>{new Date(track.addedAt).toLocaleDateString()}</dd></div>

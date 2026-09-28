@@ -215,7 +215,7 @@
 
   // Editing a cell in place (ADR 0071): F2, or a slow second click on the selected song. Enter keeps it,
   // Esc drops it, Tab goes on to the next column that can be edited.
-  const EDITABLE: ColKey[] = ['title', 'artist', 'album', 'genre', 'label', 'year'];
+  const EDITABLE: ColKey[] = ['title', 'artist', 'album', 'label', 'year'];   // genre: its picker
   let inline = $state<{ id: string; k: ColKey; v: string } | null>(null);
   let slow = 0;
   const editable = (t: Track | undefined) => !!t && !t.remote && !lib.cloud && !lib.readOnly;
@@ -247,6 +247,10 @@
     const again = view.selected.size === 1 && view.selected.has(id) && e.detail === 1 && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
     view.click(id, e, order);
     if (again && k && EDITABLE.includes(k) && editable(lib.store?.tracks.get(id))) slow = window.setTimeout(() => startInline(id, k), 550);
+    else if (again && k === 'genre' && editable(lib.store?.tracks.get(id))) {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>('.cell')!.getBoundingClientRect();
+      slow = window.setTimeout(() => (view.genreFor = { ids: [id], x: cell.left, y: cell.bottom }), 550);
+    }
   }
 
   function open(id: string) { clearTimeout(slow); router.go(trackHref(id)); }
@@ -304,7 +308,9 @@
       onclick={e => { e.stopPropagation(); view.select({ kind: 'dupes' }); view.focusDupe = r.t.id; }}>{g.ids.length}×</button>{/if}
   {:else if k === 'artist'}<span class="c-artist">{r.t.artist}</span>
   {:else if k === 'album'}<span class="c-soft">{r.t.album}</span>
-  {:else if k === 'genre'}<span class="c-soft">{r.t.genre}</span>
+  {:else if k === 'genre'}
+    <!-- A slow second click on the selected song's genre opens the genre picker (as other cells are edited in place). -->
+    <span class="c-genre" data-genre-open title={r.t.genre ? r.t.genre + ' · click again to change' : 'Click again to set a genre'}>{#if r.t.genre}{r.t.genre}{:else}<span class="gadd">+ genre</span>{/if}</span>
   {:else if k === 'tags'}
     {@const tg = tagsOf(r.t)}
     <button type="button" class="c-tags" data-tags-open title={tg.length ? tg.join(', ') + ' · click to edit' : 'Add tags'} aria-label={tg.length ? 'Tags: ' + tg.join(', ') : 'Add tags'}
@@ -537,6 +543,9 @@
   .dv { flex: none; font-size: 11px; line-height: 16px; padding: 0 6px 0 5px; border-radius: 3px; background: color-mix(in srgb, var(--c) 14%, transparent); border: 0; border-left: 3px solid var(--c); color: var(--ink-2); white-space: nowrap; cursor: pointer; }
   .dv:hover { background: color-mix(in srgb, var(--c) 26%, transparent); color: var(--ink); }
   .dup { flex: none; margin-left: 6px; background: none; border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); border-radius: 3px; font: 600 10.5px var(--font-mono); padding: 0 4px; cursor: pointer; }
+  .c-genre { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .gadd { color: var(--muted); opacity: 0; font-size: 12px; }
+  .tr.sel .gadd { opacity: 1; }
   .unw { flex: none; margin-left: 5px; color: var(--accent); font-size: 8px; line-height: 1; }
   .inl { width: 100%; min-width: 0; height: 22px; background: var(--ground); border: 1px solid var(--accent); border-radius: 4px; padding: 0 6px; font: inherit; font-size: 13px; color: var(--ink); }
   .inl:focus { outline: none; }

@@ -134,6 +134,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     { stars: rating, pick: (v: number | null) => lib.rateTracks(ids, v) },
     { label: 'Edit info…', hint: one ? 'F2' : undefined, attrs: { 'data-m': 'info' }, disabled: cloud || lib.readOnly || ts.every(t => t.remote), title: cloud || ts.every(t => t.remote) ? 'Edit them on the computer that has them' : undefined, run: () => (view.infoFor = { ids }) },
     { label: 'Tags…', attrs: { 'data-m': 'tags', 'data-tags-open': '' }, run: () => (view.tagFor = { ids, x: at.x, y: at.y }) },
+    !cloud && { label: 'Genre…', hint: one?.genre || undefined, attrs: { 'data-m': 'genre', 'data-genre-open': '' }, disabled: ts.every(t => t.remote), run: () => (view.genreFor = { ids, x: at.x, y: at.y }) },
     !cloud && flagged.length > 0 && flagged.some(t => t.markedFine !== s.analysis.get(t.id)!.label) && { label: 'Not a problem (mark fine)', hint: n > 1 ? String(flagged.length) : undefined, attrs: { 'data-m': 'fine' }, title: 'A false alarm: show as fine while GLUE’s verdict stays the same', run: () => lib.markFine(flagged.map(t => t.id), true) },
     !cloud && flagged.some(t => t.markedFine === s.analysis.get(t.id)!.label) && { label: 'Show GLUE’s verdict again', attrs: { 'data-m': 'unfine' }, run: () => lib.markFine(flagged.map(t => t.id), false) },
     one && { label: one.notes ? 'Edit note…' : 'Add a note…', attrs: { 'data-m': 'note' }, run: () => (view.noteFor = { id: one.id, x: at.x + 320, y: at.y }) },

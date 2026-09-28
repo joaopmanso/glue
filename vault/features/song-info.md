@@ -86,3 +86,15 @@ column, and on their page.
   two come from the analysis and Prepare).
 - Other computers' songs show no cover yet (their GLUE Home would send them, like thumbnails).
 - Editing a cover isn't possible.
+
+## Genres, picked like tags (2026-09-28)
+- **A genre picker** instead of typing:
+  - the collection's genres (with their songs) and the ones added before, then common ones;
+  - type to find; Enter on a new name adds it (kept in `meta.genres`); "No genre" clears it.
+- **Opened by:**
+  - a slow second click on the selected song's Genre cell (the other cells are edited in place);
+  - "Genre…" in the song menu (several songs: the pick goes on all of them);
+  - the Genre line on the track page.
+- A song has one genre (its file's Genre field); it's set through song info, so GLUE Home writes it
+  into the file.
+- `lib/genres.svelte.ts` (`GENRE_PRESETS`, `allGenres`, `setGenre`), `ui/library/GenreEditor.svelte`.

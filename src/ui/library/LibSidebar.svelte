@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { readPref, writePref } from '../../lib/prefs';
+  import { FACETS, facetItems } from '../../core/library/browse';
   import { asShown } from '../../core/library/summary';
   import { untrack } from 'svelte';
   import { dock } from '../../lib/dock.svelte';
@@ -59,6 +61,17 @@
   const sources = $derived.by(() => { void lib.version; return [...(lib.store?.sources.values() ?? [])]; });
 
   let open = $state<Record<string, boolean>>({});
+  let browseOpen = $state(readPref('browseOpen', '1') === '1');
+  function setBrowse(v: boolean) { browseOpen = v; writePref('browseOpen', v ? '1' : '0'); }
+  // How many artists, albums… (only while Browse is open; rebuilt when the tracks change).
+  let countsRev = -1, countsCache: Record<string, number> = {};
+  const facetCounts = $derived.by(() => {
+    void lib.version;
+    const st = lib.store;
+    if (!st || !browseOpen) return {} as Record<string, number>;
+    if (st.rev.tracks !== countsRev) { const ts = [...st.tracks.values()]; countsCache = Object.fromEntries(FACETS.map(f => [f.by, facetItems(ts, f.by).filter(i => i.key).length])); countsRev = st.rev.tracks; }
+    return countsCache;
+  });
   // A slow second click on the open playlist's name renames it, as songs' cells are edited in place;
   // a double-click does too.
   let slow = 0;
@@ -410,6 +423,15 @@
       {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length + lib.copies.size]].filter(([k]) => !sidebar.hidden.has(k as LibView)) as [k, label, n] (k)}
         <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} class:menued={menued('v:' + k)} data-view={k} onclick={() => view.select({ kind: k } as ViewSel)}
           oncontextmenu={e => onMenu(e, 'v:' + k, () => libMenu(k as ViewSel['kind'], String(label)), String(label))}>{label}<span class="n">{n ?? ''}</span></button></li>
+        {#if k === 'all'}
+          <!-- Browse by a field (the user's list, 2026-09-28): its values, then one value's songs. -->
+          <li class="browse-head"><button type="button" class="twist" id="browse-toggle" aria-expanded={browseOpen} aria-label={browseOpen ? 'Hide Browse' : 'Show Browse'} onclick={() => setBrowse(!browseOpen)}>{browseOpen ? '▾' : '▸'}</button><button type="button" class="item name sub" onclick={() => setBrowse(!browseOpen)}>Browse</button></li>
+          {#if browseOpen}
+            {#each FACETS as f (f.by)}
+              <li><button type="button" class="item name sub2" class:sel={(view.sel.kind === 'browse' || view.sel.kind === 'facet') && view.sel.by === f.by} data-browse={f.by} onclick={() => view.select({ kind: 'browse', by: f.by })}>{f.name}<span class="n">{facetCounts[f.by] || ''}</span></button></li>
+            {/each}
+          {/if}
+        {/if}
       {/each}
       {#if sidebar.hidden.size}<li><button type="button" class="inline morev" id="hidden-views" title="Hidden by right-clicking them" onclick={e => onMore(e.currentTarget, 'sec:library', libShown, 'Shown in Library')}>{sidebar.hidden.size} hidden · show…</button></li>{/if}
     </ul>
@@ -610,6 +632,10 @@
   .item.sel { background: color-mix(in srgb, var(--accent) 16%, transparent); }
   .item { position: relative; }
   .item.lifted { opacity: .4; }
+  .browse-head { display: flex; align-items: center; padding-left: 2px; }
+  .browse-head .item { padding-left: 2px; color: var(--ink-2); }
+  button.item.sub2 { padding-left: 26px; color: var(--ink-2); }
+  button.item.sub2.sel { color: var(--ink); }
   /* Its menu is open (right-click or ⋯). */
   .item.menued, .head.menued { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 4px; }
   .morev { font-size: 11.5px; color: var(--muted); padding: 2px 8px; text-decoration: none; }

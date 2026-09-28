@@ -69,6 +69,7 @@ Planned (GLUE):
 [performance](features/performance.md) ·
 [song info & covers](features/song-info.md) ·
 [stats](features/stats.md) ·
+[browse](features/browse.md) ·
 [phone app](features/phone-app.md)
 
 ## ADR index

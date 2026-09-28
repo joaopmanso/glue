@@ -1,5 +1,6 @@
 /* What the library view shows: the selected sidebar entry, search, sort and row selection. */
 import { asShown } from '../core/library/summary';
+import { facetInfo, inFacet, type Facet } from '../core/library/browse';
 import { lib } from './library.svelte';
 import type { InfoField } from '../core/library/tags';
 import { time } from '../core/perf';
@@ -11,7 +12,9 @@ import { keyLabel, type KeyNotation } from '../core/audio/keys';
 import { hasTag, tagsOf } from '../core/library/tagging';
 import { readPref, writePref } from './prefs';
 
-export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string };
+export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string }
+  /** Browsing (2026-09-28): a field's values (Artists…), and one value's songs. */
+  | { kind: 'browse'; by: Facet } | { kind: 'facet'; by: Facet; key: string; value: string };
 /** The table's value filters; each can also be opened from its column header. */
 export type FilterGroup = 'quality' | 'format' | 'tag' | 'genre' | 'device';
 export const FILTER_GROUPS: { g: FilterGroup; title: string }[] = [{ g: 'quality', title: 'Quality' }, { g: 'format', title: 'Format' }, { g: 'tag', title: 'Tags' }, { g: 'genre', title: 'Genre' }, { g: 'device', title: 'Device' }];
@@ -55,6 +58,8 @@ class View {
   noteFor = $state<{ id: string; x: number; y: number } | null>(null);
   /** The Stats dialog: a sidebar entry's songs, or these songs. */
   statsFor = $state<{ title: string; sel?: ViewSel; ids?: string[] } | null>(null);
+  /** The genre picker: for these tracks, placed under (x, y). */
+  genreFor = $state<{ ids: string[]; x: number; y: number } | null>(null);
   /** The song info editor (ADR 0071): for these tracks, starting in a field. */
   infoFor = $state<{ ids: string[]; field?: InfoField } | null>(null);
   /** The tag editor: for tracks or for a playlist, placed under (x, y). */
@@ -153,6 +158,8 @@ export function tracksFor(sel: ViewSel): Track[] {
   if (sel.kind === 'dj') return byIds(djTracks(s.sources.get(sel.sourceId), sel.id));
   if (sel.kind === 'tag') return [...s.tracks.values()].filter(t => hasTag(tagsOf(t), sel.name));
   if (sel.kind === 'root') return [...s.tracks.values()].filter(t => sel.id === LOOSE ? !!t.fileKey : t.rootId === sel.id);
+  if (sel.kind === 'facet') return [...s.tracks.values()].filter(t => inFacet(t, sel.by, sel.key));
+  if (sel.kind === 'browse') return [];
   const all = [...s.tracks.values()];
   if (sel.kind === 'dupes') return byIds(dupes.groups.flatMap(g => g.ids));
   if (sel.kind === 'pending') return all.filter(t => lib.needsAnalysis(t));
@@ -176,6 +183,8 @@ export function viewTitle(s: ViewSel): string {
     case 'dj': { const x = st?.sources.get(s.sourceId), l = x?.tree?.find(y => y.externalId === s.id); return (l?.name ?? 'Playlist') + ' · ' + (x ? APP_NAMES[x.app] ?? x.app : ''); }
     case 'tag': return 'Tagged “' + s.name + '”';
     case 'root': return s.id === LOOSE ? 'Added songs' : lib.rootState(s.id)?.root.name ?? 'Folder';
+    case 'browse': return facetInfo(s.by).name;
+    case 'facet': return s.value || facetInfo(s.by).none;
   }
 }
 

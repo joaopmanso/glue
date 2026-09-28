@@ -5,6 +5,16 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's second list, batch C: genres and browsing
+- **Genres picked like tags:**
+  - the collection's, those added before, and common ones; a new one is added by typing it;
+  - from the Genre cell (a slow second click), the song menu (several songs), or the track page;
+  - written into the files like other song info ([song info](../features/song-info.md)).
+- **Browse** under All tracks: Artists, Albums, Genres, Labels and Years, each value with its songs
+  and length; find, A–Z or most songs; a value opens its songs, with a way back
+  ([browse](../features/browse.md)).
+- Tests: Vitest `browse.test`; e2e batch C.
+
 ## 2026-09-28 · The user's second list, batch B: the promo WAV at 20.3 kHz
 - **Measured** (read-only) on the user's promo WAVs and on MP3/AAC transcodes of one of them
   ([ADR 0075](../adr/0075-drop-outs-under-a-wall.md)).
