@@ -5,6 +5,28 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's fourth list, batch I: playback first (GLUE Home 0.16)
+From the user's tests with the relay on ([ADR 0084](../adr/0084-playback-first-on-the-link-to-glue-home.md)):
+- **Playback first on the link to GLUE Home:**
+  - what's playing goes ahead of covers, waveforms and analyses, which never take the last two
+    places;
+  - the music has its own data channel on the same connection, so a song page's full analysis
+    can't stall it.
+- **No silent whole-song download.**
+  - The first stream check waits up to 25 s instead of 8, and a bad connection is made again once.
+  - After that the player says what failed; before, streaming switched itself off for the visit.
+- **Connection errors now list what each side offered** (local, public or relay addresses) and how
+  far the connection got, to find out why 5G fails.
+- **GLUE Home 0.16:**
+  - a song is looked up once, even when the probe and its first parts ask together;
+  - a connection that goes "disconnected" (a phone changing networks) gets 15 s to come back.
+- **The streaming worker** takes over the page after a hard reload too.
+- **Player:**
+  - songs go on to the next on any page but the song that ended;
+  - on a song's page, the spectrogram seeks only that song, and on a touch screen only on a tap
+    (scrolling over it no longer moves the music).
+- Tests: `candidateType` unit test; the phone, streaming and GLUE Home e2e suites.
+
 ## 2026-09-28 · The TURN relay is on
 - The user created the Cloudflare TURN key; the repository secrets `TURN_KEY_ID` and
   `TURN_KEY_API_TOKEN` are in. The cloud workflow, run by hand, uploaded them to the Worker, and

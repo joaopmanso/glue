@@ -108,3 +108,4 @@ fallback.
 - **Covers show on the phone:** from the computer's GLUE Home, then kept on the phone
   ([ADR 0082](../adr/0082-covers-from-glue-home.md)).
 - **Open:** a real iPhone on mobile data, through the relay **[UNVERIFIED]**.
+- **2026-09-28:** the music no longer stops when a song's page opens: its analysis no longer shares the music's channel, scrolling over the spectrogram doesn't seek, and songs go on to the next there ([ADR 0084](../adr/0084-playback-first-on-the-link-to-glue-home.md)).

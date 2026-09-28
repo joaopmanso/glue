@@ -157,3 +157,4 @@ Planned (GLUE):
 | [0081](adr/0081-turn-relay.md) | Connections that can't be direct go through Cloudflare's TURN relay, with the owner's key: credentials from GLUE Cloud, encrypted end to end | accepted |
 | [0082](adr/0082-covers-from-glue-home.md) | Other devices get covers from GLUE Home (kept there, or read from the tags) and keep them; never in GLUE Cloud | accepted |
 | [0083](adr/0083-glue-home-activity-off-the-main-thread.md) | GLUE Home counts what it's asked, and does its file work off the main thread | accepted |
+| [0084](adr/0084-playback-first-on-the-link-to-glue-home.md) | Playback first on the link to GLUE Home; failures say why | accepted |

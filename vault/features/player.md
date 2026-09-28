@@ -109,3 +109,4 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
   - the connection dropped;
   - nothing when another song took its place.
 - To check on a real iPhone **[UNVERIFIED]**.
+- **2026-09-28:** songs go on to the next on any page but the song that ended; a song page's spectrogram seeks only that song (on touch, only on a tap). [ADR 0084](../adr/0084-playback-first-on-the-link-to-glue-home.md).

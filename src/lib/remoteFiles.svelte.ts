@@ -26,8 +26,9 @@ type Answer = { data: unknown; bytes: Uint8Array; name?: string; type?: string }
 const KEEP = 3;
 /** Give up on an answer that doesn't start (or stops coming) in this long (ADR 0047). */
 const FIRST_WAIT = 40_000, IDLE_WAIT = 20_000;
-/** At most this many at once per GLUE Home (songs: 2). */
-const MAX_AT_ONCE = 6, MAX_FILES = 2;
+/** At most this many at once per GLUE Home (whole songs: 2). Covers, waveforms and analyses never take
+    the last two places: those are kept for what's playing (ADR 0084). */
+const MAX_AT_ONCE = 6, MAX_FILES = 2, MAX_BACKGROUND = MAX_AT_ONCE - 2;
 let seq = 1;
 
 /** One channel to a GLUE Home, shared by requests that run at once: answers come back by number. */
@@ -35,7 +36,7 @@ interface Link {
   ch: HomeChannel;
   waiting: Map<number, { text: (c: StreamReply) => void; bytes: (b: Uint8Array) => void; gone: () => void }>;
   running: number; files: number; timeouts: number;
-  queue: { file: boolean; go: () => void }[];
+  queue: { file: boolean; play: boolean; go: () => void }[];
 }
 
 class RemoteFiles {
@@ -70,10 +71,12 @@ class RemoteFiles {
       const drop = () => { if (this.links.get(home) === l) this.links.delete(home); };
       l = connectHome(home, 'stream', { onFail: () => { drop(); void l?.then(k => { for (const w of k.waiting.values()) w.gone(); }); } }).then(ch => {
         const k: Link = { ch, waiting: new Map(), running: 0, files: 0, timeouts: 0, queue: [] };
-        ch.dc.onmessage = e => {
+        const onmessage = (e: MessageEvent) => {
           if (typeof e.data === 'string') { let c: StreamReply; try { c = JSON.parse(e.data); } catch { return; } k.waiting.get(c.n)?.text(c); }
           else { const f = unframe(e.data as ArrayBuffer); k.waiting.get(f.n)?.bytes(f.data); }
         };
+        ch.dc.onmessage = onmessage;
+        if (ch.play) ch.play.onmessage = onmessage;
         return k;
       });
       l.catch(drop);
@@ -87,13 +90,14 @@ class RemoteFiles {
       once; each gives up if its answer doesn't come. `upload`: bytes sent after the request. */
   async ask(home: string, req: Req, opts: { onBytes?: (got: number, size: number) => void; upload?: Uint8Array; firstWait?: number } = {}): Promise<Answer> {
     const k = await this.link(home);
-    const file = req.t === 'get' || req.t === 'get-incoming';
-    // Wait for a free place (songs have fewer).
-    if (k.running >= MAX_AT_ONCE || (file && k.files >= MAX_FILES)) await new Promise<void>(go => k.queue.push({ file, go }));
+    const file = req.t === 'get' || req.t === 'get-incoming', play = file || req.t === 'range';
+    // Wait for a free place: what's playing goes first, and background asks leave it room.
+    const fits = (f: boolean, p: boolean) => k.running < (p ? MAX_AT_ONCE : MAX_BACKGROUND) && (!f || k.files < MAX_FILES);
+    if (!fits(file, play)) await new Promise<void>(go => { const q = { file, play, go }; if (play) k.queue.splice(k.queue.findIndex(x => !x.play) >>> 0, 0, q); else k.queue.push(q); });
     k.running++; if (file) k.files++;
     const next = () => {
       k.running--; if (file) k.files--;
-      const i = k.queue.findIndex(q => !q.file || k.files < MAX_FILES);
+      const i = k.queue.findIndex(q => fits(q.file, q.play));
       if (i >= 0) k.queue.splice(i, 1)[0].go();
     };
     const n = seq++;
@@ -118,7 +122,7 @@ class RemoteFiles {
           gone: () => { finish(); reject(new Error('the connection closed')); },
         });
         wait(opts.firstWait ?? FIRST_WAIT);
-        const dc = k.ch.dc;
+        const dc = play ? k.ch.play ?? k.ch.dc : k.ch.dc;
         dc.send(JSON.stringify({ ...req, n }));
         if (opts.upload) {
           for (let i = 0; i < opts.upload.length; i += 64 * 1024) dc.send(frame(n, opts.upload.subarray(i, Math.min(opts.upload.length, i + 64 * 1024))));
@@ -159,8 +163,6 @@ class RemoteFiles {
   }
 
   // ─── Streaming (ADR 0076) ───────────────────────────────────────────────────────────────────────
-  /** GLUE Homes that don't stream yet (older than 0.14): their songs come whole. */
-  private noRange = new Set<string>();
   private streams = new Map<string, { home: string; req: RangeReq; type: string; total: number }>();
   /** A song as an address that streams: this computer's GLUE Home's local link for its incoming folder,
       or another computer's GLUE Home through the streaming service worker, when this browser plays the
@@ -171,12 +173,18 @@ class RemoteFiles {
     const name = src.incoming ?? t.fileName;
     if (!playsNatively(typeOfName(name))) return null;
     if (src.incoming && localHome.for(home)) return localHome.url('/incoming/file?name=' + encodeURIComponent(src.incoming));
-    if (this.noRange.has(home) || !(await streamsReady())) return null;
+    if (!(await streamsReady())) return null;
     const req: RangeReq = src.incoming ? { incoming: src.incoming } : { profile: r.profile!, collection: r.collection!, track: r.id! };
-    // One small ask first: the file's size and type, and whether this GLUE Home streams at all.
+    // One small ask first: the file's size and type. A connection that went bad is made again once;
+    // after that the player says why (no silent download of the whole song instead, ADR 0084).
+    const probe = () => this.ask(home, { t: 'range', ...req, start: 0, len: 2 }, { firstWait: 25_000 });
     let head: Answer;
-    try { head = await this.ask(home, { t: 'range', ...req, start: 0, len: 2 }, { firstWait: 8000 }); }
-    catch (e) { if (/in time/.test((e as Error).message)) this.noRange.add(home); return null; }
+    try { head = await probe(); }
+    catch (e) {
+      if ((e as { pending?: boolean }).pending || !/in time|closed|connect|dropped/i.test((e as Error).message)) throw e;
+      this.closeLink(home);
+      head = await probe();
+    }
     const d = head.data as { total: number; type: string } | null;
     if (!d?.total) return null;
     const token = crypto.randomUUID();
@@ -299,7 +307,12 @@ function streamsReady(): Promise<boolean> {
     if (!sw || !window.isSecureContext) return false;
     try {
       await sw.register(new URL('glue-stream-sw.js', document.baseURI).href, { scope: './' });
-      if (!sw.controller) await new Promise<void>(res => { const t = setTimeout(res, 4000); sw.addEventListener('controllerchange', () => { clearTimeout(t); res(); }, { once: true }); });
+      if (!sw.controller) {
+        const done = new Promise<void>(res => { const t = setTimeout(res, 4000); sw.addEventListener('controllerchange', () => { clearTimeout(t); res(); }, { once: true }); });
+        // After a hard reload the worker is running but doesn't control the page: ask it to.
+        (await sw.ready).active?.postMessage({ glueClaim: true });
+        await done;
+      }
       return !!sw.controller;
     } catch (e) { console.warn('No streaming: the service worker didn’t start', e); return false; }
   })();

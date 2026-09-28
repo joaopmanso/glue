@@ -133,9 +133,10 @@ export { playable } from './playable';
 export const nowPlaying = new NowPlaying();
 // A track page that starts its own track makes it the library's now-playing track too.
 player.onSource = key => { const id = key?.startsWith('track:') ? key.slice(6) : null; if (id && id !== nowPlaying.trackId) nowPlaying.adopt(id); };
-// Auto-advance only in the library; the track page stays on its own track.
+// Auto-advance everywhere but on the page of the song that ended (that page stays on its own song).
 player.onEnded = () => {
-  if (router.current.name !== 'library' || !nowPlaying.trackId) return;
+  const r = router.current;
+  if (!nowPlaying.trackId || (r.name === 'track' && r.id === nowPlaying.trackId)) return;
   if (nowPlaying.repeat === 'one') player.seek(0, true); else if (nowPlaying.hasNext) nowPlaying.next();
 };
 // Each collection's queue comes back as it opens (before its songs show).

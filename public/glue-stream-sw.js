@@ -4,6 +4,8 @@
    other request goes to the network untouched: this worker caches nothing. */
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+// A page opened with a hard reload isn't controlled: it asks to be.
+self.addEventListener('message', e => { if (e.data && e.data.glueClaim) e.waitUntil(self.clients.claim()); });
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url), at = url.pathname.indexOf('/__stream/');

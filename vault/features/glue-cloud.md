@@ -371,3 +371,4 @@ First release: phases 1–3 (user, 2026-09-25).
   - The settings are kept in memory (they were read from disk for every request).
   - Streaming looks up a song's path once a minute.
   - Settings › Service › "What GLUE Home was asked" shows the counts since it started (Copy to share).
+- **Playback first (2026-09-28, [ADR 0084](../adr/0084-playback-first-on-the-link-to-glue-home.md)):** what's playing goes ahead of background requests and has its own data channel; no silent whole-song download; connection errors list each side's addresses.

@@ -73,12 +73,24 @@
     readout = fmtTime(t, true) + '  ·  ' + (f / 1000).toFixed(2) + ' kHz  ·  ' + (db < -199 ? '−∞ dB' : (db < 0 ? '−' : '') + Math.abs(db).toFixed(1) + ' dB');
     hover = { x: p.x, y: p.y };
   }
-  function onDown(e: PointerEvent) {
+  // A click seeks this song (never another one that's playing); a finger only on a tap, so scrolling
+  // the page over the spectrogram doesn't move the music.
+  let downAt: { x: number; y: number } | null = null;
+  function seekAt(clientX: number) {
     const r = app.res, R = rect;
     if (!r || !R || !specCv) return;
-    const x = e.clientX - specCv.getBoundingClientRect().left;
+    if (player.sourceKey !== app.playKey && player.pending?.opts.key !== app.playKey) return;
+    const x = clientX - specCv.getBoundingClientRect().left;
     if (x < R.l || x > R.l + R.pw) return;
     player.seek((x - R.l) / R.pw * r.duration, true);
+  }
+  function onDown(e: PointerEvent) {
+    if (e.pointerType === 'touch') { downAt = { x: e.clientX, y: e.clientY }; return; }
+    seekAt(e.clientX);
+  }
+  function onUp(e: PointerEvent) {
+    const d = downAt; downAt = null;
+    if (d && e.pointerType === 'touch' && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10) seekAt(e.clientX);
   }
 </script>
 
@@ -104,7 +116,7 @@
     <StemsBar />
     <div class="canvas-box" id="spec-box" bind:this={specBox}>
       <canvas id="spec" bind:this={specCv} aria-label="Spectrogram: time on the horizontal axis, frequency on the vertical axis, level as color"
-        onpointermove={onMove} onpointerleave={() => (hover = null)} onpointerdown={onDown}></canvas>
+        onpointermove={onMove} onpointerleave={() => (hover = null)} onpointerdown={onDown} onpointerup={onUp} onpointercancel={() => (downAt = null)}></canvas>
     </div>
     {#if app.liveOn}
       <div class="live" id="live-wrap">

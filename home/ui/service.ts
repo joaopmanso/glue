@@ -21,6 +21,7 @@ let reminders: Status['reminders'] = undefined;
 const peers = new Map<string, RTCPeerConnection>();   // handshake id → connection
 const early = new Map<string, (RTCIceCandidateInit | null)[]>();   // candidates that came before their connection
 const located = new Map<string, { path: string; name: string; until: number }>();   // songs being streamed: where they are
+const lookingUp = new Map<string, ReturnType<typeof trackPath>>();   // a song being looked for now: its lookup, shared
 /** What other devices asked since GLUE Home started (ADR 0083), by kind: shown in the settings. */
 const served: Record<string, { calls: number; ms: number; bytes: number }> = {};
 
@@ -78,7 +79,14 @@ async function onSignal(from: string, data: unknown) {
     const waiting = early.get(data.id) ?? [];
     early.delete(data.id);
     pc.onicecandidate = e => say({ app: 'glue-send', t: 'ice', id: data.id, candidate: e.candidate?.toJSON() ?? null });
-    pc.onconnectionstatechange = () => { if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) { peers.delete(data.id); pc.close(); } };
+    // "disconnected" often passes (a phone moving between Wi-Fi and mobile data): only give up if it stays.
+    let gone = 0;
+    pc.onconnectionstatechange = () => {
+      clearTimeout(gone);
+      const end = () => { peers.delete(data.id); pc.close(); };
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') end();
+      else if (pc.connectionState === 'disconnected') gone = window.setTimeout(end, 15_000);
+    };
     pc.ondatachannel = ev => ev.channel.label === 'stream' ? serve(ev.channel) : receive(ev.channel, from);
     await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
     for (const c of waiting) await pc.addIceCandidate(c ?? undefined).catch(() => {});
@@ -205,7 +213,7 @@ function serve(dc: RTCDataChannel) {
           const key = c.profile + '/' + c.collection + '/' + c.track, known = located.get(key);
           if (known && known.until > Date.now()) ({ path, name } = known);
           else {
-            const f = await trackPath(c.profile!, c.collection!, c.track!, need());
+            const f = await (lookingUp.get(key) ?? (() => { const p = trackPath(c.profile!, c.collection!, c.track!, need()); lookingUp.set(key, p); void p.catch(() => {}).finally(() => lookingUp.delete(key)); return p; })());
             if (f.folder && cfg) { cfg = { ...cfg, folders: { ...(cfg.folders ?? {}), [f.folder.id]: f.folder.path } }; await bridge.saveConfig(cfg); }
             path = f.path; name = f.name;
             located.set(key, { path, name, until: Date.now() + 60_000 });

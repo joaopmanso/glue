@@ -1005,7 +1005,9 @@ class Library {
   /** What to play a song from (ADR 0076): an address that streams (this computer's GLUE Home's local link,
       or another computer's GLUE Home) when the browser plays the format by itself; otherwise the file. */
   async mediaFor(t: Track): Promise<Blob | string> {
-    if (t.remote) { const u = await this.streamFor?.(t).catch(() => null); if (u) return u; }
+    // Another computer's song: streamed when it can be; a connection that fails says so (not a silent
+    // whole download, ADR 0084).
+    if (t.remote) { const u = await this.streamFor?.(t); if (u) return u; }
     else if (!this.cloud && !t.fileKey && t.rootId && t.relPath && t.status === 'linked' && platform.homeMode() && playsNatively(typeOfName(t.fileName))) {
       const r = this.rootState(t.rootId), link = r ? await platform.fileLink(r.root, t.relPath) : null;
       if (link) return link;

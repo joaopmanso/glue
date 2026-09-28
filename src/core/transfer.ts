@@ -87,3 +87,9 @@ export function nextName(name: string, taken: (n: string) => boolean): string {
   const dot = name.lastIndexOf('.'), base = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : '';
   for (let i = 2; ; i++) { const n = base + ' (' + i + ')' + ext; if (!taken(n)) return n; }
 }
+
+/** The kind of an ICE candidate: named for people: 'local' (this network), 'public' (seen from outside), 'relay'. */
+export function candidateType(c: string | undefined | null): string | null {
+  const m = c && / typ (\w+)/.exec(c);
+  return m ? ({ host: 'local', srflx: 'public', prflx: 'public', relay: 'relay' } as Record<string, string>)[m[1]] ?? m[1] : null;
+}
