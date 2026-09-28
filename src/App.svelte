@@ -42,6 +42,7 @@
   import './lib/covers.svelte';        // songs' covers, kept as they're found (ADR 0072)
   import './lib/remoteFiles.svelte';   // another computer's songs through its GLUE Home (ADR 0045)
   import './lib/homeHandover';         // this computer's analyses, handed to its GLUE Home (ADR 0046)
+  import './lib/computer';             // one device per computer: a browser joins its computer's GLUE Home (ADR 0091)
   import { incoming } from './lib/incoming.svelte';
   import { djWatch } from './lib/djWatch.svelte';   // DJ libraries kept in step (ADR 0063)
   import { account } from './lib/account.svelte';

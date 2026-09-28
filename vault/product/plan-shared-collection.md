@@ -126,7 +126,7 @@ Each phase below ships on its own (checks, unit and full e2e, then deploy; GLUE 
 and tag when `home/` changes). The vault goes in the same commit (ADR per phase, changelog,
 features, handoff).
 
-## Phase 0: safety first (right away)
+## Phase 0: safety first (right away). Done 2026-09-28 (ADR 0089, 0090)
 - **Fix the deletion bug** (sync.svelte.ts, library.svelte.ts):
   - `lib.onCollectionClosing` fires before `store = null`. `sync.leaveCollection()` sends pending
     edits against the old store, then clears the timers, `overlay`, `overlayBase`, `others`,
@@ -159,7 +159,7 @@ features, handoff).
     linked.ts guards; bin restore;
   - e2e: switching collections in a merged group sends no `list-del` (route intercept).
 
-## Phase 1: computers, sessions, several GLUE Homes (cloud + site + GLUE Home)
+## Phase 1: computers, sessions, several GLUE Homes (cloud + site + GLUE Home). Done 2026-09-28 (ADR 0091)
 Also, per "Computers and sessions" above:
 - the `sessions` table and the backfill;
 - browse sign-ins make no device;

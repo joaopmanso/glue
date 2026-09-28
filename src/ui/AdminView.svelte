@@ -13,6 +13,9 @@
   }
   interface AdminUser { id: string; email: string | null; name: string | null; tier: Tier; createdAt: number; providers: string[]; devices: number; lastSeen: number | null; bytes: number; profiles: number }
 
+  /** Every sign-in (ADR 0091): devices hold music, sessions only browse. */
+  interface AdminSession { id: string; kind: 'browser' | 'home'; role: 'device' | 'browse'; name: string; platform: string | null; createdAt: number; lastSeen: number | null; email: string | null; userName: string | null }
+  let sessions = $state<AdminSession[]>([]);
   let stats = $state<Stats | null>(null);
   let users = $state<AdminUser[]>([]);
   let q = $state('');
@@ -22,9 +25,10 @@
   async function load() {
     loading = true; error = '';
     try {
-      [stats, users] = await Promise.all([
+      [stats, users, sessions] = await Promise.all([
         account.request<Stats>('GET', '/v1/admin/stats'),
         account.request<{ users: AdminUser[] }>('GET', '/v1/admin/users?q=' + encodeURIComponent(q.trim())).then(r => r.users),
+        account.request<{ sessions: AdminSession[] }>('GET', '/v1/admin/sessions').then(r => r.sessions).catch(() => [] as AdminSession[]),
       ]);
     } catch (e) { error = (e as Error).message; }
     finally { loading = false; }
@@ -101,6 +105,26 @@
               </td>
             </tr>
           {:else}<tr><td colspan="8" class="muted">No users match.</td></tr>{/each}
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Sessions and devices</h3>
+    <p class="muted small">Every sign-in, the most recently seen first. A device holds music (a computer with its library, or GLUE Home); a session only browses (a phone opening the library) and isn't in the user's Devices.</p>
+    <div class="tablewrap">
+      <table class="users" id="admin-sessions">
+        <thead><tr><th>User</th><th>Name</th><th>What</th><th>Platform</th><th>Last seen</th><th>Since</th></tr></thead>
+        <tbody>
+          {#each sessions as s (s.id)}
+            <tr data-session={s.id} data-role={s.role}>
+              <td><b>{s.email ?? '—'}</b><small>{s.userName ?? ''}</small></td>
+              <td>{s.name}</td>
+              <td>{s.kind === 'home' ? 'GLUE Home' : s.role === 'browse' ? 'Session (browsing)' : 'Device'}</td>
+              <td>{s.platform ?? '—'}</td>
+              <td>{ago(s.lastSeen)}</td>
+              <td>{new Date(s.createdAt).toLocaleDateString()}</td>
+            </tr>
+          {:else}<tr><td colspan="6" class="muted">No sign-ins.</td></tr>{/each}
         </tbody>
       </table>
     </div>

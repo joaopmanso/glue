@@ -38,6 +38,9 @@ export async function manifest(env: Env, a: Access, b: Manifest, now: number) {
   const bytes = [...files.values()].reduce((s, f) => s + f.size, 0);
   await env.DB.prepare('INSERT INTO sync_profiles (user_id, device_id, profile_id, name, color, stats, files, bytes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (user_id, device_id, profile_id) DO UPDATE SET name = excluded.name, color = excluded.color, stats = excluded.stats, files = excluded.files, bytes = excluded.bytes, updated_at = excluded.updated_at')
     .bind(a.sub, a.dev, p.id, p.name.slice(0, 60), typeof p.color === 'string' ? p.color.slice(0, 20) : null, JSON.stringify(b.stats ?? null).slice(0, 20000), files.size, bytes, now).run();
+  // A collection with songs: this sign-in holds music, so it's a device (ADR 0091).
+  const songs = ((b.stats as { collections?: { tracks?: number }[] } | null)?.collections ?? []).some(c => (c?.tracks ?? 0) > 0);
+  if (songs) await env.DB.prepare("UPDATE devices SET role = 'device' WHERE id = ? AND role = 'browse'").bind(a.dev).run();
   return { need };
 }
 

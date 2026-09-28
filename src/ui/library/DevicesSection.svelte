@@ -92,11 +92,17 @@
       canSend && sel.length > 0 && { label: 'Send the ' + (sel.length === 1 ? 'selected song' : sel.length + ' selected songs'), run: () => void sendTracks(h!.id, sel) },
       SEP,
       { label: 'Rename…', run: () => void rename(d) },
+      // Without GLUE Home, browsers can't tell they're on one computer: said by hand (ADR 0091).
+      d.kind === 'browser' && d.id !== account.thisDevice && { label: 'This browser is on the same computer', attrs: { 'data-m': 'same-computer' }, title: 'This browser and “' + d.name + '” become one device (this browser mustn’t have a library of its own)', run: () => void sameComputer(d) },
       !!h && h.id !== d.id && { label: 'Disconnect its GLUE Home…', danger: true, run: () => void remove(h!) },
       { label: d.id === account.thisDevice ? 'Remove (signs out)…' : 'Remove…', danger: true, run: () => void remove(d) },
     ]);
   }
   function openMenu(e: MouseEvent, d: CloudDevice) { menu.from(e.currentTarget as Element, () => deviceMenu(d), d.name); menuFor = d.id; }
+  async function sameComputer(d: CloudDevice) {
+    if (!confirm('This browser is on the same computer as “' + d.name + '”? They become one device.')) return;
+    try { await account.sameComputer(d.id); } catch (e) { pairError = (e as Error).message; }
+  }
   async function rename(d: CloudDevice) {
     const name = prompt('Name this device', d.name)?.trim();
     if (name && name !== d.name) await account.rename(d.id, name).catch(e => alert((e as Error).message));

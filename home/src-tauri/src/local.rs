@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::atomic::{AtomicU16, Ordering};
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 pub static PORT: AtomicU16 = AtomicU16::new(0);
@@ -124,6 +124,15 @@ fn answer(app: AppHandle, req: Request) {
         "/lease" if req.method() == &Method::Post => {
             LEASE_AT.store(now_ms(), Ordering::Relaxed);
             reply(req, 200, serde_json::json!({ "edits": EDITS.load(Ordering::Relaxed) }).to_string().into_bytes(), "application/json")
+        }
+        // A browser on this computer asks to join it (ADR 0091): only a page on this computer can reach this
+        // address, which is the proof. The service page tells GLUE Cloud (with GLUE Home's own credential).
+        "/attach" if req.method() == &Method::Post => {
+            let mut body = String::new();
+            let mut req = req;
+            let _ = std::io::Read::read_to_string(req.as_reader(), &mut body);
+            let _ = app.emit_to("service", "attach", body);
+            reply(req, 202, b"{}".to_vec(), "application/json")
         }
         // The drag dock (ADR 0054): what's selected on the website, to drag into the DJ apps.
         "/dock" if req.method() == &Method::Post => {

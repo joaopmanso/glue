@@ -2,7 +2,7 @@
    it's running, and receiving songs sent from the website into the incoming folder. Start / Stop /
    Restart come from the tray and the settings window. */
 import { API, bridge, type HomeConfig, type Received, type Status } from './bridge';
-import { stayOnline } from './cloud';
+import { access, stayOnline } from './cloud';
 import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, PENDING, frame, unframe, isHandshake, type Ctrl, type Handshake, type HomeFolder, type StreamReply, type StreamReq } from '../../src/core/transfer';
 import type { DetailsHeader } from '../../src/store/details';
 import * as cache from './cache';
@@ -387,6 +387,14 @@ async function boot() {
     if (r) { reminders = { at: Date.now(), coming: r.coming, sent: r.sent }; report(state, text); }
   };
   await bridge.onRemindNow(() => void remind(true));
+  // A browser on this computer joins it (ADR 0091): GLUE Home, which it reached on 127.0.0.1, vouches for it.
+  await bridge.onAttach(body => void (async () => {
+    const browser = (JSON.parse(body || '{}') as { browser?: string }).browser;
+    if (!browser || !cfg?.deviceId || !cfg.token) return;
+    const api = apiOf(cfg), t = await access(api, cfg.deviceId, cfg.token);
+    const r = await fetch(api + '/v1/computer/attach', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ browser }) });
+    if (!r.ok) console.warn('GLUE Home: couldn’t attach the browser', r.status, await r.text().catch(() => ''));
+  })().catch(e => console.warn('GLUE Home: couldn’t attach the browser', e)));
   setTimeout(() => void remind(), 90_000);
   setInterval(() => void remind(), 3600e3);
   // Edits from the other devices (ADR 0087): taken in when no GLUE tab is open here, soon after starting

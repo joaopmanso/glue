@@ -12,7 +12,7 @@ const CLIENT = 'test-client.apps.googleusercontent.com', ORIGIN = 'https://joaop
 function d1(): DB {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
-  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql', '0004_companions.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
+  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql', '0004_companions.sql', '0005_computers.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
   const stmt = (sql: string, args: unknown[] = []): Stmt => ({
     bind: (...v) => stmt(sql, v),
     first: async <T,>() => (db.prepare(sql).get(...(args as never[])) as T) ?? null,
@@ -80,9 +80,11 @@ describe('GLUE Cloud: Google sign-in and sessions', () => {
     const b = await signIn({}, { deviceId: a.json.deviceId });
     expect(b.json.user.id).toBe(a.json.user.id);
     expect(b.json.deviceId).toBe(a.json.deviceId);
+    // Only signed in: a session, not a device (ADR 0091).
     const me = await call('GET', '/v1/me', undefined, b.json.access);
-    expect(me.json.devices).toHaveLength(1);
-    expect(me.json.devices[0]).toMatchObject({ kind: 'browser', name: 'Edge on Windows' });
+    expect(me.json.devices).toHaveLength(0);
+    expect(me.json.sessions).toHaveLength(1);
+    expect(me.json.sessions[0]).toMatchObject({ kind: 'browser', name: 'Edge on Windows', role: 'browse' });
   });
   it('refuses tokens for another app, from another issuer, expired, or badly signed', async () => {
     expect((await signIn({ aud: 'someone-else' })).status).toBe(401);
@@ -323,6 +325,10 @@ describe('GLUE Cloud: email + password, tiers, admin (ADR 0041)', () => {
     expect(s.json.users.signups).toHaveLength(30);
     expect(s.json.users.signups[29]).toBe(2);
     expect(s.json.sync).toMatchObject({ profiles: 1, files: 1, bytes: 4 });
+    // Every sign-in, with who and whether it only browses (ADR 0091); admins only.
+    const ss = await call('GET', '/v1/admin/sessions', undefined, boss.json.access);
+    expect(ss.json.sessions.map((x: { email: string; role: string }) => [x.email, x.role]).sort()).toEqual([['boss@example.com', 'browse'], ['dj@example.com', 'browse']]);
+    expect((await call('GET', '/v1/admin/sessions', undefined, dj.json.access)).status).toBe(403);
     const us = await call('GET', '/v1/admin/users?q=dj@', undefined, boss.json.access);
     expect(us.json.users).toHaveLength(1);
     expect(us.json.users[0]).toMatchObject({ email: 'dj@example.com', tier: 'paid', devices: 1, bytes: 4, providers: ['google'] });
@@ -360,5 +366,57 @@ describe('GLUE Cloud: the relay (ADR 0081)', () => {
     // The service failing: none, and the reason.
     relay = (async () => new Response('no', { status: 503 })) as unknown as typeof fetch;
     expect((await call('GET', '/v1/turn', undefined, a.json.access)).json).toMatchObject({ iceServers: [], ttl: 0, error: expect.stringContaining('503') });
+  });
+});
+
+describe('computers and sessions (ADR 0091)', () => {
+  const h = (c: string) => c.repeat(64);
+  const upload = (tok: string, tracks: number) => call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'DJ' }, stats: { collections: [{ id: 'c1', name: 'My collection', tracks }] }, files: [{ path: 'profile.json', hash: h('a'), size: 1 }] }, tok);
+  const devices = async (tok: string) => (await call('GET', '/v1/me', undefined, tok)).json as { thisDevice: string; devices: { id: string; kind: string; role: string; companionOf: string | null }[]; sessions: { id: string }[] };
+  it('a sign-in that only browses stays a session; one that uploads a collection with songs becomes a device', async () => {
+    const phone = await signIn({}, { deviceName: 'Safari on iOS' });
+    await upload(phone.json.access, 0);                                 // an empty collection: still a session
+    expect((await devices(phone.json.access)).devices).toEqual([]);
+    const desk = await signIn({}, { deviceName: 'Edge on Windows' });
+    await upload(desk.json.access, 12);
+    const me = await devices(desk.json.access);
+    expect(me.devices.map(d => d.id)).toEqual([desk.json.deviceId]);
+    expect(me.sessions.map(d => d.id)).toEqual([phone.json.deviceId]);
+  });
+  it('GLUE Home attaches a second browser of its computer: it takes on the computer’s device, whose sign-ins it shares', async () => {
+    const edge = await signIn({}, { deviceName: 'Edge on Windows' });
+    const home = (await call('POST', '/v1/pairing/claim', { code: (await call('POST', '/v1/pairing', {}, edge.json.access)).json.code, name: 'Desktop' })).json;
+    const ha = (await call('POST', '/v1/auth/device', { deviceId: home.deviceId, token: home.token })).json.access;
+    const chrome = await signIn({}, { deviceName: 'Chrome on Windows' });
+    // Only a GLUE Home may attach, and only the account's own browsers.
+    expect((await call('POST', '/v1/computer/attach', { browser: chrome.json.deviceId }, chrome.json.access)).status).toBe(403);
+    const r = await call('POST', '/v1/computer/attach', { browser: chrome.json.deviceId }, ha);
+    expect(r.json).toEqual({ device: edge.json.deviceId });
+    // Chrome's next refresh is the computer's device; its own record is gone; one device in the list.
+    const again = await call('POST', '/v1/auth/refresh', { refresh: chrome.json.refresh });
+    expect(again.json.deviceId).toBe(edge.json.deviceId);
+    const me = await devices(again.json.access);
+    expect(me.thisDevice).toBe(edge.json.deviceId);
+    expect(me.devices.map(d => d.kind).sort()).toEqual(['browser', 'home']);
+    expect(me.sessions).toEqual([]);
+    // Edge's sign-in still works (both browsers are one device).
+    expect((await call('POST', '/v1/auth/refresh', { refresh: edge.json.refresh })).json.deviceId).toBe(edge.json.deviceId);
+  });
+  it('a browser with a library of its own isn’t joined into another; by hand, one with none is', async () => {
+    const a = await signIn({}, { deviceName: 'Edge' }); await upload(a.json.access, 5);
+    const b = await signIn({}, { deviceName: 'Firefox' });
+    await call('POST', '/v1/sync/manifest', { profile: { id: 'p9', name: 'Other' }, stats: { collections: [{ id: 'c9', name: 'X', tracks: 3 }] }, files: [{ path: 'profile.json', hash: h('b'), size: 1 }] }, b.json.access);
+    expect((await call('POST', '/v1/devices/' + a.json.deviceId + '/same-computer', {}, b.json.access)).status).toBe(409);
+    const c = await signIn({}, { deviceName: 'Chrome' });
+    expect((await call('POST', '/v1/devices/' + a.json.deviceId + '/same-computer', {}, c.json.access)).json).toEqual({ device: a.json.deviceId });
+    expect((await call('POST', '/v1/auth/refresh', { refresh: c.json.refresh })).json.deviceId).toBe(a.json.deviceId);
+  });
+  it('several GLUE Homes on one account: each pairs from its own computer and stays', async () => {
+    const desk = await signIn({}, { deviceName: 'Desktop' }), studio = await signIn({}, { deviceName: 'Studio' });
+    const pair = async (tok: string, name: string) => (await call('POST', '/v1/pairing/claim', { code: (await call('POST', '/v1/pairing', {}, tok)).json.code, name })).json;
+    const h1 = await pair(desk.json.access, 'Desktop'), h2 = await pair(studio.json.access, 'Studio');
+    const me = await devices(desk.json.access);
+    expect(me.devices.filter(d => d.kind === 'home').map(d => d.id).sort()).toEqual([h1.deviceId, h2.deviceId].sort());
+    expect(me.devices.filter(d => d.kind === 'browser').every(d => d.role === 'device')).toBe(true);
   });
 });

@@ -11,6 +11,8 @@ export const TAURI_MOCK = `(() => {
   // Like Tauri's IPC, everything crosses as JSON.
   const send = (event, payload, target) => { const m = { event, payload: payload === undefined ? null : JSON.parse(JSON.stringify(payload)), target }; bc.postMessage(m); deliver(m); };
   bc.onmessage = e => deliver(e.data);
+  // Tests deliver Rust's events (e.g. the local link's /attach, ADR 0091) with this.
+  window.__tauriEvent = (event, payload) => deliver({ event, payload, target: undefined });
   const cfg = () => JSON.parse(localStorage.getItem('home-config') || 'null');
   // A file on "disk": window.__disk, or a song received into the incoming folder (C:\\In\\<name>, or where it was saved).
   const disk = p => (window.__disk ?? {})[p] ?? files.find(f => f.done && !f.moved && (p === 'C:\\\\In\\\\' + f.name || p.endsWith('GLUE Incoming\\\\' + f.name)))?.chunks.flat();

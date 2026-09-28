@@ -22,6 +22,12 @@ async function hello(port: number, ms = 1500): Promise<{ app: string; version: s
   }
 }
 
+/** Any GLUE Home running on this computer, found by asking each of its ports (ADR 0091). */
+export async function discover(): Promise<{ port: number; device: string } | null> {
+  const found = await Promise.all(Array.from({ length: 10 }, (_, i) => 47400 + i).map(async port => { const h = await hello(port, 900); return h?.app === 'glue-home' && h.device ? { port, device: h.device } : null; }));
+  return found.find(Boolean) ?? null;
+}
+
 class LocalHome {
   /** Working now: this computer's GLUE Home answers directly. */
   link = $state.raw<LocalLink | null>(null);

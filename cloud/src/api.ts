@@ -21,9 +21,9 @@ const MAX_CLAIMS = 10, CLAIM_WINDOW = 10 * 60e3;   // pairing attempts per addre
 class HttpError extends Error { constructor(readonly status: number, msg: string) { super(msg); } }
 const bad = (msg: string) => new HttpError(400, msg);
 
-interface DeviceRow { id: string; user_id: string; kind: 'browser' | 'home'; name: string; platform: string | null; public_key: string | null; created_at: number; last_seen: number | null; revoked_at: number | null; companion_of?: string | null }
+interface DeviceRow { id: string; user_id: string; kind: 'browser' | 'home'; name: string; platform: string | null; public_key: string | null; created_at: number; last_seen: number | null; revoked_at: number | null; companion_of?: string | null; role?: 'device' | 'browse' }
 /** companionOf: the browser on the same computer that a GLUE Home serves (ADR 0045). */
-const device = (d: DeviceRow) => ({ id: d.id, kind: d.kind, name: d.name, platform: d.platform, createdAt: d.created_at, lastSeen: d.last_seen, publicKey: d.public_key, companionOf: d.companion_of ?? null });
+const device = (d: DeviceRow) => ({ id: d.id, kind: d.kind, name: d.name, platform: d.platform, createdAt: d.created_at, lastSeen: d.last_seen, publicKey: d.public_key, companionOf: d.companion_of ?? null, role: d.role ?? 'device' });
 const str = (v: unknown, max: number) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 
 export async function handle(req: Request, env: Env, deps: Deps): Promise<Response> {
@@ -56,7 +56,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
       const a = await authed(env, url.searchParams.get('token') ?? '', now);
       if (!env.SIGNAL) throw new HttpError(503, 'signaling unavailable');
       const stub = env.SIGNAL.get(env.SIGNAL.idFromName(a.sub));
-      const fwd = new Request('https://signal/connect?device=' + encodeURIComponent(a.dev) + '&user=' + encodeURIComponent(a.sub), req);
+      const fwd = new Request('https://signal/connect?device=' + encodeURIComponent(a.dev) + '&user=' + encodeURIComponent(a.sub) + '&conn=' + encodeURIComponent((url.searchParams.get('conn') ?? '').slice(0, 40)), req);
       return stub.fetch(fwd);
     }
 
@@ -75,6 +75,12 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
       await env.DB.prepare('INSERT INTO pairing_codes (hash, user_id, expires_at, device_id) VALUES (?, ?, ?, ?)').bind(await sha256(normCode(code)), a.sub, now + CODE_TTL, a.dev).run();
       return reply({ code, expiresAt: now + CODE_TTL });
     }
+    // A browser on a GLUE Home's computer joins that computer (ADR 0091): asked by the GLUE Home, which only a
+    // browser on the same computer can reach (its local link on 127.0.0.1).
+    if (m === 'POST' && path === '/v1/computer/attach') return reply(await attach(env, a, str((await body()).browser, 40), now));
+    // By hand, without GLUE Home: this browser is the same computer as another of the account's devices.
+    const sc = /^\/v1\/devices\/([\w-]+)\/same-computer$/.exec(path);
+    if (m === 'POST' && sc) return reply(await join(env, a.sub, a.dev, sc[1], now));
     const dm = /^\/v1\/devices\/([\w-]+)$/.exec(path);
     if (dm && (m === 'PATCH' || m === 'DELETE')) {
       const d = await env.DB.prepare('SELECT * FROM devices WHERE id = ? AND user_id = ? AND revoked_at IS NULL').bind(dm[1], a.sub).first<DeviceRow>();
@@ -159,7 +165,8 @@ async function browserSession(env: Env, userId: string, b: Record<string, unknow
   let dev = want ? await env.DB.prepare('SELECT * FROM devices WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND kind = ?').bind(want, userId, 'browser').first<DeviceRow>() : null;
   if (!dev) {
     const id = randomId(), name = str(b.deviceName, 60) || 'Browser';
-    await env.DB.prepare('INSERT INTO devices (id, user_id, kind, name, platform, public_key, created_at, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, userId, 'browser', name, str(b.platform, 60) || null, str(b.publicKey, 2000) || null, now, now).run();
+    // A session until it holds music (it uploads a collection with songs, or gets a GLUE Home: ADR 0091).
+    await env.DB.prepare('INSERT INTO devices (id, user_id, kind, name, platform, public_key, created_at, last_seen, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, userId, 'browser', name, str(b.platform, 60) || null, str(b.publicKey, 2000) || null, now, now, 'browse').run();
     dev = { id } as DeviceRow;
   }
   const u = await env.DB.prepare('SELECT id, email, name, picture, tier FROM users WHERE id = ?').bind(userId).first<{ id: string; email: string | null; name: string | null; picture: string | null; tier: string }>();
@@ -243,6 +250,7 @@ async function claim(env: Env, b: Record<string, unknown>, now: number, ip: stri
   }
   // One GLUE Home per browser: an older companion of the same browser is replaced.
   if (of) for (const r of (await env.DB.prepare("SELECT id FROM devices WHERE user_id = ? AND companion_of = ? AND revoked_at IS NULL").bind(pc.user_id, of.id).all<{ id: string }>()).results) await revokeDevice(env, pc.user_id, r.id, now);
+  if (of) await env.DB.prepare("UPDATE devices SET role = 'device' WHERE id = ?").bind(of.id).run();
   return newHome(env, pc.user_id, b, now, of);
 }
 /** A new GLUE Home device of the account, with its own long-lived credential. */
@@ -269,10 +277,51 @@ async function revokeDevice(env: Env, userId: string, id: string, now: number) {
   if (env.SIGNAL) await env.SIGNAL.get(env.SIGNAL.idFromName(userId)).fetch(new Request('https://signal/kick?device=' + encodeURIComponent(id), { method: 'POST' })).catch(() => null);
 }
 
+/** GLUE Home asks for a browser on its computer to join it (ADR 0091): the browser takes on the computer's
+    device (the GLUE Home's companion), so both are one device everywhere (sync, edits, presence, Devices).
+    The first browser to attach becomes the companion. */
+async function attach(env: Env, a: Access, browser: string, now: number) {
+  const home = await env.DB.prepare("SELECT * FROM devices WHERE id = ? AND user_id = ? AND kind = 'home' AND revoked_at IS NULL").bind(a.dev, a.sub).first<DeviceRow>();
+  if (!home) throw new HttpError(403, 'only a GLUE Home attaches browsers');
+  const b = await env.DB.prepare("SELECT * FROM devices WHERE id = ? AND user_id = ? AND kind = 'browser' AND revoked_at IS NULL").bind(browser, a.sub).first<DeviceRow>();
+  if (!b) throw new HttpError(404, 'no such browser');
+  const primary = home.companion_of ? await env.DB.prepare("SELECT * FROM devices WHERE id = ? AND user_id = ? AND revoked_at IS NULL").bind(home.companion_of, a.sub).first<DeviceRow>() : null;
+  if (!primary) {
+    await env.DB.batch([
+      env.DB.prepare('UPDATE devices SET companion_of = ? WHERE id = ?').bind(b.id, home.id),
+      env.DB.prepare("UPDATE devices SET role = 'device' WHERE id = ?").bind(b.id),
+    ]);
+    return { device: b.id };
+  }
+  return join(env, a.sub, b.id, primary.id, now);
+}
+/** Browser `from` becomes device `into` (same account): its sign-ins move over, and its own record goes.
+    Refused when it has a library of its own that `into` doesn't have (joining would drop it from the cloud). */
+async function join(env: Env, userId: string, from: string, into: string, now: number) {
+  if (from === into) return { device: into };
+  const t = await env.DB.prepare("SELECT id FROM devices WHERE id = ? AND user_id = ? AND revoked_at IS NULL").bind(into, userId).first<{ id: string }>();
+  if (!t) throw new HttpError(404, 'no such device');
+  const mine = (await env.DB.prepare('SELECT profile_id FROM sync_profiles WHERE user_id = ? AND device_id = ?').bind(userId, from).all<{ profile_id: string }>()).results.map(r => r.profile_id);
+  const theirs = new Set((await env.DB.prepare('SELECT profile_id FROM sync_profiles WHERE user_id = ? AND device_id = ?').bind(userId, into).all<{ profile_id: string }>()).results.map(r => r.profile_id));
+  if (mine.some(p => !theirs.has(p))) throw new HttpError(409, 'this browser has a library of its own: it stays a device of its own');
+  await env.DB.batch([
+    env.DB.prepare("UPDATE credentials SET device_id = ? WHERE device_id = ? AND user_id = ? AND kind = 'refresh'").bind(into, from, userId),
+    env.DB.prepare("UPDATE devices SET role = 'device' WHERE id = ?").bind(into),
+    env.DB.prepare('UPDATE devices SET revoked_at = ? WHERE id = ? AND user_id = ?').bind(now, from, userId),
+    env.DB.prepare('DELETE FROM sync_files WHERE device_id = ?').bind(from),
+    env.DB.prepare('DELETE FROM sync_profiles WHERE device_id = ?').bind(from),
+    env.DB.prepare('DELETE FROM sync_links WHERE device_id = ?').bind(from),
+    env.DB.prepare('DELETE FROM sync_ops WHERE device_id = ?').bind(from),
+  ]);
+  return { device: into };
+}
+
 async function me(env: Env, a: Access) {
   const u = await env.DB.prepare('SELECT id, email, name, picture, created_at, tier FROM users WHERE id = ?').bind(a.sub).first<{ id: string; email: string | null; name: string | null; picture: string | null; created_at: number; tier: string }>();
   if (!u) throw new HttpError(401, 'sign in again');
   const ds = await env.DB.prepare('SELECT * FROM devices WHERE user_id = ? AND revoked_at IS NULL ORDER BY kind DESC, created_at').bind(a.sub).all<DeviceRow>();
   const ids = (await env.DB.prepare('SELECT provider FROM identities WHERE user_id = ?').bind(a.sub).all<{ provider: string }>()).results.map(r => r.provider);
-  return { user: { id: u.id, email: u.email, name: u.name, picture: u.picture, createdAt: u.created_at, tier: u.tier, providers: ids }, thisDevice: a.dev, devices: ds.results.map(device) };
+  // Devices are computers that hold music; sessions are sign-ins only to browse (ADR 0091).
+  const all = ds.results.map(device);
+  return { user: { id: u.id, email: u.email, name: u.name, picture: u.picture, createdAt: u.created_at, tier: u.tier, providers: ids }, thisDevice: a.dev, devices: all.filter(d => d.role !== 'browse'), sessions: all.filter(d => d.role === 'browse') };
 }

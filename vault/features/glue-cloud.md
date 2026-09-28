@@ -375,3 +375,4 @@ First release: phases 1–3 (user, 2026-09-25).
 - **Waveforms (2026-09-28, [ADR 0085](../adr/0085-waveforms-from-glue-home.md)):** the Overview's waveform look for other computers' songs, kept and served by their GLUE Home like the spectrograms.
 - **Edits reach GLUE Home (2026-09-28, [ADR 0087](../adr/0087-edits-reach-glue-home.md)):** song info travels with the other edits; the writer lease is built; GLUE Home applies waiting edits when no GLUE tab is open (it doesn't upload yet).
 - **AIFF streams (2026-09-28, [ADR 0088](../adr/0088-aiff-streams-as-wav.md)):** rewrapped as WAV in the page, piece by piece; only compressed AIFF-C and ALAC still come whole.
+- **Computers and sessions (2026-09-28, [ADR 0091](../adr/0091-computers-and-sessions.md)):** one device per computer (browsers join through GLUE Home, or by hand); browse-only sign-ins are sessions, listed in the admin panel.

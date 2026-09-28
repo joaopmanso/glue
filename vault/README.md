@@ -164,3 +164,4 @@ Planned (GLUE):
 | [0088](adr/0088-aiff-streams-as-wav.md) | Another computer's AIFF songs stream, as WAV worked out a piece at a time | accepted |
 | [0089](adr/0089-edits-only-against-their-own-collection.md) | Edits are worked out only against the collection they came from; mass deletions are asked | accepted |
 | [0090](adr/0090-bin-guarded-re-reads-daily-backups.md) | A bin for playlists, guarded DJ-library re-reads, daily backups | accepted |
+| [0091](adr/0091-computers-and-sessions.md) | A device is a computer; signing in only to browse is a session | accepted |

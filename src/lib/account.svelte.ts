@@ -13,7 +13,10 @@ export interface CloudUser { id: string; email: string | null; name: string | nu
 
 export { passwordKey } from '../core/password';
 /** companionOf: for a GLUE Home, the browser on the same computer that it serves (ADR 0045). */
-export interface CloudDevice { id: string; kind: 'browser' | 'home'; name: string; platform: string | null; createdAt: number; lastSeen: number | null; companionOf?: string | null }
+/** role 'browse': a sign-in only to browse (a session), not a device that holds music (ADR 0091). */
+export interface CloudDevice { id: string; kind: 'browser' | 'home'; name: string; platform: string | null; createdAt: number; lastSeen: number | null; companionOf?: string | null; role?: 'device' | 'browse' }
+/** This tab's connection to the signaling room (the browsers of one computer share its device, ADR 0091). */
+const tabConn = (() => { try { let c = sessionStorage.getItem('mco.conn'); if (!c) { c = crypto.randomUUID(); sessionStorage.setItem('mco.conn', c); } return c; } catch { return crypto.randomUUID(); } })();
 interface Session { access: string; refresh: string; deviceId: string }
 
 type GoogleId = { accounts: { id: { initialize(o: Record<string, unknown>): void; renderButton(el: HTMLElement, o: Record<string, unknown>): void; disableAutoSelect(): void } } };
@@ -28,6 +31,8 @@ export function browserName(ua = navigator.userAgent): string {
 class Account {
   user = $state<CloudUser | null>(null);
   devices = $state<CloudDevice[]>([]);
+  /** The account's sign-ins that only browse (not devices): shown in the account menu and the admin panel. */
+  sessions = $state<CloudDevice[]>([]);
   thisDevice = $state<string | null>(null);
   online = $state.raw<Set<string>>(new Set());
   phase = $state<'signed-out' | 'working' | 'signed-in'>('signed-out');
@@ -121,6 +126,17 @@ class Account {
 
   /** A single-use code (10 minutes) that GLUE Home enters to join this account. */
   pair() { return this.call<{ code: string; expiresAt: number }>('POST', '/v1/pairing', {}); }
+  /** This sign-in now belongs to another device (it joined its computer, ADR 0091): take it on. True when it changed. */
+  async takeOnDevice(): Promise<boolean> {
+    const before = this.thisDevice;
+    await this.renew();
+    return this.thisDevice !== before;
+  }
+  /** By hand, without GLUE Home: this browser is the same computer as device `id` (ADR 0091). */
+  async sameComputer(id: string) {
+    await this.call('POST', '/v1/devices/' + id + '/same-computer', {});
+    if (await this.takeOnDevice()) location.reload();
+  }
   async rename(id: string, name: string) { await this.call('PATCH', '/v1/devices/' + id, { name }); await this.loadMe(); }
   async remove(id: string) { await this.call('DELETE', '/v1/devices/' + id); await this.loadMe(); }
   /** Told once per sign-in (sync starts then). */
@@ -128,9 +144,9 @@ class Account {
   /** Told when the user signs out (or deletes the account): the other devices' data leaves the library. */
   onSignedOut: (() => void) | null = null;
   async loadMe() {
-    const r = await this.call<{ user: CloudUser; thisDevice: string; devices: CloudDevice[] }>('GET', '/v1/me');
+    const r = await this.call<{ user: CloudUser; thisDevice: string; devices: CloudDevice[]; sessions?: CloudDevice[] }>('GET', '/v1/me');
     const first = this.phase !== 'signed-in';
-    this.user = r.user; this.devices = r.devices; this.thisDevice = r.thisDevice; this.phase = 'signed-in';
+    this.user = r.user; this.devices = r.devices; this.sessions = r.sessions ?? []; this.thisDevice = r.thisDevice; this.phase = 'signed-in';
     if (first) this.onSignedIn?.();
   }
 
@@ -152,7 +168,7 @@ class Account {
   private forget() {
     this.closing = true; this.ws?.close(); this.ws = null; clearInterval(this.pingTimer);
     this.access = ''; this.accessExp = 0; this.refreshToken = '';
-    this.user = null; this.devices = []; this.online = new Set(); this.connected = false; this.phase = 'signed-out';
+    this.user = null; this.devices = []; this.sessions = []; this.online = new Set(); this.connected = false; this.phase = 'signed-out';
   }
   private async renew() {
     const s = await this.post<Session>('/v1/auth/refresh', { refresh: this.refreshToken });
@@ -193,7 +209,7 @@ class Account {
     this.closing = false;
     void (async () => {
       try { if (!this.access || Date.now() > this.accessExp) await this.renew(); } catch { return this.later(); }
-      const ws = new WebSocket(API_BASE.replace(/^http/, 'ws') + '/v1/signal?token=' + encodeURIComponent(this.access));
+      const ws = new WebSocket(API_BASE.replace(/^http/, 'ws') + '/v1/signal?token=' + encodeURIComponent(this.access) + '&conn=' + encodeURIComponent(tabConn));
       this.ws = ws;
       ws.onopen = () => { this.retry = 0; this.connected = true; clearInterval(this.pingTimer); this.pingTimer = window.setInterval(() => ws.readyState === 1 && ws.send('{"type":"ping"}'), 30_000); };
       ws.onmessage = e => {
@@ -207,7 +223,7 @@ class Account {
           const before = this.online;
           this.online = new Set(m.online);
           // A device we don't know yet (a GLUE Home that just paired): refresh the list.
-          if (m.online.some(id => !before.has(id) && !this.devices.some(d => d.id === id))) void this.loadMe().catch(() => {});
+          if (m.online.some(id => !before.has(id) && !this.devices.some(d => d.id === id) && !this.sessions.some(d => d.id === id))) void this.loadMe().catch(() => {});
         }
       };
       ws.onclose = e => {

@@ -87,6 +87,8 @@ export const bridge = {
   /** The settings' "Check now" for reminders. */
   remindNow: () => emitTo('service', 'remind-now'),
   onRemindNow: (f: () => void) => listen('remind-now', () => f()),
+  /** A browser on this computer asked to join it (ADR 0091): its request's body. */
+  onAttach: (f: (body: string) => void) => listen<string>('attach', e => f(e.payload)),
 };
 
 /** A desktop notification (ADR 0074); false when the OS doesn't allow them. */

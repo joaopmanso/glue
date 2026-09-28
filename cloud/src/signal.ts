@@ -28,12 +28,14 @@ export class Signal {
       return new Response('ok');
     }
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected a WebSocket', { status: 426 });
-    // One connection per device: a new one replaces the old (a reload, a reconnect).
-    const old = this.state.getWebSockets(device);
+    // One connection per device and tab: a new one replaces the old (a reload, a reconnect). The browsers of
+    // one computer share its device (ADR 0091), so each tab says which it is (`conn`); without, as before.
+    const conn = url.searchParams.get('conn') ?? '';
+    const old = this.state.getWebSockets(device).filter(w => ((w.deserializeAttachment() as { conn?: string } | null)?.conn ?? '') === conn);
     for (const o of old) { try { o.send(JSON.stringify({ type: 'replaced' } satisfies RoomMsg)); } catch { /* closing */ } o.close(4000, 'replaced'); }
     const pair = new WebSocketPair(), client = pair[0], server = pair[1];
     this.state.acceptWebSocket(server, [device]);
-    server.serializeAttachment({ device });
+    server.serializeAttachment({ device, conn });
     this.seen(device);
     this.presence(...old);
     return new Response(null, { status: 101, webSocket: client } as ResponseInit);

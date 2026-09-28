@@ -5,6 +5,20 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · One device per computer; sessions (GLUE Home 0.23, GLUE Cloud migration 0005)
+- **Two browsers on one computer are one device.** With GLUE Home running there, a browser finds it
+  on 127.0.0.1 and joins the computer by itself; GLUE Home vouches for it
+  ([ADR 0091](../adr/0091-computers-and-sessions.md)). Without GLUE Home: "This browser is on the
+  same computer" in the other browser's menu in Devices.
+- **Signing in only to browse (a phone) is a session:** not in Devices, and never in a merged group.
+  Old ones with no songs are turned into sessions, and their empty collections leave the groups.
+- **Admin › Sessions and devices:** every sign-in, whose it is, what it is, when last seen.
+- Several GLUE Homes on one account stay, one per computer.
+- The signaling room keeps one connection per device and tab.
+- Tests:
+  - cloud: sessions, promotion on upload, attach, same computer, several GLUE Homes, admin sessions;
+  - e2e: a second browser joins the desktop through its GLUE Home's /attach.
+
 ## 2026-09-28 · Safety: a bin, guarded DJ-library re-reads, daily backups (GLUE Home 0.22)
 - **Recently deleted** (sidebar, under the playlists): deleted playlists and folders, with
   everything inside, kept 30 days, whoever deleted them. Restore puts them back

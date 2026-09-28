@@ -12,6 +12,7 @@ export async function route(env: Env, a: Access, m: string, path: string, q: URL
   if (me?.tier !== 'admin') throw new AdminError(403, 'admins only');
   if (m === 'GET' && path === '/v1/admin/stats') return stats(env, now);
   if (m === 'GET' && path === '/v1/admin/users') return users(env, q.get('q') ?? '', Math.min(200, Number(q.get('limit')) || 100));
+  if (m === 'GET' && path === '/v1/admin/sessions') return sessions(env, Math.min(500, Number(q.get('limit')) || 200));
   if (m === 'POST' && path === '/v1/admin/maintenance') return maintenance(env, String(b.task ?? ''), now);
   const u = /^\/v1\/admin\/users\/([\w-]+)(\/cloud)?$/.exec(path);
   if (u) {
@@ -61,6 +62,13 @@ async function stats(env: Env, now: number) {
       oldEdits: await count(env, 'SELECT COUNT(*) AS n FROM sync_ops WHERE created_at < ?', now - 90 * DAY) },
     at: now,
   };
+}
+
+/** Every sign-in and device, newest seen first (ADR 0091): sessions (only browsing) and devices (holding music). */
+async function sessions(env: Env, limit: number) {
+  const rows = (await env.DB.prepare(`SELECT d.id, d.kind, d.role, d.name, d.platform, d.created_at, d.last_seen, u.email, u.name AS user_name
+    FROM devices d JOIN users u ON u.id = d.user_id WHERE d.revoked_at IS NULL ORDER BY COALESCE(d.last_seen, d.created_at) DESC LIMIT ?`).bind(limit).all<Record<string, unknown>>()).results;
+  return { sessions: rows.map(r => ({ id: r.id, kind: r.kind, role: r.role ?? 'device', name: r.name, platform: r.platform, createdAt: r.created_at, lastSeen: r.last_seen, email: r.email, userName: r.user_name })) };
 }
 
 async function users(env: Env, q: string, limit: number) {
