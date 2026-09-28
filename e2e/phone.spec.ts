@@ -35,7 +35,7 @@ test('a phone signs in and the library opens by itself: songs stream from the de
   const pid = 'pdesk', cid = 'cdesk';
   const song = (id: string, title: string, file: string) => ({ id, status: 'linked', rootId: 'deskroot', relPath: file, importPath: null, fileName: file, size: 5, mtime: 1, title, artist: 'Kloudmen', album: '', genre: 'Techno', label: '', comment: '', year: '2019', duration: 4, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] });
   // dk03's cover is only in its file's tags: the phone gets it from the desktop's GLUE Home (ADR 0082).
-  const tracks = { dk01: song('dk01', 'Genorale', 'Genorale.flac'), dk02: song('dk02', 'Manyaro', 'Manyaro.mp3'), dk03: song('dk03', 'Covered', 'Covered.mp3') };
+  const tracks = { dk01: song('dk01', 'Genorale', 'Genorale.flac'), dk02: song('dk02', 'Manyaro', 'Manyaro.mp3'), dk03: song('dk03', 'Covered', 'Covered.mp3'), dk04: song('dk04', 'Aiffy', 'Aiffy.aiff') };
   const files = new Map<string, { hash: string; data: string }>([
     [`collections/${cid}/collection.json`, { hash: 'h1', data: gz({ schemaVersion: 1, id: cid, name: 'My collection', createdAt: '', roots: [{ id: 'deskroot', name: 'Music', absPath: null, handleKey: 'x', addedAt: '' }] }) }],
     [`collections/${cid}/tracks/dk.json`, { hash: 'h2', data: gz({ schemaVersion: 1, items: tracks }) }],
@@ -86,7 +86,7 @@ test('a phone signs in and the library opens by itself: songs stream from the de
     [`profiles/${pid}/collections/${cid}/collection.json`]: JSON.stringify({ schemaVersion: 1, id: cid, name: 'My collection', createdAt: '', roots: [{ id: 'deskroot', name: 'Music', absPath: null, handleKey: 'x', addedAt: '' }] }),
     [`profiles/${pid}/collections/${cid}/tracks/dk.json`]: JSON.stringify({ schemaVersion: 1, items: tracks }),
   };
-  const disk = { 'C:\\Users\\dj\\Music\\Genorale.flac': [...readFileSync(fixture('flac-96k-24.flac'))], 'C:\\Users\\dj\\Music\\Manyaro.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\Covered.mp3': [...readFileSync(fixture('mp3-cover.mp3'))] };
+  const disk = { 'C:\\Users\\dj\\Music\\Genorale.flac': [...readFileSync(fixture('flac-96k-24.flac'))], 'C:\\Users\\dj\\Music\\Manyaro.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\Covered.mp3': [...readFileSync(fixture('mp3-cover.mp3'))], 'C:\\Users\\dj\\Music\\Aiffy.aiff': [...readFileSync(fixture('aiff-44k-24.aiff'))] };
   await home.addInitScript(({ glue, disk }) => {
     const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk;
     localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: 'C:\\Users\\dj\\Documents\\GLUE' }));
@@ -108,7 +108,7 @@ test('a phone signs in and the library opens by itself: songs stream from the de
   await expect(page.locator('#homepage')).toBeVisible();
   await page.locator('#cloud-panel .fake-google').click();
   const all = page.locator('#phone-library [data-view="all"]');
-  await expect(all).toContainText('3', { timeout: 30_000 });
+  await expect(all).toContainText('4', { timeout: 30_000 });
   await expect(page.locator('#phone .cloud')).toContainText('Desktop');
   // Nothing was made on the phone.
   expect(await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const names: string[] = []; for await (const [n] of (r as unknown as { entries(): AsyncIterable<[string, unknown]> }).entries()) names.push(n); return names.filter(n => n !== 'cache'); })).toEqual([]);
@@ -131,6 +131,18 @@ test('a phone signs in and the library opens by itself: songs stream from the de
   // Both ends asked GLUE Cloud for the relay before connecting.
   expect(turnAsked).toContain('phone');
   expect(turnAsked).toContain('home');
+  await page.click('#phone-play');
+  // An AIFF (this browser doesn't play AIFF) streams too, as WAV worked out a piece at a time (ADR 0088):
+  // it plays with no whole-song download first.
+  const aiffRow = page.locator('#phone-songs .row', { hasText: 'Aiffy' });
+  await aiffRow.click();
+  await expect(page.locator('#phone-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 30_000 });
+  // GLUE Home was asked for parts of it (range), never for the whole song (get).
+  const served = () => home.evaluate(() => Object.keys((window as unknown as { __status?: { served?: Record<string, unknown> } }).__status?.served ?? {}));
+  await expect.poll(served, { timeout: 10_000 }).toContain('range');
+  await home.waitForTimeout(2500);
+  expect(await served()).not.toContain('get');
+  await expect(page.locator('#phone')).not.toContainText('getting it from');
   await page.click('#phone-play');
 
   // A rating, from the song's sheet, goes to the desktop (applied there when GLUE opens).
@@ -161,7 +173,7 @@ test('a phone signs in and the library opens by itself: songs stream from the de
 
   // Next time on the phone: it opens by itself again.
   await page.reload();
-  await expect(page.locator('#phone-library [data-view="all"]')).toContainText('3', { timeout: 30_000 });
+  await expect(page.locator('#phone-library [data-view="all"]')).toContainText('4', { timeout: 30_000 });
   // A song's page asks GLUE Home for its full analysis: GLUE Home makes it, and keeps its waveform too,
   // for the Overview's waveform look on other devices (ADR 0085).
   await page.locator('#phone-library [data-view="all"]').click();

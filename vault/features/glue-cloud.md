@@ -374,3 +374,4 @@ First release: phases 1–3 (user, 2026-09-25).
 - **Playback first (2026-09-28, [ADR 0084](../adr/0084-playback-first-on-the-link-to-glue-home.md)):** what's playing goes ahead of background requests and has its own data channel; no silent whole-song download; connection errors list each side's addresses.
 - **Waveforms (2026-09-28, [ADR 0085](../adr/0085-waveforms-from-glue-home.md)):** the Overview's waveform look for other computers' songs, kept and served by their GLUE Home like the spectrograms.
 - **Edits reach GLUE Home (2026-09-28, [ADR 0087](../adr/0087-edits-reach-glue-home.md)):** song info travels with the other edits; the writer lease is built; GLUE Home applies waiting edits when no GLUE tab is open (it doesn't upload yet).
+- **AIFF streams (2026-09-28, [ADR 0088](../adr/0088-aiff-streams-as-wav.md)):** rewrapped as WAV in the page, piece by piece; only compressed AIFF-C and ALAC still come whole.

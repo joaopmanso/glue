@@ -27,7 +27,7 @@ export const TAURI_MOCK = `(() => {
       switch (cmd) {
         case 'plugin:event|listen': listeners.push({ event: args.event, id: args.handler }); return listeners.length;
         case 'plugin:event|unlisten': return;
-        case 'plugin:event|emit': return send(args.event, args.payload);
+        case 'plugin:event|emit': if (args.event === 'status') window.__status = args.payload; return send(args.event, args.payload);
         case 'plugin:event|emit_to': return send(args.event, args.payload, typeof args.target === 'string' ? args.target : args.target?.label);
         case 'get_config': return cfg();
         case 'set_config': localStorage.setItem('home-config', JSON.stringify(args.config)); send('config', args.config); return;

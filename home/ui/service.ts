@@ -28,6 +28,9 @@ const lookingUp = new Map<string, ReturnType<typeof trackPath>>();   // a song b
 const served: Record<string, { calls: number; ms: number; bytes: number }> = {};
 
 const apiOf = (c: HomeConfig) => c.api || API;
+/** What was asked shows in the settings a moment after (at most every 2 s, ADR 0083). */
+let servedTimer = 0;
+const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
   const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, reminders, served: structuredClone(served) };
@@ -177,7 +180,7 @@ function serve(dc: RTCDataChannel) {
   const step = (f: () => Promise<void>, n: number, what: string) => {
     const t0 = performance.now(), row = served[what] ??= { calls: 0, ms: 0, bytes: 0 };
     whatOf.set(n, what);
-    void (async () => { serving++; try { await f(); } catch (err) { send({ t: 'error', n, error: (err as Error).message || String(err) }); } finally { serving--; row.calls++; row.ms += performance.now() - t0; whatOf.delete(n); } })();
+    void (async () => { serving++; try { await f(); } catch (err) { send({ t: 'error', n, error: (err as Error).message || String(err) }); } finally { serving--; row.calls++; row.ms += performance.now() - t0; whatOf.delete(n); servedSoon(); } })();
   };
   dc.onmessage = e => {
     if (typeof e.data !== 'string') { const f = unframe(e.data as ArrayBuffer), u = uploads.get(f.n); if (u) { u.parts.push(f.data.slice()); u.got += f.data.length; } return; }

@@ -5,6 +5,18 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · AIFF songs stream too (GLUE Home 0.20)
+- **Another computer's AIFF songs stream** instead of downloading first ("getting it from Desktop…
+  44%"). Chrome, Edge and Firefox don't play AIFF, so the page turns it into WAV a piece at a time
+  as it plays ([ADR 0088](../adr/0088-aiff-streams-as-wav.md)).
+  - Before, only the songs whose format the browser plays by itself streamed, which is why some
+    started at once and others didn't.
+- **GLUE Home 0.20:** its settings' "What GLUE Home was asked" updates within 2 s of each request.
+- Tests:
+  - `wavStream` unit tests: every range matches rewrapping the whole file;
+  - the phone e2e plays an AIFF and checks GLUE Home was never asked for the whole song. It fails
+    with AIFF streaming off.
+
 ## 2026-09-28 · The user's fourth list, batch L: edit other computers' songs (GLUE Home 0.19)
 - **The laptop (or phone) can edit the desktop's songs:** title, artist, album, genre, label, year,
   grouping and comment, as well as ratings, notes, tags and playlists

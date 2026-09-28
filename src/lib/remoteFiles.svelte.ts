@@ -6,6 +6,7 @@ import { lib } from './library.svelte';
 import { connectHome, type HomeChannel } from './homeLink';
 import { PENDING, frame, incomingKey, unframe, type HomeFolder, type IncomingFile, type StreamReply, type StreamReq } from '../core/transfer';
 import { localHome } from './localHome.svelte';
+import { wavBytes, wavView, type WavView } from '../core/formats/wavStream';
 import type { DetailsHeader } from '../store/details';
 import type { Track } from '../store/types';
 import { thumbs, waves } from './thumbs.svelte';
@@ -163,21 +164,26 @@ class RemoteFiles {
   }
 
   // ─── Streaming (ADR 0076) ───────────────────────────────────────────────────────────────────────
-  private streams = new Map<string, { home: string; req: RangeReq; type: string; total: number }>();
+  /** `wav`: an AIFF played as WAV, its bytes worked out a piece at a time (ADR 0088). */
+  private streams = new Map<string, { home: string; req: RangeReq; type: string; total: number; wav?: WavView }>();
   /** A song as an address that streams: this computer's GLUE Home's local link for its incoming folder,
       or another computer's GLUE Home through the streaming service worker, when this browser plays the
       format by itself. Null: take the whole file (get). */
   async stream(t: Track): Promise<string | null> {
     const r = t.remote, src = this.source(t), home = src?.home;
     if (!r || !src || !home) return null;
-    const name = src.incoming ?? t.fileName;
-    if (!playsNatively(typeOfName(name))) return null;
-    if (src.incoming && localHome.for(home)) return localHome.url('/incoming/file?name=' + encodeURIComponent(src.incoming));
+    const name = src.incoming ?? t.fileName, type = typeOfName(name);
+    // AIFF (Chrome, Edge and Firefox don't play it) streams as WAV (ADR 0088); other formats the browser
+    // doesn't play come whole.
+    const aiff = type === 'audio/aiff' && !playsNatively(type) && playsNatively('audio/wav');
+    if (!aiff && !playsNatively(type)) return null;
+    if (src.incoming && localHome.for(home)) return aiff ? null : localHome.url('/incoming/file?name=' + encodeURIComponent(src.incoming));
     if (!(await streamsReady())) return null;
     const req: RangeReq = src.incoming ? { incoming: src.incoming } : { profile: r.profile!, collection: r.collection!, track: r.id! };
     // One small ask first: the file's size and type. A connection that went bad is made again once;
     // after that the player says why (no silent download of the whole song instead, ADR 0084).
-    const probe = () => this.ask(home, { t: 'range', ...req, start: 0, len: 2 }, { firstWait: 25_000 });
+    // An AIFF's first 64 kB: its chunk headers, to make the WAV header from.
+    const probe = () => this.ask(home, { t: 'range', ...req, start: 0, len: aiff ? 64 * 1024 : 2 }, { firstWait: 25_000 });
     let head: Answer;
     try { head = await probe(); }
     catch (e) {
@@ -187,8 +193,10 @@ class RemoteFiles {
     }
     const d = head.data as { total: number; type: string } | null;
     if (!d?.total) return null;
+    const wav = aiff ? wavView(head.bytes, d.total) : undefined;
+    if (aiff && !wav) return null;   // not PCM that can be rewrapped: it comes whole
     const token = crypto.randomUUID();
-    this.streams.set(token, { home, req, type: d.type || typeOfName(name), total: d.total });
+    this.streams.set(token, wav ? { home, req, type: 'audio/wav', total: wav.total, wav } : { home, req, type: d.type || typeOfName(name), total: d.total });
     while (this.streams.size > 8) this.streams.delete(this.streams.keys().next().value!);
     return new URL('__stream/' + token, document.baseURI).href;
   }
@@ -199,7 +207,12 @@ class RemoteFiles {
     // The first piece small (it starts at once), then 2 MB; what the player asks for when it says.
     const len = q.end != null ? q.end - q.start + 1 : q.start === 0 ? 512 * 1024 : 2 * 1024 * 1024;
     try {
-      const a = await this.ask(s.home, { t: 'range', ...s.req, start: q.start, len: Math.min(len, 8 * 1024 * 1024) });
+      const want = Math.min(len, 8 * 1024 * 1024);
+      if (s.wav) {
+        const b = await wavBytes(s.wav, q.start, q.start + want - 1, async (from, to) => (await this.ask(s.home, { t: 'range', ...s.req, start: from, len: to - from })).bytes);
+        return { bytes: b.slice().buffer, total: s.total, type: s.type };
+      }
+      const a = await this.ask(s.home, { t: 'range', ...s.req, start: q.start, len: want });
       return { bytes: a.bytes.slice().buffer, total: s.total, type: s.type };
     } catch (e) { return { error: (e as Error).message }; }
   }
