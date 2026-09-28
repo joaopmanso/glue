@@ -67,3 +67,16 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
 - A 16-bit master with gain applied after conversion passes the 24-bit test.
 - ALAC decodes only in Safari; DSD not supported.
 - Porting to GLUE: becomes the Inspector and "Analyze a file" (M1); summary stored per track (M3).
+
+## Drop-outs under a wall (2026-09-28, [ADR 0075](../adr/0075-drop-outs-under-a-wall.md))
+- MP3 encoders keep switching off the band just under their lowpass in loud moments; masters with a
+  steep lowpass don't.
+- **Measured:**
+  - MP3 transcodes, 192–320 kbps: 25–57 % of loud moments;
+  - the user's promo WAVs: 0 %.
+- **So:**
+  - a wall at 19.8 kHz or above with no drop-outs is a mastering lowpass: lossless, with an info
+    finding;
+  - drop-outs in 12 % or more of loud moments make a wall a transcode, even near 20 kHz.
+- The user's `B2 - ARtroniks - The Escape` WAV (a caution at 20.3 kHz) now reads lossless.
+- `VERDICT_VERSION` 5.

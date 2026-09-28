@@ -112,6 +112,28 @@ describe('verdicts on synthetic signals', () => {
     expect(v.label).toBe('Fake bitrate');
     expect(v.findings[0].detail).toContain('decoder’s rounding');
   });
+  // The user's report (2026-09-28): a promo WAV with a steep 20.3 kHz wall was a caution. The band just
+  // under its wall never drops out; MP3 transcodes keep switching it off in loud moments (25–57 %).
+  const withHoles = (sr: number, secs: number, cut: number, share: number) => {
+    const whole = wallNoise(sr, secs, cut), dark = wallNoise(sr, secs, 16500), block = Math.round(sr * 0.25), fade = Math.round(sr * 0.005);
+    let seed = 7; const pick = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+    const holes: boolean[] = []; for (let b = 0; b * block < whole[0].length; b++) holes.push(pick() < share);
+    return whole.map((ch, c) => ch.map((v, i) => {
+      const b = Math.floor(i / block), at = i - b * block, into = holes[b] ? 1 : 0, from = b > 0 && holes[b - 1] ? 1 : 0;
+      const w = at < fade ? from + (into - from) * at / fade : into;   // short crossfades: no clicks
+      return v * (1 - w) + dark[c][i] * w;
+    }));
+  };
+  it('a steep wall near the top whose band under it never drops out is a mastering lowpass; with drop-outs, a transcode', () => {
+    const sr = 44100, info = Object.assign(lossless(sr, 16), { container: 'WAV', codec: 'PCM' });
+    const steady = verdictOf(quantize(wallNoise(sr, 6, 20300), 16), sr, info);
+    expect(steady.cut.wall).toBe(true);
+    expect(steady.label).toBe('Lossless');
+    expect(steady.findings.find(f => f.title.startsWith('Steep top end at 20.'))?.sev).toBe('info');
+    const holey = verdictOf(quantize(withHoles(sr, 6, 20300, 0.4), 16), sr, info);
+    expect(holey.label).toBe('Transcoded');
+    expect(holey.findings[0].detail).toMatch(/keeps switching off \(in \d+% of the loud moments\)/);
+  });
   it('unknown format with a lossy wall is never called lossless', () => {
     const info = Object.assign(blankInfo(), { sampleRate: 48000, clues: [] });
     const v = verdictOf(bandLimitedNoise(48000, 6, 16000), 48000, info);

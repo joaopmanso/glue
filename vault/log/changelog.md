@@ -5,6 +5,17 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's second list, batch B: the promo WAV at 20.3 kHz
+- **Measured** (read-only) on the user's promo WAVs and on MP3/AAC transcodes of one of them
+  ([ADR 0075](../adr/0075-drop-outs-under-a-wall.md)).
+  - Content moving above a wall is in both (decoders leak it).
+  - What separates them: MP3 encoders keep switching off the band just under the wall in loud moments
+    (25–57 %); the masters never do (0 %).
+- **The promo WAV now reads lossless** ("Steep top end at 20.3 kHz", info). MP3 transcodes read
+  "Transcoded", including two near 20 kHz that were only cautions.
+- `VERDICT_VERSION` 5: stored cautions and suspects are worked out again.
+- Tests: synthetic steady and drop-out walls at 20.3 kHz; parity unchanged.
+
 ## 2026-09-28 · The user's second list, batch A: quick fixes
 - **The tags pop-up** fits the window with many tags, opens upward when there's more room, and
   scrolls inside ([tags](../features/tags.md)). It ran off the bottom.

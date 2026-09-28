@@ -166,6 +166,27 @@ export function beyondWall(spec: Float32Array, cols: number, rows: number, sr: n
   const corr = sab / Math.sqrt(saa * sbb + 1e-30);
   return { level, below: cut.ref - level, corr, content: level >= Math.max(cut.ref - 45, cut.globalFloor + 12) && corr >= 0.3 };
 }
+/** Under a wall, in the loud half of the song (2026-09-28): the share of moments where the band just under
+    the wall (1.5 kHz of it) falls to the empty level above the wall. MP3 encoders keep switching that band
+    off moment to moment: 25–57 % of the loud moments in 192–320 kbps transcodes measured. A master with a
+    steep lowpass keeps it: 0 % in the user's promo WAVs (walls at 20.3 and 20.6 kHz). */
+export function holesUnderWall(spec: Float32Array, cols: number, rows: number, sr: number, cut: Cutoff): number | null {
+  const nyq = sr / 2, binHz = nyq / rows;
+  const e0 = Math.min(cut.fc + 600, nyq * 0.95), e1 = nyq * 0.985;
+  if (!spec?.length || !cols || rows < 64 || !cut.wall || cols < 16 || e1 - e0 < 200) return null;
+  const row = (f: number) => Math.max(0, Math.min(rows - 1, Math.round(f / binHz)));
+  const band = (a: number, b: number) => {
+    const r0 = row(a), r1 = Math.max(r0 + 1, row(b)), out = new Float64Array(cols);
+    for (let c = 0; c < cols; c++) { let p = 0; for (let r = r0; r < r1; r++) p += Math.pow(10, spec[c * rows + r] / 10); out[c] = 10 * Math.log10(p / (r1 - r0) + 1e-30); }
+    return out;
+  };
+  const median = (a: Float64Array) => [...a].sort((x, y) => x - y)[Math.floor((a.length - 1) / 2)];
+  const music = band(1000, 8000), loud = median(music), under = band(cut.fc - 2000, cut.fc - 500), empty = median(band(e0, e1));
+  let n = 0, holes = 0;
+  for (let c = 0; c < cols; c++) if (music[c] >= loud) { n++; if (under[c] <= empty + 6) holes++; }
+  return n ? holes / n : null;
+}
+
 /** The note for specks above a wall that are only rounding (they show with the spectrogram's floor set very low). */
 const specks = (w: ReturnType<typeof beyondWall>, floor: number) => w && !w.content && w.level > floor + 12
   ? ' Specks above it, around ' + Math.round(w.level) + ' dB (' + Math.round(w.below) + ' dB under the music), are the decoder’s rounding, not content: they show when the spectrogram’s floor is set very low.' : '';
@@ -196,23 +217,29 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
 
   const lossySig = cut.wall && !cut.full && fc < 20800;
   const beyond = lossySig && res.spec && res.cols && res.rows ? beyondWall(res.spec, res.cols, res.rows, sr, cut) : null;
+  const holes = lossySig && res.spec && res.cols && res.rows ? holesUnderWall(res.spec, res.cols, res.rows, sr, cut) : null, holey = holes != null && holes >= 0.12;
   const resampledFrom = findResample(cut, sr);
   const edge = (fc >= 19600 && cut.drop < 35) || (fc >= SOFT_WALL.hz && cut.drop < SOFT_WALL.drop);
 
   if (lossless) {
-    if (lossySig && beyond?.content) {
+    if (lossySig && fc >= 19800 && holes != null && holes <= 0.02) {
+      // Near the top, a wall whose band under it never switches off isn't an encoder's (2026-09-28).
+      origin = 'Steep lowpass (mastering)';
+      add('info', 'Steep top end at ' + kHz, 'The spectrum drops ' + Math.round(cut.drop) + ' dB at ' + kHz + ', but the band just under it carries on through every loud passage. Lossy encoders keep switching that band off moment to moment; a mastering or sample-rate-conversion lowpass doesn’t. So this is a lowpass, not a lossy source.' + (beyond && beyond.level > cut.globalFloor + 12 ? ' Quieter content above it, around ' + Math.round(beyond.level) + ' dB, moves with the music.' : ''));
+      head = { grade: 'ok', label: 'Lossless', headline: 'Genuine ' + fmtRate(sr) + ' lossless', sub: 'A steep lowpass at ' + kHz + ', as some masters and sample-rate converters leave. The band under it never drops out the way a lossy encoder makes it.' };
+    } else if (lossySig && beyond?.content && !holey) {
       // Content that follows the music carries on past the wall: not an encoder's lowpass alone (2026-09-27).
       bwTone = 'warn';
       origin = 'Steep lowpass';
       add('warn', 'Steep top end at ' + kHz + ', with content beyond', 'The spectrum drops ' + Math.round(cut.drop) + ' dB at ' + kHz + ', as a lossy encoder’s lowpass would, but quieter content that follows the music carries on above it (about ' + Math.round(beyond.below) + ' dB under the music). An encoder removes everything above its cutoff, so something came after the cut: a steep mastering filter and then limiting, or a lossy source that was processed again. Not proof either way.');
     } else if (lossySig) {
-      const g = lossyGuess(fc, yt);
+      const g = lossyGuess(fc, yt), soft = edge && !holey;
       origin = g.short;
-      bwTone = edge ? 'warn' : 'bad';
-      add(edge ? 'warn' : 'bad', 'Brick-wall cutoff at ' + kHz,
+      bwTone = soft ? 'warn' : 'bad';
+      add(soft ? 'warn' : 'bad', 'Brick-wall cutoff at ' + kHz,
         'A lossless ' + fmtRate(sr) + ' file can carry content up to ' + fmtKHz(nyq) + '. Here it drops ' + Math.round(cut.drop) + ' dB within about a kilohertz at ' + kHz + ', which is what a lossy encoder’s lowpass filter leaves behind. Most likely source: ' + g.text + '.' +
-        (edge ? ' Some masters are lowpassed near 20 kHz on purpose, so this one is not conclusive.' : '') + specks(beyond, cut.globalFloor));
-      if (!edge) head = { grade: 'bad', label: 'Transcoded', headline: 'Lossy audio in ' + article(/^PCM/.test(info.codec) ? info.container.split(' ')[0] : info.codec) + ' wrapper', sub: 'The spectrum stops dead at ' + kHz + ', the signature of ' + g.short.replace(/^\w/, c => c.toLowerCase()) + (hiRes ? ', later upsampled to ' + fmtRate(sr) : '') + '. Converting to lossless can’t restore what the encoder removed.' };
+        (holey ? ' The band just under it also keeps switching off (in ' + Math.round(holes! * 100) + '% of the loud moments), as lossy encoders do.' : edge ? ' Some masters are lowpassed near 20 kHz on purpose, so this one is not conclusive.' : '') + specks(beyond, cut.globalFloor));
+      if (!soft) head = { grade: 'bad', label: 'Transcoded', headline: 'Lossy audio in ' + article(/^PCM/.test(info.codec) ? info.container.split(' ')[0] : info.codec) + ' wrapper', sub: 'The spectrum stops dead at ' + kHz + ', the signature of ' + g.short.replace(/^\w/, c => c.toLowerCase()) + (hiRes ? ', later upsampled to ' + fmtRate(sr) : '') + '. Converting to lossless can’t restore what the encoder removed.' };
     } else if (cut.full) {
       add('ok', 'Content reaches ' + fmtKHz(Math.max(fc, cut.fade)), hiRes ? 'Energy continues well past 24 kHz, beyond anything a CD (22.05 kHz) or 48 kHz master can hold.' : 'The spectrum runs all the way to the ' + fmtKHz(nyq) + ' limit of a ' + fmtRate(sr) + ' file.');
       origin = hiRes ? 'Hi-res master' : 'Full-band master';
