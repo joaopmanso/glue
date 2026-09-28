@@ -129,3 +129,4 @@ track is used.
   them from this one, or open their menu.
 - **Names and "delete?" questions** come in a sheet, not the browser's prompt.
 - **In a cloud library,** all of it goes to the computer that has the library (ADR 0077).
+- **Recently deleted (2026-09-28, [ADR 0090](../adr/0090-bin-guarded-re-reads-daily-backups.md)):** deleted playlists and folders kept 30 days with their contents; Restore. DJ-library copies leave only after two reads a minute apart, never after an incomplete read.

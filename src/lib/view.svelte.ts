@@ -62,6 +62,8 @@ class View {
   genreFor = $state<{ ids: string[]; x: number; y: number } | null>(null);
   /** The song info editor (ADR 0071): for these tracks, starting in a field. */
   infoFor = $state<{ ids: string[]; field?: InfoField } | null>(null);
+  /** Recently deleted playlists (ADR 0090). */
+  binOpen = $state(false);
   /** The tag editor: for tracks or for a playlist, placed under (x, y). */
   tagFor = $state<{ ids: string[]; listId?: undefined; x: number; y: number } | { listId: string; ids?: undefined; x: number; y: number } | null>(null);
   /** Open the tag editor under an element (a second click on the same thing closes it). */

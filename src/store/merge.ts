@@ -93,6 +93,12 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   const existing = [...store.sources.values()].find(s => s.app === lib.app && s.fileName === fileName);
   // Engine DJ: one source for the whole set of libraries (they share one playlist tree).
   if (lib.engine) lib = resolveEngine(lib, carriedEngine(store, existing, lib));
+  // A re-read with less than half the playlists of the last one (a save in progress, a drive not plugged
+  // in, a bad read) is ignored whole: the last good read stays, so nothing is removed on its word, now or
+  // at the next read (ADR 0090).
+  const had = existing?.tree?.length ?? 0;
+  if (existing && had >= 4 && lib.lists.length < had / 2)
+    return { sourceId: existing.id, tracks: lib.tracks.length, matched: 0, linked: 0, lists: lib.lists.length, linkedLists: { updated: 0, added: 0, removed: 0, incomplete: true }, dropped: 0, entries: lib.stats };
   const sourceId = existing?.id ?? newId();
   const byImportPath = new Map<string, Track>();
   for (const t of store.tracks.values()) if (t.importPath && !t.remote) byImportPath.set(pathKey(t.importPath), t);
@@ -186,7 +192,7 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   const tree: SourceList[] = lib.lists.map(l => ({ externalId: l.externalId, kind: l.kind, name: l.name, parent: l.parent, items: l.items }));
   const src: Source = { schemaVersion: SCHEMA, id: sourceId, app: lib.app, name: lib.name, fileName, importedAt: now(), tracks: sourceTracks, lists: lib.lists.length, tree, ...(existing?.origin ? { origin: existing.origin } : {}) };
   store.putSource(src);
-  const linkedLists = syncLinkedLists(store, src, existing?.tree);
+  const linkedLists = syncLinkedLists(store, src, existing?.tree, existing?.pendingGone);
   return { sourceId, tracks: lib.tracks.length, matched, linked: links.size, lists: lib.lists.length, linkedLists, dropped, entries: lib.stats };
 }
 

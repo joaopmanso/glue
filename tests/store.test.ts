@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { HomeStore } from '../src/store/home';
 import { CollectionStore } from '../src/store/collection';
 import { readJSON } from '../src/store/fsx';
+import { autoBackup } from '../src/store/backup';
 import { newId, SCHEMA, type Track } from '../src/store/types';
 import { MemDir, asDir } from './memfs';
 
@@ -115,5 +116,43 @@ describe('deleting while a save is running (10k-track libraries hit this constan
     expect(mem.paths().filter(x => x.includes('/lists/') || x.includes('/sources/'))).toEqual([]);
     expect(mem.paths()).toContain(`${base}/tracks/ab.json`);
     expect(s.hasPending).toBe(false);
+  });
+});
+
+describe('the bin (ADR 0090)', () => {
+  it('keeps a deleted folder with everything in it, and puts it back where it was', async () => {
+    const mem = new MemDir(), home = await HomeStore.open(asDir(mem));
+    const p = await home.createProfile('DJ'), c = await home.createCollection(p, 'Club');
+    const s = await CollectionStore.load(asDir(mem), p.id, c.id);
+    const t = track(); s.putTracks([t]);
+    const L = (id: string, kind: 'folder' | 'playlist', parentId: string | null, items: string[] = []) => ({ schemaVersion: SCHEMA, id, kind, name: id, parentId, position: 0, notes: '', items, origin: null, createdAt: '' });
+    s.putList(L('top', 'folder', null)); s.putList(L('gigs', 'folder', 'top')); s.putList(L('friday', 'playlist', 'gigs', [t.id]));
+    await s.flush();
+    s.deleteList('gigs');
+    await s.flush();
+    expect(mem.paths().filter(x => x.includes('/lists/')).length).toBe(1);   // only "top" is left
+    const bin = await s.binEntries();
+    expect(bin).toHaveLength(1);
+    expect(bin[0].lists.map(l => l.id)).toEqual(['gigs', 'friday']);
+    expect(await s.restoreFromBin(bin[0].name)).toBe(2);
+    const re = await CollectionStore.load(asDir(mem), p.id, c.id);
+    expect(re.lists.get('gigs')).toMatchObject({ parentId: 'top' });
+    expect(re.lists.get('friday')).toMatchObject({ parentId: 'gigs', items: [t.id] });
+    expect(await re.binEntries()).toEqual([]);
+  });
+});
+
+describe('daily backups (ADR 0090)', () => {
+  it('one a day per profile, the last 14 kept, without the songs', async () => {
+    const mem = new MemDir(), home = await HomeStore.open(asDir(mem));
+    const p = await home.createProfile('DJ');
+    await home.createCollection(p, 'Club');
+    const prof = await home.loadProfile(p.id);
+    expect(await autoBackup(asDir(mem), prof, '2026-09-01')).toBe(true);
+    expect(await autoBackup(asDir(mem), prof, '2026-09-01')).toBe(false);
+    for (let d = 2; d <= 16; d++) await autoBackup(asDir(mem), prof, '2026-09-' + String(d).padStart(2, '0'));
+    const kept = mem.paths().filter(x => x.startsWith('backups/auto/')).sort();
+    expect(kept).toHaveLength(14);
+    expect(kept[0]).toBe(`backups/auto/2026-09-03-${p.id}.zip`);
   });
 });

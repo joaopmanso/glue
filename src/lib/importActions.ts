@@ -91,6 +91,7 @@ export async function pickSeratoFolder() {
   } catch (e) { if ((e as DOMException).name !== 'AbortError') lib.notice = (e as Error).message; }
 }
 
+const warned = new Set<string>();
 const APPS: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
 /** A library GLUE keeps in step changed (ADR 0063): read it again, quietly, and bring GLUE's tracks, its
     tree and GLUE's copies of its playlists up to date. Says so only when GLUE's copies changed. */
@@ -102,8 +103,15 @@ export async function syncSource(sourceId: string, files: File[], modified: numb
   if (!p || !lib.store?.sources.has(sourceId)) return;
   const rep = lib.importLibrary(p.lib, src.fileName);
   if (!rep) return;
-  lib.markOrigin(rep.sourceId, { ...src.origin, modified });
   const c = rep.linkedLists;
+  // It looked incomplete (ADR 0090): ignored, and read again at the next look (it isn't marked as read).
+  if (c.incomplete) {
+    if (asked || !warned.has(sourceId)) lib.notice = (APPS[src.app] ?? src.app) + '’s library looks incomplete right now (' + rep.lists + ' playlists or folders): GLUE kept its copies and will read it again.';
+    warned.add(sourceId);
+    return;
+  }
+  warned.delete(sourceId);
+  lib.markOrigin(rep.sourceId, { ...src.origin, modified });
   const what = [c.updated && c.updated + ' updated', c.added && c.added + ' new', c.removed && c.removed + ' gone'].filter(Boolean).join(', ');
   if (what) lib.notice = (APPS[src.app] ?? src.app) + ' changed its playlists: in GLUE ' + what + '.';
   else if (asked) lib.notice = (APPS[src.app] ?? src.app) + ' read again: ' + rep.tracks + ' tracks, ' + rep.lists + ' playlists or folders; GLUE’s copies were up to date.';

@@ -4,7 +4,7 @@
      files/…                 songs GLUE keeps its own copy of (browsers without file handles)
    Music folders aren't in it (only their names and locations): they're linked again after a restore. */
 import { createZip, readZip, type ZipEntry } from '../core/zip';
-import { type Dir, subdir, writeBlob } from './fsx';
+import { type Dir, listNames, removePath, subdir, writeBlob } from './fsx';
 import { SCHEMA, type Collection, type Profile } from './types';
 
 export const BACKUP_FORMAT = 'mco-backup', BACKUP_VERSION = 1;
@@ -25,7 +25,7 @@ export async function walk(dir: Dir, prefix = ''): Promise<{ path: string; file:
 const bytes = async (f: File) => new Uint8Array(await f.arrayBuffer());
 const json = (x: unknown) => new TextEncoder().encode(JSON.stringify(x, null, 1));
 
-export async function buildBackup(home: Dir, profile: Profile): Promise<Blob> {
+export async function buildBackup(home: Dir, profile: Profile, opts: { songs?: boolean } = {}): Promise<Blob> {
   const pdir = await subdir(home, ['profiles', profile.id], false);
   if (!pdir) throw new Error('This profile has no files in the GLUE folder.');
   const files = await walk(pdir);
@@ -48,7 +48,7 @@ export async function buildBackup(home: Dir, profile: Profile): Promise<Blob> {
       }
     }
   }
-  for (const rel of copies) {
+  for (const rel of opts.songs === false ? [] : copies) {
     const parts = rel.split('/'), name = parts.pop()!;
     try {
       const d = await subdir(home, parts, false);
@@ -79,4 +79,17 @@ export async function writeBackup(home: Dir, b: { manifest: BackupManifest; entr
     const target = e.path.startsWith('profile/') ? `profiles/${pid}/${e.path.slice(8)}` : e.path.startsWith('files/') ? e.path : null;
     if (target) await writeBlob(home, target, new Blob([e.data.slice().buffer]));
   }
+}
+
+// ─── Daily backups (ADR 0090) ────────────────────────────────────────────────
+export const AUTO_DIR = 'backups/auto', AUTO_KEEP = 14;
+/** Today's backup of a profile in `backups/auto/<date>-<pid>.zip`, once a day (without the songs GLUE keeps
+    copies of: its data only), keeping the last 14 of each profile. True when one was made now. */
+export async function autoBackup(home: Dir, profile: Profile, day = new Date().toISOString().slice(0, 10)): Promise<boolean> {
+  const mine = (await listNames(home, AUTO_DIR, 'file').catch(() => [] as string[])).filter(n => n.endsWith('-' + profile.id + '.zip')).sort();
+  const name = day + '-' + profile.id + '.zip';
+  if (mine.includes(name)) return false;
+  await writeBlob(home, AUTO_DIR + '/' + name, await buildBackup(home, profile, { songs: false }));
+  for (const old of [...mine, name].sort().slice(0, -AUTO_KEEP)) await removePath(home, AUTO_DIR + '/' + old).catch(() => {});
+  return true;
 }

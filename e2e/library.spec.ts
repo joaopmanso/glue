@@ -322,6 +322,45 @@ test('plays from the library and drops tracks onto playlists, new or in a closed
   await expect(page.locator('.lside .item', { hasText: 'Opener' })).toContainText('3');
 });
 
+test('a deleted playlist or folder goes to Recently deleted, and Restore puts it back with what was in it (ADR 0090)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.click('#new-folder'); await page.keyboard.type('Gigs'); await page.keyboard.press('Enter');
+  await page.click('#new-playlist'); await page.keyboard.type('Friday'); await page.keyboard.press('Enter');
+  const names = () => page.locator('.lside .tree .name').allTextContents().then(a => a.map(x => x.trim()));
+  // Friday into Gigs (from its menu), then Gigs deleted with everything in it.
+  const node = (n: string) => page.locator('.lside .tree .name', { hasText: n }).first();
+  await node('Friday').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="move-to"]').click();
+  await page.locator('.cmenu .citem', { hasText: 'Gigs' }).click();
+  await expect.poll(names).toContain('Gigs');
+  page.once('dialog', d => void d.accept());
+  await node('Gigs').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="delete"]').click();
+  await expect.poll(names).toEqual([]);
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  // Recently deleted: Gigs, with one playlist inside.
+  await page.click('#open-bin');
+  const e = page.locator('#bin li').first();
+  await expect(e).toContainText('Gigs');
+  await expect(e).toContainText('1 inside');
+  await e.getByRole('button', { name: 'Restore' }).click();
+  await expect(page.locator('#bin-empty')).toBeVisible();
+  await page.keyboard.press('Escape');
+  // Gigs is back, with Friday inside (opened to see it); still so after a reload.
+  const opened = async () => { await expect.poll(names).toContain('Gigs'); if (!(await names()).includes('Friday')) await page.locator('.lside .tree li', { has: page.locator('.name', { hasText: 'Gigs' }) }).first().locator('.twist').first().click(); await expect.poll(names).toEqual(['Gigs', 'Friday']); };
+  await opened();
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await opened();
+});
+
 test('organises playlists (drag, menu, colours) and rates tracks in half stars', async ({ page }) => {
   await seed(page);
   await page.goto('./');

@@ -5,6 +5,20 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · Safety: a bin, guarded DJ-library re-reads, daily backups (GLUE Home 0.22)
+- **Recently deleted** (sidebar, under the playlists): deleted playlists and folders, with
+  everything inside, kept 30 days, whoever deleted them. Restore puts them back
+  ([ADR 0090](../adr/0090-bin-guarded-re-reads-daily-backups.md)).
+- **DJ libraries followed live:**
+  - a playlist missing from a read leaves GLUE only if a read a minute later still lacks it;
+  - a read with less than half the playlists is ignored (Engine DJ saving, a drive not plugged in),
+    and GLUE says so.
+- **Daily backups** of each profile in `GLUE/backups/auto/`, the last 14 kept: made by the open tab,
+  or by GLUE Home when no tab is open.
+- Tests:
+  - unit: bin and restore, two-read and incomplete-read guards, daily backups;
+  - e2e: delete a folder, restore it with its playlist, reload.
+
 ## 2026-09-28 · Playlists deleted everywhere: fixed (GLUE Home 0.21)
 - **The cause** (reproduced in e2e): a device showing a merged collection kept its snapshot when the
   collection was reopened or switched. The next round of edits then looked like "every other

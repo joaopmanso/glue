@@ -114,7 +114,10 @@ export interface SourceOrigin { place: string; relPath: string; modified: number
 /** A DJ library's playlist or folder as the library has it (ADR 0063). items: its tracks' externalIds. */
 export interface SourceList { externalId: string; kind: 'folder' | 'playlist'; name: string; parent: string | null; items: string[] }
 /** tree: the library's playlists as last read, browsed in the sidebar; they come into GLUE on demand. */
-export interface Source { schemaVersion: number; id: string; app: SourceApp; name: string; fileName: string; importedAt: string; tracks: SourceTrack[]; lists: number; origin?: SourceOrigin; tree?: SourceList[] }
+export interface Source { schemaVersion: number; id: string; app: SourceApp; name: string; fileName: string; importedAt: string; tracks: SourceTrack[]; lists: number; origin?: SourceOrigin; tree?: SourceList[];
+  /** Lists the library's last read didn't have, with when that was first seen: GLUE's copies go only when
+      a read at least a minute later still lacks them (ADR 0090). */
+  pendingGone?: Record<string, number> }
 
 export const newId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 export const shardOf = (id: string) => id.slice(0, 2);

@@ -222,7 +222,7 @@
   function secMenu(k: SideKey): MenuEntry[] {
     const own: (MenuEntry | false)[] =
       k === 'library' ? [{ head: 'Shown in Library' }, ...libShown()]
-      : k === 'playlists' ? [{ label: 'New playlist', run: () => newList('playlist') }, { label: 'New folder', run: () => newList('folder') }, { label: 'Build a playlist from your collection…', run: () => auto.show(null) }]
+      : k === 'playlists' ? [{ label: 'New playlist', run: () => newList('playlist') }, { label: 'New folder', run: () => newList('folder') }, { label: 'Build a playlist from your collection…', run: () => auto.show(null) }, SEP, { label: 'Recently deleted…', attrs: { 'data-m': 'bin' }, run: () => (view.binOpen = true) }]
       : k === 'tags' ? [{ label: 'New tag…', run: newTag }]
       : k === 'music' ? [canPickFolders() && { label: 'Add a music folder…', run: () => void lib.addFolder() }, { label: 'Add songs…', run: () => void addSongs() }]
       : [{ label: 'Import a library file…', run: () => { if (homeMode()) void importWithHome(); else fileInput?.click(); } }, { label: 'Look for libraries in another folder…', run: () => void lib.addLibraryPlace('documents') }];
@@ -455,6 +455,7 @@
       {#if !top.length}<li class="empty">No playlists yet. Create one, or import a DJ library.</li>{/if}
       {#if drag.active && drag.payload?.kind === 'list'}<li class="topzone" class:on={drag.target?.type === 'top'} data-drop="top">Move to the top level</li>{/if}
     </ul>
+    {#if !lib.cloud}<button type="button" class="binlink" id="open-bin" title="Playlists and folders deleted in the last 30 days" onclick={() => (view.binOpen = true)}>Recently deleted</button>{/if}
     {/if}
   </section>
 
@@ -695,4 +696,6 @@
   .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; }
   .djtree { list-style: none; margin: 0; padding: 0; }
   .djall { padding: 2px 0 4px 30px; font-size: 12px; }
+  .binlink { background: none; border: 0; padding: 4px 12px 8px; color: var(--muted); font-size: 11px; cursor: pointer; text-align: left; }
+  .binlink:hover { color: var(--text); text-decoration: underline; }
 </style>

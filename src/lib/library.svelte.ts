@@ -26,7 +26,7 @@ import { encodeDetails, loadDetails, removeDetails, restampDetails, writeDetails
 import type { Cover } from '../workers/cover';
 import { playable, playsNatively, typeOfName } from './playable';
 import { removeFingerprint, writeFingerprint } from '../store/fingerprints';
-import { buildBackup, readBackup, writeBackup, type BackupManifest } from '../store/backup';
+import { autoBackup, buildBackup, readBackup, writeBackup, type BackupManifest } from '../store/backup';
 import type { ZipEntry } from '../core/zip';
 import { downloadBlob } from './download';
 import { themes } from './themes.svelte';
@@ -454,6 +454,9 @@ class Library {
     void this.writeInfo();
     this.onOpened?.();
     this.onCollectionOpened?.(this.profile.id, cid);
+    // The day's backup of this profile, a little after it opens (ADR 0090).
+    const pid = this.profile.id;
+    setTimeout(() => { const d = this.homeDir, p = this.profile; if (d && p?.id === pid && !this.readOnly && !this.cloud) void autoBackup(d, p).catch(e => console.warn('GLUE: the daily backup failed', e)); }, 20_000);
     void this.detectLibraries();
     void this.recheckVerdicts();
   }

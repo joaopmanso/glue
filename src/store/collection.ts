@@ -7,6 +7,9 @@ import { migrate } from './migrations';
 import { record, time, timeAsync } from '../core/perf';
 
 type Shard<T> = { schemaVersion: number; items: Record<string, T> };
+/** A deleted playlist or folder with everything that was in it, in the bin (ADR 0090). */
+export interface BinEntry { name: string; deletedAt: string; lists: List[] }
+const BIN_DAYS = 30;
 
 /** Read files a few at a time, answers in the files' order (GLUE Home's disk answers over HTTP, where
     one at a time is slow; a local folder doesn't mind). */
@@ -30,6 +33,7 @@ export class CollectionStore {
   readonly damaged: string[] = [];         // files that couldn't be read, kept aside as *.damaged
   private dirty = new Set<string>();       // relative paths to write
   private deleted = new Set<string>();     // relative paths to remove
+  private binned: BinEntry[] = [];          // deleted lists, written into the bin on the next save
   private writing: Promise<void> | null = null;
   onChange: (() => void) | null = null;
   onDirty: (() => void) | null = null;
@@ -90,6 +94,9 @@ export class CollectionStore {
   deleteList(id: string) {
     const doomed = [id];
     for (let i = 0; i < doomed.length; i++) for (const l of this.lists.values()) if (l.parentId === doomed[i]) doomed.push(l.id);
+    // Into the bin first (ADR 0090): whatever deleted it (the user, another device, a DJ library).
+    const kept = doomed.filter(d => !this.ephemeral.has(d)).map(d => this.lists.get(d)).filter((l): l is List => !!l);
+    if (kept.length) this.binned.push({ name: Date.now() + '-' + kept[0].id + '.json', deletedAt: new Date().toISOString(), lists: kept.map(l => ({ ...l })) });
     this.rev.lists++;
     for (const d of doomed) { this.lists.delete(d); if (this.ephemeral.has(d)) continue; this.dirty.delete(`lists/${d}.json`); this.deleted.add(`lists/${d}.json`); }
     this.onDirty?.(); this.changed();
@@ -125,19 +132,47 @@ export class CollectionStore {
   /** Tracks were changed in place (which devices have them): indexes over tracks must be rebuilt. */
   touchTracks() { this.rev.tracks++; }
 
-  get hasPending() { return this.dirty.size > 0 || this.deleted.size > 0; }
+  get hasPending() { return this.dirty.size > 0 || this.deleted.size > 0 || this.binned.length > 0; }
+
+  // ─── The bin (ADR 0090): deleted playlists and folders, kept 30 days ─────────────────────────
+  private get binDir() { const [, pid, , cid] = this.base.split('/'); return `bin/${pid}/${cid}`; }
+  /** What's in the bin, newest first (entries older than 30 days are removed as they're found). */
+  async binEntries(): Promise<BinEntry[]> {
+    const out: BinEntry[] = [], old = Date.now() - BIN_DAYS * 86_400_000;
+    for (const n of jsonFiles(await listNames(this.root, this.binDir, 'file').catch(() => []))) {
+      if (Number(n.split('-')[0]) < old) { await removePath(this.root, `${this.binDir}/${n}`).catch(() => {}); continue; }
+      const e = await readJSON<Omit<BinEntry, 'name'>>(this.root, `${this.binDir}/${n}`).catch(() => null);
+      if (e?.lists?.length) out.push({ ...e, name: n });
+    }
+    return out.sort((a, b) => b.name.localeCompare(a.name));
+  }
+  /** Put a bin entry's lists back: under their old parent if it's still there, else at the top. */
+  async restoreFromBin(name: string): Promise<number> {
+    const e = await readJSON<Omit<BinEntry, 'name'>>(this.root, `${this.binDir}/${name}`);
+    if (!e?.lists?.length) return 0;
+    const ids = new Set(e.lists.map(l => l.id));
+    for (const l of e.lists) this.putList({ ...l, parentId: l.parentId && (ids.has(l.parentId) || this.lists.has(l.parentId)) ? l.parentId : null, items: l.items.filter(t => this.tracks.has(t)) });
+    await this.flush();
+    await removePath(this.root, `${this.binDir}/${name}`);
+    return e.lists.length;
+  }
 
   /** Write every dirty file. Concurrent calls queue behind the one in flight. */
   async flush(): Promise<void> {
     while (this.writing) await this.writing;
     if (!this.hasPending) return;
-    const paths = [...this.dirty], gone = [...this.deleted];
-    this.dirty.clear(); this.deleted.clear();
+    const paths = [...this.dirty], gone = [...this.deleted], bin = this.binned;
+    this.dirty.clear(); this.deleted.clear(); this.binned = [];
     const t0 = performance.now();
     this.writing = (async () => {
       // Each file on its own: one failure must not hold back every other change.
       let first: unknown = null;
       try {
+        // The bin before anything is removed: a deleted list is never only gone.
+        for (const e of bin) {
+          try { await writeJSON(this.root, `${this.binDir}/${e.name}`, { deletedAt: e.deletedAt, lists: e.lists }); }
+          catch (err) { this.binned.push(e); first ??= err; }
+        }
         for (const p of gone) {
           try { await removePath(this.root, `${this.base}/${p}`); }
           catch (e) { this.deleted.add(p); first ??= e; }

@@ -10,7 +10,11 @@ import { SCHEMA, newId, type List, type Source, type SourceList } from './types'
 const now = () => new Date().toISOString();
 const topName = (src: Source) => src.name.replace(/\s*\(.*\)$/, '') || src.name;
 
-export interface LinkReport { updated: number; added: number; removed: number }
+/** `held`: copies kept because their list was missing for the first time (removed if a later read still lacks
+    it); `incomplete`: the read had less than half the lists of the one before, so nothing was removed. */
+export interface LinkReport { updated: number; added: number; removed: number; held?: number; incomplete?: boolean }
+/** A list missing from the library goes from GLUE only if still missing this much later (ADR 0090). */
+export const GONE_AFTER = 60_000;
 
 /** GLUE's copies of a library's lists, by the library's ids ('' is the library's own folder). */
 function copies(store: CollectionStore, sourceId: string): Map<string, List> {
@@ -38,7 +42,7 @@ function gluePath(store: CollectionStore, l: List, topId: string | undefined): s
 }
 
 /** Bring GLUE's copies in step with the library's tree (`src.tree`), after it changed from `prev`. */
-export function syncLinkedLists(store: CollectionStore, src: Source, prev?: SourceList[]): LinkReport {
+export function syncLinkedLists(store: CollectionStore, src: Source, prev?: SourceList[], pending: Record<string, number> = {}, at = Date.now()): LinkReport {
   const tree = src.tree ?? [];
   const byExt = new Map(tree.map(l => [l.externalId, l])), was = new Map((prev ?? []).map(l => [l.externalId, l]));
   const r: LinkReport = { updated: 0, added: 0, removed: 0 };
@@ -79,12 +83,17 @@ export function syncLinkedLists(store: CollectionStore, src: Source, prev?: Sour
     }
   }
 
-  // Gone from the library: the copy goes (the user's own lists inside it move up first). One GLUE can't
-  // find in the library as it was last read (a first read, or a copy renamed in GLUE) isn't deleted: it
-  // becomes the user's own list.
+  // Gone from the library: the copy goes (the user's own lists inside it move up first), but only when a
+  // read a minute later still lacks it, and never after a read that lost most of the library (a save in
+  // progress, a drive not plugged in, a bad read: ADR 0090). One GLUE can't find in the library as it
+  // was last read (a first read, or a copy renamed in GLUE) isn't deleted: it becomes the user's own list.
+  const incomplete = !!prev && prev.length >= 4 && tree.length < prev.length / 2;
+  const nextPending: Record<string, number> = {};
   for (const [ext, l] of have) {
     if (!ext || byExt.has(ext) || !store.lists.has(l.id)) continue;
-    if (!was.has(ext)) { store.putList({ ...l, origin: null }); r.removed++; continue; }
+    if (!was.has(ext) && pending[ext] === undefined) { store.putList({ ...l, origin: null }); r.removed++; continue; }
+    if (incomplete) { r.incomplete = true; if (pending[ext] !== undefined) nextPending[ext] = pending[ext]; continue; }
+    if (pending[ext] === undefined || at - pending[ext] < GONE_AFTER) { nextPending[ext] = pending[ext] ?? at; r.held = (r.held ?? 0) + 1; continue; }
     for (const c of [...store.lists.values()]) if (c.parentId === l.id && c.origin?.sourceId !== src.id) store.putList({ ...c, parentId: l.parentId });
     store.deleteList(l.id);
     r.removed++;
@@ -117,6 +126,12 @@ export function syncLinkedLists(store: CollectionStore, src: Source, prev?: Sour
     r.added++;
   }
   order(store, src, have);
+  // What's waiting to go, kept with the library for its next read.
+  const cur = store.sources.get(src.id);
+  if (cur && JSON.stringify(cur.pendingGone ?? {}) !== JSON.stringify(nextPending)) {
+    const { pendingGone: _p, ...rest } = cur;
+    store.putSource(Object.keys(nextPending).length ? { ...rest, pendingGone: nextPending } : rest);
+  }
   return r;
 }
 

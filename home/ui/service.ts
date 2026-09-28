@@ -7,7 +7,7 @@ import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, PENDING, frame, unframe, isHa
 import type { DetailsHeader } from '../../src/store/details';
 import * as cache from './cache';
 import * as lookup from './lookup';
-import { applyEdits } from './edits';
+import { applyEdits, backupDaily } from './edits';
 import { describe, locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
 import { checkReminders } from './reminders';
@@ -394,5 +394,9 @@ async function boot() {
   const edits = () => { if (cfg?.running !== false) void applyEdits(cfg, apiOf(cfg!)).catch(e => console.warn('GLUE Home: couldn’t apply edits', e)); };
   setTimeout(edits, 20_000);
   setInterval(edits, 60_000);
+  // The day's backups (ADR 0090), when no GLUE tab here makes them: soon after starting, then hourly.
+  const backups = () => { if (cfg?.running !== false) void backupDaily(cfg).catch(e => console.warn('GLUE Home: the daily backup failed', e)); };
+  setTimeout(backups, 45_000);
+  setInterval(backups, 3600e3);
 }
 void boot();

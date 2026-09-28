@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { HomeStore } from '../src/store/home';
 import { CollectionStore } from '../src/store/collection';
 import { applyImport } from '../src/store/merge';
@@ -53,14 +53,31 @@ describe('DJ libraries: browsed, imported on demand, kept in step (ADR 0063)', (
     next.splice(3, 1);                                                   // Roller deleted in the DJ app
     next.push(L('14', 'Bassy', '11', ['4']));                            // a new playlist in a folder GLUE has whole
     const r2 = applyImport(s, lib(next), 'm.db');
-    expect(r2.linkedLists).toEqual({ updated: 1, added: 1, removed: 1 });
+    // Roller is missing for the first time: kept until a read a minute later still lacks it (ADR 0090).
+    expect(r2.linkedLists).toEqual({ updated: 1, added: 1, removed: 0, held: 1 });
+    expect(s.lists.has(roller.id)).toBe(true);
     const h = s.lists.get(heavy.id)!;
     expect(h.name).toBe('Heavy stuff');
     expect(names(s, h.items)).toEqual(['T2', 'T1', 'T3']);
+    vi.setSystemTime(Date.now() + 61_000);
+    try { expect(applyImport(s, lib(next), 'm.db').linkedLists).toMatchObject({ removed: 1 }); } finally { vi.useRealTimers(); }
     expect(s.lists.has(roller.id)).toBe(false);
     expect(names(s, s.lists.get(chill.id)!.items)).toEqual(['T4', 'T1']);   // unchanged in the library: the user's edit stays
     expect(byName(s, 'Bassy')[0].parentId).toBe(h.parentId);
     expect(s.lists.get('mine')!.parentId).toBe(h.parentId);                 // the user's own list stays
+  });
+
+  it('a read that lost most of the library removes nothing (a save in progress, a drive not plugged in: ADR 0090)', async () => {
+    const s = await fresh();
+    const r = applyImport(s, lib(base()), 'm.db');
+    importLists(s, s.sources.get(r.sourceId)!, ['']);
+    const before = s.lists.size;
+    const r2 = applyImport(s, lib(base().slice(0, 1)), 'm.db');
+    expect(r2.linkedLists).toMatchObject({ removed: 0, incomplete: true });
+    expect(s.lists.size).toBe(before);
+    vi.setSystemTime(Date.now() + 3_600_000);
+    try { expect(applyImport(s, lib(base().slice(0, 1)), 'm.db').linkedLists).toMatchObject({ removed: 0, incomplete: true }); } finally { vi.useRealTimers(); }
+    expect(s.lists.size).toBe(before);
   });
 
   it('a library that moved a playlist moves its copy; one the user moved elsewhere stays', async () => {

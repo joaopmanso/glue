@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M2 (folder) · M3 (backups)
-updated: 2026-09-24
+updated: 2026-09-28
 adrs: [0009, 0014, 0015]
 ---
 # GLUE folder & backups
@@ -57,3 +57,4 @@ See [ADR 0009](../adr/0009-json-files-store.md) for the full folder layout and f
 - The start is three steps; step 1 explains it's GLUE's own data folder (not the music) and warns
   when the chosen folder looks like a music folder or isn't empty.
 - Still to do: automatic daily backups inside the GLUE folder.
+- **Daily backups built (2026-09-28, [ADR 0090](../adr/0090-bin-guarded-re-reads-daily-backups.md)):** `backups/auto/<date>-<pid>.zip` once a day per profile (data only), the last 14 kept; by the open tab or GLUE Home.
