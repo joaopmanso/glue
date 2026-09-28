@@ -5,6 +5,22 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's fourth list, batch K: missing covers from public services (GLUE Home 0.18)
+- **Songs with no cover in their tags get one looked up** ([ADR 0086](../adr/0086-covers-looked-up-by-glue-home.md)).
+  - A GLUE Home of the account asks Deezer, then iTunes, then MusicBrainz's Cover Art Archive,
+    automatically, one album at a time.
+  - Only the artist and album or title go out, never audio.
+  - A cover is taken only when the artist and album (or song) match.
+- **Any device uses it**, including a laptop without GLUE Home, for its own songs. The covers are
+  kept on the device, and never written into the files or the collection.
+- **"Wrong cover"** on a song's page, for a looked-up cover: GLUE Home won't show or look for that
+  album's cover again.
+- GLUE Home only reaches those services, over https, from its Rust side (`web_get`).
+- Tests:
+  - `coverSearch` unit tests (matching, addresses, each service's answer);
+  - the phone e2e: a looked-up cover shows, only the cover services were asked, and "Wrong cover"
+    is remembered.
+
 ## 2026-09-28 · The user's fourth list, batch J: waveforms of other computers' songs (GLUE Home 0.17)
 - **The Overview's waveform look works for the desktop's songs on the laptop and phone**
   ([ADR 0085](../adr/0085-waveforms-from-glue-home.md)). Before, it showed empty boxes.

@@ -40,6 +40,8 @@ export const TAURI_MOCK = `(() => {
         case 'set_status': case 'show_settings': return;
         case 'open_library': window.__opened = 'library'; return;
         case 'local_port': return 47400;
+        // Cover services (ADR 0086): window.__web maps an address's start to its answer (JSON or bytes).
+        case 'web_get': { const hit = Object.entries(window.__web ?? {}).find(([k]) => args.url.startsWith(k)); window.__webAsked = [...(window.__webAsked ?? []), args.url]; if (!hit) throw 'the service said 404'; const v = hit[1]; return typeof v === 'string' ? new TextEncoder().encode(v).buffer : new Uint8Array(v).buffer; }
         // Updates: window.__update is the newer version, if any.
         case 'plugin:app|version': return '0.2.0';
         case 'plugin:updater|check': return window.__update ? { rid: 1, currentVersion: '0.2.0', version: window.__update, date: '', body: '', rawJson: {} } : null;

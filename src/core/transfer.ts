@@ -38,6 +38,9 @@ export type StreamReq =
   | { t: 'get-incoming'; n: number; name: string }                                      // a song there
   | { t: 'move-incoming'; n: number; name: string; folder: string }                     // into a music folder (data: its new path)
   | { t: 'folders'; n: number }                                                         // the music folders GLUE Home found (data: HomeFolder[])
+  /** Covers looked up on public services for songs without one (GLUE Home 0.18, ADR 0086): per item its
+      cover's hash, '?' while it's being looked up, '' none; `refuse`: the user said it's the wrong one. */
+  | { t: 'find-art'; n: number; px: 64 | 320; items: { id: string; artist: string; album: string; title: string }[]; refuse?: boolean }   // data: [id, hash, size][]
   | { t: 'have'; n: number; profile: string; collection: string }                       // what it keeps (data: { thumbs, details } ids, art: the covers' hashes from 0.15, waves from 0.17)
   /** kind 'art' (GLUE Home 0.15): a cover the website made (ADR 0082), `hash` and `px` (64 or 320); `track` names a song that has it. */
   | { t: 'put'; n: number; kind: 'thumb' | 'wave' | 'details' | 'art'; profile: string; collection: string; track: string; size: number; header?: unknown; hash?: string; px?: 64 | 320 }   // the bytes follow, then `end`

@@ -21,14 +21,19 @@ export async function coverOf(src: Blob | string | Reader): Promise<Cover | null
     const images = (await input.getMetadataTags()).images ?? [];
     const img = images.find(i => i.kind === 'coverFront') ?? images.find(i => i.kind !== 'coverBack') ?? images[0];
     if (!img || img.data.length < 64) return null;
-    const hash = hex(await crypto.subtle.digest('SHA-256', img.data.slice())).slice(0, 24);
-    const bmp = await createImageBitmap(new Blob([img.data.slice()], { type: img.mimeType || 'image/jpeg' }));
-    try {
-      // Square, from the middle; the small one from the large one (smoother than in one step).
-      const large = square(bmp, COVER_LARGE), small = square(large, COVER_SMALL);
-      return { hash, small: await jpeg(small), large: await jpeg(large) };
-    } finally { bmp.close(); }
+    return await coverFromImage(img.data, img.mimeType);
   } finally { input.dispose(); }
+}
+
+/** A cover from a picture (a song's tags, a cover service, a file the user chose, ADR 0086). */
+export async function coverFromImage(data: Uint8Array, mime?: string): Promise<Cover> {
+  const hash = hex(await crypto.subtle.digest('SHA-256', data.slice())).slice(0, 24);
+  const bmp = await createImageBitmap(new Blob([data.slice()], { type: mime || 'image/jpeg' }));
+  try {
+    // Square, from the middle; the small one from the large one (smoother than in one step).
+    const large = square(bmp, COVER_LARGE), small = square(large, COVER_SMALL);
+    return { hash, small: await jpeg(small), large: await jpeg(large) };
+  } finally { bmp.close(); }
 }
 
 function square(src: ImageBitmap | OffscreenCanvas, size: number): OffscreenCanvas {

@@ -1,6 +1,6 @@
 [package]
 name = "glue-home"
-version = "0.17.0"
+version = "0.18.0"
 description = "GLUE Home: your main computer, reachable from the GLUE website"
 authors = ["joaopmanso"]
 edition = "2021"
@@ -23,6 +23,7 @@ serde_json = "1"
 tiny_http = "0.12"
 trash = "5"
 lofty = "0.25"
+ureq = "2"
 
 [profile.release]
 codegen-units = 1

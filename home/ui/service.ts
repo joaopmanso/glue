@@ -6,6 +6,7 @@ import { stayOnline } from './cloud';
 import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, PENDING, frame, unframe, isHandshake, type Ctrl, type Handshake, type HomeFolder, type StreamReply, type StreamReq } from '../../src/core/transfer';
 import type { DetailsHeader } from '../../src/store/details';
 import * as cache from './cache';
+import * as lookup from './lookup';
 import { describe, locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
 import { checkReminders } from './reminders';
@@ -261,6 +262,22 @@ function serve(dc: RTCDataChannel) {
           let hash = it.hash ?? '', b = hash ? await cache.art(hash, px) : null;
           if (!b) { hash = await cache.coverHash(c.profile, c.collection, it.track, conf).catch(() => ''); b = hash ? await cache.art(hash, px) : null; }
           found.push([it.track, hash, b?.length ?? 0]);
+          if (b) parts.push(b);
+        }
+        const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
+        for (const p of parts) { all.set(p, at); at += p.length; }
+        await answer(c.n, found, all);
+      } else if (c.t === 'find-art') {
+        // Covers from public services (ADR 0086): known, or looked up now (the device asks again).
+        const px = c.px === 320 ? 320 : 64;
+        const found: [string, string, number][] = [], parts: Uint8Array[] = [];
+        for (const it of c.items.slice(0, 60)) {
+          const q = { artist: it.artist ?? '', album: it.album ?? '', title: it.title ?? '' };
+          if (c.refuse) { await lookup.refuse(q); found.push([it.id, '', 0]); continue; }
+          const hash = await lookup.known(q);
+          if (hash === undefined) { lookup.want(q); found.push([it.id, '?', 0]); continue; }
+          const b = hash && hash !== 'x' ? await cache.art(hash, px) : null;
+          found.push([it.id, b ? hash : '', b?.length ?? 0]);
           if (b) parts.push(b);
         }
         const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;

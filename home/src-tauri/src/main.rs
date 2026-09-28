@@ -21,6 +21,7 @@ mod tags;
 mod libraries;
 mod local;
 mod activity;
+mod web;
 
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
 const LIBRARY_URL: &str = "https://joaopmanso.github.io/glue/?open=home#/";
@@ -294,6 +295,15 @@ fn count<T>(what: &str, t0: std::time::Instant, r: Result<T, String>, size: impl
     r
 }
 
+/// A cover service's answer (ADR 0086): only the services `web.rs` allows.
+#[tauri::command]
+async fn web_get(app: AppHandle, url: String) -> Result<tauri::ipc::Response, String> {
+    let t0 = std::time::Instant::now();
+    let version = app.package_info().version.to_string();
+    let r = tauri::async_runtime::spawn_blocking(move || web::get(&url, &version)).await.map_err(|e| e.to_string()).and_then(|r| r);
+    count("bridge web_get", t0, r, |b| b.len() as u64).map(tauri::ipc::Response::new)
+}
+
 /// What GLUE Home was asked since it started (the settings show it).
 #[tauri::command]
 fn activity_now() -> serde_json::Value {
@@ -536,7 +546,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, web_get, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

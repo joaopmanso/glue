@@ -1,7 +1,9 @@
 /* Songs' covers (ADR 0072), for the table's Cover column and the track page: small JPEGs in the
    browser's cache (`art/<cid>/<hash>-64.jpg` and `-320.jpg`; derived data, safe to lose). Made when a
    song is analysed; for songs analysed before (or in another browser), made from their tags alone, a
-   few at a time, only for songs on screen. A track keeps its cover's hash (`art`, '' for none). */
+   few at a time, only for songs on screen. A track keeps its cover's hash (`art`, '' for none).
+   A song whose tags have none: a GLUE Home of the account looks it up on public services (ADR 0086);
+   that cover is shown, never written into the song or the collection. */
 import { lib } from './library.svelte';
 import * as platform from '../platform';
 import { fileAt, writeBlob } from '../store/fsx';
@@ -21,6 +23,7 @@ class Covers {
   private busy = 0;
   private tried = new Set<string>();                 // tracks whose tags were read this visit
   private found = new Map<string, string>();         // hashes found for tracks while the library is read only
+  private web = new Map<string, string>();           // looked up on public services: a hash, '' none, '?' being looked up
   private worker: Worker | null = null;
   private replies = new Map<number, (r: CoverReply) => void>();
   private seq = 0;
@@ -33,7 +36,7 @@ class Covers {
   get(t: Track, size: CoverSize): string | null | undefined {
     this.checkCollection();
     const h = this.hashOf(t);
-    if (h === '') return null;
+    if (h === '') return this.webGet(t, size);
     const can = this.canRead(t) || this.canAsk(t);
     if (h) { const u = this.urls.get(h + '-' + size); return u ?? (u === null && !can ? null : undefined); }
     return can ? undefined : null;
@@ -42,7 +45,12 @@ class Covers {
   request(t: Track, size: CoverSize) {
     this.checkCollection();
     const h = this.hashOf(t);
-    if (h === '') return;
+    if (h === '') {
+      const w = this.web.get(t.id);
+      if (w === undefined) this.fromWeb(t, size);
+      else if (w && w !== '?' && !this.urls.has(w + '-' + size)) void this.load(t, w, size, true);
+      return;
+    }
     if (h && !this.urls.has(h + '-' + size)) { void this.load(t, h, size); return; }
     if (this.canRead(t)) this.fromTags(t); else if (this.canAsk(t)) this.fromHome(t, size);
   }
@@ -60,7 +68,7 @@ class Covers {
     if (cid === this.cid) return;
     this.cid = cid;
     for (const u of this.urls.values()) if (u) URL.revokeObjectURL(u);
-    this.urls.clear(); this.want = []; this.tried.clear(); this.found.clear(); this.homeWant.clear(); this.homeTried.clear();
+    this.urls.clear(); this.want = []; this.tried.clear(); this.found.clear(); this.homeWant.clear(); this.homeTried.clear(); this.web.clear(); this.webWant.clear();
   }
   private remember(k: string, u: string | null) {
     const old = this.urls.get(k);
@@ -97,6 +105,8 @@ class Covers {
         const dir = await platform.cacheDir();
         for (const [id, { hash, bytes }] of got) {
           this.found.set(id, hash);
+          // None in its tags: looked up on public services now (the cell is still waiting, ADR 0086).
+          if (hash === '') { const t = s?.tracks.get(id); if (t) this.fromWeb(t, size); }
           if (!hash || !bytes) continue;
           if (dir) await writeBlob(dir, `art/${cid}/${hash}-${size}.jpg`, new Blob([bytes.slice()], { type: 'image/jpeg' })).catch(() => {});
           this.remember(hash + '-' + size, URL.createObjectURL(new Blob([bytes.slice()], { type: 'image/jpeg' })));
@@ -106,7 +116,7 @@ class Covers {
     }
   }
 
-  private async load(t: Track, hash: string, size: CoverSize) {
+  private async load(t: Track, hash: string, size: CoverSize, web = false) {
     const k = hash + '-' + size, cid = this.cid;
     if (this.reading.has(k)) return;
     this.reading.add(k);
@@ -116,7 +126,7 @@ class Covers {
       if (this.cid !== cid) return;
       this.remember(k, f ? URL.createObjectURL(f) : null);
       // Not in this browser's cache: from the file again, or from its computer's GLUE Home.
-      if (!f) { if (this.canRead(t)) this.fromTags(t); else if (this.canAsk(t)) this.fromHome(t, size); }
+      if (!f) { if (web) { this.web.delete(t.id); this.fromWeb(t, size); } else if (this.canRead(t)) this.fromTags(t); else if (this.canAsk(t)) this.fromHome(t, size); }
     } finally { this.reading.delete(k); }
   }
 
@@ -153,6 +163,8 @@ class Covers {
     const hash = r.out?.hash ?? '', now = s.tracks.get(id);
     if (!now) return;
     if (lib.readOnly) this.found.set(id, hash); else if (now.art !== hash) s.putTrack({ ...now, art: hash });
+    // None in its tags: looked up on public services (ADR 0086), both sizes as they're asked for.
+    if (!hash) this.fromWeb(now, 64);
     this.version++;
   }
   private run(src: Blob | string): Promise<CoverReply> {
@@ -163,6 +175,72 @@ class Covers {
     }
     const id = ++this.seq;
     return new Promise(resolve => { this.replies.set(id, resolve); this.worker!.postMessage({ id, src } satisfies CoverRequest); });
+  }
+
+  // ─── Looked up on public services by a GLUE Home (ADR 0086), for songs whose tags have none ───
+  /** Is there a GLUE Home to look this song's cover up, and enough to look for? */
+  private canFind(t: Track) { return !!t.artist.trim() && !!(t.album.trim() || t.title.trim()) && !!lib.canFindArt?.(); }
+  private webGet(t: Track, size: CoverSize): string | null | undefined {
+    const w = this.web.get(t.id);
+    if (w === undefined) return this.canFind(t) ? undefined : null;
+    if (w === '?') return undefined;
+    if (!w) return null;
+    const u = this.urls.get(w + '-' + size);
+    return u === null ? null : u;
+  }
+  private webWant = new Map<string, { t: Track; size: CoverSize }>();
+  private webTries = new Map<string, number>();
+  private webTimer = 0;
+  private fromWeb(t: Track, size: CoverSize) {
+    if (!this.canFind(t)) return;
+    const k = t.id + '-' + size;
+    if (this.webWant.has(k)) return;
+    this.webWant.set(k, { t, size });
+    clearTimeout(this.webTimer);
+    this.webTimer = window.setTimeout(() => void this.askWeb(), 80);
+  }
+  private async askWeb() {
+    const cid = this.cid, want = [...this.webWant.values()];
+    this.webWant.clear();
+    for (const size of [64, 320] as const) {
+      const ts = want.filter(w => w.size === size).map(w => w.t);
+      for (let i = 0; i < ts.length; i += 60) {
+        const batch = ts.slice(i, i + 60);
+        for (const t of batch) if (!this.web.has(t.id)) this.web.set(t.id, '?');
+        const got = await lib.findArt?.(batch, size).catch(() => null);
+        if (this.cid !== cid) return;
+        const dir = await platform.cacheDir();
+        for (const t of batch) {
+          const r = got?.get(t.id);
+          if (!r) { this.web.delete(t.id); continue; }
+          if (r.hash === '?') {
+            // Being looked up now: ask again in a while (a few times).
+            this.web.set(t.id, '?');
+            const n = (this.webTries.get(t.id) ?? 0) + 1;
+            this.webTries.set(t.id, n);
+            if (n < 8) setTimeout(() => { if (this.cid === cid) { this.web.delete(t.id); this.fromWeb(t, size); } }, 5000 * n);
+            else this.web.set(t.id, '');
+            continue;
+          }
+          this.web.set(t.id, r.hash);
+          if (!r.hash || !r.bytes) continue;
+          if (dir) await writeBlob(dir, `art/${cid}/${r.hash}-${size}.jpg`, new Blob([r.bytes.slice()], { type: 'image/jpeg' })).catch(() => {});
+          this.remember(r.hash + '-' + size, URL.createObjectURL(new Blob([r.bytes.slice()], { type: 'image/jpeg' })));
+        }
+        this.version++;
+      }
+    }
+  }
+  /** Was this song's cover looked up (not from its own tags)? The song's page offers "Wrong cover". */
+  isFound(t: Track) { const w = this.web.get(t.id); return this.hashOf(t) === '' && !!w && w !== '?'; }
+  /** The user says the cover found for this song's album is wrong: GLUE Home won't show or look for it again. */
+  async refuse(t: Track) {
+    await lib.findArt?.([t], 64, true).catch(() => null);
+    this.web.set(t.id, '');
+    // The album's other songs, shown now, lose it too.
+    const w = this.web;
+    for (const [id, h] of [...w]) { const o = lib.store?.tracks.get(id); if (o && h && o.artist === t.artist && (o.album || o.title) === (t.album || t.title)) w.set(id, ''); }
+    this.version++;
   }
 }
 

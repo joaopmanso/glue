@@ -1002,6 +1002,10 @@ class Library {
   remoteArt: ((ts: Track[], px: 64 | 320) => Promise<Map<string, { hash: string; bytes: Uint8Array | null }>>) | null = null;
   /** Is there a GLUE Home to ask for this song's cover? */
   artReachable: ((t: Track) => boolean) | null = null;
+  /** Covers looked up on public services by a GLUE Home of the account (ADR 0086): per track its hash ('?'
+      while looked up, '' none) and the JPEG; `refuse`: that album's cover is wrong. */
+  findArt: ((ts: Track[], px: 64 | 320, refuse?: boolean) => Promise<Map<string, { hash: string; bytes: Uint8Array | null }>>) | null = null;
+  canFindArt: (() => boolean) | null = null;
   /** What to play a song from (ADR 0076): an address that streams (this computer's GLUE Home's local link,
       or another computer's GLUE Home) when the browser plays the format by itself; otherwise the file. */
   async mediaFor(t: Track): Promise<Blob | string> {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { asShown, MARKED_FINE } from '../../core/library/summary';
   import CoverArt from './CoverArt.svelte';
+  import { covers } from '../../lib/covers.svelte';
   import { untrack } from 'svelte';
   import { lib } from '../../lib/library.svelte';
   import { app, analyzeFile, showResult } from '../../lib/app.svelte';
@@ -221,6 +222,7 @@ canPlay = true;
         <h2>{track.title || track.fileName}</h2>
         <div class="sub">
           {#if track.artist || track.album || track.year}<span class="who">{[track.artist, track.album, track.year].filter(Boolean).join(' · ')}</span>{/if}
+          {#if (void covers.version, covers.isFound(track))}<button type="button" class="linkish" id="wrong-cover" title="This cover was looked up on public music services (the song’s tags have none). Not this one: GLUE won’t show it for this album again." onclick={() => void covers.refuse(track!)}>Wrong cover</button>{/if}
           <span class="rate"><Stars value={track.rating ?? imported.find(x => x.st.rating)?.st.rating ?? null} dim={track.rating == null && imported.some(x => x.st.rating)} size={16} onset={v => lib.rateTracks([id], v)} />
             <span>{track.rating != null ? track.rating + ' / 5' : imported.some(x => x.st.rating) ? 'rating from your DJ library' : 'not rated'}</span></span>
         </div>

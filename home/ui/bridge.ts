@@ -70,6 +70,8 @@ export const bridge = {
   glueList: (rel: string) => invoke<string[]>('glue_list', { rel }),
   fileSize: (path: string) => invoke<number>('file_size', { path }),
   fileRead: (path: string, offset: number, len: number) => invoke<ArrayBuffer>('file_read', { path, offset, len }),
+  /** A cover service's answer (ADR 0086); GLUE Home only reaches Deezer, iTunes and MusicBrainz. */
+  webGet: (url: string) => invoke<ArrayBuffer>('web_get', { url }),
   // Between the windows.
   onConfig: (f: (c: HomeConfig) => void) => listen<HomeConfig>('config', e => f(e.payload)),
   onControl: (f: (what: 'start' | 'stop' | 'restart') => void) => listen<'start' | 'stop' | 'restart'>('control', e => f(e.payload)),

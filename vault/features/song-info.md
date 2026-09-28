@@ -104,3 +104,4 @@ column, and on their page.
   GLUE Home, and keeps them in its own cache. Never through GLUE Cloud.
 - GLUE Home has them from the website's hand-over, from its own analyses, or from the song's tags,
   read on request (only the bytes the tags need).
+- **Covers looked up (2026-09-28, [ADR 0086](../adr/0086-covers-looked-up-by-glue-home.md)):** songs without a cover in their tags get one from Deezer, iTunes or the Cover Art Archive through a GLUE Home; shown only, never written; "Wrong cover" on the song's page.

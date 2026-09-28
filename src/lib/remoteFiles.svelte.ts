@@ -274,6 +274,26 @@ class RemoteFiles {
     }
     return out;
   }
+  /** The GLUE Home that looks covers up (ADR 0086): this computer's, else any of the account's online. */
+  private finder(): string | null {
+    const me = account.thisDevice, mine = me ? companionOnline(me) : null;
+    if (mine && !this.noFind.has(mine.id)) return mine.id;
+    return account.devices.find(d => d.kind === 'home' && account.online.has(d.id) && !this.noFind.has(d.id))?.id ?? null;
+  }
+  /** GLUE Homes older than 0.18 (no `find-art`): not asked again this visit. */
+  private noFind = new Set<string>();
+  canFindArt() { return !!this.finder(); }
+  async findArt(ts: Track[], px: 64 | 320, refuse = false): Promise<Map<string, { hash: string; bytes: Uint8Array | null }>> {
+    const out = new Map<string, { hash: string; bytes: Uint8Array | null }>(), home = this.finder();
+    if (!home || !ts.length) return out;
+    const items = ts.map(t => ({ id: t.id, artist: t.artist, album: t.album, title: t.title }));
+    const a = await this.ask(home, { t: 'find-art', px, items, ...(refuse ? { refuse: true } : {}) }, { firstWait: 10_000 })
+      .catch(e => { if (/in time/.test((e as Error).message)) this.noFind.add(home); return null; });
+    if (!a) return out;
+    let at = 0;
+    for (const [id, hash, size] of a.data as [string, string, number][]) { out.set(id, { hash, bytes: size ? a.bytes.slice(at, at + size) : null }); at += size; }
+    return out;
+  }
   artReachable(t: Track) { const r = t.remote; return !!r?.id && !r.incoming && !!this.homeFor(t) && account.online.has(this.homeFor(t)!); }
 
   /** The full analysis of a song on another computer (made there), without its audio. */
@@ -330,5 +350,7 @@ lib.remoteFile = t => remoteFiles.get(t);
 lib.canStream = t => remoteFiles.canStream(t);
 lib.remoteArt = (ts, px) => remoteFiles.art(ts, px);
 lib.artReachable = t => remoteFiles.artReachable(t);
+lib.findArt = (ts, px, refuse) => remoteFiles.findArt(ts, px, refuse);
+lib.canFindArt = () => remoteFiles.canFindArt();
 thumbs.remote = ts => remoteFiles.thumbs(ts);
 waves.remote = ts => remoteFiles.thumbs(ts, 'wave');
