@@ -5,6 +5,15 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · Admin › Free tier
+- **The admin panel shows how much of Cloudflare's free plan GLUE Cloud uses**
+  ([ADR 0093](../adr/0093-free-tier-usage-in-the-admin-panel.md)): database size, rows read and
+  written today, Worker requests today, relay (TURN) traffic this month, each against its limit.
+- It needs a read-only token, `CF_ANALYTICS_TOKEN`, in the repository's secrets. Until then it shows
+  the database size and says what to add.
+- The drag-out e2e waits for the playlist's songs to be matched (it failed now and then).
+- Tests: cloud (usage with Cloudflare stubbed, without the token, admins only).
+
 ## 2026-09-28 · The first question: how GLUE is used here
 - **First run asks "How will you use GLUE here?"** ([ADR 0092](../adr/0092-first-question-how-glue-is-used.md)):
   - **Just this computer** (the default): no account, nothing leaves it;

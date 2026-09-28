@@ -53,3 +53,16 @@ jobs:
           else
             echo "::notice::No TURN key in the repository's secrets yet: GLUE Cloud hands out no relay"
           fi
+      # The admin panel's free-tier usage (ADR 0093): a read-only Cloudflare token ("Account Analytics:
+      # Read"), once the owner has added it; the account's id comes with it.
+      - if: steps.ready.outputs.go == 'yes'
+        working-directory: cloud
+        env:
+          CF_ANALYTICS_TOKEN: ${{ secrets.CF_ANALYTICS_TOKEN }}
+        run: |
+          if [ -n "$CF_ANALYTICS_TOKEN" ]; then
+            printf '%s' "$CF_ANALYTICS_TOKEN" | npx wrangler secret put CF_ANALYTICS_TOKEN
+            printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | npx wrangler secret put CF_ACCOUNT_ID
+          else
+            echo "::notice::No CF_ANALYTICS_TOKEN in the repository's secrets yet: the admin panel shows only the database's size"
+          fi

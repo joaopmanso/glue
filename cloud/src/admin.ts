@@ -2,16 +2,22 @@
    Only for users whose tier is 'admin', which comes from a Google-verified admin email. */
 import type { Access } from './crypto';
 import type { Env } from './api';
+import { usage } from './usage';
 
 export class AdminError extends Error { constructor(readonly status: number, msg: string) { super(msg); } }
 const TIERS = ['free', 'paid', 'admin'];
 const DAY = 864e5;
 
-export async function route(env: Env, a: Access, m: string, path: string, q: URLSearchParams, b: Record<string, unknown>, now: number): Promise<unknown> {
+export async function route(env: Env, a: Access, m: string, path: string, q: URLSearchParams, b: Record<string, unknown>, now: number, ask: typeof fetch = (u, i) => fetch(u, i)): Promise<unknown> {
   const me = await env.DB.prepare('SELECT tier FROM users WHERE id = ?').bind(a.sub).first<{ tier: string }>();
   if (me?.tier !== 'admin') throw new AdminError(403, 'admins only');
   if (m === 'GET' && path === '/v1/admin/stats') return stats(env, now);
   if (m === 'GET' && path === '/v1/admin/users') return users(env, q.get('q') ?? '', Math.min(200, Number(q.get('limit')) || 100));
+  if (m === 'GET' && path === '/v1/admin/usage') {
+    // The database's own size, from a query's meta (always there), then Cloudflare's numbers (ADR 0093).
+    const r = await env.DB.prepare('SELECT 1').run() as { meta?: { size_after?: number } };
+    return usage(env, ask, now, typeof r.meta?.size_after === 'number' ? r.meta.size_after : null);
+  }
   if (m === 'GET' && path === '/v1/admin/sessions') return sessions(env, Math.min(500, Number(q.get('limit')) || 200));
   if (m === 'POST' && path === '/v1/admin/maintenance') return maintenance(env, String(b.task ?? ''), now);
   const u = /^\/v1\/admin\/users\/([\w-]+)(\/cloud)?$/.exec(path);

@@ -16,6 +16,9 @@
   /** Every sign-in (ADR 0091): devices hold music, sessions only browse. */
   interface AdminSession { id: string; kind: 'browser' | 'home'; role: 'device' | 'browse'; name: string; platform: string | null; createdAt: number; lastSeen: number | null; email: string | null; userName: string | null }
   let sessions = $state<AdminSession[]>([]);
+  /** How much of Cloudflare's free plan GLUE Cloud uses (ADR 0093). */
+  interface Usage { at: number; d1: { bytes: number | null; rowsRead: number | null; rowsWritten: number | null }; worker: { requests: number | null; errors: number | null }; turn: { egressBytes: number | null; ingressBytes: number | null }; limits: { d1Storage: number; d1RowsRead: number; d1RowsWritten: number; workerRequests: number; turnEgress: number }; note?: string }
+  let usage = $state<Usage | null>(null);
   let stats = $state<Stats | null>(null);
   let users = $state<AdminUser[]>([]);
   let q = $state('');
@@ -25,10 +28,11 @@
   async function load() {
     loading = true; error = '';
     try {
-      [stats, users, sessions] = await Promise.all([
+      [stats, users, sessions, usage] = await Promise.all([
         account.request<Stats>('GET', '/v1/admin/stats'),
         account.request<{ users: AdminUser[] }>('GET', '/v1/admin/users?q=' + encodeURIComponent(q.trim())).then(r => r.users),
         account.request<{ sessions: AdminSession[] }>('GET', '/v1/admin/sessions').then(r => r.sessions).catch(() => [] as AdminSession[]),
+        account.request<Usage>('GET', '/v1/admin/usage').catch(() => null),
       ]);
     } catch (e) { error = (e as Error).message; }
     finally { loading = false; }
@@ -78,6 +82,29 @@
           </svg>
         </div>
       </div>
+    {/if}
+
+    {#if usage}
+      {@const rows = [
+        { k: 'd1-size', label: 'Database size', used: usage.d1.bytes, max: usage.limits.d1Storage, what: 'of 5 GB (all databases)', bytes: true },
+        { k: 'd1-read', label: 'Rows read today', used: usage.d1.rowsRead, max: usage.limits.d1RowsRead, what: 'of 5 million a day' },
+        { k: 'd1-write', label: 'Rows written today', used: usage.d1.rowsWritten, max: usage.limits.d1RowsWritten, what: 'of 100,000 a day' },
+        { k: 'worker', label: 'Worker requests today', used: usage.worker.requests, max: usage.limits.workerRequests, what: 'of 100,000 a day' },
+        { k: 'turn', label: 'Relay traffic this month', used: usage.turn.egressBytes, max: usage.limits.turnEgress, what: 'of 1,000 GB sent a month', bytes: true },
+      ]}
+      <h3>Free tier</h3>
+      <div class="free" id="admin-usage">
+        {#each rows as r (r.k)}
+          {@const pct = r.used == null ? null : Math.min(100, (r.used / r.max) * 100)}
+          <div class="fr" data-usage={r.k}>
+            <span class="fl">{r.label}</span>
+            <span class="bar" aria-hidden="true"><i style:width={(pct ?? 0) + '%'} class:hot={(pct ?? 0) > 80}></i></span>
+            <span class="fv">{r.used == null ? '—' : (r.bytes ? fmtBytes(r.used) : r.used.toLocaleString())} <small>{r.what}{pct != null ? ' · ' + (pct < 1 ? pct.toFixed(2) : Math.round(pct)) + '%' : ''}</small></span>
+          </div>
+        {/each}
+      </div>
+      {#if usage.note}<p class="muted small" id="usage-note">{usage.note}</p>{/if}
+      <p class="muted small">Cloudflare's free-plan limits as published; the numbers come from Cloudflare's own analytics (a little behind).</p>
     {/if}
 
     <div class="ush">
@@ -175,4 +202,12 @@
   .err { color: var(--bad); }
   .ok { color: var(--ok); }
   @media (max-width: 600px) { .card.wide { grid-column: auto; } }
+  .free { display: grid; gap: 8px; margin-bottom: 8px; }
+  .fr { display: grid; grid-template-columns: 180px minmax(120px, 1fr) minmax(200px, auto); gap: 12px; align-items: center; font-size: 13px; }
+  .fl { color: var(--ink-2, inherit); }
+  .fr .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; position: relative; }
+  .fr .bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 4px; }
+  .fr .bar i.hot { background: var(--warn); }
+  .fv small { color: var(--muted); }
+  @media (max-width: 760px) { .fr { grid-template-columns: 1fr; gap: 4px; } }
 </style>

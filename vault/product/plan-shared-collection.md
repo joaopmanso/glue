@@ -295,7 +295,7 @@ page, or from the tab on a computer without GLUE Home (while it's open), or with
   - Moves, deletes and duplicate clean-up become `j/<computer>` jobs for that computer.
     `move-incoming` stays the fast path.
 
-## Phase 6: admin panel usage (can run in parallel with 1–5; Worker + site)
+## Phase 6: admin panel usage (can run in parallel with 1–5; Worker + site). Done 2026-09-28 (ADR 0093); needs the user's CF_ANALYTICS_TOKEN
 - **Admin › Usage:**
   - D1: database size (`meta.size_after`), rows read and written today;
   - Worker requests today;

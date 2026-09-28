@@ -1160,7 +1160,10 @@ test('drags a track out as a file copy and a playlist out as an M3U8', async ({ 
   expect(size).toBe(968141);
 
   await page.locator('.lside .tree .name', { hasText: 'Rekordbox' }).click();
-  const p = await drag(page.locator('.lside .item', { hasText: 'Friday' }).locator('.drag-out'));
+  // The playlist's songs are read when the drag starts: dragged again until the scan has matched them to
+  // their files (it can still be at it here).
+  let p: Record<string, string> = { url: '', text: '' };
+  await expect.poll(async () => { p = await drag(page.locator('.lside .item', { hasText: 'Friday' }).locator('.drag-out')); return p.text; }, { timeout: 20_000 }).toContain('#EXTINF:4,Tester - Lossy one');
   expect(p.url).toMatch(/^audio\/x-mpegurl:Friday\.m3u8:blob:/);
   expect(p.text).toContain('#EXTM3U');
   expect(p.text).toContain('#EXTINF:4,Tester - Lossy one' + '\r\n' + String.raw`C:\Users\dj\Music\Sets\mp3-128k.mp3`);

@@ -420,3 +420,30 @@ describe('computers and sessions (ADR 0091)', () => {
     expect(me.devices.filter(d => d.kind === 'browser').every(d => d.role === 'device')).toBe(true);
   });
 });
+
+describe('admin: free-tier usage (ADR 0093)', () => {
+  it('shows Cloudflare’s numbers against the free plan with a read-only token; without one, says what’s missing', async () => {
+    const boss = await signIn({ sub: 'g-boss', email: 'boss@example.com' });
+    const u0 = (await call('GET', '/v1/admin/usage', undefined, boss.json.access)).json;
+    expect(u0.note).toMatch(/CF_ANALYTICS_TOKEN/);
+    expect(u0.worker.requests).toBeNull();
+    env = { ...env, CF_ANALYTICS_TOKEN: 'read-only', CF_ACCOUNT_ID: 'acc1' };
+    const asked: { auth: string | null; vars: unknown }[] = [];
+    relay = (async (_url: string, init: RequestInit) => {
+      asked.push({ auth: new Headers(init.headers).get('Authorization'), vars: JSON.parse(String(init.body)).variables });
+      return new Response(JSON.stringify({ data: { viewer: { accounts: [{
+        d1: [{ sum: { rowsRead: 1000, rowsWritten: 20 } }, { sum: { rowsRead: 500, rowsWritten: 5 } }],
+        size: [{ max: { databaseSizeBytes: 15_900_000 } }],
+        worker: [{ sum: { requests: 10_000, errors: 2 } }],
+        turn: [{ sum: { egressBytes: 46_000_000, ingressBytes: 183_000_000 } }],
+      }] } } }));
+    }) as unknown as typeof fetch;
+    const u = (await call('GET', '/v1/admin/usage', undefined, boss.json.access)).json;
+    expect(asked[0].auth).toBe('Bearer read-only');
+    expect(asked[0].vars).toMatchObject({ a: 'acc1' });
+    expect(u).toMatchObject({ d1: { bytes: 15_900_000, rowsRead: 1500, rowsWritten: 25 }, worker: { requests: 10_000, errors: 2 }, turn: { egressBytes: 46_000_000 }, limits: { d1RowsWritten: 100_000 } });
+    expect(u.note).toBeUndefined();
+    const dj = await signIn();
+    expect((await call('GET', '/v1/admin/usage', undefined, dj.json.access)).status).toBe(403);
+  });
+});
