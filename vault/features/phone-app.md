@@ -1,8 +1,8 @@
 ---
-status: planned
+status: in-progress
 milestone: M7
-updated: 2026-09-26
-adrs: [0057]
+updated: 2026-09-28
+adrs: [0057, 0076, 0077]
 ---
 # Phone app (remote + offline)
 
@@ -52,3 +52,12 @@ fallback.
   - Safari passing media byte ranges through a service worker;
   - data channels staying alive while the screen is locked.
   A spike on a real iPhone comes first.
+
+## The library on any device (2026-09-28, [ADR 0077](../adr/0077-library-on-any-device.md))
+- **A browser without a library of its own, signed in:** the account's library opens by itself from
+  GLUE Cloud (the last one opened there, else the biggest merged collection, else the biggest
+  collection). Nothing is made on the device.
+- **Its songs stream** from a computer that has them ([ADR 0076](../adr/0076-songs-stream-by-range.md)).
+- **Edits** go to the owning computers.
+- **Devices › Send songs…** sends songs from the phone to a GLUE Home.
+- Next: the phone layout.

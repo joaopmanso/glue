@@ -5,6 +5,16 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's second list, batch E: the library on any device
+- **Signed in on a device without a library** (a phone; no GLUE folder), the account's library opens
+  by itself from GLUE Cloud, remembered for next time. Nothing is made on the device
+  ([ADR 0077](../adr/0077-library-on-any-device.md)).
+- **Cloud views play:** songs stream from a computer that has them. Ratings, tags, notes and playlists
+  go to the owning computers.
+- **Devices › Send songs…** works there too: from a phone to a computer's GLUE Home.
+- Tests: e2e `phone.spec` (opens by itself, nothing made, streams, a rating queued, a song sent,
+  reopens).
+
 ## 2026-09-28 · The user's second list, batch D: streaming (GLUE Home 0.14), macOS Cmd-Tab
 - **Songs stream instead of downloading first** ([ADR 0076](../adr/0076-songs-stream-by-range.md)):
   - Home mode: from GLUE Home's local link, by byte range;

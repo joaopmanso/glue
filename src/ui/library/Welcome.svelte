@@ -10,6 +10,7 @@
   import CloudPanel from './CloudPanel.svelte';
   import Homepage from './Homepage.svelte';
   import { account } from '../../lib/account.svelte';
+  import { anywhere } from '../../lib/anywhere.svelte';
   import { sync, syncOn as profileSyncs } from '../../lib/sync.svelte';
 
   let profileName = $state('');
@@ -111,6 +112,7 @@
     <p class="muted">Opening your library…</p>
 
   {:else if lib.phase === 'welcome'}
+    {#if anywhere.opening}<p class="opening" id="cloud-opening" role="status"><span class="spin"></span>{anywhere.opening}</p>{/if}
     {#if !checking && !restore}<Homepage />{/if}
     <div id="get-started" class="setup">
     {@render stepper()}
@@ -271,6 +273,9 @@
 </section>
 
 <style>
+  .opening { display: flex; align-items: center; gap: 10px; justify-content: center; padding: 14px; margin: 0 0 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-2)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); font-size: 14px; }
+  .opening .spin { width: 14px; height: 14px; border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; animation: turn .8s linear infinite; }
+  @keyframes turn { to { transform: rotate(360deg); } }
   .welcome { max-width: 900px; margin: 5vh auto 0; display: grid; gap: 18px; }
   .welcome:has(:global(#homepage)) { max-width: 1240px; margin-top: 2vh; gap: 40px; }
   .setup { display: grid; gap: 18px; scroll-margin-top: 24px; }

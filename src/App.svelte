@@ -31,6 +31,7 @@
   import AdminView from './ui/AdminView.svelte';
   import PerfHud from './ui/PerfHud.svelte';
   import { perf } from './lib/perf';
+  import './lib/anywhere.svelte';        // a device without a library opens the account's (ADR 0077)
   import './lib/covers.svelte';        // songs' covers, kept as they're found (ADR 0072)
   import './lib/remoteFiles.svelte';   // another computer's songs through its GLUE Home (ADR 0045)
   import './lib/homeHandover';         // this computer's analyses, handed to its GLUE Home (ADR 0046)

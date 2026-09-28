@@ -10,6 +10,7 @@
      edits there are sent to the owning devices. */
 import { lib } from './library.svelte';
 import { account } from './account.svelte';
+import { writePref } from './prefs';
 import { walk } from '../store/backup';
 import { fileAt, readJSON, removePath, subdir, writeJSON, type Dir } from '../store/fsx';
 import { MemDir, asDir } from '../store/memdir';
@@ -19,6 +20,20 @@ import { apply, baseline, diff, type Baseline, type EditOp } from '../core/libra
 import { mergeCollections, translate, type Merged, type MemberData } from '../core/library/mergeCollections';
 import { buildOverlay, overlayOps, type Overlay } from '../core/library/overlay';
 import { time } from '../core/perf';
+import type { Track } from '../store/types';
+
+type Copy = { device: string; name: string; profile: string; collection: string; id: string };
+/** A cloud view's songs play from the computers that have them (ADR 0077): each points at one copy, one
+    whose computer's GLUE Home is online first, else one that has a GLUE Home at all. Only in memory. */
+function pointAt(s: CollectionStore, copies: (t: Track) => Copy[]) {
+  const homeOf = (device: string) => account.devices.find(d => d.kind === 'home' && d.companionOf === device);
+  for (const t of s.tracks.values()) {
+    const cs = copies(t);
+    if (!cs.length) continue;
+    const c = cs.find(x => { const h = homeOf(x.device); return !!h && account.online.has(h.id); }) ?? cs.find(x => homeOf(x.device)) ?? cs[0];
+    t.remote = { device: c.device, name: c.name, profile: c.profile, collection: c.collection, id: c.id };
+  }
+}
 
 export interface RemoteProfile {
   device: { id: string; name: string; kind: string }; profile: { id: string; name: string; color: string | null };
@@ -484,7 +499,9 @@ class CloudSync {
     try {
       const r = this.remote.find(x => x.device.id === m.device && x.profile.id === m.profile);
       const s = await this.loadMember(m, new Map());
+      pointAt(s, t => [{ device: m.device, name: r?.device.name ?? 'Another device', profile: m.profile, collection: m.collection, id: t.id }]);
       this.begin(s, { kind: 'device', member: m });
+      writePref('cloudLibrary', 'd:' + m.device + '/' + m.profile + '/' + m.collection);   // opened by itself next time on a device without a library (ADR 0077)
       await lib.enterCloudView(s, { kind: 'device', title: r?.device.name ?? 'Another device', subtitle: (r?.profile.name ?? '') + ' · ' + s.meta.name, updatedAt: r?.updatedAt ?? null });
     } finally { this.busy = ''; }
   }
@@ -518,8 +535,10 @@ class CloudSync {
     const s = await CollectionStore.load(asDir(dir), 'merged', mg.meta.id);
     // Stored files can't hold the view-only device names: put them back.
     for (const t of mg.tracks) { const x = s.tracks.get(t.id); if (x) x.onDevices = t.onDevices; }
+    pointAt(s, t => (mg.trackOrigins.get(t.id) ?? []).map(o => ({ device: data[o.m].device.id, name: data[o.m].device.name, profile: data[o.m].profile, collection: data[o.m].collection, id: o.id })));
     const members = data.map(d => ({ device: d.device.id, profile: d.profile, collection: d.collection }));
     this.begin(s, { kind: 'group', members, merged: mg });
+    writePref('cloudLibrary', 'g:' + g.id);
     await lib.enterCloudView(s, { kind: 'group', title: g.name, subtitle: 'Merged from ' + data.map(d => d.device.name).join(', '), updatedAt: Math.max(...data.map(d => this.remote.find(x => x.device.id === d.device.id)?.updatedAt ?? 0)) || null });
   }
   private begin(s: CollectionStore, target: NonNullable<typeof this.target>) {

@@ -67,7 +67,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
   const one = ts.length === 1 ? ts[0] : null, n = ts.length, cloud = !!lib.cloud;
   const cur = view.sel.kind === 'list' ? s.lists.get(view.sel.id) ?? null : null;
   const inCur = cur ? ids.filter(id => cur.items.includes(id)).length : 0;
-  const playable = ts.filter(t => t.status === 'linked' && !cloud && (!t.remote || lib.canRead(t)));
+  const playable = ts.filter(t => lib.playsHere(t));
   const order = opts.order ?? ids;
   // The playlists these songs are in (a folder's own songs count: folders are playlists too).
   const having = new Map<List, number>();

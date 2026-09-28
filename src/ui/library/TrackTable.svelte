@@ -53,7 +53,7 @@
   // The Device column only while more than one device's songs are on screen.
   const cols = $derived(manyDevices() ? columns.visible : columns.visible.filter(k => k !== 'device'));
   // Plays here: this computer's file, or another computer's through its GLUE Home.
-  const here = (r: Row) => r.t.status === 'linked' && !lib.cloud && (!r.t.remote || lib.canRead(r.t));
+  const here = (r: Row) => lib.playsHere(r.t);
   // play button, "#" (playlists only), the chosen columns, the column menu button
   const widths = $derived([dragOut ? '42px' : '26px', ...(isPlaylist ? ['36px'] : []), ...cols.map(k => columns.width(k)), '28px']);
   const template = $derived(widths.join(' '));

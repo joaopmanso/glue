@@ -233,7 +233,7 @@
 
   /** A playlist's or folder's songs that can play here, in order. */
   function playList(l: List) {
-    const ts = dock.tracksOf(l.id).filter(t => t.status === 'linked' && !lib.cloud && (!t.remote || lib.canRead(t)));
+    const ts = dock.tracksOf(l.id).filter(t => lib.playsHere(t));
     if (ts.length) void nowPlaying.play(ts[0].id, ts.map(t => t.id), 0, l.name); else lib.notice = 'Nothing in ' + l.name + ' can play here.';
   }
   function saveM3u8(l: List) {
@@ -601,7 +601,7 @@
     {/if}
   </section>
   {/if}
-  {#if account.signedIn && !lib.cloud}<DevicesSection />{/if}
+  {#if account.signedIn}<DevicesSection />{/if}   <!-- also in a cloud library: a phone sends songs to a GLUE Home from here (ADR 0077) -->
 </nav>
 
 <style>

@@ -347,3 +347,8 @@ First release: phases 1–3 (user, 2026-09-25).
   stream channel answer part of a song (or of a song in the incoming folder), at most 8 MB at a time.
 - **macOS:** while its settings or drag dock window is open, GLUE Home is a normal app (Cmd-Tab, the
   Dock); a menu-bar app again once they're closed. It went missing from Cmd-Tab.
+
+## Cloud views play; a device without a library opens one by itself (2026-09-28, [ADR 0077](../adr/0077-library-on-any-device.md))
+- Each song of a cloud view points at a computer that has it and streams from its GLUE Home.
+- Devices (and Send songs…) shows in cloud views.
+- A browser without a GLUE folder, signed in, opens the account's library by itself (`lib/anywhere`).

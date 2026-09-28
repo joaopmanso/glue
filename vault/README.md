@@ -150,3 +150,4 @@ Planned (GLUE):
 | [0074](adr/0074-events-calendar.md) | Events: a calendar, each event with a folder of playlists; reminders in GLUE and from GLUE Home | accepted |
 | [0075](adr/0075-drop-outs-under-a-wall.md) | Drop-outs under a wall tell an encoder's lowpass from a mastering one (amends 0069) | accepted |
 | [0076](adr/0076-songs-stream-by-range.md) | Songs stream by byte range: the local link in Home mode, a service worker for other computers | accepted |
+| [0077](adr/0077-library-on-any-device.md) | A device without a library of its own opens the account's library from GLUE Cloud, and plays it | accepted |

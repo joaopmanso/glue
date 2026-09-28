@@ -900,6 +900,8 @@ class Library {
     }
     if (out.length) s.putTracks(out);
   }
+  /** Can this song play here now: its file here, or another computer's GLUE Home streams it. */
+  playsHere(t: Track) { return t.status === 'linked' && (t.remote ? this.canRead(t) : !this.cloud); }
   /** Songs whose edited info isn't in their file yet. */
   unwrittenCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (t.unwritten?.length) n++; return n; }
   private writing: Promise<void> | null = null;
@@ -1031,8 +1033,10 @@ class Library {
   }
   /** Can this track's file be read right now without asking the user? */
   canRead(t: Track) {
-    if (t.status !== 'linked' || this.cloud) return false;
+    if (t.status !== 'linked') return false;
+    // Another computer's song (a merged collection, or the cloud library on a phone: ADR 0077) streams from it.
     if (t.remote) return !!this.canStream?.(t);
+    if (this.cloud) return false;
     if (t.fileKey) return t.fileKey.startsWith('copy:') || this.looseGranted.has(t.id);
     return !!this.rootState(t.rootId)?.granted;
   }

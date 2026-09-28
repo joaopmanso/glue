@@ -27,7 +27,7 @@ class NowPlaying {
   get trackId() { return this.q.current; }
   get track(): Track | null { void lib.version; return this.q.current ? lib.store?.tracks.get(this.q.current) ?? null : null; }
   /** Can this song play here now? */
-  canPlay(id: string) { const t = lib.store?.tracks.get(id); return !!t && t.status === 'linked' && !lib.cloud && (!t.remote || lib.canRead(t)); }
+  canPlay(id: string) { const t = lib.store?.tracks.get(id); return !!t && lib.playsHere(t); }
 
   /** Start a song. From a list (`ids`, as it's shown), the rest of the list plays after it and what's
       queued; `from` names the list (the view's name by default). `startAt`: seconds into it. */
