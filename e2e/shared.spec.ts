@@ -2,7 +2,7 @@
    it and sees the desktop's songs, and a change made on the laptop reaches the desktop at once. Two
    browsers against a stand-in GLUE Cloud with the shared collection's rules (cloud/src/shared.ts). */
 import { test, expect, chromium, type Page, type BrowserContext, type WebSocketRoute } from '@playwright/test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -234,4 +234,73 @@ test('a merged collection moves into the shared one: the same songs become one, 
     })).toBe(true);
     expect([...cols.values()][0].files.size).toBeGreaterThan(3);
   } finally { await desk.done(); await lap.done(); }
+});
+
+test('duplicates found on the desktop show on the laptop: the 2× badge on the desktop’s songs (ADR 0098)', async ({ baseURL }) => {
+  test.setTimeout(240_000);
+  const { execFileSync } = await import('node:child_process');
+  const ff = process.env.FFMPEG || 'ffmpeg';
+  try { execFileSync(ff, ['-version'], { stdio: 'ignore' }); } catch { test.skip(true, 'needs ffmpeg to make an MP3 rip'); }
+  // The same 40 s synthetic recording as a WAV and as a delayed 48 kHz MP3, and a different one (as in library.spec).
+  const make = (seed: number) => {
+    let s = seed; const r = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+    const sr = 44100, x = new Float32Array(sr * 40);
+    for (let t0 = 0; t0 < 40; t0 += 0.25) {
+      const f = 110 * Math.pow(2, Math.floor(r() * 36) / 12), amp = 0.1 + r() * 0.2, a = Math.floor(t0 * sr);
+      for (let i = a; i < Math.min(x.length, a + sr * 0.6); i++) { const t = (i - a) / sr; x[i] += amp * Math.exp(-t * 6) * (Math.sin(2 * Math.PI * f * t) + 0.5 * Math.sin(4 * Math.PI * f * t)); }
+    }
+    const wav = Buffer.alloc(44 + x.length * 2);
+    wav.write('RIFF', 0); wav.writeUInt32LE(36 + x.length * 2, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(sr, 24); wav.writeUInt32LE(sr * 2, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(x.length * 2, 40);
+    for (let i = 0; i < x.length; i++) wav.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(x[i] * 32767))), 44 + i * 2);
+    return wav;
+  };
+  const tmp = mkdtempSync(join(tmpdir(), 'mco-dup-shared-'));
+  writeFileSync(join(tmp, 'a.wav'), make(11)); writeFileSync(join(tmp, 'c.wav'), make(99));
+  execFileSync(ff, ['-loglevel', 'error', '-y', '-i', join(tmp, 'a.wav'), '-af', 'adelay=1300', '-ar', '48000', '-b:a', '128k', join(tmp, 'b.mp3')]);
+  const files = [['HHH 04 RADIX.wav', 'a.wav'], ['HHH-Bebida.mp3', 'b.mp3'], ['Something else.wav', 'c.wav']].map(([n, f]) => ({ n, b: readFileSync(join(tmp, f)).toString('base64') }));
+  const { cols, route } = fakeCloud();
+  const desk = await browserFor(baseURL), lap = await browserFor(baseURL);
+  try {
+    await route(desk.page, 'b1');
+    await desk.page.goto('./#/analyze');
+    await desk.page.evaluate(async files => {
+      const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('Music', { create: true });
+      for (const f of files) { const w = await (await d.getFileHandle(f.n, { create: true })).createWritable(); await w.write(Uint8Array.from(atob(f.b), c => c.charCodeAt(0))); await w.close(); }
+    }, files);
+    await desk.page.goto('./');
+    await desk.page.click('#choose-home');
+    await desk.page.fill('#profile-name', 'DJ Test');
+    await desk.page.getByRole('button', { name: 'Create profile' }).click();
+    await desk.page.click('#onb-skip');
+    await desk.page.click('#add-folder');
+    await expect(desk.page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
+    await expect(desk.page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+    await expect(desk.page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×', { timeout: 30_000 });
+    await desk.page.click('#account-btn');
+    await desk.page.click('#fake-google');
+    await desk.page.keyboard.press('Escape');
+    await desk.page.click('#share-collection');
+    await expect(desk.page.locator('#shared-chip')).toHaveText('Shared', { timeout: 30_000 });
+    // The desktop's matches go up with the collection.
+    await expect.poll(() => [...[...cols.values()][0]?.files.keys() ?? []].some(p => p === 'dupes/b1.json'), { timeout: 30_000 }).toBe(true);
+
+    // The laptop: no music; the desktop's two rips are one group here too.
+    await route(lap.page, 'b2');
+    await lap.page.goto('./');
+    await lap.page.click('#choose-home');
+    await lap.page.fill('#profile-name', 'DJ Test');
+    await lap.page.getByRole('button', { name: 'Create profile' }).click();
+    await lap.page.click('#onb-skip');
+    await lap.page.click('#account-btn');
+    await lap.page.click('#fake-google');
+    await lap.page.keyboard.press('Escape');
+    const cid = [...cols.keys()][0];
+    await expect(lap.page.locator(`#collection-pick option[value="__join:${cid}"]`)).toHaveCount(1, { timeout: 20_000 });
+    await lap.page.selectOption('#collection-pick', '__join:' + cid);
+    await expect(lap.page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
+    await expect(lap.page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×', { timeout: 30_000 });
+    await expect(lap.page.locator('.tr', { hasText: 'HHH-Bebida' }).locator('.dup')).toHaveText('2×');
+    await expect(lap.page.locator('.tr', { hasText: 'Something else' }).locator('.dup')).toHaveCount(0);
+  } finally { await desk.done(); await lap.done(); rmSync(tmp, { recursive: true, force: true }); }
 });

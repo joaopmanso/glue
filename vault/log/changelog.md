@@ -5,6 +5,14 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The shared collection, step 5b: duplicates on every device
+- **The 2×/3× badge now shows on another computer's songs** in a shared collection
+  ([ADR 0098](../adr/0098-duplicates-across-computers.md)): each computer publishes the same-recording
+  matches among its own songs with the collection, and every device joins them to its own.
+- Tests: e2e, the desktop's two rips of one recording are one group on the laptop, which has no music.
+- Testing note: the ffmpeg e2e tests read `FFMPEG` as ffmpeg's path. Run the suite without
+  `FFMPEG=1`, or those tests are skipped.
+
 ## 2026-09-28 · The shared collection, step 5a: GLUE Home keeps it up to date (GLUE Home 0.24)
 - **With no GLUE tab open, GLUE Home syncs this computer's shared collections**
   ([ADR 0097](../adr/0097-glue-home-syncs-shared-collections.md)): as soon as GLUE Cloud says another

@@ -5,6 +5,7 @@
 import { sync } from './sync.svelte';   // its hooks first: this one chains onto them
 import { account } from './account.svelte';
 import { lib } from './library.svelte';
+import { dupes } from './dupes.svelte';
 import { makeShared, moveInto } from '../store/shared/seed';
 import { buildBackup } from '../store/backup';
 import { writeBlob } from '../store/fsx';
@@ -61,7 +62,8 @@ class Shared {
       await lib.flush();
       const r = await syncShared(p);
       if (lib.store !== s) return;
-      if (r.changed.length) await s.reloadFiles(r.changed);
+      if (r.changed.length) await s.reloadFiles(r.changed.filter(f => !f.startsWith('dupes/')));
+      if (r.changed.some(f => f.startsWith('dupes/'))) void dupes.loadOthers();   // another computer's duplicates (ADR 0098)
       // Clashes wait for an answer (the box, ADR 0095), kept with the sync state until then.
       this.clashes = await waitingClashes(p);
       this.status = { busy: false, at: Date.now(), error: '' };
@@ -150,6 +152,7 @@ class Shared {
 }
 
 export const shared = new Shared();
+dupes.onPublished = () => void shared.sync();
 
 // Opened as this computer; synced after saves, when another device pushed, and when it opens.
 lib.loadOpts = () => ({ me: account.thisDevice, name: account.devices.find(d => d.id === account.thisDevice)?.name });

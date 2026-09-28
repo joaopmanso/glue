@@ -23,7 +23,7 @@ interface Agreed { rev: number; hash: string; text: string | null }
 interface State { cursor: number; files: Record<string, Agreed>; clashes?: Clash[] }
 export interface SyncResult { changed: string[]; clashes: Clash[]; pushed: number }
 
-const SYNCED = /^(collection\.json|events\.json|(tracks|analysis|lists|sources)\/[\w.-]+\.json)$/;
+const SYNCED = /^(collection\.json|events\.json|(tracks|analysis|lists|sources|dupes)\/[\w.-]+\.json)$/;
 const MAX_BODY = 1_500_000, MAX_FILES = 150;
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
@@ -48,7 +48,7 @@ const saveState = (p: Place, s: State) => writeText(p.root, statePath(p), JSON.s
 export async function localFiles(p: Place): Promise<Map<string, string>> {
   const out = new Map<string, string>(), b = base(p);
   for (const name of await listNames(p.root, b, 'file').catch(() => [] as string[])) if (SYNCED.test(name)) { const t = await readText(p.root, b + '/' + name); if (t != null) out.set(name, t); }
-  for (const dir of ['tracks', 'analysis', 'lists', 'sources']) {
+  for (const dir of ['tracks', 'analysis', 'lists', 'sources', 'dupes']) {
     for (const name of await listNames(p.root, b + '/' + dir, 'file').catch(() => [] as string[])) {
       const path = dir + '/' + name;
       if (!SYNCED.test(path)) continue;

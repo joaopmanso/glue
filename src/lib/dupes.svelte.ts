@@ -7,7 +7,7 @@
 import { lib } from './library.svelte';
 import { cacheDir, cleanDuplicates } from '../platform';
 import { readFingerprint, readPacks, writeFingerprint, writePack } from '../store/fingerprints';
-import { readJSON, writeJSON } from '../store/fsx';
+import { listNames, readJSON, writeJSON } from '../store/fsx';
 import { shardOf } from '../store/types';
 import { fingerprintOf } from './analysis';
 import { jobOf } from './audioJob';
@@ -51,6 +51,11 @@ class Dupes {
   /** What the last match found, and for which songs (to match only the new ones next time). */
   private matches: Match[] = [];
   private known: Set<string> | null = null;
+  /** A shared collection's other computers' matches (ADR 0098): their songs' fingerprints stay there, so
+      each computer publishes what it found among its own songs. */
+  private others: Match[] = [];
+  /** Told when this computer's matches were published (the shared sync sends them). */
+  onPublished: (() => void) | null = null;
 
   /** Probable groups follow songs' names: after tracks change (info edited, an import), the groups are
       made again from the last matches (no new matching), a moment later. */
@@ -73,7 +78,28 @@ class Dupes {
   groupOf = $derived.by(() => { const m = new Map<string, DupGroup>(); for (const g of this.groups) for (const id of g.ids) m.set(id, g); return m; });
 
   schedule(ms = 1500) { clearTimeout(this.timer); this.timer = window.setTimeout(() => void this.scan(), ms); }
-  reset() { clearTimeout(this.timer); this.groups = []; this.at = null; this.matches = []; this.known = null; }
+  reset() { clearTimeout(this.timer); this.groups = []; this.at = null; this.matches = []; this.known = null; this.others = []; }
+
+  /** Where a shared collection's published matches are, and this computer's name among its members. */
+  private published() {
+    const s = lib.store, root = lib.homeHandle, p = lib.profile;
+    if (!s?.shared || !root || !p) return null;
+    return { s, root, dir: `profiles/${p.id}/collections/${s.meta.id}/dupes`, me: s.shared.here.me };
+  }
+  /** The other computers' matches, read again (after a sync brought new ones). */
+  async loadOthers() {
+    const at = this.published();
+    if (!at) { this.others = []; return; }
+    const out: Match[] = [];
+    for (const n of await listNames(at.root, at.dir, 'file').catch(() => [] as string[])) {
+      if (n === at.me + '.json' || !n.endsWith('.json')) continue;
+      const f = await readJSON<{ v: number; matches: Match[] }>(at.root, at.dir + '/' + n).catch(() => null);
+      if (f?.v === 1 && Array.isArray(f.matches)) out.push(...f.matches);
+    }
+    if (lib.store !== at.s) return;
+    this.others = out;
+    if (this.known) this.rebuild();
+  }
 
   /** A collection opened: its last result at once, then a check for what changed since. */
   async open() {
@@ -86,6 +112,7 @@ class Dupes {
         this.at = saved.at;
       }
     }
+    await this.loadOthers();
     this.schedule(300);
   }
 
@@ -131,6 +158,12 @@ class Dupes {
       this.at = Date.now();
       // Kept for next time: the result, and the packs of shards that had songs outside them.
       if (changed) await writeJSON(dir, savedPath(cid), { v: 1, at: this.at, ids: [...ids], matches } satisfies Saved).catch(() => {});
+      // A shared collection: what this computer found, for the others (only its own songs are in it).
+      const pub = this.published();
+      if (pub && pub.s === s && (changed || !await readJSON(pub.root, `${pub.dir}/${pub.me}.json`).catch(() => null))) {
+        await writeJSON(pub.root, `${pub.dir}/${pub.me}.json`, { v: 1, at: this.at, matches }).catch(e => console.warn('GLUE: couldn’t publish the duplicates', e));
+        this.onPublished?.();
+      }
       for (const sh of dirty) await writePack(dir, cid, sh, tracks.filter(x => shardOf(x.id) === sh)).catch(() => {});
     } catch (e) { console.warn('Duplicate scan failed', e); }
     finally { this.running = false; }
@@ -186,10 +219,11 @@ class Dupes {
     const best = (ids: string[]) => { const chosen = s.meta.dupBest?.[groupKey(ids)]; return chosen && ids.includes(chosen) ? chosen : ids.reduce((b, id) => copyScore(s.tracks.get(id)!, s.analysis.get(id) ?? null) > copyScore(s.tracks.get(b)!, s.analysis.get(b) ?? null) ? id : b); };
     const out: DupGroup[] = [];
     const inGroup = new Set<string>();
-    for (const ids of groupMatches(matches)) {
+    const all = this.others.length ? matches.concat(this.others) : matches;
+    for (const ids of groupMatches(all)) {
       const live = ids.filter(id => s.tracks.has(id));
       if (live.length < 2 || ignored.has(groupKey(live))) continue;
-      const bers = matches.filter(m => live.includes(m.a) && live.includes(m.b)).map(m => m.ber);
+      const bers = all.filter(m => live.includes(m.a) && live.includes(m.b)).map(m => m.ber);
       out.push({ key: groupKey(live), kind: 'same', ids: live, best: best(live), similarity: 1 - 2 * Math.max(...bers) });
       live.forEach(id => inGroup.add(id));
     }

@@ -171,3 +171,4 @@ Planned (GLUE):
 | [0095](adr/0095-ask-per-clash.md) | Ask per clash, on the device that made the change | accepted |
 | [0096](adr/0096-move-merged-collections-into-the-shared-one.md) | Move merged collections into the shared one, one computer at a time | accepted |
 | [0097](adr/0097-glue-home-syncs-shared-collections.md) | GLUE Home syncs its computer's shared collections, and writes song info edited elsewhere | accepted |
+| [0098](adr/0098-duplicates-across-computers.md) | Duplicates across computers: each computer publishes its own matches | accepted |
