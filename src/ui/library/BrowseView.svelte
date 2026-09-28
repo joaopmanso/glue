@@ -9,7 +9,9 @@
   import { readPref, writePref } from '../../lib/prefs';
   import { facetInfo, facetItems, inFacet, sortFacet, type Facet, type FacetItem } from '../../core/library/browse';
 
-  let { by }: { by: Facet } = $props();
+  import type { ViewSel } from '../../lib/view.svelte';
+  /** onopen: where a value's songs open (the phone pushes a screen); by default the library shows them. */
+  let { by, onopen }: { by: Facet; onopen?: (sel: ViewSel) => void } = $props();
   const ROW = 44;
   let q = $state('');
   let order = $state<'name' | 'tracks'>(readPref('browseOrder', 'name') === 'tracks' ? 'tracks' : 'name');
@@ -26,7 +28,7 @@
   const first = $derived(Math.max(0, Math.floor(top / ROW) - 8));
   const shown = $derived(items.slice(first, first + Math.ceil(height / ROW) + 16));
 
-  const open = (i: FacetItem) => view.select({ kind: 'facet', by, key: i.key, value: i.value });
+  const open = (i: FacetItem) => { const sel: ViewSel = { kind: 'facet', by, key: i.key, value: i.value }; if (onopen) onopen(sel); else view.select(sel); };
   const idsOf = (i: FacetItem) => [...lib.store?.tracks.values() ?? []].filter(t => inFacet(t, by, i.key)).map(t => t.id);
   function time(s: number) { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; }
   function itemMenu(i: FacetItem): MenuEntry[] {
@@ -42,7 +44,7 @@
 </script>
 
 <div class="browse" id="browse" data-by={by}>
-  <div class="bar">
+  <div class="tools">
     <input type="search" id="browse-find" placeholder={'Find ' + info.name.toLowerCase() + '…'} bind:value={q} autocomplete="off" spellcheck="false" />
     <span class="seg" role="radiogroup" aria-label="Order">
       <button type="button" role="radio" aria-checked={order === 'name'} onclick={() => (order = 'name')}>{by === 'year' ? 'Newest' : 'A–Z'}</button>
@@ -67,7 +69,7 @@
 
 <style>
   .browse { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
-  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   #browse-find { flex: 1; min-width: 160px; max-width: 360px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 10px; font-size: 13.5px; color: var(--ink); }
   #browse-find:focus { outline: none; border-color: var(--accent); }
   .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; }
@@ -85,4 +87,6 @@
   .n, .t { color: var(--ink-2); font: 12px var(--font-mono); text-align: right; }
   .empty { color: var(--muted); padding: 20px; text-align: center; }
   @media (max-width: 640px) { .it { grid-template-columns: minmax(0, 1fr) auto; } .t { display: none; } }
+  /* A phone: a full-width find field (16 px, so iOS doesn't zoom in), no frame round the list. */
+  @media (max-width: 760px) { #browse-find { max-width: none; flex-basis: 100%; font-size: 16px; padding: 9px 12px; border-radius: 10px; } .list { border: 0; border-radius: 0; } }
 </style>

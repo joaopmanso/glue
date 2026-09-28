@@ -125,4 +125,6 @@
   .evc.past { opacity: .75; }
   .none { color: var(--muted); font-size: 13px; }
   @media (max-width: 980px) { .body { grid-template-columns: minmax(0, 1fr); } .day { min-height: 64px; } }
+  /* A phone (ADR 0078): the shell's bar says "Calendar". */
+  @media (max-width: 760px) { .head h2 { display: none; } .day { min-height: 52px; } }
 </style>

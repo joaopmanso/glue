@@ -55,8 +55,11 @@ class Menu {
   /** Where the last menu opened: what an entry opens next goes there (the tag editor, a note). */
   point = { x: 0, y: 0 };
   private n = 0;
+  /** Set on a phone (ADR 0078): every menu opens there as a sheet from the bottom instead. */
+  sheet: ((title: string, build: () => MenuEntry[]) => void) | null = null;
 
   show(x: number, y: number, build: () => MenuEntry[], opts: { below?: DOMRect | null; opener?: Element | null; anchor?: Element | null; label?: string; find?: string } = {}) {
+    if (this.sheet) { this.sheet(opts.label ?? 'Menu', build); return; }
     this.point = { x, y };
     this.at = { x, y, below: opts.below ?? null, build, opener: opts.opener ?? null, anchor: opts.anchor ?? opts.opener ?? null, label: opts.label ?? 'Menu', find: opts.find ?? '', n: ++this.n };
   }

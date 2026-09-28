@@ -3,6 +3,7 @@
      or a common one; type to find, Enter on a new name adds it. For several songs, the one picked goes
      on all of them. Written into the files through song info (ADR 0071). */
   import { lib } from '../../lib/library.svelte';
+  import { phone } from '../../lib/phone.svelte';
   import { view } from '../../lib/view.svelte';
   import { allGenres, setGenre } from '../../lib/genres.svelte';
   import { cleanTag } from '../../core/library/tagging';
@@ -25,16 +26,20 @@
   let winH = $state(window.innerHeight), winW = $state(window.innerWidth);
   const pos = $derived.by(() => {
     if (!at) return null;
+    // A phone: a sheet from the bottom, the width of the screen (ADR 0078).
+    if (phone.active) return { left: 0, top: null, bottom: 0, max: Math.round(winH * .72), w: winW };
     const below = winH - at.y - 14, above = at.y - 40, up = below < 300 && above > below;
     return { left: Math.max(8, Math.min(winW - W - 8, at.x)), top: up ? null : at.y + 6, bottom: up ? winH - at.y + 34 : null, max: Math.max(200, Math.min(460, up ? above : below)) };
   });
-  const focus = (el: HTMLInputElement) => { el.focus({ preventScroll: true }); };
+  // Not on a phone: its keyboard would cover the list.
+  const focus = (el: HTMLInputElement) => { if (!phone.active) el.focus({ preventScroll: true }); };
 </script>
 
 <svelte:window bind:innerHeight={winH} bind:innerWidth={winW} onpointerdown={e => { if (at && !(e.target as HTMLElement).closest('.gened, [data-genre-open]')) close(); }} />
 
 {#if at && pos && tracks.length}
-  <div class="gened" id="genre-editor" role="dialog" aria-label="Genre" style:left={pos.left + 'px'} style:top={pos.top == null ? null : pos.top + 'px'} style:bottom={pos.bottom == null ? null : pos.bottom + 'px'} style:max-height={pos.max + 'px'} style:width={W + 'px'}>
+  {#if phone.active}<div class="scrim" aria-hidden="true"></div>{/if}
+  <div class="gened" id="genre-editor" role="dialog" aria-label="Genre" style:left={pos.left + 'px'} style:top={pos.top == null ? null : pos.top + 'px'} style:bottom={pos.bottom == null ? null : pos.bottom + 'px'} style:max-height={pos.max + 'px'} style:width={('w' in pos ? pos.w : W) + 'px'} class:sheet={phone.active}>
     <div class="head"><b>Genre · {tracks.length === 1 ? tracks[0].title || tracks[0].fileName : tracks.length + ' songs'}</b><button type="button" aria-label="Close" onclick={close}>×</button></div>
     <input use:focus id="genre-input" placeholder="Find or add a genre… (Enter)" bind:value={q} autocomplete="off" maxlength="40"
       onkeydown={e => {
@@ -72,4 +77,11 @@
   .opt small { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
   .make { text-align: left; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 4px; color: var(--accent); padding: 4px 8px; font-size: 13px; cursor: pointer; }
   .foot { color: var(--muted); font-size: 11.5px; margin: 0; }
+  /* A phone: a sheet from the bottom, with room for fingers. */
+  .scrim { position: fixed; inset: 0; z-index: 69; background: rgb(0 0 0 / .45); }
+  .gened.sheet { border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); gap: 12px; }
+  .sheet .head { font-size: 15px; } .sheet .head button { font-size: 26px; width: 40px; height: 36px; }
+  .sheet input { font-size: 16px; padding: 10px 12px; border-radius: 10px; }
+  .sheet .opt { font-size: 16px; padding: 11px 6px; }
+  .sheet .make { font-size: 15px; padding: 10px; }
 </style>

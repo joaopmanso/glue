@@ -38,6 +38,8 @@
   li { display: flex; justify-content: space-between; gap: 10px; color: var(--ink-2); }
   .n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .st { flex: none; font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* A phone (ADR 0078): above the player and the tabs. */
+  @media (max-width: 760px) { .send { left: 8px; right: 8px; width: auto; bottom: calc(60px + 70px + env(safe-area-inset-bottom, 0px)); z-index: 35; } }
   li[data-state="saved"] .st { color: var(--ok); }
   li[data-state="failed"] .st { color: var(--bad); }
   .err { color: var(--bad); font-size: 12.5px; }

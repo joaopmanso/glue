@@ -1209,7 +1209,9 @@ test('the playlist builder fits smaller windows: nothing cut off, everything rea
   };
   for (const [w, h] of [[1920, 1080], [1366, 768], [1280, 620], [1024, 560], [760, 900], [390, 700]]) {
     await page.setViewportSize({ width: w, height: h });
-    await page.click('#new-auto');
+    // 760 px and narrower: the phone layout (ADR 0078), where it's in the Playlists tab.
+    if (w <= 760) { await page.locator('.tabs [data-tab="playlists"]').click(); await page.click('#phone-new-auto'); }
+    else await page.click('#new-auto');
     const head = (await page.locator('#auto-h').boundingBox())!;
     expect(head.y, `title visible at ${w}x${h}`).toBeGreaterThanOrEqual(0);
     await wheelTo('#auto-go', '#auto-dialog form');

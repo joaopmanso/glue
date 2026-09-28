@@ -2,6 +2,7 @@
   /* A small popup to write notes about a track; saved as you type (on a short pause) and on close. */
   import { lib } from '../../lib/library.svelte';
   import { view } from '../../lib/view.svelte';
+  import { phone } from '../../lib/phone.svelte';
 
   const W = 320, H = 210;
   const at = $derived(view.noteFor);
@@ -24,7 +25,7 @@
 <svelte:window onpointerdown={e => { if (at && !(e.target as HTMLElement).closest('.noteed, .note')) close(); }} />
 
 {#if at && track && pos}
-  <div class="noteed" role="dialog" aria-label={'Notes for ' + (track.title || track.fileName)} style:left={pos.left + 'px'} style:top={pos.top + 'px'} style:width={W + 'px'}>
+  <div class="noteed" role="dialog" aria-label={'Notes for ' + (track.title || track.fileName)} style:left={phone.active ? null : pos.left + 'px'} style:top={phone.active ? null : pos.top + 'px'} style:width={phone.active ? null : W + 'px'} class:docked={phone.active}>
     <div class="head"><b>{track.title || track.fileName}</b><button type="button" aria-label="Close" onclick={close}>×</button></div>
     <textarea use:focus bind:value={text} style:height={H - 70 + 'px'} placeholder="Cue ideas, mix-in points, where it works in a set…"
       oninput={() => { clearTimeout(timer); timer = window.setTimeout(save, 600); }}
@@ -42,4 +43,8 @@
   textarea:focus { outline: none; border-color: var(--accent); }
   .foot { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 11.5px; }
   .foot button { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 11.5px; padding: 1px 8px; cursor: pointer; }
+  /* A phone (ADR 0078): across the top, clear of the keyboard. */
+  .noteed.docked { left: 8px; right: 8px; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 70; border-radius: 12px; padding: 12px; }
+  .docked textarea { font-size: 16px; }
+  .docked .head { font-size: 15px; } .docked .head button { font-size: 26px; width: 40px; height: 36px; }
 </style>

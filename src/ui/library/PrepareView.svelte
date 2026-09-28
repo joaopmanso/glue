@@ -315,4 +315,16 @@
   .c3d { width: 100%; height: 300px; border-radius: var(--radius); overflow: hidden; background: #000; }
   .fine { color: var(--muted); font-size: 12px; margin: 0; }
   .notice { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; }
+  /* A phone (ADR 0078): nothing wider than the screen; the pads and tools wrap. */
+  @media (max-width: 760px) {
+    .prep > * { min-width: 0; }
+    .tempo { margin-left: 0; flex: 1 1 100%; }
+    .tempo input[type=range] { flex: 1; width: auto; min-width: 0; }
+    .deck { height: 170px; }
+    .grp.end { margin-left: 0; }
+    .pads { flex-wrap: wrap; }
+    .pad { width: calc((100vw - 28px - 24px - 7 * 5px) / 8); min-width: 36px; height: 44px; }
+    .mini { padding: 6px 10px; font-size: 13px; }
+    .bpmin { font-size: 16px; }
+  }
 </style>

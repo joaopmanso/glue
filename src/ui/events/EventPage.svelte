@@ -168,4 +168,6 @@
   .lineup span.me { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--ink); font-weight: 650; }
   .notes { white-space: pre-wrap; font-size: 13px; color: var(--ink-2); margin: 0; }
   @media (max-width: 900px) { .ecols { grid-template-columns: minmax(0, 1fr); } .pl { grid-template-columns: minmax(0, 1fr) auto; } .fill { display: none; } }
+  /* A phone (ADR 0078): the shell has the way back. */
+  @media (max-width: 760px) { .crumbs { display: none; } }
 </style>

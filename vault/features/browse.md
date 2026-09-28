@@ -36,5 +36,8 @@ Years, each value with its songs and length. A click opens that value's songs in
 - Vitest `tests/browse.test.ts`.
 - e2e `library.spec` "batch C".
 
-## Later
-- The phone's Browse tab uses the same pages ([phone app](phone-app.md)).
+## On a phone (2026-09-28)
+- The phone's Browse tab uses the same page, with a full-width find field; a value opens its songs
+  as a phone list ([ADR 0078](../adr/0078-phone-layout.md)).
+- Fixed the same day: the find field's row was squashed to 3 px by a global `.bar` style (it
+  had been since batch C, on the desktop too).

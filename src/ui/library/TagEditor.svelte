@@ -2,6 +2,7 @@
   /* Tag tracks or a playlist: current tags as chips, type to add (a new tag is made on Enter),
      or tick existing ones. Changes apply at once. */
   import { lib } from '../../lib/library.svelte';
+  import { phone } from '../../lib/phone.svelte';
   import { view } from '../../lib/view.svelte';
   import { allTags, tagColorOf } from '../../lib/tags.svelte';
   import { cleanTag, hasTag, tagsOf } from '../../core/library/tagging';
@@ -45,17 +46,21 @@
   let winH = $state(window.innerHeight), winW = $state(window.innerWidth);
   const pos = $derived.by(() => {
     if (!at) return null;
+    // A phone: a sheet from the bottom, the width of the screen (ADR 0078).
+    if (phone.active) return { left: 0, top: null, bottom: 0, max: Math.round(winH * .72), w: winW };
     const below = winH - at.y - 14, above = at.y - 40, up = below < 320 && above > below;
     const room = Math.max(200, Math.min(520, up ? above : below));
     return { left: Math.max(8, Math.min(winW - W - 8, at.x)), top: up ? null : at.y + 6, bottom: up ? winH - at.y + 34 : null, max: room };
   });
-  const focus = (el: HTMLInputElement) => { el.focus({ preventScroll: true }); };
+  // Not on a phone: its keyboard would cover the list.
+  const focus = (el: HTMLInputElement) => { if (!phone.active) el.focus({ preventScroll: true }); };
 </script>
 
 <svelte:window bind:innerHeight={winH} bind:innerWidth={winW} onpointerdown={e => { if (at && !(e.target as HTMLElement).closest('.taged, [data-tags-open]')) close(); }} />
 
 {#if at && target && pos}
-  <div class="taged" id="tag-editor" role="dialog" aria-label={'Tags for ' + target.name} style:left={pos.left + 'px'} style:top={pos.top == null ? null : pos.top + 'px'} style:bottom={pos.bottom == null ? null : pos.bottom + 'px'} style:max-height={pos.max + 'px'} style:width={W + 'px'}>
+  {#if phone.active}<div class="scrim" aria-hidden="true"></div>{/if}
+  <div class="taged" id="tag-editor" role="dialog" aria-label={'Tags for ' + target.name} style:left={pos.left + 'px'} style:top={pos.top == null ? null : pos.top + 'px'} style:bottom={pos.bottom == null ? null : pos.bottom + 'px'} style:max-height={pos.max + 'px'} style:width={('w' in pos ? pos.w : W) + 'px'} class:sheet={phone.active}>
     <div class="head"><b>Tags · {target.name}</b><button type="button" aria-label="Close" onclick={close}>×</button></div>
     <div class="chips">
       {#each current as t (t.name)}
@@ -108,4 +113,12 @@
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   .make { text-align: left; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 4px; color: var(--accent); padding: 4px 8px; font-size: 13px; cursor: pointer; }
   .foot { color: var(--muted); font-size: 11.5px; }
+  /* A phone: a sheet from the bottom, with room for fingers. */
+  .scrim { position: fixed; inset: 0; z-index: 69; background: rgb(0 0 0 / .45); }
+  .taged.sheet { border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); gap: 12px; }
+  .sheet .head { font-size: 15px; } .sheet .head button { font-size: 26px; width: 40px; height: 36px; }
+  .sheet input:not([type="checkbox"]) { font-size: 16px; padding: 10px 12px; border-radius: 10px; }
+  .sheet .list label { font-size: 16px; padding: 11px 4px; }
+  .sheet .tag { font-size: 14px; padding-left: 10px; } .sheet .tag .rm { font-size: 17px; padding: 3px 9px 3px 6px; }
+  .sheet .chips { max-height: 120px; }
 </style>

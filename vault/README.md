@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-27
+updated: 2026-09-28
 ---
 # GLUE vault
 
@@ -151,3 +151,4 @@ Planned (GLUE):
 | [0075](adr/0075-drop-outs-under-a-wall.md) | Drop-outs under a wall tell an encoder's lowpass from a mastering one (amends 0069) | accepted |
 | [0076](adr/0076-songs-stream-by-range.md) | Songs stream by byte range: the local link in Home mode, a service worker for other computers | accepted |
 | [0077](adr/0077-library-on-any-device.md) | A device without a library of its own opens the account's library from GLUE Cloud, and plays it | accepted |
+| [0078](adr/0078-phone-layout.md) | On a narrow screen the library is a phone app: tabs, two-line rows, menus as sheets, a mini and full player | accepted |

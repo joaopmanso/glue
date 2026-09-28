@@ -20,7 +20,12 @@
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
   import TagEditor from './ui/library/TagEditor.svelte';
   import EditInfo from './ui/library/EditInfo.svelte';
+  import PhoneApp from './ui/phone/PhoneApp.svelte';
+  import ActionSheet from './ui/phone/ActionSheet.svelte';
+  import { phone } from './lib/phone.svelte';
   import GenreEditor from './ui/library/GenreEditor.svelte';
+  import NoteEditor from './ui/library/NoteEditor.svelte';
+  import SendPanel from './ui/library/SendPanel.svelte';
   import StatsDialog from './ui/library/StatsDialog.svelte';
   import CalendarView from './ui/events/CalendarView.svelte';
   import EventPage from './ui/events/EventPage.svelte';
@@ -51,6 +56,9 @@
 
   const route = $derived(router.current);
   const inLibrary = $derived(lib.phase === 'library');
+  // The phone layout (ADR 0078): the library as a phone app, with its own header, tabs and player; a
+  // song's page, the calendar and an event open inside it.
+  const phoneLib = $derived(phone.active && inLibrary && ['library', 'track', 'events', 'event'].includes(route.name) && lib.onboarding !== 'music' && tabs.state === 'active');
   const needing = $derived(inLibrary ? events.needing().length : 0);
   let dragDepth = 0;
   const hasFiles = (e: DragEvent) => [...(e.dataTransfer?.types || [])].includes('Files');
@@ -122,7 +130,15 @@
   ondrop={onDrop}
 />
 
+<!-- A page shown inside the phone layout. -->
+{#snippet page()}
+  {#if route.name === 'track'}{#key route.id}<TrackDetail id={route.id} tab={route.tab} />{/key}
+  {:else if route.name === 'events'}<CalendarView />
+  {:else if route.name === 'event'}{#key route.id}<EventPage id={route.id} />{/key}{/if}
+{/snippet}
+
 <div class="wrap">
+  {#if !phoneLib}
   <header class="top">
     <div class="brand">
       <h1><a href="#/" id="home-link" aria-label="GLUE, Global Library Unified Exporter" onclick={() => { if (lib.phase === 'profiles') lib.backToLibrary(); }}><GlueStick /><b>G</b><span>lobal</span><b>L</b><span>ibrary</span><b>U</b><span>nified</span><b>E</b><span>xporter</span></a></h1>
@@ -159,6 +175,7 @@
     </div>
   </header>
 
+  {/if}
   {#if tabs.state !== 'active'}
     <section class="elsewhere" id="tab-elsewhere">
       <h2>GLUE is open in another tab</h2>
@@ -182,6 +199,8 @@
     <AdminView />
   {:else if !inLibrary || lib.onboarding === 'music'}
     <Welcome />
+  {:else if phoneLib}
+    <PhoneApp children={route.name === 'library' ? undefined : page} />
   {:else if route.name === 'track'}
     {#key route.id}<TrackDetail id={route.id} tab={route.tab} />{/key}
   {:else if route.name === 'events'}
@@ -192,14 +211,15 @@
     <LibraryView />
   {/if}
 </div>
-{#if inLibrary && (route.name === 'library' || route.name === 'events' || route.name === 'event') && lib.onboarding !== 'music'}<LibPlayer />{/if}
+{#if inLibrary && !phone.active && (route.name === 'library' || route.name === 'events' || route.name === 'event') && lib.onboarding !== 'music'}<LibPlayer />{/if}
 <DragTag />
 {#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
-{#if inLibrary}<TagEditor /><GenreEditor />{/if}
+{#if inLibrary}<TagEditor /><GenreEditor /><NoteEditor /><SendPanel />{/if}
 {#if inLibrary && view.infoFor}{#key view.infoFor}<EditInfo />{/key}{/if}
 {#if inLibrary && view.statsFor}{#key view.statsFor}<StatsDialog />{/key}{/if}
-<ContextMenu />
+<!-- Menus: at the pointer, or on a phone a sheet from the bottom (ADR 0078). -->
+{#if phone.active}<ActionSheet />{:else}<ContextMenu />{/if}
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}
   <div class="drop-overlay" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>

@@ -1,7 +1,7 @@
 /* A device without a library of its own (a phone), signed in (ADR 0077): the account's library opens by
-   itself from GLUE Cloud, nothing is made there, its songs stream from the desktop's GLUE Home (ADR 0076),
-   and a rating goes to the desktop. Against a stand-in GLUE Cloud; GLUE Home's real service page runs
-   with its Rust side stood in (e2e/tauri-mock.ts). */
+   itself from GLUE Cloud in the phone layout (ADR 0078), nothing is made there, its songs stream from the
+   desktop's GLUE Home (ADR 0076), and a rating goes to the desktop. Against a stand-in GLUE Cloud; GLUE
+   Home's real service page runs with its Rust side stood in (e2e/tauri-mock.ts). */
 import { test as base, expect, chromium, type Page } from '@playwright/test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -13,7 +13,7 @@ import { TAURI_MOCK } from './tauri-mock';
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-phone-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1280, height: 800 } });
+    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 390, height: 844 }, hasTouch: true });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },
@@ -87,44 +87,46 @@ test('a phone signs in and the library opens by itself: songs stream from the de
   await home.goto('http://localhost:5176/service.html');
   await expect(home.locator('#state')).toContainText('Online as Desktop');
 
-  // The phone: no GLUE folder. Signing in opens the library by itself.
+  // The phone: no GLUE folder. Signing in opens the library by itself, in the phone layout (ADR 0078).
   await page.goto('./');
   await expect(page.locator('#homepage')).toBeVisible();
   await page.locator('#cloud-panel .fake-google').click();
-  await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
-  await expect(page.locator('#cloud-banner')).toContainText('Desktop');
+  const all = page.locator('#phone-library [data-view="all"]');
+  await expect(all).toContainText('2', { timeout: 30_000 });
+  await expect(page.locator('#phone .cloud')).toContainText('Desktop');
   // Nothing was made on the phone.
   expect(await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const names: string[] = []; for await (const [n] of (r as unknown as { entries(): AsyncIterable<[string, unknown]> }).entries()) names.push(n); return names.filter(n => n !== 'cache'); })).toEqual([]);
 
   // A song streams from the desktop's GLUE Home.
-  const row = page.locator('.tr', { hasText: 'Manyaro' });
-  await expect(row.locator('.pbtn')).toHaveCount(1, { timeout: 20_000 });
-  await row.hover();
-  await row.locator('.pbtn').click();
-  await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 30_000 });
+  await all.click();
+  const row = page.locator('#phone-songs .row', { hasText: 'Manyaro' });
+  await expect(row).not.toHaveClass(/off/, { timeout: 20_000 });
+  await row.click();
+  await expect(page.locator('#phone-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => performance.getEntriesByType('resource').some(e => e.name.includes('/__stream/')))).toBe(true);
-  await page.click('#lib-play');
+  await page.click('#phone-play');
 
-  // A rating goes to the desktop (applied there when GLUE opens).
-  await row.locator('.c-title').click({ button: 'right' });
-  await page.locator('.cmenu .cstars button').nth(3).click({ position: { x: 12, y: 7 } });
+  // A rating, from the song's sheet, goes to the desktop (applied there when GLUE opens).
+  await row.locator('.dots').click();
+  await page.locator('#phone-sheet').getByRole('button', { name: 'Rate 4' }).click({ position: { x: 20, y: 13 } });
   await expect.poll(() => ops.length, { timeout: 10_000 }).toBe(1);
   expect(ops[0]).toMatchObject({ device: 'desk', profile: pid, collection: cid, op: { t: 'track', rating: 4 } });
 
-  // A song from the phone goes to the desktop's GLUE Home (its incoming folder), with no collection here.
+  // A song from the phone goes to the desktop's GLUE Home (its incoming folder), with no collection here:
+  // More › the desktop's ⋯ › Send songs.
+  await page.locator('.tabs [data-tab="more"]').click();
   const desk = page.locator('#devices [data-device="desk"]');
   await expect(desk).toContainText('GLUE Home', { timeout: 15_000 });
-  await desk.hover();
   await desk.locator('.more').click();
   const chooser = page.waitForEvent('filechooser');
-  await page.click('#send-songs');
+  await page.locator('#phone-sheet #send-songs').click();
   await (await chooser).setFiles([fixture('mp3-cover.mp3')]);
   await expect(page.locator('#send-panel')).toContainText('Sent to Desktop', { timeout: 30_000 });
   expect(await home.evaluate(() => (window as unknown as { __files: { name: string; done: boolean }[] }).__files.filter(f => f.done).map(f => f.name))).toEqual(['mp3-cover.mp3']);
 
   // Next time on the phone: it opens by itself again.
   await page.reload();
-  await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
+  await expect(page.locator('#phone-library [data-view="all"]')).toContainText('2', { timeout: 30_000 });
   await home.close();
   expect(errors).toEqual([]);
 });

@@ -1,9 +1,27 @@
 ---
-updated: 2026-09-27
+updated: 2026-09-28
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-09-28 · The user's second list, batch F: the phone layout
+- **On a phone the library is a phone app** ([ADR 0078](../adr/0078-phone-layout.md), [phone app](../features/phone-app.md)):
+  - Tabs at the bottom: Library, Browse, Playlists, Search, More. Each tab remembers where it was.
+  - Songs as two-line rows with their covers. A tap plays; ⋯ or a long press opens the menu.
+  - Every menu is a sheet from the bottom, with the desktop's entries. So are the tag and genre
+    pickers.
+  - A mini player above the tabs opens the full player (cover, seek, shuffle, repeat, the queue).
+  - A song's page (Details and Prepare), the calendar and an event open inside the same frame, with a
+    way back. Nothing is wider than the screen.
+  - Above 760 px wide nothing changes.
+- **Fixed on the desktop too:**
+  - Browse's find field was squashed to 3 px (a global `.bar` style);
+  - "Add a note…" and the send panel now work from any page, not only the library table.
+- Tests:
+  - e2e `phone-ui.spec` (new, 390 × 844 with touch);
+  - `phone.spec` now runs at phone size, with the phone controls;
+  - `narrow.spec` checks that the phone layout at 600 and 420 px draws only the rows on screen.
 
 ## 2026-09-28 · The user's second list, batch E: the library on any device
 - **Signed in on a device without a library** (a phone; no GLUE folder), the account's library opens

@@ -403,4 +403,19 @@ canPlay = true;
   @media (max-width: 900px) { .remote-res { grid-template-columns: 1fr; } }
   .notice { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; }
   @media (max-width: 1000px) { .info.withdj { grid-template-columns: 1fr; } }
+  /* A phone (ADR 0078): the shell has the way back; the buttons wrap; a long title wraps too. */
+  @media (max-width: 760px) {
+    .detail > * { min-width: 0; }
+    .crumbs a, .src { display: none; }
+    .crumbs { justify-content: flex-start; }
+    .nav { flex-wrap: wrap; }
+    .mini { padding: 6px 10px; font-size: 13px; }
+    .th { flex-wrap: wrap; gap: 10px 14px; }
+    .hacts { flex-wrap: wrap; }
+    .edit { padding: 7px 12px; font-size: 13.5px; }
+    h2 { white-space: normal; font-size: 22px; }
+    .tabs button { flex: 1; padding: 10px 14px; font-size: 15px; }
+    .notes { flex-basis: 100%; }
+    .notes textarea { font-size: 16px; }
+  }
 </style>

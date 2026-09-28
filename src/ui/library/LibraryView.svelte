@@ -7,7 +7,6 @@
   import { router, trackHref, trackTab } from '../../lib/route.svelte';
   import LibSidebar from './LibSidebar.svelte';
   import TrackTable from './TrackTable.svelte';
-  import NoteEditor from './NoteEditor.svelte';
   import DuplicatesView from './DuplicatesView.svelte';
   import FilterMenu from './FilterMenu.svelte';
   import PlaylistInsights from './PlaylistInsights.svelte';
@@ -19,7 +18,6 @@
   import { menu } from '../../lib/menu.svelte';
   import { trackMenu } from '../../lib/trackMenu';
   import { filterMenu } from '../../lib/filterMenu';
-  import SendPanel from './SendPanel.svelte';
   import AppIcon from '../AppIcon.svelte';
   import { drag } from '../../lib/drag.svelte';
   import { listTree } from '../../core/library/listTree';
@@ -254,8 +252,6 @@
       {/if}
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
       {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else if view.sel.kind === 'browse'}<BrowseView by={view.sel.by} />{:else}<TrackTable />{/if}
-      <NoteEditor />
-      <SendPanel />
     </div>
   </div>
 </div>
