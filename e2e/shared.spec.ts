@@ -304,3 +304,64 @@ test('duplicates found on the desktop show on the laptop: the 2× badge on the d
     await expect(lap.page.locator('.tr', { hasText: 'Something else' }).locator('.dup')).toHaveCount(0);
   } finally { await desk.done(); await lap.done(); rmSync(tmp, { recursive: true, force: true }); }
 });
+
+const REKORDBOX = `<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><PRODUCT Name="rekordbox" Version="7.0.0"/>
+<COLLECTION Entries="2">
+<TRACK TrackID="1" Name="Hi-res claim" Artist="Tester" AverageBpm="120.00" Tonality="8A" Location="file://localhost/C:/Users/dj/Music/Sets/flac-96k-24.flac"/>
+<TRACK TrackID="2" Name="Lossy one" Artist="Tester" Location="file://localhost/C:/Users/dj/Music/Sets/mp3-128k.mp3"/>
+</COLLECTION>
+<PLAYLISTS><NODE Type="0" Name="ROOT" Count="1"><NODE Name="Friday" Type="1" KeyType="0" Entries="2"><TRACK Key="2"/><TRACK Key="1"/></NODE></NODE></PLAYLISTS></DJ_PLAYLISTS>`;
+
+test('the desktop’s DJ library on the laptop: with the desktop’s name, not read here, and its playlists imported from here (ADR 0099)', async ({ baseURL }) => {
+  test.setTimeout(240_000);
+  const { cols, route } = fakeCloud();
+  const desk = await browserFor(baseURL), lap = await browserFor(baseURL);
+  try {
+    // The desktop: its rekordbox library, then shared.
+    await route(desk.page, 'b1');
+    await seed(desk.page, []);
+    await desk.page.goto('./');
+    await desk.page.click('#choose-home');
+    await desk.page.fill('#profile-name', 'DJ Test');
+    await desk.page.getByRole('button', { name: 'Create profile' }).click();
+    await desk.page.click('#onb-skip');
+    await desk.page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(REKORDBOX) });
+    await expect(desk.page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
+    await desk.page.click('#account-btn');
+    await desk.page.click('#fake-google');
+    await desk.page.keyboard.press('Escape');
+    await desk.page.click('#share-collection');
+    await expect(desk.page.locator('#shared-chip')).toHaveText('Shared', { timeout: 30_000 });
+    await expect.poll(() => [...[...cols.values()][0]?.files.keys() ?? []].some(p => p.startsWith('sources/')), { timeout: 30_000 }).toBe(true);
+    // On the desktop it's its own: Refresh, and no computer's name.
+    await expect(desk.page.locator('#dj-libs [data-dj-where]')).toHaveCount(0);
+    await expect(desk.page.locator('#dj-libs [data-dj-refresh]')).toHaveCount(1);
+
+    // The laptop adds the collection: the library is the desktop's.
+    await route(lap.page, 'b2');
+    await seed(lap.page, []);
+    await lap.page.goto('./');
+    await lap.page.click('#choose-home');
+    await lap.page.fill('#profile-name', 'DJ Test');
+    await lap.page.getByRole('button', { name: 'Create profile' }).click();
+    await lap.page.click('#onb-skip');
+    await lap.page.click('#account-btn');
+    await lap.page.click('#fake-google');
+    await lap.page.keyboard.press('Escape');
+    const cid = [...cols.keys()][0];
+    await expect(lap.page.locator(`#collection-pick option[value="__join:${cid}"]`)).toHaveCount(1, { timeout: 20_000 });
+    await lap.page.selectOption('#collection-pick', '__join:' + cid);
+    await expect(lap.page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
+    await expect(lap.page.locator('#dj-libs [data-dj-where]')).toHaveText('Desktop');
+    await expect(lap.page.locator('#dj-libs [data-dj-refresh]')).toHaveCount(0);
+    await expect(lap.page.locator('#dj-libs .tools')).toHaveCount(0);   // removed only where it is
+
+    // Its playlists come into GLUE from here, and reach the desktop.
+    await lap.page.locator('#dj-libs [data-dj-open]').click();
+    await lap.page.locator('#dj-libs [data-dj-all]').click();
+    await expect(lap.page.locator('.notice')).toContainText('1 playlist');
+    await expect(lap.page.locator('.lside .tree .name', { hasText: 'rekordbox' })).toHaveCount(1);   // its folder, Friday inside
+    await expect(lap.page.locator('.tr')).toHaveCount(2);
+    await expect(desk.page.locator('.lside .tree .name', { hasText: 'rekordbox' })).toHaveCount(1, { timeout: 30_000 });
+  } finally { await desk.done(); await lap.done(); }
+});

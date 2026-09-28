@@ -316,8 +316,15 @@
     ]);
   }
   function removeSource(s: Source) { if (confirm('Remove the ' + (APP_NAMES[s.app] ?? s.app) + ' import and its playlists? Tracks with a linked file stay.')) lib.deleteSource(s.id); }
+  /** Another computer's library (ADR 0099): that computer's name, else null (this computer's own). */
+  const elsewhere = (s: Source): string | null => lib.store && !lib.store.ownSource(s) ? (lib.store.shared?.here.members[s.computer!]?.name ?? 'another computer') : null;
   function sourceMenu(s: Source): MenuEntry[] {
     const name = APP_NAMES[s.app] ?? s.app, st = djWatch.status[s.id], n = s.tree?.length ?? 0;
+    if (elsewhere(s)) return tidy([
+      { label: 'Show its songs', run: () => view.select({ kind: 'source', id: s.id }) },
+      n > 0 && { label: djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists', run: () => (djOpen[s.id] = !djOpen[s.id]) },
+      n > 0 && { label: 'Import all ' + n + ' into GLUE', run: () => importDj(s, '', name) },
+    ]);
     return tidy([
       { label: 'Show its songs', run: () => view.select({ kind: 'source', id: s.id }) },
       { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: name, sel: { kind: 'source', id: s.id } }) },
@@ -561,11 +568,12 @@
             <AppIcon app={s.app} />
             <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}<small> {s.fileName}</small></button>
             <span class="n">{s.tracks.length}</span>
-            {#if live}
+            {#if elsewhere(s)}<span class="onpc" data-dj-where={s.id} title={'On ' + elsewhere(s) + ': GLUE reads it there, and keeps it up to date for every device'}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 13.5h5M8 11v2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>{elsewhere(s)}</span>
+            {:else if live}
               {#if djWatch.status[s.id] === 'live' || djWatch.status[s.id] === 'reading'}<span class="live" class:reading={djWatch.status[s.id] === 'reading'} data-dj-live={s.id} title={djWatch.status[s.id] === 'reading' ? 'Reading its changes…' : 'Followed live through GLUE Home: its changes show here within seconds'}>●</span>
               {:else}<button type="button" class="update" data-dj-find={s.id} title="GLUE Home follows a library live once it knows its file: choose it" onclick={() => void importWithHome()}>Find its file…</button>{/if}
             {:else}<button type="button" class="refresh" class:update={changed} data-dj-refresh={s.id} title={changed ? 'Changed since GLUE read it (' + new Date(d!.modified).toLocaleString() + '): read it again' : 'Read this library again (with GLUE Home running, GLUE follows it live)'} onclick={() => void refresh(s)}>{changed ? 'Update' : 'Refresh'}</button>{/if}
-            <span class="tools keep"><button type="button" title="Remove this import" onclick={() => removeSource(s)}>×</button></span>
+            {#if !elsewhere(s)}<span class="tools keep"><button type="button" title="Remove this import" onclick={() => removeSource(s)}>×</button></span>{/if}
           </div>
           {#if djOpen[s.id] && s.tree?.length}
             <ul class="djtree" aria-label={(APP_NAMES[s.app] ?? s.app) + ' playlists'}>
@@ -695,6 +703,8 @@
   .refresh { font-size: 11px; padding: 1px 6px; }
   .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; }
   .djtree { list-style: none; margin: 0; padding: 0; }
+  .onpc { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .onpc svg { width: 12px; height: 12px; }
   .djall { padding: 2px 0 4px 30px; font-size: 12px; }
   .binlink { background: none; border: 0; padding: 4px 12px 8px; color: var(--muted); font-size: 11px; cursor: pointer; text-align: left; }
   .binlink:hover { color: var(--text); text-decoration: underline; }

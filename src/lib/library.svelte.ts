@@ -686,10 +686,12 @@ class Library {
       const found: typeof this.detected = [];
       const add = (d: Detected, place: string, placeName: string) => {
         if (found.some(x => x.place === place && x.relPath === d.relPath)) return;
-        const src = [...s.sources.values()].find(x => x.origin?.place === place && x.origin.relPath === d.relPath)
-          ?? [...s.sources.values()].find(x => !x.origin && x.app === d.kind && x.fileName === (d.relPath.split('/').pop() ?? ''))
+        // Only this computer's libraries: another computer's same app is that computer's (ADR 0099).
+        const mine = [...s.sources.values()].filter(x => s.ownSource(x));
+        const src = mine.find(x => x.origin?.place === place && x.origin.relPath === d.relPath)
+          ?? mine.find(x => !x.origin && x.app === d.kind && x.fileName === (d.relPath.split('/').pop() ?? ''))
           // An Engine DJ set is one source: another database of it is part of that source.
-          ?? (d.kind === 'engine' ? [...s.sources.values()].find(x => x.app === 'engine') : undefined);
+          ?? (d.kind === 'engine' ? mine.find(x => x.app === 'engine') : undefined);
         const own = src?.origin?.place === place && src.origin.relPath === d.relPath;
         const status = !src ? 'new' : own && d.modified > src.origin!.modified + 1000 ? 'changed' : 'imported';
         found.push({ ...d, place, placeName, status, sourceId: src?.id ?? null });
@@ -705,7 +707,7 @@ class Library {
       // (ADR 0063). Of several (an Engine DJ set), the biggest file: the computer's own library.
       // modified 0: the next look reads it once, and keeps its tree.
       for (const src of s.sources.values()) {
-        if (src.origin || this.store !== s) continue;
+        if (src.origin || this.store !== s || !s.ownSource(src)) continue;
         const d = found.filter(x => x.sourceId === src.id).sort((a, b) => b.size - a.size)[0];
         if (d) this.markOrigin(src.id, { place: d.place, relPath: d.relPath, modified: 0 });
       }

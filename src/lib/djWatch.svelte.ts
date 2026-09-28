@@ -66,7 +66,7 @@ class DjWatch {
     try {
       for (const src of [...s.sources.values()]) {
         if (lib.store !== s) return;
-        if (src.origin) await this.check(src, false, false).catch(e => { this.set(src.id, 'lost'); console.warn('Couldn’t look at ' + src.fileName, e); });
+        if (src.origin && s.ownSource(src)) await this.check(src, false, false).catch(e => { this.set(src.id, 'lost'); console.warn('Couldn’t look at ' + src.fileName, e); });
       }
     } finally { this.busy = false; }
   }

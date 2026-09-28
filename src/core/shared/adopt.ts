@@ -67,7 +67,7 @@ export function adopt(shared: SharedParts, own: OwnParts, me: string, member: { 
   const sources = [...shared.sources], srcIds = new Map<string, string>(), takenSrc = new Set(sources.map(s => s.id));
   for (const s of own.sources) {
     const id = freeId(s.id, takenSrc, me); takenSrc.add(id); srcIds.set(s.id, id);
-    sources.push({ ...s, id, tracks: s.tracks.map(st => ({ ...st, trackId: ids.get(st.trackId) ?? st.trackId })) });
+    sources.push({ ...s, id, computer: s.computer ?? me, tracks: s.tracks.map(st => ({ ...st, trackId: ids.get(st.trackId) ?? st.trackId })) });
   }
   for (const t of tracks.values()) { const c = t.copies?.[me]; if (c?.sources?.length) c.sources = c.sources.map(x => srcIds.get(x) ?? x); }
 

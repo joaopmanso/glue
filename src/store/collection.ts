@@ -170,7 +170,13 @@ export class CollectionStore {
   }
   putEvent(e: GlueEvent) { this.events.set(e.id, e); this.rev.events++; this.mark('events.json'); this.changed(); }
   deleteEvent(id: string) { this.events.delete(id); this.rev.events++; this.mark('events.json'); this.changed(); }
-  putSource(s: Source) { this.sources.set(s.id, s); this.rev.sources++; this.mark(`sources/${s.id}.json`); this.changed(); }
+  putSource(s: Source) {
+    // A library read here, in a shared collection: this computer's (ADR 0099).
+    if (this.shared && !s.computer) s = { ...s, computer: this.shared.here.me };
+    this.sources.set(s.id, s); this.rev.sources++; this.mark(`sources/${s.id}.json`); this.changed();
+  }
+  /** A library this computer can read: its own, or any outside a shared collection. */
+  ownSource(s: Source) { return !this.shared || !s.computer || s.computer === this.shared.here.me; }
   deleteSource(id: string) {
     this.sources.delete(id); this.rev.sources++;
     this.dirty.delete(`sources/${id}.json`); this.deleted.add(`sources/${id}.json`);

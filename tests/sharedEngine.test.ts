@@ -147,6 +147,11 @@ describe('a collection made shared, as each computer sees it (ADR 0094)', () => 
     ds = await CollectionStore.load(deskRoot, dp.id, dc.id, { me: 'desk' });
     expect(ds.shared).not.toBeNull();
     expect(ds.tracks.get('aa01')).toMatchObject({ rootId: 'r1', relPath: 'Sets/a.mp3' });
+    // A library read here is this computer's; another computer's isn't read here (ADR 0099).
+    ds.putSource({ schemaVersion: 1, id: 'rb', app: 'rekordbox', name: 'rekordbox', fileName: 'x.xml', importedAt: '', lists: 0, tracks: [] });
+    expect(ds.sources.get('rb')!.computer).toBe('desk');
+    expect(ds.ownSource(ds.sources.get('rb')!)).toBe(true);
+    expect(ds.ownSource({ ...ds.sources.get('rb')!, computer: 'lap' })).toBe(false);
     // The laptop joins: its own profile, the same collection id.
     const lapRoot = asDir(new MemDir()), lh = await HomeStore.open(lapRoot);
     const lp = await lh.createProfile('DJ');

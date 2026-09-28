@@ -172,3 +172,4 @@ Planned (GLUE):
 | [0096](adr/0096-move-merged-collections-into-the-shared-one.md) | Move merged collections into the shared one, one computer at a time | accepted |
 | [0097](adr/0097-glue-home-syncs-shared-collections.md) | GLUE Home syncs its computer's shared collections, and writes song info edited elsewhere | accepted |
 | [0098](adr/0098-duplicates-across-computers.md) | Duplicates across computers: each computer publishes its own matches | accepted |
+| [0099](adr/0099-dj-libraries-belong-to-their-computer.md) | In a shared collection, a DJ library belongs to its computer | accepted |

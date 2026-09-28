@@ -23,6 +23,11 @@ export async function makeShared(root: Dir, pid: string, cid: string, me: string
     if (!sh) continue;
     await writeJSON(root, `${base}/analysis/${f}`, { ...sh, items: Object.fromEntries(Object.entries(sh.items).map(([id, a]) => [id, { [me]: a }])) });
   }
+  // Its DJ libraries: this computer's (ADR 0099).
+  for (const f of await listNames(root, base + '/sources', 'file').catch(() => [] as string[])) {
+    const src = await readJSON<Source>(root, `${base}/sources/${f}`);
+    if (src && !src.computer) await writeJSON(root, `${base}/sources/${f}`, { ...src, computer: me });
+  }
   // Last: until the collection file says so, it's still a collection of this computer's own.
   await writeJSON(root, base + '/collection.json', sc);
   return true;

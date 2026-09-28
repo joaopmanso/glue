@@ -5,6 +5,17 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The shared collection, step 5c: every computer's DJ libraries
+- **In a shared collection, every computer's DJ libraries show on every device**, with that computer's
+  name and a computer icon ([ADR 0099](../adr/0099-dj-libraries-belong-to-their-computer.md)).
+- Their playlists can be imported into GLUE from any device, and reach every device.
+- Only the library's own computer reads it again, follows it, or removes it. Another computer's same
+  DJ app is a different library, and its playlists are never taken as this one's.
+- Tests:
+  - unit: a library read here is this computer's; a moved-in one too;
+  - e2e: the desktop's rekordbox library on the laptop, with "Desktop" and no Refresh, and its
+    playlists imported from the laptop reach the desktop.
+
 ## 2026-09-28 · The shared collection, step 5b: duplicates on every device
 - **The 2×/3× badge now shows on another computer's songs** in a shared collection
   ([ADR 0098](../adr/0098-duplicates-across-computers.md)): each computer publishes the same-recording

@@ -50,6 +50,7 @@ describe('moving a computer’s collection into the shared one (ADR 0096)', () =
     const lo = r.lists.find(l => l.name === 'Laptop only')!;
     expect(lo.items).toEqual([three.id]);
     expect(r.sources[0].tracks[0].trackId).toBe('aa1');
+    expect(r.sources[0].computer).toBe('lap');   // this computer's library (ADR 0099)
     expect(r.meta.rootsBy).toEqual({ desk: [], lap: [{ id: 'lr', name: 'Music' }] });
     expect(Object.keys(r.meta.members).sort()).toEqual(['desk', 'lap']);
     expect(r.meta.id).toBe('c-desk');
