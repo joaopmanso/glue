@@ -138,6 +138,14 @@ test('a phone signs in and the library opens by itself: songs stream from the de
   await page.locator('#phone-sheet').getByRole('button', { name: 'Rate 4' }).click({ position: { x: 20, y: 13 } });
   await expect.poll(() => ops.length, { timeout: 10_000 }).toBe(1);
   expect(ops[0]).toMatchObject({ device: 'desk', profile: pid, collection: cid, op: { t: 'track', rating: 4 } });
+  // So does its song info (ADR 0087): the title, from Edit info; the desktop's GLUE Home is told at once.
+  await row.locator('.dots').click();
+  await page.locator('#phone-sheet [data-m="info"]').click();
+  await page.fill('#edit-info [data-f="title"]', 'Manyaro (Edit)');
+  await page.click('#info-save');
+  await expect.poll(() => ops.length, { timeout: 10_000 }).toBe(2);
+  expect(ops[1]).toMatchObject({ device: 'desk', profile: pid, collection: cid, op: { t: 'track', info: { title: 'Manyaro (Edit)' } } });
+  await expect.poll(() => home.evaluate(() => (window as unknown as { __editsWaiting?: number }).__editsWaiting ?? 0), { timeout: 20_000 }).toBeGreaterThan(0);
 
   // A song from the phone goes to the desktop's GLUE Home (its incoming folder), with no collection here:
   // More › the desktop's ⋯ › Send songs.

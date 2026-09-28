@@ -29,6 +29,9 @@ export class FakeHome {
   trashed: string[] = [];
   /** Song info written into files (/fs/tags, ADR 0071): the file's path in its root, and the fields. The file is only touched. */
   tagWrites: { path: string; tags: Record<string, string> }[] = [];
+  /** The writer lease (ADR 0087): when a tab last renewed it, and the edits counter it's told. */
+  leasedAt = 0;
+  edits = 0;
   private server: Server | null = null;
   constructor(readonly dirs: FakeHomeDirs) {}
 
@@ -58,6 +61,7 @@ export class FakeHome {
     if (method === 'OPTIONS') return send(204, '');
     if (u.pathname === '/hello') return send(200, { app: 'glue-home', version: '0.5.0', device: this.device });
     if (q.get('t') !== this.token) return send(401, { error: 'not allowed' });
+    if (u.pathname === '/lease' && method === 'POST') { this.leasedAt = Date.now(); return send(200, { edits: this.edits }); }
     if (u.pathname === '/fs/roots') return send(200, { glue: this.dirs.glue, incoming: this.dirs.incoming, folders: this.dirs.folders, libraries: this.libraries, sep });
     if (u.pathname === '/fs/pickfile') {
       const f = this.pickFile;

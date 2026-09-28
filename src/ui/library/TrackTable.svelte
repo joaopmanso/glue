@@ -218,7 +218,8 @@
   const EDITABLE: ColKey[] = ['title', 'artist', 'album', 'label', 'year'];   // genre: its picker
   let inline = $state<{ id: string; k: ColKey; v: string } | null>(null);
   let slow = 0;
-  const editable = (t: Track | undefined) => !!t && !t.remote && !lib.cloud && !lib.readOnly;
+  // Another computer's songs too: the edit goes to it (ADR 0087).
+  const editable = (t: Track | undefined) => !!t && lib.canEditInfo(t);
   function startInline(id: string, k?: ColKey) {
     const t = lib.store?.tracks.get(id), shown = cols.filter(c => EDITABLE.includes(c));
     const col = k && shown.includes(k) ? k : shown[0];

@@ -234,7 +234,7 @@ canPlay = true;
           {#if summary?.label === MARKED_FINE}<button type="button" class="edit" id="undo-fine" disabled={lib.readOnly} title={'Show GLUE’s verdict again: ' + raw.label} onclick={() => lib.markFine([id], false)}>Undo</button>
           {:else}<button type="button" class="edit" id="not-a-problem" disabled={lib.readOnly} title="A false alarm: show this song as fine in the library (while GLUE’s verdict stays this one)" onclick={() => lib.markFine([id], true)}>Not a problem</button>{/if}
         {/if}
-        {#if !track.remote && !lib.cloud}<button type="button" class="edit" id="edit-info-btn" disabled={lib.readOnly} onclick={() => (view.infoFor = { ids: [id] })}>Edit info</button>{/if}
+        {#if !lib.readOnly && lib.canEditInfo(track)}<button type="button" class="edit" id="edit-info-btn" title={track.remote ? 'Changed here and on ' + track.remote.name + ', which writes it into the file' : undefined} onclick={() => (view.infoFor = { ids: [id] })}>Edit info</button>{/if}
       </div>
     </header>
     {#if track.unwritten?.length}<p class="unw" id="info-unwritten">Edited in GLUE, not in the file yet ({track.unwritten.join(', ')}): GLUE Home writes {track.unwritten.length === 1 ? 'it' : 'them'} into the file when it runs on this computer.</p>{/if}
@@ -253,7 +253,7 @@ canPlay = true;
         <dl>
           <div><dt>Size</dt><dd>{track.size ? fmtBytes(track.size) : '—'}</dd></div>
           <div><dt>Length</dt><dd>{track.duration ? fmtTime(track.duration) : '—'}</dd></div>
-          <div><dt>Genre</dt><dd><button type="button" class="tedit" id="track-genre" data-genre-open disabled={!!track.remote || !!lib.cloud || lib.readOnly} onclick={e => { const b = e.currentTarget.getBoundingClientRect(); view.genreFor = { ids: [id], x: b.left, y: b.bottom }; }}>{track.genre || '+ Genre'}</button></dd></div>
+          <div><dt>Genre</dt><dd><button type="button" class="tedit" id="track-genre" data-genre-open disabled={!lib.canEditInfo(track)} onclick={e => { const b = e.currentTarget.getBoundingClientRect(); view.genreFor = { ids: [id], x: b.left, y: b.bottom }; }}>{track.genre || '+ Genre'}</button></dd></div>
           {#if track.label}<div><dt>Label</dt><dd>{track.label}</dd></div>{/if}
           {#if track.grouping}<div><dt>Grouping</dt><dd>{track.grouping}</dd></div>{/if}
           <div><dt>Added</dt><dd>{new Date(track.addedAt).toLocaleDateString()}</dd></div>

@@ -7,6 +7,7 @@ import { importLists as importListsInto } from '../store/linked';
 
 const NO_DJ = new Map<string, DjValues>(), NO_LISTS = new Map<string, List[]>(), NO_LINKED = new Map<string, List>();
 import { CollectionStore } from '../store/collection';
+import { writeUnwritten } from '../store/writeInfo';
 import { LOOSE, absorbTracks, applyImport, applyScan, blankLibTrack, tidyTracks, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
@@ -863,16 +864,21 @@ class Library {
     const r = rating == null || rating <= 0 ? null : Math.min(5, Math.round(rating * 2) / 2);
     s.putTracks(ids.map(id => s.tracks.get(id)).filter((t): t is Track => !!t).map(t => ({ ...t, rating: r })));
   }
+  /** Can this song's info be edited here: this computer's own, or another computer's (the edit goes to
+      it, ADR 0087). Not a song waiting in an incoming folder (it's no collection's yet). */
+  canEditInfo(t: Track) { return !this.readOnly && !(t.remote && (!t.remote.id || t.remote.incoming)); }
   /** Edit songs' info (ADR 0071): kept in GLUE at once, then written into the files of this computer's
-      music folders by GLUE Home (now, or when it next runs). Only the fields given change; a title
-      can't be emptied. */
+      music folders by GLUE Home (now, or when it next runs). Another computer's songs: changed here and
+      sent to that computer, which keeps it as its own edit (ADR 0087). Only the fields given change; a
+      title can't be emptied. */
   editInfo(ids: string[], patch: { [K in InfoField]?: string }) {
     const s = this.store;
     if (!s || this.readOnly) return;
     const out: Track[] = [];
+    let own = false;
     for (const id of ids) {
       const t = s.tracks.get(id);
-      if (!t || t.remote) continue;
+      if (!t || !this.canEditInfo(t)) continue;
       const next: Track = { ...t }, changed: InfoField[] = [];
       for (const k of INFO_FIELDS) {
         const v = patch[k]?.trim();
@@ -880,11 +886,14 @@ class Library {
         next[k] = v; changed.push(k);
       }
       if (!changed.length) continue;
+      out.push(next);
+      // Another computer's song: that computer marks it as edited when the edit gets there.
+      if (t.remote || this.cloud) continue;
+      own = true;
       next.edited = [...new Set([...t.edited ?? [], ...changed])];
       if (t.rootId && t.relPath && !t.fileKey) next.unwritten = [...new Set([...t.unwritten ?? [], ...changed])];
-      out.push(next);
     }
-    if (out.length) { s.putTracks(out); void this.writeInfo(); }
+    if (out.length) { s.putTracks(out); if (own) void this.writeInfo(); }
   }
   /** Mark songs' verdicts as fine (false positives), or show GLUE's verdict again (`fine` false). The mark
       holds for the verdict each song has now; a different one later shows again. */
@@ -908,34 +917,22 @@ class Library {
   /** Edited info into the files, through GLUE Home (Home mode only; the rest waits for it). */
   writeInfo() { return (this.writing ??= this.writeInfoOnce().finally(() => { this.writing = null; })); }
   private async writeInfoOnce() {
-    const tried = new Set<string>();
-    let failed = 0, why = '';
-    for (;;) {
-      const s = this.store;
-      if (!s || this.readOnly || this.cloud || !platform.homeMode()) return;
-      const t = [...s.tracks.values()].find(x => x.unwritten?.length && !tried.has(x.id));
-      if (!t) break;
-      tried.add(t.id);
-      const root = this.rootState(t.rootId)?.root;
-      if (!root || !t.relPath || t.status !== 'linked') continue;
-      const tags = Object.fromEntries(t.unwritten!.map(k => [k, t[k as InfoField] ?? '']));
-      try {
-        const r = await platform.writeTags(root, t.relPath, tags);
-        const now = s.tracks.get(t.id);
-        if (this.store !== s || !now) return;
-        // Edited again meanwhile: still to write.
-        const left = (now.unwritten ?? []).filter(k => !(k in tags) || (now[k as InfoField] ?? '') !== tags[k]);
-        s.putTrack({ ...now, size: r.size, mtime: r.mtime, unwritten: left.length ? left : undefined });
-        // The sound didn't change: the analysis stays the file's, so nothing is analysed again.
-        const a = s.analysis.get(t.id), was = { size: t.size, mtime: t.mtime };
-        if (a && a.fileSize === was.size && a.fileMtime === was.mtime) s.putAnalysis(t.id, { ...a, fileSize: r.size, fileMtime: r.mtime });
-        const cache = await platform.cacheDir();
-        if (cache) await restampDetails(cache, s.meta.id, t.id, was, r).catch(() => {});
-      } catch (e) {
-        if ((e as Error).name === 'HomeDown') return;
-        failed++; why = String((e as Error)?.message || e);
-      }
-    }
+    const s = this.store;
+    if (!s || this.readOnly || this.cloud || !platform.homeMode()) return;
+    const stop = () => this.store !== s || this.readOnly || !!this.cloud || !platform.homeMode();
+    let r: { failed: number; why: string };
+    try {
+      r = await writeUnwritten(s, (t, tags) => {
+        const root = this.rootState(t.rootId)?.root;
+        if (!root || !t.relPath) throw new Error('its music folder isn’t known here');
+        return platform.writeTags(root, t.relPath, tags);
+      }, {
+        stop,
+        restamp: async (t, was, now) => { const cache = await platform.cacheDir(); if (cache) await restampDetails(cache, s.meta.id, t.id, was, now); },
+        fatal: e => (e as Error).name === 'HomeDown',
+      });
+    } catch { return; }
+    const { failed, why } = r;
     if (failed) this.notice = 'GLUE Home couldn’t write the info into ' + (failed === 1 ? 'one song’s file' : failed + ' songs’ files') + ': ' + why + ' GLUE keeps the edits, and tries again when GLUE Home next connects.';
   }
   addToList(id: string, trackIds: string[], at?: number) {
@@ -1006,6 +1003,8 @@ class Library {
       while looked up, '' none) and the JPEG; `refuse`: that album's cover is wrong. */
   findArt: ((ts: Track[], px: 64 | 320, refuse?: boolean) => Promise<Map<string, { hash: string; bytes: Uint8Array | null }>>) | null = null;
   canFindArt: (() => boolean) | null = null;
+  /** Edits were sent for another device (ADR 0087): tell its GLUE Home, if it runs. */
+  nudgeEdits: ((device: string) => void) | null = null;
   /** What to play a song from (ADR 0076): an address that streams (this computer's GLUE Home's local link,
       or another computer's GLUE Home) when the browser plays the format by itself; otherwise the file. */
   async mediaFor(t: Track): Promise<Blob | string> {

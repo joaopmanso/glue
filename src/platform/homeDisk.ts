@@ -54,6 +54,9 @@ export class HomeDisk {
   tags(root: string, path: string, tags: Record<string, string>) {
     return this.json<{ size: number; mtime: number }>('/fs/tags', {}, { method: 'POST', body: JSON.stringify({ root, path, tags }) });
   }
+  /** This tab is open and writes the library (ADR 0087): GLUE Home leaves edits to it. `edits` changes
+      when another device sent some. */
+  lease() { return this.json<{ edits: number }>('/lease', {}, { method: 'POST', signal: AbortSignal.timeout(4_000) }); }
   /** A file's URL on the local link (for <audio src>: plays and seeks with byte ranges). */
   fileUrl(root: string, path: string) { return this.base + '/fs/file?' + new URLSearchParams({ root, path, t: this.token }); }
 }

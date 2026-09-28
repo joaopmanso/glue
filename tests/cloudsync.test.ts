@@ -39,6 +39,18 @@ describe('cloud edits (ADR 0040)', () => {
     expect(dev.tracks.get('a')!.tags).toBeUndefined();
     expect(dev.lists.get('p')).toMatchObject({ items: ['a'], parentId: null });
   });
+  it('carries song info, which the owner keeps as its own edit and writes into the file (ADR 0087)', () => {
+    const tracks = [T('a', { genre: 'House' }), T('b', { rootId: null, relPath: null })];
+    const b = baseline(tracks, []);
+    const ops = diff(b, [{ ...tracks[0], title: 'New title', genre: 'Techno' }, { ...tracks[1], artist: 'Someone' }], []);
+    expect(ops).toEqual([{ t: 'track', id: 'a', info: { title: 'New title', genre: 'Techno' } }, { t: 'track', id: 'b', info: { artist: 'Someone' } }]);
+    const dev = target(tracks, []);
+    apply(dev, [...ops, { t: 'track', id: 'a', info: { title: '  ' } }]);
+    expect(dev.tracks.get('a')).toMatchObject({ title: 'New title', genre: 'Techno', edited: ['title', 'genre'], unwritten: ['title', 'genre'] });
+    // A song with no file here: kept, nothing to write.
+    expect(dev.tracks.get('b')).toMatchObject({ artist: 'Someone', edited: ['artist'] });
+    expect(dev.tracks.get('b')!.unwritten).toBeUndefined();
+  });
 });
 
 describe('merged collections', () => {

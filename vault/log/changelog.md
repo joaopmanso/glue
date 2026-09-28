@@ -5,6 +5,24 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's fourth list, batch L: edit other computers' songs (GLUE Home 0.19)
+- **The laptop (or phone) can edit the desktop's songs:** title, artist, album, genre, label, year,
+  grouping and comment, as well as ratings, notes, tags and playlists
+  ([ADR 0087](../adr/0087-edits-reach-glue-home.md)).
+  - The edit goes to the desktop, which keeps it as its own and writes it into the song's file.
+  - Songs waiting in TO BE SORTED are edited once they're in a music folder.
+- **With GLUE Home on the desktop, the edit arrives within seconds,** GLUE tab open or not:
+  - with a tab open, the tab takes it in at once (GLUE Home tells it);
+  - with no tab, GLUE Home applies it to the GLUE folder and the file itself.
+- **The writer lease:** an open GLUE tab in Home mode tells GLUE Home every 5 s that it's the one
+  writing the library.
+- The song-info writing is shared by the website and GLUE Home (`store/writeInfo.ts`).
+- Tests:
+  - unit: info in edit ops;
+  - e2e: a phone edits a desktop song's title, and it goes to the desktop's GLUE Home;
+  - e2e: GLUE Home applies an edit into the GLUE folder and the file with no tab open, and leaves it
+    while a tab holds the lease.
+
 ## 2026-09-28 · The user's fourth list, batch K: missing covers from public services (GLUE Home 0.18)
 - **Songs with no cover in their tags get one looked up** ([ADR 0086](../adr/0086-covers-looked-up-by-glue-home.md)).
   - A GLUE Home of the account asks Deezer, then iTunes, then MusicBrainz's Cover Art Archive,

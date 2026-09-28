@@ -20,6 +20,7 @@ import { apply, baseline, diff, type Baseline, type EditOp } from '../core/libra
 import { mergeCollections, translate, type Merged, type MemberData } from '../core/library/mergeCollections';
 import { buildOverlay, overlayOps, type Overlay } from '../core/library/overlay';
 import { time } from '../core/perf';
+import { onEditsWaiting } from '../platform';
 import type { Track } from '../store/types';
 
 type Copy = { device: string; name: string; profile: string; collection: string; id: string };
@@ -200,7 +201,8 @@ class CloudSync {
     for (const o of ops) (byCollection.get(o.collection) ?? byCollection.set(o.collection, []).get(o.collection)!).push(o.op);
     for (const [cid, list] of byCollection) {
       if (!profile!.collections.some(c => c.id === cid)) continue;
-      if (lib.store && !lib.cloud && lib.store.meta.id === cid && lib.profile?.id === pid) { applied += apply(lib.store, list); await lib.flush(); }
+      // Song info edited elsewhere is this computer's own edit now: written into the files (ADR 0087).
+      if (lib.store && !lib.cloud && lib.store.meta.id === cid && lib.profile?.id === pid) { applied += apply(lib.store, list); await lib.flush(); void lib.writeInfo(); }
       else { const s = await CollectionStore.load(home, pid, cid); applied += apply(s, list); await s.flush(); }
     }
     await account.request('POST', '/v1/sync/ops/ack', { json: { profile: pid, upTo: ops[ops.length - 1].seq } });
@@ -393,7 +395,9 @@ class CloudSync {
     if (!this.unsent.length || !account.signedIn) return;
     const out = this.unsent; this.unsent = [];
     try { for (let i = 0; i < out.length; i += 400) await account.request('POST', '/v1/sync/ops', { json: { ops: out.slice(i, i + 400) } }); }
-    catch (e) { this.unsent = [...out, ...this.unsent]; console.warn('Cloud sync: edits are sent on the next try', e); }
+    catch (e) { this.unsent = [...out, ...this.unsent]; console.warn('Cloud sync: edits are sent on the next try', e); return; }
+    // Their computers' GLUE Homes take them in now, rather than when GLUE next opens there (ADR 0087).
+    for (const d of new Set(out.map(o => o.device))) lib.nudgeEdits?.(d);
   }
   /** Signed out: the other devices' songs go, and so does the account's cached state. */
   forgetOverlay() {
@@ -559,7 +563,8 @@ class CloudSync {
     if (t.kind === 'device') for (const op of ops) out.push({ ...t.member, op });
     else for (const [mi, list] of translate(ops, t.merged, t.members.length)) for (const op of list) out.push({ ...t.members[mi], op });
     for (let i = 0; i < out.length; i += 400) await account.request('POST', '/v1/sync/ops', { json: { ops: out.slice(i, i + 400) } });
-    lib.notice = 'Saved to the cloud. ' + (t.kind === 'device' ? lib.cloud.title : 'Each device') + ' applies it the next time GLUE opens there.';
+    for (const d of new Set(out.map(o => o.device))) lib.nudgeEdits?.(d);
+    lib.notice = 'Saved to the cloud. ' + (t.kind === 'device' ? lib.cloud.title + ' takes' : 'Each device takes') + ' it in at once where GLUE Home runs, or the next time GLUE opens there.';
   }
 
   // ---- cleaning up --------------------------------------------------------------------------------
@@ -582,6 +587,8 @@ class CloudSync {
 }
 
 export const sync = new CloudSync();
+// This tab holds GLUE Home's lease and another device sent edits (ADR 0087): taken in now.
+onEditsWaiting(() => { const p = lib.profile; if (p && lib.store && !lib.cloud) void sync.pull(p.id).catch(() => {}); });
 
 // After a save, upload changes; when a collection opens, show the merged collection, take in edits
 // made elsewhere and upload. Signing in starts it for the open collection; signing out ends it.

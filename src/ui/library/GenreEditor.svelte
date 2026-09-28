@@ -14,7 +14,7 @@
   let q = $state('');
   let forKey = '';
   $effect(() => { const k = at ? at.ids.join(',') : ''; if (k !== forKey) { forKey = k; q = ''; } });
-  const tracks = $derived.by(() => { void lib.version; return (at?.ids ?? []).map(id => lib.store?.tracks.get(id)).filter((t): t is Track => !!t && !t.remote); });
+  const tracks = $derived.by(() => { void lib.version; return (at?.ids ?? []).map(id => lib.store?.tracks.get(id)).filter((t): t is Track => !!t && lib.canEditInfo(t)); });
   const current = $derived.by(() => { const gs = new Set(tracks.map(t => (t.genre ?? '').trim().toLowerCase())); return gs.size === 1 ? [...gs][0] : null; });
   const genres = $derived(allGenres());
   const offered = $derived.by(() => { const w = q.trim().toLowerCase(); return w ? genres.filter(g => g.name.toLowerCase().includes(w)) : genres; });

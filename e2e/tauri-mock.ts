@@ -39,7 +39,10 @@ export const TAURI_MOCK = `(() => {
         case 'incoming_end': { const f = files[args.id - 1]; f.done = args.ok; return args.ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; }
         case 'set_status': case 'show_settings': return;
         case 'open_library': window.__opened = 'library'; return;
-        case 'local_port': return 47400;
+        case 'local_port': return window.__localPort ?? 47400;
+        // The writer lease (ADR 0087): window.__lease says whether a GLUE tab holds it; edits_waiting counts.
+        case 'lease_held': return !!window.__lease;
+        case 'edits_waiting': window.__editsWaiting = (window.__editsWaiting ?? 0) + 1; return;
         // Cover services (ADR 0086): window.__web maps an address's start to its answer (JSON or bytes).
         case 'web_get': { const hit = Object.entries(window.__web ?? {}).find(([k]) => args.url.startsWith(k)); window.__webAsked = [...(window.__webAsked ?? []), args.url]; if (!hit) throw 'the service said 404'; const v = hit[1]; return typeof v === 'string' ? new TextEncoder().encode(v).buffer : new Uint8Array(v).buffer; }
         // Updates: window.__update is the newer version, if any.

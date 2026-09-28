@@ -11,7 +11,7 @@
   const ORDER: InfoField[] = ['title', 'artist', 'album', 'genre', 'label', 'year', 'grouping', 'comment'];
 
   const want = view.infoFor!;
-  const tracks = want.ids.map(id => lib.store?.tracks.get(id)).filter((t): t is Track => !!t && !t.remote);
+  const tracks = want.ids.map(id => lib.store?.tracks.get(id)).filter((t): t is Track => !!t && lib.canEditInfo(t));
   const one = tracks.length === 1 ? tracks[0] : null;
   const mixed = Object.fromEntries(INFO_FIELDS.map(k => [k, tracks.some(t => (t[k] ?? '') !== (tracks[0]?.[k] ?? ''))])) as Record<InfoField, boolean>;
   const start = Object.fromEntries(INFO_FIELDS.map(k => [k, mixed[k] ? '' : tracks[0]?.[k] ?? ''])) as Record<InfoField, string>;

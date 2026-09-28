@@ -11,7 +11,17 @@ use tauri::AppHandle;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 pub static PORT: AtomicU16 = AtomicU16::new(0);
-const ORIGINS: [&str; 4] = ["https://joaopmanso.github.io", "http://localhost:5174", "http://localhost:5175", "http://localhost:5173"];
+// GLUE Home's own service page too (it applies edits through the same file API when no GLUE tab is
+// open, ADR 0087): Tauri's origin on Windows and on macOS, and the test server's.
+const ORIGINS: [&str; 7] = ["https://joaopmanso.github.io", "http://localhost:5174", "http://localhost:5175", "http://localhost:5173", "http://tauri.localhost", "tauri://localhost", "http://localhost:5176"];
+
+/// The writer lease (ADR 0051, 0087): when a GLUE tab in Home mode last said it's open (ms since 1970).
+pub static LEASE_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Bumped when another device says it sent edits: the tab takes them in at once.
+pub static EDITS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub fn now_ms() -> u64 { std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0) }
+/// A GLUE tab holds the lease (renewed every 5 s; it lapses after 15).
+pub fn leased() -> bool { now_ms().saturating_sub(LEASE_AT.load(Ordering::Relaxed)) < 15_000 }
 
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
@@ -110,6 +120,11 @@ fn answer(app: AppHandle, req: Request) {
         return reply(req, 401, b"{\"error\":\"not allowed\"}".to_vec(), "application/json");
     }
     match path.as_str() {
+        // A GLUE tab in Home mode is open: it writes the library (ADR 0087); and edits wait, if any.
+        "/lease" if req.method() == &Method::Post => {
+            LEASE_AT.store(now_ms(), Ordering::Relaxed);
+            reply(req, 200, serde_json::json!({ "edits": EDITS.load(Ordering::Relaxed) }).to_string().into_bytes(), "application/json")
+        }
         // The drag dock (ADR 0054): what's selected on the website, to drag into the DJ apps.
         "/dock" if req.method() == &Method::Post => {
             let mut body = String::new();

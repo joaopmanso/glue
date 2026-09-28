@@ -117,7 +117,7 @@ an account GLUE works exactly as today, all local.
   browser's own GLUE folder and music folders, and goes back to GLUE Home when it runs again (checked
   every 5 s); a banner asks for a click if the browser needs permission. The page waits at most 3 s
   for GLUE Home at start-up.
-- Next: the writer lease and GLUE Home syncing with no tab (rest of stage 3), analysis in GLUE Home
+- Next: GLUE Home syncing with no tab (the lease and applying edits are built, ADR 0087; uploading isn't), analysis in GLUE Home
   (stage 4), clean-up (stage 5).
 
 ## Drag dock (GLUE Home 0.6.0, 2026-09-26, [ADR 0054](../adr/0054-drag-dock-in-glue-home.md))
@@ -373,3 +373,4 @@ First release: phases 1–3 (user, 2026-09-25).
   - Settings › Service › "What GLUE Home was asked" shows the counts since it started (Copy to share).
 - **Playback first (2026-09-28, [ADR 0084](../adr/0084-playback-first-on-the-link-to-glue-home.md)):** what's playing goes ahead of background requests and has its own data channel; no silent whole-song download; connection errors list each side's addresses.
 - **Waveforms (2026-09-28, [ADR 0085](../adr/0085-waveforms-from-glue-home.md)):** the Overview's waveform look for other computers' songs, kept and served by their GLUE Home like the spectrograms.
+- **Edits reach GLUE Home (2026-09-28, [ADR 0087](../adr/0087-edits-reach-glue-home.md)):** song info travels with the other edits; the writer lease is built; GLUE Home applies waiting edits when no GLUE tab is open (it doesn't upload yet).

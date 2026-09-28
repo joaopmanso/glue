@@ -1,23 +1,27 @@
 /* Edits made in a cloud view reach the device that owns the data (ADR 0040): the view compares the
    collection before and after, sends the difference as small operations, and the owning device
-   applies them to its own files the next time it opens. Last change wins. Pure: no DOM, no network. */
+   applies them to its own files the next time it opens (or its GLUE Home does, ADR 0087). Last change
+   wins. Pure: no DOM, no network. */
 import type { List, Track } from '../../store/types';
+import { INFO_FIELDS, type InfoField } from './tags';
 
-/** What can change from another device: a track's own fields, and playlists / folders. */
+/** What can change from another device: a track's own fields and its song info (title, artist, genre…,
+    ADR 0087), and playlists / folders. */
 export type EditOp =
-  | { t: 'track'; id: string; rating?: number | null; notes?: string | null; tags?: string[] | null }
+  | { t: 'track'; id: string; rating?: number | null; notes?: string | null; tags?: string[] | null; info?: { [K in InfoField]?: string } }
   | { t: 'list'; list: List }
   | { t: 'list-del'; id: string };
 
 const TRACK_FIELDS = ['rating', 'notes', 'tags'] as const;
-type TrackFields = Pick<Track, typeof TRACK_FIELDS[number]>;
+type TrackFields = Pick<Track, typeof TRACK_FIELDS[number]> & { info: { [K in InfoField]: string } };
+const infoOf = (t: Track) => Object.fromEntries(INFO_FIELDS.map(k => [k, t[k] ?? ''])) as { [K in InfoField]: string };
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /** A copy of what edits can touch, to compare against later. */
 export interface Baseline { tracks: Map<string, TrackFields>; lists: Map<string, string> }
 export function baseline(tracks: Iterable<Track>, lists: Iterable<List>): Baseline {
   const b: Baseline = { tracks: new Map(), lists: new Map() };
-  for (const t of tracks) b.tracks.set(t.id, { rating: t.rating ?? null, notes: t.notes ?? '', tags: t.tags });
+  for (const t of tracks) b.tracks.set(t.id, { rating: t.rating ?? null, notes: t.notes ?? '', tags: t.tags, info: infoOf(t) });
   for (const l of lists) b.lists.set(l.id, JSON.stringify(l));
   return b;
 }
@@ -33,6 +37,9 @@ export function diff(before: Baseline, tracks: Iterable<Track>, lists: Iterable<
     if (!same(b.rating, t.rating ?? null)) { op.rating = t.rating ?? null; changed = true; }
     if (!same(b.notes || '', t.notes || '')) { op.notes = t.notes || null; changed = true; }
     if (!same(b.tags, t.tags)) { op.tags = t.tags ?? null; changed = true; }
+    const info: { [K in InfoField]?: string } = {};
+    for (const k of INFO_FIELDS) if ((t[k] ?? '') !== b.info[k]) info[k] = t[k] ?? '';
+    if (Object.keys(info).length) { op.info = info; changed = true; }
     if (changed) ops.push(op);
   }
   const now = new Set<string>();
@@ -61,6 +68,20 @@ export function apply(s: EditTarget, ops: EditOp[]): number {
       if ('rating' in op) next.rating = op.rating ?? null;
       if ('notes' in op) next.notes = op.notes || undefined;
       if ('tags' in op) { if (op.tags) next.tags = op.tags; else delete next.tags; }
+      // Song info: the owner's own edit (ADR 0071), so an import doesn't fill it in again and GLUE Home
+      // writes it into the file (a title can't be emptied).
+      if (op.info) {
+        const changed: InfoField[] = [];
+        for (const k of INFO_FIELDS) {
+          const v = op.info[k]?.trim();
+          if (v == null || (k === 'title' && !v) || (next[k] ?? '') === v) continue;
+          next[k] = v; changed.push(k);
+        }
+        if (changed.length) {
+          next.edited = [...new Set([...next.edited ?? [], ...changed])];
+          if (next.rootId && next.relPath && !next.fileKey) next.unwritten = [...new Set([...next.unwritten ?? [], ...changed])];
+        }
+      }
       const i = tracks.findIndex(x => x.id === op.id);
       if (i >= 0) tracks[i] = next; else tracks.push(next);
       n++;

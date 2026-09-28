@@ -304,6 +304,14 @@ async fn web_get(app: AppHandle, url: String) -> Result<tauri::ipc::Response, St
     count("bridge web_get", t0, r, |b| b.len() as u64).map(tauri::ipc::Response::new)
 }
 
+/// Does a GLUE tab hold the writer lease (ADR 0087)? Then GLUE Home leaves edits to it.
+#[tauri::command]
+fn lease_held() -> bool { local::leased() }
+
+/// Another device sent edits for this computer: the open tab (if any) takes them in at once.
+#[tauri::command]
+fn edits_waiting() { local::EDITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed); }
+
 /// What GLUE Home was asked since it started (the settings show it).
 #[tauri::command]
 fn activity_now() -> serde_json::Value {
@@ -546,7 +554,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, web_get, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, web_get, lease_held, edits_waiting, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

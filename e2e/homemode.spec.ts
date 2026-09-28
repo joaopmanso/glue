@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FakeHome } from './fakeHome';
+import { TAURI_MOCK } from './tauri-mock';
 
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
@@ -430,4 +431,85 @@ test('song info is edited in GLUE, kept while GLUE Home is away, and written int
     expect(home.reads.filter(p => p === 'Sets/mp3-128k.mp3')).toEqual([]);
     expect(home.reads.filter(p => p === 'Sets/mp3-128k.mp3 (part)').length).toBeGreaterThan(0);
   } finally { await home.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('edits from another device reach this computer through GLUE Home with no GLUE tab open: into the GLUE folder and the file (ADR 0087)', async ({ page }) => {
+  test.setTimeout(240_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-edits-e2e-'));
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} });
+  try {
+    // This computer's library, made in the browser: one song.
+    await page.goto('./#/analyze');
+    const b64 = readFileSync(fixture('mp3-128k.mp3')).toString('base64');
+    await page.evaluate(async b64 => {
+      const r = await navigator.storage.getDirectory();
+      for (const n of ['MCO', 'Music']) await r.removeEntry(n, { recursive: true }).catch(() => {});
+      const dir = await (await r.getDirectoryHandle('Music', { create: true })).getDirectoryHandle('Sets', { create: true });
+      const w = await (await dir.getFileHandle('mp3-128k.mp3', { create: true })).createWritable(); await w.write(Uint8Array.from(atob(b64), c => c.charCodeAt(0))); await w.close();
+    }, b64);
+    await page.goto('./');
+    await page.click('#choose-home');
+    await page.fill('#profile-name', 'DJ Test');
+    await page.getByRole('button', { name: 'Create profile' }).click();
+    await page.click('#onb-skip');
+    await page.click('#add-folder');
+    await expect(page.locator('.tr')).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+    for (const [top, to] of [['MCO', fake.dirs.glue], ['Music', join(tmp, 'Music')]] as const) {
+      for (const f of await readOpfs(page, top)) { mkdirSync(dirname(join(to, f.path)), { recursive: true }); writeFileSync(join(to, f.path), Buffer.from(f.b64, 'base64')); }
+    }
+    // The GLUE tab closes.
+    await page.goto('about:blank');
+    const profiles = join(fake.dirs.glue, 'profiles'), pid = readdirSync(profiles)[0], cid = readdirSync(join(profiles, pid, 'collections'))[0];
+    const col = join(profiles, pid, 'collections', cid);
+    const meta = JSON.parse(readFileSync(join(col, 'collection.json'), 'utf8')) as { roots: { id: string }[] };
+    fake.dirs.folders[meta.roots[0].id] = join(tmp, 'Music');
+    mkdirSync(fake.dirs.incoming, { recursive: true });
+    await fake.start();
+    const shardFile = () => join(col, 'tracks', readdirSync(join(col, 'tracks'))[0]);
+    const song = () => Object.values((JSON.parse(readFileSync(shardFile(), 'utf8')) as { items: Record<string, Record<string, unknown>> }).items)[0];
+    const trackId = song().id as string;
+
+    // GLUE Home (its real service page, Rust stood in): its local link is the stand-in, and GLUE Cloud
+    // has an edit from the laptop waiting for this computer's browser.
+    const glue: Record<string, string> = {};
+    for (const rel of ['mco.json', `profiles/${pid}/profile.json`, `profiles/${pid}/collections/${cid}/collection.json`]) glue[rel] = readFileSync(join(fake.dirs.glue, rel), 'utf8');
+    const ops = [{ seq: 7, collection: cid, op: { t: 'track', id: trackId, rating: 4, info: { title: 'From the laptop', genre: 'Techno' } } }];
+    const asked: string[] = [];
+    const home = await page.context().newPage();
+    await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+      const p = new URL(r.request().url()); asked.push(p.pathname + p.search);
+      const json = (b: unknown) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
+      if (p.pathname === '/v1/me') return json({ user: { id: 'u1' }, thisDevice: 'hdesk', devices: [{ id: 'desk', kind: 'browser', name: 'Desktop' }, { id: 'hdesk', kind: 'home', name: 'Desktop', companionOf: 'desk' }] });
+      if (p.pathname === '/v1/sync/ops') return json({ ops: p.searchParams.get('device') === 'desk' && p.searchParams.get('profile') === pid ? ops : [] });
+      if (p.pathname === '/v1/turn') return json({ iceServers: [], ttl: 0 });
+      return json({ access: 'h' });
+    });
+    await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+    await home.addInitScript(TAURI_MOCK);
+    await home.addInitScript(({ glue, port, token, dir }) => {
+      const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__localPort = port; w.__lease = true;
+      localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token }));
+    }, { glue, port: fake.port, token: fake.token, dir: fake.dirs.glue });
+    await home.goto('http://localhost:5176/service.html');
+
+    // A GLUE tab holds the lease (it would take the edits in itself): GLUE Home leaves them.
+    await expect.poll(() => home.evaluate(() => (window as unknown as { __calls: string[] }).__calls.filter(c => c === 'lease_held').length), { timeout: 40_000 }).toBeGreaterThan(0);
+    await home.waitForTimeout(1000);
+    expect(song().title).not.toBe('From the laptop');
+    expect(fake.tagWrites).toEqual([]);
+
+    // No tab: GLUE Home applies them (next round), writes the song info into the file, and doesn't
+    // confirm them to GLUE Cloud (the tab here does that when it next opens).
+    await home.evaluate(() => { (window as unknown as { __lease: boolean }).__lease = false; });
+    await expect.poll(() => song().title, { timeout: 90_000 }).toBe('From the laptop');
+    expect(song()).toMatchObject({ genre: 'Techno', rating: 4, edited: ['title', 'genre'] });
+    await expect.poll(() => fake.tagWrites).toEqual([{ path: 'Sets/mp3-128k.mp3', tags: { title: 'From the laptop', genre: 'Techno' } }]);
+    await expect.poll(() => song().unwritten).toBeUndefined();
+    expect(asked.some(a => a.startsWith('/v1/sync/ops/ack'))).toBe(false);
+    // Not applied twice: how far it got is kept.
+    const applied = await home.evaluate(() => { const b = (window as unknown as { __cache: Record<string, number[]> }).__cache['e/applied.json']; return b ? JSON.parse(new TextDecoder().decode(new Uint8Array(b))) : null; });
+    expect(applied).toEqual({ [pid]: 7 });
+    await home.close();
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

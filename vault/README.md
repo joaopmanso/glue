@@ -160,3 +160,4 @@ Planned (GLUE):
 | [0084](adr/0084-playback-first-on-the-link-to-glue-home.md) | Playback first on the link to GLUE Home; failures say why | accepted |
 | [0085](adr/0085-waveforms-from-glue-home.md) | Other computers' songs get their waveforms from GLUE Home too | accepted |
 | [0086](adr/0086-covers-looked-up-by-glue-home.md) | GLUE Home looks up missing covers on public services | accepted |
+| [0087](adr/0087-edits-reach-glue-home.md) | Other computers' songs can be edited; the owner's GLUE Home takes the edits in | accepted |
