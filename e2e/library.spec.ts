@@ -2364,3 +2364,76 @@ test('▶ on the row of the song its page loaded: the rest of the list comes aft
   await page.click('#player-expand');
   await expect(page.locator('#next-from .qr')).toHaveCount(3);
 });
+
+test('the user\'s list, 2026-09-28, batch A: "Not a problem" on a caution; renaming a playlist by a slow second click; confirming probable duplicates', async ({ page }) => {
+  test.setTimeout(150_000);
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+  const attention = page.locator('.lside [data-view="attention"]');
+  const before = Number((await attention.innerText()).match(/\d+$/)?.[0] ?? 0);
+  expect(before).toBeGreaterThan(0);
+
+  // A caution marked fine on its page: fine in the library too, and out of Needs attention; Undo.
+  const aiff = page.locator('.tr', { hasText: 'aiff-44k-24' });
+  await expect(aiff.locator('.q')).toHaveText('Caution');
+  await aiff.dblclick();
+  await page.click('#not-a-problem');
+  await expect(page.locator('#track-verdict')).toHaveText('Marked fine');
+  await page.locator('.crumbs a').click();
+  await expect(aiff.locator('.q')).toHaveText('Marked fine');
+  await expect(attention).toContainText(String(before - 1));
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(aiff.locator('.q')).toHaveText('Marked fine', { timeout: 20_000 });
+  await aiff.locator('.c-title').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="unfine"]').click();
+  await expect(aiff.locator('.q')).toHaveText('Caution');
+
+  // A playlist renamed by clicking its name again after a moment.
+  await page.click('#new-playlist'); await page.keyboard.type('Warm-up'); await page.keyboard.press('Enter');
+  const pl = page.locator('.lside .tree .name', { hasText: 'Warm-up' });
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await pl.click();                     // opens it
+  await page.waitForTimeout(700);
+  await pl.click();                     // a second click, later: rename
+  await expect(page.locator('.lside .tree input')).toBeFocused();
+  await page.keyboard.press('Control+a'); await page.keyboard.type('Opening'); await page.keyboard.press('Enter');
+  await expect(page.locator('.lside .tree .name', { hasText: 'Opening' })).toHaveCount(1);
+
+  // Two different recordings with the same artist and title: probable; confirmed, they're the same.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  for (const name of ['Fixture MP3', 'Fixture FLAC']) {
+    await page.locator('.tr', { hasText: name }).locator('.c-title').click({ button: 'right' });
+    await page.locator('.cmenu [data-m="info"]').click();
+    await page.fill('#edit-info [data-f="title"]', 'Same Song');
+    await page.fill('#edit-info [data-f="artist"]', 'Same Artist');
+    await page.click('#info-save');
+  }
+  await page.locator('.lside .name', { hasText: 'Duplicates' }).click();
+  const grp = page.locator('#dupes .grp', { hasText: 'Same Song' });
+  await expect(grp).toHaveAttribute('data-kind', 'probable', { timeout: 30_000 });
+  await grp.locator('[data-confirm]').click();
+  await expect(grp).toHaveAttribute('data-kind', 'same');
+  await expect(grp).toContainText('you said it’s the same');
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await page.locator('.lside .name', { hasText: 'Duplicates' }).click();
+  await expect(page.locator('#dupes .grp', { hasText: 'Same Song' })).toHaveAttribute('data-kind', 'same', { timeout: 30_000 });
+
+  // The tags pop-up with many tags stays inside the window, and scrolls inside (it ran off the bottom).
+  await page.setViewportSize({ width: 1280, height: 680 });
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await page.locator('.tr').first().locator('.c-tags').click();
+  for (let i = 0; i < 30; i++) { await page.keyboard.type('Tag ' + i); await page.keyboard.press('Enter'); }
+  const box = (await page.locator('#tag-editor').boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(680);
+  await expect(page.locator('#tag-input')).toBeInViewport();
+});

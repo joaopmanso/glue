@@ -155,6 +155,13 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.locator('select[data-bpm-range]').selectOption('half');
   await page.locator('.profile', { hasText: 'DJ Test' }).click();
   await expect(row.locator('.c-num.mine')).toHaveText('62.5', { timeout: 20_000 });   // the profile opens its collection first
+  // A playlist's stats count the BPM as the rows show it (they said 125 while the rows said 62.5; the user's list, 2026-09-28).
+  page.once('dialog', d => void d.accept('Half-time'));
+  await row.locator('.c-title').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="add"]').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
+  await page.locator('.lside .tree .name', { hasText: 'Half-time' }).click();
+  await expect(page.locator('#playlist-insights')).toContainText('63–63 BPM · avg 63');
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
   await row.locator('.c-title').dblclick();
   await expect(page.locator('#m-bpm')).toContainText('62.5', { timeout: 30_000 });
   await page.click('#tab-prepare');

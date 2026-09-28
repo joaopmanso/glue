@@ -5,6 +5,20 @@ updated: 2026-09-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's second list, batch A: quick fixes
+- **The tags pop-up** fits the window with many tags, opens upward when there's more room, and
+  scrolls inside ([tags](../features/tags.md)). It ran off the bottom.
+- **Playlist insights' tempo** uses the BPM the rows show (70, not 70–140)
+  ([playlists](../features/playlists.md)).
+- **Renaming a playlist** by clicking its name again after a moment.
+- **"Not a problem"** on a song's verdict (its page, or the song menu for several): shown as
+  "Marked fine" everywhere while GLUE's verdict stays the same ([quality tiers](../features/quality-tiers.md)).
+- **Probable duplicates:** "Same recording" confirms a group, which can then be moved or deleted
+  like one. Probable groups follow edited names at once ([duplicates](../features/duplicates.md)).
+- The plan for the whole list: [handoff](2026-09-28-handoff.md).
+- Tests: e2e batch A (the mark, rename, confirmation, the pop-up's size); Prepare (the tempo with a
+  60–120 range).
+
 ## 2026-09-27 · The user's list, batch 7: events and reminders (GLUE Home 0.13)
 - **A Calendar tab** ([events](../features/events.md), [ADR 0074](../adr/0074-events-calendar.md)):
   - a month of events, what's coming and what's been;

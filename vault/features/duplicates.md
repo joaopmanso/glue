@@ -107,3 +107,15 @@ them at the best copy.
   tags, Prepare. A copy that couldn't go changes nothing.
 - **Only "same recording" groups;** "probable" ones aren't confirmed by sound.
 - Without GLUE Home, the page says it's needed.
+
+## Confirming probable groups (2026-09-28)
+- A probable group (same artist and title, similar length, not matched by sound) has **Same
+  recording**. The user confirms it; it's then a same-recording group ("you said it's the same"), so it
+  can be moved or deleted like one.
+  - Remembered per collection: `meta.dupConfirmed`, the group keys.
+  - "Not duplicates" still hides a group.
+- Probable groups follow songs' names: when tracks change (edited info, an import), the groups are
+  made again from the last matches a moment later, without matching again (`dupes` watches
+  `rev.tracks`). Before, an edit showed only after "Check again".
+- e2e: two songs given the same artist and title show as probable; confirmed, same; kept over a
+  reload.

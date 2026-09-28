@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { asShown, MARKED_FINE } from '../../core/library/summary';
   import CoverArt from './CoverArt.svelte';
   import { untrack } from 'svelte';
   import { lib } from '../../lib/library.svelte';
@@ -36,7 +37,9 @@
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
 
   const track = $derived.by(() => { void lib.version; return lib.store?.tracks.get(id) ?? null; });
-  const summary = $derived.by(() => { void lib.version; return lib.store?.analysis.get(id) ?? null; });
+  const raw = $derived.by(() => { void lib.version; return lib.store?.analysis.get(id) ?? null; });
+  // As shown: "Marked fine" when the user cleared this verdict (a false positive).
+  const summary = $derived(asShown(track, raw));
   const lists = $derived.by(() => { void lib.version; return lib.listsContaining(id); });
   /** Every playlist it's in, to open one. */
   const allLists = (): MenuEntry[] => [{ head: 'In ' + lists.length + ' playlists' }, ...lists.map(l => ({ label: lib.listPath(l), detail: lib.listPath(l), color: l.color ?? null, run: () => { view.select({ kind: 'list', id: l.id }); view.selected = new Set([id]); view.reveal = id; router.go('#/'); } }))];
@@ -224,7 +227,11 @@ canPlay = true;
       </div>
       <!-- The full analysis below shows the verdict; until then (or for another computer's song) it's here. -->
       <div class="hacts">
-        {#if summary && !summary.error && !(phase === 'ready' && app.phase === 'result')}<span class="q" data-grade={summary.grade}>{summary.label}</span>{/if}
+        {#if summary && !summary.error && (!(phase === 'ready' && app.phase === 'result') || summary.label === MARKED_FINE)}<span class="q" data-grade={summary.grade} id="track-verdict" title={summary.headline}>{summary.label}</span>{/if}
+        {#if raw && !raw.error && raw.grade !== 'ok' && !track.remote && !lib.cloud}
+          {#if summary?.label === MARKED_FINE}<button type="button" class="edit" id="undo-fine" disabled={lib.readOnly} title={'Show GLUE’s verdict again: ' + raw.label} onclick={() => lib.markFine([id], false)}>Undo</button>
+          {:else}<button type="button" class="edit" id="not-a-problem" disabled={lib.readOnly} title="A false alarm: show this song as fine in the library (while GLUE’s verdict stays this one)" onclick={() => lib.markFine([id], true)}>Not a problem</button>{/if}
+        {/if}
         {#if !track.remote && !lib.cloud}<button type="button" class="edit" id="edit-info-btn" disabled={lib.readOnly} onclick={() => (view.infoFor = { ids: [id] })}>Edit info</button>{/if}
       </div>
     </header>

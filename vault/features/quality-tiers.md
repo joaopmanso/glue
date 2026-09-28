@@ -39,3 +39,13 @@ Caution-level findings (e.g. 20 kHz wall) keep the tier but add a "check" flag.
   - A hidden group stops filtering and is listed under the Filter menu with "Show them".
   - The Filter button's right-click ticks the groups on and off (per browser, pref `hiddenFilters`).
 - **When filtered,** the selection bar shows each value as a removable chip.
+
+## "Not a problem": marking a verdict fine (2026-09-28)
+- A song GLUE cautions about (or suspects) can be marked fine:
+  - "Not a problem" beside the verdict on its page;
+  - "Not a problem (mark fine)" in the song menu (several at once).
+- Everywhere it shows as **Marked fine** (graded fine): the Quality column, filters, Needs attention,
+  stats, playlists' insights, the player, Duplicates. The page's analysis still shows GLUE's evidence.
+- The mark holds for the verdict GLUE gave then (`Track.markedFine` = that label). If a new analysis
+  gives another verdict, that one shows. Undo, or "Show GLUE's verdict again".
+- `core/library/summary` `asShown(track, summary)`; `lib.markFine(ids, fine)`.

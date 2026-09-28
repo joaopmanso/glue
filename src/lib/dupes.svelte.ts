@@ -18,7 +18,8 @@ import { time, timeAsync } from '../core/perf';
 import type { DupReply, DupRequest } from '../workers/duplicates.worker';
 import type { AnalysisSummary, Track } from '../store/types';
 
-export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null }
+/** confirmed: a probable group the user said is the same recording (it can be cleaned up like one). */
+export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null; confirmed?: boolean }
 
 const GRADE: Record<string, number> = { ok: 3, info: 2, warn: 1, bad: 0 };
 /** Higher is better: genuine before suspect, lossless before lossy, then resolution / bitrate. */
@@ -50,6 +51,23 @@ class Dupes {
   /** What the last match found, and for which songs (to match only the new ones next time). */
   private matches: Match[] = [];
   private known: Set<string> | null = null;
+
+  /** Probable groups follow songs' names: after tracks change (info edited, an import), the groups are
+      made again from the last matches (no new matching), a moment later. */
+  private seenTracks = -1;
+  private rebuildTimer = 0;
+  constructor() {
+    $effect.root(() => {
+      $effect(() => {
+        void lib.version;
+        const st = lib.store;
+        if (!st || !this.known || st.rev.tracks === this.seenTracks) return;
+        this.seenTracks = st.rev.tracks;
+        clearTimeout(this.rebuildTimer);
+        this.rebuildTimer = window.setTimeout(() => { if (lib.store === st && !this.running) this.rebuild(); }, 400);
+      });
+    });
+  }
 
   /** Group of a track, if any (for the table badge). */
   groupOf = $derived.by(() => { const m = new Map<string, DupGroup>(); for (const g of this.groups) for (const id of g.ids) m.set(id, g); return m; });
@@ -163,7 +181,7 @@ class Dupes {
   }
 
   private build(matches: Match[]): DupGroup[] {
-    const s = lib.store!, ignored = new Set(s.meta.ignoredDupes ?? []);
+    const s = lib.store!, ignored = new Set(s.meta.ignoredDupes ?? []), confirmed = new Set(s.meta.dupConfirmed ?? []);
     // The copy the user chose ("Use in playlists"), else the best by quality.
     const best = (ids: string[]) => { const chosen = s.meta.dupBest?.[groupKey(ids)]; return chosen && ids.includes(chosen) ? chosen : ids.reduce((b, id) => copyScore(s.tracks.get(id)!, s.analysis.get(id) ?? null) > copyScore(s.tracks.get(b)!, s.analysis.get(b) ?? null) ? id : b); };
     const out: DupGroup[] = [];
@@ -188,7 +206,8 @@ class Dupes {
       const near = g.filter(t => g.some(u => u !== t && (t.duration == null || u.duration == null || Math.abs(t.duration - u.duration) <= 3)));
       const ids = near.map(t => t.id);
       if (ids.length < 2 || ignored.has(groupKey(ids))) continue;
-      out.push({ key: groupKey(ids), kind: 'probable', ids, best: best(ids), similarity: null });
+      const key = groupKey(ids);
+      out.push(confirmed.has(key) ? { key, kind: 'same', ids, best: best(ids), similarity: null, confirmed: true } : { key, kind: 'probable', ids, best: best(ids), similarity: null });
     }
     return out.sort((a, b) => (a.kind === b.kind ? b.ids.length - a.ids.length : a.kind === 'same' ? -1 : 1));
   }
@@ -196,6 +215,14 @@ class Dupes {
   /** The groups again from the last matches (after songs left the collection). */
   rebuild() { if (lib.store) this.groups = this.build(this.matches); }
 
+  /** "Same recording": the user confirms a probable group (remembered); it's cleaned up like one. */
+  confirm(g: DupGroup) {
+    const s = lib.store;
+    if (!s || g.kind !== 'probable') return;
+    s.meta.dupConfirmed = [...(s.meta.dupConfirmed ?? []), g.key];
+    s.saveMeta();
+    this.groups = this.groups.map((x): DupGroup => x.key === g.key ? { ...x, kind: 'same', confirmed: true } : x).sort((a, b) => (a.kind === b.kind ? b.ids.length - a.ids.length : a.kind === 'same' ? -1 : 1));
+  }
   /** "Not duplicates": remember and hide this group. */
   ignore(g: DupGroup) {
     const s = lib.store;

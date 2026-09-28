@@ -1,6 +1,8 @@
 <script lang="ts">
   /* A playlist at a glance: length, tempo flow, keys and mixes, quality, and a Venn diagram of how
      its tags overlap (pick up to three). Used under a playlist's header and in the playlist builder. */
+  import { asShown } from '../../core/library/summary';
+  import { bpmShown } from '../../lib/bpm';
   import { lib } from '../../lib/library.svelte';
   import { app } from '../../lib/app.svelte';
   import { view } from '../../lib/view.svelte';
@@ -19,8 +21,9 @@
     const djBpm = new Map<string, number>();
     for (const src of s.sources.values()) for (const st of src.tracks) if (st.bpm && !djBpm.has(st.trackId)) djBpm.set(st.trackId, st.bpm);
     return ids.map(id => s.tracks.get(id)).filter(t => !!t).map(t => {
-      const a = s.analysis.get(t.id), ok = a && !a.error;
-      return { duration: t.duration, bpm: t.prep?.bpm || (ok && a.bpm) || djBpm.get(t.id) || null, key: ok && a.key ? { tonic: a.key.tonic, mode: a.key.mode } : null, tags: tagsOf(t), grade: ok ? a.grade : null };
+      const a = asShown(t, s.analysis.get(t.id)), ok = a && !a.error;
+      // As the table shows it (the profile's BPM range, the track's flip): 70 in the rows is 70 here.
+      return { duration: t.duration, bpm: bpmShown(t, ok ? a : null, djBpm.get(t.id) ?? null), key: ok && a.key ? { tonic: a.key.tonic, mode: a.key.mode } : null, tags: tagsOf(t), grade: ok ? a.grade : null };
     });
   });
   const ins = $derived(insights(facts, k => keyLabel(k, app.keyNotation)));

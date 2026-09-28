@@ -5,6 +5,7 @@
        plays a song now; right-click has the song's menu with Play now and Remove from the queue.
      - Visualiser: festanqueiro/threejs-visualisers (lib/visualiser): a theme and its options, full screen
        (F or double-click), ← → or 1–9 switch themes. */
+  import { asShown } from '../../core/library/summary';
   import { untrack } from 'svelte';
   import { lib } from '../../lib/library.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
@@ -34,7 +35,7 @@
   const q = $derived(nowPlaying.q);
   const tr = (id: string, _v: number) => lib.store?.tracks.get(id) ?? null;
   const t = $derived(nowPlaying.track);
-  const a = $derived.by(() => { void lib.version; return t ? lib.store?.analysis.get(t.id) ?? null : null; });
+  const a = $derived.by(() => { void lib.version; return t ? asShown(t, lib.store?.analysis.get(t.id)) : null; });
   const played = $derived(q.played.slice(-20).reverse());
 
   let wrap = $state<HTMLDivElement>(), stage = $state<HTMLDivElement>();

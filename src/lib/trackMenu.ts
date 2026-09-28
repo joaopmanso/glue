@@ -76,6 +76,8 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
   const rating = ts.every(t => (t.rating ?? null) === (ts[0].rating ?? null)) ? ts[0].rating ?? null : null;
   const group = one ? dupes.groupOf.get(one.id) : undefined;
   const needs = cloud ? 0 : ts.filter(t => lib.needsAnalysis(t)).length;
+  // Songs GLUE cautions about (or suspects): they can be marked fine.
+  const flagged = ts.filter(t => { const a = s.analysis.get(t.id); return !t.remote && a && !a.error && a.grade !== 'ok'; });
   const homes = cloud ? [] : sendTargets();
   const sortHome = view.sel.kind === 'list' && view.sel.id === TO_BE_SORTED ? incoming.sourceOf(ids[0])?.home : undefined;
   const sortable = !!sortHome && ids.every(id => incoming.sourceOf(id)?.home === sortHome);
@@ -132,6 +134,8 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     { stars: rating, pick: (v: number | null) => lib.rateTracks(ids, v) },
     { label: 'Edit info…', hint: one ? 'F2' : undefined, attrs: { 'data-m': 'info' }, disabled: cloud || lib.readOnly || ts.every(t => t.remote), title: cloud || ts.every(t => t.remote) ? 'Edit them on the computer that has them' : undefined, run: () => (view.infoFor = { ids }) },
     { label: 'Tags…', attrs: { 'data-m': 'tags', 'data-tags-open': '' }, run: () => (view.tagFor = { ids, x: at.x, y: at.y }) },
+    !cloud && flagged.length > 0 && flagged.some(t => t.markedFine !== s.analysis.get(t.id)!.label) && { label: 'Not a problem (mark fine)', hint: n > 1 ? String(flagged.length) : undefined, attrs: { 'data-m': 'fine' }, title: 'A false alarm: show as fine while GLUE’s verdict stays the same', run: () => lib.markFine(flagged.map(t => t.id), true) },
+    !cloud && flagged.some(t => t.markedFine === s.analysis.get(t.id)!.label) && { label: 'Show GLUE’s verdict again', attrs: { 'data-m': 'unfine' }, run: () => lib.markFine(flagged.map(t => t.id), false) },
     one && { label: one.notes ? 'Edit note…' : 'Add a note…', attrs: { 'data-m': 'note' }, run: () => (view.noteFor = { id: one.id, x: at.x + 320, y: at.y }) },
     opts.only && {
       label: (view.filters[opts.only.group].includes(opts.only.value) ? 'Stop showing only ' : 'Show only ') + opts.only.label, attrs: { 'data-m': 'only' },

@@ -1,6 +1,7 @@
 <script lang="ts">
   /* A collection, a playlist, a tag, a folder… or the selected songs at a glance (the user's list,
      2026-09-27): core/library/stats over the songs, drawn as tiles and plain bars. */
+  import { asShown } from '../../core/library/summary';
   import { lib } from '../../lib/library.svelte';
   import { view, tracksFor, formatOf } from '../../lib/view.svelte';
   import { app } from '../../lib/app.svelte';
@@ -16,7 +17,7 @@
   const tracks: Track[] = !s ? [] : want.ids ? want.ids.map(id => s.tracks.get(id)).filter((t): t is Track => !!t) : tracksFor(want.sel ?? { kind: 'all' });
   const dj = lib.djIndex();
   const facts: StatTrack[] = tracks.map(t => {
-    const a0 = s?.analysis.get(t.id) ?? null, a = a0 && !a0.error ? a0 : null, d = dj.get(t.id) ?? null;
+    const a0 = asShown(t, s?.analysis.get(t.id)), a = a0 && !a0.error ? a0 : null, d = dj.get(t.id) ?? null;
     return {
       duration: t.duration, size: t.size, artist: t.artist, album: t.album, label: t.label, genre: t.genre, year: t.year,
       format: formatOf(t), lossless: t.format?.lossless ?? null, grade: a?.grade ?? null,

@@ -106,3 +106,12 @@ track is used.
   for it go there ([events](events.md), [ADR 0074](../adr/0074-events-calendar.md)). They're ordinary
   folders; their menu adds "Open the event". Selecting a playlist opens the folders above it in the
   sidebar.
+
+## Renaming by a slow second click (2026-09-28)
+- Clicking the open playlist's (or folder's) name again, after a moment, renames it, as song cells are
+  edited in place. A double-click still does too.
+
+## Insights count the BPM as the rows show it (2026-09-28)
+- The Tempo line used the analysis' own BPM. Songs shown at 70 (the profile's 60–120 range) said
+  "70–140, avg 115". It now uses the shown BPM (`bpmShown`: the range, the track's flip, the
+  user's correction).

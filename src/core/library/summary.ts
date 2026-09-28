@@ -25,3 +25,12 @@ export function failed(message: string, file: { size: number; mtime: number }): 
     fileSize: file.size, fileMtime: file.mtime, error: message,
   };
 }
+
+/** A verdict the user marked as fine (a false positive, the user's list 2026-09-28): shown as fine
+    while GLUE's verdict is still the one they cleared; a different verdict later shows again. */
+export const MARKED_FINE = 'Marked fine';
+export function asShown<A extends { grade: 'ok' | 'warn' | 'bad' | 'info'; label: string; headline: string; error?: string }>(t: { markedFine?: string } | null | undefined, a: A | null | undefined): A | null {
+  if (!a) return null;
+  if (!t?.markedFine || a.error || a.grade === 'ok' || a.label !== t.markedFine) return a;
+  return { ...a, grade: 'ok', label: MARKED_FINE, headline: 'You marked this as fine. GLUE says: ' + a.headline };
+}

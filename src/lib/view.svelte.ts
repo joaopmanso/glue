@@ -1,4 +1,5 @@
 /* What the library view shows: the selected sidebar entry, search, sort and row selection. */
+import { asShown } from '../core/library/summary';
 import { lib } from './library.svelte';
 import type { InfoField } from '../core/library/tags';
 import { time } from '../core/perf';
@@ -90,7 +91,7 @@ class View {
     if (!s) return [];
     const tracks = tracksFor(this.sel);
     const dj = lib.djIndex();
-    let rows: Row[] = tracks.map((t, n) => ({ t, a: s.analysis.get(t.id) ?? null, n, dj: dj.get(t.id) ?? null }));
+    let rows: Row[] = tracks.map((t, n) => ({ t, a: asShown(t, s.analysis.get(t.id)), n, dj: dj.get(t.id) ?? null }));
     if (!opts.unfiltered && this.filtering) {
       const active = FILTER_GROUPS.filter(({ g }) => g !== opts.except && this.filters[g].length);
       rows = rows.filter(r => active.every(({ g }) => { const want = this.filters[g]; return valuesOf(g, r).some(v => want.includes(v)); }));
@@ -156,7 +157,7 @@ export function tracksFor(sel: ViewSel): Track[] {
   if (sel.kind === 'dupes') return byIds(dupes.groups.flatMap(g => g.ids));
   if (sel.kind === 'pending') return all.filter(t => lib.needsAnalysis(t));
   if (sel.kind === 'unlinked') return all.filter(t => t.status !== 'linked');
-  if (sel.kind === 'attention') return all.filter(t => { const a = s.analysis.get(t.id); return a && (a.grade === 'bad' || a.grade === 'warn'); });
+  if (sel.kind === 'attention') return all.filter(t => { const a = asShown(t, s.analysis.get(t.id)); return a && (a.grade === 'bad' || a.grade === 'warn'); });
   if (sel.kind === 'recent') { const cut = Date.now() - 30 * 864e5; return all.filter(t => Date.parse(t.addedAt) >= cut); }
   return all;
 }

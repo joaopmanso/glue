@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { asShown } from '../../core/library/summary';
   import { lib } from '../../lib/library.svelte';
   import { dupes, type DupGroup } from '../../lib/dupes.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
@@ -120,20 +121,21 @@
     <header>
       {#if g.kind === 'same'}
         {#if canClean}<input type="checkbox" class="gpick" aria-label="Choose this group" checked={picked.has(g.key)} onchange={e => pick(g, e.currentTarget.checked)}>{/if}
-        <span class="kind">Same recording</span><span class="sim">{strength(g.similarity ?? 0)}</span>
+        <span class="kind">Same recording</span><span class="sim">{g.confirmed ? 'same artist and title; you said it’s the same' : strength(g.similarity ?? 0)}</span>
         {#if canClean}
           <button type="button" class="mini" data-clean="move" title="Keep the best copy; put the others in GLUE Home's duplicates folder (out of the library, not deleted)" onclick={() => (ask = { mode: 'move', groups: [g] })}>Move the others…</button>
           <button type="button" class="mini danger" data-clean="trash" title="Keep the best copy; move the others' files to the Recycle Bin" onclick={() => (ask = { mode: 'trash', groups: [g] })}>Delete the others…</button>
         {/if}
       {:else}
         <span class="kind probable">Probable</span><span class="sim">same artist and title, similar length; not confirmed by sound</span>
+        <button type="button" class="mini" data-confirm title="They are the same recording: clean them up like one (keep the best copy, move or delete the others)" disabled={lib.readOnly} onclick={() => dupes.confirm(g)}>Same recording</button>
       {/if}
       <button type="button" class="mini" onclick={() => dupes.ignore(g)} title="Hide this group from now on">Not duplicates</button>
     </header>
     <ul>
       {#each [g.best, ...g.ids.filter(x => x !== g.best)] as id (id)}
         {@const t = lib.store?.tracks.get(id)}
-        {@const a = lib.store?.analysis.get(id)}
+        {@const a = asShown(lib.store?.tracks.get(id), lib.store?.analysis.get(id))}
         {#if t}
           <li class:best={g.best === id} class:focus={focused === id} data-track={id} oncontextmenu={e => menu.context(e, () => trackMenu([id]), 'Song')}>
             <button type="button" class="pbtn" aria-label={nowPlaying.trackId === id && !player.paused ? 'Pause' : 'Play'} disabled={t.status !== 'linked'} onclick={() => play(id, g)}>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { asShown } from '../../core/library/summary';
   import { untrack } from 'svelte';
   import { dock } from '../../lib/dock.svelte';
   import { sidebar, type LibView, type SideKey } from '../../lib/sidebar.svelte';
@@ -41,7 +42,7 @@
       if (t.status !== 'linked') unlinked++;
       if (lib.needsAnalysis(t)) pending++;
       const a = s.analysis.get(t.id);
-      if (a && (a.grade === 'bad' || a.grade === 'warn')) attention++;
+      if (a && (a.grade === 'bad' || a.grade === 'warn') && asShown(t, a)?.grade !== 'ok') attention++;
     }
     return { all, pending, unlinked, attention };
   });
@@ -58,6 +59,17 @@
   const sources = $derived.by(() => { void lib.version; return [...(lib.store?.sources.values() ?? [])]; });
 
   let open = $state<Record<string, boolean>>({});
+  // A slow second click on the open playlist's name renames it, as songs' cells are edited in place;
+  // a double-click does too.
+  let slow = 0;
+  function nameClick(e: MouseEvent, l: List) {
+    clearTimeout(slow);
+    if (drag.suppressClick) return;
+    const again = view.sel.kind === 'list' && view.sel.id === l.id && e.detail === 1 && !lib.readOnly;
+    view.select({ kind: 'list', id: l.id });
+    if (l.kind === 'folder') open[l.id] = true;
+    if (again) slow = window.setTimeout(() => (view.editing = l.id), 550);
+  }
   // The selected playlist is always in sight: the folders above it open (also after coming back from
   // another page, which forgets them).
   $effect(() => {
@@ -367,7 +379,7 @@
         <input class="rename" value={l.name} use:focus onblur={e => rename(l, e.currentTarget.value)}
           onkeydown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') view.editing = null; }}>
       {:else}
-        <button type="button" class="name" onclick={() => { if (drag.suppressClick) return; view.select({ kind: 'list', id: l.id }); if (l.kind === 'folder') open[l.id] = true; }} ondblclick={() => (view.editing = l.id)}>
+        <button type="button" class="name" onclick={e => nameClick(e, l)} ondblclick={() => { clearTimeout(slow); view.editing = l.id; }}>
           {l.name}{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', kept in step with it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}
         </button>
         {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>{/if}

@@ -41,3 +41,9 @@ your files or DJ library count straight away; new ones are made by typing them.
 - **A tag in the sidebar:** Show its songs, Show only it here, put it on or take it off the selected
   songs, Rename…, Delete….
 - **A tag chip in a row:** "Show only tag ‹name›". A song's menu has Tags….
+
+## The pop-up fits the window (2026-09-28)
+- With many tags (a library's Grouping, #hashtags and My Tags add up), the pop-up ran past the
+  bottom of the window and its box didn't cover what was cut off.
+- Now it's at most the room there is (520 px). It opens above what opened it when there's more room
+  there. Its chips and its list scroll inside.

@@ -33,7 +33,7 @@ export interface Root { id: string; name: string; absPath: string | null; handle
 export const INCOMING_ROOT = 'incoming';
 /** tags: tags made in GLUE, kept even while no track uses them (ADR 0032). cloudMerged: it has been
     merged with other devices once (ADR 0042), so an unmerge is kept rather than merged again. */
-export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean }
+export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; dupConfirmed?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean }
 
 export type TrackStatus = 'linked' | 'unlinked' | 'missing';
 export interface TrackFormat { container: string; codec: string; lossless: boolean | null; sampleRate: number; bits: number; bitrate: number; channels: number }
@@ -61,6 +61,8 @@ export interface Track {
   edited?: string[];
   /** Of those, the ones not in the file yet: GLUE Home writes them when it runs. */
   unwritten?: string[];
+  /** The verdict label the user marked as fine (a false positive): shown as fine while it's GLUE's verdict. */
+  markedFine?: string;
   art?: string;                 // the cover's hash (ADR 0072): '' none; absent: not looked for yet
   prep?: Prep;                  // the Prepare tab: corrected tempo and grid, display flip, cues (ADR 0052)
   onDevices?: string[];         // cloud views and merged collections: the devices that have this track (never saved)

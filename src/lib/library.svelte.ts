@@ -885,6 +885,20 @@ class Library {
     }
     if (out.length) { s.putTracks(out); void this.writeInfo(); }
   }
+  /** Mark songs' verdicts as fine (false positives), or show GLUE's verdict again (`fine` false). The mark
+      holds for the verdict each song has now; a different one later shows again. */
+  markFine(ids: string[], fine: boolean) {
+    const s = this.store;
+    if (!s || this.readOnly) return;
+    const out: Track[] = [];
+    for (const id of ids) {
+      const t = s.tracks.get(id), a = s.analysis.get(id);
+      if (!t || t.remote) continue;
+      const next = fine && a && !a.error && a.grade !== 'ok' ? a.label : undefined;
+      if (t.markedFine !== next) out.push({ ...t, markedFine: next });
+    }
+    if (out.length) s.putTracks(out);
+  }
   /** Songs whose edited info isn't in their file yet. */
   unwrittenCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (t.unwritten?.length) n++; return n; }
   private writing: Promise<void> | null = null;

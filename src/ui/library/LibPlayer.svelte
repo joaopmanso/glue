@@ -2,6 +2,7 @@
   /* The library's player bar (ADR 0068): shuffle, previous, play, next, repeat; the song; the seek bar;
      volume and the sound output; ▲ opens the player (the queue and the visualiser). Songs or playlists
      dropped on it are queued. */
+  import { asShown } from '../../core/library/summary';
   import { onMount } from 'svelte';
   import { router, trackHref } from '../../lib/route.svelte';
   import { view } from '../../lib/view.svelte';
@@ -21,7 +22,7 @@
   import PlayerPanel from './PlayerPanel.svelte';
 
   const t = $derived(nowPlaying.track);
-  const a = $derived.by(() => { void lib.version; return t ? lib.store?.analysis.get(t.id) ?? null : null; });
+  const a = $derived.by(() => { void lib.version; return t ? asShown(t, lib.store?.analysis.get(t.id)) : null; });
   let seeking = $state<number | null>(null);
   const d = $derived(player.duration || t?.duration || 0);
   const pos = $derived(seeking != null ? seeking / 1000 * d : Math.min(player.time, d || Infinity));

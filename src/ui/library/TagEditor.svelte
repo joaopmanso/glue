@@ -40,14 +40,22 @@
   }
   function addTyped() { if (!typed) return; set(tags.find(t => t.name.toLowerCase() === typed.toLowerCase())?.name ?? typed, true); q = ''; }
   function close() { view.tagFor = null; }
-  const pos = $derived(at ? { left: Math.max(8, Math.min(window.innerWidth - W - 8, at.x)), top: Math.max(8, Math.min(at.y + 6, window.innerHeight - 390)) } : null);
+  // Below what opened it, or above it when there's more room there; never past the window: the chips
+  // and the list scroll inside (a library can have hundreds of tags).
+  let winH = $state(window.innerHeight), winW = $state(window.innerWidth);
+  const pos = $derived.by(() => {
+    if (!at) return null;
+    const below = winH - at.y - 14, above = at.y - 40, up = below < 320 && above > below;
+    const room = Math.max(200, Math.min(520, up ? above : below));
+    return { left: Math.max(8, Math.min(winW - W - 8, at.x)), top: up ? null : at.y + 6, bottom: up ? winH - at.y + 34 : null, max: room };
+  });
   const focus = (el: HTMLInputElement) => { el.focus({ preventScroll: true }); };
 </script>
 
-<svelte:window onpointerdown={e => { if (at && !(e.target as HTMLElement).closest('.taged, [data-tags-open]')) close(); }} />
+<svelte:window bind:innerHeight={winH} bind:innerWidth={winW} onpointerdown={e => { if (at && !(e.target as HTMLElement).closest('.taged, [data-tags-open]')) close(); }} />
 
 {#if at && target && pos}
-  <div class="taged" id="tag-editor" role="dialog" aria-label={'Tags for ' + target.name} style:left={pos.left + 'px'} style:top={pos.top + 'px'} style:width={W + 'px'}>
+  <div class="taged" id="tag-editor" role="dialog" aria-label={'Tags for ' + target.name} style:left={pos.left + 'px'} style:top={pos.top == null ? null : pos.top + 'px'} style:bottom={pos.bottom == null ? null : pos.bottom + 'px'} style:max-height={pos.max + 'px'} style:width={W + 'px'}>
     <div class="head"><b>Tags · {target.name}</b><button type="button" aria-label="Close" onclick={close}>×</button></div>
     <div class="chips">
       {#each current as t (t.name)}
@@ -77,11 +85,13 @@
 {/if}
 
 <style>
-  .taged { position: fixed; z-index: 70; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; box-shadow: 0 12px 32px rgb(0 0 0 / .5); display: grid; gap: 8px; }
+  .taged { position: fixed; z-index: 70; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; box-shadow: 0 12px 32px rgb(0 0 0 / .5); display: flex; flex-direction: column; gap: 8px; overflow: hidden; box-sizing: border-box; }
+  .taged > * { flex: none; }
+  #tag-input { width: 100%; box-sizing: border-box; }
   .head { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 13px; }
   .head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .head button { background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; line-height: 1; }
-  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 96px; overflow-y: auto; }
   .tag { display: inline-flex; align-items: center; border-radius: 10px; background: color-mix(in srgb, var(--c) 22%, transparent); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); font-size: 12px; padding-left: 8px; }
   .tag.part { border-style: dashed; background: none; }
   .tag .nm { background: none; border: 0; padding: 0; font: inherit; color: var(--ink); cursor: default; }
@@ -90,7 +100,7 @@
   .none { color: var(--muted); font-size: 12px; }
   input:not([type="checkbox"]) { background: var(--surface); border: 1px solid var(--line-2); border-radius: 5px; padding: 6px 8px; font-size: 13px; }
   input:focus { outline: none; border-color: var(--accent); }
-  .list { display: grid; gap: 1px; max-height: 190px; overflow-y: auto; }
+  .taged > .list { display: grid; align-content: start; gap: 1px; flex: 1 1 auto; min-height: 60px; overflow-y: auto; }
   .list label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 4px; border-radius: 4px; cursor: pointer; }
   .list label:hover { background: var(--surface); }
   .list span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
