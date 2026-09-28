@@ -12,7 +12,7 @@ declare const WebSocketPair: { new(): { 0: WS; 1: WS } };
 export type ClientMsg = { type: 'signal'; to: string; data: unknown } | { type: 'ping' };
 /** `removed` / `replaced` come just before the room closes a socket, so clients act on them even
     when a close code doesn't reach them (seen with local workerd). */
-export type RoomMsg = { type: 'presence'; online: string[] } | { type: 'removed' } | { type: 'replaced' } | { type: 'signal'; from: string; data: unknown } | { type: 'pong' } | { type: 'error'; error: string };
+export type RoomMsg = { type: 'shared'; collection: string; seq: number; from: string } | { type: 'presence'; online: string[] } | { type: 'removed' } | { type: 'replaced' } | { type: 'signal'; from: string; data: unknown } | { type: 'pong' } | { type: 'error'; error: string };
 
 const MAX_MSG = 64 * 1024;
 
@@ -21,6 +21,12 @@ export class Signal {
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url), device = url.searchParams.get('device') ?? '';
+    // A shared collection moved on (ADR 0094): every connected device hears of it.
+    if (url.pathname === '/broadcast') {
+      const msg = await req.text();
+      for (const ws of this.state.getWebSockets()) { try { ws.send(msg); } catch { /* closing */ } }
+      return new Response('ok');
+    }
     if (url.pathname === '/kick') {
       const gone = this.state.getWebSockets(device);
       for (const ws of gone) { try { ws.send(JSON.stringify({ type: 'removed' } satisfies RoomMsg)); } catch { /* closing */ } ws.close(4001, 'device removed'); }

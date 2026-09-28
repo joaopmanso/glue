@@ -5,6 +5,16 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The shared collection, step 2a: GLUE Cloud's side (migration 0006)
+- **GLUE Cloud can hold one copy of a collection for all the account's devices**
+  ([ADR 0094](../adr/0094-one-shared-collection-in-glue-cloud.md)):
+  - files at revisions, and "what changed since";
+  - pushes that land only on the revision they saw (else "stale", to be merged on the device);
+  - deletions kept 30 days;
+  - online devices told at once through the signaling room.
+- Nothing uses it yet; the site comes in step 2c.
+- Tests: cloud (revisions, stale pushes, deletions and the bin, bundles, other accounts, limits).
+
 ## 2026-09-28 · Admin › Free tier
 - **The admin panel shows how much of Cloudflare's free plan GLUE Cloud uses**
   ([ADR 0093](../adr/0093-free-tier-usage-in-the-admin-panel.md)): database size, rows read and

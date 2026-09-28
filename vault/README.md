@@ -167,3 +167,4 @@ Planned (GLUE):
 | [0091](adr/0091-computers-and-sessions.md) | A device is a computer; signing in only to browse is a session | accepted |
 | [0092](adr/0092-first-question-how-glue-is-used.md) | The first question: how GLUE is used on this device | accepted |
 | [0093](adr/0093-free-tier-usage-in-the-admin-panel.md) | The admin panel shows free-tier usage, from Cloudflare's analytics with a read-only token | accepted |
+| [0094](adr/0094-one-shared-collection-in-glue-cloud.md) | One shared collection in GLUE Cloud, the same on every device | accepted |

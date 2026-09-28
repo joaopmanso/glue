@@ -12,7 +12,7 @@ const CLIENT = 'test-client.apps.googleusercontent.com', ORIGIN = 'https://joaop
 function d1(): DB {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
-  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql', '0004_companions.sql', '0005_computers.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
+  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql', '0004_companions.sql', '0005_computers.sql', '0006_shared.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
   const stmt = (sql: string, args: unknown[] = []): Stmt => ({
     bind: (...v) => stmt(sql, v),
     first: async <T,>() => (db.prepare(sql).get(...(args as never[])) as T) ?? null,
@@ -445,5 +445,47 @@ describe('admin: free-tier usage (ADR 0093)', () => {
     expect(u.note).toBeUndefined();
     const dj = await signIn();
     expect((await call('GET', '/v1/admin/usage', undefined, dj.json.access)).status).toBe(403);
+  });
+});
+
+describe('the shared collection (ADR 0094)', () => {
+  const h = (c: string) => c.repeat(64);
+  const line = (path: string, base: number, c: string, data = 'QUJD') => [path, base, c === '-' ? '' : h(c), 3, c === '-' ? '-' : data].join('\t');
+  it('one copy for every device: files at revisions, what changed since a cursor, bundles', async () => {
+    const lap = await signIn({}, { deviceName: 'Laptop' }), desk = await signIn({}, { deviceName: 'Desktop' });
+    expect((await call('POST', '/v1/shared', { id: 'col1', name: 'My collection' }, desk.json.access)).json).toEqual({ id: 'col1', name: 'My collection', seq: 0 });
+    // The desktop puts its files in: revision 1.
+    const p1 = (await call('POST', '/v1/shared/col1/push', [line('collection.json', 0, 'a'), line('tracks/ab.json', 0, 'b'), line('lists/l1.json', 0, 'c')].join('\n'), desk.json.access)).json;
+    expect(p1).toMatchObject({ rev: 1, stale: [] });
+    // The laptop (same account) sees them all, and reads them.
+    const c1 = (await call('GET', '/v1/shared/col1/changes?since=0', undefined, lap.json.access)).json;
+    expect(c1.seq).toBe(1);
+    expect(c1.files.map((f: { path: string; rev: number }) => [f.path, f.rev])).toEqual([['collection.json', 1], ['tracks/ab.json', 1], ['lists/l1.json', 1]]);
+    const b = (await call('POST', '/v1/shared/col1/bundle', { paths: ['lists/l1.json', 'tracks/ab.json'] }, lap.json.access)).text.split('\n');
+    expect(b).toEqual(['lists/l1.json\t1\t' + h('c') + '\tQUJD', 'tracks/ab.json\t1\t' + h('b') + '\tQUJD']);
+    // The laptop changes the playlist, based on revision 1: it lands (revision 2); nothing else changed.
+    expect((await call('POST', '/v1/shared/col1/push', line('lists/l1.json', 1, 'd'), lap.json.access)).json).toMatchObject({ rev: 2, stored: ['lists/l1.json'], stale: [] });
+    expect((await call('GET', '/v1/shared/col1/changes?since=1', undefined, desk.json.access)).json.files.map((f: { path: string }) => f.path)).toEqual(['lists/l1.json']);
+    // The desktop, still at revision 1 for it, changes it too: stale (to pull, merge and push again).
+    expect((await call('POST', '/v1/shared/col1/push', [line('lists/l1.json', 1, 'e'), line('tracks/cd.json', 0, 'f')].join('\n'), desk.json.access)).json).toMatchObject({ rev: 3, stored: ['tracks/cd.json'], stale: ['lists/l1.json'] });
+    // Deleted: marked, kept for the bin, and gone from bundles; made again from 0.
+    expect((await call('POST', '/v1/shared/col1/push', line('lists/l1.json', 2, '-'), desk.json.access)).json.stored).toEqual(['lists/l1.json']);
+    const c4 = (await call('GET', '/v1/shared/col1/changes?since=3', undefined, lap.json.access)).json;
+    expect(c4.files).toMatchObject([{ path: 'lists/l1.json', deleted: true }]);
+    expect((await call('GET', '/v1/shared/col1/bin', undefined, lap.json.access)).json.files.map((f: { path: string }) => f.path)).toEqual(['lists/l1.json']);
+    expect((await call('POST', '/v1/shared/col1/bundle', { paths: ['lists/l1.json'] }, lap.json.access)).text).toBe('');
+    expect((await call('POST', '/v1/shared/col1/push', line('lists/l1.json', 0, 'a'), lap.json.access)).json.stored).toEqual(['lists/l1.json']);
+    expect((await call('GET', '/v1/shared', undefined, lap.json.access)).json.collections.map((c: { id: string; seq: number }) => [c.id, c.seq])).toEqual([['col1', 5]]);
+  });
+  it('another account can’t read or write it; bad paths and oversized files are refused', async () => {
+    const a = await signIn();
+    await call('POST', '/v1/shared', { id: 'mine' }, a.json.access);
+    const other = await signIn({ sub: 'g-other', email: 'other@example.com' });
+    expect((await call('GET', '/v1/shared/mine/changes?since=0', undefined, other.json.access)).status).toBe(404);
+    expect((await call('POST', '/v1/shared/mine/push', line('a.json', 0, 'a'), other.json.access)).status).toBe(404);
+    expect((await call('POST', '/v1/shared/mine/push', line('../x.json', 0, 'a'), a.json.access)).status).toBe(400);
+    expect((await call('POST', '/v1/shared/mine/push', line('a.json', 0, 'a', 'A'.repeat(1_800_001)), a.json.access)).status).toBe(413);
+    expect((await call('DELETE', '/v1/shared/mine', undefined, a.json.access)).json).toEqual({ ok: true });
+    expect((await call('GET', '/v1/shared', undefined, a.json.access)).json.collections).toEqual([]);
   });
 });

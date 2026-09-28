@@ -1,6 +1,7 @@
 /* GLUE Cloud API (ADR 0036): Google sign-in, sessions, devices, pairing GLUE Home, and the door to
    the per-user signaling room. Plain request → response, so tests run it against real SQLite. */
 import * as sync from './sync';
+import * as shared from './shared';
 import * as admin from './admin';
 import { turnServers, type TurnEnv } from './turn';
 import type { UsageEnv } from './usage';
@@ -99,6 +100,20 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     if (m === 'POST' && path === '/v1/sync/manifest') return reply(await sync.manifest(env, a, await body() as unknown as sync.Manifest, now));
     if (m === 'PUT' && path === '/v1/sync/file') return reply(await sync.putFile(env, a, url.searchParams, await req.text(), now));
     if (m === 'POST' && path === '/v1/sync/files') return reply(await sync.putFiles(env, a, url.searchParams, await req.text(), now));
+    // The shared collection (ADR 0094): one copy for all the account's devices.
+    if (m === 'GET' && path === '/v1/shared') return reply(await shared.list(env, a));
+    if (m === 'POST' && path === '/v1/shared') return reply(await shared.create(env, a, await body(), now, randomId));
+    const sh = /^\/v1\/shared\/([\w-]+)(\/changes|\/bundle|\/push|\/bin)?$/.exec(path);
+    if (sh) {
+      const cid = sh[1];
+      if (m === 'GET' && sh[2] === '/changes') return reply(await shared.changes(env, a, cid, Number(url.searchParams.get('since') ?? 0)));
+      if (m === 'POST' && sh[2] === '/bundle') return new Response(await shared.bundle(env, a, cid, await body()), { headers: { ...cors, 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
+      // The account's online devices hear of it at once (the signaling room), and pull.
+      const notify = async (seq: number) => { if (env.SIGNAL) await env.SIGNAL.get(env.SIGNAL.idFromName(a.sub)).fetch(new Request('https://signal/broadcast', { method: 'POST', body: JSON.stringify({ type: 'shared', collection: cid, seq, from: a.dev }) })); };
+      if (m === 'POST' && sh[2] === '/push') return reply(await shared.push(env, a, cid, await req.text(), now, notify));
+      if (m === 'GET' && sh[2] === '/bin') return reply(await shared.bin(env, a, cid, now));
+      if (m === 'DELETE' && !sh[2]) return reply(await shared.remove(env, a, cid));
+    }
     if (m === 'GET' && path === '/v1/sync') return reply(await sync.list(env, a));
     if (m === 'DELETE' && path === '/v1/sync') { await env.DB.batch([env.DB.prepare('DELETE FROM sync_links WHERE user_id = ?').bind(a.sub), env.DB.prepare('DELETE FROM sync_ops WHERE user_id = ?').bind(a.sub)]); return reply(await sync.remove(env, a)); }
     if (m === 'GET' && path === '/v1/sync/links') return reply(await sync.links(env, a));
