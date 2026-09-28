@@ -186,7 +186,7 @@ Also, per "Computers and sessions" above:
 - **Tests:** cloud tests for attach and claim; `fakeHome.ts` gets `/attach`; a homemode e2e with
   two browser contexts that ends with one row.
 
-## Phase 2: the shared collection in GLUE Cloud (behind a switch; new collections first)
+## Phase 2: the shared collection in GLUE Cloud (behind a switch; new collections first). Done 2026-09-28 (ADR 0094: 2a cloud, 2b core, 2c site)
 - **Cloud (`0006_shared.sql`, new `cloud/src/shared.ts`, reusing `putFiles`/`bundle`):**
   - `shared_collections(user_id, id, name, seq, stats…)`;
   - `shared_files(user_id, collection_id, path, rev, hash, size, data, deleted_at, updated_by,
@@ -236,7 +236,7 @@ Also, per "Computers and sessions" above:
   - about 1.2k rows and 4 MB at 8k tracks; about 2.5k rows and 20 MB at 50k;
   - analysis pushes held back to at most one every 10 minutes.
 
-## Phase 3: conflicts
+## Phase 3: conflicts. Done 2026-09-28 (ADR 0095; GLUE Home's side comes with phase 5)
 - **Pure `src/core/shared/merge3.ts`** (base, local and remote, record by record):
   - track user fields field by field;
   - `copies` and analysis per computer, never asked;
@@ -252,7 +252,7 @@ Also, per "Computers and sessions" above:
 - **GLUE Home** (no UI) never overwrites. It posts its side to `shared_conflicts`, and the next UI
   device asks.
 
-## Phase 4: moving over (backup first)
+## Phase 4: moving over (backup first). Done 2026-09-28 (ADR 0096: each computer moves its own, with a button)
 - Force a backup zip on each device, and export every group member's `sync_files` into
   `backups/cloud-<date>/`. Apply the ops still waiting.
 - The device with the most tracks (the desktop) offers **Make one shared collection**, listing the
@@ -268,7 +268,7 @@ Also, per "Computers and sessions" above:
 - Tests: a unit test for `seedShared` shaped like this user's data (7,989 tracks, 10, and an empty
   phone), and an e2e of the migration.
 
-## Phase 5: the computer's worker (GLUE Home, or the open tab without one)
+## Phase 5: the computer's worker (GLUE Home, or the open tab without one). In progress: 5a done 2026-09-28 (ADR 0097: GLUE Home syncs and writes song info)
 Everything below is written once, in `src/store` and `src/core`, and runs from GLUE Home's service
 page, or from the tab on a computer without GLUE Home (while it's open), or with the lease.
 - **Sync with no tab:** the Phase 2 engine through `HomeDisk` (it replaces `home/ui/edits.ts`),

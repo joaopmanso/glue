@@ -4,9 +4,10 @@
    Filled by the website on this computer (it hands over what it analysed), and by GLUE Home itself
    with the website's own analysis code: in the background, and at once when another computer asks. */
 import { bridge, type HomeConfig } from './bridge';
-import { shared, describe, trackPath } from './library';
+import { shared, describe, here, trackPath } from './library';
 import { AnalysisPool } from '../../src/lib/pool';
-import { shardOf, type Track } from '../../src/store/types';
+import { shardOf, type Collection, type Track } from '../../src/store/types';
+import type { SharedCollection } from '../../src/core/shared/project';
 import { DETAILS_VERSION, decodeDetails, type DetailsHeader } from '../../src/store/details';
 import { makeWaveThumb, WAVE_BYTES } from '../../src/core/library/thumb';
 import { incomingKey } from '../../src/core/transfer';
@@ -159,10 +160,13 @@ export async function background(cfg: () => HomeConfig | null, busy: () => boole
     for (const p of lib?.profiles ?? []) for (const col of p.collections) {
       if (!shared(c0, p.id, col.id)) continue;
       const k = await kept(p.id, col.id), have = new Set(k.thumbs), waves = new Set(k.waves);
+      let meta: Collection | SharedCollection | null = null;
+      try { meta = JSON.parse(await bridge.glueRead(`profiles/${p.id}/collections/${col.id}/collection.json`)); } catch { /* none */ }
+      const h = here(meta, p.id, col.id, c0.deviceId);
       for (const a of HEX) for (const b of HEX) {
         let shard: { items: Record<string, Track> } | null = null;
         try { shard = JSON.parse(await bridge.glueRead(`profiles/${p.id}/collections/${col.id}/tracks/${a + b}.json`)); } catch { /* no such shard */ }
-        for (const t of Object.values(shard?.items ?? {})) if (t.status === 'linked' && t.rootId && t.relPath && (!have.has(t.id) || !waves.has(t.id))) todo.push({ p: p.id, c: col.id, id: t.id });
+        for (const t of Object.values(shard?.items ?? {}).map(h.track)) if (t.status === 'linked' && t.rootId && t.relPath && (!have.has(t.id) || !waves.has(t.id))) todo.push({ p: p.id, c: col.id, id: t.id });
       }
     }
     progress.background.total = todo.length; report();

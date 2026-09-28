@@ -6,7 +6,7 @@ import { djValues, listsByTrack, type DjValues } from '../core/library/indexes';
 import { importLists as importListsInto } from '../store/linked';
 
 const NO_DJ = new Map<string, DjValues>(), NO_LISTS = new Map<string, List[]>(), NO_LINKED = new Map<string, List>();
-import { CollectionStore } from '../store/collection';
+import { CollectionStore, type LoadOpts } from '../store/collection';
 import { writeUnwritten } from '../store/writeInfo';
 import { LOOSE, absorbTracks, applyImport, applyScan, blankLibTrack, tidyTracks, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
@@ -77,6 +77,7 @@ class Library {
   analysis = $state({ running: 0, done: 0, failed: 0, paused: false });
   private homeDir: FileSystemDirectoryHandle | null = null;
   private flushTimer = 0;
+  private unsavedSince = 0;
   private pool: AnalysisPool | null = null;
   private queue: string[] = [];
   private active = new Set<string>();
@@ -434,8 +435,10 @@ class Library {
     if (!this.home || !this.profile || !this.homeDir) return;
     await this.closeCollection();
     const t0 = performance.now();
-    const s = await CollectionStore.load(this.homeDir, this.profile.id, cid);
+    const s = await CollectionStore.load(this.homeDir, this.profile.id, cid, this.loadOpts?.() ?? {});
     s.onChange = () => { this.version++; this.onLocalChange?.(); };
+    // A sync brought files in (a shared collection, ADR 0094): redraw, nothing to save or send.
+    s.onReloaded = () => { this.version++; };
     s.onDirty = () => this.scheduleFlush();
     this.store = s; this.overlayBase.clear();
     if (this.profile.lastCollection !== cid) { this.profile = { ...this.profile, lastCollection: cid }; await this.home.saveProfile(this.profile); }
@@ -477,12 +480,17 @@ class Library {
     if (this.profile.collections[0]) await this.openCollection(this.profile.collections[0].id);
     else this.phase = 'collections';
   }
+  /** How a collection is opened (a shared one is seen as this computer, ADR 0094). */
+  loadOpts: (() => LoadOpts) | null = null;
   /** Before the open collection closes (cloud sync lets go of it, ADR 0089). */
   onCollectionClosing: (() => void) | null = null;
-  private async closeCollection() {
+  /** Closed: saved, analysis stopped, nothing more written for it (before its files change under it). */
+  async closeCollection() {
     if (this.store) this.onCollectionClosing?.();
     this.stopAnalysis();
-    await this.flush();
+    // Until nothing is left: what's marked while a save runs (the analysis's last song…) is saved by the
+    // next one, and after this there's no next one for this store.
+    for (let i = 0; i < 5 && this.store?.hasPending && !this.readOnly && !this.cloud; i++) await this.flush();
     this.cloud = null; this.devicesShown = []; this.copies = new Map();
     this.store = null; this.roots = []; this.overlayBase.clear(); this.groups.clear();
     this.looseHandles.clear(); this.looseGranted = new Set();
@@ -493,12 +501,17 @@ class Library {
     if (this.readOnly || this.cloud) return;
     this.unsaved = true;
     clearTimeout(this.flushTimer);
-    this.flushTimer = window.setTimeout(() => void this.flush(), 800);
+    // A pause of 0.8 s, but never put off more than 3 s: a stream of changes (the analysis) mustn't
+    // keep new songs unsaved.
+    const now = Date.now();
+    this.unsavedSince ||= now;
+    this.flushTimer = window.setTimeout(() => void this.flush(), Math.max(0, Math.min(800, this.unsavedSince + 3000 - now)));
   }
   async flush() {
     const s = this.store;
-    if (!s || this.readOnly || this.cloud || !s.hasPending) { this.unsaved = false; return; }
+    if (!s || this.readOnly || this.cloud || !s.hasPending) { this.unsaved = false; this.unsavedSince = 0; return; }
     clearTimeout(this.flushTimer);
+    this.unsavedSince = 0;
     this.saving = true;
     try { await s.flush(); this.saveError = ''; if (this.profile) this.onFlushed?.(this.profile.id); }
     catch (e) {
@@ -1236,7 +1249,8 @@ class Library {
   enqueueAll() {
     const s = this.store;
     if (!s || this.cloud) return;
-    this.queue = [...s.tracks.values()].filter(t => this.canRead(t) && this.needsAnalysis(t) && !this.active.has(t.id))
+    // Another computer's songs are analysed there (and shared): never downloaded here to be analysed.
+    this.queue = [...s.tracks.values()].filter(t => !t.remote && this.canRead(t) && this.needsAnalysis(t) && !this.active.has(t.id))
       .sort((a, b) => a.addedAt.localeCompare(b.addedAt)).map(t => t.id);
     this.pump();
   }

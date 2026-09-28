@@ -5,6 +5,77 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The shared collection, step 5a: GLUE Home keeps it up to date (GLUE Home 0.24)
+- **With no GLUE tab open, GLUE Home syncs this computer's shared collections**
+  ([ADR 0097](../adr/0097-glue-home-syncs-shared-collections.md)): as soon as GLUE Cloud says another
+  device changed one, and every minute. It never writes while a tab holds the lease.
+- **Song info edited on any device goes into every computer's own file:** the edit marks each other
+  computer's copy, and that computer's GLUE Home (or its tab) writes it, then sends back the file's new
+  date.
+- GLUE Home streams songs of shared collections, finds their music folders, and makes their waveforms.
+- Clashes GLUE Home meets are shown by the next GLUE tab on that computer.
+- **Fixed: a newly added song could be lost when leaving the library.**
+  - While songs were being analysed, saving kept being put off, so a scan's songs could sit unsaved
+    for a long time.
+  - Closing the collection saved only what was waiting when that save started. What the analysis
+    marked meanwhile was never saved: the next save was for the next collection.
+  - Now a save is never put off more than 3 s, and closing saves until nothing is left. This was the
+    intermittent "batch 1" e2e failure.
+- Fixed: "Share" while songs were still being analysed could put the old form back over the shared
+  one (the collection is now closed while it changes form, and while it moves in).
+- Fixed: a stand-in GLUE Cloud answering the shared list oddly broke the page (the list is checked).
+- Tests:
+  - unit: other computers told to write changed song info; which member a GLUE folder is;
+  - e2e: GLUE Home's real service page with no tab takes in the laptop's rename, writes the tag, and
+    sends back the file's new date.
+
+## 2026-09-28 · The shared collection, step 4: merged collections move over
+- **Once one device of a merged group shares its collection, the others get "Move into shared “…”"**
+  in the collection bar ([ADR 0096](../adr/0096-move-merged-collections-into-the-shared-one.md)):
+  - a backup of the profile first (`backups/pre-shared-…zip`);
+  - this computer's songs join the shared ones: the same song gets this computer's copy (and a rating
+    or notes set only here), and the others come in;
+  - playlists and folders with the same place and name become one; the others come in;
+  - analyses, music folders and DJ libraries come along as this computer's;
+  - the old collection stays in the GLUE folder, out of the list, and is no longer uploaded.
+- Tests:
+  - unit: the move, shaped like two computers' collections (same songs, same playlists, an id taken,
+    a DJ library), done twice, and in a GLUE folder;
+  - e2e: a laptop merged with the desktop moves in; the songs are there once each, and its playlist
+    reaches the desktop.
+
+## 2026-09-28 · The shared collection, step 3: a clash asks
+- **The same thing changed differently on two devices** (a playlist renamed on both, a song's title…):
+  a box, bottom right, on the device whose change clashed
+  ([ADR 0095](../adr/0095-ask-per-clash.md)).
+  - It says what (the song or playlist, and the field), both values, and which device made the other
+    change and when.
+  - **Keep this device's** sends this one to every device; **Take the other's** leaves theirs;
+    **Merge both** joins lists and text where that means something. "For all" answers them all.
+  - Until answered the other device's value shows; the clash stays across reloads.
+- Tests:
+  - unit: settling a clash both ways, `setAt`, `mergeBoth`;
+  - e2e: a playlist renamed on an offline laptop and on the desktop; the laptop keeps its name, and
+    the desktop shows it.
+
+## 2026-09-28 · The shared collection, step 2c: share a collection, add it on another device
+- **"Share"** in the collection bar (signed in) makes the open collection one copy for all your
+  devices ([ADR 0094](../adr/0094-one-shared-collection-in-glue-cloud.md)).
+  - Its files become the shared form: each song with every computer's copy, analyses per computer,
+    music folders per computer.
+  - Then it goes up to GLUE Cloud.
+- **Other devices "Add" it** from the collection menu. They see the same songs, playlists and edits:
+  another computer's songs are shown as that computer's, and play from it when its GLUE Home runs.
+- **Changes reach the other devices at once** (GLUE Cloud tells them), otherwise every 2 minutes:
+  - changes on both sides are merged;
+  - a real clash keeps the other device's change for now and says so (the prompt comes in phase 3).
+- **What stays on the old sync:** a shared collection isn't in the per-device copies, and has no
+  merged overlay.
+- Other computers' songs are never downloaded here just to be analysed.
+- Tests:
+  - unit: a collection made shared on one computer and joined on another, as each sees it;
+  - e2e: two browsers share, add, and a rating crosses at once.
+
 ## 2026-09-28 · The shared collection, step 2b: projection, merge and the sync engine
 - `src/core/shared/merge3.ts` merges three ways ([ADR 0094](../adr/0094-one-shared-collection-in-glue-cloud.md)):
   - field by field;

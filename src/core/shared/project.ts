@@ -6,6 +6,7 @@
    - Music folders are per computer (`rootsBy`).
    Only this computer's own parts are ever written back from here. */
 import type { AnalysisSummary, Collection, Root, Track } from '../../store/types';
+import { INFO_FIELDS } from '../library/tags';
 
 /** A computer's copy of a song: where its file is, and what only that file knows. */
 export const COPY_FIELDS = ['status', 'rootId', 'relPath', 'fileKey', 'importPath', 'size', 'mtime', 'unwritten', 'sources'] as const;
@@ -38,13 +39,22 @@ export function toLocal(s: SharedTrack, here: Here): Track {
 }
 
 /** The song as the shared collection holds it: this computer's copy from `t` (unless it's another's
-    song), everyone else's as they were. */
+    song), everyone else's as they were (told to write changed song info into their files). */
 export function toShared(t: Track, here: Here, prev?: SharedTrack): SharedTrack {
   const { onDevices: _d, remote, ...rest } = t;
   const common = { ...rest } as Record<string, unknown>;
   for (const k of COPY_FIELDS) delete common[k];
   const copies = { ...(prev?.copies ?? {}) };
   if (!remote) copies[here.me] = pick(t, COPY_FIELDS) as Copy;
+  // Song info changed here: every other computer writes it into its own file (ADR 0097).
+  if (prev) {
+    const was = prev as unknown as Record<string, unknown>;
+    const changed = INFO_FIELDS.filter(f => (common[f] ?? '') !== (was[f] ?? ''));
+    if (changed.length) for (const c of Object.keys(copies)) {
+      if (c === here.me || !copies[c].relPath || copies[c].fileKey) continue;
+      copies[c] = { ...copies[c], unwritten: [...new Set([...(copies[c].unwritten ?? []), ...changed])] };
+    }
+  }
   return { ...(common as Omit<SharedTrack, 'copies'>), copies };
 }
 
@@ -66,4 +76,12 @@ export function collectionHere(c: SharedCollection, me: string): Collection {
 export function collectionShared(c: Collection, me: string, prev: SharedCollection | undefined, member: { profile: string; name: string }): SharedCollection {
   const { roots, ...rest } = c;
   return { ...rest, shared: true, rootsBy: { ...(prev?.rootsBy ?? {}), [me]: roots }, members: { ...(prev?.members ?? {}), [me]: member } };
+}
+
+/** Which member a GLUE folder's copy of a shared collection is (its computer): `device` if it's a member,
+    else the member whose profile this folder's is (a GLUE folder is on one computer). */
+export function meFor(c: Pick<SharedCollection, 'members'>, pid: string, device?: string | null): string | null {
+  const members = c.members ?? {};
+  if (device && members[device]) return device;
+  return Object.keys(members).find(m => members[m].profile === pid) ?? device ?? null;
 }

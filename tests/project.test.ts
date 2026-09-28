@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analysisHere, analysisShared, collectionHere, collectionShared, toLocal, toShared, type SharedTrack } from '../src/core/shared/project';
+import { analysisHere, analysisShared, collectionHere, collectionShared, meFor, toLocal, toShared, type SharedTrack } from '../src/core/shared/project';
 import type { Track } from '../src/store/types';
 
 const here = (me: string) => ({ me, collection: 'c1', members: { desk: { profile: 'pdesk', name: 'Desktop' }, lap: { profile: 'plap', name: 'Laptop' } } });
@@ -40,5 +40,20 @@ describe('a shared collection as this computer sees it (ADR 0094)', () => {
     expect(collectionHere(c, 'desk').roots).toEqual([{ id: 'r1' }]);
     expect(collectionHere(c, 'lap').roots).toEqual([]);
     expect(collectionShared(collectionHere(c, 'lap'), 'lap', c, { profile: 'plap', name: 'Laptop' }).rootsBy).toEqual({ desk: [{ id: 'r1' }], lap: [] });
+  });
+  it('song info changed on one computer: the others are told to write it into their files (ADR 0097)', () => {
+    const prev: SharedTrack = { id: 't1', title: 'Old', artist: 'A', copies: { desk: { status: 'linked', rootId: 'r1', relPath: 'a.mp3', size: 1, mtime: 1, sources: [] } as never, lap: { status: 'linked', rootId: 'r9', relPath: 'b.mp3', size: 1, mtime: 1, sources: [] } as never } } as never;
+    const hereLap = { me: 'lap', collection: 'c1', members: { desk: { profile: 'pd', name: 'Desktop' }, lap: { profile: 'pl', name: 'Laptop' } } };
+    const t = { ...toLocal(prev, hereLap), title: 'New', rating: 4 };
+    const s = toShared(t, hereLap, prev);
+    expect(s.copies.desk.unwritten).toEqual(['title']);
+    expect(s.copies.lap.unwritten).toBeUndefined();            // this computer's own: the edit itself says
+    expect(toShared({ ...t, title: 'Old' }, hereLap, prev).copies.desk.unwritten).toBeUndefined();   // a rating only: nothing to write
+  });
+  it('which member a GLUE folder is', () => {
+    const c = { members: { desk: { profile: 'pd', name: 'Desktop' }, lap: { profile: 'pl', name: 'Laptop' } } };
+    expect(meFor(c, 'pl', 'desk')).toBe('desk');
+    expect(meFor(c, 'pl', 'home-x')).toBe('lap');
+    expect(meFor(c, 'pz', 'new')).toBe('new');
   });
 });

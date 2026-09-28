@@ -513,3 +513,79 @@ test('edits from another device reach this computer through GLUE Home with no GL
     await home.close();
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
+
+test('a shared collection with no GLUE tab open: GLUE Home takes in another device’s change, writes the song info into its file, and sends back what that changed (ADR 0097)', async ({ page }) => {
+  test.setTimeout(180_000);
+  const { gzipSync, gunzipSync } = await import('node:zlib');
+  const { createHash } = await import('node:crypto');
+  const sha = (t: string) => createHash('sha256').update(t).digest('hex');
+  const pack = (t: string) => gzipSync(Buffer.from(t)).toString('base64');
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-shared-home-'));
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } });
+  try {
+    // The desktop's GLUE folder: a shared collection (the desktop's GLUE Home is member "hdesk") with one
+    // song, in step with GLUE Cloud as of revision 1.
+    mkdirSync(join(tmp, 'Music', 'Sets'), { recursive: true }); mkdirSync(fake.dirs.incoming, { recursive: true });
+    copyFileSync(fixture('mp3-128k.mp3'), join(tmp, 'Music', 'Sets', 'mp3-128k.mp3'));
+    const col = 'profiles/p1/collections/c1';
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1' }),
+    };
+    const members = { hdesk: { profile: 'p1', name: 'Desktop' }, lap: { profile: 'p9', name: 'Laptop' } };
+    const metaText = JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', shared: true, rootsBy: { hdesk: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }, members });
+    const song = (title: string, unwritten?: string[]) => ({ id: 't1', fileName: 'mp3-128k.mp3', title, artist: 'A', album: '', genre: '', label: '', comment: '', year: '', duration: 4, format: null, addedAt: '2026-01-01',
+      copies: { hdesk: { status: 'linked', rootId: 'r1', relPath: 'Sets/mp3-128k.mp3', importPath: null, size: 65267, mtime: 1, sources: [], ...(unwritten ? { unwritten } : {}) } } });
+    const shardText = (t: object) => JSON.stringify({ schemaVersion: 1, items: { t1: t } });
+    const mine = shardText(song('Old title'));
+    files[col + '/collection.json'] = metaText;
+    files[col + '/tracks/t1.json'] = mine;
+    files['cloud/shared/c1.json'] = JSON.stringify({ cursor: 1, files: { 'collection.json': { rev: 1, hash: sha(metaText), text: metaText }, 'tracks/t1.json': { rev: 1, hash: sha(mine), text: mine } } });
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    await fake.start();
+
+    // GLUE Cloud: the laptop renamed the song (revision 2), which tells this computer to write it.
+    const theirs = shardText(song('From the laptop', ['title']));
+    const cloud = new Map<string, { rev: number; hash: string; data: string }>([['collection.json', { rev: 1, hash: sha(metaText), data: pack(metaText) }], ['tracks/t1.json', { rev: 2, hash: sha(theirs), data: pack(theirs) }]]);
+    let seq = 2;
+    const home = await page.context().newPage();
+    await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
+      const req = r.request(), u = new URL(req.url()), p = u.pathname;
+      const json = (b: unknown) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
+      if (p === '/v1/me') return json({ user: { id: 'u1' }, thisDevice: 'hdesk', devices: [{ id: 'hdesk', kind: 'home', name: 'Desktop' }], sessions: [] });
+      if (p === '/v1/sync/ops') return json({ ops: [] });
+      if (p === '/v1/turn') return json({ iceServers: [], ttl: 0 });
+      if (p === '/v1/shared/c1/changes') { const since = Number(u.searchParams.get('since')); return json({ seq, more: false, files: [...cloud].filter(([, f]) => f.rev > since).map(([path, f]) => ({ path, rev: f.rev, hash: f.hash, deleted: false, by: 'lap', at: Date.now() })) }); }
+      if (p === '/v1/shared/c1/bundle') return r.fulfill({ contentType: 'text/plain', body: (req.postDataJSON().paths as string[]).filter(x => cloud.has(x)).map(x => [x, cloud.get(x)!.rev, cloud.get(x)!.hash, cloud.get(x)!.data].join('\t')).join('\n') });
+      if (p === '/v1/shared/c1/push') {
+        const rev = ++seq, stored: string[] = [], stale: string[] = [];
+        for (const line of (req.postData() ?? '').split('\n').filter(Boolean)) {
+          const [path, base, hash, , data] = line.split('\t');
+          if ((cloud.get(path)?.rev ?? 0) !== Number(base)) { stale.push(path); continue; }
+          cloud.set(path, { rev, hash, data }); stored.push(path);
+        }
+        return json({ rev: stored.length ? rev : null, stored, stale });
+      }
+      return json({ access: 'h' });
+    });
+    // GLUE Cloud's room says the collection changed.
+    await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { setTimeout(() => ws.send(JSON.stringify({ type: 'shared', collection: 'c1', seq: 2, from: 'lap' })), 2000); });
+    await home.addInitScript(TAURI_MOCK);
+    await home.addInitScript(({ glue, port, token, dir }) => {
+      const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__localPort = port; w.__lease = false;
+      localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token }));
+    }, { glue: files, port: fake.port, token: fake.token, dir: fake.dirs.glue });
+    await home.goto('http://localhost:5176/service.html');
+
+    // Taken in, written into the file, and sent back with nothing left to write.
+    const local = () => JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items.t1;
+    await expect.poll(() => local().title, { timeout: 60_000 }).toBe('From the laptop');
+    await expect.poll(() => fake.tagWrites, { timeout: 60_000 }).toEqual([{ path: 'Sets/mp3-128k.mp3', tags: { title: 'From the laptop' } }]);
+    await expect.poll(() => cloud.get('tracks/t1.json')!.rev, { timeout: 60_000 }).toBeGreaterThan(2);
+    const up = JSON.parse(gunzipSync(Buffer.from(cloud.get('tracks/t1.json')!.data, 'base64')).toString()).items.t1;
+    expect(up.title).toBe('From the laptop');
+    expect(up.copies.hdesk.unwritten).toBeUndefined();
+    expect(up.copies.hdesk.mtime).toBeGreaterThan(1);   // the file's new date, after its tags were written
+    await home.close();
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});

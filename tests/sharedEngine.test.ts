@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { MemDir, asDir } from './memfs';
-import { packText, pull, push, syncShared, unpackText, type Place, type SharedCloud } from '../src/store/shared/engine';
+import { packText, pull, push, resolveClash, syncShared, unpackText, waitingClashes, type Place, type SharedCloud } from '../src/store/shared/engine';
+import { mergeBoth, setAt } from '../src/core/shared/merge3';
 import { readJSON, writeJSON } from '../src/store/fsx';
+import { HomeStore } from '../src/store/home';
+import { CollectionStore } from '../src/store/collection';
+import { makeShared } from '../src/store/shared/seed';
+import type { Track } from '../src/store/types';
 
 /** GLUE Cloud's shared collection (cloud/src/shared.ts), in memory, with the same rules. */
 function fakeCloud() {
@@ -80,6 +85,31 @@ describe('syncing a shared collection (ADR 0094)', () => {
     const st = await readJSON<{ clashes: unknown[] }>(lap.p.root, 'cloud/shared/c1.json');
     expect(st!.clashes).toHaveLength(1);
   });
+  it('a clash settled as this device’s: its value goes up and reaches the other device; settled as theirs: nothing changes', async () => {
+    const { cloud } = fakeCloud();
+    const desk = await device('desk', cloud), lap = await device('lap', cloud);
+    await desk.write('lists/l1.json', { id: 'l1', name: 'Friday', color: 'red', items: [] });
+    await syncShared(desk.p); await syncShared(lap.p);
+    await desk.write('lists/l1.json', { id: 'l1', name: 'Friday night', color: 'blue', items: [] });
+    await lap.write('lists/l1.json', { id: 'l1', name: 'Friday late', color: 'green', items: [] });
+    await syncShared(desk.p);
+    await syncShared(lap.p);
+    const [name, color] = (await waitingClashes(lap.p)).sort((a, b) => a.at.localeCompare(b.at)).reverse();
+    expect(name).toMatchObject({ at: 'name', local: 'Friday late', remote: 'Friday night' });
+    await resolveClash(lap.p, name, name.local, false);
+    await resolveClash(lap.p, color, undefined, true);
+    expect(await waitingClashes(lap.p)).toEqual([]);
+    expect((await syncShared(lap.p)).pushed).toBe(1);
+    await syncShared(desk.p);
+    for (const d of [desk, lap]) expect(await d.read('lists/l1.json')).toEqual({ id: 'l1', name: 'Friday late', color: 'blue', items: [] });
+  });
+  it('setAt and mergeBoth', () => {
+    expect(setAt({ items: { a: { title: 'x' } } }, 'items.a.title', 'y')).toEqual({ items: { a: { title: 'y' } } });
+    expect(setAt({ items: { a: { title: 'x', genre: 'g' } } }, 'items.a.genre', undefined)).toEqual({ items: { a: { title: 'x' } } });
+    expect(mergeBoth(['a', 'b'], ['c', 'a'])).toEqual(['c', 'a', 'b']);
+    expect(mergeBoth('one', 'two')).toBe('two / one');
+    expect(mergeBoth(3, 4)).toBeUndefined();
+  });
   it('a deletion reaches the other device; nothing is sent when nothing changed', async () => {
     const { cloud, files } = fakeCloud();
     const desk = await device('desk', cloud), lap = await device('lap', cloud);
@@ -98,5 +128,47 @@ describe('syncing a shared collection (ADR 0094)', () => {
   });
   it('packs text as gzip base64 both ways', async () => {
     expect(await unpackText(await packText('{"a":"é"}'))).toBe('{"a":"é"}');
+  });
+});
+
+describe('a collection made shared, as each computer sees it (ADR 0094)', () => {
+  it('the desktop shares its collection; the laptop joins it and sees the songs as the desktop’s; a rating there reaches the desktop, whose files stay its own', async () => {
+    const { cloud } = fakeCloud();
+    // The desktop: a collection of its own with a song and its analysis.
+    const deskRoot = asDir(new MemDir()), dh = await HomeStore.open(deskRoot);
+    const dp = await dh.createProfile('DJ'), dc = await dh.createCollection(dp, 'My collection');
+    let ds = await CollectionStore.load(deskRoot, dp.id, dc.id);
+    const song: Track = { id: 'aa01', status: 'linked', rootId: 'r1', relPath: 'Sets/a.mp3', importPath: null, fileName: 'a.mp3', size: 10, mtime: 1, title: 'Song', artist: 'A', album: '', genre: '', label: '', comment: '', year: '', duration: 300, format: null, addedAt: '2026-01-01', sources: [] };
+    ds.putTracks([song]); ds.putAnalysis('aa01', { v: 3, bpm: 124 } as never); await ds.flush();
+    // Made shared, then up.
+    expect(await makeShared(deskRoot, dp.id, dc.id, 'desk', { profile: dp.id, name: 'Desktop' })).toBe(true);
+    const deskPlace: Place = { root: deskRoot, pid: dp.id, cid: dc.id, me: 'desk', cloud };
+    await syncShared(deskPlace);
+    ds = await CollectionStore.load(deskRoot, dp.id, dc.id, { me: 'desk' });
+    expect(ds.shared).not.toBeNull();
+    expect(ds.tracks.get('aa01')).toMatchObject({ rootId: 'r1', relPath: 'Sets/a.mp3' });
+    // The laptop joins: its own profile, the same collection id.
+    const lapRoot = asDir(new MemDir()), lh = await HomeStore.open(lapRoot);
+    const lp = await lh.createProfile('DJ');
+    await lh.joinCollection(lp, dc.id, 'My collection');
+    const lapPlace: Place = { root: lapRoot, pid: lp.id, cid: dc.id, me: 'lap', cloud };
+    await syncShared(lapPlace);
+    const ls = await CollectionStore.load(lapRoot, lp.id, dc.id, { me: 'lap', name: 'Laptop' });
+    const t = ls.tracks.get('aa01')!;
+    expect(t).toMatchObject({ rootId: null, remote: { device: 'desk', name: 'Desktop', profile: dp.id, collection: dc.id, id: 'aa01' } });
+    expect(ls.analysis.get('aa01')).toMatchObject({ bpm: 124 });   // the desktop's analysis, shown here
+    // The laptop rates it; saved, sent, taken in on the desktop.
+    ls.putTracks([{ ...t, rating: 4 }]); await ls.flush();
+    await syncShared(lapPlace);
+    const r = await syncShared(deskPlace);
+    expect(r.changed).toContain('tracks/aa.json');
+    await ds.reloadFiles(r.changed);
+    expect(ds.tracks.get('aa01')).toMatchObject({ rating: 4, rootId: 'r1', relPath: 'Sets/a.mp3' });
+    expect(ds.tracks.get('aa01')!.remote).toBeUndefined();
+    // The laptop is a member now; its analysis of nothing wasn't written as its own.
+    const meta = await readJSON<{ members: Record<string, unknown> }>(deskRoot, `profiles/${dp.id}/collections/${dc.id}/collection.json`);
+    expect(Object.keys(meta!.members).sort()).toEqual(['desk', 'lap']);
+    const an = await readJSON<{ items: Record<string, Record<string, unknown>> }>(deskRoot, `profiles/${dp.id}/collections/${dc.id}/analysis/aa.json`);
+    expect(Object.keys(an!.items.aa01)).toEqual(['desk']);
   });
 });

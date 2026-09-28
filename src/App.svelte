@@ -21,6 +21,7 @@
   import TagEditor from './ui/library/TagEditor.svelte';
   import EditInfo from './ui/library/EditInfo.svelte';
   import BinDialog from './ui/library/BinDialog.svelte';
+  import ConflictBox from './ui/library/ConflictBox.svelte';
   import PhoneApp from './ui/phone/PhoneApp.svelte';
   import ActionSheet from './ui/phone/ActionSheet.svelte';
   import AskSheet from './ui/phone/AskSheet.svelte';
@@ -221,6 +222,7 @@
 {#if inLibrary}<TagEditor /><GenreEditor /><NoteEditor /><SendPanel />{/if}
 {#if inLibrary && view.infoFor}{#key view.infoFor}<EditInfo />{/key}{/if}
 {#if inLibrary && view.binOpen && lib.store}<BinDialog />{/if}
+{#if inLibrary && lib.store?.shared}<ConflictBox />{/if}
 {#if inLibrary && view.statsFor}{#key view.statsFor}<StatsDialog />{/key}{/if}
 <!-- Menus: at the pointer, or on a phone a sheet from the bottom (ADR 0078). -->
 {#if phone.active}<ActionSheet /><AskSheet />{:else}<ContextMenu />{/if}

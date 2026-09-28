@@ -2,6 +2,18 @@
    (the website stays its only writer), and where its music folders are on disk: found by itself. */
 import { bridge, type HomeConfig } from './bridge';
 import { INCOMING_ROOT, shardOf, type Collection, type HomeIndex, type Profile, type Track } from '../../src/store/types';
+import { collectionHere, meFor, toLocal, type SharedCollection, type SharedTrack } from '../../src/core/shared/project';
+
+/** A collection as this computer has it: a shared one (ADR 0094) seen as this computer (its music
+    folders, its copy of each song); any other as it is. */
+export function here(meta: Collection | SharedCollection | null, pid: string, cid: string, device?: string | null) {
+  const sc = meta && (meta as SharedCollection).shared ? meta as SharedCollection : null;
+  const me = sc ? meFor(sc, pid, device) ?? '' : '';
+  return {
+    meta: sc ? collectionHere(sc, me) : meta as Collection | null,
+    track: (t: Track | SharedTrack): Track => sc ? toLocal(t as SharedTrack, { me, collection: cid, members: sc.members ?? {} }) : t as Track,
+  };
+}
 
 async function json<T>(rel: string): Promise<T | null> {
   try { return JSON.parse(await bridge.glueRead(rel)) as T; } catch { return null; }
@@ -22,7 +34,7 @@ export async function describe(): Promise<LibraryInfo | null> {
     if (!p) continue;
     const collections = [];
     for (const c of p.collections) {
-      const meta = await json<Collection>(`profiles/${p.id}/collections/${c.id}/collection.json`);
+      const meta = here(await json<Collection | SharedCollection>(`profiles/${p.id}/collections/${c.id}/collection.json`), p.id, c.id).meta;
       if (meta) collections.push({ id: c.id, name: meta.name, roots: meta.roots });
     }
     profiles.push({ id: p.id, name: p.name, collections });
@@ -35,10 +47,11 @@ const HEX = '0123456789abcdef';
 /** One song of each music folder of a collection (to check where a folder is). */
 export async function samples(profile: string, collection: string, roots: string[]): Promise<Map<string, Sample>> {
   const out = new Map<string, Sample>(), want = new Set(roots);
+  const h = here(await json<Collection | SharedCollection>(`profiles/${profile}/collections/${collection}/collection.json`), profile, collection);
   for (const a of HEX) for (const b of HEX) {
     if (out.size >= want.size) return out;
     const shard = await json<{ items: Record<string, Track> }>(`profiles/${profile}/collections/${collection}/tracks/${a + b}.json`);
-    for (const t of Object.values(shard?.items ?? {})) if (t.rootId && t.relPath && want.has(t.rootId) && !out.has(t.rootId)) out.set(t.rootId, { relPath: t.relPath, importPath: t.importPath });
+    for (const t of Object.values(shard?.items ?? {}).map(h.track)) if (t.rootId && t.relPath && want.has(t.rootId) && !out.has(t.rootId)) out.set(t.rootId, { relPath: t.relPath, importPath: t.importPath });
   }
   return out;
 }
@@ -95,11 +108,13 @@ export async function trackPath(profile: string, collection: string, id: string,
   if (!shared(cfg, profile, collection)) throw new Error('That collection isn’t shared by GLUE Home (see its settings).');
   const base = `profiles/${profile}/collections/${collection}`;
   const shard = await json<{ items: Record<string, Track> }>(`${base}/tracks/${shardOf(id)}.json`);
-  const t = shard?.items[id];
+  const h = here(await json<Collection | SharedCollection>(`${base}/collection.json`), profile, collection, cfg.deviceId);
+  const t = shard?.items[id] ? h.track(shard.items[id]) : null;
   if (!t) throw new Error('That song isn’t in this computer’s GLUE library.');
   if (t.fileKey?.startsWith('copy:')) return { path: join(cfg.glue!, t.fileKey.slice(5)), name: t.fileName };
+  if (t.remote) throw new Error('That song isn’t on this computer.');
   if (!t.rootId || !t.relPath) throw new Error('That song was added on its own in the browser; GLUE Home can’t find its file.');
-  const meta = await json<Collection>(`${base}/collection.json`);
+  const meta = h.meta;
   const root = meta?.roots.find(r => r.id === t.rootId);
   if (!root) throw new Error('That song’s music folder isn’t in the collection any more.');
   const dir = await locate(root, { relPath: t.relPath, importPath: t.importPath }, cfg);

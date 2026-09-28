@@ -78,6 +78,14 @@ export class HomeStore {
     return c;
   }
 
+  /** A shared collection from another device (ADR 0094): its folder is made here under its own id, and
+      filled by the first sync. */
+  async joinCollection(p: Profile, id: string, name: string) {
+    if (!p.collections.some(c => c.id === id)) p.collections.push({ id, name });
+    p.lastCollection = id;
+    await this.saveProfile(p);
+  }
+
   async deleteCollection(p: Profile, cid: string) {
     await removePath(this.root, `profiles/${p.id}/collections/${cid}`);
     p.collections = p.collections.filter(c => c.id !== cid);

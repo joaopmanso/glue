@@ -42,6 +42,8 @@
   }
 
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
+  import { account } from '../../lib/account.svelte';
+  import { shared } from '../../lib/shared.svelte';
   import type { HomeFolder } from '../../core/transfer';
 
   const title = $derived.by(() => { void lib.version; return viewTitle(view.sel); });
@@ -129,10 +131,15 @@
     </div>
   {:else}
   <div class="colbar">
-    <select aria-label="Collection" value={lib.store?.meta.id} onchange={e => { const v = e.currentTarget.value; if (v === '__new') { e.currentTarget.value = lib.store?.meta.id ?? ''; newCollection(); } else void lib.openCollection(v); }}>
+    <select aria-label="Collection" id="collection-pick" value={lib.store?.meta.id} onchange={e => { const v = e.currentTarget.value; if (v === '__new') { e.currentTarget.value = lib.store?.meta.id ?? ''; newCollection(); } else if (v.startsWith('__join:')) { e.currentTarget.value = lib.store?.meta.id ?? ''; void shared.join(v.slice(7)); } else void lib.openCollection(v); }}>
       {#each lib.profile?.collections ?? [] as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+      <!-- The account's shared collections this computer doesn't have yet (ADR 0094). -->
+      {#each shared.missing() as c (c.id)}<option value={'__join:' + c.id}>Add “{c.name}” (shared{c.stats?.tracks ? ', ' + c.stats.tracks.toLocaleString() + ' songs' : ''})</option>{/each}
       <option value="__new">+ New collection…</option>
     </select>
+    {#if lib.store?.shared}<span class="shared" id="shared-chip" class:busy={shared.status.busy} title={shared.status.error ? 'Not synced: ' + shared.status.error : shared.status.at ? 'The same on all your devices · synced ' + new Date(shared.status.at).toLocaleTimeString() : 'The same on all your devices'}>{shared.status.busy ? 'Syncing…' : shared.status.error ? 'Shared · not synced' : 'Shared'}</span>
+    {:else if account.signedIn && !lib.readOnly && shared.moveTarget()}{@const to = shared.moveTarget()!}<button type="button" class="mini" id="move-shared" title="The devices this collection is merged with share “{to.name}” now: one copy for all" onclick={() => { if (confirm('Move this collection into the shared “' + to.name + '”? Its songs, playlists and analyses join it (the same songs become one). A backup is made first, and the old collection is kept in your GLUE folder.')) void shared.moveInto(to.id); }}>Move into shared “{to.name}”</button>
+    {:else if account.signedIn && !lib.readOnly}<button type="button" class="mini" id="share-collection" title="One copy for all your devices: the same songs, playlists and edits everywhere" onclick={() => { if (confirm('Share “' + (lib.store?.meta.name ?? 'this collection') + '” across your devices? Each device then shows the same songs and playlists, and changes made on any of them reach the others.')) void shared.share().catch(err => (lib.notice = 'Couldn’t share it: ' + (err as Error).message)); }}>Share</button>{/if}
     <button type="button" class="mini" title="Rename collection" onclick={renameCollection}>✎</button>
     <button type="button" class="mini" id="stats-btn" title="Stats of this collection" aria-label="Stats of this collection" onclick={() => (view.statsFor = { title: lib.profile?.collections.find(c => c.id === lib.store?.meta.id)?.name ?? 'This collection', sel: { kind: 'all' } })}><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 12.5V7.5M5.3 12.5V3M8.7 12.5V5.5M12 12.5V1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
     <button type="button" class="mini" title="Delete collection" onclick={deleteCollection}>×</button>
@@ -340,4 +347,6 @@
     .main > :global(.lside) { max-height: 33vh; }
     .splitter { display: none; }
   }
+  .shared { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--accent); white-space: nowrap; }
+  .shared.busy { opacity: .7; }
 </style>

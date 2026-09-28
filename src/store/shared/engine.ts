@@ -9,10 +9,10 @@
    The collection's files are in the shared form (each song with every computer's copy): the store
    shows them as this computer sees them (core/shared/project). */
 import { type Dir, listNames, readText, removePath, subdir, writeText } from '../fsx';
-import { merge3, type Clash } from '../../core/shared/merge3';
+import { merge3, setAt, type Clash } from '../../core/shared/merge3';
 
 export interface SharedCloud {
-  changes(since: number): Promise<{ seq: number; more: boolean; files: { path: string; rev: number; hash: string; deleted: boolean }[] }>;
+  changes(since: number): Promise<{ seq: number; more: boolean; files: { path: string; rev: number; hash: string; deleted: boolean; by?: string | null; at?: number }[] }>;
   /** Lines of path \t rev \t hash \t base64(gzip(text)). */
   bundle(paths: string[]): Promise<string>;
   /** Lines of path \t baseRev \t hash \t size \t base64(gzip(text)) or '-' to delete. */
@@ -97,7 +97,7 @@ export async function pull(p: Place, st?: State): Promise<{ state: State; change
       else if (mine === agreed || mine === undefined && agreed === undefined) { await writeLocal(p, f.path, remote); changed.push(f.path); }
       else {
         const m = merge3(f.path, parse(agreed), parse(mine), parse(remote), p.me);
-        clashes.push(...m.clashes);
+        clashes.push(...m.clashes.map(c => ({ ...c, by: f.by ?? null, when: f.at })));
         await writeLocal(p, f.path, m.value === undefined ? undefined : pretty(m.value));
         changed.push(f.path);
       }
@@ -153,4 +153,18 @@ export async function syncShared(p: Place): Promise<SyncResult> {
   const a = await pull(p);
   const b = await push(p, a.state);
   return { changed: [...new Set([...a.changed, ...b.changed])], clashes: [...a.clashes, ...b.clashes], pushed: b.pushed };
+}
+
+/** The clashes waiting for an answer (kept with the sync state). */
+export async function waitingClashes(p: Place): Promise<Clash[]> { return (await loadState(p)).clashes ?? []; }
+/** Settle a clash: `value` goes into this device's file at the clash's place (the cloud's value is already
+    there when that's the answer), and the clash is forgotten. The next push sends it. */
+export async function resolveClash(p: Place, c: Clash, value: unknown, keepRemote: boolean) {
+  const s = await loadState(p);
+  if (!keepRemote) {
+    const text = await readText(p.root, base(p) + '/' + c.file).catch(() => null);
+    await writeLocal(p, c.file, pretty(setAt(parse(text) ?? {}, c.at, value)));
+  }
+  s.clashes = (s.clashes ?? []).filter(x => !(x.file === c.file && x.at === c.at));
+  await saveState(p, s);
 }

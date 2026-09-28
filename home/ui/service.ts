@@ -8,6 +8,7 @@ import type { DetailsHeader } from '../../src/store/details';
 import * as cache from './cache';
 import * as lookup from './lookup';
 import { applyEdits, backupDaily } from './edits';
+import { syncSharedHere } from './sharedSync';
 import { describe, locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
 import { checkReminders } from './reminders';
@@ -51,6 +52,8 @@ function start() {
     else if (e.type === 'replaced') report('stopped', 'Stopped: GLUE Home started on another computer with this account’s same device');
     else if (e.type === 'removed') void unpaired();
     else if (e.type === 'signal') void onSignal(e.from, e.data);
+    // A shared collection changed on another device (ADR 0097): taken in here when no GLUE tab is open.
+    else if (e.type === 'shared' && e.from !== cfg?.deviceId) sharedSoon();
   });
 }
 function stop(say = true) {
@@ -326,6 +329,13 @@ function serve(dc: RTCDataChannel) {
 /** Find the shared collections' music folders by themselves (at start, and when the settings change);
     what's found is remembered, so songs play at once. */
 let finding: Promise<void> | null = null, again = false;
+let sharedTimer: ReturnType<typeof setTimeout> | undefined;
+/** Sync the shared collections in a moment (several nudges at once make one). */
+function sharedSoon() {
+  clearTimeout(sharedTimer);
+  sharedTimer = setTimeout(() => { if (cfg?.running !== false && cfg) void syncSharedHere(cfg, apiOf(cfg)).catch(e => console.warn('GLUE Home: couldn’t sync the shared collections', e)); }, 1500);
+}
+
 async function findFolders() {
   if (finding) { again = true; return; }
   finding = (async () => {
@@ -402,6 +412,9 @@ async function boot() {
   const edits = () => { if (cfg?.running !== false) void applyEdits(cfg, apiOf(cfg!)).catch(e => console.warn('GLUE Home: couldn’t apply edits', e)); };
   setTimeout(edits, 20_000);
   setInterval(edits, 60_000);
+  // Shared collections (ADR 0097): synced here when no GLUE tab is, soon after starting and every minute.
+  setTimeout(sharedSoon, 25_000);
+  setInterval(sharedSoon, 60_000);
   // The day's backups (ADR 0090), when no GLUE tab here makes them: soon after starting, then hourly.
   const backups = () => { if (cfg?.running !== false) void backupDaily(cfg).catch(e => console.warn('GLUE Home: the daily backup failed', e)); };
   setTimeout(backups, 45_000);

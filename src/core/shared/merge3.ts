@@ -9,7 +9,25 @@
    - sets of names (tags, genres…) merge as sets;
    - a playlist's songs merge three ways (additions and removals from both sides). */
 
-export interface Clash { file: string; at: string; local: unknown; remote: unknown }
+/** `by`/`when`: the device that made the other change, and when (from GLUE Cloud's list of changes). */
+export interface Clash { file: string; at: string; local: unknown; remote: unknown; by?: string | null; when?: number }
+
+/** The value at a clash's place (`items.t1.title`) in a file's JSON, set (undefined: removed). Pure. */
+export function setAt<T>(doc: T, at: string, value: unknown): T {
+  if (!at) return value as T;
+  const keys = at.split('.'), root = structuredClone(doc ?? {}) as Record<string, unknown>;
+  let o = root;
+  for (const k of keys.slice(0, -1)) { if (!o[k] || typeof o[k] !== 'object') o[k] = {}; o = o[k] as Record<string, unknown>; }
+  const last = keys[keys.length - 1];
+  if (value === undefined) delete o[last]; else o[last] = value;
+  return root as T;
+}
+/** Both sides kept, where that means something: lists and sets joined, notes one after the other. */
+export function mergeBoth(local: unknown, remote: unknown): unknown | undefined {
+  if (Array.isArray(local) && Array.isArray(remote)) return [...remote, ...local.filter(x => !remote.some(y => same(x, y)))];
+  if (typeof local === 'string' && typeof remote === 'string' && local && remote) return remote + ' / ' + local;
+  return undefined;
+}
 export interface Merged<T> { value: T | undefined; clashes: Clash[] }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

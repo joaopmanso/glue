@@ -17,7 +17,7 @@ export interface Merged {
   trackOrigins: Map<string, Origin[]>; listOrigins: Map<string, Origin[]>;
 }
 
-const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+export const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 function fnv(s: string): string {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
@@ -25,7 +25,7 @@ function fnv(s: string): string {
 }
 
 /** Same recording on two devices: same artist and title and length within 3 s, else same file name and size. */
-function trackKey(t: Track): string {
+export function trackKey(t: Pick<Track, 'artist' | 'title' | 'fileName' | 'size'>): string {
   return t.artist && t.title ? 'a|' + norm(t.artist) + '|' + norm(t.title) : 'f|' + norm(t.fileName) + '|' + (t.size ?? '');
 }
 

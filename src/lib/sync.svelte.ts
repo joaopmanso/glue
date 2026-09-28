@@ -144,6 +144,9 @@ class CloudSync {
     this.set(pid, { busy: true, error: '' });
     try {
       const files = await walk(pdir);
+      // Shared collections sync on their own (ADR 0094), and moved ones not at all (ADR 0096): not in this device’s copy.
+      const sharedCids = new Set<string>();
+      for (const { path, file } of files) { const m = /^collections\/([^/]+)\/collection\.json$/.exec(path); if (m) { try { const c = JSON.parse(await file.text()) as { shared?: boolean; movedTo?: string }; if (c.shared || c.movedTo) sharedCids.add(m[1]); } catch { /* unreadable: left as it is */ } } }
       // A File goes stale if the library saves that file meanwhile: read each one fresh, retry once.
       const read = async (path: string) => {
         for (let i = 0; ; i++) {
@@ -154,6 +157,7 @@ class CloudSync {
       const list: { path: string; hash: string; size: number }[] = [];
       for (const { path, file } of files) {
         if (!/\.json$/.test(path)) continue;   // .damaged copies and anything else stay local
+        if (sharedCids.has(/^collections\/([^/]+)\//.exec(path)?.[1] ?? '')) continue;
         const key = pid + '/' + path, c = this.hashes.get(key);
         if (c && c.size === file.size && c.mtime === file.lastModified) { list.push({ path, hash: c.hash, size: c.size }); continue; }
         const { f, bytes } = await read(path);
@@ -268,6 +272,8 @@ class CloudSync {
   async syncCollection(pid: string, cid: string) {
     const p = await lib.profileInfo(pid);
     if (!syncOn(p)) return;
+    // A shared collection has its own sync (ADR 0094): no per-device copy, no merged overlay.
+    if (lib.store?.shared && lib.store.meta.id === cid) return;
     const token = ++this.run;
     const still = () => token === this.run && lib.profile?.id === pid && lib.store?.meta.id === cid && !lib.cloud;
     if (!account.signedIn) {

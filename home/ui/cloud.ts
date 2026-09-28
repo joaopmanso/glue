@@ -21,7 +21,8 @@ export const access = (api: string, deviceId: string, token: string, f?: Fetch) 
 
 export type RoomEvent =
   | { type: 'online' } | { type: 'offline'; why: string } | { type: 'removed' } | { type: 'replaced' }
-  | { type: 'presence'; online: string[] } | { type: 'signal'; from: string; data: unknown };
+  | { type: 'presence'; online: string[] } | { type: 'signal'; from: string; data: unknown }
+  | { type: 'shared'; collection: string; from: string | null };
 
 /** Stay in the room: reconnect with backoff, a fresh token before the old one expires. */
 export function stayOnline(api: string, deviceId: string, token: string, on: (e: RoomEvent) => void) {
@@ -51,13 +52,14 @@ export function stayOnline(api: string, deviceId: string, token: string, on: (e:
       timers.push(setTimeout(() => s.close(4002, 'renew'), 50 * 60e3));   // access tokens last an hour
     };
     s.onmessage = e => {
-      let m: { type: string; online?: string[]; from?: string; data?: unknown };
+      let m: { type: string; online?: string[]; from?: string; data?: unknown; collection?: string };
       try { m = JSON.parse(String(e.data)); } catch { return; }
       // Act on these at once: the close handshake may never arrive.
       if (m.type === 'removed') { stopped = true; clear(); s.close(); on({ type: 'removed' }); }
       else if (m.type === 'replaced') { stopped = true; clear(); s.close(); on({ type: 'replaced' }); }
       else if (m.type === 'presence' && m.online) on({ type: 'presence', online: m.online });
       else if (m.type === 'signal' && m.from) on({ type: 'signal', from: m.from, data: m.data });
+      else if (m.type === 'shared' && m.collection) on({ type: 'shared', collection: m.collection, from: m.from ?? null });
     };
     s.onclose = e => {
       clear(); ws = null;

@@ -5,6 +5,12 @@ import { type AnalysisSummary, type Collection, type List, type Source, type Tra
 import type { GlueEvent } from '../core/library/events';
 import { migrate } from './migrations';
 import { record, time, timeAsync } from '../core/perf';
+import { analysisHere, analysisShared, collectionHere, collectionShared, toLocal, toShared, type Here, type SharedCollection, type SharedTrack, meFor } from '../core/shared/project';
+
+/** A shared collection (ADR 0094): its files hold every computer's parts; this is how this computer sees
+    them, and what was read, so saving changes only this computer's parts. */
+export interface SharedMode { here: Here; member: { profile: string; name: string }; meta: SharedCollection; tracks: Map<string, SharedTrack>; analysis: Map<string, Record<string, AnalysisSummary>> }
+export interface LoadOpts { me?: string | null; name?: string }
 
 type Shard<T> = { schemaVersion: number; items: Record<string, T> };
 /** A deleted playlist or folder with everything that was in it, in the bin (ADR 0090). */
@@ -44,15 +50,27 @@ export class CollectionStore {
       playlist membership from the lists) is rebuilt only when that part changed. */
   readonly rev = { tracks: 0, analysis: 0, lists: 0, sources: 0, events: 0 };
 
+  /** Set for a shared collection (ADR 0094). */
+  shared: SharedMode | null = null;
+  /** Files a sync brought in were read again (the view redraws; nothing to save or send). */
+  onReloaded: (() => void) | null = null;
   /** `root` changes when the library moves between GLUE Home's disk and the browser's (ADR 0051). */
   private constructor(public root: Dir, readonly base: string, public meta: Collection) {}
 
-  static load(root: Dir, pid: string, cid: string): Promise<CollectionStore> { return timeAsync('store.load', () => CollectionStore.loadNow(root, pid, cid)); }
-  private static async loadNow(root: Dir, pid: string, cid: string): Promise<CollectionStore> {
+  static load(root: Dir, pid: string, cid: string, opts: LoadOpts = {}): Promise<CollectionStore> { return timeAsync('store.load', () => CollectionStore.loadNow(root, pid, cid, opts)); }
+  private static async loadNow(root: Dir, pid: string, cid: string, opts: LoadOpts): Promise<CollectionStore> {
     const base = `profiles/${pid}/collections/${cid}`;
-    const meta = await readJSON<Collection>(root, base + '/collection.json');
-    if (!meta) throw new Error('Collection not found in your GLUE folder.');
-    const s = new CollectionStore(root, base, migrate('collection', meta));
+    const raw = await readJSON<Collection | SharedCollection>(root, base + '/collection.json');
+    if (!raw) throw new Error('Collection not found in your GLUE folder.');
+    // A shared collection: seen as this computer (the one whose profile this folder is in, if not told).
+    let mode: SharedMode | null = null;
+    if ((raw as SharedCollection).shared) {
+      const sc = raw as SharedCollection, members = sc.members ?? {};
+      const me = opts.me || meFor(sc, pid) || 'this-computer';
+      mode = { here: { me, collection: cid, members }, member: { profile: pid, name: opts.name ?? members[me]?.name ?? 'This computer' }, meta: sc, tracks: new Map(), analysis: new Map() };
+    }
+    const s = new CollectionStore(root, base, migrate('collection', mode ? collectionHere(raw as SharedCollection, mode.here.me) : raw as Collection));
+    s.shared = mode;
     // One unreadable file must not lock the user out of the rest: keep a copy aside and go on.
     const read = async <T>(path: string): Promise<T | null> => {
       try { return await readJSON<T>(root, path); }
@@ -68,12 +86,61 @@ export class CollectionStore {
       return readAll(names, f => read<T>(`${base}/${dir}/${f}`));
     };
     const [tracks, analysis, lists, sources, events] = await Promise.all([each<Shard<Track>>('tracks'), each<Shard<AnalysisSummary>>('analysis'), each<List>('lists'), each<Source>('sources'), read<Shard<GlueEvent>>(`${base}/events.json`)]);
-    for (const sh of tracks) if (sh) for (const [id, v] of Object.entries(migrate('tracks', sh).items)) s.tracks.set(id, v);
-    for (const sh of analysis) if (sh) for (const [id, v] of Object.entries(migrate('analysis', sh).items)) s.analysis.set(id, v);
+    for (const sh of tracks) if (sh) s.takeTracks(migrate('tracks', sh).items);
+    for (const sh of analysis) if (sh) s.takeAnalysis(migrate('analysis', sh).items);
     for (const l of lists) if (l) s.lists.set(l.id, migrate('list', l));
     for (const src of sources) if (src) s.sources.set(src.id, migrate('source', src));
     for (const [id, e] of Object.entries(events?.items ?? {})) s.events.set(id, e);
+    // Opened on a computer that isn't a member yet (it just joined): it becomes one on the next save.
+    if (mode && opts.me && !mode.meta.members?.[mode.here.me]) s.saveMeta();
     return s;
+  }
+
+  /** A tracks shard's items into memory (as this computer sees them, when shared). */
+  private takeTracks(items: Record<string, unknown>) {
+    const m = this.shared;
+    for (const [id, v] of Object.entries(items)) {
+      if (m) { m.tracks.set(id, v as SharedTrack); this.tracks.set(id, toLocal(v as SharedTrack, m.here)); }
+      else this.tracks.set(id, v as Track);
+    }
+  }
+  private takeAnalysis(items: Record<string, unknown>) {
+    const m = this.shared;
+    for (const [id, v] of Object.entries(items)) {
+      if (m) { m.analysis.set(id, v as Record<string, AnalysisSummary>); const a = analysisHere(v as Record<string, AnalysisSummary>, m.here.me); if (a) this.analysis.set(id, a); }
+      else this.analysis.set(id, v as AnalysisSummary);
+    }
+  }
+  /** A sync changed these files (ADR 0094): read them again into memory, without marking anything to save. */
+  async reloadFiles(paths: string[]) {
+    for (const p of paths) {
+      const [dir, file] = p.split('/');
+      const v = await readJSON<unknown>(this.root, `${this.base}/${p}`).catch(() => null);
+      if (p === 'collection.json') {
+        if (!v) continue;
+        if (this.shared) { this.shared.meta = v as SharedCollection; this.shared.here = { ...this.shared.here, members: (v as SharedCollection).members ?? {} }; this.meta = migrate('collection', collectionHere(v as SharedCollection, this.shared.here.me)); }
+        else this.meta = migrate('collection', v as Collection);
+      } else if (p === 'events.json') {
+        this.events.clear();
+        for (const [id, e] of Object.entries((v as { items?: Record<string, GlueEvent> } | null)?.items ?? {})) this.events.set(id, e);
+        this.rev.events++;
+      } else if (dir === 'tracks' || dir === 'analysis') {
+        const key = file.replace(/\.json$/, '');
+        const map: Map<string, unknown> = dir === 'tracks' ? this.tracks : this.analysis;
+        for (const id of [...map.keys()]) if (shardOf(id) === key && !this.ephemeral.has(id)) { map.delete(id); if (dir === 'tracks') this.shared?.tracks.delete(id); else this.shared?.analysis.delete(id); }
+        const items = v ? migrate(dir, v as Shard<never>).items : {};
+        if (dir === 'tracks') { this.takeTracks(items); this.rev.tracks++; } else { this.takeAnalysis(items); this.rev.analysis++; }
+      } else if (dir === 'lists') {
+        const id = file.replace(/\.json$/, '');
+        if (v) this.lists.set(id, migrate('list', v as List)); else this.lists.delete(id);
+        this.rev.lists++;
+      } else if (dir === 'sources') {
+        const id = file.replace(/\.json$/, '');
+        if (v) this.sources.set(id, migrate('source', v as Source)); else this.sources.delete(id);
+        this.rev.sources++;
+      }
+    }
+    this.onReloaded?.();
   }
 
   private mark(path: string) { this.deleted.delete(path); this.dirty.add(path); this.onDirty?.(); }
@@ -192,12 +259,24 @@ export class CollectionStore {
   }
 
   private serialize(p: string): unknown {
-    if (p === 'collection.json') return this.meta;
+    const m = this.shared;
+    if (p === 'collection.json') { if (!m) return this.meta; m.meta = collectionShared(this.meta, m.here.me, m.meta, m.member); m.here = { ...m.here, members: m.meta.members }; return m.meta; }
     if (p === 'events.json') return { schemaVersion: SCHEMA, items: Object.fromEntries(this.events) };
     const [dir, file] = p.split('/'), key = file.replace(/\.json$/, '');
     if (dir === 'tracks' || dir === 'analysis') {
       const src: Map<string, Track | AnalysisSummary> = dir === 'tracks' ? this.tracks : this.analysis;
       const items: Record<string, unknown> = {};
+      // Shared (ADR 0094): this computer's copy and analysis written in, every other computer's kept as read.
+      if (m) {
+        if (dir === 'tracks') for (const [id, t] of this.tracks) { if (shardOf(id) !== key || this.ephemeral.has(id)) continue; const st = toShared(t, m.here, m.tracks.get(id)); m.tracks.set(id, st); items[id] = st; }
+        else for (const [id, t] of this.tracks) {
+          if (shardOf(id) !== key || this.ephemeral.has(id)) continue;
+          const a = this.analysis.get(id), prev = m.analysis.get(id);
+          const by = a && !t.remote ? analysisShared(a, m.here.me, prev) : prev;
+          if (by) { m.analysis.set(id, by); items[id] = by; }
+        }
+        return { schemaVersion: SCHEMA, items };
+      }
       for (const [id, v] of src) {
         if (shardOf(id) !== key || this.ephemeral.has(id)) continue;
         // What only a merged view knows (which devices have it) isn't saved.
