@@ -8,7 +8,7 @@ import { PENDING, frame, incomingKey, unframe, type HomeFolder, type IncomingFil
 import { localHome } from './localHome.svelte';
 import type { DetailsHeader } from '../store/details';
 import type { Track } from '../store/types';
-import { thumbs } from './thumbs.svelte';
+import { thumbs, waves } from './thumbs.svelte';
 import { playsNatively, typeOfName } from './playable';
 
 /** The GLUE Home serving a browser device of the account, if there is one. */
@@ -220,14 +220,14 @@ class RemoteFiles {
   }
 
   /** Mini spectrograms of songs on one computer (those its GLUE Home has; the rest come later). */
-  async thumbs(ts: Track[]): Promise<Map<string, Uint8Array>> {
-    const out = new Map<string, Uint8Array>();
+  async thumbs(ts: Track[], kind: 'thumb' | 'wave' = 'thumb'): Promise<Map<string, Uint8Array>> {
+    const out = new Map<string, Uint8Array>(), file = kind === 'wave' ? 'wave.bin' : 'thumb.bin';
     // Songs in an incoming folder: made when they arrived.
     const waiting = new Map<string, Track[]>();
     for (const t of ts) if (t.remote?.incoming && t.remote.home) (waiting.get(t.remote.home) ?? waiting.set(t.remote.home, []).get(t.remote.home)!).push(t);
     for (const [home, list] of waiting) {
-      const got = await this.cacheFiles(home, list.map(t => incomingKey(t.remote!.incoming!, 'thumb.bin')));
-      for (const t of list) { const b = got.get(incomingKey(t.remote!.incoming!, 'thumb.bin')); if (b) out.set(t.id, b); }
+      const got = await this.cacheFiles(home, list.map(t => incomingKey(t.remote!.incoming!, file)));
+      for (const t of list) { const b = got.get(incomingKey(t.remote!.incoming!, file)); if (b) out.set(t.id, b); }
     }
     ts = ts.filter(t => !t.remote?.incoming);
     const groups = new Map<string, Track[]>();
@@ -239,7 +239,7 @@ class RemoteFiles {
     }
     for (const [k, list] of groups) {
       const [home, profile, collection] = k.split('|');
-      const a = await this.ask(home, { t: 'thumbs', profile, collection, tracks: list.map(t => t.remote!.id!) }).catch(() => null);
+      const a = await this.ask(home, { t: 'thumbs', profile, collection, tracks: list.map(t => t.remote!.id!), ...(kind === 'wave' ? { wave: true } : {}) }).catch(() => null);
       if (!a) continue;
       let at = 0;
       for (const [id, size] of a.data as [string, number][]) {
@@ -331,3 +331,4 @@ lib.canStream = t => remoteFiles.canStream(t);
 lib.remoteArt = (ts, px) => remoteFiles.art(ts, px);
 lib.artReachable = t => remoteFiles.artReachable(t);
 thumbs.remote = ts => remoteFiles.thumbs(ts);
+waves.remote = ts => remoteFiles.thumbs(ts, 'wave');

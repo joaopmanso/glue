@@ -1,5 +1,5 @@
 /* The website on a computer with GLUE Home hands its mini spectrograms, full analyses (ADR 0046) and
-   covers (ADR 0082) over to it, so GLUE Home can show them to the account's other devices without
+   covers (ADR 0082) and waveforms (ADR 0085) over to it, so GLUE Home can show them to the account's other devices without
    analysing every song again. Only what GLUE Home doesn't have yet; once per collection per visit, then
    new ones. */
 import { account } from './account.svelte';
@@ -34,13 +34,18 @@ export async function handOver() {
     if (!dir) return;
     const a = await remoteFiles.ask(home.id, { t: 'have', profile: p.id, collection: cid });
     // `art` (GLUE Home 0.15): the covers it keeps; an older one doesn't say, and isn't sent covers.
-    const have = a.data as { thumbs: string[]; details: string[]; art?: string[] };
-    const thumbs = new Set(have.thumbs), details = new Set(have.details), art = have.art ? new Set(have.art) : null;
+    // `waves` (0.17): an older GLUE Home doesn't keep waveforms, and isn't sent them.
+    const have = a.data as { thumbs: string[]; details: string[]; art?: string[]; waves?: string[] };
+    const thumbs = new Set(have.thumbs), details = new Set(have.details), art = have.art ? new Set(have.art) : null, waves = have.waves ? new Set(have.waves) : null;
     for (const t of lib.ownTracks()) {
       if (lib.store !== s) return;
       if (!thumbs.has(t.id)) {
         const b = await bytesAt(dir, `thumbs/${cid}/${shardOf(t.id)}/${t.id}.bin`);
         if (b) await remoteFiles.ask(home.id, { t: 'put', kind: 'thumb', profile: p.id, collection: cid, track: t.id, size: b.length }, { upload: b }).catch(() => {});
+      }
+      if (waves && !waves.has(t.id)) {
+        const b = await bytesAt(dir, `wthumbs/${cid}/${shardOf(t.id)}/${t.id}.bin`);
+        if (b) await remoteFiles.ask(home.id, { t: 'put', kind: 'wave', profile: p.id, collection: cid, track: t.id, size: b.length }, { upload: b }).catch(() => {});
       }
       if (!details.has(t.id)) {
         const base = `details/${cid}/${shardOf(t.id)}/${t.id}`;

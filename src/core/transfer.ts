@@ -31,15 +31,16 @@ export type StreamReq =
   /** Part of a song's file, for streaming (ADR 0076): a song of a collection, or one in the incoming folder.
       data: { total, type } (the file's size and type); the bytes follow. GLUE Home 0.14 and later. */
   | { t: 'range'; n: number; start: number; len: number; profile?: string; collection?: string; track?: string; incoming?: string }
-  | { t: 'thumbs'; n: number; profile: string; collection: string; tracks: string[] }   // mini spectrograms (data: [id, size][])
+  /** `wave` (GLUE Home 0.17): the waveforms instead (ADR 0085). */
+  | { t: 'thumbs'; n: number; profile: string; collection: string; tracks: string[]; wave?: boolean }   // mini spectrograms (data: [id, size][])
   | { t: 'details'; n: number; profile: string; collection: string; track: string }     // the full analysis (data: its header)
   | { t: 'incoming'; n: number }                                                        // what's in the incoming folder (data: IncomingFile[])
   | { t: 'get-incoming'; n: number; name: string }                                      // a song there
   | { t: 'move-incoming'; n: number; name: string; folder: string }                     // into a music folder (data: its new path)
   | { t: 'folders'; n: number }                                                         // the music folders GLUE Home found (data: HomeFolder[])
-  | { t: 'have'; n: number; profile: string; collection: string }                       // what it keeps (data: { thumbs, details } ids, and art: the covers' hashes from 0.15)
+  | { t: 'have'; n: number; profile: string; collection: string }                       // what it keeps (data: { thumbs, details } ids, art: the covers' hashes from 0.15, waves from 0.17)
   /** kind 'art' (GLUE Home 0.15): a cover the website made (ADR 0082), `hash` and `px` (64 or 320); `track` names a song that has it. */
-  | { t: 'put'; n: number; kind: 'thumb' | 'details' | 'art'; profile: string; collection: string; track: string; size: number; header?: unknown; hash?: string; px?: 64 | 320 }   // the bytes follow, then `end`
+  | { t: 'put'; n: number; kind: 'thumb' | 'wave' | 'details' | 'art'; profile: string; collection: string; track: string; size: number; header?: unknown; hash?: string; px?: 64 | 320 }   // the bytes follow, then `end`
   /** Songs' covers (ADR 0082, GLUE Home 0.15): `hash` when the asker knows it; GLUE Home reads the song's tags for the rest.
       data: [track, hash ('': none), size][]; the JPEGs follow. */
   | { t: 'art'; n: number; profile: string; collection: string; px: 64 | 320; items: { track: string; hash?: string }[] }
@@ -54,7 +55,7 @@ export type StreamCtrl = StreamReq | StreamReply;
 /** summary: the analysis GLUE Home made when the song arrived (ADR 0048), once it's done. */
 export interface IncomingFile { name: string; size: number; mtime: number; summary?: import('../store/types').AnalysisSummary | null }
 /** Where GLUE Home keeps what it made of a song in its incoming folder. */
-export const incomingKey = (name: string, what: 'summary.json' | 'thumb.bin' | 'details.json' | 'details.bin') => 'i/' + name + '.' + what;
+export const incomingKey = (name: string, what: 'summary.json' | 'thumb.bin' | 'wave.bin' | 'details.json' | 'details.bin') => 'i/' + name + '.' + what;
 export interface HomeFolder { id: string; name: string; collection: string }
 
 /** On a stream channel every binary message starts with its request's number (4 bytes, little

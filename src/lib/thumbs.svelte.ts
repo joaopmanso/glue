@@ -3,7 +3,8 @@
    - read only for rows on screen, a few at a time, and kept in a memory cache (LRU) while scrolling;
    - for tracks analysed before thumbnails existed, made once from the stored analysis.
    Two kinds (2026-09-27): the spectrogram (`thumbs`) and the waveform (`waves`, the Overview
-   column's other look); the same code keeps both. */
+   column's other look); the same code keeps both, and other computers' songs get both from their
+   GLUE Home (ADR 0085). */
 import { lib } from './library.svelte';
 import { cacheDir } from '../platform';
 import { writeBlob } from '../store/fsx';
@@ -122,6 +123,6 @@ class Thumbs {
   }
 }
 export const thumbs = new Thumbs('thumbs', THUMB_W * THUMB_H, makeThumb, true);
-export const waves = new Thumbs('wthumbs', WAVE_BYTES, makeWaveThumb, false);
+export const waves = new Thumbs('wthumbs', WAVE_BYTES, makeWaveThumb, true);
 lib.onThumb = (id, data) => void thumbs.put(id, data);
 lib.onWave = (id, data) => void waves.put(id, data);

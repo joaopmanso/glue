@@ -139,6 +139,12 @@ test('a phone signs in and the library opens by itself: songs stream from the de
   // Next time on the phone: it opens by itself again.
   await page.reload();
   await expect(page.locator('#phone-library [data-view="all"]')).toContainText('3', { timeout: 30_000 });
+  // A song's page asks GLUE Home for its full analysis: GLUE Home makes it, and keeps its waveform too,
+  // for the Overview's waveform look on other devices (ADR 0085).
+  await page.locator('#phone-library [data-view="all"]').click();
+  await page.locator('#phone-songs .row', { hasText: 'Manyaro' }).locator('.dots').click();
+  await page.locator('#phone-sheet [data-m="details"]').click();
+  await expect.poll(() => home.evaluate(() => Object.keys((window as unknown as { __cache: Record<string, number[]> }).__cache).filter(k => k.startsWith('w/pdesk/cdesk/')).length), { timeout: 90_000 }).toBeGreaterThan(0);
   await home.close();
   expect(errors).toEqual([]);
 });

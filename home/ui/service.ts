@@ -189,6 +189,7 @@ function serve(dc: RTCDataChannel) {
         for (const p of u.parts) { bytes.set(p, at); at += p.length; }
         const r = u.req;
         if (r.kind === 'thumb') await cache.putThumb(r.profile, r.collection, r.track, bytes);
+        else if (r.kind === 'wave') await cache.putWave(r.profile, r.collection, r.track, bytes);
         else if (r.kind === 'art') { if (r.hash && (r.px === 64 || r.px === 320)) await cache.putArt(r.hash, r.px, bytes); }
         else await cache.putDetails(r.profile, r.collection, r.track, r.header as DetailsHeader, bytes);
         await answer(r.n, null, null);
@@ -230,7 +231,8 @@ function serve(dc: RTCDataChannel) {
         need();
         const found: [string, number][] = [], parts: Uint8Array[] = [];
         for (const id of c.tracks.slice(0, 200)) {
-          const b = await cache.thumb(c.profile, c.collection, id);
+          // Waveforms (ADR 0085): kept, or made now from the kept full analysis.
+          const b = c.wave ? await cache.wave(c.profile, c.collection, id) ?? await cache.waveFromDetails(c.profile, c.collection, id) : await cache.thumb(c.profile, c.collection, id);
           found.push([id, b?.length ?? 0]);
           if (b) parts.push(b); else void cache.soon(c.profile, c.collection, id, () => cfg);   // made next, for the next ask
         }

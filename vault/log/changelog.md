@@ -5,6 +5,14 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's fourth list, batch J: waveforms of other computers' songs (GLUE Home 0.17)
+- **The Overview's waveform look works for the desktop's songs on the laptop and phone**
+  ([ADR 0085](../adr/0085-waveforms-from-glue-home.md)). Before, it showed empty boxes.
+- **GLUE Home keeps a waveform for each song:** from its own analyses, from the website on its
+  computer (hand-over), or made from a full analysis it already has, without reading the song again.
+- **Its background work** now also fills in songs that have no waveform yet.
+- Tests: the phone e2e opens a song's page and checks GLUE Home kept its waveform.
+
 ## 2026-09-28 · The user's fourth list, batch I: playback first (GLUE Home 0.16)
 From the user's tests with the relay on ([ADR 0084](../adr/0084-playback-first-on-the-link-to-glue-home.md)):
 - **Playback first on the link to GLUE Home:**
