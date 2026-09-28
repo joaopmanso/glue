@@ -5,6 +5,19 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The first question: how GLUE is used here
+- **First run asks "How will you use GLUE here?"** ([ADR 0092](../adr/0092-first-question-how-glue-is-used.md)):
+  - **Just this computer** (the default): no account, nothing leaves it;
+  - **This computer, synced:** sign in, then the folder;
+  - **This computer, with GLUE Home:** the installer, sign in, a code for GLUE Home, then GLUE
+    Home's folder window;
+  - **Open my library from another device** (the default on a phone): sign in only.
+- "Just this computer" makes its profiles with cloud sync off, even when signed in.
+- **The profile screen's "This computer" card** says which it is now, with the next step: turn on
+  cloud sync, add GLUE Home, or stop syncing a profile.
+- Tests: an e2e covers the four choices, the code for GLUE Home, and that a local-only profile uploads
+  nothing while signed in (it fails without the change).
+
 ## 2026-09-28 · One device per computer; sessions (GLUE Home 0.23, GLUE Cloud migration 0005)
 - **Two browsers on one computer are one device.** With GLUE Home running there, a browser finds it
   on 127.0.0.1 and joins the computer by itself; GLUE Home vouches for it

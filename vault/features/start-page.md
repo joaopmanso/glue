@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: Speklone
-updated: 2026-09-24
+updated: 2026-09-28
 adrs: []
 ---
 # Start page
@@ -18,3 +18,4 @@ synthetic 96 kHz / 24-bit track with a 16 kHz wall, and four cards explaining th
 
 ## Limits & open questions
 - GLUE: becomes the first-run flow (create/choose the GLUE folder, add music) plus "Analyze a file".
+- **The first question (2026-09-28, [ADR 0092](../adr/0092-first-question-how-glue-is-used.md)):** how GLUE is used here (just this computer, synced, with GLUE Home, from another device); the profile screen's "This computer" card shows and changes it.

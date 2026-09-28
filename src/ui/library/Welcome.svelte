@@ -12,6 +12,30 @@
   import { account } from '../../lib/account.svelte';
   import { anywhere } from '../../lib/anywhere.svelte';
   import { sync, syncOn as profileSyncs } from '../../lib/sync.svelte';
+  import { readPref, writePref } from '../../lib/prefs';
+  import { HOME_DOWNLOADS, homeOs, homePairLink } from '../../lib/homeApp';
+  import { localHome } from '../../lib/localHome.svelte';
+
+  // How GLUE is used on this device (ADR 0092): the first question. Just this computer by default (nothing
+  // leaves it); on a phone, the library of the other devices.
+  type How = 'local' | 'synced' | 'home' | 'other';
+  const MODES: { id: How; name: string; what: string }[] = [
+    { id: 'local', name: 'Just this computer', what: 'No account; nothing leaves it' },
+    { id: 'synced', name: 'This computer, synced', what: 'The same library on your other devices' },
+    { id: 'home', name: 'This computer, with GLUE Home', what: 'Its songs play everywhere, even with this page closed' },
+    { id: 'other', name: 'Open my library from another device', what: 'A phone or a second computer: sign in only' },
+  ];
+  const saved = readPref('onboard', '') as How | '';
+  let how = $state<How>(saved && MODES.some(m => m.id === saved) ? saved : homeOs() ? 'local' : 'other');
+  function choose(m: How) { how = m; writePref('onboard', m); }
+  function signInBelow() { document.getElementById('cloud-panel')?.scrollIntoView({ behavior: 'smooth' }); lib.notice = 'Sign in (GLUE Cloud, below), then carry on here.'; }
+  let code = $state<{ code: string; expiresAt: number } | null>(null), codeError = $state('');
+  async function getCode() { codeError = ''; try { code = await account.pair(); } catch (e) { codeError = (e as Error).message; } }
+  // GLUE Home connected: the page knows its local link, so the folder window is GLUE Home's (Home mode).
+  const homeHere = $derived(!!localHome.link);
+  // What this computer is now: with its GLUE Home, synced, or local only.
+  const myHome = $derived(account.devices.find(d => d.kind === 'home' && d.companionOf === account.thisDevice) ?? null);
+  const mode = $derived<'home' | 'synced' | 'local'>(myHome ? 'home' : account.signedIn && how !== 'local' ? 'synced' : 'local');
 
   let profileName = $state('');
   let collectionName = $state('My collection');
@@ -97,6 +121,23 @@
   });
 </script>
 
+{#snippet saveHere()}
+  {#if full}
+    <p><b>This is not your music folder.</b> Pick (or create) an empty folder for GLUE’s own files, a few megabytes. The usual place:</p>
+    <p class="where"><span class="crumb">Documents</span> › <span class="crumb new">GLUE</span></p>
+    <ol class="how">
+      <li>Click the button below.</li>
+      <li>Open <b>Documents</b>, click <b>New folder</b>, name it <b>GLUE</b>, and select it.</li>
+      <li>Allow GLUE to save changes to it.</li>
+    </ol>
+    <button type="button" class="btn" id="choose-home" onclick={chooseHome}>Choose where to save GLUE’s data</button>
+    <p class="fine">Used GLUE (or MCO, its old name) on this computer before? Choose the same folder as before and everything opens as you left it.</p>
+  {:else}
+    <p>This browser can’t open folders, so GLUE keeps its data in the browser’s own storage. For the full experience (linking music folders, instant access to your files) use Chrome or Edge.</p>
+    <button type="button" class="btn" id="use-private" onclick={startPrivate}>{restore ? 'Restore into browser storage' : 'Start in browser storage'}</button>
+  {/if}
+{/snippet}
+
 {#snippet stepper()}
   <ol class="stepper" aria-label="Getting started">
     <li class:on={step === 1} class:done={step > 1}><span>1</span>Where GLUE saves its data</li>
@@ -117,7 +158,7 @@
     <div id="get-started" class="setup">
     {@render stepper()}
     <h2>Set up GLUE on this computer</h2>
-    <p class="lede">GLUE organises your music on your own computer. There’s no account and nothing is uploaded. First, GLUE needs a small folder of its own to save your profile, playlists, ratings and analysis.</p>
+    <p class="lede">GLUE organises your music on your own computer. Nothing is uploaded unless you choose to. First, how you'll use it here; then GLUE needs a small folder of its own for your profile, playlists, ratings and analysis.</p>
 
     {#if checking}
       <div class="card warn" role="alertdialog" aria-labelledby="chk-h">
@@ -134,21 +175,41 @@
       </div>
     {:else}
       <div class="paths">
-        <div class="card main">
-          <h3>{restore ? 'Where should the restored library go?' : 'Start fresh'}</h3>
-          {#if full}
-            <p><b>This is not your music folder.</b> Pick (or create) an empty folder for GLUE’s own files, a few megabytes. The usual place:</p>
-            <p class="where"><span class="crumb">Documents</span> › <span class="crumb new">GLUE</span></p>
+        <div class="card main" id="how-use">
+          <h3>{restore ? 'Where should the restored library go?' : 'How will you use GLUE here?'}</h3>
+          <!-- The four ways (ADR 0092): nothing leaves the computer unless you choose it. -->
+          <div class="modes" role="radiogroup" aria-label="How you'll use GLUE on this device">
+            {#each MODES as m (m.id)}
+              <button type="button" class="mode" role="radio" aria-checked={how === m.id} data-mode={m.id} onclick={() => choose(m.id)}>
+                <b>{m.name}</b><small>{m.what}</small>
+              </button>
+            {/each}
+          </div>
+          {#if how === 'local'}
+            <p class="fine">Everything stays on this computer: no account, nothing uploaded. You can turn on cloud sync or add GLUE Home later.</p>
+            {@render saveHere()}
+          {:else if how === 'synced'}
+            <p class="fine">Your library is kept in step with your other devices through GLUE Cloud (your library's data, never your music). This computer's songs play elsewhere while GLUE is open here.</p>
+            {#if !account.signedIn}
+              <button type="button" class="btn" id="how-sign-in" onclick={signInBelow}>Sign in to GLUE Cloud</button>
+            {:else}
+              <p class="ok">Signed in as {account.user?.email ?? account.user?.name}. Cloud sync is on for the profiles you make here.</p>
+              {@render saveHere()}
+            {/if}
+          {:else if how === 'home'}
+            <p class="fine">GLUE Home is a small app that keeps running when this page is closed: it plays this computer's songs to your other devices, analyses them, follows your DJ libraries and keeps everything in sync. Recommended for the computer that holds your music.</p>
             <ol class="how">
-              <li>Click the button below.</li>
-              <li>Open <b>Documents</b>, click <b>New folder</b>, name it <b>GLUE</b>, and select it.</li>
-              <li>Allow GLUE to save changes to it.</li>
+              <li>Install GLUE Home: {#each Object.entries(HOME_DOWNLOADS) as [os, d] (os)}<a class="dl" class:mine={homeOs() === os} href={d.url}>{d.label}</a>{' '}{/each}</li>
+              <li>{#if account.signedIn}Signed in as {account.user?.email ?? account.user?.name}.{:else}<button type="button" class="link" id="how-sign-in" onclick={signInBelow}>Sign in to GLUE Cloud</button>.{/if}</li>
+              <li>{#if !account.signedIn}Connect GLUE Home with a code.{:else if homeHere}GLUE Home is connected.{:else if code}Enter <b class="code" id="how-code">{code.code}</b> in GLUE Home, or <a href={homePairLink(code.code)} id="how-open-home">open GLUE Home with it</a>.{:else}<button type="button" class="link" id="how-get-code" onclick={getCode}>Get a code for GLUE Home</button>{/if}</li>
+              <li>{#if homeHere}Choose where GLUE saves its data: GLUE Home shows its own folder window.{:else}Then choose where GLUE saves its data (GLUE Home's own folder window).{/if}</li>
             </ol>
-            <button type="button" class="btn" id="choose-home" onclick={chooseHome}>Choose where to save GLUE’s data</button>
-            <p class="fine">Used GLUE (or MCO, its old name) on this computer before? Choose the same folder as before and everything opens as you left it.</p>
+            {#if homeHere}{@render saveHere()}{/if}
+            {#if codeError}<p class="err">{codeError}</p>{/if}
           {:else}
-            <p>This browser can’t open folders, so GLUE keeps its data in the browser’s own storage. For the full experience (linking music folders, instant access to your files) use Chrome or Edge.</p>
-            <button type="button" class="btn" id="use-private" onclick={startPrivate}>{restore ? 'Restore into browser storage' : 'Start in browser storage'}</button>
+            <p class="fine">Browse, play and edit the library of your other devices (a phone, a second computer): nothing is set up here, and this device doesn't show among your devices.</p>
+            {#if !account.signedIn}<button type="button" class="btn" id="how-sign-in" onclick={signInBelow}>Sign in to open your library</button>
+            {:else}<p class="ok">Signed in as {account.user?.email ?? account.user?.name}: your library opens by itself.</p>{/if}
           {/if}
         </div>
         <div class="card side">
@@ -209,13 +270,21 @@
         {/each}
       </ul>
     {/if}
-    <form class="create" onsubmit={e => { e.preventDefault(); if (profileName.trim()) void lib.createProfile(profileName); }}>
+    <form class="create" onsubmit={e => { e.preventDefault(); if (profileName.trim()) void lib.createProfile(profileName, readPref('onboard', '') === 'local' ? { cloudSync: false } : {}); }}>
       <label class="label" for="profile-name">{lib.home?.index.profiles.length ? 'New profile' : 'Your name or DJ name'}</label>
       <div class="row">
         <input id="profile-name" placeholder="e.g. DJ Nova" bind:value={profileName} maxlength="60" autocomplete="off">
         <button type="submit" class="btn" disabled={!profileName.trim()}>Create profile</button>
       </div>
     </form>
+    <!-- How this computer uses GLUE now, and how to change it (ADR 0092): no choice is final. -->
+    <div class="card thiscomp" id="this-computer" data-mode={mode}>
+      <h3>This computer</h3>
+      {#if mode === 'home'}<p>With GLUE Home ({myHome?.name}): this computer's songs play on your other devices, even with this page closed.</p>
+      {:else if mode === 'synced'}<p>Synced with your other devices through GLUE Cloud (your library's data, never your music). <b>Add GLUE Home</b> so its songs play elsewhere with this page closed: {#each Object.entries(HOME_DOWNLOADS) as [os, d] (os)}<a class="dl" class:mine={homeOs() === os} href={d.url}>{d.label}</a>{' '}{/each}then “+ GLUE Home” under Devices.</p>
+      {:else}<p>Just this computer: no account, nothing leaves it. <button type="button" class="link" id="turn-on-sync" onclick={() => { choose('synced'); if (!account.signedIn) signInBelow(); }}>Turn on cloud sync</button> to have the same library on your other devices{account.signedIn ? ', then switch on “Cloud sync” for a profile above' : ' (sign in below)'}.</p>{/if}
+      {#if mode !== 'local'}<p class="fine">Stop syncing a profile with its “Cloud sync” switch above; its library stays here.</p>{/if}
+    </div>
     <CloudPanel />
     <ThemePicker />
     <div class="more">
@@ -331,4 +400,12 @@
   @media (max-width: 760px) { .paths { grid-template-columns: 1fr; } }
   .bpmr { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; color: var(--ink-2); }
   .bpmr select { background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); font-size: 12px; padding: 2px 4px; }
+  .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+  .mode { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--raised, var(--surface)); color: var(--ink-2); cursor: pointer; font: inherit; }
+  .mode b { color: var(--ink); font-size: 14px; }
+  .mode small { font-size: 12px; color: var(--muted); }
+  .mode[aria-checked='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+  .dl { margin-right: 6px; }
+  .dl.mine { font-weight: 600; }
+  .code { font-family: ui-monospace, monospace; letter-spacing: .08em; }
 </style>

@@ -322,6 +322,58 @@ test('plays from the library and drops tracks onto playlists, new or in a closed
   await expect(page.locator('.lside .item', { hasText: 'Opener' })).toContainText('3');
 });
 
+test('the first question: how GLUE is used here; "Just this computer" uploads nothing even when signed in (ADR 0092)', async ({ page }) => {
+  await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+    window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+      renderButton(el) { const b = document.createElement('button'); b.className = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
+  const asked: string[] = [];
+  const user = { id: 'u1', email: 'dj@example.com', name: 'DJ', picture: null };
+  await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+    const p = new URL(r.request().url()).pathname; asked.push(p);
+    const json = (b: unknown) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
+    if (p === '/v1/auth/google') return json({ access: 'a', refresh: 'r', deviceId: 'b1', user });
+    if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1' });
+    if (p === '/v1/me') return json({ user, thisDevice: 'b1', devices: [], sessions: [] });
+    if (p === '/v1/sync') return json({ thisDevice: 'b1', profiles: [] });
+    if (p === '/v1/sync/links') return json({ groups: [] });
+    if (p === '/v1/pairing') return json({ code: 'ABCD-EFGH', expiresAt: Date.now() + 600_000 });
+    return json({ ok: true });
+  });
+  await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+  await seed(page);
+  await page.goto('./');
+  // Four ways; "Just this computer" first, and its folder choice right there.
+  await expect(page.locator('#how-use .mode')).toHaveCount(4);
+  await expect(page.locator('#how-use [data-mode="local"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#choose-home')).toBeVisible();
+  // With GLUE Home: the download, then sign-in, a code, and GLUE Home's own folder window.
+  await page.click('#how-use [data-mode="home"]');
+  await expect(page.locator('#how-use')).toContainText('Install GLUE Home');
+  await expect(page.locator('#how-use a.dl')).toHaveCount(2);
+  // Signed in (GLUE Cloud, below), the code for GLUE Home.
+  await page.locator('#cloud-panel .fake-google').click();
+  await page.click('#how-get-code');
+  await expect(page.locator('#how-code')).toHaveText('ABCD-EFGH');
+  await expect(page.locator('#how-open-home')).toHaveAttribute('href', /ABCD-EFGH/);
+  // Another device: sign in only.
+  await page.click('#how-use [data-mode="other"]');
+  await expect(page.locator('#how-use')).toContainText('your library opens by itself');
+  // Just this computer, although signed in: its profile doesn't sync.
+  await page.click('#how-use [data-mode="local"]');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.waitForTimeout(25_000);                                   // longer than a sync would wait to upload
+  expect(asked.filter(p => p.startsWith('/v1/sync/manifest') || p.startsWith('/v1/sync/files'))).toEqual([]);
+  // The profile screen says what this computer is, and how to change it.
+  await page.locator('.top .who').click();
+  await expect(page.locator('#this-computer')).toHaveAttribute('data-mode', 'local');
+  await expect(page.locator('#this-computer #turn-on-sync')).toBeVisible();
+});
+
 test('a deleted playlist or folder goes to Recently deleted, and Restore puts it back with what was in it (ADR 0090)', async ({ page }) => {
   await seed(page);
   await page.goto('./');

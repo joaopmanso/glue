@@ -239,9 +239,11 @@ class Library {
   }
 
   // ─── Profiles and collections ──────────────────────────────────────────────
-  async createProfile(name: string) {
+  /** `cloudSync: false`: "Just this computer" (ADR 0092), so even signed in nothing is uploaded. */
+  async createProfile(name: string, opts: { cloudSync?: boolean } = {}) {
     if (!this.home) return;
-    const p = await this.home.createProfile(name);
+    let p = await this.home.createProfile(name);
+    if (opts.cloudSync === false) { p = { ...p, cloudSync: false }; await this.home.saveProfile(p); }
     this.profile = p;
     this.phase = 'collections';
     await this.createCollection('My collection');

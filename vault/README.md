@@ -165,3 +165,4 @@ Planned (GLUE):
 | [0089](adr/0089-edits-only-against-their-own-collection.md) | Edits are worked out only against the collection they came from; mass deletions are asked | accepted |
 | [0090](adr/0090-bin-guarded-re-reads-daily-backups.md) | A bin for playlists, guarded DJ-library re-reads, daily backups | accepted |
 | [0091](adr/0091-computers-and-sessions.md) | A device is a computer; signing in only to browse is a session | accepted |
+| [0092](adr/0092-first-question-how-glue-is-used.md) | The first question: how GLUE is used on this device | accepted |

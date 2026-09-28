@@ -105,7 +105,7 @@ What this means for the design:
   - Existing browser devices with no collection upload become sessions (backfill), which removes the
     phone's empty member from the group.
 
-## Phase O: onboarding with the choice (site; before or with Phase 2)
+## Phase O: onboarding with the choice (site; before or with Phase 2). Done 2026-09-28 (ADR 0092)
 - **First run** (`Start.svelte`/`Welcome.svelte`) asks one question with three cards:
   - **"Just this computer"**: local only, and pick the GLUE folder;
   - **"This computer, synced to my other devices"**: sign in, then pick the GLUE folder, and cloud
