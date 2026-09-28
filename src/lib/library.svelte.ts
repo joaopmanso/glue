@@ -472,7 +472,10 @@ class Library {
     if (this.profile.collections[0]) await this.openCollection(this.profile.collections[0].id);
     else this.phase = 'collections';
   }
+  /** Before the open collection closes (cloud sync lets go of it, ADR 0089). */
+  onCollectionClosing: (() => void) | null = null;
   private async closeCollection() {
+    if (this.store) this.onCollectionClosing?.();
     this.stopAnalysis();
     await this.flush();
     this.cloud = null; this.devicesShown = []; this.copies = new Map();

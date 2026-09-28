@@ -61,7 +61,9 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
       const s = await CollectionStore.load(glue, p.id, cid);
       // A tab opened meanwhile: it's the writer now.
       if (await bridge.leaseHeld()) return changes;
-      changes += apply(s, list);
+      // Many playlists deleted at once: left to a GLUE tab, which asks first (ADR 0089).
+      const dels = list.filter(o => o.t === 'list-del').length;
+      changes += apply(s, dels > 3 ? list.filter(o => o.t !== 'list-del') : list);
       await s.flush();
       // Edited song info into the files (their new size and date back into the collection).
       await writeUnwritten(s, (tr, tags) => {

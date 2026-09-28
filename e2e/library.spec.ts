@@ -1738,6 +1738,13 @@ test('cloud sync: upload, open from the cloud, edits reach the owning device, me
   await expect(page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('[data-c="device"] .dv')).toHaveText(['Laptop', 'Desktop']);
   await expect(desk.locator('.pbtn')).toHaveCount(0);                          // plays where it is
   await expect(page.locator('.lside')).toContainText('Desk list');
+  // Opening the collection again (the profile screen and back) deletes nothing on the desktop: its
+  // playlists were once worked out as deleted against the reopened collection (2026-09-28, ADR 0089).
+  await page.locator('.top .who').click();
+  await page.locator('.profile', { hasText: 'DJ Test' }).click();
+  await expect(page.locator('.lside')).toContainText('Desk list', { timeout: 20_000 });
+  await page.waitForTimeout(4000);
+  expect(ops.filter(o => (o.op as { t: string }).t === 'list-del')).toEqual([]);
   // Filter by device: from the column, and from the sidebar's Devices.
   await desk.locator('.dv').click();
   await expect(page.locator('.tr')).toHaveCount(5);                            // every song is on the desktop

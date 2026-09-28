@@ -51,6 +51,17 @@ type OutOp = Member & { op: EditOp };
 /** Cloud sync is on unless the user turned it off for the profile (ADR 0042). */
 export const syncOn = (p: Profile | null | undefined) => !!p && p.cloudSync !== false;
 
+/** Deleting many playlists at once (more than 3, or more than a tenth of them) waits for a yes: a bug or
+    a bad read must never empty everyone's playlists again (ADR 0089). No: the deletions are dropped. */
+export function keepDeletes(ops: EditOp[], before: Baseline | null): EditOp[] {
+  const dels = ops.filter(o => o.t === 'list-del');
+  const total = before?.lists.size ?? 0;
+  if (dels.length <= 3 && (dels.length <= 1 || !total || dels.length <= total / 10)) return ops;
+  const names = before ? dels.map(o => { try { return (JSON.parse(before.lists.get((o as { id: string }).id) ?? '{}') as { name?: string }).name ?? ''; } catch { return ''; } }).filter(Boolean) : [];
+  const yes = typeof window !== 'undefined' && window.confirm('Delete ' + dels.length + ' playlists and folders on all your devices?' + (names.length ? '\n\n' + names.slice(0, 8).join(', ') + (names.length > 8 ? '…' : '') : '') + '\n\nCancel keeps them.');
+  return yes ? ops : ops.filter(o => o.t !== 'list-del');
+}
+
 const PUSH_DELAY = 20_000, PUSH_GAP = 90_000, PULL_EVERY = 120_000, PARALLEL = 4;
 /** Batch sizes in base64 characters (ADR 0043): uploads, and downloads (small, so songs appear as they come). */
 const UP_BATCH = 1_000_000, DOWN_BATCH = 400_000;
@@ -199,8 +210,10 @@ class CloudSync {
     let applied = 0;
     const byCollection = new Map<string, EditOp[]>();
     for (const o of ops) (byCollection.get(o.collection) ?? byCollection.set(o.collection, []).get(o.collection)!).push(o.op);
-    for (const [cid, list] of byCollection) {
+    for (const [cid, all] of byCollection) {
       if (!profile!.collections.some(c => c.id === cid)) continue;
+      // Many playlists deleted from elsewhere at once: asked first (ADR 0089).
+      const list = keepDeletes(all, null);
       // Song info edited elsewhere is this computer's own edit now: written into the files (ADR 0087).
       if (lib.store && !lib.cloud && lib.store.meta.id === cid && lib.profile?.id === pid) { applied += apply(lib.store, list); await lib.flush(); void lib.writeInfo(); }
       else { const s = await CollectionStore.load(home, pid, cid); applied += apply(s, list); await s.flush(); }
@@ -242,6 +255,8 @@ class CloudSync {
   private otherMembers: Member[] = [];
   private overlayGroup: Group | null = null;
   private overlayBase: Baseline | null = null;
+  /** The store `overlayBase` was taken from: edits are only worked out against that one (ADR 0089). */
+  private baseStore: CollectionStore | null = null;
   private meId = '';
   private ownCount = 0;
   private editTimer = 0;
@@ -372,7 +387,7 @@ class CloudSync {
     const o = time('sync.buildOverlay', () => buildOverlay(local, this.others, g));
     time('sync.applyOverlay', () => lib.applyOverlay(o, [local.device.name, ...new Set(this.others.map(d => d.device.name))]));
     this.overlay = o; this.ownCount = own.length;
-    this.overlayBase = baseline(s.tracks.values(), s.lists.values());
+    this.overlayBase = baseline(s.tracks.values(), s.lists.values()); this.baseStore = s;
   }
   /** The open collection changed: edits to shared data go out; songs added or removed here re-merge. */
   onLocalChange() {
@@ -387,8 +402,10 @@ class CloudSync {
   }
   private async sendEdits() {
     const s = lib.store, o = this.overlay, b = this.overlayBase;
-    if (s && o && b && !lib.cloud) {
-      const ops = diff(b, s.tracks.values(), s.lists.values());
+    // Only against the collection the snapshot came from: another one (a switch, a reopen) would look
+    // like every playlist was deleted (the loss of 2026-09-28, ADR 0089).
+    if (s && o && b && !lib.cloud && s === this.baseStore) {
+      const ops = keepDeletes(diff(b, s.tracks.values(), s.lists.values()), b);
       this.overlayBase = baseline(s.tracks.values(), s.lists.values());
       for (const [mi, list] of overlayOps(ops, o, this.others.length + 1)) for (const op of list) this.unsent.push({ ...this.otherMembers[mi - 1], op });
     }
@@ -398,6 +415,16 @@ class CloudSync {
     catch (e) { this.unsent = [...out, ...this.unsent]; console.warn('Cloud sync: edits are sent on the next try', e); return; }
     // Their computers' GLUE Homes take them in now, rather than when GLUE next opens there (ADR 0087).
     for (const d of new Set(out.map(o => o.device))) lib.nudgeEdits?.(d);
+  }
+  /** The open collection is closing (a switch, a reopen, the move between GLUE Home and the browser):
+      what changed goes out against it now, then the merged view and its snapshot are forgotten, so
+      nothing is worked out against the next collection (ADR 0089). */
+  leaveCollection() {
+    void this.sendEdits();
+    clearTimeout(this.editTimer); clearTimeout(this.rebuildTimer); clearInterval(this.pullTimer);
+    this.run++;
+    this.overlay = null; this.others = []; this.otherMembers = []; this.overlayGroup = null;
+    this.overlayBase = null; this.baseStore = null;
   }
   /** Signed out: the other devices' songs go, and so does the account's cached state. */
   forgetOverlay() {
@@ -494,6 +521,7 @@ class CloudSync {
   }
 
   private base: Baseline | null = null;
+  private cloudStore: CollectionStore | null = null;
   private target: { kind: 'device'; member: Member } | { kind: 'group'; members: Member[]; merged: Merged } | null = null;
   private sendTimer = 0;
 
@@ -549,14 +577,14 @@ class CloudSync {
     this.run++;   // the local collection's sync stops while a cloud view is open
     this.overlay = null;
     this.target = target;
-    this.base = baseline(s.tracks.values(), s.lists.values());
+    this.base = baseline(s.tracks.values(), s.lists.values()); this.cloudStore = s;
     lib.onCloudChange = () => { clearTimeout(this.sendTimer); this.sendTimer = window.setTimeout(() => void this.send().catch(e => { lib.notice = 'Couldn’t send your change to GLUE Cloud: ' + (e as Error).message; }), 600); };
   }
   /** Edits in the cloud view → operations for the devices that own the data. */
   private async send() {
     const s = lib.store, t = this.target, b = this.base;
-    if (!s || !t || !b || !lib.cloud) return;
-    const ops = diff(b, s.tracks.values(), s.lists.values());
+    if (!s || !t || !b || !lib.cloud || s !== this.cloudStore) return;
+    const ops = keepDeletes(diff(b, s.tracks.values(), s.lists.values()), b);
     if (!ops.length) return;
     this.base = baseline(s.tracks.values(), s.lists.values());
     const out: OutOp[] = [];
@@ -597,3 +625,4 @@ lib.onLocalChange = () => sync.onLocalChange();
 account.onSignedIn = () => { void sync.refresh().catch(() => {}); if (lib.profile && lib.store && !lib.cloud) lib.onCollectionOpened?.(lib.profile.id, lib.store.meta.id); };
 account.onSignedOut = () => sync.forgetOverlay();
 lib.onCollectionOpened = (pid, cid) => { void sync.syncCollection(pid, cid); };
+lib.onCollectionClosing = () => sync.leaveCollection();

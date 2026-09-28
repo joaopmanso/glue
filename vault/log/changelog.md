@@ -5,6 +5,20 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · Playlists deleted everywhere: fixed (GLUE Home 0.21)
+- **The cause** (reproduced in e2e): a device showing a merged collection kept its snapshot when the
+  collection was reopened or switched. The next round of edits then looked like "every other
+  device's playlist was deleted", and went to those devices
+  ([ADR 0089](../adr/0089-edits-only-against-their-own-collection.md)).
+- **Fixed:** sync lets go of a collection before it closes, and edits are only worked out against
+  the collection they came from.
+- **Deleting more than 3 playlists** (or more than a tenth) at once now asks first. That covers
+  sending, cloud views, and edits arriving from elsewhere; GLUE Home leaves such deletions to a tab.
+- **Tests:** the cloud sync e2e reopens a merged collection and checks that no deletion is sent (it
+  fails without the fix).
+- **Next:** a bin, confirmed DJ-library removals, daily backups, then the shared collection (see the
+  plan in the handoff).
+
 ## 2026-09-28 · AIFF songs stream too (GLUE Home 0.20)
 - **Another computer's AIFF songs stream** instead of downloading first ("getting it from Desktop…
   44%"). Chrome, Edge and Firefox don't play AIFF, so the page turns it into WAV a piece at a time
