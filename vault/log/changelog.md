@@ -5,6 +5,13 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The TURN relay is on
+- The user created the Cloudflare TURN key; the repository secrets `TURN_KEY_ID` and
+  `TURN_KEY_API_TOKEN` are in. The cloud workflow, run by hand, uploaded them to the Worker, and
+  `/v1/turn` hands out relay credentials to signed-in devices ([ADR 0081](../adr/0081-turn-relay.md)).
+  Streaming and sending songs should now work away from the home network (the user tests it on
+  mobile data).
+
 ## 2026-09-28 · The user's third list, batch H: away from home, covers, GLUE Home's CPU (GLUE Home 0.15)
 - **Streaming and sending songs away from the home Wi-Fi** ([ADR 0081](../adr/0081-turn-relay.md)):
   - GLUE Cloud hands out day-long credentials for Cloudflare's TURN relay (`GET /v1/turn`), from the
