@@ -1,16 +1,16 @@
 <script lang="ts">
-  /* GLUE's library on a phone (the user's list, 2026-09-28; ADR 0078): a library explorer and player.
-     Tabs at the bottom: Library (the collection's lists), Browse (artists, albums, genres, labels,
-     years), Playlists, Search, More. Each tab keeps its own stack of screens. */
+  /* GLUE's library on a phone or a tablet (the user's lists, 2026-09-28; ADR 0078, 0079): a library
+     explorer and player. Tabs at the bottom: Library (the collection's lists), Browse (artists, albums,
+     genres, labels, years), Playlists (made, named, moved and edited by touch), Search, More. Each tab
+     keeps its own stack of screens. */
   import { lib } from '../../lib/library.svelte';
   import { view, viewTitle, type ViewSel } from '../../lib/view.svelte';
   import { phone, type PhoneTab } from '../../lib/phone.svelte';
   import { router } from '../../lib/route.svelte';
   import { themes } from '../../lib/themes.svelte';
   import { account } from '../../lib/account.svelte';
-  import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { auto } from '../../lib/auto.svelte';
-  import { SEP, tidy, type MenuEntry } from '../../lib/menu.svelte';
+  import { listMenu, newList, startEditing } from '../../lib/phoneLists';
   import { allTags } from '../../lib/tags.svelte';
   import { tracksFor } from '../../lib/view.svelte';
   import { TO_BE_SORTED } from '../../lib/incoming.svelte';
@@ -37,7 +37,8 @@
   const title = $derived.by(() => {
     void lib.version;
     const t = top;
-    if (t?.kind === 'songs') return viewTitle(t.sel);
+    // A playlist: its own name (the way back is the folder).
+    if (t?.kind === 'songs') return (t.sel.kind === 'list' ? lib.store?.lists.get(t.sel.id)?.name : null) ?? viewTitle(t.sel);
     if (t?.kind === 'values') return facetInfo(t.by).name;
     if (t?.kind === 'folder') return lib.store?.lists.get(t.id)?.name ?? 'Folder';
     return TABS.find(x => x[0] === phone.tab)![1];
@@ -56,18 +57,9 @@
   // The Playlists tab: the tree, a level at a time.
   const levelOf = (parent: string | null) => { void lib.version; return lib.childLists(parent).filter(l => l.id !== TO_BE_SORTED); };
   function openList(l: List) { if (l.kind === 'folder') phone.push({ kind: 'folder', id: l.id }); else phone.songs({ kind: 'list', id: l.id }); }
-  function listMenu(l: List): MenuEntry[] {
-    const ids = tracksFor({ kind: 'list', id: l.id }).filter(t => lib.playsHere(t)).map(t => t.id);
-    return tidy([
-      ids.length > 0 && { label: 'Play', hint: String(ids.length), attrs: { 'data-m': 'play' }, run: () => void nowPlaying.play(ids[0], ids, 0, l.name) },
-      ids.length > 0 && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(ids, 'end') },
-      { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: l.name, sel: { kind: 'list', id: l.id } }) },
-      SEP,
-      !lib.readOnly && { label: 'Rename…', attrs: { 'data-m': 'rename' }, run: () => { const n = prompt('Rename “' + l.name + '”', l.name)?.trim(); if (n && n !== l.name) lib.updateList(l.id, { name: n }); } },
-      !lib.readOnly && { label: 'Delete…', danger: true, attrs: { 'data-m': 'delete' }, run: () => { if (confirm('Delete “' + l.name + '”? The songs stay in your collection.')) lib.deleteList(l.id); } },
-    ]);
-  }
-  function newPlaylist(parent: string | null) { const n = prompt('Name of the new playlist')?.trim(); if (n) lib.createList('playlist', n, parent); }
+  // The list or folder on screen, for the top bar's Edit and ⋯.
+  const shownList = $derived.by(() => { void lib.version; const t = top; const id = t?.kind === 'folder' ? t.id : t?.kind === 'songs' && t.sel.kind === 'list' ? t.sel.id : null; return id && id !== TO_BE_SORTED ? lib.store?.lists.get(id) ?? null : null; });
+  const canEdit = $derived(!!shownList && shownList.kind === 'playlist' && !lib.readOnly && top?.kind === 'songs');
 
   let songInput = $state<HTMLInputElement>();
   async function addSongs() {
@@ -87,6 +79,8 @@
     router.go('#/');
     phone.show(k);
   }
+  // A notice goes by itself after a few seconds, as toasts do on a phone.
+  $effect(() => { const n = lib.notice; if (!n) return; const t = setTimeout(() => { if (lib.notice === n) lib.notice = ''; }, 6000); return () => clearTimeout(t); });
   let screen = $state<HTMLElement>();
   // A new page starts at its top.
   $effect(() => { void route; screen?.scrollTo(0, 0); });
@@ -98,6 +92,8 @@
     {:else if top}<button type="button" class="back" id="phone-back" aria-label="Back" onclick={() => phone.back()}>‹</button>{:else}<span class="logo" aria-hidden="true">G</span>{/if}
     <h1 id="phone-title">{children ? PAGES[route.name] ?? '' : title}</h1>
     {#if lib.cloud}<span class="cloud" title={lib.cloud.subtitle}>☁ {lib.cloud.title}</span>{/if}
+    {#if !children && canEdit && !phone.selecting}<button type="button" class="act" id="phone-edit" onclick={() => phone.editing ? (phone.editing = null) : startEditing(shownList!.id)}>{phone.editing ? 'Done' : 'Edit'}</button>{/if}
+    {#if !children && shownList}<button type="button" class="act more" id="phone-list-more" aria-label={'More: ' + shownList.name} onclick={() => phone.menu(shownList.name, () => listMenu(shownList))}>⋯</button>{/if}
   </header>
 
   <main class="screen" class:page={!!children} bind:this={screen}>
@@ -114,6 +110,8 @@
         {#each levelOf(f) as l (l.id)}
           <li class="lrow"><button type="button" class="ent" data-list={l.id} onclick={() => openList(l)}><i class="ic" style:background={l.color ?? undefined}>{l.kind === 'folder' ? '▸' : '♪'}</i>{l.name}<span class="n">{l.kind === 'folder' ? '' : l.items.length}</span></button><button type="button" class="dots" aria-label="More" onclick={() => phone.menu(l.name, () => listMenu(l))}>⋯</button></li>
         {/each}
+        {#if !lib.readOnly}<li><button type="button" class="ent add" id="phone-new-inside" onclick={() => void newList('playlist', f)}>+ New playlist here</button></li>
+        <li><button type="button" class="ent add" id="phone-new-folder-inside" onclick={() => void newList('folder', f)}>+ New folder here</button></li>{/if}
       </ul>
     {:else if phone.tab === 'library'}
       <ul class="menu" id="phone-library">
@@ -144,7 +142,8 @@
         {#each levelOf(null) as l (l.id)}
           <li class="lrow"><button type="button" class="ent" data-list={l.id} onclick={() => openList(l)}><i class="ic" style:background={l.color ?? undefined}>{l.kind === 'folder' ? '▸' : '♪'}</i>{l.name}<span class="n">{l.kind === 'folder' ? '' : l.items.length}</span></button><button type="button" class="dots" aria-label="More" onclick={() => phone.menu(l.name, () => listMenu(l))}>⋯</button></li>
         {:else}<li class="empty">No playlists yet.</li>{/each}
-        {#if !lib.readOnly}<li><button type="button" class="ent add" id="phone-new-playlist" onclick={() => newPlaylist(null)}>+ New playlist</button></li>
+        {#if !lib.readOnly}<li><button type="button" class="ent add" id="phone-new-playlist" onclick={() => void newList('playlist')}>+ New playlist</button></li>
+        <li><button type="button" class="ent add" id="phone-new-folder" onclick={() => void newList('folder')}>+ New folder</button></li>
         <li><button type="button" class="ent add" id="phone-new-auto" onclick={() => auto.show(null)}>+ Build a playlist…</button></li>{/if}
       </ul>
     {:else if phone.tab === 'search'}
@@ -167,7 +166,8 @@
     {/if}
   </main>
 
-  {#if lib.notice}<div class="toast" role="status"><span>{lib.notice}</span><button type="button" aria-label="Dismiss" onclick={() => (lib.notice = '')}>×</button></div>{/if}
+  {#if phone.undo}<div class="toast" role="status" id="phone-undo-toast"><span>{phone.undo.text}</span><button type="button" class="undo" id="phone-undo" onclick={() => { phone.undo?.run(); phone.undo = null; }}>Undo</button></div>
+  {:else if lib.notice}<div class="toast" role="status"><span>{lib.notice}</span><button type="button" aria-label="Dismiss" onclick={() => (lib.notice = '')}>×</button></div>{/if}
   <PhonePlayer />
   <nav class="tabs" aria-label="Sections">
     {#each TABS as [k, label, d] (k)}
@@ -209,6 +209,9 @@
   .toast { position: fixed; left: 10px; right: 10px; bottom: calc(60px + 70px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 14%, var(--raised)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-2)); font-size: 14px; box-shadow: 0 8px 24px rgb(0 0 0 / .4); }
   .toast span { flex: 1; }
   .toast button { background: none; border: 0; color: var(--muted); font-size: 20px; }
+  .toast .undo { color: var(--accent); font-size: 15px; font-weight: 700; padding: 6px 8px; }
+  .act { background: none; border: 0; color: var(--accent); font-size: 16px; font-weight: 600; padding: 8px 6px; cursor: pointer; flex: none; }
+  .act.more { font-size: 24px; line-height: 1; width: 40px; padding: 4px 0; color: var(--ink-2); }
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; height: calc(60px + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px); display: grid; grid-template-columns: repeat(5, 1fr); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--line); }
   .tabs button { background: none; border: 0; color: var(--muted); display: grid; place-items: center; align-content: center; gap: 3px; font-size: 11px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .tabs button.on { color: var(--accent); }

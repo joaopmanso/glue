@@ -1,16 +1,19 @@
-/* The library on a phone (the user's list, 2026-09-28; ADR 0078): tabs at the bottom, two-line rows, a tap
-   plays, menus as sheets, the mini and full player, browsing, search, playlists, and a song's page inside
-   the same frame. Nothing may be wider than the screen. */
+/* The library on a phone or a tablet (the user's lists, 2026-09-28; ADR 0078, 0079): tabs at the bottom,
+   two-line rows, a tap plays, menus and questions as sheets, the mini and full player, browsing, search,
+   playlists made and edited by touch, and a song's page inside the same frame. Nothing may be wider than
+   the screen. */
 import { test as base, expect, chromium, type Page } from '@playwright/test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const test = base.extend<{ page: Page }>({
-  page: async ({ baseURL }, use) => {
+type Device = { width: number; height: number; isMobile?: boolean };
+const test = base.extend<{ page: Page; device: Device }>({
+  device: [{ width: 390, height: 844 }, { option: true }],
+  page: async ({ baseURL, device }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-phoneui-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 390, height: 844 }, hasTouch: true });
+    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: device.width, height: device.height }, isMobile: device.isMobile, hasTouch: true });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },
@@ -18,9 +21,8 @@ const test = base.extend<{ page: Page }>({
 const fixture = (n: string) => fileURLToPath(new URL('../tests/fixtures/' + n, import.meta.url));
 const shots = process.env.SHOTS;
 
-test('the library on a phone: tabs, songs, the player, sheets, playlists, browsing, search, a song’s page', async ({ page }) => {
-  test.setTimeout(180_000);
-  const errors: string[] = [];
+/** A new profile whose music folder has the four fixtures, open in the touch layout. */
+async function start(page: Page, errors: string[]) {
   page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(() => {
     (window as unknown as { showDirectoryPicker: (o: { id?: string }) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker = async (o) =>
@@ -42,8 +44,14 @@ test('the library on a phone: tabs, songs, the player, sheets, playlists, browsi
   await expect(page.locator('#phone')).toBeVisible();
   await expect(page.locator('.top')).toHaveCount(0);   // no desktop header
   await page.click('#phone-add-folder');
+  await expect(page.locator('#phone-library [data-view="all"]')).toContainText('4', { timeout: 30_000 });
+}
+
+test('the library on a phone: tabs, songs, the player, sheets, playlists, browsing, search, a song’s page', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  await start(page, errors);
   const all = page.locator('#phone-library [data-view="all"]');
-  await expect(all).toContainText('4', { timeout: 30_000 });
 
   // All tracks: two-line rows; a tap plays, and the mini player shows it.
   await all.click();
@@ -77,10 +85,12 @@ test('the library on a phone: tabs, songs, the player, sheets, playlists, browsi
   await sheet.getByRole('button', { name: 'Rate 4' }).click({ position: { x: 20, y: 13 } });
   await expect(sheet).toHaveCount(0);
 
-  // A new playlist, a song added to it from the sheet's submenu, and the playlist opened.
-  page.once('dialog', d => void d.accept('Friday'));
+  // A new playlist (named in a sheet, not the browser's prompt), a song added to it from the sheet's
+  // submenu, and the playlist opened.
   await page.locator('.tabs [data-tab="playlists"]').click();
   await page.click('#phone-new-playlist');
+  await page.fill('#phone-ask-input', 'Friday');
+  await page.click('#phone-ask-ok');
   const friday = page.locator('#phone-playlists [data-list]', { hasText: 'Friday' });
   await expect(friday).toBeVisible();
   await page.locator('.tabs [data-tab="library"]').click();
@@ -148,4 +158,94 @@ test('the library on a phone: tabs, songs, the player, sheets, playlists, browsi
   await page.locator('.tabs [data-tab="library"]').click();
   await expect(page.locator('#phone-library')).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('playlists by touch: folders, several songs added at once, reordered by dragging, removed with Undo, renamed and deleted', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  await start(page, errors);
+  const sheet = page.locator('#phone-sheet'), rows = page.locator('#phone-songs .row');
+  const titles = () => rows.evaluateAll(els => els.sort((a, b) => new DOMMatrix(getComputedStyle(a).transform).m42 - new DOMMatrix(getComputedStyle(b).transform).m42).map(e => e.querySelector('b')!.textContent));
+  const name = async (n: string) => { await page.fill('#phone-ask-input', n); await page.click('#phone-ask-ok'); await expect(page.locator('#phone-ask')).toHaveCount(0); };
+
+  // A folder and a playlist, each named in a sheet; the playlist moved into the folder.
+  await page.locator('.tabs [data-tab="playlists"]').click();
+  await page.click('#phone-new-folder'); await name('Gigs');
+  await page.click('#phone-new-playlist'); await name('Warmup');
+  const warmup = page.locator('#phone-playlists .lrow', { hasText: 'Warmup' });
+  await warmup.locator('.dots').click();
+  await sheet.locator('[data-m="move-to"]').click();
+  await sheet.locator('.item', { hasText: 'Gigs' }).click();
+  await expect(warmup).toHaveCount(0);
+  await page.locator('#phone-playlists [data-list]', { hasText: 'Gigs' }).click();
+  await expect(page.locator('#phone-title')).toHaveText('Gigs');
+  await expect(page.locator('.menu [data-list]', { hasText: 'Warmup' })).toBeVisible();
+
+  // Three songs picked in All tracks and added in one go.
+  await page.locator('.tabs [data-tab="library"]').click();
+  await page.locator('#phone-library [data-view="all"]').click();
+  await page.click('#phone-select');
+  await expect(page.locator('#phone-mini')).toHaveCount(0);   // the selection bar takes its place
+  for (const t of ['Fixture FLAC', 'Fixture MP3', 'Covered']) await rows.filter({ hasText: t }).click();
+  await expect(page.locator('#phone-picked')).toHaveText('3 selected');
+  if (shots) await page.screenshot({ path: shots + '/phone-select.png' });
+  await page.click('#phone-sel-add');
+  await sheet.locator('.item', { hasText: 'Warmup' }).click();
+  await expect(page.locator('#phone-selbar')).toHaveCount(0);
+  await expect(page.locator('.toast')).toContainText('Added 3 songs to Warmup');
+
+  // In the playlist: Edit, drag the first song to the end, remove one (and undo it), then done.
+  await page.locator('.tabs [data-tab="playlists"]').click();
+  await page.locator('.tabs [data-tab="playlists"]').click();
+  await page.locator('#phone-playlists [data-list]', { hasText: 'Gigs' }).click();
+  await page.locator('.menu [data-list]', { hasText: 'Warmup' }).click();
+  await expect(rows).toHaveCount(3);
+  const before = await titles();
+  await page.click('#phone-edit');
+  await expect(page.locator('#phone-songs .grip')).toHaveCount(3);
+  if (shots) await page.screenshot({ path: shots + '/phone-edit.png' });
+  const grip = (await rows.filter({ hasText: before[0]! }).locator('.grip').boundingBox())!;
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + i * 13);
+  await page.mouse.up();
+  await expect.poll(titles).toEqual([before[1], before[2], before[0]]);
+  await rows.filter({ hasText: before[1]! }).locator('.minus').click();
+  await expect(rows).toHaveCount(2);
+  await page.click('#phone-undo');
+  await expect.poll(titles).toEqual([before[1], before[2], before[0]]);
+  await page.click('#phone-edit');   // Done
+  await expect(page.locator('#phone-songs .grip')).toHaveCount(0);
+
+  // Renamed and deleted from its ⋯, with the questions in sheets; deleting goes back to the folder.
+  await page.click('#phone-list-more');
+  await sheet.locator('[data-m="rename"]').click();
+  await expect(page.locator('#phone-ask-input')).toHaveValue('Warmup');
+  if (shots) await page.screenshot({ path: shots + '/phone-ask.png' });
+  await name('Opening set');
+  await expect(page.locator('#phone-title')).toHaveText('Opening set');
+  await page.click('#phone-list-more');
+  await sheet.locator('[data-m="delete"]').click();
+  await expect(page.locator('#phone-ask')).toContainText('The songs stay in your collection');
+  await page.click('#phone-ask-ok');
+  await expect(page.locator('#phone-title')).toHaveText('Gigs');
+  await expect(page.locator('.menu [data-list]')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test.describe('on a tablet', () => {
+  test.use({ device: { width: 1024, height: 768, isMobile: true } });
+  test('a touch tablet gets the touch layout at any width, its sheets not stretched across the screen', async ({ page }) => {
+    test.setTimeout(180_000);
+    const errors: string[] = [];
+    await start(page, errors);
+    await expect(page.locator('.tabs [data-tab="playlists"]')).toBeVisible();
+    await page.locator('#phone-library [data-view="all"]').click();
+    await page.locator('#phone-songs .row').first().locator('.dots').click();
+    const box = (await page.locator('#phone-sheet').boundingBox())!;
+    expect(box.width).toBeLessThanOrEqual(640);
+    expect(Math.abs(box.x + box.width / 2 - 512)).toBeLessThan(2);   // centred
+    if (shots) await page.screenshot({ path: shots + '/tablet-sheet.png' });
+    expect(errors).toEqual([]);
+  });
 });

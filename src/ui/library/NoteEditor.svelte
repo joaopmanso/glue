@@ -44,7 +44,7 @@
   .foot { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 11.5px; }
   .foot button { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 11.5px; padding: 1px 8px; cursor: pointer; }
   /* A phone (ADR 0078): across the top, clear of the keyboard. */
-  .noteed.docked { left: 8px; right: 8px; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 70; border-radius: 12px; padding: 12px; }
+  .noteed.docked { left: 8px; right: 8px; max-width: 560px; margin: 0 auto; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 70; border-radius: 12px; padding: 12px; }
   .docked textarea { font-size: 16px; }
   .docked .head { font-size: 15px; } .docked .head button { font-size: 26px; width: 40px; height: 36px; }
 </style>

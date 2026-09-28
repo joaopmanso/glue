@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-27
-adrs: [0009, 0022]
+updated: 2026-09-28
+adrs: [0009, 0022, 0079]
 ---
 # Playlists, folders & smart lists
 
@@ -115,3 +115,17 @@ track is used.
 - The Tempo line used the analysis' own BPM. Songs shown at 70 (the profile's 60–120 range) said
   "70–140, avg 115". It now uses the shown BPM (`bpmShown`: the range, the track's flip, the
   user's correction).
+
+## By touch, on phones and tablets (2026-09-28, [ADR 0079](../adr/0079-touch-layout-and-playlists-by-touch.md))
+- **Playlists tab:** new playlist, new folder, build a playlist; inside a folder, new ones there.
+- **A playlist's or folder's ⋯** (in its row, or the top bar while it's open):
+  - play, shuffle, play next, queue, stats;
+  - Edit;
+  - rename, colour, tags;
+  - move up or down, move to a folder;
+  - duplicate, delete.
+- **Edit:** drag ≡ to reorder (the list scrolls at its edges); ⊖ removes, with Undo.
+- **Select** in any list of songs: pick several, then add them to a playlist (or a new one), remove
+  them from this one, or open their menu.
+- **Names and "delete?" questions** come in a sheet, not the browser's prompt.
+- **In a cloud library,** all of it goes to the computer that has the library (ADR 0077).

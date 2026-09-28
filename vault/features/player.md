@@ -1,8 +1,8 @@
 ---
 status: in-progress
 milestone: M9
-updated: 2026-09-27
-adrs: [0068, 0067]
+updated: 2026-09-28
+adrs: [0068, 0067, 0076, 0080]
 ---
 # Player
 
@@ -92,3 +92,20 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
 - Formats the browser doesn't play by itself (AIFF in Chrome), and older GLUE Homes, still come whole.
 - `lib.mediaFor`, `remoteFiles.stream`, `public/glue-stream-sw.js`; the player takes a Blob or an
   address.
+
+## iPhone: songs start after a tap's wait (2026-09-28, [ADR 0080](../adr/0080-play-on-elements-a-tap-unlocked.md))
+- **The problem:** the player made a new `<audio>` for each song and started it after the stream's
+  address was ready. iOS refuses that when the answer takes more than a moment. So most songs showed
+  "This browser can't play this format", though every desktop browser played them.
+- **The fix:**
+  - each tap, click or key press unlocks two spare elements;
+  - songs play on those, so they start whenever the network answers, and the next song starts by
+    itself;
+  - the last song's element is kept as a spare, unless it was joined to Web Audio.
+- **Messages now say what happened:**
+  - "Tap ▶ to start" (the browser wants a tap);
+  - the format isn't supported;
+  - couldn't decode;
+  - the connection dropped;
+  - nothing when another song took its place.
+- To check on a real iPhone **[UNVERIFIED]**.

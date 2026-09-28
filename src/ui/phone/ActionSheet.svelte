@@ -74,7 +74,7 @@
 
 <style>
   .scrim { position: fixed; inset: 0; z-index: 80; background: rgb(0 0 0 / .45); }
-  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 81; max-height: 82dvh; display: flex; flex-direction: column; background: var(--surface); border-radius: 16px 16px 0 0; border-top: 1px solid var(--line-2); box-shadow: 0 -12px 40px rgb(0 0 0 / .45); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 81; max-width: 640px; margin: 0 auto; max-height: 82dvh; display: flex; flex-direction: column; background: var(--surface); border-radius: 16px 16px 0 0; border-top: 1px solid var(--line-2); box-shadow: 0 -12px 40px rgb(0 0 0 / .45); padding-bottom: env(safe-area-inset-bottom, 0px); }
   .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line-2); margin: 8px auto 2px; flex: none; }
   header { display: flex; align-items: center; gap: 8px; padding: 6px 12px 8px 16px; border-bottom: 1px solid var(--line); flex: none; }
   header b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }

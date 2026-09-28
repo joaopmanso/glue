@@ -12,6 +12,7 @@ import { incoming, TO_BE_SORTED } from './incoming.svelte';
 import { sendTargets, sendTracks } from './sendToHome.svelte';
 import { absolutePath } from './dragout';
 import { menu, SEP, tidy, type MenuAction, type MenuEntry } from './menu.svelte';
+import { phone } from './phone.svelte';
 import { listTree } from '../core/library/listTree';
 import type { List, Track } from '../store/types';
 
@@ -33,13 +34,15 @@ export function listPicker(pick: (l: List) => void, opts: { only?: (l: List) => 
   ]);
 }
 
-function addTo(l: List, ids: string[]) {
+/** Add songs to a playlist, saying what happened (the ones already in it aren't added twice). */
+export function addTo(l: List, ids: string[]) {
   const n = lib.addToList(l.id, ids);
   recent = [l.id, ...recent.filter(x => x !== l.id)].slice(0, 3);
   lib.notice = n ? 'Added ' + plural(n, 'song') + ' to ' + l.name + '.' : (ids.length === 1 ? 'It’s' : 'They’re') + ' in ' + l.name + ' already.';
 }
-function newPlaylistWith(ids: string[]) {
-  const name = prompt('Name of the new playlist');
+async function newPlaylistWith(ids: string[]) {
+  // On a phone or a tablet, asked in a sheet (ADR 0079).
+  const name = phone.active ? await phone.prompt('New playlist', '', 'Create', 'Playlist name') : prompt('Name of the new playlist');
   if (!name) return;
   const l = lib.createList('playlist', name, null, []);
   if (l) addTo(l, ids);

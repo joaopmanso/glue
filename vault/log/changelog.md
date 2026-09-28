@@ -5,6 +5,24 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-28 · The user's third list, batch G: playlists by touch, tablets, iPhone playback
+- **Playlists on phones and tablets** ([ADR 0079](../adr/0079-touch-layout-and-playlists-by-touch.md)):
+  - new playlists and folders;
+  - several songs picked at once (Select) and added to a playlist;
+  - Edit: drag to reorder, ⊖ to remove with Undo;
+  - rename, colour, move to a folder, duplicate and delete from a ⋯ in the top bar or the row;
+  - names typed in a sheet, not the browser's prompt.
+- **Tablets** (touch, no mouse) get the touch layout at any width, with sheets kept to a readable
+  width.
+- **iPhone:** songs start however long the stream takes to answer, and the next one plays by
+  itself: they play on audio elements a tap has unlocked
+  ([ADR 0080](../adr/0080-play-on-elements-a-tap-unlocked.md)). The message now says what the
+  browser said, not always "can't play this format".
+- A playlist's title on a phone is its own name; notices go by themselves after a few seconds.
+- Tests: e2e `phone-ui.spec`:
+  - playlists by touch (folders, select, drag, Undo, rename, delete);
+  - a tablet (1024 × 768, touch).
+
 ## 2026-09-28 · The user's second list, batch F: the phone layout
 - **On a phone the library is a phone app** ([ADR 0078](../adr/0078-phone-layout.md), [phone app](../features/phone-app.md)):
   - Tabs at the bottom: Library, Browse, Playlists, Search, More. Each tab remembers where it was.

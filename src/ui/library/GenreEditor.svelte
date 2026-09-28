@@ -27,7 +27,7 @@
   const pos = $derived.by(() => {
     if (!at) return null;
     // A phone: a sheet from the bottom, the width of the screen (ADR 0078).
-    if (phone.active) return { left: 0, top: null, bottom: 0, max: Math.round(winH * .72), w: winW };
+    if (phone.active) { const w = Math.min(winW, 640); return { left: Math.round((winW - w) / 2), top: null, bottom: 0, max: Math.round(winH * .72), w }; }
     const below = winH - at.y - 14, above = at.y - 40, up = below < 300 && above > below;
     return { left: Math.max(8, Math.min(winW - W - 8, at.x)), top: up ? null : at.y + 6, bottom: up ? winH - at.y + 34 : null, max: Math.max(200, Math.min(460, up ? above : below)) };
   });

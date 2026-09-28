@@ -22,7 +22,7 @@
   const status = $derived(remoteFiles.loading ? 'Getting it from ' + remoteFiles.loading.device + '…' : nowPlaying.error || player.message || '');
 </script>
 
-{#if t || upNext.length}
+{#if (t || upNext.length) && !phone.selecting}
   <div class="mini" id="phone-mini" role="button" tabindex="0" onclick={() => (phone.full = true)} onkeydown={e => { if (e.key === 'Enter') phone.full = true; }}>
     <span class="prog" style:width={(d ? Math.min(1, pos / d) * 100 : 0) + '%'}></span>
     {#if t}<CoverArt {t} px={40} />{/if}
@@ -110,9 +110,9 @@
   .mini :global(.cov:not(.has)), .art :global(.cov:not(.has)) { display: grid; place-items: center; background: var(--raised); color: var(--muted); }
   .mini :global(.cov:not(.has)::before) { content: '♪'; font-size: 18px; }
   .art :global(.cov:not(.has)::before) { content: '♪'; font-size: 96px; opacity: .5; }
-  .body { flex: 1; overflow-y: auto; padding: 8px 22px 30px; display: flex; flex-direction: column; gap: 16px; }
+  .body { flex: 1; overflow-y: auto; padding: 8px 22px 30px; display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 640px; margin: 0 auto; box-sizing: border-box; }
   .art { display: grid; place-items: center; min-height: 200px; }
-  .art :global(.cov) { border-radius: 12px; box-shadow: 0 12px 40px rgb(0 0 0 / .45); background: var(--raised); max-width: 72vw; max-height: 72vw; }
+  .art :global(.cov) { border-radius: 12px; box-shadow: 0 12px 40px rgb(0 0 0 / .45); background: var(--raised); max-width: min(72vw, 420px); max-height: min(72vw, 420px); }
   .who { display: grid; gap: 2px; }
   .who a { color: var(--ink); text-decoration: none; }
   .who b { font-size: 21px; }

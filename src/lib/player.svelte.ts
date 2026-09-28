@@ -15,6 +15,21 @@ const LIVE_OFFSET = 20 * Math.log10(2 / 0.42);
 const LIVE_COLS_PER_SEC = 60;
 const LIVE_W = 720;
 const CANT_PLAY = 'This browser can’t play this format, but the analysis above is unaffected.';
+/** Why playing failed, in words: what the browser said, not a guess (the user's list, 2026-09-28). */
+function refusal(e: unknown): string {
+  const name = (e as DOMException | null)?.name;
+  if (name === 'AbortError') return '';   // another song was chosen meanwhile
+  if (name === 'NotAllowedError') return 'Tap ▶ to start: this browser plays only after a tap.';
+  return CANT_PLAY;
+}
+function mediaError(err: MediaError | null): string {
+  switch (err?.code) {
+    case MediaError.MEDIA_ERR_ABORTED: return '';
+    case MediaError.MEDIA_ERR_NETWORK: return 'The song stopped arriving: the connection to its computer dropped.';
+    case MediaError.MEDIA_ERR_DECODE: return 'This browser couldn’t decode this file.';
+    default: return CANT_PLAY;
+  }
+}
 /** An analyser on the playing element, made again for each new source (the visualiser's). */
 export type TapMaker = (ctx: BaseAudioContext) => AnalyserNode;
 /** Chromium's output-device choice, on an element or a context ('' = the system's default). */
@@ -209,18 +224,45 @@ class Player {
   keyLock = $state(true);
 
   private bind(el: HTMLAudioElement) {
+    const c = new AbortController(), o = { signal: c.signal };
+    this.binds.set(el, c);
     el.preload = 'auto';
     el.volume = this.volume;
     if (this.sinkId) void toSink(el, this.sinkId)?.catch(() => {});
     this.applyRate(el);
-    el.addEventListener('loadedmetadata', () => { this.ready = true; if (!this.duration) this.duration = el.duration || 0; });
-    el.addEventListener('play', () => { this.paused = false; this.startLoop(); });
-    el.addEventListener('pause', () => { this.paused = true; this.live.last = 0; this.stopLoop(); this.sync(); });
-    el.addEventListener('ended', () => { this.paused = true; this.stopLoop(); this.sync(); if (el === this.el) this.onEnded?.(); });
-    el.addEventListener('timeupdate', () => this.sync());
-    el.addEventListener('error', () => { if (this.url) this.message = CANT_PLAY; });
+    el.addEventListener('loadedmetadata', () => { this.ready = true; if (!this.duration) this.duration = el.duration || 0; }, o);
+    el.addEventListener('play', () => { this.unlocked.add(el); this.paused = false; this.startLoop(); }, o);
+    el.addEventListener('pause', () => { this.paused = true; this.live.last = 0; this.stopLoop(); this.sync(); }, o);
+    el.addEventListener('ended', () => { this.paused = true; this.stopLoop(); this.sync(); if (el === this.el) this.onEnded?.(); }, o);
+    el.addEventListener('timeupdate', () => this.sync(), o);
+    el.addEventListener('error', () => { if (this.url && el === this.el) this.message = mediaError(el.error); }, o);
   }
-  constructor() { this.bind(this.el); }
+  constructor() {
+    this.bind(this.el);
+    if (typeof document !== 'undefined') for (const ev of ['touchend', 'pointerup', 'click', 'keydown']) document.addEventListener(ev, () => this.unlock(), { capture: true, passive: true });
+  }
+
+  // ─── Elements a tap has unlocked (the user's list, 2026-09-28) ───
+  // iOS lets an <audio> play by itself only once a tap has touched it. A song chosen by a tap starts
+  // after the network answers (a stream from another computer), and the next song starts on its own
+  // when one ends: both play on an element unlocked by an earlier tap. The same trick as web players
+  // such as Howler.js (its HTML5 audio pool).
+  private spare: HTMLAudioElement[] = [];
+  private unlocked = new WeakSet<HTMLAudioElement>();
+  private binds = new WeakMap<HTMLAudioElement, AbortController>();
+  /** Joined to Web Audio (the live view, the visualiser): an element joins only once, so never reused. */
+  private wired = new WeakSet<HTMLAudioElement>();
+  private unlock() {
+    while (this.spare.length < 2) { const a = new Audio(); a.load(); this.unlocked.add(a); this.spare.push(a); }
+  }
+  /** A new element for a song: an unlocked one when there is one. */
+  private fresh(): HTMLAudioElement { return this.spare.pop() ?? new Audio(); }
+  /** The last song's element: emptied, and kept for another song if a tap unlocked it. */
+  private retire(el: HTMLAudioElement) {
+    this.binds.get(el)?.abort(); this.binds.delete(el);
+    el.removeAttribute('src'); el.removeAttribute('crossorigin'); el.load();
+    if (this.unlocked.has(el) && !this.wired.has(el) && this.spare.length < 3) this.spare.push(el);
+  }
 
   private sync() {
     this.time = this.el.currentTime || 0;
@@ -264,8 +306,8 @@ class Player {
     this.el.pause();
     this.stopLoop();
     this.live.reset();
-    this.el.removeAttribute('src'); this.el.load();
-    const a = new Audio();
+    this.retire(this.el);
+    const a = this.fresh();
     this.bind(a);
     this.el = a;
     if (this.url && this.ownUrl) URL.revokeObjectURL(this.url);
@@ -295,10 +337,11 @@ class Player {
     if (!this.url) return;
     if (this.el.paused) {
       if (this.graphWanted) this.startGraph(this.el);   // inside the click, so the AudioContext may start
-      this.el.play().catch(() => { this.message = CANT_PLAY; });
+      const el = this.el;
+      el.play().catch(e => { if (el === this.el) this.message = refusal(e); });
     } else this.el.pause();
   }
-  private play() { if (this.graphWanted) this.startGraph(this.el); this.el.play().catch(() => { this.message = CANT_PLAY; }); }
+  private play() { if (this.graphWanted) this.startGraph(this.el); const el = this.el; el.play().catch(e => { if (el === this.el) this.message = refusal(e); }); }
   seek(t: number, play = false) {
     if (this.claim()) {
       const a = this.el, go = () => { this.seek(t); if (play) this.play(); };
@@ -325,7 +368,7 @@ class Player {
   // ─── Taps and the output device (ADR 0068) ───
   private makers = new Map<string, TapMaker>();
   private get graphWanted() { return this.liveOn || this.makers.size > 0; }
-  private startGraph(el: HTMLAudioElement) { this.live.start(el, this.fileSr, this.makers, this.sinkId); }
+  private startGraph(el: HTMLAudioElement) { this.wired.add(el); this.live.start(el, this.fileSr, this.makers, this.sinkId); }
   /** Tap the music with an analyser (made again for each track); taking effect now if it's playing. */
   tap(name: string, make: TapMaker) {
     this.makers.set(name, make);

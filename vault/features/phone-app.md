@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M7
 updated: 2026-09-28
-adrs: [0057, 0076, 0077, 0078]
+adrs: [0057, 0076, 0077, 0078, 0079, 0080]
 ---
 # Phone app (remote + offline)
 
@@ -91,3 +91,17 @@ fallback.
 - **Code:**
   - `lib/phone.svelte.ts` (the tabs, stacks and sheet);
   - `ui/phone/`: `PhoneApp`, `PhoneSongs`, `PhonePlayer`, `ActionSheet`.
+
+## Tablets, playlists by touch, iPhone playback (2026-09-28)
+- **Tablets** get the same touch layout at any width: any device with touch and no mouse
+  ([ADR 0079](../adr/0079-touch-layout-and-playlists-by-touch.md)). Sheets and the player keep a
+  readable width, centred.
+- **Playlists by touch:** folders, select several songs, drag to reorder, remove with Undo, rename,
+  colour, move, duplicate, delete ([playlists](playlists.md)).
+- **Toasts** go by themselves after a few seconds.
+- **iPhone playback:** songs start after the network answers, and play on by themselves
+  ([ADR 0080](../adr/0080-play-on-elements-a-tap-unlocked.md)). Failures say what the browser said.
+- **Next** (batch H):
+  - streaming outside the home Wi-Fi (a TURN relay);
+  - covers from GLUE Home;
+  - GLUE Home's CPU use.

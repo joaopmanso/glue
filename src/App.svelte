@@ -22,6 +22,7 @@
   import EditInfo from './ui/library/EditInfo.svelte';
   import PhoneApp from './ui/phone/PhoneApp.svelte';
   import ActionSheet from './ui/phone/ActionSheet.svelte';
+  import AskSheet from './ui/phone/AskSheet.svelte';
   import { phone } from './lib/phone.svelte';
   import GenreEditor from './ui/library/GenreEditor.svelte';
   import NoteEditor from './ui/library/NoteEditor.svelte';
@@ -219,7 +220,7 @@
 {#if inLibrary && view.infoFor}{#key view.infoFor}<EditInfo />{/key}{/if}
 {#if inLibrary && view.statsFor}{#key view.statsFor}<StatsDialog />{/key}{/if}
 <!-- Menus: at the pointer, or on a phone a sheet from the bottom (ADR 0078). -->
-{#if phone.active}<ActionSheet />{:else}<ContextMenu />{/if}
+{#if phone.active}<ActionSheet /><AskSheet />{:else}<ContextMenu />{/if}
 
 {#if app.dragging && (route.name === 'analyze' ? app.phase === 'result' : inLibrary)}
   <div class="drop-overlay" id="drop"><div>{route.name === 'analyze' ? 'Drop the audio file to analyze it' : 'Drop songs or a music folder to add them, or a DJ library file to import it'}</div></div>

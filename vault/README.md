@@ -152,3 +152,5 @@ Planned (GLUE):
 | [0076](adr/0076-songs-stream-by-range.md) | Songs stream by byte range: the local link in Home mode, a service worker for other computers | accepted |
 | [0077](adr/0077-library-on-any-device.md) | A device without a library of its own opens the account's library from GLUE Cloud, and plays it | accepted |
 | [0078](adr/0078-phone-layout.md) | On a narrow screen the library is a phone app: tabs, two-line rows, menus as sheets, a mini and full player | accepted |
+| [0079](adr/0079-touch-layout-and-playlists-by-touch.md) | Every touch device gets the touch layout, and manages playlists there: folders, select, drag to reorder, remove with Undo | accepted |
+| [0080](adr/0080-play-on-elements-a-tap-unlocked.md) | Songs play on audio elements a tap has unlocked (iOS), and failures say what the browser said | accepted |
