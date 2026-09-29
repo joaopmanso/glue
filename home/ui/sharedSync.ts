@@ -8,7 +8,7 @@ import { bridge, type HomeConfig } from './bridge';
 import { access } from './cloud';
 import { describe } from './library';
 import { HomeDisk } from '../../src/platform/homeDisk';
-import { CollectionStore } from '../../src/store/collection';
+import * as engine from './engine';
 import { writeUnwritten } from '../../src/store/writeInfo';
 import { syncShared, type SharedCloud } from '../../src/store/shared/engine';
 import { meFor, type SharedCollection } from '../../src/core/shared/project';
@@ -64,8 +64,10 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
       const place = { root: glue, pid: p.id, cid: c.id, me, cloud: cloudFor(api, token, c.id) };
       const res = await syncShared(place);
       changed += res.changed.length;
+      // What came in, into the engine's store (and a GLUE tab's feed).
+      await engine.reload(cfg, p.id, c.id, res.changed);
       // Song info edited elsewhere, into this computer's files; their new size and date go back up.
-      const s = await CollectionStore.load(glue, p.id, c.id, { me });
+      const s = await engine.store(cfg, p.id, c.id);
       if (![...s.tracks.values()].some(t => t.unwritten && !t.remote)) continue;
       if (await bridge.leaseHeld()) return changed;
       await writeUnwritten(s, (tr, tags) => {

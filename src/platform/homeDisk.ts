@@ -57,6 +57,8 @@ export class HomeDisk {
   /** This tab is open and writes the library (ADR 0087): GLUE Home leaves edits to it. `edits` changes
       when another device sent some. */
   lease() { return this.json<{ edits: number }>('/lease', {}, { method: 'POST', signal: AbortSignal.timeout(4_000) }); }
+  /** This tab lets go of the lease (GLUE Home's engine writes now, ADR 0104). */
+  release() { return this.json<{ edits: number }>('/lease', { release: '1' }, { method: 'POST', signal: AbortSignal.timeout(4_000) }); }
   /** A file's URL on the local link (for <audio src>: plays and seeks with byte ranges). */
   fileUrl(root: string, path: string) { return this.base + '/fs/file?' + new URLSearchParams({ root, path, t: this.token }); }
 }

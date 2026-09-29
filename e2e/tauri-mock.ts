@@ -44,6 +44,8 @@ export const TAURI_MOCK = `(() => {
         case 'local_port': return window.__localPort ?? 47400;
         // The writer lease (ADR 0087): window.__lease says whether a GLUE tab holds it; edits_waiting counts.
         case 'lease_held': return !!window.__lease;
+        // The engine's answer to a local-link request (ADR 0104): back to whoever sent it (the test's FakeHome).
+        case 'rpc_reply': window.__rpcReply?.(args.id, args.body); return null;
         case 'edits_waiting': window.__editsWaiting = (window.__editsWaiting ?? 0) + 1; return;
         // Cover services (ADR 0086): window.__web maps an address's start to its answer (JSON or bytes).
         case 'web_get': { const hit = Object.entries(window.__web ?? {}).find(([k]) => args.url.startsWith(k)); window.__webAsked = [...(window.__webAsked ?? []), args.url]; if (!hit) throw 'the service said 404'; const v = hit[1]; return typeof v === 'string' ? new TextEncoder().encode(v).buffer : new Uint8Array(v).buffer; }

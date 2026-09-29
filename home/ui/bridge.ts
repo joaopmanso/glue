@@ -9,6 +9,8 @@ export const WEBSITE = 'https://joaopmanso.github.io/glue/';
 /** What GLUE Home keeps (config.json in the app's settings folder, readable by this user only). */
 export interface HomeConfig {
   api?: string;
+  /** The read-only token for a GLUE tab on this computer (ADR 0104): it reads, and asks the engine to change things. */
+  readToken?: string;
   /** The DJ libraries GLUE Home follows (written by its Rust side, ADR 0065). */
   libraries?: unknown[];
   /** The analysis of this computer's songs is paused (ADR 0103): from the settings or a GLUE tab. */
@@ -39,6 +41,8 @@ export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online
   analysis?: { done: number; total: number; running: boolean };
   /** Analysing this computer's songs for the library (ADR 0103). */
   analysing?: import('./analysis').AnalysisState;
+  /** The library engine (ADR 0104): its revision, and the jobs under way. */
+  engine?: import('./engine').EngineStatus;
   /** What GLUE Home did lately, newest first (the settings window shows each new one as a toast). */
   events?: { at: number; text: string }[];
   /** The last look at the events (ADR 0074): when, how many need music, which were just notified. */
@@ -94,8 +98,12 @@ export const bridge = {
   webGet: (url: string) => invoke<ArrayBuffer>('web_get', { url }),
   /** A GLUE tab here holds the writer lease (ADR 0087). */
   leaseHeld: () => invoke<boolean>('lease_held'),
+  /** The library engine's answer to a website request on the local link (ADR 0104). */
+  rpcReply: (id: number, body: string) => invoke<void>('rpc_reply', { id, body }),
   // Between the windows.
   onConfig: (f: (c: HomeConfig) => void) => listen<HomeConfig>('config', e => f(e.payload)),
+  /** A website request for the library engine, from the local link (`read`: its read-only token). */
+  onRpc: (f: (m: { id: number; body: string; read: boolean }) => void) => listen<{ id: number; body: string; read: boolean }>('rpc', e => f(e.payload)),
   onControl: (f: (what: 'start' | 'stop' | 'restart') => void) => listen<'start' | 'stop' | 'restart'>('control', e => f(e.payload)),
   control: (what: 'start' | 'stop' | 'restart') => emitTo('service', 'control', what),
   onStatus: (f: (s: Status) => void) => listen<Status>('status', e => f(e.payload)),

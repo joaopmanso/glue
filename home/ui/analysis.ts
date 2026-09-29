@@ -12,8 +12,7 @@
 import { bridge, type HomeConfig } from './bridge';
 import { describe, here } from './library';
 import * as cache from './cache';
-import { HomeDisk } from '../../src/platform/homeDisk';
-import { CollectionStore } from '../../src/store/collection';
+import * as engine from './engine';
 import { afterAnalysis, needsAnalysis } from '../../src/core/library/analysed';
 import { meFor, type SharedCollection } from '../../src/core/shared/project';
 import { ANALYSIS_VERSION, type AnalysisSummary, type Collection, type Track } from '../../src/store/types';
@@ -162,19 +161,15 @@ export async function write(cfg: HomeConfig): Promise<number> {
   if (!count() || !cfg.glue || !cfg.localToken) return 0;
   if (await bridge.leaseHeld()) { state.by = Date.now() < delegatedUntil ? 'tab' : 'tab-self'; return 0; }
   state.by = 'home';
-  const port = await bridge.localPort();
-  if (!port) return 0;
-  const disk = new HomeDisk('http://127.0.0.1:' + port, cfg.localToken), roots = await disk.roots();
-  if (!roots.glue) return 0;
-  const glue = disk.dir(roots.glue);
   let n = 0;
   for (const [k, ids] of [...pending]) {
     if (!ids.size) continue;
     const [p, c] = k.split('/');
     let meta: SharedCollection | Collection | null = null;
     try { meta = JSON.parse(await bridge.glueRead(`profiles/${p}/collections/${c}/collection.json`)); } catch { pending.delete(k); continue; }
-    const me = meta && (meta as SharedCollection).shared ? meFor(meta as SharedCollection, p, cfg.deviceId) ?? undefined : undefined;
-    const s = await CollectionStore.load(glue, p, c, me ? { me } : {});
+    if (!meta) { pending.delete(k); continue; }
+    // The engine's store (ADR 0104): the one everything here writes, never a copy that goes stale.
+    const s = await engine.store(cfg, p, c);
     const done: string[] = [];
     for (const id of ids) {
       const a = await cache.result(p, c, id), cur = s.tracks.get(id);
@@ -186,6 +181,7 @@ export async function write(cfg: HomeConfig): Promise<number> {
     }
     if (await bridge.leaseHeld()) return 0;   // a tab opened meanwhile: it’s the writer now (these wait)
     await s.flush();
+    engine.changed(p, c, [], done);   // a GLUE tab takes their mini spectrograms and details from the cache
     for (const id of done) ids.delete(id);
   }
   changed(); await savePending();

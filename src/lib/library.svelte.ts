@@ -421,6 +421,7 @@ class Library {
     // Until nothing is left: what's marked while a save runs (the analysis's last song…) is saved by the
     // next one, and after this there's no next one for this store.
     for (let i = 0; i < 5 && this.store?.hasPending && !this.readOnly; i++) await this.flush();
+    await this.beforeClose?.().catch(() => {});   // GLUE Home's engine has every change made here (ADR 0104)
     this.store = null; this.roots = []; this.groups.clear();
     this.looseHandles.clear(); this.looseGranted = new Set();
   }
@@ -1153,6 +1154,7 @@ class Library {
     const s = this.store;
     if (!s) return;
     let others = 0;
+    const gone: string[] = [];
     for (const id of ids) {
       const t = s.tracks.get(id);
       if (!t) continue;
@@ -1161,9 +1163,12 @@ class Library {
       else if (t.fileKey?.startsWith('copy:') && this.homeDir) await removePath(this.homeDir, t.fileKey.slice(5));
       this.looseHandles.delete(id);
       s.removeTrack(id);
-      const cache = await platform.cacheDir();
-      if (cache) { await removeDetails(cache, s.meta.id, id).catch(() => {}); await removeFingerprint(cache, s.meta.id, id).catch(() => {}); }
+      gone.push(id);
     }
+    // This browser's cached analyses of them, afterwards and in the background: thousands of songs are
+    // removed at once, not one cache file at a time (the user's 13,000, 2026-09-29).
+    const cache = await platform.cacheDir(), cid = s.meta.id;
+    if (cache && gone.length) void (async () => { for (const id of gone) { await removeDetails(cache, cid, id).catch(() => {}); await removeFingerprint(cache, cid, id).catch(() => {}); } })();
     if (others) this.notice = others + ' of these track' + (others === 1 ? ' is' : 's are') + ' only on another device: remove ' + (others === 1 ? 'it' : 'them') + ' there.';
   }
 
@@ -1187,7 +1192,9 @@ class Library {
     this.analysisElsewhere?.pause(p);
     if (!p) this.enqueueAll();
   }
-  /** This computer's GLUE Home analyses its songs (ADR 0103): lib/homeAnalysis says so, and takes the asks. */
+  /** Before the open collection closes: the changes still on their way to GLUE Home's engine (ADR 0104). */
+  beforeClose: (() => Promise<void>) | null = null;
+  /** This computer's GLUE Home analyses its songs (ADR 0103, 0104): lib/engine says so, and takes the asks. */
   analysisElsewhere: { active: () => boolean; now: (ids: string[]) => number; pause: (p: boolean) => void } | null = null;
   /** A song analysed elsewhere on this computer (its GLUE Home), taken in like one analysed here. */
   takeAnalysed(id: string, a: import('../core/library/analysed').Analysed) {

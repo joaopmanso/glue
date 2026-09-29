@@ -566,10 +566,10 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 
-test('a GLUE tab in Home mode leaves the analysis to GLUE Home and takes the results in: the songs, their details and waveforms; stop and resume (ADR 0103)', async ({ page }) => {
-  test.setTimeout(240_000);
-  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-delegate-'));
-  // The tab can't read the songs itself (no music folder for it): only GLUE Home analyses them.
+test('GLUE Home is the library’s engine: the tab shows, GLUE Home analyses and writes; a rating and a playlist are its; removing goes on with the tab closed; stop and resume (ADR 0104)', async ({ page }) => {
+  test.setTimeout(360_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-engine-'));
+  // The tab can't read the songs itself (no music folder for it): only GLUE Home can.
   const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} });
   try {
     mkdirSync(fake.dirs.incoming, { recursive: true });
@@ -584,74 +584,69 @@ test('a GLUE tab in Home mode leaves the analysis to GLUE Home and takes the res
     for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
     await fake.start();
 
-    // GLUE Cloud (sign-in, the account's devices: this browser and its GLUE Home) and the signaling room.
-    const user = { id: 'u1', email: 'dj@example.com', name: 'DJ', picture: null };
-    const devices = [{ id: 'desk', kind: 'browser', name: 'Desktop', platform: 'Win32', createdAt: 1, lastSeen: 1, role: 'device' }, { id: 'hdesk', kind: 'home', name: 'Desktop', platform: 'win32', createdAt: 2, lastSeen: 2, companionOf: 'desk', role: 'device' }];
-    const socks: Record<string, import('@playwright/test').WebSocketRoute | null> = {};
-    const presence = () => { const online = Object.keys(socks).filter(k => socks[k]); for (const w of Object.values(socks)) w?.send(JSON.stringify({ type: 'presence', online })); };
-    const room = (me: string) => (ws: import('@playwright/test').WebSocketRoute) => {
-      socks[me] = ws; presence();
-      ws.onMessage(raw => { const j = JSON.parse(String(raw)); if (j.type === 'signal') socks[j.to]?.send(JSON.stringify({ type: 'signal', from: me, data: j.data })); });
-    };
-    await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
-      window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
-        renderButton(el) { const b = document.createElement('button'); b.id = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
-    await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
-      const p = new URL(r.request().url()).pathname, json = (b: unknown) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
-      if (p === '/v1/auth/google' || p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'desk', user });
-      if (p === '/v1/me') return json({ user, thisDevice: 'desk', devices, sessions: [] });
-      if (p === '/v1/turn') return json({ iceServers: [], ttl: 0 });
-      if (p === '/v1/shared') return json({ collections: [] });
-      return json({ ok: true });
-    });
-    await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('desk'));
-
-    // This computer's GLUE Home: its service page, the songs on its disk; a GLUE tab holds the lease.
+    // This computer's GLUE Home: its real service page (Rust stood in); the local link's /rpc and /cache go to it.
     const home = await page.context().newPage();
-    await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
-      const p = new URL(r.request().url()).pathname;
-      return r.fulfill({ contentType: 'application/json', body: JSON.stringify(p === '/v1/turn' ? { iceServers: [], ttl: 0 } : { access: 'h' }) });
-    });
-    await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('hdesk'));
+    await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'h' }) }));
+    await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
     await home.addInitScript(TAURI_MOCK);
     const disk = { 'C:\\Users\\dj\\Music\\a.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\b.flac': [...readFileSync(fixture('flac-96k-24.flac'))] };
     await home.addInitScript(({ glue, disk, port, token, dir }) => {
-      const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk; w.__localPort = port; w.__lease = true;
+      const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk; w.__localPort = port; w.__lease = false;
       localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token }));
     }, { glue: files, disk, port: fake.port, token: fake.token, dir: fake.dirs.glue });
     await home.goto('http://localhost:5176/service.html');
-    await expect(home.locator('#state')).toContainText('Online as Desktop', { timeout: 20_000 });
+    fake.rpc = (body, read) => home.evaluate(({ body, read }) => new Promise<string>(res => {
+      const w = window as unknown as { __rpcN?: number; __rpcWait?: Record<number, (b: string) => void>; __rpcReply?: (i: number, b: string) => void; __tauriEvent: (e: string, p: unknown) => void };
+      const id = w.__rpcN = (w.__rpcN ?? 0) + 1;
+      (w.__rpcWait ??= {})[id] = res;
+      w.__rpcReply ??= (i, b) => { w.__rpcWait?.[i]?.(b); delete w.__rpcWait?.[i]; };
+      w.__tauriEvent('rpc', { id, body, read });
+    }), { body, read });
+    fake.cache = key => home.evaluate(k => (window as unknown as { __cache: Record<string, number[]> }).__cache[k] ?? null, key);
+    // Its lease: whatever the tab says, through the local link (the stand-in keeps it).
+    await home.exposeFunction('leaseAt', () => fake.leasedAt);
+    await home.evaluate(() => setInterval(async () => { (window as unknown as { __lease: boolean }).__lease = Date.now() - await (window as unknown as { leaseAt: () => Promise<number> }).leaseAt() < 15_000; }, 500));
 
-    // The tab: Home mode (it knows the local link), signed in.
+    // The tab: Home mode (it knows the local link); no account at all.
     await page.goto('./#/analyze');
     await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), fake.pref);
     await page.goto('./');
     await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
-    await page.click('#account-btn');
-    await page.click('#fake-google');
-    await page.keyboard.press('Escape');
+    await expect(page.locator('#analysis-by')).toBeVisible({ timeout: 30_000 });
 
-    // GLUE Home analyses (the tab can't), and the tab takes the results in: all analysed here.
-    await expect(page.locator('#analysis-by')).toBeVisible({ timeout: 40_000 });
+    // GLUE Home analyses (the tab can't), writes it, and the tab shows it: analysed, with their details.
     await expect(page.locator('.an')).toContainText('All analysed', { timeout: 120_000 });
     await expect(page.locator('.tr', { hasText: 'Fixture MP3' })).toHaveCount(1);   // its title, from its tags
-    // Its details and mini waveform are in this browser's cache (the song's page opens at once).
-    expect(await page.evaluate(async () => {
-      const c = await (await navigator.storage.getDirectory()).getDirectoryHandle('cache');
-      const has = async (parts: string[]) => { try { let d = c; for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p); await d.getFileHandle(parts[parts.length - 1]); return true; } catch { return false; } };
-      return [await has(['details', 'c1', 't1', 't1a.json']), await has(['fp', 'c1', 't1', 't1a.bin'])];
-    })).toEqual([true, true]);
-    // Into the GLUE folder by the tab (it holds the lease), and nothing waits in GLUE Home any more.
-    await expect.poll(() => { try { return Object.keys(JSON.parse(readFileSync(join(fake.dirs.glue, col, 'analysis', 't1.json'), 'utf8')).items).sort(); } catch { return []; } }, { timeout: 20_000 }).toEqual(['t1a', 't1b']);
-    await expect.poll(() => home.evaluate(() => (window as unknown as { __status?: { analysing?: { waiting: number; by: string } } }).__status?.analysing), { timeout: 20_000 }).toMatchObject({ waiting: 0 });
+    await expect.poll(() => page.evaluate(async () => {
+      try { const c = await (await navigator.storage.getDirectory()).getDirectoryHandle('cache'); await (await (await (await c.getDirectoryHandle('details')).getDirectoryHandle('c1')).getDirectoryHandle('t1')).getFileHandle('t1a.json'); return true; } catch { return false; }
+    }), { timeout: 30_000 }).toBe(true);
+
+    // A rating and a playlist, made in the tab: saved by GLUE Home.
+    const row = page.locator('.tr', { hasText: 'Fixture MP3' });
+    await row.hover();
+    await row.locator('.c-rate button').nth(2).click({ position: { x: 10, y: 6 } });
+    await page.click('#new-playlist'); await page.keyboard.type('Friday'); await page.keyboard.press('Enter');
+    const tracksOnDisk = () => JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items as Record<string, { rating?: number }>;
+    await expect.poll(() => tracksOnDisk().t1a?.rating, { timeout: 20_000 }).toBe(3);
+    const lists = join(fake.dirs.glue, col, 'lists');
+    await expect.poll(() => existsSync(lists) ? readdirSync(lists).length : 0, { timeout: 20_000 }).toBe(1);
 
     // Stop in the tab pauses GLUE Home; turning background analysis on again resumes it.
+    const paused = () => home.evaluate(() => (window as unknown as { __status?: { analysing?: { paused: boolean } } }).__status?.analysing?.paused);
     await page.locator('.an .switch').click();
-    await expect(page.locator('#auto-analyse')).not.toBeChecked();
-    await expect.poll(() => home.evaluate(() => (window as unknown as { __status?: { analysing?: { paused: boolean } } }).__status?.analysing?.paused), { timeout: 20_000 }).toBe(true);
+    await expect.poll(paused, { timeout: 20_000 }).toBe(true);
     await page.locator('.an .switch').click();
-    await expect(page.locator('#auto-analyse')).toBeChecked();
-    await expect.poll(() => home.evaluate(() => (window as unknown as { __status?: { analysing?: { paused: boolean } } }).__status?.analysing?.paused), { timeout: 20_000 }).toBe(false);
+    await expect.poll(paused, { timeout: 20_000 }).toBe(false);
+
+    // Remove both songs, and close the tab straight away: GLUE Home finishes it.
+    await page.locator('.lside .name', { hasText: 'All tracks' }).click();   // the new playlist was open
+    await page.locator('.tr').first().locator('.c-title').click();
+    await page.keyboard.press('Control+a');
+    page.once('dialog', d => void d.accept());
+    await page.click('#remove-tracks');
+    await page.waitForTimeout(600);
+    await page.goto('about:blank');
+    await expect.poll(() => Object.keys(tracksOnDisk()).length, { timeout: 30_000 }).toBe(0);
     await home.close();
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

@@ -308,6 +308,10 @@ async fn web_get(app: AppHandle, url: String) -> Result<tauri::ipc::Response, St
 #[tauri::command]
 fn lease_held() -> bool { local::leased() }
 
+/// The library engine's answer to a website request on the local link (ADR 0104).
+#[tauri::command]
+fn rpc_reply(id: u64, body: String) { local::rpc_done(id, body); }
+
 /// Another device sent edits for this computer: the open tab (if any) takes them in at once.
 #[tauri::command]
 fn edits_waiting() { local::EDITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed); }
@@ -554,7 +558,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, web_get, lease_held, edits_waiting, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

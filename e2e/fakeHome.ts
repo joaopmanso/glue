@@ -11,6 +11,14 @@ export class FakeHome {
   /** One per parallel worker: tests that each run a stand-in can run at the same time. */
   readonly port = 47450 + (Number(process.env.TEST_PARALLEL_INDEX) || 0);
   readonly token = 'e2e-token';
+  /** The read-only token (a GLUE tab when GLUE Home is the engine, ADR 0104): no writes. */
+  readonly readToken = 'e2e-read';
+  /** Where /rpc goes (the test wires it to GLUE Home's service page); unset: 503. */
+  rpc: ((body: string, read: boolean) => Promise<string>) | null = null;
+  /** GLUE Home's own cache (the test wires it to the service page's), for /cache?key=. */
+  cache: ((key: string) => Promise<number[] | null>) | null = null;
+  /** Requests refused to the read-only token. */
+  refused: string[] = [];
   readonly device = 'e2e-home';
   /** Paths asked for, in order (to see which disk the page uses). */
   calls: string[] = [];
@@ -61,8 +69,24 @@ export class FakeHome {
     };
     if (method === 'OPTIONS') return send(204, '');
     if (u.pathname === '/hello') return send(200, { app: 'glue-home', version: '0.5.0', device: this.device });
-    if (q.get('t') !== this.token) return send(401, { error: 'not allowed' });
-    if (u.pathname === '/lease' && method === 'POST') { this.leasedAt = Date.now(); return send(200, { edits: this.edits }); }
+    const reading = q.get('t') === this.readToken;
+    if (q.get('t') !== this.token && !reading) return send(401, { error: 'not allowed' });
+    if (reading && ['/fs/write', '/fs/mkdir', '/fs/remove', '/fs/tags', '/fs/dupes', '/incoming/move'].includes(u.pathname)) { this.refused.push(u.pathname); return send(403, { error: 'read only' }); }
+    if (u.pathname === '/cache') {
+      if (!this.cache) return send(404, { error: 'not there' });
+      void this.cache(q.get('key') ?? '').then(b => { if (!b) return send(404, { error: 'not there' }); res.writeHead(200, { 'content-type': 'application/octet-stream', 'access-control-allow-origin': String(headers.origin ?? '*') }); res.end(Buffer.from(b)); });
+      return;
+    }
+    if (u.pathname === '/rpc' && method === 'POST') {
+      const chunks: Buffer[] = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', () => {
+        if (!this.rpc) return send(503, { error: 'GLUE Home’s service isn’t running' });
+        void this.rpc(Buffer.concat(chunks).toString(), reading).then(a => { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': String(headers.origin ?? '*') }); res.end(a); }, e => send(500, { error: String(e) }));
+      });
+      return;
+    }
+    if (u.pathname === '/lease' && method === 'POST') { this.leasedAt = q.get('release') === '1' ? 0 : Date.now(); return send(200, { edits: this.edits }); }
     if (u.pathname === '/fs/roots') return send(200, { glue: this.dirs.glue, incoming: this.dirs.incoming, folders: this.dirs.folders, libraries: this.libraries, sep });
     if (u.pathname === '/fs/pickfile') {
       const f = this.pickFile;

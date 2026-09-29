@@ -5,7 +5,9 @@
 // /hello carries the token GLUE Home gave that website.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
+use std::sync::{mpsc, Mutex, OnceLock};
 
 use tauri::{AppHandle, Emitter};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
@@ -19,6 +21,22 @@ const ORIGINS: [&str; 7] = ["https://joaopmanso.github.io", "http://localhost:51
 pub static LEASE_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 /// Bumped when another device says it sent edits: the tab takes them in at once.
 pub static EDITS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Requests to the library engine in the service page (ADR 0104): each waits here for its answer.
+static RPC_NEXT: AtomicU64 = AtomicU64::new(0);
+fn rpc_waiting() -> &'static Mutex<HashMap<u64, mpsc::Sender<String>>> {
+    static WAITING: OnceLock<Mutex<HashMap<u64, mpsc::Sender<String>>>> = OnceLock::new();
+    WAITING.get_or_init(|| Mutex::new(HashMap::new()))
+}
+/// The service page's answer to request `id` (the rpc_reply command).
+pub fn rpc_done(id: u64, body: String) {
+    let tx = rpc_waiting().lock().ok().and_then(|mut m| m.remove(&id));
+    if let Some(tx) = tx {
+        let _ = tx.send(body);
+    }
+}
+/// The routes that change files: not for a read-only token (ADR 0104).
+const WRITES: [&str; 6] = ["/fs/write", "/fs/mkdir", "/fs/remove", "/fs/tags", "/fs/dupes", "/incoming/move"];
+
 pub fn now_ms() -> u64 { std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0) }
 /// A GLUE tab holds the lease (renewed every 5 s; it lapses after 15).
 pub fn leased() -> bool { now_ms().saturating_sub(LEASE_AT.load(Ordering::Relaxed)) < 15_000 }
@@ -113,17 +131,55 @@ fn answer(app: AppHandle, req: Request) {
         let body = serde_json::json!({ "app": "glue-home", "version": app.package_info().version.to_string(), "device": s("deviceId") });
         return reply(req, 200, body.to_string().into_bytes(), "application/json");
     }
-    // Everything else: the token GLUE Home gave the website (a header, or ?t= for <audio src>).
+    // Everything else: the token GLUE Home gave the website (a header, or ?t= for <audio src>). The full one
+    // (GLUE Home's own service page, and websites until they use the engine), or the read-only one: a GLUE
+    // tab while GLUE Home is the library's engine (ADR 0104) reads, and asks the engine for every change.
     let token = req.headers().iter().find(|h| h.field.equiv("x-glue-token")).map(|h| h.value.as_str().to_string()).unwrap_or_else(|| arg("t"));
     let want = s("localToken");
-    if want.is_empty() || token != want {
+    let read = s("readToken");
+    let full = !want.is_empty() && token == want;
+    let reading = !full && !read.is_empty() && token == read;
+    if !full && !reading {
         return reply(req, 401, b"{\"error\":\"not allowed\"}".to_vec(), "application/json");
+    }
+    if reading && WRITES.contains(&path.as_str()) {
+        return reply(req, 403, b"{\"error\":\"read only: GLUE Home changes the library (ask its engine)\"}".to_vec(), "application/json");
     }
     match path.as_str() {
         // A GLUE tab in Home mode is open: it writes the library (ADR 0087); and edits wait, if any.
         "/lease" if req.method() == &Method::Post => {
-            LEASE_AT.store(now_ms(), Ordering::Relaxed);
+            // `release`: the tab lets go at once (GLUE Home's engine writes now, ADR 0104).
+            LEASE_AT.store(if arg("release") == "1" { 0 } else { now_ms() }, Ordering::Relaxed);
             reply(req, 200, serde_json::json!({ "edits": EDITS.load(Ordering::Relaxed) }).to_string().into_bytes(), "application/json")
+        }
+        // A request to the library engine (ADR 0104): handed to the service page, answered when it has.
+        "/rpc" if req.method() == &Method::Post => {
+            let mut req = req;
+            let mut body = String::new();
+            let read_ok = {
+                let mut r = std::io::Read::take(req.as_reader(), 64 << 20);
+                std::io::Read::read_to_string(&mut r, &mut body).is_ok()
+            };
+            if !read_ok {
+                return reply(req, 400, b"{\"error\":\"bad request\"}".to_vec(), "application/json");
+            }
+            let id = RPC_NEXT.fetch_add(1, Ordering::Relaxed) + 1;
+            let (tx, rx) = mpsc::channel();
+            if let Ok(mut m) = rpc_waiting().lock() {
+                m.insert(id, tx);
+            }
+            let msg = serde_json::json!({ "id": id, "body": body, "read": reading });
+            if app.emit_to("service", "rpc", msg).is_err() {
+                if let Ok(mut m) = rpc_waiting().lock() { m.remove(&id); }
+                return reply(req, 503, b"{\"error\":\"GLUE Home's service isn't running\"}".to_vec(), "application/json");
+            }
+            match rx.recv_timeout(std::time::Duration::from_secs(90)) {
+                Ok(answer) => reply(req, 200, answer.into_bytes(), "application/json"),
+                Err(_) => {
+                    if let Ok(mut m) = rpc_waiting().lock() { m.remove(&id); }
+                    reply(req, 504, b"{\"error\":\"GLUE Home didn't answer in time\"}".to_vec(), "application/json")
+                }
+            }
         }
         // A browser on this computer asks to join it (ADR 0091): only a page on this computer can reach this
         // address, which is the proof. The service page tells GLUE Cloud (with GLUE Home's own credential).

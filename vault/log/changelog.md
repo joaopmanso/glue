@@ -5,6 +5,24 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · GLUE Home is the library's engine (GLUE Home 0.29)
+- **On a computer with GLUE Home, GLUE Home writes the library and the website is its screen**
+  ([ADR 0104](../adr/0104-glue-home-is-the-librarys-engine.md)).
+  - Every change made in the tab goes to GLUE Home's engine and is saved there: playlists, ratings, tags,
+    notes, song info, removing songs or folders.
+  - GLUE Home analyses (the tab no longer does), and the tab shows its progress ("by GLUE Home") and its
+    results, with waveforms and details.
+  - Closing the browser stops nothing that was asked.
+  - No account needed for any of this (the local link's new `/rpc`).
+- Removing thousands of songs no longer waits on this browser's cache.
+- Still in the tab for now: scanning folders, importing DJ libraries, writing song info into files (their
+  results already go to GLUE Home). Next: those on GLUE Home, the "GLUE Home isn't running" bar with the
+  browser fallback, and other devices' requests.
+- Tests:
+  - unit: the same changes, made directly or sent as ops, give the same files;
+  - e2e: GLUE Home's real service page as the engine for a tab with no account (analysis, details, a
+    rating and a playlist it writes, Stop and Resume, removing with the tab closed).
+
 ## 2026-09-29 · Music folders no longer lost after a refresh (GLUE Home 0.28)
 - **Fixed: music folders added in Home mode came back as "missing" after a refresh.**
   - GLUE Home's background folder search saved the settings it had read *before* it searched. That put

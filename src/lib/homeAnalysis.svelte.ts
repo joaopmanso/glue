@@ -122,5 +122,4 @@ class HomeAnalysis {
 }
 
 export const homeAnalysis = new HomeAnalysis();
-lib.analysisElsewhere = { active: () => homeAnalysis.active, now: ids => homeAnalysis.now(ids), pause: p => homeAnalysis.pause(p) };
-if (typeof window !== 'undefined') window.setInterval(() => void homeAnalysis.tick(), EVERY);
+// This computer's GLUE Home is the engine now (lib/engine, ADR 0104): only the ask for another computer's songs is used here.

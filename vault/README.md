@@ -175,5 +175,6 @@ Planned (GLUE):
 | [0099](adr/0099-dj-libraries-belong-to-their-computer.md) | In a shared collection, a DJ library belongs to its computer | accepted |
 | [0100](adr/0100-one-row-per-song-and-own-copies.md) | One row per song, its best copy; a computer removes only its own copies | accepted |
 | [0101](adr/0101-cloud-sync-is-the-accounts-collections.md) | Cloud sync on means every collection is the account's; one sync only | accepted |
+| [0104](adr/0104-glue-home-is-the-librarys-engine.md) | GLUE Home is the library's engine; the website on its computer is its screen | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

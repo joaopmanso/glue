@@ -43,9 +43,16 @@ export async function browserHome(): Promise<{ dir: Dir; granted: boolean } | nu
 /** The GLUE folder and music folders are GLUE Home's (decided when the GLUE folder opens). */
 export const homeMode = () => active && !!disk;
 // The writer lease (ADR 0051): in Home mode this tab tells GLUE Home every 5 s that it's open, so GLUE
-// Home leaves the library to it.
+// Home leaves the library to it. Not while GLUE Home's engine is the writer and this tab its screen
+// (ADR 0104): then the lease is let go at once.
+let leasing = true;
+export function setLeaseHeld(on: boolean) {
+  if (leasing === on) return;
+  leasing = on;
+  if (!on && disk) void disk.release().catch(() => {});
+}
 if (typeof window !== 'undefined') window.setInterval(() => {
-  if (!homeMode() || !disk) return;
+  if (!homeMode() || !disk || !leasing) return;
   void disk.lease().catch(() => {});
 }, 5_000);
 async function homeRoots(fresh = false): Promise<HomeRoots | null> {

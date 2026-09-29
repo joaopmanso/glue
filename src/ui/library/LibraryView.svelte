@@ -44,6 +44,7 @@
   import { account } from '../../lib/account.svelte';
   import { shared } from '../../lib/shared.svelte';
   import { homeAnalysis } from '../../lib/homeAnalysis.svelte';
+  import { engineClient } from '../../lib/engine.svelte';
   import type { HomeFolder } from '../../core/transfer';
 
   const title = $derived.by(() => { void lib.version; return viewTitle(view.sel); });
@@ -158,7 +159,7 @@
       {/if}
       <!-- Stop now: what's being analysed stops, and background analysis is off until it's on again (ADR 0103). -->
       {#if lib.analysis.running || (pending && !lib.analysis.paused)}<button type="button" class="mini stopan" id="stop-analysis" title="Stop analysing now (turn Background analysis on again to carry on)" onclick={() => lib.stopAnalysisNow()}>Stop</button>{/if}
-      {#if homeAnalysis.active}<span class="by" id="analysis-by" title="This computer’s GLUE Home analyses its songs, also while GLUE isn’t open">by GLUE Home</span>{/if}
+      {#if engineClient.active}<span class="by" id="analysis-by" title="This computer’s GLUE Home analyses its songs, also while GLUE isn’t open">by GLUE Home</span>{/if}
       <label class="switch" title="Analyse new and changed tracks in the background. Turn off for big imports; analyse chosen tracks with “Analyse” instead.">
         <input type="checkbox" id="auto-analyse" checked={!lib.analysis.paused} onchange={e => lib.pauseAnalysis(!e.currentTarget.checked)}><span class="knob" aria-hidden="true"></span> Background analysis
       </label>

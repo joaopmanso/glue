@@ -47,6 +47,8 @@ class Shared {
   private place(): Place | null {
     const s = lib.store, me = this.me();
     // Cloud sync off for the profile: its collections stay here as they are, and aren't synced (ADR 0102).
+    // GLUE Home's engine is the writer here (ADR 0104): it syncs, not this tab.
+    if (lib.analysisElsewhere?.active()) return null;
     if (!s?.shared || !lib.homeHandle || !lib.profile || lib.profile.cloudSync === false || !me || !account.signedIn || lib.readOnly) return null;
     return { root: lib.homeHandle, pid: lib.profile.id, cid: s.meta.id, me, cloud: cloudFor(s.meta.id) };
   }

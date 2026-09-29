@@ -12,7 +12,8 @@ import { syncSharedHere } from './sharedSync';
 import { followMoves } from './moves';
 import * as analysis from './analysis';
 import { describe, locateAll, newlyFound, trackPath } from './library';
-import { findUpdate, install } from './updates';
+import { findUpdate, install, version } from './updates';
+import * as engine from './engine';
 import { checkReminders } from './reminders';
 import * as ice from './ice';
 
@@ -39,7 +40,7 @@ let servedTimer = 0;
 const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), events: events.slice(), reminders, served: structuredClone(served) };
+  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), events: events.slice(), reminders, served: structuredClone(served) };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -320,7 +321,8 @@ function serve(dc: RTCDataChannel) {
         await answer(c.n, { state: analysis.state, waiting: analysis.waitingIn(c.profile, c.collection).slice(0, 200) }, null);
       } else if (c.t === 'local') {
         // The website on this computer: how to reach GLUE Home without GLUE Cloud (ADR 0048).
-        await answer(c.n, { port: await bridge.localPort(), token: cfg?.localToken ?? null }, null);
+        // The read-only token too: a GLUE tab here reads, and asks the engine for every change (ADR 0104).
+        await answer(c.n, { port: await bridge.localPort(), token: cfg?.localToken ?? null, readToken: cfg?.readToken ?? null }, null);
       } else if (c.t === 'get-incoming') {
         const f = (await bridge.incomingList()).find(x => x.name === c.name);
         if (!f) throw new Error('That song isn’t in the incoming folder any more.');
@@ -372,6 +374,35 @@ async function findFolders() {
 }
 
 // ---- wiring ---------------------------------------------------------------------------------------
+/** A request to the library engine (ADR 0104), from a GLUE tab on this computer. */
+type Rpc =
+  | { op: 'hello' } | { op: 'wait'; since: number } | { op: 'status' } | { op: 'open'; p: string; c: string }
+  | { op: 'edit'; p: string; c: string; ops: import('../../src/store/collection').StoreOp[] }
+  | { op: 'analyse'; p: string; c: string; ids: string[]; names?: Record<string, string> }
+  | { op: 'pause'; on: boolean }
+  | { op: 'job'; kind: 'remove-tracks'; p: string; c: string; ids: string[] };
+async function rpc(b: Rpc): Promise<unknown> {
+  const c = cfg;
+  if (!c) throw new Error('GLUE Home isn’t set up yet');
+  switch (b.op) {
+    case 'hello': return { engine: 1, version: await version().catch(() => ''), rev: engine.status().rev };
+    case 'wait': return engine.wait(Number(b.since) || 0);
+    case 'open': engine.drop(b.p, b.c); return { ok: true };
+    case 'status': return { ...engine.status(), analysis: analysis.state };
+    case 'edit': {
+      const r = await engine.edit(c, b.p, b.c, b.ops);
+      if (b.ops.some(o => o.m === 'tracks')) void analysis.run(() => cfg);   // songs added (a scan): analysed next
+      return r;
+    }
+    case 'analyse': analysis.now(b.p, b.c, b.ids, b.names ?? {}, () => cfg); return { ok: true };
+    case 'pause':
+      if (!!c.analysisPaused !== !!b.on) { cfg = await bridge.patchConfig(() => ({ analysisPaused: !!b.on })).catch(() => cfg) ?? cfg; analysis.setPaused(!!b.on, () => cfg); }
+      return { paused: !!b.on };
+    case 'job': await engine.addJob(() => cfg, { kind: b.kind, p: b.p, c: b.c, ids: b.ids }); return { queued: true };
+    default: throw new Error('GLUE Home doesn’t know that request');
+  }
+}
+
 /** New settings (joined an account, another incoming folder, a folder picked): acted on, reconnecting when
     the account changed. */
 async function listenConfig() {
@@ -399,6 +430,15 @@ async function boot() {
   // The token that lets the website on this computer use the local link.
   const token = [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
   if (cfg && !cfg.localToken) cfg = await bridge.patchConfig(cur => cur.localToken ? null : { localToken: token }).catch(() => cfg) ?? cfg;
+  // And the read-only one, for a GLUE tab while GLUE Home is the library's engine (ADR 0104).
+  const readToken = [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
+  if (cfg && !cfg.readToken) cfg = await bridge.patchConfig(cur => cur.readToken ? null : { readToken }).catch(() => cfg) ?? cfg;
+  // The library's engine (ADR 0104): a GLUE tab's requests, from the local link.
+  await bridge.onRpc(m => void (async () => {
+    let out: unknown;
+    try { out = await rpc(JSON.parse(m.body)); } catch (e) { out = { error: (e as Error).message || String(e) }; }
+    await bridge.rpcReply(m.id, JSON.stringify(out)).catch(() => {});
+  })());
   // Songs already waiting without an analysis (arrived while it was off, or before this version).
   void (async () => { for (const f of await bridge.incomingList().catch(() => [])) await cache.analyseIncoming(f.name, f.path, f.size).catch(() => {}); })();
   // The website's GLUE folder, when it's in a usual place and none was chosen.
@@ -442,6 +482,12 @@ async function boot() {
   const moves = () => void followMoves(cfg).catch(e => console.warn('GLUE Home: the cache didn’t follow a moved collection', e));
   setTimeout(moves, 30_000);
   setInterval(moves, 3600e3);
+  // The engine's jobs (ADR 0104): carried on after a restart; a GLUE tab from before the engine (it holds the
+  // lease and writes by itself): nothing the engine keeps may go stale meanwhile.
+  engine.on.event = event;
+  engine.on.changed = servedSoon;
+  setTimeout(() => void engine.runJobs(() => cfg), 10_000);
+  setInterval(() => { void bridge.leaseHeld().then(held => { if (held) engine.forget(); else void engine.runJobs(() => cfg); }).catch(() => {}); }, 10_000);
   // This computer's songs analysed for the library (ADR 0103): soon after starting, then every minute.
   analysis.setPaused(!!cfg?.analysisPaused, undefined, true);
   analysis.on.changed = servedSoon;

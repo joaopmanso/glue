@@ -9,6 +9,11 @@ import { analysisHere, analysisShared, collectionHere, collectionShared, toLocal
 
 /** A shared collection (ADR 0094): its files hold every computer's parts; this is how this computer sees
     them, and what was read, so saving changes only this computer's parts. */
+/** A change to a collection, as a GLUE tab sends it to GLUE Home's engine (ADR 0104): the record itself. */
+export type StoreOp =
+  | { m: 'meta'; meta: Collection } | { m: 'tracks'; ts: Track[] } | { m: 'removeTrack'; id: string } | { m: 'analysis'; id: string; a: AnalysisSummary }
+  | { m: 'list'; l: List } | { m: 'deleteList'; id: string } | { m: 'event'; e: GlueEvent } | { m: 'deleteEvent'; id: string }
+  | { m: 'source'; s: Source } | { m: 'deleteSource'; id: string };
 export interface SharedMode { here: Here; member: { profile: string; name: string }; meta: SharedCollection; tracks: Map<string, SharedTrack>; analysis: Map<string, Record<string, AnalysisSummary>> }
 export interface LoadOpts { me?: string | null; name?: string }
 
@@ -143,14 +148,35 @@ export class CollectionStore {
     this.onReloaded?.();
   }
 
-  private mark(path: string) { this.deleted.delete(path); this.dirty.add(path); this.onDirty?.(); }
+  /** A client of GLUE Home's engine (ADR 0104): changes show here at once and go to the engine as ops (it
+      writes the files); nothing is written from here. */
+  sink: ((op: StoreOp) => void) | null = null;
+  /** Told of the files each flush wrote or removed (GLUE Home's engine: its feed of changes). */
+  onWrote: ((paths: string[]) => void) | null = null;
+  /** An op from a client, applied here (the engine): the same change the client made on its copy. */
+  apply(op: StoreOp) {
+    switch (op.m) {
+      case 'meta': this.meta = op.meta; this.saveMeta(); break;
+      case 'tracks': this.putTracks(op.ts); break;
+      case 'removeTrack': this.removeTrack(op.id); break;
+      case 'analysis': this.putAnalysis(op.id, op.a); break;
+      case 'list': this.putList(op.l); break;
+      case 'deleteList': this.deleteList(op.id); break;
+      case 'event': this.putEvent(op.e); break;
+      case 'deleteEvent': this.deleteEvent(op.id); break;
+      case 'source': this.putSource(op.s); break;
+      case 'deleteSource': this.deleteSource(op.id); break;
+    }
+  }
+  private mark(path: string) { if (this.sink) return; this.deleted.delete(path); this.dirty.add(path); this.onDirty?.(); }
   private changed() { this.onChange?.(); }
 
-  saveMeta() { this.mark('collection.json'); this.changed(); }
-  putTrack(t: Track) { this.tracks.set(t.id, t); this.rev.tracks++; if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); this.changed(); }
-  putTracks(ts: Track[]) { for (const t of ts) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); } this.rev.tracks++; this.changed(); }
+  saveMeta() { this.sink?.({ m: 'meta', meta: this.meta }); this.mark('collection.json'); this.changed(); }
+  putTrack(t: Track) { if (!this.ephemeral.has(t.id)) this.sink?.({ m: 'tracks', ts: [t] }); this.tracks.set(t.id, t); this.rev.tracks++; if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); this.changed(); }
+  putTracks(ts: Track[]) { if (this.sink) { const own = ts.filter(t => !this.ephemeral.has(t.id)); if (own.length) this.sink({ m: 'tracks', ts: own }); } for (const t of ts) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); } this.rev.tracks++; this.changed(); }
   removeTrack(id: string) {
     if (this.ephemeral.has(id)) return;   // another device's track: removed there, not here
+    this.sink?.({ m: 'removeTrack', id });
     // Shared, and another computer has it too: only this computer's copy goes (ADR 0100). The song, its
     // playlists and the other computers' analyses stay, now shown as theirs.
     const m = this.shared, st = m?.tracks.get(id);
@@ -175,29 +201,33 @@ export class CollectionStore {
     for (const l of this.lists.values()) if (l.items.includes(id)) this.putList({ ...l, items: l.items.filter(x => x !== id) });
     this.changed();
   }
-  putAnalysis(id: string, a: AnalysisSummary) { this.analysis.set(id, a); this.rev.analysis++; if (!this.ephemeral.has(id)) this.mark(`analysis/${shardOf(id)}.json`); this.changed(); }
-  putList(l: List) { this.lists.set(l.id, l); this.rev.lists++; if (!this.ephemeral.has(l.id)) this.mark(`lists/${l.id}.json`); this.changed(); }
+  putAnalysis(id: string, a: AnalysisSummary) { if (!this.ephemeral.has(id)) this.sink?.({ m: 'analysis', id, a }); this.analysis.set(id, a); this.rev.analysis++; if (!this.ephemeral.has(id)) this.mark(`analysis/${shardOf(id)}.json`); this.changed(); }
+  putList(l: List) { if (!this.ephemeral.has(l.id)) this.sink?.({ m: 'list', l }); this.lists.set(l.id, l); this.rev.lists++; if (!this.ephemeral.has(l.id)) this.mark(`lists/${l.id}.json`); this.changed(); }
   deleteList(id: string) {
+    if (!this.ephemeral.has(id)) this.sink?.({ m: 'deleteList', id });
     const doomed = [id];
     for (let i = 0; i < doomed.length; i++) for (const l of this.lists.values()) if (l.parentId === doomed[i]) doomed.push(l.id);
     // Into the bin first (ADR 0090): whatever deleted it (the user, another device, a DJ library).
     const kept = doomed.filter(d => !this.ephemeral.has(d)).map(d => this.lists.get(d)).filter((l): l is List => !!l);
-    if (kept.length) this.binned.push({ name: Date.now() + '-' + kept[0].id + '.json', deletedAt: new Date().toISOString(), lists: kept.map(l => ({ ...l })) });
+    if (kept.length && !this.sink) this.binned.push({ name: Date.now() + '-' + kept[0].id + '.json', deletedAt: new Date().toISOString(), lists: kept.map(l => ({ ...l })) });
     this.rev.lists++;
-    for (const d of doomed) { this.lists.delete(d); if (this.ephemeral.has(d)) continue; this.dirty.delete(`lists/${d}.json`); this.deleted.add(`lists/${d}.json`); }
+    for (const d of doomed) { this.lists.delete(d); if (this.ephemeral.has(d) || this.sink) continue; this.dirty.delete(`lists/${d}.json`); this.deleted.add(`lists/${d}.json`); }
     this.onDirty?.(); this.changed();
   }
-  putEvent(e: GlueEvent) { this.events.set(e.id, e); this.rev.events++; this.mark('events.json'); this.changed(); }
-  deleteEvent(id: string) { this.events.delete(id); this.rev.events++; this.mark('events.json'); this.changed(); }
+  putEvent(e: GlueEvent) { this.sink?.({ m: 'event', e }); this.events.set(e.id, e); this.rev.events++; this.mark('events.json'); this.changed(); }
+  deleteEvent(id: string) { this.sink?.({ m: 'deleteEvent', id }); this.events.delete(id); this.rev.events++; this.mark('events.json'); this.changed(); }
   putSource(s: Source) {
     // A library read here, in a shared collection: this computer's (ADR 0099).
     if (this.shared && !s.computer) s = { ...s, computer: this.shared.here.me };
+    this.sink?.({ m: 'source', s });
     this.sources.set(s.id, s); this.rev.sources++; this.mark(`sources/${s.id}.json`); this.changed();
   }
   /** A library this computer can read: its own, or any outside a shared collection. */
   ownSource(s: Source) { return !this.shared || !s.computer || s.computer === this.shared.here.me; }
   deleteSource(id: string) {
+    this.sink?.({ m: 'deleteSource', id });
     this.sources.delete(id); this.rev.sources++;
+    if (this.sink) { this.changed(); return; }
     this.dirty.delete(`sources/${id}.json`); this.deleted.add(`sources/${id}.json`);
     this.onDirty?.(); this.changed();
   }
@@ -277,7 +307,7 @@ export class CollectionStore {
             else await writeJSON(this.root, `${this.base}/${p}`, value);
           } catch (e) { if (!this.deleted.has(p)) this.dirty.add(p); first ??= e; }   // retried next time
         }
-      } finally { this.writing = null; record('store.flush', performance.now() - t0); }
+      } finally { this.writing = null; record('store.flush', performance.now() - t0); this.onWrote?.([...paths, ...gone]); }
       if (first) throw first;
     })();
     return this.writing;
