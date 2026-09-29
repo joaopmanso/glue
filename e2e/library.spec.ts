@@ -1,4 +1,5 @@
-import { test as base, expect, chromium, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { launch } from './launch';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
@@ -11,7 +12,7 @@ import { TAURI_MOCK } from './tauri-mock';
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-e2e-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1920, height: 960 } });
+    const ctx = await launch(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1920, height: 960 } });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true });}
   },
@@ -1027,6 +1028,15 @@ test('finds the same recording under different names and formats', async ({ page
   await expect(dupItem).toContainText('1', { timeout: 20_000 });
   await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×');
   await expect(page.locator('.tr', { hasText: 'Something else' }).locator('.dup')).toHaveCount(0);
+  // One row per song: the best copy (the WAV), with the badge; the other copy isn't a row of its own.
+  await expect(page.locator('.tr')).toHaveCount(2);
+  await expect(page.locator('.tr', { hasText: 'HHH-Bebida' })).toHaveCount(0);
+  await expect(page.locator('.lside .name', { hasText: 'All tracks' })).toContainText('2');
+  // A search for the other copy finds the song, shown as its best copy.
+  await page.fill('input[type=search]', 'Bebida');
+  await expect(page.locator('.tr')).toHaveCount(1);
+  await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' })).toHaveCount(1);
+  await page.fill('input[type=search]', '');
   // The "2×" opens Duplicates on that track's group, with the track highlighted.
   await page.locator('.tr', { hasText: 'HHH 04 RADIX' }).first().locator('.dup').click();
   const grp = page.locator('#dupes .grp');
@@ -1050,7 +1060,7 @@ test('finds the same recording under different names and formats', async ({ page
   expect(kept.results).toBe(1);
   expect(kept.packs).toBeGreaterThan(0);
   await page.reload();
-  await expect(page.locator('.tr')).toHaveCount(3, { timeout: 20_000 });
+  await expect(page.locator('.tr')).toHaveCount(2, { timeout: 20_000 });
   await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×', { timeout: 2_000 });
   await page.locator('.tr', { hasText: 'HHH 04 RADIX' }).first().locator('.dup').click();
   await expect(grp).toHaveCount(1);
@@ -1063,7 +1073,14 @@ test('finds the same recording under different names and formats', async ({ page
   await expect(page.locator('#dupes .grp')).toHaveCount(1, { timeout: 60_000 });
   await expect(page.locator('#dupes-missing')).toHaveCount(0, { timeout: 60_000 });
 
-  // "Not duplicates" hides the group, also after a reload.
+  // Another copy chosen as the one to keep: that one is the song's row now.
+  await page.locator('#dupes .grp li', { hasText: 'HHH-Bebida' }).getByRole('button', { name: 'Use in playlists' }).click();
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await expect(page.locator('.tr', { hasText: 'HHH-Bebida' }).locator('.dup')).toHaveText('2×');
+  await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' })).toHaveCount(0);
+  await page.locator('.lside .name', { hasText: 'Duplicates' }).click();
+
+  // "Not duplicates" hides the group, also after a reload: both copies are rows again.
   await grp.getByRole('button', { name: 'Not duplicates' }).click();
   await expect(page.locator('#dupes .grp')).toHaveCount(0);
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
@@ -1688,7 +1705,7 @@ test('GLUE account: Google sign-in, devices, pairing a GLUE Home, staying signed
   await expect(page.locator('#account-btn')).toHaveText('Sign in', { timeout: 15_000 });
 });
 
-test('cloud sync: upload, open from the cloud, edits reach the owning device, merge two devices, clean up', async ({ page }) => {
+test('cloud sync: upload, open from the cloud, edits reach the owning device, merge two devices, clean up', { tag: '@heavy' }, async ({ page }) => {
   // A stand-in GLUE Cloud with the same API as cloud/src (tests/cloud.test.ts covers the real one).
   await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
     window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
@@ -2047,7 +2064,7 @@ test('email + password account, and the admin panel only for admins', async ({ p
   await expect(page.locator('.admin .ok')).toContainText('3 removed');
 });
 
-test('send songs to a GLUE Home: from its menu and from the selection, peer to peer, into its incoming folder', async ({ page }) => {
+test('send songs to a GLUE Home: from its menu and from the selection, peer to peer, into its incoming folder', { tag: '@heavy' }, async ({ page }) => {
   // The website (this laptop) and GLUE Home's real service page (home/ui, its Rust side stood in by
   // e2e/tauri-mock.ts) talk over a real WebRTC data channel; the test relays the handshake the way
   // the account's signaling room does.
@@ -2176,7 +2193,7 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   await expect(page.locator('.tr')).toHaveCount(2);
 });
 
-test('GLUE Home opens the library: a GLUE tab that is open comes forward; "Use this tab instead" moves the library', async ({ page }) => {
+test('GLUE Home opens the library: a GLUE tab that is open comes forward; "Use this tab instead" moves the library', { tag: '@heavy' }, async ({ page }) => {
   await seed(page);
   await page.goto('./');
   await page.click('#choose-home');
@@ -2254,7 +2271,7 @@ test('the website hands its mini spectrograms and analyses to this computer’s 
   await expect.poll(async () => (await kept()).filter(k => k.startsWith('d/') && k.endsWith('.json')).length, { timeout: 30_000 }).toBe(4);
 });
 
-test('the local link: this computer’s GLUE Home answers the website directly, TO BE SORTED ready and playing without GLUE Cloud', async ({ page }) => {
+test('the local link: this computer’s GLUE Home answers the website directly, TO BE SORTED ready and playing without GLUE Cloud', { tag: '@heavy' }, async ({ page }) => {
   test.setTimeout(180_000);
   const ctx = page.context();
   await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `

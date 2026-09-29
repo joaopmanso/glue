@@ -1,7 +1,7 @@
 /* What right-clicking songs offers (ADR 0067), in the table, the duplicates and the mini player: for one
    song or all the selected ones. The selection bar keeps the most used of these as buttons. */
 import { lib } from './library.svelte';
-import { view, type FilterGroup } from './view.svelte';
+import { removeNote, view, withCopies, type FilterGroup } from './view.svelte';
 import { router, trackHref } from './route.svelte';
 import { nowPlaying } from './nowPlaying.svelte';
 import { player } from './player.svelte';
@@ -176,8 +176,8 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     !cloud && {
       label: 'Remove from collection…', danger: true, attrs: { 'data-m': 'remove' },
       run: () => {
-        if (!confirm('Remove ' + (one ? 'this song' : 'these ' + n + ' songs') + ' from the collection and all its playlists? Files on disk aren’t touched; songs in a music folder come back on the next scan.')) return;
-        void lib.removeTracks(ids); view.selected = new Set();
+        if (!confirm('Remove ' + (one ? 'this song' : 'these ' + n + ' songs') + ' from the collection and all its playlists? Files on disk aren’t touched; songs in a music folder come back on the next scan.' + removeNote())) return;
+        void lib.removeTracks(withCopies(ids)); view.selected = new Set();
       },
     },
   ]);

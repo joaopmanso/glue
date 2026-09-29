@@ -74,6 +74,9 @@ class Dupes {
     });
   }
 
+  /** The copies not shown in the collection's lists: in a "same recording" group, every copy but the best
+      (the user, 2026-09-29: one row per song, its best copy, with the N× badge). */
+  hidden = $derived.by(() => { const h = new Set<string>(); for (const g of this.groups) if (g.kind === 'same') for (const id of g.ids) if (id !== g.best) h.add(id); return h; });
   /** Group of a track, if any (for the table badge). */
   groupOf = $derived.by(() => { const m = new Map<string, DupGroup>(); for (const g of this.groups) for (const id of g.ids) m.set(id, g); return m; });
 

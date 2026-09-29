@@ -6,6 +6,18 @@
 
   let open = $state(false);
   let gbox = $state<HTMLDivElement>();
+  let anchor = $state<HTMLSpanElement>();
+  /** Where the menu goes: under the button, toward the screen's middle, inside the screen with a 16 px
+      gutter (on a phone the button is on the left, and a menu opening leftwards went off screen). */
+  let place = $state('');
+  function measure() {
+    const r = anchor?.getBoundingClientRect();
+    if (!r) return;
+    const vw = document.documentElement.clientWidth, w = Math.min(320, vw - 32);
+    const want = r.left + r.width / 2 < vw / 2 ? r.left : r.right - w;
+    place = `top:${Math.round(r.bottom + 8)}px;left:${Math.round(Math.max(16, Math.min(want, vw - 16 - w)))}px;width:${w}px`;
+  }
+  $effect(() => { if (open) measure(); });
   let confirmDelete = $state(false);
   $effect(() => {
     const el = gbox, dark = themes.resolved === 'dark';
@@ -16,10 +28,10 @@
   const homes = $derived(account.devices.filter(d => d.kind === 'home').length);
 </script>
 
-<svelte:window onpointerdown={e => { if (open && !(e.target as HTMLElement).closest('.acct')) open = false; }} onkeydown={e => { if (e.key === 'Escape') open = false; }} />
+<svelte:window onresize={() => { if (open) measure(); }} onpointerdown={e => { if (open && !(e.target as HTMLElement).closest('.acct')) open = false; }} onkeydown={e => { if (e.key === 'Escape') open = false; }} />
 
 {#if account.available || account.signedIn || account.phase === 'working'}
-<span class="acct">
+<span class="acct" bind:this={anchor}>
   {#if account.signedIn}
     <button type="button" class="avatar" id="account-btn" aria-haspopup="dialog" aria-expanded={open} title={'Signed in as ' + (account.user?.email ?? '')} onclick={() => (open = !open)}>
       {#if account.user?.picture}<img src={account.user.picture} alt="" referrerpolicy="no-referrer">{:else}{initial}{/if}
@@ -31,7 +43,7 @@
     </button>
   {/if}
   {#if open}
-    <div class="pop" role="dialog" aria-label="GLUE account" id="account-pop">
+    <div class="pop" role="dialog" aria-label="GLUE account" id="account-pop" style={place}>
       {#if account.signedIn}
         <p class="who"><b>{account.user?.name ?? 'Signed in'}</b><span>{account.user?.email}{account.user?.tier ? ' · ' + account.user.tier + ' plan' : ''}</span></p>
         <p class="fine">{account.devices.length} device{account.devices.length === 1 ? '' : 's'}{homes ? ' · ' + homes + ' GLUE Home' : ''} · {account.connected ? 'connected' : 'connecting…'}</p>
@@ -63,7 +75,7 @@
   .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
   .live { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); border: 2px solid var(--ground); }
   .live.on { background: var(--ok); }
-  .pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; width: 320px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 10px; padding: 14px; box-shadow: 0 14px 36px rgb(0 0 0 / .45); display: grid; gap: 10px; font-size: 13px; }
+  .pop { position: fixed; z-index: 50; width: 320px; max-height: calc(100dvh - 80px); overflow-y: auto; background: var(--raised); border: 1px solid var(--line-2); border-radius: 10px; padding: 14px; box-shadow: 0 14px 36px rgb(0 0 0 / .45); display: grid; gap: 10px; font-size: 13px; }
   h3 { font-size: 16px; display: flex; gap: 8px; align-items: baseline; }
   h3 small { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .08em; }
   .pop p { color: var(--ink-2); }

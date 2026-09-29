@@ -1,7 +1,8 @@
 /* A narrow window (the user's report, 2026-09-27): narrowing the window below ~850 px froze the page,
    because the table lost its height and drew every row. It must keep drawing only what's on screen; so
    must the phone layout that takes over below 760 px (ADR 0078). */
-import { test as base, expect, chromium, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { launch } from './launch';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,7 +12,7 @@ import { seedFolder } from './seed';
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-narrow-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1920, height: 960 } });
+    const ctx = await launch(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1920, height: 960 } });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },

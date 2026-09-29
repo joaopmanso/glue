@@ -17,7 +17,8 @@ export type SharedTrack = Omit<Track, CopyField | 'onDevices' | 'remote'> & { co
 /** A shared collection's own file: the usual one, with each computer's music folders and profile. */
 export type SharedCollection = Omit<Collection, 'roots'> & { shared: true; rootsBy: Record<string, Root[]>; members: Record<string, { profile: string; name: string }> };
 
-export interface Here { me: string; collection: string; members: SharedCollection['members'] }
+/** rootsBy: each computer's music folders, to say where another computer's copy is. */
+export interface Here { me: string; collection: string; members: SharedCollection['members']; rootsBy?: SharedCollection['rootsBy'] }
 
 const pick = <T extends object, K extends keyof T>(o: T, ks: readonly K[]) => { const out = {} as Pick<T, K>; for (const k of ks) if (o[k] !== undefined) out[k] = o[k]; return out; };
 
@@ -34,7 +35,11 @@ export function toLocal(s: SharedTrack, here: Here): Track {
     ...(common as Omit<Track, CopyField>), status: theirs?.status ?? 'unlinked', rootId: null, relPath: null, importPath: theirs?.importPath ?? null,
     size: theirs?.size ?? null, mtime: theirs?.mtime ?? null, sources: [], onDevices: names,
   } as Track;
-  if (c) t.remote = { device: c, name: here.members[c]?.name ?? c, profile: here.members[c]?.profile, collection: here.collection, id: s.id };
+  if (c) {
+    const folder = here.rootsBy?.[c]?.find(r => r.id === theirs?.rootId)?.name;
+    const where = theirs?.relPath ? (folder ? folder + '/' : '') + theirs.relPath : undefined;
+    t.remote = { device: c, name: here.members[c]?.name ?? c, profile: here.members[c]?.profile, collection: here.collection, id: s.id, ...(where ? { where } : {}) };
+  }
   return t;
 }
 

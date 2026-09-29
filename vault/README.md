@@ -173,3 +173,4 @@ Planned (GLUE):
 | [0097](adr/0097-glue-home-syncs-shared-collections.md) | GLUE Home syncs its computer's shared collections, and writes song info edited elsewhere | accepted |
 | [0098](adr/0098-duplicates-across-computers.md) | Duplicates across computers: each computer publishes its own matches | accepted |
 | [0099](adr/0099-dj-libraries-belong-to-their-computer.md) | In a shared collection, a DJ library belongs to its computer | accepted |
+| [0100](adr/0100-one-row-per-song-and-own-copies.md) | One row per song, its best copy; a computer removes only its own copies | accepted |

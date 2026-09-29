@@ -1,0 +1,47 @@
+name: End-to-end tests
+
+# The browser tests in Edge on Windows (the laptop runs them before each deploy; this checks a deploy
+# on another machine too). Every push to main, and once a day with stem separation too (slow). It
+# doesn't hold the deploy up. The performance budgets (PERF=1) are this laptop's, so they stay local.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+    inputs:
+      slow:
+        description: Also run the stem separation test
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CI: '1'
+      STEMS: ${{ (github.event_name == 'schedule' || inputs.slow) && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # ffmpeg for the tests that make rips (FFMPEG is its path).
+      - run: choco install ffmpeg -y --no-progress
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: test-results
+          path: test-results
+          retention-days: 7

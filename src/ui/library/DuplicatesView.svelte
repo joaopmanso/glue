@@ -32,6 +32,8 @@
   }));
 
   function where(t: Track) {
+    // Another computer's copy (a shared collection): that computer, and where the file is there.
+    if (t.remote) return t.remote.name + ' · ' + (t.remote.where ?? t.fileName);
     if (t.fileKey) return t.fileName;
     const r = lib.rootState(t.rootId);
     return t.relPath ? (r?.root.name ?? '') + '/' + t.relPath : t.importPath ?? t.fileName;

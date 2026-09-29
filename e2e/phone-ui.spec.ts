@@ -2,7 +2,8 @@
    two-line rows, a tap plays, menus and questions as sheets, the mini and full player, browsing, search,
    playlists made and edited by touch, and a song's page inside the same frame. Nothing may be wider than
    the screen. */
-import { test as base, expect, chromium, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { launch } from './launch';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,7 +14,7 @@ const test = base.extend<{ page: Page; device: Device }>({
   device: [{ width: 390, height: 844 }, { option: true }],
   page: async ({ baseURL, device }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-phoneui-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: device.width, height: device.height }, isMobile: device.isMobile, hasTouch: true });
+    const ctx = await launch(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: device.width, height: device.height }, isMobile: device.isMobile, hasTouch: true });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },
@@ -248,4 +249,35 @@ test.describe('on a tablet', () => {
     if (shots) await page.screenshot({ path: shots + '/tablet-sheet.png' });
     expect(errors).toEqual([]);
   });
+});
+
+test('on a phone the account menu opens inside the screen (the button is on the left)', async ({ page }) => {
+  const errors: string[] = [];
+  const user = { id: 'u1', email: 'dj@example.com', name: 'DJ', picture: null };
+  await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+    window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+      renderButton(el) { const b = document.createElement('button'); b.id = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
+  await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+    const p = new URL(r.request().url()).pathname, json = (b: unknown) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
+    if (p === '/v1/auth/google' || p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1', user });
+    if (p === '/v1/me') return json({ user, thisDevice: 'b1', devices: [{ id: 'b1', kind: 'browser', name: 'Phone', platform: '', createdAt: 1, lastSeen: 1, role: 'browse' }], sessions: [] });
+    if (p === '/v1/shared') return json({ collections: [] });
+    if (p === '/v1/sync') return json({ thisDevice: 'b1', profiles: [] });
+    if (p === '/v1/sync/links') return json({ groups: [] });
+    if (p === '/v1/sync/manifest') return json({ need: [] });
+    if (p === '/v1/turn') return json({ iceServers: [], ttl: 0 });
+    return json({ ok: true });
+  });
+  await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+  await start(page, errors);
+  await page.locator('.tabs [data-tab="more"]').click();
+  await page.click('#account-btn');
+  await page.click('#fake-google');
+  await expect(page.locator('#account-btn img, #account-btn.avatar')).toHaveCount(1, { timeout: 20_000 });
+  if (!await page.locator('#account-pop').isVisible()) await page.click('#account-btn');
+  const box = (await page.locator('#account-pop').boundingBox())!, vw = page.viewportSize()!.width;
+  expect(box.x).toBeGreaterThanOrEqual(16);
+  expect(box.x + box.width).toBeLessThanOrEqual(vw - 16 + 0.5);
+  await expect(page.locator('#sign-out')).toBeInViewport();
+  expect(errors).toEqual([]);
 });

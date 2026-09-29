@@ -40,7 +40,7 @@
     const s = lib.store;
     let all = 0, pending = 0, unlinked = 0, attention = 0;
     if (s) for (const t of s.tracks.values()) {
-      all++;
+      if (!dupes.hidden.has(t.id)) all++;   // one per song (its best copy)
       if (t.status !== 'linked') unlinked++;
       if (lib.needsAnalysis(t)) pending++;
       const a = s.analysis.get(t.id);

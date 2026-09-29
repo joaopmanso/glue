@@ -1,7 +1,8 @@
 /* One collection, the same on every device (ADR 0094): the desktop shares its collection, the laptop adds
    it and sees the desktop's songs, and a change made on the laptop reaches the desktop at once. Two
    browsers against a stand-in GLUE Cloud with the shared collection's rules (cloud/src/shared.ts). */
-import { test, expect, chromium, type Page, type BrowserContext, type WebSocketRoute } from '@playwright/test';
+import { test, expect, type Page, type BrowserContext, type WebSocketRoute } from '@playwright/test';
+import { launch } from './launch';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,7 +13,7 @@ const MUSIC = ['flac-96k-24.flac', 'mp3-128k.mp3', 'aiff-44k-24.aiff', 'aac-128k
 
 async function browserFor(baseURL: string | undefined): Promise<{ ctx: BrowserContext; page: Page; done: () => Promise<void> }> {
   const dir = mkdtempSync(join(tmpdir(), 'mco-shared-'));
-  const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1600, height: 900 } });
+  const ctx = await launch(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1600, height: 900 } });
   const page = ctx.pages()[0] ?? await ctx.newPage();
   await page.addInitScript(() => {
     (window as unknown as { showDirectoryPicker: (o: { id?: string }) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker = async (o) =>
@@ -277,6 +278,7 @@ test('duplicates found on the desktop show on the laptop: the 2× badge on the d
     await expect(desk.page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
     await expect(desk.page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
     await expect(desk.page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×', { timeout: 30_000 });
+    await expect(desk.page.locator('.tr')).toHaveCount(2);
     await desk.page.click('#account-btn');
     await desk.page.click('#fake-google');
     await desk.page.keyboard.press('Escape');
@@ -298,9 +300,10 @@ test('duplicates found on the desktop show on the laptop: the 2× badge on the d
     const cid = [...cols.keys()][0];
     await expect(lap.page.locator(`#collection-pick option[value="__join:${cid}"]`)).toHaveCount(1, { timeout: 20_000 });
     await lap.page.selectOption('#collection-pick', '__join:' + cid);
-    await expect(lap.page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
     await expect(lap.page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×', { timeout: 30_000 });
-    await expect(lap.page.locator('.tr', { hasText: 'HHH-Bebida' }).locator('.dup')).toHaveText('2×');
+    // One row per song there too: the best copy with its badge.
+    await expect(lap.page.locator('.tr')).toHaveCount(2);
+    await expect(lap.page.locator('.tr', { hasText: 'HHH-Bebida' })).toHaveCount(0);
     await expect(lap.page.locator('.tr', { hasText: 'Something else' }).locator('.dup')).toHaveCount(0);
   } finally { await desk.done(); await lap.done(); rmSync(tmp, { recursive: true, force: true }); }
 });

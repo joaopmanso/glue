@@ -1,7 +1,8 @@
 /* One device per computer (ADR 0091): a second browser on a computer whose GLUE Home runs finds it on
    127.0.0.1, asks it to vouch (its local link's /attach), and from then on is that computer's device.
    Against a stand-in GLUE Cloud; GLUE Home's real service page with its Rust side stood in. */
-import { test as base, expect, chromium, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { launch } from './launch';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +11,7 @@ import { TAURI_MOCK } from './tauri-mock';
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-computers-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1600, height: 900 } });
+    const ctx = await launch(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1600, height: 900 } });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },

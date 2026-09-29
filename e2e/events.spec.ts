@@ -1,6 +1,7 @@
 /* Events (ADR 0074): the calendar, an event with its folder in Playlists, assigned playlists and
    versions made for it, the flyer, and the "needs music" reminder. */
-import { test as base, expect, chromium, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { launch } from './launch';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-events-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1600, height: 960 } });
+    const ctx = await launch(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1600, height: 960 } });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },

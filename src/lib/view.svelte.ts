@@ -96,9 +96,11 @@ class View {
     void lib.version;
     const s = lib.store;
     if (!s) return [];
-    const tracks = tracksFor(this.sel);
+    const one = onePerSong(this.sel) && dupes.hidden.size > 0;
+    const tracks = tracksFor(this.sel, { copies: one });
     const dj = lib.djIndex();
-    let rows: Row[] = tracks.map((t, n) => ({ t, a: asShown(t, s.analysis.get(t.id)), n, dj: dj.get(t.id) ?? null }));
+    const rowOf = (t: Track, n: number): Row => ({ t, a: asShown(t, s.analysis.get(t.id)), n, dj: dj.get(t.id) ?? null });
+    let rows: Row[] = tracks.map(rowOf);
     if (!opts.unfiltered && this.filtering) {
       const active = FILTER_GROUPS.filter(({ g }) => g !== opts.except && this.filters[g].length);
       rows = rows.filter(r => active.every(({ g }) => { const want = this.filters[g]; return valuesOf(g, r).some(v => want.includes(v)); }));
@@ -107,6 +109,19 @@ class View {
     if (q) {
       const words = q.split(/\s+/);
       rows = rows.filter(({ t }) => { const hay = (t.title + ' ' + t.artist + ' ' + t.album + ' ' + t.genre + ' ' + t.label + ' ' + t.fileName + ' ' + tagsOf(t).join(' ')).toLowerCase(); return words.every(w => hay.includes(w)); });
+    }
+    // One row per song: a copy that matched stands for its group, shown as the group's best copy.
+    if (one) {
+      const seen = new Set<string>(), out: Row[] = [];
+      for (const r of rows) {
+        const g = dupes.hidden.has(r.t.id) || dupes.groupOf.get(r.t.id)?.kind === 'same' ? dupes.groupOf.get(r.t.id) : undefined;
+        if (!g) { out.push(r); continue; }
+        if (seen.has(g.key)) continue;
+        seen.add(g.key);
+        const best = s.tracks.get(g.best);
+        out.push(best && best.id !== r.t.id ? rowOf(best, r.n) : r);
+      }
+      rows = out;
     }
     const { key, dir } = this.sort;
     const val = (r: Row): string | number => {
@@ -141,7 +156,27 @@ export const view = new View();
 export const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
 /** What a view is called (its heading; the player says it's playing from there). */
 /** The songs a sidebar entry shows, in its order (before filters and search). */
-export function tracksFor(sel: ViewSel): Track[] {
+/** Views of the whole collection show one row per song (its best copy); a playlist, a folder, a DJ
+    library's list and the views about copies (Needs attention, No file…) show every copy they hold. */
+const ONE_PER_SONG = new Set<ViewSel['kind']>(['all', 'tag', 'facet', 'recent']);
+export const onePerSong = (sel: ViewSel) => ONE_PER_SONG.has(sel.kind);
+/** The songs behind rows of the current view: where a row stands for its song, every copy of it. */
+export function withCopies(ids: string[]): string[] {
+  if (!onePerSong(view.sel) || !dupes.hidden.size) return ids;
+  const out = new Set(ids);
+  for (const id of ids) { const g = dupes.groupOf.get(id); if (g?.kind === 'same') g.ids.forEach(x => out.add(x)); }
+  return [...out];
+}
+/** What a removal says it does, in a shared collection (ADR 0100). */
+export const removeNote = () => lib.store?.shared ? ' Songs another computer also has stay in the collection, as that computer’s.' : '';
+
+/** `copies`: every copy, even in a view of one row per song (to search or filter them all). */
+export function tracksFor(sel: ViewSel, opts: { copies?: boolean } = {}): Track[] {
+  const out = tracksForAll(sel);
+  if (opts.copies || !ONE_PER_SONG.has(sel.kind) || !dupes.hidden.size) return out;
+  return out.filter(t => !dupes.hidden.has(t.id));
+}
+function tracksForAll(sel: ViewSel): Track[] {
   const s = lib.store;
   if (!s) return [];
   const byIds = (ids: Iterable<string>) => [...ids].map(i => s.tracks.get(i)).filter((t): t is Track => !!t);

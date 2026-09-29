@@ -3,7 +3,7 @@
   import NeedsMusic from '../events/NeedsMusic.svelte';
   import BrowseView from './BrowseView.svelte';
   import { facetInfo } from '../../core/library/browse';
-  import { view, viewTitle, FILTER_GROUPS } from '../../lib/view.svelte';
+  import { removeNote, view, viewTitle, withCopies, FILTER_GROUPS } from '../../lib/view.svelte';
   import { router, trackHref, trackTab } from '../../lib/route.svelte';
   import LibSidebar from './LibSidebar.svelte';
   import TrackTable from './TrackTable.svelte';
@@ -251,7 +251,7 @@
               {#each folders?.list ?? [] as f (f.id)}<option value={f.id}>{f.name} ({f.collection})</option>{/each}
             </select>
           {/if}
-          {#if !lib.cloud}<button type="button" class="mini opt2" id="remove-tracks" disabled={!sel.length} onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.')) { void lib.removeTracks(sel); view.selected = new Set(); } }}>Remove from collection</button>{/if}
+          {#if !lib.cloud}<button type="button" class="mini opt2" id="remove-tracks" disabled={!sel.length} onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.' + removeNote())) { void lib.removeTracks(withCopies(sel)); view.selected = new Set(); } }}>Remove from collection</button>{/if}
           <button type="button" class="mini more" id="sel-more" disabled={!sel.length} title="Everything you can do with the selected songs (also on right-click)" aria-haspopup="menu" onclick={e => selMenu(e.currentTarget)}>⋯</button>
         </div>
         {#if dock.available}<button type="button" class="mini dockbtn" id="drag-dock" data-drop="dock" class:hot={drag.active && drag.target?.type === 'dock'} title="Show GLUE Home's drag dock. Songs and playlists go in by dragging them onto it (or onto this button), or with “+ Dock”; then drag them from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}

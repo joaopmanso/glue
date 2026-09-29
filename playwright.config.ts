@@ -6,11 +6,24 @@ import { defineConfig } from '@playwright/test';
 // Always a fresh build: a server left on the port fails the run instead of serving old code (a stale
 // dev server once did, 2026-09-27).
 const live = process.env.BASE_URL;
+// The tests with several browsers or a stand-in GLUE Home: heavy, and the ones that failed only when run
+// next to everything else. They get their own project, two at a time; every other test runs in parallel.
+// Also tagged @heavy: the ones inside other files (GLUE Home, GLUE Cloud, the local link).
+const HEAVY = /(computers|shared|phone|homemode|home)\.spec\.ts|@heavy/;
 export default defineConfig({
   testDir: 'e2e',
   timeout: 120_000,
-  fullyParallel: false,
-  reporter: 'list',
+  fullyParallel: true,
+  // One test already keeps this 12-thread laptop busy (a renderer, software drawing): two at once each
+  // took twice as long (measured 2026-09-29). Test pages see two cores and no GPU (e2e/launch.ts), and
+  // four tests at once is about what it takes.
+  workers: process.env.CI ? 2 : 4,
+  // How long each test took, to find the slow ones (test-results/durations.json).
+  reporter: [['list'], ['json', { outputFile: 'test-results/durations.json' }]],
+  projects: [
+    { name: 'e2e', grepInvert: HEAVY },
+    { name: 'heavy', grep: HEAVY, workers: 2 },
+  ],
   use: {
     baseURL: live || 'http://localhost:5174/glue/',
     channel: process.env.PW_CHANNEL || 'msedge',

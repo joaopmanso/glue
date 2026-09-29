@@ -1,7 +1,8 @@
 /* The Prepare tab (ADR 0052): waveform and grid on a real track, a BPM correction that shows in the
    library and survives a reload, the profile's BPM range and a track's flip, and Re-analyse resetting
    the correction. */
-import { test as base, expect, chromium, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { launch } from './launch';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,7 +10,7 @@ import { join } from 'node:path';
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-e2e-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1600, height: 1000 } });
+    const ctx = await launch(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1600, height: 1000 } });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },
@@ -66,6 +67,9 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   const row = page.locator('.tr', { hasText: 'Beat 124' }), copy = page.locator('.tr', { hasText: 'Other take' });
   await expect(row.locator('.c-num').first()).toHaveText(/^12[34]/);
   await expect(page.locator('.lside .name', { hasText: 'Duplicates' })).toContainText('1', { timeout: 30_000 });
+  // The music folder's own list: every copy is a row there (All tracks shows the song once, its best copy).
+  await page.locator('.lside .name', { hasText: '📁 Music' }).click();
+  await expect(copy).toHaveCount(1);
 
   // The sidebar's sections fold, and one can take the full height (the others fold meanwhile).
   const allTracks = page.locator('.lside .name', { hasText: 'All tracks' });
@@ -147,6 +151,7 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await expect(page.locator('#m-bpm')).toContainText('125', { timeout: 30_000 });
   await expect(page.locator('#m-bpm-sub')).toContainText('your BPM');
   await page.goto('./#/');
+  await page.locator('.lside .name', { hasText: '📁 Music' }).click();   // every copy a row
   await expect(row.locator('.c-num.mine')).toHaveText('125');
   await expect(copy.locator('.c-num.mine')).toHaveText('125');   // the other copy of the recording too
 
@@ -161,13 +166,14 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.locator('.cmenu [data-m="add"]').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
   await page.locator('.lside .tree .name', { hasText: 'Half-time' }).click();
   await expect(page.locator('#playlist-insights')).toContainText('63–63 BPM · avg 63');
-  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await page.locator('.lside .name', { hasText: '📁 Music' }).click();
   await row.locator('.c-title').dblclick();
   await expect(page.locator('#m-bpm')).toContainText('62.5', { timeout: 30_000 });
   await page.click('#tab-prepare');
   await expect(page.locator('#prep-copies')).toBeVisible({ timeout: 30_000 });   // Duplicates found the copy again
   await page.locator('#prep-flip').check();
   await page.goto('./#/');
+  await page.locator('.lside .name', { hasText: '📁 Music' }).click();   // every copy a row
   await expect(row.locator('.c-num.mine')).toHaveText('125');
   await expect(copy.locator('.c-num.mine')).toHaveText('125');
 
@@ -177,6 +183,7 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.click('#reanalyse');
   await expect(page.locator('#v-pill')).not.toHaveText('', { timeout: 60_000 });
   await page.goto('./#/');
+  await page.locator('.lside .name', { hasText: '📁 Music' }).click();   // every copy a row
   await expect(row.locator('.c-num.mine')).toHaveCount(0);
   await expect(copy.locator('.c-num.mine')).toHaveCount(0);
   await expect(row.locator('.c-num').first()).toHaveText(/^12[34]/);   // half-time, flipped: back to ~124

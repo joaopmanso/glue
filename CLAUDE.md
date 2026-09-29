@@ -54,6 +54,11 @@ After working:
 ## Code
 - TypeScript 6 + Svelte 5 + Vite 8. `npm run dev` · `npm run check` · `npm test` · `npx playwright test`
   (uses the installed Edge) · `STEMS=1 npx playwright test e2e/stems.spec.ts` (slow).
+- E2E: two projects in `playwright.config.ts`. `heavy` holds the multi-browser and GLUE Home tests (by
+  file, or tagged `@heavy`), two at a time; `e2e` holds the rest, fully parallel. Browsers come from
+  `e2e/launch.ts` (no GPU process, pages see two cores). `FFMPEG` is ffmpeg's path: don't set it to 1,
+  or the ffmpeg tests skip themselves. Per-test times land in `test-results/durations.json`. While
+  working, `npx playwright test --only-changed`; the full suite before each deploy.
 - `src/core/` pure logic (no DOM): `audio/`, `formats/`, `stems/`, `interop/` (DJ-library parsers),
   `library/` (scan, tags, path matching, analysis summary) · `src/store/` JSON store (home, collection,
   merge of imports/scans, migrations) · `src/platform/` folder access + IndexedDB handles ·

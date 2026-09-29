@@ -8,7 +8,8 @@ import { basename, join, resolve, sep } from 'node:path';
 export interface FakeHomeDirs { glue: string; incoming: string; folders: Record<string, string> }
 
 export class FakeHome {
-  readonly port = 47450;
+  /** One per parallel worker: tests that each run a stand-in can run at the same time. */
+  readonly port = 47450 + (Number(process.env.TEST_PARALLEL_INDEX) || 0);
   readonly token = 'e2e-token';
   readonly device = 'e2e-home';
   /** Paths asked for, in order (to see which disk the page uses). */

@@ -5,6 +5,32 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · After the first real try: one row per song, own copies only, the account menu, faster tests
+- **What went wrong on the user's first try** (from the laptop's GLUE folder):
+  - two sync systems ran at once: the old per-device upload dropped the desktop's cloud copy when it
+    moved into the shared collection;
+  - caches are kept per collection id, so the move lost the waveforms and analysis details;
+  - GLUE Home doesn't analyse for the library, so analysis stopped when the browser closed;
+  - "Music" and "Music Collection" on the desktop are two real copies on disk.
+  The fix is planned in `plan-shared-collection` (one sync only, GLUE Home as the computer's server).
+- **One row per song** ([ADR 0100](../adr/0100-one-row-per-song-and-own-copies.md)):
+  - All tracks, tags, browsing and Recently added show a recording once, its best copy, with the N×
+    badge;
+  - choosing another copy ("Use in playlists") makes it the row;
+  - playlists, music folders, Duplicates and the "needs…" views still show every copy.
+- **In a shared collection, removing a song removes only this computer's copy**: another computer's
+  copy, its analysis and its playlists stay. Removing a row of All tracks removes every copy of that
+  song on this computer.
+- **Another computer's copy shows where it is** (computer, folder, path) in Duplicates and on the
+  song's page.
+- **Phone: the account menu stays on screen** (it opened to the left of a button on the left).
+- **Tests:**
+  - the e2e suite runs in two projects (heavy tests two at a time);
+  - test browsers have no GPU process and one analysis worker;
+  - per-test times are written to `test-results/durations.json`.
+  One test keeps this laptop busy on its own, so the suite is bounded by its total work, not by
+  parallelism.
+
 ## 2026-09-28 · The shared collection, step 5c: every computer's DJ libraries
 - **In a shared collection, every computer's DJ libraries show on every device**, with that computer's
   name and a computer icon ([ADR 0099](../adr/0099-dj-libraries-belong-to-their-computer.md)).

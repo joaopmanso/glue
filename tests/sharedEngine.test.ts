@@ -177,3 +177,28 @@ describe('a collection made shared, as each computer sees it (ADR 0094)', () => 
     expect(Object.keys(an!.items.aa01)).toEqual(['desk']);
   });
 });
+
+describe('removing a song in a shared collection (ADR 0100)', () => {
+  it('another computer has it too: only this computer’s copy and analysis go; with no copy left, the song goes', async () => {
+    const root = asDir(new MemDir()), base = 'profiles/pl/collections/c1';
+    const members = { desk: { profile: 'pd', name: 'Desktop' }, lap: { profile: 'pl', name: 'Laptop' } };
+    await writeJSON(root, base + '/collection.json', { schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '', shared: true, rootsBy: { desk: [], lap: [] }, members });
+    const copy = (rel: string) => ({ status: 'linked', rootId: 'r', relPath: rel, importPath: null, size: 1, mtime: 1, sources: [] });
+    await writeJSON(root, base + '/tracks/aa.json', { schemaVersion: 1, items: {
+      aa1: { id: 'aa1', title: 'Both', artist: 'A', fileName: 'b.mp3', copies: { desk: copy('b.mp3'), lap: copy('b.mp3') } },
+      aa2: { id: 'aa2', title: 'Mine', artist: 'A', fileName: 'm.mp3', copies: { lap: copy('m.mp3') } },
+    } });
+    await writeJSON(root, base + '/analysis/aa.json', { schemaVersion: 1, items: { aa1: { desk: { v: 3, bpm: 120 }, lap: { v: 3, bpm: 121 } }, aa2: { lap: { v: 3, bpm: 90 } } } });
+    await writeJSON(root, base + '/lists/l1.json', { schemaVersion: 1, id: 'l1', kind: 'playlist', name: 'Set', parentId: null, position: 0, notes: '', items: ['aa1', 'aa2'], origin: null, createdAt: '' });
+    const s = await CollectionStore.load(root, 'pl', 'c1', { me: 'lap' });
+    s.removeTrack('aa1'); s.removeTrack('aa2'); await s.flush();
+    const t = await readJSON<{ items: Record<string, { copies: Record<string, unknown> }> }>(root, base + '/tracks/aa.json');
+    expect(Object.keys(t!.items)).toEqual(['aa1']);
+    expect(Object.keys(t!.items.aa1.copies)).toEqual(['desk']);
+    const a = await readJSON<{ items: Record<string, Record<string, unknown>> }>(root, base + '/analysis/aa.json');
+    expect(a!.items.aa1).toEqual({ desk: { v: 3, bpm: 120 } });
+    expect(s.tracks.get('aa1')!.remote).toMatchObject({ device: 'desk' });   // shown as the desktop's now
+    expect(s.analysis.get('aa1')).toMatchObject({ bpm: 120 });
+    expect(s.lists.get('l1')!.items).toEqual(['aa1']);
+  });
+});

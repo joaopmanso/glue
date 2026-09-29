@@ -2,7 +2,8 @@
    Home's disk, songs waiting in its incoming folder are TO BE SORTED, and when GLUE Home stops the
    library carries on with the browser's own folders, then goes back to GLUE Home when it's running
    again. */
-import { test as base, expect, chromium, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { launch } from './launch';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -13,7 +14,7 @@ import { TAURI_MOCK } from './tauri-mock';
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-e2e-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1920, height: 960 } });
+    const ctx = await launch(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1920, height: 960 } });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },
@@ -266,8 +267,11 @@ test('with GLUE Home, duplicates are cleaned up: the others moved aside or recyc
     await page.click('#add-folder');
     await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
     await expect(page.locator('.an')).toContainText('All analysed', { timeout: 120_000 });
-    // The first rip is in a playlist, and rated.
-    const rip = page.locator('.tr', { hasText: 'HHH-Bebida' }).locator('.c-title');
+    // The first rip is in a playlist, and rated (from Duplicates: in the collection's lists a song is one
+    // row, its best copy, the WAV).
+    await expect(page.locator('.lside .name', { hasText: 'Duplicates' })).toContainText('2', { timeout: 60_000 });
+    await page.locator('.lside .name', { hasText: 'Duplicates' }).click();
+    const rip = page.locator('#dupes .grp li', { hasText: 'HHH-Bebida' }).locator('.who a');
     await rip.click({ button: 'right' });
     page.once('dialog', d => void d.accept('Gig'));
     await page.locator('.cmenu [data-m="add"]').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
@@ -287,7 +291,8 @@ test('with GLUE Home, duplicates are cleaned up: the others moved aside or recyc
     await home.start();
     await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), home.pref);
     await page.reload();
-    await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+    await page.locator('.lside .name', { hasText: 'All tracks' }).click({ timeout: 30_000 });
+    await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' })).toHaveCount(1, { timeout: 30_000 });
 
     // One group: "Move the others". The WAV stays; the MP3 goes into the duplicates folder.
     await page.locator('.lside .name', { hasText: 'Duplicates' }).click();

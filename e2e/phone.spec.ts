@@ -2,7 +2,8 @@
    itself from GLUE Cloud in the phone layout (ADR 0078), nothing is made there, its songs stream from the
    desktop's GLUE Home (ADR 0076), and a rating goes to the desktop. Against a stand-in GLUE Cloud; GLUE
    Home's real service page runs with its Rust side stood in (e2e/tauri-mock.ts). */
-import { test as base, expect, chromium, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { launch } from './launch';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,7 +14,7 @@ import { TAURI_MOCK } from './tauri-mock';
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-phone-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 390, height: 844 }, hasTouch: true });
+    const ctx = await launch(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 390, height: 844 }, hasTouch: true });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },

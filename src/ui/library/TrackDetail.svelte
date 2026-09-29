@@ -65,7 +65,7 @@
   });
   $effect(() => { app.bpmView = bpmView; });
   $effect(() => () => { app.bpmView = null; });
-  const location = $derived(track?.fileKey ? track.fileName + (track.fileKey.startsWith('copy:') ? ' (a copy kept in GLUE)' : ' (added on its own)') : track?.relPath ? (root?.root.absPath ? root.root.absPath + (root.root.absPath.includes('\\') ? '\\' + track.relPath.replace(/\//g, '\\') : '/' + track.relPath) : (root?.root.name ?? '') + '/' + track.relPath) : track?.importPath ?? '');
+  const location = $derived(track?.remote ? track.remote.name + ' · ' + (track.remote.where ?? track.fileName) : track?.fileKey ? track.fileName + (track.fileKey.startsWith('copy:') ? ' (a copy kept in GLUE)' : ' (added on its own)') : track?.relPath ? (root?.root.absPath ? root.root.absPath + (root.root.absPath.includes('\\') ? '\\' + track.relPath.replace(/\//g, '\\') : '/' + track.relPath) : (root?.root.name ?? '') + '/' + track.relPath) : track?.importPath ?? '');
 
   // Neighbours in the current library view, for previous / next.
   const order = $derived(view.rows(app.keyNotation).map(r => r.t.id));

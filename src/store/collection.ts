@@ -67,7 +67,7 @@ export class CollectionStore {
     if ((raw as SharedCollection).shared) {
       const sc = raw as SharedCollection, members = sc.members ?? {};
       const me = opts.me || meFor(sc, pid) || 'this-computer';
-      mode = { here: { me, collection: cid, members }, member: { profile: pid, name: opts.name ?? members[me]?.name ?? 'This computer' }, meta: sc, tracks: new Map(), analysis: new Map() };
+      mode = { here: { me, collection: cid, members, rootsBy: sc.rootsBy }, member: { profile: pid, name: opts.name ?? members[me]?.name ?? 'This computer' }, meta: sc, tracks: new Map(), analysis: new Map() };
     }
     const s = new CollectionStore(root, base, migrate('collection', mode ? collectionHere(raw as SharedCollection, mode.here.me) : raw as Collection));
     s.shared = mode;
@@ -118,7 +118,7 @@ export class CollectionStore {
       const v = await readJSON<unknown>(this.root, `${this.base}/${p}`).catch(() => null);
       if (p === 'collection.json') {
         if (!v) continue;
-        if (this.shared) { this.shared.meta = v as SharedCollection; this.shared.here = { ...this.shared.here, members: (v as SharedCollection).members ?? {} }; this.meta = migrate('collection', collectionHere(v as SharedCollection, this.shared.here.me)); }
+        if (this.shared) { this.shared.meta = v as SharedCollection; this.shared.here = { ...this.shared.here, members: (v as SharedCollection).members ?? {}, rootsBy: (v as SharedCollection).rootsBy }; this.meta = migrate('collection', collectionHere(v as SharedCollection, this.shared.here.me)); }
         else this.meta = migrate('collection', v as Collection);
       } else if (p === 'events.json') {
         this.events.clear();
@@ -151,6 +151,25 @@ export class CollectionStore {
   putTracks(ts: Track[]) { for (const t of ts) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); } this.rev.tracks++; this.changed(); }
   removeTrack(id: string) {
     if (this.ephemeral.has(id)) return;   // another device's track: removed there, not here
+    // Shared, and another computer has it too: only this computer's copy goes (ADR 0100). The song, its
+    // playlists and the other computers' analyses stay, now shown as theirs.
+    const m = this.shared, st = m?.tracks.get(id);
+    if (m && st && Object.keys(st.copies ?? {}).some(c => c !== m.here.me)) {
+      const { [m.here.me]: _mine, ...copies } = st.copies;
+      const rest: SharedTrack = { ...st, copies };
+      m.tracks.set(id, rest); this.tracks.set(id, toLocal(rest, m.here));
+      const by = m.analysis.get(id);
+      if (by?.[m.here.me]) {
+        const { [m.here.me]: _a, ...others } = by;
+        m.analysis.set(id, others);
+        const a = analysisHere(others, m.here.me);
+        if (a) this.analysis.set(id, a); else this.analysis.delete(id);
+      }
+      this.rev.tracks++; this.rev.analysis++;
+      this.mark(`tracks/${shardOf(id)}.json`); this.mark(`analysis/${shardOf(id)}.json`);
+      this.changed();
+      return;
+    }
     this.tracks.delete(id); this.analysis.delete(id); this.rev.tracks++; this.rev.analysis++;
     this.mark(`tracks/${shardOf(id)}.json`); this.mark(`analysis/${shardOf(id)}.json`);
     for (const l of this.lists.values()) if (l.items.includes(id)) this.putList({ ...l, items: l.items.filter(x => x !== id) });
@@ -266,7 +285,7 @@ export class CollectionStore {
 
   private serialize(p: string): unknown {
     const m = this.shared;
-    if (p === 'collection.json') { if (!m) return this.meta; m.meta = collectionShared(this.meta, m.here.me, m.meta, m.member); m.here = { ...m.here, members: m.meta.members }; return m.meta; }
+    if (p === 'collection.json') { if (!m) return this.meta; m.meta = collectionShared(this.meta, m.here.me, m.meta, m.member); m.here = { ...m.here, members: m.meta.members, rootsBy: m.meta.rootsBy }; return m.meta; }
     if (p === 'events.json') return { schemaVersion: SCHEMA, items: Object.fromEntries(this.events) };
     const [dir, file] = p.split('/'), key = file.replace(/\.json$/, '');
     if (dir === 'tracks' || dir === 'analysis') {

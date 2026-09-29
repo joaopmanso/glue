@@ -71,6 +71,8 @@ export interface Track {
   /** A track from another device of a merged collection, shown here from the cloud (ADR 0042; never saved):
       that device, and its own profile, collection and track ids (to stream it through GLUE Home, ADR 0045). */
   remote?: { device: string; name: string; profile?: string; collection?: string; id?: string;
+    /** Where the file is on that computer: its music folder and path (a shared collection, ADR 0100). */
+    where?: string;
     /** A song waiting in a GLUE Home's incoming folder (TO BE SORTED, ADR 0046): that GLUE Home and the file's name. */
     home?: string; incoming?: string;
     /** Another computer's song whose file is also in a GLUE Home's incoming folder: played from there. */
