@@ -5,6 +5,14 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · "Analyse now" is always there
+- **Right-click "Analyse now" and the selection bar's "Analyse now" are always offered** for songs with
+  a file, and analyse them again even if they're analysed already (the user asked). Before, they showed
+  only for songs not analysed yet, and the button only with background analysis off.
+  - This computer's songs: here, or by its GLUE Home in Home mode.
+  - Another computer's: by that computer's GLUE Home ([ADR 0103](../adr/0103-glue-home-analyses-its-computers-songs.md)).
+- Tests: an analysed song analysed again from its menu.
+
 ## 2026-09-29 · GLUE Home analyses the library, Stop, Analyse now, GLUE Home's Activity (GLUE Home 0.27)
 - **GLUE Home analyses its computer's songs, also with the browser closed**
   ([ADR 0103](../adr/0103-glue-home-analyses-its-computers-songs.md)).

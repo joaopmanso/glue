@@ -1205,16 +1205,19 @@ class Library {
     this.pauseAnalysis(true);
     this.stopAnalysis();
   }
-  /** Analyse these tracks now, even with background analysis off. */
+  /** Analyse these tracks now (asked for: analysed or not), even with background analysis off. */
   analyseNow(ids: string[]) {
     const s = this.store;
     if (!s) return 0;
     if (this.analysisElsewhere?.active()) return this.analysisElsewhere.now(ids);
-    const want = ids.filter(id => { const t = s.tracks.get(id); return !!t && this.canRead(t) && this.needsAnalysis(t) && !this.active.has(id); });
+    const want = ids.filter(id => { const t = s.tracks.get(id); return !!t && !t.remote && t.status === 'linked' && this.canRead(t) && !this.active.has(id); });
+    for (const id of want) this.forced.add(id);
     this.manual = [...want, ...this.manual.filter(x => !want.includes(x))];
     this.pump();
     return want.length;
   }
+  /** Asked for by hand: analysed again even if its analysis is up to date. */
+  private forced = new Set<string>();
   private manual: string[] = [];
   /** Stem separation is running: no new analyses start (they'd compete for the processor and memory). */
   private stemsBusy = false;
@@ -1234,7 +1237,7 @@ class Library {
     while (this.active.size < limit && (this.manual.length || (!this.analysis.paused && this.queue.length))) {
       const id = this.manual.length ? this.manual.shift()! : this.queue.shift()!;
       const t = this.store?.tracks.get(id);
-      if (!t || !this.needsAnalysis(t)) continue;
+      if (!t || (!this.needsAnalysis(t) && !this.forced.delete(id))) continue;
       this.active.add(id);
       this.analysis = { ...this.analysis, running: this.active.size };
       void this.analyseOne(t).finally(() => {

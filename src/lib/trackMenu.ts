@@ -80,8 +80,10 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
   const rating = ts.every(t => (t.rating ?? null) === (ts[0].rating ?? null)) ? ts[0].rating ?? null : null;
   const group = one ? dupes.groupOf.get(one.id) : undefined;
   const needs = ts.filter(t => lib.needsAnalysis(t)).length;
-  // Another computer's songs not analysed yet: its GLUE Home does them first (ADR 0103).
-  const remoteNeeds = ts.filter(t => t.remote && !s.analysis.get(t.id)).length;
+  // "Analyse now" is for any song with a file (analysed or not): this computer's here (or by its GLUE Home),
+  // another computer's by that computer's GLUE Home first (ADR 0103).
+  const analysable = ts.filter(t => t.status === 'linked' && (t.remote || lib.canRead(t))).length;
+  const remoteNeeds = ts.filter(t => t.remote && t.status === 'linked').length;
   // Songs GLUE cautions about (or suspects): they can be marked fine.
   const flagged = ts.filter(t => { const a = s.analysis.get(t.id); return !t.remote && a && !a.error && a.grade !== 'ok'; });
   const homes = sendTargets();
@@ -151,7 +153,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     SEP,
     { label: one ? 'Build a playlist from this' : 'Build a playlist with these ' + n, attrs: { 'data-m': 'auto' }, run: () => auto.show(ids[0], ids.slice(1)) },
     !one && { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: plural(n, 'song') + ' selected', ids }) },
-    (needs > 0 || remoteNeeds > 0) && { label: 'Analyse now', hint: n > 1 ? String(needs + remoteNeeds) : undefined, attrs: { 'data-m': 'analyse' }, run: () => {
+    analysable > 0 && { label: 'Analyse now', hint: n > 1 ? String(analysable) : undefined, attrs: { 'data-m': 'analyse' }, run: () => {
       const k = lib.analyseNow(ids), r = homeAnalysis.remoteNow(ids);
       lib.notice = k || r ? 'Analysing ' + plural(k + r, 'song') + (r ? ' (' + plural(r, 'song') + ' by the GLUE Home of the computer that has ' + (r === 1 ? 'it' : 'them') + ')' : '') + '.'
         : remoteNeeds ? 'The computer with ' + (remoteNeeds === 1 ? 'this song' : 'these songs') + ' isn’t online: start its GLUE Home to analyse ' + (remoteNeeds === 1 ? 'it' : 'them') + '.' : 'Nothing to analyse here that GLUE can read now.';

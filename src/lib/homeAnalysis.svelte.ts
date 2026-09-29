@@ -90,7 +90,8 @@ class HomeAnalysis {
   now(ids: string[]): number {
     const h = this.home(), w = this.where(), s = lib.store;
     if (!h || !w || !s) return 0;
-    const mine = ids.filter(id => { const t = s.tracks.get(id); return !!t && !t.remote && lib.needsAnalysis(t); });
+    // Asked for: analysed again even if up to date.
+    const mine = ids.filter(id => { const t = s.tracks.get(id); return !!t && !t.remote && t.status === 'linked'; });
     if (!mine.length) return 0;
     const names = Object.fromEntries(mine.map(id => [id, s.tracks.get(id)?.title || s.tracks.get(id)?.fileName || id]));
     void remoteFiles.ask(h.id, { t: 'analysis', ...w, take: true, now: mine, names }).then(() => this.tick()).catch(() => {});
@@ -101,14 +102,14 @@ class HomeAnalysis {
     if (h && w && this.active) void remoteFiles.ask(h.id, { t: 'analysis', ...w, take: true, pause: p }).then(() => this.tick()).catch(() => {});
   }
 
-  /** Another computer's songs with no analysis yet: asked of that computer's GLUE Home. The number asked. */
+  /** Another computer's songs (analysed or not): asked of that computer's GLUE Home. The number asked. */
   remoteNow(ids: string[]): number {
     const s = lib.store;
     if (!s) return 0;
     const by = new Map<string, { profile: string; collection: string; ids: string[]; names: Record<string, string> }>();
     for (const id of ids) {
       const t = s.tracks.get(id), r = t?.remote;
-      if (!t || !r?.profile || !r.collection || !r.id || s.analysis.get(id)) continue;
+      if (!t || !r?.profile || !r.collection || !r.id || t.status !== 'linked') continue;
       const home = companionOnline(r.device);
       if (!home) continue;
       const g = by.get(home.id) ?? by.set(home.id, { profile: r.profile, collection: r.collection, ids: [], names: {} }).get(home.id)!;

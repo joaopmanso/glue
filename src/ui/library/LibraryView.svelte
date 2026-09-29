@@ -235,7 +235,7 @@
           {#if dock.available}
             <button type="button" class="mini opt" id="dock-add" disabled={!sel.length} title="Add the selected songs to GLUE Home's drag dock, to drag them into Engine DJ, Rekordbox or a folder" onclick={() => { const s = lib.store; if (s) void dock.add(sel.map(id => s.tracks.get(id)).filter(t => !!t)); }}>+ Dock{sel.length ? ' (' + sel.length + ')' : ''}</button>
           {/if}
-          {#if lib.analysis.paused}<button type="button" class="mini opt" id="analyse-selected" disabled={!sel.length} title="Analyse the selected tracks now" onclick={() => { const n = lib.analyseNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'The selected tracks are already analysed (or have no readable file).'; }}>Analyse</button>{/if}
+          <button type="button" class="mini opt" id="analyse-selected" disabled={!sel.length} title="Analyse the selected tracks now (again, if they were): another computer's by its GLUE Home" onclick={() => { const n = lib.analyseNow(sel) + homeAnalysis.remoteNow(sel); lib.notice = n ? 'Analysing ' + n + ' track' + (n === 1 ? '' : 's') + '.' : 'None of these has a file GLUE can read now (another computer’s need its GLUE Home running).'; }}>Analyse now</button>
           {#if sorting}
             <select id="move-to" aria-label="Move to a music folder" disabled={!folders} onchange={moveTo}>
               <option value="">Move to music folder…</option>

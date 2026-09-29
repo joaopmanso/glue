@@ -1281,6 +1281,32 @@ test('Stop stops the analysis at once, and background analysis stays off until i
   await expect(page.locator('.an')).toHaveText(left!);   // nothing more was analysed
   await page.locator('label.switch').click();
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  // "Analyse now" is there for an analysed song too, and analyses it again (the user, 2026-09-29).
+  await expect(page.locator('#analyse-selected')).toBeVisible();
+  const flac = page.locator('.tr', { hasText: 'Fixture FLAC' });
+  const at = await page.evaluate(() => Date.now());
+  await flac.locator('.c-title').click({ button: 'right' });
+  await expect(page.locator('.cmenu [data-m="analyse"]')).toHaveText(/Analyse now/);
+  await page.locator('.cmenu [data-m="analyse"]').click();
+  await expect(page.locator('.notice')).toContainText('Analysing 1 song');
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+  await expect(flac.locator('.q')).toHaveText('Upsampled');
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  // Analysed again: its analysis is new.
+  expect(await page.evaluate(async () => {
+    const r = await navigator.storage.getDirectory(), m = await r.getDirectoryHandle('MCO');
+    const walk = async (d: FileSystemDirectoryHandle, depth: number): Promise<number> => {
+      let best = 0;
+      for await (const [n, h] of (d as unknown as { entries(): AsyncIterable<[string, FileSystemHandle]> }).entries()) {
+        if (h.kind === 'directory') best = Math.max(best, await walk(h as FileSystemDirectoryHandle, depth + 1));
+        else if (d.name !== 'analysis') continue;
+        else for (const a of Object.values(JSON.parse(await (await (h as FileSystemFileHandle).getFile()).text()).items) as { at?: string }[]) best = Math.max(best, Date.parse(a.at ?? '') || 0);
+        void n;
+      }
+      return best;
+    };
+    return walk(m, 0);
+  })).toBeGreaterThanOrEqual(at);
 });
 
 test('background analysis can be switched off per collection; chosen tracks can still be analysed', async ({ page }) => {
