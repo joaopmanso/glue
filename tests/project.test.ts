@@ -39,7 +39,7 @@ describe('a shared collection as this computer sees it (ADR 0094)', () => {
     const c = collectionShared({ schemaVersion: 1, id: 'c1', name: 'My collection', createdAt: '', roots: [{ id: 'r1' } as never] }, 'desk', undefined, { profile: 'pdesk', name: 'Desktop' });
     expect(collectionHere(c, 'desk').roots).toEqual([{ id: 'r1' }]);
     expect(collectionHere(c, 'lap').roots).toEqual([]);
-    expect(collectionShared(collectionHere(c, 'lap'), 'lap', c, { profile: 'plap', name: 'Laptop' }).rootsBy).toEqual({ desk: [{ id: 'r1' }], lap: [] });
+    expect(collectionShared(collectionHere(c, 'lap'), 'lap', c, { profile: 'plap', name: 'Laptop' }).rootsBy).toEqual({ desk: [{ id: 'r1' }] });   // no music folder, no song: not a member
   });
   it('song info changed on one computer: the others are told to write it into their files (ADR 0097)', () => {
     const prev: SharedTrack = { id: 't1', title: 'Old', artist: 'A', copies: { desk: { status: 'linked', rootId: 'r1', relPath: 'a.mp3', size: 1, mtime: 1, sources: [] } as never, lap: { status: 'linked', rootId: 'r9', relPath: 'b.mp3', size: 1, mtime: 1, sources: [] } as never } } as never;

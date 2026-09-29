@@ -32,10 +32,9 @@ async function seed(page: Page, music: string[]) {
   }, files);
 }
 
-/** GLUE Cloud's shared collections, in memory, with the same rules, and the account's merged groups. */
+/** GLUE Cloud's shared collections (the account's collections), in memory, with the same rules. */
 function fakeCloud() {
   const user = { id: 'u1', email: 'dj@example.com', name: 'DJ', picture: null };
-  const groups: { id: string; name: string; members: { device: string; profile: string; collection: string }[] }[] = [];
   const devices = [{ id: 'b1', kind: 'browser', name: 'Desktop', platform: '', createdAt: 1, lastSeen: 1, role: 'device' }, { id: 'b2', kind: 'browser', name: 'Laptop', platform: '', createdAt: 2, lastSeen: 2, role: 'device' }];
   // GLUE Cloud's shared collections, in memory, with the same rules.
   const cols = new Map<string, { name: string; seq: number; files: Map<string, { rev: number; hash: string; data: string | null; by?: string; at?: number }> }>();
@@ -51,10 +50,6 @@ function fakeCloud() {
       const json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
       if (p === '/v1/auth/google' || p === '/v1/auth/refresh') return json({ access: 'a-' + me, refresh: 'r-' + me, deviceId: me, user });
       if (p === '/v1/me') return json({ user, thisDevice: me, devices, sessions: [] });
-      if (p === '/v1/sync' && m === 'GET') return json({ thisDevice: me, profiles: [] });
-      if (p === '/v1/sync/links') return json({ groups });
-      if (p === '/v1/sync/manifest') return json({ need: [] });
-      if (p === '/v1/sync/ops' && m === 'GET') return json({ ops: [] });
       if (p === '/v1/turn') return json({ iceServers: [], ttl: 0 });
       if (p === '/v1/shared' && m === 'GET') return json({ collections: [...cols].map(([id, c]) => ({ id, name: c.name, seq: c.seq, stats: null, updatedAt: 1 })) });
       if (p === '/v1/shared' && m === 'POST') { const b = req.postDataJSON(); if (!cols.has(b.id)) cols.set(b.id, { name: b.name, seq: 0, files: new Map() }); return json({ id: b.id, name: b.name, seq: cols.get(b.id)!.seq }); }
@@ -81,10 +76,10 @@ function fakeCloud() {
     });
   };
 
-  return { cols, socks, offline, groups, broadcast, route };
+  return { cols, socks, offline, broadcast, route };
 }
 
-test('a shared collection: the laptop adds the desktop’s and sees its songs; a rating there shows on the desktop at once; a clash asks, and the answer reaches both', async ({ baseURL }) => {
+test('cloud sync: the desktop’s collection is the account’s by itself; the laptop, with nothing of its own, takes it; a rating there shows on the desktop at once; a clash asks, and the answer reaches both (ADR 0101)', async ({ baseURL }) => {
   test.setTimeout(240_000);
   const { cols, socks, offline, route } = fakeCloud();
   const desk = await browserFor(baseURL), lap = await browserFor(baseURL);
@@ -103,8 +98,8 @@ test('a shared collection: the laptop adds the desktop’s and sees its songs; a
     await desk.page.click('#account-btn');
     await desk.page.click('#fake-google');
     await desk.page.keyboard.press('Escape');
-    await desk.page.click('#share-collection');
-    await expect(desk.page.locator('#shared-chip')).toHaveText('Shared', { timeout: 30_000 });
+    // Cloud sync is on: signed in, the collection is the account's by itself (ADR 0101).
+    await expect(desk.page.locator('#shared-chip')).toHaveText('Synced', { timeout: 30_000 });
     await expect.poll(() => [...cols.values()][0]?.files.size ?? 0, { timeout: 20_000 }).toBeGreaterThan(3);
     await expect(desk.page.locator('.tr')).toHaveCount(4);
 
@@ -120,8 +115,7 @@ test('a shared collection: the laptop adds the desktop’s and sees its songs; a
     await lap.page.click('#fake-google');
     await lap.page.keyboard.press('Escape');
     const cid = [...cols.keys()][0];
-    await expect(lap.page.locator(`#collection-pick option[value="__join:${cid}"]`)).toHaveCount(1, { timeout: 20_000 });
-    await lap.page.selectOption('#collection-pick', '__join:' + cid);
+    // Nothing of its own yet: it takes the account's collection by itself.
     await expect(lap.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
     await expect(lap.page.locator('#shared-chip')).toBeVisible();
     const row = lap.page.locator('.tr', { hasText: 'Fixture FLAC' });
@@ -165,16 +159,9 @@ test('a shared collection: the laptop adds the desktop’s and sees its songs; a
 });
 
 /** This browser's (only) profile and collection, from its GLUE folder. */
-const idsOf = (page: Page) => page.evaluate(async () => {
-  type D = { entries(): AsyncIterable<[string, FileSystemDirectoryHandle]> };
-  const profs = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('MCO')).getDirectoryHandle('profiles');
-  for await (const [pid, h] of (profs as unknown as D).entries()) for await (const [cid] of (await h.getDirectoryHandle('collections') as unknown as D).entries()) return { pid, cid };
-  return null;
-});
-
-test('a merged collection moves into the shared one: the same songs become one, the laptop’s playlist reaches the desktop (ADR 0096)', async ({ baseURL }) => {
+test('a laptop with songs of its own is asked once: put into the account’s collection, the same songs become one, its playlist reaches the desktop (ADR 0096, 0101)', async ({ baseURL }) => {
   test.setTimeout(240_000);
-  const { cols, groups, route } = fakeCloud();
+  const { cols, route } = fakeCloud();
   const desk = await browserFor(baseURL), lap = await browserFor(baseURL);
   try {
     // The desktop shares its collection.
@@ -190,10 +177,9 @@ test('a merged collection moves into the shared one: the same songs become one, 
     await desk.page.click('#account-btn');
     await desk.page.click('#fake-google');
     await desk.page.keyboard.press('Escape');
-    await desk.page.click('#share-collection');
-    await expect(desk.page.locator('#shared-chip')).toHaveText('Shared', { timeout: 30_000 });
+    // Cloud sync is on: signed in, the collection is the account's by itself (ADR 0101).
+    await expect(desk.page.locator('#shared-chip')).toHaveText('Synced', { timeout: 30_000 });
     await expect.poll(() => [...cols.values()][0]?.files.size ?? 0, { timeout: 20_000 }).toBeGreaterThan(3);
-    const d = (await idsOf(desk.page))!;
 
     // The laptop: two of the same songs and a playlist of its own, in a collection merged with the desktop's.
     await route(lap.page, 'b2');
@@ -208,15 +194,16 @@ test('a merged collection moves into the shared one: the same songs become one, 
     await lap.page.click('#new-playlist'); await lap.page.keyboard.type('Lap set'); await lap.page.keyboard.press('Enter');
     await expect(lap.page.locator('.lside .tree .name', { hasText: 'Lap set' })).toHaveCount(1);
     await expect(lap.page.locator('#saving')).toBeHidden({ timeout: 20_000 });
-    const l = (await idsOf(lap.page))!;
-    groups.push({ id: 'g1', name: 'Main', members: [{ device: 'b1', profile: d.pid, collection: d.cid }, { device: 'b2', profile: l.pid, collection: l.cid }] });
     await lap.page.click('#account-btn');
     await lap.page.click('#fake-google');
     await lap.page.keyboard.press('Escape');
 
     // "Move into shared": one collection, the songs once each; the laptop's own play here, the rest are the desktop's.
+    // Signed in, the account already has a collection: asked once (ADR 0101).
+    await expect(lap.page.locator('#join-box')).toContainText('My collection', { timeout: 30_000 });
+    await lap.page.click('#join-into-go');
+    await expect(lap.page.locator('#join-box')).toHaveCount(0, { timeout: 30_000 });
     await lap.page.locator('.lside .name', { hasText: 'All tracks' }).click();
-    await lap.page.click('#move-shared', { timeout: 30_000 });
     await expect(lap.page.locator('#shared-chip')).toBeVisible({ timeout: 30_000 });
     await expect(lap.page.locator('.notice')).toContainText('2 songs were already there, 0 came in');
     await expect(lap.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
@@ -282,8 +269,8 @@ test('duplicates found on the desktop show on the laptop: the 2× badge on the d
     await desk.page.click('#account-btn');
     await desk.page.click('#fake-google');
     await desk.page.keyboard.press('Escape');
-    await desk.page.click('#share-collection');
-    await expect(desk.page.locator('#shared-chip')).toHaveText('Shared', { timeout: 30_000 });
+    // Cloud sync is on: signed in, the collection is the account's by itself (ADR 0101).
+    await expect(desk.page.locator('#shared-chip')).toHaveText('Synced', { timeout: 30_000 });
     // The desktop's matches go up with the collection.
     await expect.poll(() => [...[...cols.values()][0]?.files.keys() ?? []].some(p => p === 'dupes/b1.json'), { timeout: 30_000 }).toBe(true);
 
@@ -297,9 +284,7 @@ test('duplicates found on the desktop show on the laptop: the 2× badge on the d
     await lap.page.click('#account-btn');
     await lap.page.click('#fake-google');
     await lap.page.keyboard.press('Escape');
-    const cid = [...cols.keys()][0];
-    await expect(lap.page.locator(`#collection-pick option[value="__join:${cid}"]`)).toHaveCount(1, { timeout: 20_000 });
-    await lap.page.selectOption('#collection-pick', '__join:' + cid);
+    // Nothing of its own yet: it takes the account's collection by itself.
     await expect(lap.page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×', { timeout: 30_000 });
     // One row per song there too: the best copy with its badge.
     await expect(lap.page.locator('.tr')).toHaveCount(2);
@@ -333,8 +318,8 @@ test('the desktop’s DJ library on the laptop: with the desktop’s name, not r
     await desk.page.click('#account-btn');
     await desk.page.click('#fake-google');
     await desk.page.keyboard.press('Escape');
-    await desk.page.click('#share-collection');
-    await expect(desk.page.locator('#shared-chip')).toHaveText('Shared', { timeout: 30_000 });
+    // Cloud sync is on: signed in, the collection is the account's by itself (ADR 0101).
+    await expect(desk.page.locator('#shared-chip')).toHaveText('Synced', { timeout: 30_000 });
     await expect.poll(() => [...[...cols.values()][0]?.files.keys() ?? []].some(p => p.startsWith('sources/')), { timeout: 30_000 }).toBe(true);
     // On the desktop it's its own: Refresh, and no computer's name.
     await expect(desk.page.locator('#dj-libs [data-dj-where]')).toHaveCount(0);
@@ -351,9 +336,7 @@ test('the desktop’s DJ library on the laptop: with the desktop’s name, not r
     await lap.page.click('#account-btn');
     await lap.page.click('#fake-google');
     await lap.page.keyboard.press('Escape');
-    const cid = [...cols.keys()][0];
-    await expect(lap.page.locator(`#collection-pick option[value="__join:${cid}"]`)).toHaveCount(1, { timeout: 20_000 });
-    await lap.page.selectOption('#collection-pick', '__join:' + cid);
+    // Nothing of its own yet: it takes the account's collection by itself.
     await expect(lap.page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
     await expect(lap.page.locator('#dj-libs [data-dj-where]')).toHaveText('Desktop');
     await expect(lap.page.locator('#dj-libs [data-dj-refresh]')).toHaveCount(0);

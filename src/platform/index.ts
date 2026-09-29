@@ -42,14 +42,11 @@ export async function browserHome(): Promise<{ dir: Dir; granted: boolean } | nu
 }
 /** The GLUE folder and music folders are GLUE Home's (decided when the GLUE folder opens). */
 export const homeMode = () => active && !!disk;
-// The writer lease (ADR 0051, 0087): in Home mode this tab tells GLUE Home every 5 s that it's open, so
-// GLUE Home leaves the library to it; the answer says when another device sent edits.
-let editsSeen: number | null = null, editsHook: (() => void) | null = null;
-/** Called when GLUE Home says other devices sent edits for this computer. */
-export function onEditsWaiting(f: () => void) { editsHook = f; }
+// The writer lease (ADR 0051): in Home mode this tab tells GLUE Home every 5 s that it's open, so GLUE
+// Home leaves the library to it.
 if (typeof window !== 'undefined') window.setInterval(() => {
   if (!homeMode() || !disk) return;
-  void disk.lease().then(r => { if (editsSeen !== null && r.edits !== editsSeen) editsHook?.(); editsSeen = r.edits; }).catch(() => {});
+  void disk.lease().catch(() => {});
 }, 5_000);
 async function homeRoots(fresh = false): Promise<HomeRoots | null> {
   if (!disk) return null;

@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0101
 date: 2026-09-25
 ---
 # 0042. Sync by default, merge by itself, and show the merged collection in this computer's library

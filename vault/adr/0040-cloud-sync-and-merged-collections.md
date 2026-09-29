@@ -1,5 +1,5 @@
 ---
-status: accepted; partly superseded by 0042 (sync by default, automatic merge, merged collection in the library)
+status: superseded by 0101
 date: 2026-09-25
 ---
 # 0040. Cloud sync of library data, merged collections, and edits that reach the owning device

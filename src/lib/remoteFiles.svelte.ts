@@ -366,6 +366,5 @@ lib.artReachable = t => remoteFiles.artReachable(t);
 lib.findArt = (ts, px, refuse) => remoteFiles.findArt(ts, px, refuse);
 lib.canFindArt = () => remoteFiles.canFindArt();
 // Edits sent for a computer: its GLUE Home applies them at once (or tells its open tab, ADR 0087).
-lib.nudgeEdits = device => { const h = companionOnline(device); if (h) void remoteFiles.ask(h.id, { t: 'edits' }, { firstWait: 10_000 }).catch(() => {}); };
 thumbs.remote = ts => remoteFiles.thumbs(ts);
 waves.remote = ts => remoteFiles.thumbs(ts, 'wave');

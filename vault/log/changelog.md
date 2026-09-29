@@ -5,6 +5,33 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · One sync: cloud sync on means your collections are your account's (GLUE Home 0.25)
+- **No more Share or Move buttons** ([ADR 0101](../adr/0101-cloud-sync-is-the-accounts-collections.md)).
+  With cloud sync on and signed in, a collection becomes the account's when it opens, and syncs with
+  every device.
+  - If the account already has collections and this computer's has songs of its own, a box asks once:
+    put this computer's songs into the account's collection (the same songs become one), keep it as a
+    collection of its own, or not now.
+  - A new, empty profile just takes the account's collection.
+- **A phone (or any browser with no library of its own)** keeps the account's collections in the
+  browser's storage, and opens, edits and streams them. It stays a session, not a device, and isn't
+  listed as a member of the collection.
+- **The old sync is gone** from the site, GLUE Home and GLUE Cloud's routes:
+  - each device's own cloud copy;
+  - merged collections and the merged view;
+  - the queue of edits for other computers.
+  The old tables in GLUE Cloud are untouched for now (dropping them waits for the user's go-ahead).
+- The admin panel counts the account's collections; "Clear cloud data" clears them.
+- Fixed:
+  - a collection could become the account's before GLUE Cloud's list of collections arrived, making a
+    second one;
+  - GLUE Cloud's answers are checked before anything changes here.
+- Tests:
+  - the shared e2e tests without buttons (automatic, the box);
+  - the phone test on the new model (browser storage, streaming, a rating and a title going up);
+  - the cloud unit tests on the shared routes.
+  The old sync's tests went with it.
+
 ## 2026-09-29 · After the first real try: one row per song, own copies only, the account menu, faster tests
 - **What went wrong on the user's first try** (from the laptop's GLUE folder):
   - two sync systems ran at once: the old per-device upload dropped the desktop's cloud copy when it

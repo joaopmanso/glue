@@ -74,8 +74,6 @@ export const bridge = {
   webGet: (url: string) => invoke<ArrayBuffer>('web_get', { url }),
   /** A GLUE tab here holds the writer lease (ADR 0087). */
   leaseHeld: () => invoke<boolean>('lease_held'),
-  /** Another device sent edits: the open tab (if any) is told on its next lease. */
-  editsWaiting: () => invoke<void>('edits_waiting'),
   // Between the windows.
   onConfig: (f: (c: HomeConfig) => void) => listen<HomeConfig>('config', e => f(e.payload)),
   onControl: (f: (what: 'start' | 'stop' | 'restart') => void) => listen<'start' | 'stop' | 'restart'>('control', e => f(e.payload)),

@@ -77,7 +77,7 @@ class Covers {
     while (this.urls.size > MAX_URLS) { const [k0, u0] = this.urls.entries().next().value!; if (u0) URL.revokeObjectURL(u0); this.urls.delete(k0); }
     this.version++;
   }
-  private canRead(t: Track) { return t.status === 'linked' && !t.remote && !lib.cloud && !!t.rootId && !!t.relPath && !t.fileKey; }
+  private canRead(t: Track) { return t.status === 'linked' && !t.remote && !!t.rootId && !!t.relPath && !t.fileKey; }
   /** Another computer's song (a phone's cloud library, ADR 0077): its GLUE Home has the cover (ADR 0082). */
   private canAsk(t: Track) { return !!t.remote && !!lib.artReachable?.(t); }
 

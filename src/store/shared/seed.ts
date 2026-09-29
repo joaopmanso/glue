@@ -11,7 +11,7 @@ export async function makeShared(root: Dir, pid: string, cid: string, me: string
   const meta = await readJSON<Collection | SharedCollection>(root, base + '/collection.json');
   if (!meta) throw new Error('Collection not found in your GLUE folder.');
   if ((meta as SharedCollection).shared) return false;
-  const sc = collectionShared(meta as Collection, me, undefined, member);
+  const sc = collectionShared(meta as Collection, me, undefined, member, true);
   const here: Here = { me, collection: cid, members: sc.members };
   for (const f of await listNames(root, base + '/tracks', 'file').catch(() => [] as string[])) {
     const sh = await readJSON<{ schemaVersion: number; items: Record<string, Track> }>(root, `${base}/tracks/${f}`);

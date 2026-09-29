@@ -22,6 +22,7 @@
   import EditInfo from './ui/library/EditInfo.svelte';
   import BinDialog from './ui/library/BinDialog.svelte';
   import ConflictBox from './ui/library/ConflictBox.svelte';
+  import JoinBox from './ui/library/JoinBox.svelte';
   import PhoneApp from './ui/phone/PhoneApp.svelte';
   import ActionSheet from './ui/phone/ActionSheet.svelte';
   import AskSheet from './ui/phone/AskSheet.svelte';
@@ -47,7 +48,7 @@
   import { incoming } from './lib/incoming.svelte';
   import { djWatch } from './lib/djWatch.svelte';   // DJ libraries kept in step (ADR 0063)
   import { account } from './lib/account.svelte';
-  import './lib/sync.svelte';   // cloud sync hooks (ADR 0040)
+  import './lib/shared.svelte';   // cloud sync hooks (ADR 0101)
   import { auto } from './lib/auto.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
   import { themes } from './lib/themes.svelte';
@@ -223,6 +224,7 @@
 {#if inLibrary && view.infoFor}{#key view.infoFor}<EditInfo />{/key}{/if}
 {#if inLibrary && view.binOpen && lib.store}<BinDialog />{/if}
 {#if inLibrary && lib.store?.shared}<ConflictBox />{/if}
+{#if inLibrary}<JoinBox />{/if}
 {#if inLibrary && view.statsFor}{#key view.statsFor}<StatsDialog />{/key}{/if}
 <!-- Menus: at the pointer, or on a phone a sheet from the bottom (ADR 0078). -->
 {#if phone.active}<ActionSheet /><AskSheet />{:else}<ContextMenu />{/if}

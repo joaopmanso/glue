@@ -78,9 +78,12 @@ export function collectionHere(c: SharedCollection, me: string): Collection {
   const { rootsBy, members: _m, shared: _s, ...rest } = c;
   return { ...rest, roots: rootsBy?.[me] ?? [] };
 }
-export function collectionShared(c: Collection, me: string, prev: SharedCollection | undefined, member: { profile: string; name: string }): SharedCollection {
+/** This computer is a member (a computer holding copies of the songs) once it holds one (`holds`) or has a
+    music folder; a device that only browses (a phone) isn't (ADR 0101). */
+export function collectionShared(c: Collection, me: string, prev: SharedCollection | undefined, member: { profile: string; name: string }, holds = false): SharedCollection {
   const { roots, ...rest } = c;
-  return { ...rest, shared: true, rootsBy: { ...(prev?.rootsBy ?? {}), [me]: roots }, members: { ...(prev?.members ?? {}), [me]: member } };
+  const joins = holds || roots.length > 0 || !!prev?.members?.[me];
+  return { ...rest, shared: true, rootsBy: { ...(prev?.rootsBy ?? {}), ...(joins ? { [me]: roots } : {}) }, members: { ...(prev?.members ?? {}), ...(joins ? { [me]: member } : {}) } };
 }
 
 /** Which member a GLUE folder's copy of a shared collection is (its computer): `device` if it's a member,

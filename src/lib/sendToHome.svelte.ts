@@ -102,7 +102,7 @@ export function sendTargets(): CloudDevice[] {
 }
 /** Send these songs' files (this computer's) to a GLUE Home's incoming folder. */
 export async function sendTracks(home: string, ids: string[]) {
-  const ts = ids.map(id => lib.store?.tracks.get(id)).filter((t): t is Track => !!t && t.status === 'linked' && !t.remote && !lib.cloud);
+  const ts = ids.map(id => lib.store?.tracks.get(id)).filter((t): t is Track => !!t && t.status === 'linked' && !t.remote);
   const files: File[] = [];
   for (const t of ts) { try { files.push(await lib.fileFor(t)); } catch { /* skipped: not readable here */ } }
   if (!files.length) { lib.notice = 'None of these songs has a file on this computer to send.'; return; }

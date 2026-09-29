@@ -91,7 +91,6 @@
     {#if children}<button type="button" class="back" id="phone-back" aria-label="Back" onclick={leavePage}>‹</button>
     {:else if top}<button type="button" class="back" id="phone-back" aria-label="Back" onclick={() => phone.back()}>‹</button>{:else}<span class="logo" aria-hidden="true">G</span>{/if}
     <h1 id="phone-title">{children ? PAGES[route.name] ?? '' : title}</h1>
-    {#if lib.cloud}<span class="cloud" title={lib.cloud.subtitle}>☁ {lib.cloud.title}</span>{/if}
     {#if !children && canEdit && !phone.selecting}<button type="button" class="act" id="phone-edit" onclick={() => phone.editing ? (phone.editing = null) : startEditing(shownList!.id)}>{phone.editing ? 'Done' : 'Edit'}</button>{/if}
     {#if !children && shownList}<button type="button" class="act more" id="phone-list-more" aria-label={'More: ' + shownList.name} onclick={() => phone.menu(shownList.name, () => listMenu(shownList))}>⋯</button>{/if}
   </header>
@@ -119,19 +118,18 @@
         <li><button type="button" class="ent" data-view="recent" onclick={() => phone.songs({ kind: 'recent' })}>Recently added</button></li>
         {#if sorting}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'list', id: TO_BE_SORTED })}>TO BE SORTED<span class="n">{sorting.items.length}</span></button></li>{/if}
         {#if counts.attention}<li><button type="button" class="ent" data-view="attention" onclick={() => phone.songs({ kind: 'attention' })}>Needs attention<span class="n">{counts.attention}</span></button></li>{/if}
-        {#if counts.pending && !lib.cloud}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'pending' })}>Not analysed yet<span class="n">{counts.pending}</span></button></li>{/if}
-        {#if counts.unlinked && !lib.cloud}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'unlinked' })}>No file linked<span class="n">{counts.unlinked}</span></button></li>{/if}
+        {#if counts.pending}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'pending' })}>Not analysed yet<span class="n">{counts.pending}</span></button></li>{/if}
+        {#if counts.unlinked}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'unlinked' })}>No file linked<span class="n">{counts.unlinked}</span></button></li>{/if}
         {#if tags.length}
           <li class="sec">Tags</li>
           {#each tags as t (t.name)}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'tag', name: t.name })}>{t.name}<span class="n">{t.tracks}</span></button></li>{/each}
         {/if}
-        {#if !lib.cloud}
           <li class="sec">Music</li>
           {#each roots as r (r.root.id)}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'root', id: r.root.id })}>{r.root.name}</button></li>{/each}
           {#if canPickFolders() && !lib.readOnly}<li><button type="button" class="ent add" id="phone-add-folder" onclick={() => void lib.addFolder()}>+ Add a music folder</button></li>{/if}
           {#if !lib.readOnly}<li><button type="button" class="ent add" id="phone-add-songs" onclick={addSongs}>+ Add songs</button></li>{/if}
           <input type="file" multiple accept="audio/*,.flac,.wav,.aif,.aiff,.m4a,.mp3,.aac,.ogg,.opus" hidden bind:this={songInput} onchange={e => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ''; if (f.length) void lib.addFileCopies(f); }} />
-        {/if}
+        
       </ul>
     {:else if phone.tab === 'browse'}
       <ul class="menu" id="phone-browse">
@@ -154,11 +152,10 @@
     {:else if phone.tab === 'more'}
       <ul class="menu" id="phone-more">
         <li><button type="button" class="ent" onclick={() => router.go('#/events')}>Calendar</button></li>
-        <li><button type="button" class="ent" onclick={() => (view.statsFor = { title: lib.cloud?.title ?? 'This collection', sel: { kind: 'all' } })}>Stats</button></li>
+        <li><button type="button" class="ent" onclick={() => (view.statsFor = { title: 'This collection', sel: { kind: 'all' } })}>Stats</button></li>
         <li><button type="button" class="ent" onclick={() => router.go('#/analyze')}>Analyze a file</button></li>
         <li><button type="button" class="ent" id="phone-theme" onclick={() => themes.toggleMode()}>{themes.resolved === 'dark' ? 'Light mode' : 'Dark mode'}</button></li>
-        {#if lib.cloud}<li><button type="button" class="ent" id="phone-leave" onclick={() => void lib.leaveCloudView()}>Close this library</button></li>
-        {:else if lib.profile}<li><button type="button" class="ent" onclick={() => lib.switchProfile()}>Switch profile · {lib.profile.name}</button></li>{/if}
+        {#if lib.profile}<li><button type="button" class="ent" onclick={() => lib.switchProfile()}>Switch profile · {lib.profile.name}</button></li>{/if}
         <li class="sec">Account</li>
         <li class="acct"><AccountButton /></li>
       </ul>
@@ -185,7 +182,6 @@
   .ptop h1 { flex: 1; min-width: 0; font-size: 19px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .back { width: 40px; height: 44px; background: none; border: 0; color: var(--accent); font-size: 34px; line-height: 1; cursor: pointer; margin-left: -6px; }
   .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 800; }
-  .cloud { color: var(--muted); font-size: 12px; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; padding-bottom: calc(60px + 70px + env(safe-area-inset-bottom, 0px)); -webkit-overflow-scrolling: touch; }
   .screen:has(:global(#phone-songs)) { overflow: hidden; padding-bottom: calc(60px + 64px + env(safe-area-inset-bottom, 0px)); }
   .screen.page { display: block; padding: 12px 14px calc(60px + 70px + env(safe-area-inset-bottom, 0px)); overflow-x: hidden; }

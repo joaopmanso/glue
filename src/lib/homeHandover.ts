@@ -26,7 +26,7 @@ async function bytesAt(dir: FileSystemDirectoryHandle, path: string): Promise<Ui
 export async function handOver() {
   const me = account.thisDevice, s = lib.store, p = lib.profile;
   const home = me ? companionOnline(me) : null;
-  if (busy || !home || !s || !p || lib.cloud || lib.readOnly) return;
+  if (busy || !home || !s || !p || lib.readOnly) return;
   const cid = s.meta.id, key = home.id + '/' + cid;
   busy = true;
   try {

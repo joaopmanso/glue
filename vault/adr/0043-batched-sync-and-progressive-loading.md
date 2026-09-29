@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0101
 date: 2026-09-25
 ---
 # 0043. Sync many files per request, keep one copy file per device, and show songs as they arrive

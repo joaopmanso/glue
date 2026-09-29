@@ -1,6 +1,6 @@
 /* GLUE Cloud API (ADR 0036): Google sign-in, sessions, devices, pairing GLUE Home, and the door to
    the per-user signaling room. Plain request → response, so tests run it against real SQLite. */
-import * as sync from './sync';
+import { SyncError } from './limits';
 import * as shared from './shared';
 import * as admin from './admin';
 import { turnServers, type TurnEnv } from './turn';
@@ -96,10 +96,6 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
       await revokeDevice(env, a.sub, d.id, now);
       return reply({ ok: true });
     }
-    // Cloud sync (ADR 0040).
-    if (m === 'POST' && path === '/v1/sync/manifest') return reply(await sync.manifest(env, a, await body() as unknown as sync.Manifest, now));
-    if (m === 'PUT' && path === '/v1/sync/file') return reply(await sync.putFile(env, a, url.searchParams, await req.text(), now));
-    if (m === 'POST' && path === '/v1/sync/files') return reply(await sync.putFiles(env, a, url.searchParams, await req.text(), now));
     // The shared collection (ADR 0094): one copy for all the account's devices.
     if (m === 'GET' && path === '/v1/shared') return reply(await shared.list(env, a));
     if (m === 'POST' && path === '/v1/shared') return reply(await shared.create(env, a, await body(), now, randomId));
@@ -110,23 +106,14 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
       if (m === 'POST' && sh[2] === '/bundle') return new Response(await shared.bundle(env, a, cid, await body()), { headers: { ...cors, 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
       // The account's online devices hear of it at once (the signaling room), and pull.
       const notify = async (seq: number) => { if (env.SIGNAL) await env.SIGNAL.get(env.SIGNAL.idFromName(a.sub)).fetch(new Request('https://signal/broadcast', { method: 'POST', body: JSON.stringify({ type: 'shared', collection: cid, seq, from: a.dev }) })); };
-      if (m === 'POST' && sh[2] === '/push') return reply(await shared.push(env, a, cid, await req.text(), now, notify));
+      if (m === 'POST' && sh[2] === '/push') {
+        // A sign-in pushing from a computer with its own songs holds music: it's a device (ADR 0091).
+        if (url.searchParams.get('music') === '1') await env.DB.prepare("UPDATE devices SET role = 'device' WHERE id = ? AND role = 'browse'").bind(a.dev).run();
+        return reply(await shared.push(env, a, cid, await req.text(), now, notify));
+      }
       if (m === 'GET' && sh[2] === '/bin') return reply(await shared.bin(env, a, cid, now));
       if (m === 'DELETE' && !sh[2]) return reply(await shared.remove(env, a, cid));
     }
-    if (m === 'GET' && path === '/v1/sync') return reply(await sync.list(env, a));
-    if (m === 'DELETE' && path === '/v1/sync') { await env.DB.batch([env.DB.prepare('DELETE FROM sync_links WHERE user_id = ?').bind(a.sub), env.DB.prepare('DELETE FROM sync_ops WHERE user_id = ?').bind(a.sub)]); return reply(await sync.remove(env, a)); }
-    if (m === 'GET' && path === '/v1/sync/links') return reply(await sync.links(env, a));
-    if (m === 'POST' && path === '/v1/sync/links') return reply(await sync.link(env, a, await body(), now, randomId));
-    if (m === 'POST' && path === '/v1/sync/ops') return reply(await sync.pushOps(env, a, await body(), now));
-    if (m === 'GET' && path === '/v1/sync/ops') return reply(await sync.pendingOps(env, a, url.searchParams.get('device') ?? a.dev, url.searchParams.get('profile') ?? ''));
-    if (m === 'POST' && path === '/v1/sync/ops/ack') return reply(await sync.ackOps(env, a, await body()));
-    if (m === 'POST' && path === '/v1/sync/unlink') return reply(await sync.unlink(env, a, await body()));
-    const sm = /^\/v1\/sync\/([\w-]+)\/([\w-]+)(\/file|\/bundle)?$/.exec(path);
-    if (sm && m === 'GET' && !sm[3]) return reply(await sync.files(env, a, sm[1], sm[2]));
-    if (sm && m === 'POST' && sm[3] === '/bundle') return new Response(await sync.bundle(env, a, sm[1], sm[2], await body()), { headers: { ...cors, 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
-    if (sm && m === 'GET' && sm[3] === '/file') return new Response(await sync.getFile(env, a, sm[1], sm[2], url.searchParams.get('path')), { headers: { ...cors, 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
-    if (sm && m === 'DELETE' && !sm[3]) return reply(await sync.remove(env, a, sm[1], sm[2]));
     if (m === 'DELETE' && path === '/v1/me') {
       // Delete the account: user, identities, devices, credentials and codes (cascades).
       await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(a.sub).run();
@@ -134,7 +121,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     }
     throw new HttpError(404, 'not found');
   } catch (e) {
-    if (e instanceof HttpError || e instanceof sync.SyncError || e instanceof admin.AdminError) return reply({ error: e.message }, e.status);
+    if (e instanceof HttpError || e instanceof SyncError || e instanceof admin.AdminError) return reply({ error: e.message }, e.status);
     console.error(e);
     return reply({ error: 'server error' }, 500);
   }
@@ -312,14 +299,14 @@ async function attach(env: Env, a: Access, browser: string, now: number) {
   return join(env, a.sub, b.id, primary.id, now);
 }
 /** Browser `from` becomes device `into` (same account): its sign-ins move over, and its own record goes.
-    Refused when it has a library of its own that `into` doesn't have (joining would drop it from the cloud). */
+    Refused when it holds music of its own (a device, not a session). */
 async function join(env: Env, userId: string, from: string, into: string, now: number) {
   if (from === into) return { device: into };
   const t = await env.DB.prepare("SELECT id FROM devices WHERE id = ? AND user_id = ? AND revoked_at IS NULL").bind(into, userId).first<{ id: string }>();
   if (!t) throw new HttpError(404, 'no such device');
-  const mine = (await env.DB.prepare('SELECT profile_id FROM sync_profiles WHERE user_id = ? AND device_id = ?').bind(userId, from).all<{ profile_id: string }>()).results.map(r => r.profile_id);
-  const theirs = new Set((await env.DB.prepare('SELECT profile_id FROM sync_profiles WHERE user_id = ? AND device_id = ?').bind(userId, into).all<{ profile_id: string }>()).results.map(r => r.profile_id));
-  if (mine.some(p => !theirs.has(p))) throw new HttpError(409, 'this browser has a library of its own: it stays a device of its own');
+  // A browser holding music of its own is a computer of its own (ADR 0091): its songs' copies are its.
+  const role = (await env.DB.prepare('SELECT role FROM devices WHERE id = ? AND user_id = ?').bind(from, userId).first<{ role: string | null }>())?.role;
+  if (role === 'device') throw new HttpError(409, 'this browser has a library of its own: it stays a device of its own');
   await env.DB.batch([
     env.DB.prepare("UPDATE credentials SET device_id = ? WHERE device_id = ? AND user_id = ? AND kind = 'refresh'").bind(into, from, userId),
     env.DB.prepare("UPDATE devices SET role = 'device' WHERE id = ?").bind(into),

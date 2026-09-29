@@ -1,7 +1,7 @@
 /* Moving a computer's own collection into a shared one (ADR 0096): the collection it was merged with on
    other devices (ADR 0040) becomes the shared collection they all hold. Pure: both collections in, the
    shared one out, with this computer's parts added.
-   - The same song (mergeCollections' trackKey: artist and title with lengths within 3 s, else file name
+   - The same song (trackKey in ./match: artist and title with lengths within 3 s, else file name
      and size) gets this computer's copy; what's set here and empty there (a rating, notes…) comes along,
      and tags join. A song only here comes in with its own id.
    - Playlists and folders with the same place and name become one: the shared one's songs, then the
@@ -10,7 +10,7 @@
      pointed at the shared ids.
    Nothing of another computer's is changed. */
 import type { AnalysisSummary, Collection, List, Source, Track } from '../../store/types';
-import { norm, trackKey } from '../library/mergeCollections';
+import { norm, trackKey } from './match';
 import { uniqTags } from '../library/tagging';
 import { COPY_FIELDS, collectionShared, toShared, type Copy, type Here, type SharedCollection, type SharedTrack } from './project';
 
@@ -96,6 +96,6 @@ export function adopt(shared: SharedParts, own: OwnParts, me: string, member: { 
     }
   }
 
-  const meta = collectionShared({ ...own.meta, ...shared.meta, roots: own.meta.roots, tags: uniqTags([...(shared.meta.tags ?? []), ...(own.meta.tags ?? [])]) } as unknown as Collection, me, shared.meta, member);
+  const meta = collectionShared({ ...own.meta, ...shared.meta, roots: own.meta.roots, tags: uniqTags([...(shared.meta.tags ?? []), ...(own.meta.tags ?? [])]) } as unknown as Collection, me, shared.meta, member, matched + added > 0);
   return { meta, tracks: [...tracks.values()], analysis, lists: [...lists.values()], sources, stats: { matched, added, listsJoined, listsAdded }, trackIds: ids };
 }

@@ -13,7 +13,6 @@ import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
 import { ANALYSIS_VERSION, INCOMING_ROOT, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary, type List, type Prep, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
-import type { Copy, Overlay } from '../core/library/overlay';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { fileHead, fileMeta } from '../core/library/files';
 import { findLibraries, libraryAt, type Detected } from '../core/library/detect';
@@ -98,7 +97,6 @@ class Library {
   onArt: ((c: Cover) => Promise<void>) | null = null;
   /** A collection from GLUE Cloud on screen instead of a local one (ADR 0040): nothing is analysed,
       scanned or written to this computer; edits go to the device that owns the data. */
-  cloud = $state.raw<CloudView | null>(null);
   /** Sync hooks (lib/sync): a local profile's files were saved / a collection opened. */
   onFlushed: ((pid: string) => void) | null = null;
   onCollectionOpened: ((pid: string, cid: string) => void) | null = null;
@@ -205,7 +203,7 @@ class Library {
     try {
       this.homeDir = dir; home.root = dir; this.homeName = dir.name; this.homeLost = '';
       const s = this.store;
-      if (s && !this.cloud) {
+      if (s) {
         s.root = dir;
         this.stopAnalysis();
         await this.loadRoots();
@@ -316,62 +314,9 @@ class Library {
     await this.home.deleteProfile(pid);
     this.phase = 'profiles';
   }
-  /** Show a collection from GLUE Cloud (built by lib/sync). The local collection is saved and closed first. */
-  async enterCloudView(s: CollectionStore, view: CloudView) {
-    await this.closeCollection();
-    s.onChange = () => { this.version++; this.onCloudChange?.(); };
-    s.onDirty = () => {};
-    this.store = s; this.cloud = view;
-    this.phase = 'library'; this.onboarding = null;
-    this.version++;
-  }
-  onCloudChange: (() => void) | null = null;
-  /** The open local collection changed (sync sends edits of a merged collection's shared data). */
-  onLocalChange: (() => void) | null = null;
-
-  /** Other devices' songs were laid over again (TO BE SORTED marks its songs again). */
-  onOverlay: (() => void) | null = null;
   /** The incoming folder was scanned (TO BE SORTED shows what's in it now). */
   onIncoming: (() => void) | null = null;
-  /** The devices whose songs the open collection shows (this one first); empty when it's only this one. */
-  devicesShown = $state.raw<string[]>([]);
-  /** Songs on more than one device of the merged collection, with each device's copy (Duplicates). */
-  copies = $state.raw<Map<string, Copy[]>>(new Map());
-  /** This device's playlists as saved, before other devices' songs were shown in them. */
-  private overlayBase = new Map<string, { before: string[]; shown: string[] }>();
-  /** Show (or take away) other devices' songs and playlists of a merged collection in the open local
-      collection (ADR 0042). Nothing of it is saved to this computer's collection files. */
-  applyOverlay(o: Overlay | null, devices: string[] = []) {
-    const s = this.store;
-    if (!s || this.cloud) return;
-    this.devicesShown = o ? devices : [];
-    this.copies = o?.copies ?? new Map();
-    this.dropGroup('overlay');
-    for (const t of s.tracks.values()) if (t.onDevices && !s.ephemeral.has(t.id)) delete t.onDevices;
-    s.touchTracks();
-    for (const [id, b] of this.overlayBase) {
-      const l = s.lists.get(id);   // unless it was edited meanwhile (then it's saved with them)
-      if (l && l.items.join() === b.shown.join()) s.showItems(id, b.before);
-    }
-    this.overlayBase.clear();
-    if (o) {
-      const mine = this.group('overlay');
-      for (const t of o.tracks) mine.add(t.id);
-      for (const l of o.lists) mine.add(l.id);
-      s.putShown(o.tracks, o.lists, o.analysis);
-      for (const [id, devs] of o.onDevices) { const t = s.tracks.get(id); if (t) t.onDevices = devs; }
-      for (const [id, extra] of o.extraItems) {
-        const l = s.lists.get(id);
-        if (!l) continue;
-        const shown = [...l.items, ...extra];
-        this.overlayBase.set(id, { before: l.items, shown });
-        s.showItems(id, shown);
-      }
-    }
-    this.version++;
-    this.onOverlay?.();
-  }
-  /** Things shown but not saved, by who shows them ('overlay': other devices' songs; 'incoming': TO BE SORTED). */
+  /** Things shown but not saved, by who shows them ('incoming': TO BE SORTED). */
   private groups = new Map<string, Set<string>>();
   private group(key: string) { let g = this.groups.get(key); if (!g) this.groups.set(key, g = new Set()); return g; }
   private dropGroup(key: string) {
@@ -383,7 +328,7 @@ class Library {
   /** Show tracks and lists that aren't this collection's own (never saved). */
   showGroup(key: string, tracks: Track[], lists: List[], analysis?: Map<string, AnalysisSummary>) {
     const s = this.store;
-    if (!s || this.cloud) return;
+    if (!s) return;
     this.dropGroup(key);
     const g = this.group(key);
     for (const t of tracks) g.add(t.id);
@@ -393,22 +338,6 @@ class Library {
   }
   /** This device's own tracks and playlists (without other devices' ones). */
   ownTracks(): Track[] { const s = this.store; return s ? [...s.tracks.values()].filter(t => !s.ephemeral.has(t.id)) : []; }
-  ownLists(): List[] {
-    const s = this.store;
-    if (!s) return [];
-    return [...s.lists.values()].filter(l => !s.ephemeral.has(l.id)).map(l => { const b = this.overlayBase.get(l.id); return b && l.items.join() === b.shown.join() ? { ...l, items: b.before } : l; });
-  }
-  /** Back to this computer's own library (or the profile list / start when there's none). */
-  async leaveCloudView() {
-    this.cloud = null; this.store = null;
-    if (this.profile) {
-      const p = this.profile;
-      const cid = p.lastCollection && p.collections.some(c => c.id === p.lastCollection) ? p.lastCollection : p.collections[0]?.id;
-      if (cid) return this.openCollection(cid);
-    }
-    this.phase = this.home ? 'profiles' : 'welcome';
-    this.version++;
-  }
   /** Turn cloud sync on or off for a profile of this GLUE folder (it's on by default, ADR 0042). */
   async setProfileSync(pid: string, on: boolean) {
     const home = this.home;
@@ -436,11 +365,11 @@ class Library {
     await this.closeCollection();
     const t0 = performance.now();
     const s = await CollectionStore.load(this.homeDir, this.profile.id, cid, this.loadOpts?.() ?? {});
-    s.onChange = () => { this.version++; this.onLocalChange?.(); };
+    s.onChange = () => { this.version++; };
     // A sync brought files in (a shared collection, ADR 0094): redraw, nothing to save or send.
     s.onReloaded = () => { this.version++; };
     s.onDirty = () => this.scheduleFlush();
-    this.store = s; this.overlayBase.clear();
+    this.store = s;
     if (this.profile.lastCollection !== cid) { this.profile = { ...this.profile, lastCollection: cid }; await this.home.saveProfile(this.profile); }
     this.found = [];
     this.analysis = { ...this.analysis, paused: s.meta.autoAnalyse === false };
@@ -461,7 +390,7 @@ class Library {
     this.onCollectionOpened?.(this.profile.id, cid);
     // The day's backup of this profile, a little after it opens (ADR 0090).
     const pid = this.profile.id;
-    setTimeout(() => { const d = this.homeDir, p = this.profile; if (d && p?.id === pid && !this.readOnly && !this.cloud) void autoBackup(d, p).catch(e => console.warn('GLUE: the daily backup failed', e)); }, 20_000);
+    setTimeout(() => { const d = this.homeDir, p = this.profile; if (d && p?.id === pid && !this.readOnly) void autoBackup(d, p).catch(e => console.warn('GLUE: the daily backup failed', e)); }, 20_000);
     void this.detectLibraries();
     void this.recheckVerdicts();
   }
@@ -490,15 +419,14 @@ class Library {
     this.stopAnalysis();
     // Until nothing is left: what's marked while a save runs (the analysis's last song…) is saved by the
     // next one, and after this there's no next one for this store.
-    for (let i = 0; i < 5 && this.store?.hasPending && !this.readOnly && !this.cloud; i++) await this.flush();
-    this.cloud = null; this.devicesShown = []; this.copies = new Map();
-    this.store = null; this.roots = []; this.overlayBase.clear(); this.groups.clear();
+    for (let i = 0; i < 5 && this.store?.hasPending && !this.readOnly; i++) await this.flush();
+    this.store = null; this.roots = []; this.groups.clear();
     this.looseHandles.clear(); this.looseGranted = new Set();
   }
 
   // ─── Saving ────────────────────────────────────────────────────────────────
   private scheduleFlush() {
-    if (this.readOnly || this.cloud) return;
+    if (this.readOnly) return;
     this.unsaved = true;
     clearTimeout(this.flushTimer);
     // A pause of 0.8 s, but never put off more than 3 s: a stream of changes (the analysis) mustn't
@@ -509,7 +437,7 @@ class Library {
   }
   async flush() {
     const s = this.store;
-    if (!s || this.readOnly || this.cloud || !s.hasPending) { this.unsaved = false; this.unsavedSince = 0; return; }
+    if (!s || this.readOnly || !s.hasPending) { this.unsaved = false; this.unsavedSince = 0; return; }
     clearTimeout(this.flushTimer);
     this.unsavedSince = 0;
     this.saving = true;
@@ -546,7 +474,7 @@ class Library {
       one row with other devices' copies of them. They're TO BE SORTED (lib/incoming). */
   private async adoptIncoming() {
     const s = this.store, inc = await platform.incomingFolder();
-    if (!s || !inc || this.readOnly || this.cloud) return;
+    if (!s || !inc || this.readOnly) return;
     let r = s.meta.roots.find(x => x.id === INCOMING_ROOT);
     if (!r) { r = { id: INCOMING_ROOT, name: 'TO BE SORTED', absPath: inc.path, handleKey: 'home:' + INCOMING_ROOT, addedAt: now(), hidden: true }; s.meta.roots.push(r); s.saveMeta(); }
     else if (r.absPath !== inc.path) { r.absPath = inc.path; s.saveMeta(); }
@@ -668,7 +596,7 @@ class Library {
   /** Look for DJ libraries in every folder GLUE may read: music folders, the GLUE folder, remembered places. */
   async detectLibraries() {
     const s = this.store;
-    if (!s || this.cloud) return;
+    if (!s) return;
     // A request while a search runs (a new place, an import) runs another search right after it.
     if (this.detecting) { this.detectAgain = true; return; }
     this.detecting = true;
@@ -911,7 +839,7 @@ class Library {
       if (!changed.length) continue;
       out.push(next);
       // Another computer's song: that computer marks it as edited when the edit gets there.
-      if (t.remote || this.cloud) continue;
+      if (t.remote) continue;
       own = true;
       next.edited = [...new Set([...t.edited ?? [], ...changed])];
       if (t.rootId && t.relPath && !t.fileKey) next.unwritten = [...new Set([...t.unwritten ?? [], ...changed])];
@@ -933,7 +861,7 @@ class Library {
     if (out.length) s.putTracks(out);
   }
   /** Can this song play here now: its file here, or another computer's GLUE Home streams it. */
-  playsHere(t: Track) { return t.status === 'linked' && (t.remote ? this.canRead(t) : !this.cloud); }
+  playsHere(t: Track) { return t.status === 'linked' && (t.remote ? this.canRead(t) : true); }
   /** Songs whose edited info isn't in their file yet. */
   unwrittenCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (t.unwritten?.length) n++; return n; }
   private writing: Promise<void> | null = null;
@@ -941,8 +869,8 @@ class Library {
   writeInfo() { return (this.writing ??= this.writeInfoOnce().finally(() => { this.writing = null; })); }
   private async writeInfoOnce() {
     const s = this.store;
-    if (!s || this.readOnly || this.cloud || !platform.homeMode()) return;
-    const stop = () => this.store !== s || this.readOnly || !!this.cloud || !platform.homeMode();
+    if (!s || this.readOnly || !platform.homeMode()) return;
+    const stop = () => this.store !== s || this.readOnly || !platform.homeMode();
     let r: { failed: number; why: string };
     try {
       r = await writeUnwritten(s, (t, tags) => {
@@ -1026,15 +954,13 @@ class Library {
       while looked up, '' none) and the JPEG; `refuse`: that album's cover is wrong. */
   findArt: ((ts: Track[], px: 64 | 320, refuse?: boolean) => Promise<Map<string, { hash: string; bytes: Uint8Array | null }>>) | null = null;
   canFindArt: (() => boolean) | null = null;
-  /** Edits were sent for another device (ADR 0087): tell its GLUE Home, if it runs. */
-  nudgeEdits: ((device: string) => void) | null = null;
   /** What to play a song from (ADR 0076): an address that streams (this computer's GLUE Home's local link,
       or another computer's GLUE Home) when the browser plays the format by itself; otherwise the file. */
   async mediaFor(t: Track): Promise<Blob | string> {
     // Another computer's song: streamed when it can be; a connection that fails says so (not a silent
     // whole download, ADR 0084).
     if (t.remote) { const u = await this.streamFor?.(t); if (u) return u; }
-    else if (!this.cloud && !t.fileKey && t.rootId && t.relPath && t.status === 'linked' && platform.homeMode() && playsNatively(typeOfName(t.fileName))) {
+    else if (!t.fileKey && t.rootId && t.relPath && t.status === 'linked' && platform.homeMode() && playsNatively(typeOfName(t.fileName))) {
       const r = this.rootState(t.rootId), link = r ? await platform.fileLink(r.root, t.relPath) : null;
       if (link) return link;
     }
@@ -1053,7 +979,6 @@ class Library {
   private async fileFrom(t: Track): Promise<File> {
     if (t.rootId === INCOMING_ROOT && !t.remote && !this.rootState(INCOMING_ROOT)?.dir) throw new Error('This song is waiting in GLUE Home’s incoming folder: start GLUE Home to play it.');
     if (t.remote) { if (this.remoteFile && this.canStream?.(t)) return this.remoteFile(t); throw new Error(remoteFileMessage(t.remote.name)); }
-    if (this.cloud) throw new Error(remoteFileMessage(t.onDevices?.join(' and ') || this.cloud.title));
     if (t.fileKey) return this.looseFile(t, true);
     const r = this.rootState(t.rootId);
     if (!r?.dir || !t.relPath) throw new Error('This track isn’t linked to a file yet. Add the music folder it lives in.');
@@ -1068,7 +993,6 @@ class Library {
     if (t.status !== 'linked') return false;
     // Another computer's song (a merged collection, or the cloud library on a phone: ADR 0077) streams from it.
     if (t.remote) return !!this.canStream?.(t);
-    if (this.cloud) return false;
     if (t.fileKey) return t.fileKey.startsWith('copy:') || this.looseGranted.has(t.id);
     return !!this.rootState(t.rootId)?.granted;
   }
@@ -1250,7 +1174,7 @@ class Library {
   pendingCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (this.needsAnalysis(t)) n++; return n; }
   enqueueAll() {
     const s = this.store;
-    if (!s || this.cloud) return;
+    if (!s) return;
     // Another computer's songs are analysed there (and shared): never downloaded here to be analysed.
     this.queue = [...s.tracks.values()].filter(t => !t.remote && this.canRead(t) && this.needsAnalysis(t) && !this.active.has(t.id))
       .sort((a, b) => a.addedAt.localeCompare(b.addedAt)).map(t => t.id);
@@ -1280,7 +1204,7 @@ class Library {
   private stopAnalysis() { this.queue = []; this.manual = []; this.pool?.stop(); this.pool = null; this.active.clear(); this.analysis = { running: 0, done: 0, failed: 0, paused: this.analysis.paused }; }
 
   private pump() {
-    if (this.readOnly || this.stemsBusy || this.cloud) return;
+    if (this.readOnly || this.stemsBusy) return;
     // With background analysis off, only tracks asked for explicitly are analysed.
     if (this.analysis.paused && !this.manual.length) return;
     this.pool ??= new AnalysisPool();
@@ -1355,7 +1279,5 @@ export function remoteFileMessage(device: string) {
   return 'This track’s file is on ' + device + '. To play it here, run GLUE Home on ' + device + '.';
 }
 
-/** What a cloud view shows: one device's collection, or a merged collection (see lib/sync). */
-export interface CloudView { kind: 'device' | 'group'; title: string; subtitle: string; updatedAt: number | null }
 
 export const lib = new Library();

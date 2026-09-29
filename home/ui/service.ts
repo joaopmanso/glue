@@ -7,7 +7,7 @@ import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, PENDING, frame, unframe, isHa
 import type { DetailsHeader } from '../../src/store/details';
 import * as cache from './cache';
 import * as lookup from './lookup';
-import { applyEdits, backupDaily } from './edits';
+import { backupDaily } from './backups';
 import { syncSharedHere } from './sharedSync';
 import { describe, locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
@@ -274,11 +274,6 @@ function serve(dc: RTCDataChannel) {
         const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
         for (const p of parts) { all.set(p, at); at += p.length; }
         await answer(c.n, found, all);
-      } else if (c.t === 'edits') {
-        // Another device sent edits for this computer (ADR 0087): the open tab takes them in, or GLUE Home does.
-        await answer(c.n, null, null);
-        await bridge.editsWaiting().catch(() => {});
-        void applyEdits(cfg, apiOf(cfg!)).catch(e => console.warn('GLUE Home: couldn’t apply edits', e));
       } else if (c.t === 'find-art') {
         // Covers from public services (ADR 0086): known, or looked up now (the device asks again).
         const px = c.px === 320 ? 320 : 64;
@@ -407,11 +402,6 @@ async function boot() {
   })().catch(e => console.warn('GLUE Home: couldn’t attach the browser', e)));
   setTimeout(() => void remind(), 90_000);
   setInterval(() => void remind(), 3600e3);
-  // Edits from the other devices (ADR 0087): taken in when no GLUE tab is open here, soon after starting
-  // and then every minute (another device also says so at once when it sends some).
-  const edits = () => { if (cfg?.running !== false) void applyEdits(cfg, apiOf(cfg!)).catch(e => console.warn('GLUE Home: couldn’t apply edits', e)); };
-  setTimeout(edits, 20_000);
-  setInterval(edits, 60_000);
   // Shared collections (ADR 0097): synced here when no GLUE tab is, soon after starting and every minute.
   setTimeout(sharedSoon, 25_000);
   setInterval(sharedSoon, 60_000);

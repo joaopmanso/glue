@@ -5,7 +5,7 @@
    to merge (they do the merging, not the Worker). */
 import type { Access } from './crypto';
 import type { Env } from './api';
-import { MAX_BUNDLE, MAX_BUNDLE_PATHS, MAX_BYTES, MAX_FILE, SyncError } from './sync';
+import { MAX_BUNDLE, MAX_BUNDLE_PATHS, MAX_BYTES, MAX_FILE, SyncError } from './limits';
 
 const PATH = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+){0,5}$/, ID = /^[\w-]{1,48}$/, HASH = /^[0-9a-f]{64}$/;
 const okPath = (p: unknown): p is string => typeof p === 'string' && p.length <= 300 && PATH.test(p) && !p.split('/').includes('..');

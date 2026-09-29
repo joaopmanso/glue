@@ -114,10 +114,10 @@ Planned (GLUE):
 | [0037](adr/0037-p2p-webrtc-transport.md) | WebRTC data channels between the website and GLUE Home | proposed |
 | [0038](adr/0038-glue-home-app.md) | GLUE Home: a small Node.js/TypeScript app that serves the main computer's library | superseded by 0044 |
 | [0039](adr/0039-glue-unified.md) | GLUE stands for Global Library Unified Exporter | accepted |
-| [0040](adr/0040-cloud-sync-and-merged-collections.md) | Cloud sync of library data, merged collections, and edits that reach the owning device | accepted; partly superseded by 0042 (sync by default, automatic merge, merged collection in the library) |
+| [0040](adr/0040-cloud-sync-and-merged-collections.md) | Cloud sync of library data, merged collections, and edits that reach the owning device | superseded by 0101 |
 | [0041](adr/0041-passwords-tiers-admin.md) | Email + password accounts, user tiers, and an admin panel | accepted |
-| [0042](adr/0042-merged-collection-in-the-local-library.md) | Sync by default, merge by itself, and show the merged collection in this computer's library | accepted |
-| [0043](adr/0043-batched-sync-and-progressive-loading.md) | Sync many files per request, keep one copy file per device, and show songs as they arrive | accepted |
+| [0042](adr/0042-merged-collection-in-the-local-library.md) | Sync by default, merge by itself, and show the merged collection in this computer's library | superseded by 0101 |
+| [0043](adr/0043-batched-sync-and-progressive-loading.md) | Sync many files per request, keep one copy file per device, and show songs as they arrive | superseded by 0101 |
 | [0044](adr/0044-glue-home-tauri-tray-app.md) | GLUE Home is a Tauri tray app; the website sends songs to it over WebRTC | accepted; pairing and the device model refined by 0045 (companion, code only) |
 | [0045](adr/0045-glue-home-companion.md) | GLUE Home is the companion of the browser on its computer: code-only, streams its songs, updates itself | accepted |
 | [0046](adr/0046-glue-home-shares-analysis-and-sorts-incoming.md) | GLUE Home keeps and shares the analyses; TO BE SORTED lists its incoming folder | accepted |
@@ -150,7 +150,7 @@ Planned (GLUE):
 | [0074](adr/0074-events-calendar.md) | Events: a calendar, each event with a folder of playlists; reminders in GLUE and from GLUE Home | accepted |
 | [0075](adr/0075-drop-outs-under-a-wall.md) | Drop-outs under a wall tell an encoder's lowpass from a mastering one (amends 0069) | accepted |
 | [0076](adr/0076-songs-stream-by-range.md) | Songs stream by byte range: the local link in Home mode, a service worker for other computers | accepted |
-| [0077](adr/0077-library-on-any-device.md) | A device without a library of its own opens the account's library from GLUE Cloud, and plays it | accepted |
+| [0077](adr/0077-library-on-any-device.md) | A device without a library of its own opens the account's library from GLUE Cloud, and plays it | superseded by 0101 |
 | [0078](adr/0078-phone-layout.md) | On a narrow screen the library is a phone app: tabs, two-line rows, menus as sheets, a mini and full player | accepted |
 | [0079](adr/0079-touch-layout-and-playlists-by-touch.md) | Every touch device gets the touch layout, and manages playlists there: folders, select, drag to reorder, remove with Undo | accepted |
 | [0080](adr/0080-play-on-elements-a-tap-unlocked.md) | Songs play on audio elements a tap has unlocked (iOS), and failures say what the browser said | accepted |
@@ -160,7 +160,7 @@ Planned (GLUE):
 | [0084](adr/0084-playback-first-on-the-link-to-glue-home.md) | Playback first on the link to GLUE Home; failures say why | accepted |
 | [0085](adr/0085-waveforms-from-glue-home.md) | Other computers' songs get their waveforms from GLUE Home too | accepted |
 | [0086](adr/0086-covers-looked-up-by-glue-home.md) | GLUE Home looks up missing covers on public services | accepted |
-| [0087](adr/0087-edits-reach-glue-home.md) | Other computers' songs can be edited; the owner's GLUE Home takes the edits in | accepted |
+| [0087](adr/0087-edits-reach-glue-home.md) | Other computers' songs can be edited; the owner's GLUE Home takes the edits in | superseded by 0101 |
 | [0088](adr/0088-aiff-streams-as-wav.md) | Another computer's AIFF songs stream, as WAV worked out a piece at a time | accepted |
 | [0089](adr/0089-edits-only-against-their-own-collection.md) | Edits are worked out only against the collection they came from; mass deletions are asked | accepted |
 | [0090](adr/0090-bin-guarded-re-reads-daily-backups.md) | A bin for playlists, guarded DJ-library re-reads, daily backups | accepted |
@@ -174,3 +174,4 @@ Planned (GLUE):
 | [0098](adr/0098-duplicates-across-computers.md) | Duplicates across computers: each computer publishes its own matches | accepted |
 | [0099](adr/0099-dj-libraries-belong-to-their-computer.md) | In a shared collection, a DJ library belongs to its computer | accepted |
 | [0100](adr/0100-one-row-per-song-and-own-copies.md) | One row per song, its best copy; a computer removes only its own copies | accepted |
+| [0101](adr/0101-cloud-sync-is-the-accounts-collections.md) | Cloud sync on means every collection is the account's; one sync only | accepted |

@@ -13,7 +13,6 @@
   import { readPref, writePref } from '../../lib/prefs';
   import { auto } from '../../lib/auto.svelte';
   import { app } from '../../lib/app.svelte';
-  import { sync } from '../../lib/sync.svelte';
   import { sendTracks } from '../../lib/sendToHome.svelte';
   import { menu } from '../../lib/menu.svelte';
   import { trackMenu } from '../../lib/trackMenu';
@@ -121,30 +120,20 @@
 <svelte:window onkeydown={foldKey} />
 
 <div class="lib">
-  {#if !lib.cloud}<NeedsMusic />{/if}
-  {#if lib.cloud}
-    <div class="cloudbar" id="cloud-banner" role="status">
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7.2a3 3 0 0 0 .4-6 4.2 4.2 0 0 0-8.1 1.2 2.4 2.4 0 0 0 .5 4.8z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
-      <span><b>{lib.cloud.title}</b> · {lib.cloud.subtitle}{#if lib.cloud.updatedAt}{' · synced ' + new Date(lib.cloud.updatedAt).toLocaleString()}{/if}
-        <small>From GLUE Cloud. Ratings, notes, tags and playlists you change here reach {lib.cloud.kind === 'group' ? 'each device' : lib.cloud.title} the next time GLUE opens there. The music itself stays on {lib.cloud.kind === 'group' ? 'those computers' : 'that computer'}.</small></span>
-      <button type="button" class="mini" id="leave-cloud" onclick={() => lib.leaveCloudView()}>{lib.profile ? 'Back to this computer' : 'Close'}</button>
-    </div>
-  {:else}
+  <NeedsMusic />
   <div class="colbar">
     <select aria-label="Collection" id="collection-pick" value={lib.store?.meta.id} onchange={e => { const v = e.currentTarget.value; if (v === '__new') { e.currentTarget.value = lib.store?.meta.id ?? ''; newCollection(); } else if (v.startsWith('__join:')) { e.currentTarget.value = lib.store?.meta.id ?? ''; void shared.join(v.slice(7)); } else void lib.openCollection(v); }}>
       {#each lib.profile?.collections ?? [] as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
-      <!-- The account's shared collections this computer doesn't have yet (ADR 0094). -->
-      {#each shared.missing() as c (c.id)}<option value={'__join:' + c.id}>Add “{c.name}” (shared{c.stats?.tracks ? ', ' + c.stats.tracks.toLocaleString() + ' songs' : ''})</option>{/each}
+      <!-- The account's collections this computer doesn't have yet (ADR 0101). -->
+      {#each shared.missing() as c (c.id)}<option value={'__join:' + c.id}>Add “{c.name}” (your account{c.stats?.tracks ? ', ' + c.stats.tracks.toLocaleString() + ' songs' : ''})</option>{/each}
       <option value="__new">+ New collection…</option>
     </select>
-    {#if lib.store?.shared}<span class="shared" id="shared-chip" class:busy={shared.status.busy} title={shared.status.error ? 'Not synced: ' + shared.status.error : shared.status.at ? 'The same on all your devices · synced ' + new Date(shared.status.at).toLocaleTimeString() : 'The same on all your devices'}>{shared.status.busy ? 'Syncing…' : shared.status.error ? 'Shared · not synced' : 'Shared'}</span>
-    {:else if account.signedIn && !lib.readOnly && shared.moveTarget()}{@const to = shared.moveTarget()!}<button type="button" class="mini" id="move-shared" title="The devices this collection is merged with share “{to.name}” now: one copy for all" onclick={() => { if (confirm('Move this collection into the shared “' + to.name + '”? Its songs, playlists and analyses join it (the same songs become one). A backup is made first, and the old collection is kept in your GLUE folder.')) void shared.moveInto(to.id); }}>Move into shared “{to.name}”</button>
-    {:else if account.signedIn && !lib.readOnly}<button type="button" class="mini" id="share-collection" title="One copy for all your devices: the same songs, playlists and edits everywhere" onclick={() => { if (confirm('Share “' + (lib.store?.meta.name ?? 'this collection') + '” across your devices? Each device then shows the same songs and playlists, and changes made on any of them reach the others.')) void shared.share().catch(err => (lib.notice = 'Couldn’t share it: ' + (err as Error).message)); }}>Share</button>{/if}
+    {#if lib.store?.shared}<span class="shared" id="shared-chip" class:busy={shared.status.busy} title={shared.status.error ? 'Not synced: ' + shared.status.error : shared.status.at ? 'The same on all your devices · synced ' + new Date(shared.status.at).toLocaleTimeString() : 'The same on all your devices'}>{shared.status.busy ? 'Syncing…' : shared.status.error ? 'Not synced' : 'Synced'}</span>
+{/if}
     <button type="button" class="mini" title="Rename collection" onclick={renameCollection}>✎</button>
     <button type="button" class="mini" id="stats-btn" title="Stats of this collection" aria-label="Stats of this collection" onclick={() => (view.statsFor = { title: lib.profile?.collections.find(c => c.id === lib.store?.meta.id)?.name ?? 'This collection', sel: { kind: 'all' } })}><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 12.5V7.5M5.3 12.5V3M8.7 12.5V5.5M12 12.5V1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
     <button type="button" class="mini" title="Delete collection" onclick={deleteCollection}>×</button>
   </div>
-  {/if}
   <div class="headbar">
     <button type="button" class="sidetog" id="side-toggle" aria-pressed={folded} title={folded ? 'Show the sidebar (Ctrl+B)' : 'Hide the sidebar, for more columns (Ctrl+B)'} aria-label={folded ? 'Show the sidebar' : 'Hide the sidebar'} onclick={() => fold()}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.5v11" stroke="currentColor" stroke-width="1.3"/>{#if !folded}<path d="M2.8 5h1.9M2.8 7h1.9M2.8 9h1.9" stroke="currentColor" stroke-width="1.1"/>{/if}</svg>
@@ -154,10 +143,8 @@
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks">
     <FilterMenu />
     {/if}
-    {#if sync.busy}<span class="cloudload" id="cloud-loading" role="status"><span class="spin"></span>{sync.busy}</span>
-    {:else if incoming.busy}<span class="cloudload" id="incoming-loading" role="status"><span class="spin"></span>{incoming.busy}</span>{/if}
+    {#if incoming.busy}<span class="cloudload" id="incoming-loading" role="status"><span class="spin"></span>{incoming.busy}</span>{/if}
     {#if current}<button type="button" class="ibtn" class:on={showInsights} id="insights-btn" aria-pressed={showInsights} title="Length, tempo, keys and tags of this playlist" onclick={toggleInsights}>Insights</button>{/if}
-    {#if !lib.cloud}
     <div class="an" title="Tracks are analysed in the background, several at a time">
       {#if lib.analysis.running}
         <span class="spin"></span> Analysing · {pending} left
@@ -172,7 +159,7 @@
         <input type="checkbox" id="auto-analyse" checked={!lib.analysis.paused} onchange={e => lib.pauseAnalysis(!e.currentTarget.checked)}><span class="knob" aria-hidden="true"></span> Background analysis
       </label>
     </div>
-    {/if}
+    
   </div>
 
   {#if lib.job}
@@ -251,7 +238,7 @@
               {#each folders?.list ?? [] as f (f.id)}<option value={f.id}>{f.name} ({f.collection})</option>{/each}
             </select>
           {/if}
-          {#if !lib.cloud}<button type="button" class="mini opt2" id="remove-tracks" disabled={!sel.length} onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.' + removeNote())) { void lib.removeTracks(withCopies(sel)); view.selected = new Set(); } }}>Remove from collection</button>{/if}
+          <button type="button" class="mini opt2" id="remove-tracks" disabled={!sel.length} onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.' + removeNote())) { void lib.removeTracks(withCopies(sel)); view.selected = new Set(); } }}>Remove from collection</button>
           <button type="button" class="mini more" id="sel-more" disabled={!sel.length} title="Everything you can do with the selected songs (also on right-click)" aria-haspopup="menu" onclick={e => selMenu(e.currentTarget)}>⋯</button>
         </div>
         {#if dock.available}<button type="button" class="mini dockbtn" id="drag-dock" data-drop="dock" class:hot={drag.active && drag.target?.type === 'dock'} title="Show GLUE Home's drag dock. Songs and playlists go in by dragging them onto it (or onto this button), or with “+ Dock”; then drag them from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}
@@ -269,10 +256,6 @@
   /* Floats above the player bar: an in-flow banner would shift the table (and cancel a drag). */
   .toast { position: fixed; right: clamp(16px, 3vw, 32px); bottom: 76px; z-index: 25; max-width: min(560px, calc(100vw - 32px)); box-shadow: 0 8px 28px rgb(0 0 0 / .45); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
   .colbar { display: flex; gap: 6px; align-items: center; }
-  .cloudbar { display: flex; gap: 12px; align-items: center; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: var(--radius); padding: 8px 12px; font-size: 13.5px; }
-  .cloudbar svg { width: 20px; height: 20px; color: var(--accent); flex: none; }
-  .cloudbar span { flex: 1; min-width: 0; display: grid; }
-  .cloudbar small { color: var(--muted); font-size: 12px; }
   .colbar select, .selbar select { background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; font-size: 13px; }
   .colbar select { font-weight: 700; }
   .crumb { background: none; border: 0; padding: 0 8px 0 0; color: var(--accent); font: inherit; font-size: .75em; font-weight: 600; cursor: pointer; }

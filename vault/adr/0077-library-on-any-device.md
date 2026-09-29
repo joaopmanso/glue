@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0101 (its “nothing is made on the device”)
 date: 2026-09-28
 ---
 # 0077. A device without a library of its own opens the account's library from GLUE Cloud, and plays it

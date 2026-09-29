@@ -61,7 +61,7 @@ class DjWatch {
   /** Live following is GLUE Home's (the user's choice): in the browser alone, "Refresh" does it. */
   async look() {
     const s = lib.store;
-    if (this.busy || !s || !platform.homeMode() || document.hidden || lib.cloud || lib.readOnly || lib.phase !== 'library') return;
+    if (this.busy || !s || !platform.homeMode() || document.hidden || lib.readOnly || lib.phase !== 'library') return;
     this.busy = true;
     try {
       for (const src of [...s.sources.values()]) {

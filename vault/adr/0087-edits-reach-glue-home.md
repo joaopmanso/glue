@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0101
 date: 2026-09-28
 ---
 # 0087. Other computers' songs can be edited; the owner's GLUE Home takes the edits in

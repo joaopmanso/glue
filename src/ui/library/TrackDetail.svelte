@@ -73,7 +73,7 @@
 
   let phase = $state<'loading' | 'ready' | 'need-access' | 'no-file' | 'remote' | 'error'>('loading');
   // Another device's track (a merged collection or a cloud view): its file isn't on this computer.
-  const elsewhere = $derived(track?.remote?.name ?? (lib.cloud ? track?.onDevices?.join(' and ') || lib.cloud.title : null));
+  const elsewhere = $derived(track?.remote?.name ?? null);
   let message = $state('');
   let stored = $state(false);        // showing the analysis kept from an earlier visit
   let canPlay = $state(true);        // false: a stored analysis is shown but the file isn't readable yet
@@ -108,14 +108,14 @@
       }
       remoteNote = ''; return;
     }
-    if (t.remote || lib.cloud) { if (!ask) { phase = 'remote'; return; } }
+    if (t.remote) { if (!ask) { phase = 'remote'; return; } }
     if (t.remote && lib.canRead(t)) {
       phase = 'loading';
       try { const file = await lib.fileFor(t); if (id !== t.id) return; await analyzeFile(file, key); if (app.error) { phase = 'error'; message = app.error.message; return; } stored = false; canPlay = true; phase = 'ready'; }
       catch (e) { phase = 'error'; message = (e as Error).message || String(e); }
       return;
     }
-    if (t.remote || lib.cloud) { phase = 'remote'; return; }
+    if (t.remote) { phase = 'remote'; return; }
     if (!fresh) {
       const kept = await lib.trackDetails(t);
       if (id !== t.id) return;
@@ -230,7 +230,7 @@ canPlay = true;
       <!-- The full analysis below shows the verdict; until then (or for another computer's song) it's here. -->
       <div class="hacts">
         {#if summary && !summary.error && (!(phase === 'ready' && app.phase === 'result') || summary.label === MARKED_FINE)}<span class="q" data-grade={summary.grade} id="track-verdict" title={summary.headline}>{summary.label}</span>{/if}
-        {#if raw && !raw.error && raw.grade !== 'ok' && !track.remote && !lib.cloud}
+        {#if raw && !raw.error && raw.grade !== 'ok' && !track.remote}
           {#if summary?.label === MARKED_FINE}<button type="button" class="edit" id="undo-fine" disabled={lib.readOnly} title={'Show GLUE’s verdict again: ' + raw.label} onclick={() => lib.markFine([id], false)}>Undo</button>
           {:else}<button type="button" class="edit" id="not-a-problem" disabled={lib.readOnly} title="A false alarm: show this song as fine in the library (while GLUE’s verdict stays this one)" onclick={() => lib.markFine([id], true)}>Not a problem</button>{/if}
         {/if}

@@ -285,7 +285,7 @@ export class CollectionStore {
 
   private serialize(p: string): unknown {
     const m = this.shared;
-    if (p === 'collection.json') { if (!m) return this.meta; m.meta = collectionShared(this.meta, m.here.me, m.meta, m.member); m.here = { ...m.here, members: m.meta.members, rootsBy: m.meta.rootsBy }; return m.meta; }
+    if (p === 'collection.json') { if (!m) return this.meta; m.meta = collectionShared(this.meta, m.here.me, m.meta, m.member, [...m.tracks.values()].some(t => !!t.copies?.[m.here.me])); m.here = { ...m.here, members: m.meta.members, rootsBy: m.meta.rootsBy }; return m.meta; }
     if (p === 'events.json') return { schemaVersion: SCHEMA, items: Object.fromEntries(this.events) };
     const [dir, file] = p.split('/'), key = file.replace(/\.json$/, '');
     if (dir === 'tracks' || dir === 'analysis') {

@@ -7,11 +7,11 @@
   interface Stats {
     users: { total: number; byTier: Record<string, number>; byProvider: Record<string, number>; new7: number; new30: number; active7: number; signups: number[] };
     devices: { byKind: Record<string, number>; revoked: number; seen24h: number };
-    sync: { profiles: number; files: number; bytes: number; merges: number; pendingEdits: number };
-    housekeeping: { expiredCodes: number; expiredSessions: number; attempts: number; oldEdits: number };
+    cloud: { collections: number; files: number; bytes: number };
+    housekeeping: { expiredCodes: number; expiredSessions: number; attempts: number };
     at: number;
   }
-  interface AdminUser { id: string; email: string | null; name: string | null; tier: Tier; createdAt: number; providers: string[]; devices: number; lastSeen: number | null; bytes: number; profiles: number }
+  interface AdminUser { id: string; email: string | null; name: string | null; tier: Tier; createdAt: number; providers: string[]; devices: number; lastSeen: number | null; bytes: number; collections: number }
 
   /** Every sign-in (ADR 0091): devices hold music, sessions only browse. */
   interface AdminSession { id: string; kind: 'browser' | 'home'; role: 'device' | 'browse'; name: string; platform: string | null; createdAt: number; lastSeen: number | null; email: string | null; userName: string | null }
@@ -73,8 +73,7 @@
         <div class="card"><span class="label">New</span><b>{stats.users.new7}</b><small>this week · {stats.users.new30} in 30 days</small></div>
         <div class="card"><span class="label">Active</span><b>{stats.users.active7}</b><small>users seen this week · {stats.devices.seen24h} devices in 24 h</small></div>
         <div class="card"><span class="label">Devices</span><b>{Object.values(stats.devices.byKind).reduce((a, b) => a + b, 0)}</b><small>{Object.entries(stats.devices.byKind).map(([k, n]) => n + ' ' + (k === 'home' ? 'GLUE Home' : k)).join(' · ')}</small></div>
-        <div class="card"><span class="label">Cloud data</span><b>{fmtBytes(stats.sync.bytes)}</b><small>{stats.sync.profiles} synced profiles · {stats.sync.files.toLocaleString()} files</small></div>
-        <div class="card"><span class="label">Merges · edits</span><b>{stats.sync.merges} · {stats.sync.pendingEdits}</b><small>merged collections · edits waiting</small></div>
+        <div class="card"><span class="label">Cloud data</span><b>{fmtBytes(stats.cloud.bytes)}</b><small>{stats.cloud.collections} collections · {stats.cloud.files.toLocaleString()} files</small></div>
         <div class="card"><span class="label">Sign-in</span><b>{Object.values(stats.users.byProvider).reduce((a, b) => a + b, 0)}</b><small>{Object.entries(stats.users.byProvider).map(([p, n]) => n + ' ' + p).join(' · ')}</small></div>
         <div class="card wide"><span class="label">Sign-ups, last 30 days</span>
           <svg class="spark" viewBox="0 0 300 50" preserveAspectRatio="none" role="img" aria-label="Sign-ups per day">
@@ -123,7 +122,7 @@
                 {#each ['free', 'paid', 'admin'] as t (t)}<option value={t}>{t}</option>{/each}
               </select></td>
               <td class="n">{u.devices}</td>
-              <td class="n">{u.bytes ? fmtBytes(u.bytes) + ' · ' + u.profiles : '—'}</td>
+              <td class="n">{u.bytes ? fmtBytes(u.bytes) + ' · ' + u.collections : '—'}</td>
               <td>{ago(u.lastSeen)}</td>
               <td>{new Date(u.createdAt).toLocaleDateString()}</td>
               <td class="acts">
@@ -162,7 +161,6 @@
         <button type="button" class="mini" onclick={() => maint('codes', 'Removed used and expired pairing codes')}>Pairing codes ({stats.housekeeping.expiredCodes})</button>
         <button type="button" class="mini" onclick={() => maint('sessions', 'Removed expired sessions')}>Expired sessions ({stats.housekeeping.expiredSessions})</button>
         <button type="button" class="mini" onclick={() => maint('attempts', 'Reset rate limits')}>Rate limits ({stats.housekeeping.attempts})</button>
-        <button type="button" class="mini" onclick={() => maint('old-edits', 'Removed edits older than 90 days')}>Edits older than 90 days ({stats.housekeeping.oldEdits})</button>
         <button type="button" class="mini" onclick={() => maint('revoked-devices', 'Removed devices revoked over 30 days ago')}>Devices removed 30+ days ago ({stats.devices.revoked})</button>
       </div>
       <p class="muted small">Stats from {new Date(stats.at).toLocaleString()}.</p>

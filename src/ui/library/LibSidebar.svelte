@@ -427,7 +427,7 @@
     <div class="head" class:menued={menued('sec:library')} oncontextmenu={e => onMenu(e, 'sec:library', () => secMenu('library'), 'Section')}>{@render secHead('library', 'Library')}<span class="add">{@render maxBtn('library')}</span></div>
     {#if sidebar.open('library')}
     <ul>
-      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length + lib.copies.size]].filter(([k]) => !sidebar.hidden.has(k as LibView)) as [k, label, n] (k)}
+      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length]].filter(([k]) => !sidebar.hidden.has(k as LibView)) as [k, label, n] (k)}
         <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} class:menued={menued('v:' + k)} data-view={k} onclick={() => view.select({ kind: k } as ViewSel)}
           oncontextmenu={e => onMenu(e, 'v:' + k, () => libMenu(k as ViewSel['kind'], String(label)), String(label))}>{label}<span class="n">{n ?? ''}</span></button></li>
         {#if k === 'all'}
@@ -462,7 +462,7 @@
       {#if !top.length}<li class="empty">No playlists yet. Create one, or import a DJ library.</li>{/if}
       {#if drag.active && drag.payload?.kind === 'list'}<li class="topzone" class:on={drag.target?.type === 'top'} data-drop="top">Move to the top level</li>{/if}
     </ul>
-    {#if !lib.cloud}<button type="button" class="binlink" id="open-bin" title="Playlists and folders deleted in the last 30 days" onclick={() => (view.binOpen = true)}>Recently deleted</button>{/if}
+    <button type="button" class="binlink" id="open-bin" title="Playlists and folders deleted in the last 30 days" onclick={() => (view.binOpen = true)}>Recently deleted</button>
     {/if}
   </section>
 
@@ -496,7 +496,6 @@
     {/if}
   </section>
 
-  {#if !lib.cloud}
   <section class:max={sidebar.focus === 'music'}>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="head" class:menued={menued('sec:music')} oncontextmenu={e => onMenu(e, 'sec:music', () => secMenu('music'), 'Section')}>
@@ -609,7 +608,7 @@
     </details>
     {/if}
   </section>
-  {/if}
+  
   {#if account.signedIn}<DevicesSection />{/if}   <!-- also in a cloud library: a phone sends songs to a GLUE Home from here (ADR 0077) -->
 </nav>
 

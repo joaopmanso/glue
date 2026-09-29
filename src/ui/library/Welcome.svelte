@@ -11,7 +11,9 @@
   import Homepage from './Homepage.svelte';
   import { account } from '../../lib/account.svelte';
   import { anywhere } from '../../lib/anywhere.svelte';
-  import { sync, syncOn as profileSyncs } from '../../lib/sync.svelte';
+  import { shared } from '../../lib/shared.svelte';
+  /** Cloud sync: on unless turned off for the profile (ADR 0042, 0101). */
+  const profileSyncs = (p: { cloudSync?: boolean } | null | undefined) => !!p && p.cloudSync !== false;
   import { readPref, writePref } from '../../lib/prefs';
   import { HOME_DOWNLOADS, homeOs, homePairLink } from '../../lib/homeApp';
   import { localHome } from '../../lib/localHome.svelte';
@@ -93,8 +95,7 @@
     try { if (canKeepFiles()) await lib.addFiles(await pickAudioFiles()); } catch (e) { if ((e as DOMException).name !== 'AbortError') lib.notice = (e as Error).message; }
     lib.onboarding = null;
   }
-  // Cloud sync per profile (ADR 0040): read from each profile's file.
-  // On unless turned off (ADR 0042).
+  // Cloud sync per profile, read from each profile's file: on, its collections are the account's (ADR 0101).
   let syncOn = $state<Record<string, boolean>>({});
   $effect(() => {
     const ps = lib.home?.index.profiles ?? [];
@@ -103,11 +104,10 @@
   async function toggleSync(pid: string) {
     if (!account.signedIn) { lib.notice = 'Sign in with Google (GLUE Cloud, below) to turn on Cloud sync.'; document.getElementById('cloud-panel')?.scrollIntoView({ behavior: 'smooth' }); return; }
     if (syncOn[pid]) {
-      if (!confirm('Turn off Cloud sync for this profile? It stops uploading; its cloud copy stays until you delete it (GLUE Cloud, below).')) return;
+      if (!confirm('Turn off Cloud sync for this profile? This computer keeps its collections and stops syncing them; your account keeps its copy until you delete it (GLUE Cloud, below).')) return;
       await lib.setProfileSync(pid, false); syncOn = { ...syncOn, [pid]: false };
     } else {
       await lib.setProfileSync(pid, true); syncOn = { ...syncOn, [pid]: true };
-      void sync.push(pid).catch(() => {});
     }
   }
   const ago = (t: number | null) => { if (!t) return ''; const m = Math.round((Date.now() - t) / 60e3); return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
@@ -254,9 +254,9 @@
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5v1h11v-1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Backup
               </button>
               <button type="button" class="syncbtn" class:on={syncOn[p.id] && account.signedIn} data-sync={p.id} aria-pressed={!!syncOn[p.id] && account.signedIn}
-                title={sync.status[p.id]?.error ? 'Cloud sync: ' + sync.status[p.id].error : syncOn[p.id] ? 'Cloud sync is on: this profile’s data (not the music) is kept in GLUE Cloud' : 'Keep this profile’s data in GLUE Cloud, to see it from any browser'} onclick={() => toggleSync(p.id)}>
+                title={syncOn[p.id] ? 'Cloud sync is on: this profile’s collections are your account’s, the same on every device (never the music)' : 'Make this profile’s collections your account’s, the same on every device you sign in to'} onclick={() => toggleSync(p.id)}>
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7.2a3 3 0 0 0 .4-6 4.2 4.2 0 0 0-8.1 1.2 2.4 2.4 0 0 0 .5 4.8z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
-                {syncOn[p.id] && account.signedIn ? (sync.status[p.id]?.busy ? 'Syncing…' : sync.status[p.id]?.error ? 'Sync problem' : sync.status[p.id]?.at ? 'Synced ' + ago(sync.status[p.id].at) : 'Cloud sync on') : 'Cloud sync'}
+                {syncOn[p.id] && account.signedIn ? (lib.profile?.id === p.id && shared.status.busy ? 'Syncing…' : lib.profile?.id === p.id && shared.status.error ? 'Sync problem' : lib.profile?.id === p.id && shared.status.at ? 'Synced ' + ago(shared.status.at) : 'Cloud sync on') : 'Cloud sync'}
               </button>
               <label class="bpmr" title="How BPMs show in the library: as detected, folded into half-time (60–120) or full (120–240). A track can be flipped on its Prepare tab.">BPM
                 <select data-bpm-range={p.id} value={bpmRanges[p.id] ?? ''} onchange={e => { const v = e.currentTarget.value as '' | 'half' | 'full'; bpmRanges[p.id] = v || undefined; void lib.setBpmRange(p.id, v || undefined); }}>

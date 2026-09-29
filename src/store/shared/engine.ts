@@ -71,6 +71,7 @@ export async function pull(p: Place, st?: State): Promise<{ state: State; change
   const changed: string[] = [], clashes: Clash[] = [];
   for (let more = true; more;) {
     const c = await p.cloud.changes(s.cursor);
+    if (!Array.isArray(c?.files) || typeof c.seq !== 'number') throw new Error('GLUE Cloud answered strangely');
     more = c.more;
     const todo = c.files.filter(f => SYNCED.test(f.path) && s.files[f.path]?.rev !== f.rev);
     // Their contents, many at a time.
@@ -135,6 +136,7 @@ export async function push(p: Place, st?: State): Promise<{ state: State; pushed
         lines.push(line); batch.push(f); n += line.length; i++;
       }
       const r = await p.cloud.push(lines.join('\n'));
+      if (!Array.isArray(r?.stored) || !Array.isArray(r?.stale)) throw new Error('GLUE Cloud answered a push strangely');
       for (const f of batch) {
         if (r.stored.includes(f.path) && r.rev != null) { s.files[f.path] = { rev: r.rev, hash: f.hash, text: f.text }; pushed++; }
         if (r.stale.includes(f.path)) stale = true;

@@ -68,7 +68,7 @@ class Incoming {
     return (this.running = this.ask().finally(() => { this.running = null; if (this.again) { this.again = false; void this.refresh(); } }));
   }
   private async ask() {
-    if (!lib.store || lib.cloud) { this.show(new Map()); return; }
+    if (!lib.store) { this.show(new Map()); return; }
     const next = new Map<string, IncomingFile[]>();
     const local = localHome.link;
     const homes = account.signedIn ? account.devices.filter(d => d.kind === 'home' && account.online.has(d.id) && d.id !== local?.home) : [];
@@ -89,7 +89,7 @@ class Incoming {
   }
   /** Home mode: when this computer's incoming folder changed, scan it again and show the list. */
   private async watchHere() {
-    if (!homeMode() || !lib.store || lib.cloud || !localHome.link) return;
+    if (!homeMode() || !lib.store || !localHome.link) return;
     const l = await localHome.get<IncomingFile[]>('/incoming').catch(() => null);
     if (!l) { void localHome.check(); return; }
     const seen = l.map(f => f.name + '|' + f.size + '|' + f.mtime).sort().join('\n');
@@ -188,7 +188,5 @@ export const incoming = new Incoming();
 // the browser's own; a request that can't reach it has it checked at once.
 localHome.onChange = up => void (up ? lib.enterHomeMode() : lib.leaveHomeMode());
 onHomeDown(() => void localHome.check());
-// Other devices' songs were laid over again (new rows): mark those that are also waiting here again.
-lib.onOverlay = () => { if (incoming.files.size) queueMicrotask(() => incoming.reshow()); };
 // The incoming folder was scanned (Home mode): its songs are TO BE SORTED now.
 lib.onIncoming = () => incoming.reshow();

@@ -1,8 +1,11 @@
-/* The shared collection in this tab (ADR 0094): the open collection, when it's shared, synced with its
-   one copy in GLUE Cloud (store/shared/engine): after each save, when another device changed it (the
-   signaling room says so), when it opens, and every couple of minutes. Also making a collection shared,
-   and adding one of the account's shared collections to this computer. */
-import { sync } from './sync.svelte';   // its hooks first: this one chains onto them
+/* Cloud sync in this tab (ADR 0094, 0101): with cloud sync on, every collection is the account's, one copy
+   in GLUE Cloud (store/shared/engine), synced after each save, when another device changed it (the
+   signaling room says so), when it opens, and every couple of minutes.
+   - A collection that isn't the account's yet becomes it when it opens (in place, keeping its id), or,
+     when the account already has collections, a box asks once whether its songs go into one of them.
+   - Adding one of the account's collections to this computer (the collection menu, or by itself on a
+     device with no library of its own, lib/anywhere). */
+import { untrack } from 'svelte';
 import { account } from './account.svelte';
 import { lib } from './library.svelte';
 import { dupes } from './dupes.svelte';
@@ -15,12 +18,14 @@ import { mergeBoth, type Clash } from '../core/shared/merge3';
 export interface SharedInfo { id: string; name: string; seq: number; stats: { tracks?: number } | null; updatedAt: number }
 const EVERY = 120_000;
 
+const holdsMusic = () => { const s = lib.store; if (!s) return false; for (const t of s.tracks.values()) if (!t.remote && t.status === 'linked') return true; return false; };
 function cloudFor(cid: string): SharedCloud {
   const at = '/v1/shared/' + encodeURIComponent(cid);
   return {
     changes: since => account.request('GET', at + '/changes?since=' + since),
     bundle: paths => account.request<string>('POST', at + '/bundle', { json: { paths }, raw: true }),
-    push: body => account.request('POST', at + '/push', { text: body }),
+    // "music": this computer has songs of its own, so the sign-in is one of the account's devices (ADR 0091).
+    push: body => account.request('POST', at + '/push' + (holdsMusic() ? '?music=1' : ''), { text: body }),
   };
 }
 
@@ -41,11 +46,17 @@ class Shared {
     if (!s?.shared || !lib.homeHandle || !lib.profile || !me || !account.signedIn || lib.readOnly) return null;
     return { root: lib.homeHandle, pid: lib.profile.id, cid: s.meta.id, me, cloud: cloudFor(s.meta.id) };
   }
-  async refreshList() {
-    if (!account.signedIn) { this.list = []; return; }
-    const r = await account.request<{ collections?: SharedInfo[] }>('GET', '/v1/shared').catch(() => null);
-    this.list = Array.isArray(r?.collections) ? r.collections : [];
+  /** The account's collections, asked for again (one request at a time). Known once GLUE Cloud answered. */
+  refreshList(): Promise<void> {
+    if (!account.signedIn) { this.list = []; this.listed = false; return Promise.resolve(); }
+    return (this.listing ??= (async () => {
+      const r = await account.request<{ collections?: SharedInfo[] }>('GET', '/v1/shared').catch(() => null);
+      if (!account.signedIn) return;
+      this.list = Array.isArray(r?.collections) ? r.collections : [];
+      this.listed = !!r;
+    })().finally(() => { this.listing = null; }));
   }
+  private listing: Promise<void> | null = null;
   /** Shared collections of the account that this profile doesn't have yet. */
   missing() { const have = new Set(lib.profile?.collections.map(c => c.id) ?? []); return this.list.filter(c => !have.has(c.id)); }
 
@@ -86,29 +97,76 @@ class Shared {
   }
 
   /** Make the open collection shared: its files into the shared form, then up to GLUE Cloud. */
-  async share() {
+  async share(quiet = false) {
     const s = lib.store, p = lib.profile, me = this.me();
-    if (!s || !p || !lib.homeHandle || !me || s.shared) return;
+    if (!s || !p || !lib.homeHandle || !me || s.shared || this.sharing) return;
+    this.sharing = true;
+    try {
     const name = account.devices.find(d => d.id === me)?.name ?? 'This computer';
-    await account.request('POST', '/v1/shared', { json: { id: s.meta.id, name: s.meta.name } });
+    // GLUE Cloud keeps it first (and says so): until then, nothing here changes.
+    const made = await account.request<{ id?: string }>('POST', '/v1/shared', { json: { id: s.meta.id, name: s.meta.name } });
+    if (made?.id !== s.meta.id) throw new Error('GLUE Cloud didn’t keep it');
     // Closed first: a save still coming (the analysis of a song…) would write the old form over the new.
     await lib.closeCollection();
     try { await makeShared(lib.homeHandle, p.id, s.meta.id, me, { profile: p.id, name }); }
     finally { await lib.openCollection(s.meta.id); }   // reopened: seen through the shared form
     await this.sync();
     await this.refreshList();
-    lib.notice = '“' + s.meta.name + '” is shared: your other devices can add it (the collection menu), and see the same songs and playlists.';
+    if (!quiet) lib.notice = '“' + s.meta.name + '” is in your account now: every device you sign in to sees the same songs and playlists.';
+    } catch (e) {
+      const msg = 'Couldn’t sync “' + s.meta.name + '” with your account: ' + (e as Error).message;
+      if (quiet) this.status = { ...this.status, error: msg }; else lib.notice = msg;
+    }
+    finally { this.sharing = false; }
   }
-  /** The shared collection the open one was merged with on other devices (ADR 0040), for moving into. */
-  moveTarget(): SharedInfo | null {
-    const s = lib.store, g = sync.localGroup;
-    if (!s || s.shared || s.meta.movedTo || !g) return null;
-    const theirs = new Set(g.members.filter(m => m.device !== this.me()).map(m => m.collection));
-    return this.list.find(c => theirs.has(c.id)) ?? null;
+  private sharing = false;
+  /** The question for the open collection (the join box): this computer's collection, and the account's
+      it could go into (the one with the same name first, then the biggest). */
+  ask = $state<{ collection: string; name: string; tracks: number; into: SharedInfo[] } | null>(null);
+  private listed = false;
+  private notNow = new Set<string>();
+  /** Set while lib/anywhere adds the account's collections itself. */
+  hold = false;
+
+  /** With cloud sync on, the open collection is the account's (ADR 0101): made so when it isn't. */
+  async ensure() {
+    if (this.ensuring) return;
+    this.ensuring = true;
+    try { await this.ensureOnce(); } finally { this.ensuring = false; }
+  }
+  private ensuring = false;
+  private async ensureOnce() {
+    const s = lib.store, p = lib.profile;
+    if (this.hold) return;
+    if (!s || !p || s.shared || s.meta.movedTo || lib.readOnly || !account.signedIn || p.cloudSync === false || !lib.homeHandle || !this.me()) { if (!s?.shared) this.ask = null; return; }
+    // What the account has, as GLUE Cloud says (never guessed from a list not loaded yet).
+    if (this.listing || !this.listed) await this.refreshList();
+    if (!this.listed) return;
+    if (lib.store !== s || s.shared) return;
+    const here = new Set(p.collections.map(c => c.id));
+    if (this.list.some(c => c.id === s.meta.id)) { await this.share(true); return; }   // the account's already (its files come back in)
+    const into = this.list.filter(c => !here.has(c.id));
+    const empty = !s.tracks.size && !s.lists.size;
+    if (!into.length) { await this.share(true); return; }
+    const name = s.meta.name.trim().toLowerCase();
+    const order = [...into].sort((a, b) => Number(b.name.trim().toLowerCase() === name) - Number(a.name.trim().toLowerCase() === name) || (b.stats?.tracks ?? 0) - (a.stats?.tracks ?? 0));
+    // Nothing of its own yet (a new profile): it just becomes the account's collection.
+    if (empty) { await this.moveInto(order[0].id, { quiet: true }); return; }
+    if (this.notNow.has(s.meta.id)) return;
+    this.ask = { collection: s.meta.id, name: s.meta.name, tracks: s.tracks.size, into: order };
+  }
+  /** The join box's answer: into one of the account's collections, a collection of its own, or later. */
+  async answer(how: 'into' | 'own' | 'later', into?: string) {
+    const a = this.ask;
+    this.ask = null;
+    if (!a || lib.store?.meta.id !== a.collection) return;
+    if (how === 'later') { this.notNow.add(a.collection); return; }
+    if (how === 'own') await this.share();
+    else if (into) await this.moveInto(into);
   }
   /** Move the open collection into a shared one (ADR 0096): a backup first; the shared one here; this
       computer's songs, analyses, playlists and DJ libraries into it; the old one kept, no longer synced. */
-  async moveInto(id: string) {
+  async moveInto(id: string, opts: { quiet?: boolean } = {}) {
     const s = lib.store, p = lib.profile, me = this.me(), root = lib.homeHandle, c = this.list.find(x => x.id === id);
     if (!s || s.shared || !p || !me || !root || !lib.home || !c) return;
     const own = s.meta.id;
@@ -126,7 +184,7 @@ class Shared {
       await lib.home.saveProfile(p);
       lib.profile = { ...p };
       await lib.openCollection(id);
-      lib.notice = 'Moved into “' + c.name + '”: ' + st.matched.toLocaleString() + ' songs were already there, ' + st.added.toLocaleString() + ' came in; '
+      if (!opts.quiet) lib.notice = 'Put into “' + c.name + '”: ' + st.matched.toLocaleString() + ' songs were already there, ' + st.added.toLocaleString() + ' came in; '
         + (st.listsJoined + st.listsAdded).toLocaleString() + ' playlists and folders. A backup of the old one is in the GLUE folder’s backups.';
     } catch (e) { lib.notice = 'Couldn’t move it: ' + (e as Error).message; if (!lib.store) await lib.openCollection(own).catch(() => {}); }
     finally { this.status = { ...this.status, busy: false, at: Date.now() }; }
@@ -160,8 +218,12 @@ const prevFlushed = lib.onFlushed;
 lib.onFlushed = pid => { prevFlushed?.(pid); if (lib.store?.shared) { clearTimeout(flushTimer); flushTimer = window.setTimeout(() => void shared.sync(), 1500); } };
 let flushTimer = 0;
 const prevOpened = lib.onCollectionOpened;
-lib.onCollectionOpened = (pid, cid) => { prevOpened?.(pid, cid); shared.clashes = []; if (lib.store?.shared) void shared.sync(); };
+lib.onCollectionOpened = (pid, cid) => { prevOpened?.(pid, cid); shared.clashes = []; shared.ask = null; if (lib.store?.shared) void shared.sync(); else void shared.ensure(); };
 account.onShared(m => { if (lib.store?.shared && lib.store.meta.id === m.collection && m.from !== account.thisDevice) void shared.sync(); if (!lib.profile?.collections.some(c => c.id === m.collection)) void shared.refreshList(); });
 const prevSignedIn = account.onSignedIn;
-account.onSignedIn = () => { prevSignedIn?.(); void shared.refreshList(); if (lib.store?.shared) void shared.sync(); };
-if (typeof window !== 'undefined') shared.start();
+account.onSignedIn = () => { prevSignedIn?.(); void shared.refreshList().then(() => lib.store?.shared ? shared.sync() : shared.ensure()); };
+if (typeof window !== 'undefined') {
+  shared.start();
+  // Whenever what it depends on arrives (signed in, this device known, a collection open), in any order.
+  $effect.root(() => { $effect(() => { void account.signedIn; void account.thisDevice; void lib.profile?.cloudSync; const s = lib.store; if (s && !s.shared) untrack(() => void shared.ensure()); }); });
+}

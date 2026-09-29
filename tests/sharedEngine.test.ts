@@ -170,9 +170,10 @@ describe('a collection made shared, as each computer sees it (ADR 0094)', () => 
     await ds.reloadFiles(r.changed);
     expect(ds.tracks.get('aa01')).toMatchObject({ rating: 4, rootId: 'r1', relPath: 'Sets/a.mp3' });
     expect(ds.tracks.get('aa01')!.remote).toBeUndefined();
-    // The laptop is a member now; its analysis of nothing wasn't written as its own.
+    // The laptop, with no music folder, isn't a member (a computer holding copies); nothing of it was
+    // written as its own analysis either.
     const meta = await readJSON<{ members: Record<string, unknown> }>(deskRoot, `profiles/${dp.id}/collections/${dc.id}/collection.json`);
-    expect(Object.keys(meta!.members).sort()).toEqual(['desk', 'lap']);
+    expect(Object.keys(meta!.members).sort()).toEqual(['desk']);
     const an = await readJSON<{ items: Record<string, Record<string, unknown>> }>(deskRoot, `profiles/${dp.id}/collections/${dc.id}/analysis/aa.json`);
     expect(Object.keys(an!.items.aa01)).toEqual(['desk']);
   });

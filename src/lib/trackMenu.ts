@@ -67,7 +67,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
   if (!s || !ids.length) return [];
   const ts = ids.map(id => s.tracks.get(id)).filter((t): t is Track => !!t);
   if (!ts.length) return [];
-  const one = ts.length === 1 ? ts[0] : null, n = ts.length, cloud = !!lib.cloud;
+  const one = ts.length === 1 ? ts[0] : null, n = ts.length;
   const cur = view.sel.kind === 'list' ? s.lists.get(view.sel.id) ?? null : null;
   const inCur = cur ? ids.filter(id => cur.items.includes(id)).length : 0;
   const playable = ts.filter(t => lib.playsHere(t));
@@ -78,10 +78,10 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
   const lists = [...having.keys()].sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b)));
   const rating = ts.every(t => (t.rating ?? null) === (ts[0].rating ?? null)) ? ts[0].rating ?? null : null;
   const group = one ? dupes.groupOf.get(one.id) : undefined;
-  const needs = cloud ? 0 : ts.filter(t => lib.needsAnalysis(t)).length;
+  const needs = ts.filter(t => lib.needsAnalysis(t)).length;
   // Songs GLUE cautions about (or suspects): they can be marked fine.
   const flagged = ts.filter(t => { const a = s.analysis.get(t.id); return !t.remote && a && !a.error && a.grade !== 'ok'; });
-  const homes = cloud ? [] : sendTargets();
+  const homes = sendTargets();
   const sortHome = view.sel.kind === 'list' && view.sel.id === TO_BE_SORTED ? incoming.sourceOf(ids[0])?.home : undefined;
   const sortable = !!sortHome && ids.every(id => incoming.sourceOf(id)?.home === sortHome);
   const path = one ? absolutePath(one) : null;
@@ -102,7 +102,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     !opts.inQueue && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(ids, 'end') },
     SEP,
     one && { label: 'Open details', hint: 'Enter', attrs: { 'data-m': 'details' }, run: () => router.go(trackHref(one.id, 'details')) },
-    one && { label: 'Prepare (grid, cues, loops)', attrs: { 'data-m': 'prepare' }, disabled: one.status !== 'linked' || cloud, title: one.status !== 'linked' ? 'Needs its file' : undefined, run: () => router.go(trackHref(one.id, 'prepare')) },
+    one && { label: 'Prepare (grid, cues, loops)', attrs: { 'data-m': 'prepare' }, disabled: one.status !== 'linked', title: one.status !== 'linked' ? 'Needs its file' : undefined, run: () => router.go(trackHref(one.id, 'prepare')) },
     SEP,
     {
       label: 'Add to playlist', find: 'Find a playlist', attrs: { 'data-m': 'add' },
@@ -138,8 +138,8 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     { label: 'Edit info…', hint: one ? 'F2' : undefined, attrs: { 'data-m': 'info' }, disabled: !ts.some(t => lib.canEditInfo(t)), title: !lib.readOnly && !ts.some(t => lib.canEditInfo(t)) ? 'Songs waiting in TO BE SORTED are edited once they’re in a music folder' : undefined, run: () => (view.infoFor = { ids }) },
     { label: 'Tags…', attrs: { 'data-m': 'tags', 'data-tags-open': '' }, run: () => (view.tagFor = { ids, x: at.x, y: at.y }) },
     { label: 'Genre…', hint: one?.genre || undefined, attrs: { 'data-m': 'genre', 'data-genre-open': '' }, disabled: !ts.some(t => lib.canEditInfo(t)), run: () => (view.genreFor = { ids, x: at.x, y: at.y }) },
-    !cloud && flagged.length > 0 && flagged.some(t => t.markedFine !== s.analysis.get(t.id)!.label) && { label: 'Not a problem (mark fine)', hint: n > 1 ? String(flagged.length) : undefined, attrs: { 'data-m': 'fine' }, title: 'A false alarm: show as fine while GLUE’s verdict stays the same', run: () => lib.markFine(flagged.map(t => t.id), true) },
-    !cloud && flagged.some(t => t.markedFine === s.analysis.get(t.id)!.label) && { label: 'Show GLUE’s verdict again', attrs: { 'data-m': 'unfine' }, run: () => lib.markFine(flagged.map(t => t.id), false) },
+    flagged.length > 0 && flagged.some(t => t.markedFine !== s.analysis.get(t.id)!.label) && { label: 'Not a problem (mark fine)', hint: n > 1 ? String(flagged.length) : undefined, attrs: { 'data-m': 'fine' }, title: 'A false alarm: show as fine while GLUE’s verdict stays the same', run: () => lib.markFine(flagged.map(t => t.id), true) },
+    flagged.some(t => t.markedFine === s.analysis.get(t.id)!.label) && { label: 'Show GLUE’s verdict again', attrs: { 'data-m': 'unfine' }, run: () => lib.markFine(flagged.map(t => t.id), false) },
     one && { label: one.notes ? 'Edit note…' : 'Add a note…', attrs: { 'data-m': 'note' }, run: () => (view.noteFor = { id: one.id, x: at.x + 320, y: at.y }) },
     opts.only && {
       label: (view.filters[opts.only.group].includes(opts.only.value) ? 'Stop showing only ' : 'Show only ') + opts.only.label, attrs: { 'data-m': 'only' },
@@ -173,7 +173,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
       ]),
     },
     SEP,
-    !cloud && {
+    {
       label: 'Remove from collection…', danger: true, attrs: { 'data-m': 'remove' },
       run: () => {
         if (!confirm('Remove ' + (one ? 'this song' : 'these ' + n + ' songs') + ' from the collection and all its playlists? Files on disk aren’t touched; songs in a music folder come back on the next scan.' + removeNote())) return;

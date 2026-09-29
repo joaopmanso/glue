@@ -235,14 +235,14 @@ export function valuesOf(g: FilterGroup, r: Row): string[] {
   const tags = tagsOf(r.t);
   return tags.length ? tags : [NO_TAGS];
 }
-/** The devices that have a track (a merged collection shows several; ADR 0042). */
+/** The computers that have a track (a shared collection's song can be on several, ADR 0094). */
 export function devicesOf(t: Track): string[] {
-  return t.onDevices?.length ? t.onDevices : [lib.devicesShown[0] ?? 'This computer'];
+  return t.onDevices?.length ? t.onDevices : [t.remote?.name ?? lib.store?.shared?.member.name ?? 'This computer'];
 }
 /** More than one device's songs on screen: the Device column and filter mean something. */
 export function manyDevices(): boolean {
   // TO BE SORTED (lib/incoming) always says which computer a song waits on.
-  return lib.devicesShown.length > 1 || lib.cloud?.kind === 'group' || (view.sel.kind === 'list' && view.sel.id === 'tobesorted');
+  return Object.keys(lib.store?.shared?.here.members ?? {}).length > 1 || (view.sel.kind === 'list' && view.sel.id === 'tobesorted');
 }
 /** What the Quality filter groups by: GLUE's verdict, or why there's none. */
 export function qualityOf(r: Row): string {

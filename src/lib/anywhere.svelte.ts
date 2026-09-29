@@ -1,15 +1,13 @@
 /* GLUE on a device without a library of its own (a phone, someone else's computer), signed in (ADR 0077,
-   the user's list 2026-09-28): the account's library opens by itself, from GLUE Cloud. Nothing is made on
-   the device: no GLUE folder, no collection. Its songs stream from the computers that have them, and
-   playlist, tag and rating edits go to those computers (ADR 0040).
+   0101): the account's collections open by themselves. They're kept in the browser's own storage (a GLUE
+   folder there, made for it), opened and edited there, and synced like on any device. Songs stream from
+   the computers that have them. The device stays a session, not one of the account's devices (ADR 0091).
 
    "No library of its own": no GLUE folder chosen (the start page), or only an empty one in the browser's
-   storage (made before this existed). The collection opened is the one opened last here, else the
-   biggest merged collection, else the biggest collection of any device. */
+   storage. The collection opened is the one opened last here, else the biggest. */
 import { lib } from './library.svelte';
 import { account } from './account.svelte';
-import { sync, type Group, type Member } from './sync.svelte';
-import { readPref } from './prefs';
+import { shared } from './shared.svelte';
 
 class Anywhere {
   /** Opening now (the start page says so). */
@@ -19,46 +17,48 @@ class Anywhere {
   constructor() {
     $effect.root(() => {
       $effect(() => {
-        void lib.phase; void account.signedIn; void sync.remote; void lib.version;
-        this.check();
+        void lib.phase; void account.signedIn; void shared.list; void lib.version;
+        void this.check();
       });
     });
   }
 
   /** This device has no library of its own. */
   private bare() {
-    if (lib.cloud) return false;
     if (lib.phase === 'welcome') return true;
-    // An empty library in the browser's own storage (a phone that started one before) doesn't count.
     if (lib.homeKind !== 'private') return false;
     const profiles = lib.home?.index.profiles.length ?? 0;
     if (lib.phase === 'profiles') return profiles === 0;
-    return lib.phase === 'library' && profiles <= 1 && !!lib.store && lib.store.tracks.size === 0;
+    const p = lib.profile, here = new Set(shared.list.map(c => c.id));
+    return lib.phase === 'library' && profiles <= 1 && !!p && p.collections.every(c => !here.has(c.id)) && !!lib.store && lib.store.tracks.size === 0;
   }
 
-  private check() {
+  private async check() {
     if (this.tried || !account.signedIn || !this.bare()) return;
-    if (!sync.remote.length) { if (!sync.loading) void sync.refresh().catch(() => {}); return; }
-    const pick = this.choose();
-    if (!pick) return;
+    if (!shared.list.length) { void shared.refreshList(); return; }
     this.tried = true;
-    this.opening = 'Opening your library from GLUE Cloud…';
-    void (pick.group ? sync.openGroup(pick.group) : sync.openDevice(pick.member!))
-      .catch(e => { lib.notice = 'Couldn’t open your library from GLUE Cloud: ' + (e as Error).message; })
-      .finally(() => { this.opening = ''; });
+    this.opening = 'Opening your library…';
+    shared.hold = true;
+    try {
+      if (lib.phase === 'welcome') await lib.usePrivateHome();
+      if (!lib.profile) {
+        const ps = lib.home?.index.profiles ?? [];
+        if (ps[0]) await lib.openProfile(ps[0].id);
+        else await lib.createProfile(account.user?.name || 'My library');
+        lib.onboarding = null;
+      }
+      const p = lib.profile;
+      if (!p) return;
+      // Every collection of the account, the biggest opened (joining opens it).
+      const empty = p.collections.filter(c => !shared.list.some(x => x.id === c.id)).map(c => c.id);
+      const order = [...shared.list].sort((a, b) => (b.stats?.tracks ?? 0) - (a.stats?.tracks ?? 0));
+      for (const c of [...order].reverse()) if (!lib.profile?.collections.some(x => x.id === c.id)) await shared.join(c.id);
+      // The empty collection a new profile starts with isn't needed.
+      for (const cid of empty) if (lib.store?.meta.id !== cid) await lib.deleteCollection(cid).catch(() => {});
+      if (order[0] && lib.store?.meta.id !== order[0].id) await lib.openCollection(order[0].id);
+    } catch (e) { lib.notice = 'Couldn’t open your library: ' + (e as Error).message; }
+    finally { this.opening = ''; shared.hold = false; }
   }
-
-  private choose(): { group?: Group; member?: Member } | null {
-    const last = readPref('cloudLibrary', '');
-    const size = (m: Member) => sync.remote.find(r => r.device.id === m.device && r.profile.id === m.profile)?.stats?.collections?.find(c => c.id === m.collection)?.tracks ?? 0;
-    const g = sync.groups.find(x => 'g:' + x.id === last) ?? [...sync.groups].sort((a, b) => b.members.reduce((n, m) => n + size(m), 0) - a.members.reduce((n, m) => n + size(m), 0))[0];
-    if (g && (last === '' || last === 'g:' + g.id || !last.startsWith('d:'))) return { group: g };
-    const all: Member[] = sync.remote.flatMap(r => (r.stats?.collections ?? []).map(c => ({ device: r.device.id, profile: r.profile.id, collection: c.id })));
-    const key = (m: Member) => 'd:' + m.device + '/' + m.profile + '/' + m.collection;
-    const m = all.find(x => key(x) === last) ?? all.sort((a, b) => size(b) - size(a))[0];
-    return m ? { member: m } : g ? { group: g } : null;
-  }
-
 }
 
 export const anywhere = new Anywhere();

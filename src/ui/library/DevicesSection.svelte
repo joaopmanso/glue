@@ -5,7 +5,6 @@
      ADR 0042). Rename or remove from ⋯; "+ GLUE Home" shows a pairing code for this computer's GLUE Home (ADR 0036, 0045).
      A GLUE Home that serves a browser shows on that browser's row. */
   import { account, type CloudDevice } from '../../lib/account.svelte';
-  import { sync } from '../../lib/sync.svelte';
   import { lib } from '../../lib/library.svelte';
   import { view, devicesOf, manyDevices } from '../../lib/view.svelte';
   import { deviceColor } from '../../lib/devices';
@@ -72,11 +71,9 @@
   });
   function songs(d: CloudDevice): number | null {
     if (shown.has(d.name)) return shown.get(d.name)!;
-    const rs = sync.remote.filter(r => r.device.id === d.id);
-    if (!rs.length) return d.id === account.thisDevice && lib.store && !lib.cloud ? lib.ownTracks().length : null;
-    return rs.reduce((n, r) => n + (r.stats?.collections ?? []).reduce((a, c) => a + c.tracks, 0), 0);
+    return d.id === account.thisDevice && lib.store ? lib.ownTracks().length : null;
   }
-  const syncedAt = (d: CloudDevice) => Math.max(0, ...sync.remote.filter(r => r.device.id === d.id).map(r => r.updatedAt)) || null;
+  const syncedAt = (_d: CloudDevice): number | null => null;
   const only = $derived(view.filters.device);
 
   /** ⋯ or right-click on a device (ADR 0067). */
@@ -134,7 +131,7 @@
       {@const n = songs(d)}
       {@const at = syncedAt(d)}
       {@const me = d.id === account.thisDevice}
-      {@const loading = !!sync.busy && sync.busy.includes(d.name)}
+      {@const loading = false}
       <li>
         <div class="item dev" data-device={d.id} class:sel={only.includes(d.name)} class:droppable={dropOn === d.id || (drag.target?.type === 'home' && drag.target.home === h?.id)} style:--c={deviceColor(d.name)} role="group" aria-label={d.name}
           data-drop={hOn ? 'home' : undefined} data-home={hOn ? h?.id : undefined}

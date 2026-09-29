@@ -183,109 +183,6 @@ describe('GLUE Cloud: pairing GLUE Home and devices', () => {
   });
 });
 
-describe('GLUE Cloud: sync and merged collections (ADR 0040)', () => {
-  const h = (c: string) => c.repeat(64);
-  const home = async (a: { json: Record<string, any> }, name: string) => {
-    const c = await call('POST', '/v1/pairing/claim', { code: (await call('POST', '/v1/pairing', {}, a.json.access)).json.code, name });
-    return (await call('POST', '/v1/auth/device', { deviceId: c.json.deviceId, token: c.json.token })).json.access as string;
-  };
-  it('uploads only what changed, removes what is gone, and any device of the account reads it back', async () => {
-    const laptop = await signIn();
-    const m1 = await call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'DJ Test' }, stats: { collections: [{ id: 'c1', name: 'My collection', tracks: 2 }] },
-      files: [{ path: 'profile.json', hash: h('a'), size: 10 }, { path: 'collections/c1/tracks/ab.json', hash: h('b'), size: 20 }] }, laptop.json.access);
-    expect(m1.json.need).toEqual(['profile.json', 'collections/c1/tracks/ab.json']);
-    for (const [p, hash] of [['profile.json', h('a')], ['collections/c1/tracks/ab.json', h('b')]]) {
-      expect((await call('PUT', '/v1/sync/file?profile=p1&path=' + encodeURIComponent(p) + '&hash=' + hash + '&size=10', 'H4sIAAAA' + p.length, laptop.json.access)).status).toBe(200);
-    }
-    // Next time: one file changed, one gone, one new.
-    const m2 = await call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'DJ Test' }, files: [{ path: 'profile.json', hash: h('c'), size: 11 }, { path: 'collections/c1/lists/x.json', hash: h('d'), size: 5 }] }, laptop.json.access);
-    expect(m2.json.need).toEqual(['profile.json', 'collections/c1/lists/x.json']);
-    // Another browser of the same account sees the laptop's profile and reads its files.
-    const desktop = await signIn({}, { deviceName: 'Chrome on Mac' });
-    const l = await call('GET', '/v1/sync', undefined, desktop.json.access);
-    expect(l.json.profiles).toHaveLength(1);
-    expect(l.json.profiles[0]).toMatchObject({ device: { id: laptop.json.deviceId }, profile: { id: 'p1', name: 'DJ Test' }, files: 2, stored: 1, complete: false });
-    const f = await call('GET', '/v1/sync/' + laptop.json.deviceId + '/p1', undefined, desktop.json.access);
-    expect(f.json.files.map((x: { path: string }) => x.path)).toEqual(['profile.json']);    // only stored files
-    expect((await call('GET', '/v1/sync/' + laptop.json.deviceId + '/p1/file?path=profile.json', undefined, desktop.json.access)).text).toBe('H4sIAAAA12');
-  });
-  it('uploads and reads many files per request (ADR 0043)', async () => {
-    const laptop = await signIn(), desktop = await signIn({}, { deviceName: 'Chrome on Mac' });
-    const files = Array.from({ length: 150 }, (_, i) => ({ path: 'collections/c1/tracks/' + i.toString(16).padStart(2, '0') + '.json', hash: h((i % 10).toString()), size: 30 }));
-    await call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'DJ' }, files: [...files, { path: 'collections/c1/lists/l1.json', hash: h('e'), size: 5 }] }, laptop.json.access);
-    const body = files.map((f, i) => f.path + '\t' + f.hash + '\t30\t' + 'QUFB'.repeat(i + 1)).join('\n');
-    const up = await call('POST', '/v1/sync/files?profile=p1', body, laptop.json.access);
-    expect(up.status).toBe(200);
-    expect(up.json.stored).toBe(150);
-    const list = await call('GET', '/v1/sync/' + laptop.json.deviceId + '/p1', undefined, desktop.json.access);
-    expect(list.json.files).toHaveLength(150);                                  // the list isn't uploaded yet
-    expect(list.json.files[3]).toMatchObject({ stored: 16 });
-    // In the order asked; files not stored are left out.
-    const want = ['collections/c1/lists/l1.json', files[5].path, files[0].path];
-    const b = await call('POST', '/v1/sync/' + laptop.json.deviceId + '/p1/bundle', { paths: want }, desktop.json.access);
-    expect(b.text.split('\n')).toEqual([files[5].path + '\t' + h('5') + '\t' + 'QUFB'.repeat(6), files[0].path + '\t' + h('0') + '\tQUFB']);
-    expect((await call('POST', '/v1/sync/' + laptop.json.deviceId + '/p1/bundle', { paths: ['../x'] }, desktop.json.access)).status).toBe(400);
-    expect((await call('POST', '/v1/sync/files?profile=p1', 'bad\tline', laptop.json.access)).status).toBe(400);
-    const other = await signIn({ sub: 'g-other' });
-    expect((await call('POST', '/v1/sync/' + laptop.json.deviceId + '/p1/bundle', { paths: want }, other.json.access)).status).toBe(404);
-  });
-  it('refuses bad paths, oversized files, uploads before a manifest, and other accounts', async () => {
-    const a = await signIn();
-    expect((await call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'x' }, files: [{ path: '../etc', hash: h('a'), size: 1 }] }, a.json.access)).status).toBe(400);
-    expect((await call('PUT', '/v1/sync/file?profile=nope&path=a.json&hash=' + h('a') + '&size=1', 'AAAA', a.json.access)).status).toBe(409);
-    await call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'x' }, files: [{ path: 'a.json', hash: h('a'), size: 1 }] }, a.json.access);
-    expect((await call('PUT', '/v1/sync/file?profile=p1&path=a.json&hash=' + h('a') + '&size=1', 'A'.repeat(1_800_001), a.json.access)).status).toBe(413);
-    const other = await signIn({ sub: 'g-other' });
-    expect((await call('GET', '/v1/sync/' + a.json.deviceId + '/p1', undefined, other.json.access)).status).toBe(404);
-    expect((await call('GET', '/v1/sync', undefined, other.json.access)).json.profiles).toEqual([]);
-  });
-  it('merges collections of two devices into one group, and undoes it', async () => {
-    const a = await signIn(), home1 = await home(a, 'Desktop');
-    const me = (await call('GET', '/v1/me', undefined, home1)).json.thisDevice;
-    const g = await call('POST', '/v1/sync/links', { name: 'Everything', members: [{ device: a.json.deviceId, profile: 'p1', collection: 'c1' }, { device: me, profile: 'p9', collection: 'c9' }] }, a.json.access);
-    expect(g.json.name).toBe('Everything');
-    let ls = (await call('GET', '/v1/sync/links', undefined, home1)).json.groups;
-    expect(ls).toHaveLength(1);
-    expect(ls[0].members).toHaveLength(2);
-    await call('POST', '/v1/sync/unlink', { member: { device: me, profile: 'p9', collection: 'c9' } }, a.json.access);
-    ls = (await call('GET', '/v1/sync/links', undefined, a.json.access)).json.groups;
-    expect(ls[0].members).toHaveLength(1);
-    await call('POST', '/v1/sync/unlink', { group: g.json.group }, a.json.access);
-    expect((await call('GET', '/v1/sync/links', undefined, a.json.access)).json.groups).toEqual([]);
-  });
-  it('cleans up: one profile, everything, and a removed device copy', async () => {
-    const a = await signIn();
-    const up = async (tok: string, pid: string) => { await call('POST', '/v1/sync/manifest', { profile: { id: pid, name: pid }, files: [{ path: 'a.json', hash: h('a'), size: 1 }] }, tok); await call('PUT', '/v1/sync/file?profile=' + pid + '&path=a.json&hash=' + h('a') + '&size=1', 'AAAA', tok); };
-    await up(a.json.access, 'p1'); await up(a.json.access, 'p2');
-    expect((await call('DELETE', '/v1/sync/' + a.json.deviceId + '/p1', undefined, a.json.access)).status).toBe(200);
-    expect((await call('GET', '/v1/sync', undefined, a.json.access)).json.profiles.map((p: { profile: { id: string } }) => p.profile.id)).toEqual(['p2']);
-    await call('DELETE', '/v1/sync', undefined, a.json.access);
-    expect((await call('GET', '/v1/sync', undefined, a.json.access)).json.profiles).toEqual([]);
-    const home1 = await home(a, 'NAS'), nas = (await call('GET', '/v1/me', undefined, home1)).json.thisDevice;
-    await up(home1, 'p3');
-    await call('DELETE', '/v1/devices/' + nas, undefined, a.json.access);
-    const left = await env.DB.prepare('SELECT COUNT(*) AS n FROM sync_files').first<{ n: number }>();
-    expect(left?.n).toBe(0);
-  });
-  it('queues edits for the device that owns the data; only that device acknowledges them', async () => {
-    const laptop = await signIn(), desktop = await signIn({}, { deviceName: 'Desktop browser' });
-    const q = await call('POST', '/v1/sync/ops', { ops: [
-      { device: desktop.json.deviceId, profile: 'p2', collection: 'c2', op: { t: 'track', id: 'd1', rating: 5 } },
-      { device: desktop.json.deviceId, profile: 'p2', collection: 'c2', op: { t: 'list-del', id: 'dq' } },
-    ] }, laptop.json.access);
-    expect(q.json.queued).toBe(2);
-    expect((await call('POST', '/v1/sync/ops', { ops: [{ device: desktop.json.deviceId, profile: 'p2', collection: 'c2', op: { t: 'rm -rf' } }] }, laptop.json.access)).status).toBe(400);
-    // The laptop can read them (to show its edits on top of the desktop's copy); the desktop applies them.
-    expect((await call('GET', '/v1/sync/ops?device=' + desktop.json.deviceId + '&profile=p2', undefined, laptop.json.access)).json.ops).toHaveLength(2);
-    const mine = await call('GET', '/v1/sync/ops?profile=p2', undefined, desktop.json.access);
-    expect(mine.json.ops.map((o: { op: { t: string } }) => o.op.t)).toEqual(['track', 'list-del']);
-    await call('POST', '/v1/sync/ops/ack', { profile: 'p2', upTo: mine.json.ops[1].seq }, laptop.json.access);   // not the laptop's to ack
-    expect((await call('GET', '/v1/sync/ops?profile=p2', undefined, desktop.json.access)).json.ops).toHaveLength(2);
-    await call('POST', '/v1/sync/ops/ack', { profile: 'p2', upTo: mine.json.ops[1].seq }, desktop.json.access);
-    expect((await call('GET', '/v1/sync/ops?profile=p2', undefined, desktop.json.access)).json.ops).toHaveLength(0);
-  });
-});
-
 describe('GLUE Cloud: email + password, tiers, admin (ADR 0041)', () => {
   const key = (s: string) => (s + '-'.repeat(43)).slice(0, 43);   // stands in for the browser's PBKDF2 output
   it('registers, signs in, refuses a wrong password and a second account for the same email', async () => {
@@ -318,26 +215,26 @@ describe('GLUE Cloud: email + password, tiers, admin (ADR 0041)', () => {
   });
   it('admin: statistics, users, tiers, clearing data, deleting accounts, maintenance', async () => {
     const boss = await signIn({ sub: 'g-boss', email: 'boss@example.com' }), dj = await signIn();
-    await call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'x' }, files: [{ path: 'a.json', hash: 'a'.repeat(64), size: 1 }] }, dj.json.access);
-    await call('PUT', '/v1/sync/file?profile=p1&path=a.json&hash=' + 'a'.repeat(64) + '&size=1', 'AAAA', dj.json.access);
+    await call('POST', '/v1/shared', { id: 'c1', name: 'x' }, dj.json.access);
+    await call('POST', '/v1/shared/c1/push', 'lists/a.json	0	' + 'a'.repeat(64) + '	1	AAAA', dj.json.access);
     const s = await call('GET', '/v1/admin/stats', undefined, boss.json.access);
     expect(s.json.users).toMatchObject({ total: 2, byTier: { admin: 1, paid: 1 }, byProvider: { google: 2 }, new7: 2 });
     expect(s.json.users.signups).toHaveLength(30);
     expect(s.json.users.signups[29]).toBe(2);
-    expect(s.json.sync).toMatchObject({ profiles: 1, files: 1, bytes: 4 });
+    expect(s.json.cloud).toMatchObject({ collections: 1, files: 1, bytes: 4 });
     // Every sign-in, with who and whether it only browses (ADR 0091); admins only.
     const ss = await call('GET', '/v1/admin/sessions', undefined, boss.json.access);
     expect(ss.json.sessions.map((x: { email: string; role: string }) => [x.email, x.role]).sort()).toEqual([['boss@example.com', 'browse'], ['dj@example.com', 'browse']]);
     expect((await call('GET', '/v1/admin/sessions', undefined, dj.json.access)).status).toBe(403);
     const us = await call('GET', '/v1/admin/users?q=dj@', undefined, boss.json.access);
     expect(us.json.users).toHaveLength(1);
-    expect(us.json.users[0]).toMatchObject({ email: 'dj@example.com', tier: 'paid', devices: 1, bytes: 4, providers: ['google'] });
+    expect(us.json.users[0]).toMatchObject({ email: 'dj@example.com', tier: 'paid', devices: 1, bytes: 4, collections: 1, providers: ['google'] });
     const id = us.json.users[0].id;
     expect((await call('PATCH', '/v1/admin/users/' + id, { tier: 'free' }, boss.json.access)).status).toBe(200);
     expect((await call('GET', '/v1/me', undefined, dj.json.access)).json.user.tier).toBe('free');
     expect((await call('PATCH', '/v1/admin/users/' + boss.json.user.id, { tier: 'paid' }, boss.json.access)).status).toBe(400);   // not yourself
     await call('DELETE', '/v1/admin/users/' + id + '/cloud', undefined, boss.json.access);
-    expect((await call('GET', '/v1/sync', undefined, dj.json.access)).json.profiles).toEqual([]);
+    expect((await call('GET', '/v1/shared', undefined, dj.json.access)).json.collections).toEqual([]);
     expect((await call('POST', '/v1/admin/maintenance', { task: 'attempts' }, boss.json.access)).status).toBe(200);
     expect((await call('DELETE', '/v1/admin/users/' + id, undefined, boss.json.access)).status).toBe(200);
     expect((await call('GET', '/v1/me', undefined, dj.json.access)).status).toBe(401);
@@ -371,7 +268,11 @@ describe('GLUE Cloud: the relay (ADR 0081)', () => {
 
 describe('computers and sessions (ADR 0091)', () => {
   const h = (c: string) => c.repeat(64);
-  const upload = (tok: string, tracks: number) => call('POST', '/v1/sync/manifest', { profile: { id: 'p1', name: 'DJ' }, stats: { collections: [{ id: 'c1', name: 'My collection', tracks }] }, files: [{ path: 'profile.json', hash: h('a'), size: 1 }] }, tok);
+  // A push to the account's collection, from a computer with songs of its own (music=1) or not.
+  const upload = async (tok: string, tracks: number, cid = 'c1') => {
+    await call('POST', '/v1/shared', { id: cid, name: 'My collection' }, tok);
+    return call('POST', '/v1/shared/' + cid + '/push' + (tracks ? '?music=1' : ''), 'lists/l.json	0	' + h('a') + '	1	AAAA', tok);
+  };
   const devices = async (tok: string) => (await call('GET', '/v1/me', undefined, tok)).json as { thisDevice: string; devices: { id: string; kind: string; role: string; companionOf: string | null }[]; sessions: { id: string }[] };
   it('a sign-in that only browses stays a session; one that uploads a collection with songs becomes a device', async () => {
     const phone = await signIn({}, { deviceName: 'Safari on iOS' });
@@ -405,7 +306,7 @@ describe('computers and sessions (ADR 0091)', () => {
   it('a browser with a library of its own isn’t joined into another; by hand, one with none is', async () => {
     const a = await signIn({}, { deviceName: 'Edge' }); await upload(a.json.access, 5);
     const b = await signIn({}, { deviceName: 'Firefox' });
-    await call('POST', '/v1/sync/manifest', { profile: { id: 'p9', name: 'Other' }, stats: { collections: [{ id: 'c9', name: 'X', tracks: 3 }] }, files: [{ path: 'profile.json', hash: h('b'), size: 1 }] }, b.json.access);
+    await upload(b.json.access, 3, 'c9');
     expect((await call('POST', '/v1/devices/' + a.json.deviceId + '/same-computer', {}, b.json.access)).status).toBe(409);
     const c = await signIn({}, { deviceName: 'Chrome' });
     expect((await call('POST', '/v1/devices/' + a.json.deviceId + '/same-computer', {}, c.json.access)).json).toEqual({ device: a.json.deviceId });

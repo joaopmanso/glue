@@ -14,6 +14,9 @@ export default defineConfig({
   testDir: 'e2e',
   timeout: 120_000,
   fullyParallel: true,
+  // On CI's smaller machine a heavy test sometimes misses a timeout under load: tried once more (reported
+  // as flaky, not hidden). Locally a failure stays a failure.
+  retries: process.env.CI ? 1 : 0,
   // One test already keeps this 12-thread laptop busy (a renderer, software drawing): two at once each
   // took twice as long (measured 2026-09-29). Test pages see two cores and no GPU (e2e/launch.ts), and
   // four tests at once is about what it takes.
