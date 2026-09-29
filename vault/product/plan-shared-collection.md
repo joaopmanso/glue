@@ -311,7 +311,7 @@ page, or from the tab on a computer without GLUE Home (while it's open), or with
 - **Tests:** `tests/cloud.test.ts` with a stubbed fetch to the analytics API; an e2e of the admin
   page.
 
-## Phase 7: remove what's no longer needed. Done 2026-09-29 in the code (ADR 0101); the old D1 tables wait for the user's go-ahead
+## Phase 7: remove what's no longer needed. Done 2026-09-29 in the code (ADR 0101); the old D1 tables stay until every user has moved over (the user, 2026-09-29)
 Once every device of the account is on the shared model, remove:
 - the overlay (`overlay.ts`, `applyOverlay`, `ephemeral` for other devices);
 - the cloud views (`openGroupNow`, `pointAt`, `enterCloudView`);
