@@ -10,6 +10,7 @@
    shows them as this computer sees them (core/shared/project). */
 import { type Dir, listNames, readText, removePath, subdir, writeText } from '../fsx';
 import { merge3, setAt, type Clash } from '../../core/shared/merge3';
+import type { PushPlan } from '../../core/shared/pace';
 
 export interface SharedCloud {
   changes(since: number): Promise<{ seq: number; more: boolean; files: { path: string; rev: number; hash: string; deleted: boolean; by?: string | null; at?: number }[] }>;
@@ -111,8 +112,9 @@ export async function pull(p: Place, st?: State): Promise<{ state: State; change
   return { state: s, changed, clashes };
 }
 
-/** Send what changed here. Stale files are pulled, merged and sent again (a few times at most). */
-export async function push(p: Place, st?: State): Promise<{ state: State; pushed: number; changed: string[]; clashes: Clash[] }> {
+/** Send what changed here (`only`: just these files, ADR 0105). Stale files are pulled, merged and sent
+    again (a few times at most). */
+export async function push(p: Place, st?: State, only?: Set<string>): Promise<{ state: State; pushed: number; changed: string[]; clashes: Clash[] }> {
   let s = st ?? await loadState(p);
   let pushed = 0;
   const changed: string[] = [], clashes: Clash[] = [];
@@ -124,6 +126,7 @@ export async function push(p: Place, st?: State): Promise<{ state: State; pushed
       if (!a || a.hash !== h) out.push({ path, base: a?.rev ?? 0, hash: h, text });
     }
     for (const [path, a] of Object.entries(s.files)) if (a.text != null && !local.has(path)) out.push({ path, base: a.rev, hash: '', text: null });
+    if (only) out.splice(0, out.length, ...out.filter(f => only.has(f.path)));
     if (!out.length) break;
     let stale = false;
     for (let i = 0; i < out.length;) {
@@ -150,10 +153,12 @@ export async function push(p: Place, st?: State): Promise<{ state: State; pushed
   return { state: s, pushed, changed, clashes };
 }
 
-/** Both ways: take in the cloud's changes, then send this side's. */
-export async function syncShared(p: Place): Promise<SyncResult> {
+/** Both ways: take in the cloud's changes, then send this side's (`send`: all of them, some, or none yet:
+    core/shared/pace). */
+export async function syncShared(p: Place, send: PushPlan = 'all'): Promise<SyncResult> {
   const a = await pull(p);
-  const b = await push(p, a.state);
+  if (send === 'none') return { changed: a.changed, clashes: a.clashes, pushed: 0 };
+  const b = await push(p, a.state, send === 'all' ? undefined : send);
   return { changed: [...new Set([...a.changed, ...b.changed])], clashes: [...a.clashes, ...b.clashes], pushed: b.pushed };
 }
 

@@ -8,7 +8,7 @@ import type { DetailsHeader } from '../../src/store/details';
 import * as cache from './cache';
 import * as lookup from './lookup';
 import { backupDaily } from './backups';
-import { syncSharedHere } from './sharedSync';
+import { syncSharedHere, edited as sharedEdited, pacing } from './sharedSync';
 import { followMoves } from './moves';
 import * as analysis from './analysis';
 import { describe, locateAll, newlyFound, trackPath } from './library';
@@ -346,9 +346,9 @@ function serve(dc: RTCDataChannel) {
 let finding: Promise<void> | null = null, again = false;
 let sharedTimer: ReturnType<typeof setTimeout> | undefined;
 /** Sync the shared collections in a moment (several nudges at once make one). */
-function sharedSoon() {
+function sharedSoon(ms = 1500) {
   clearTimeout(sharedTimer);
-  sharedTimer = setTimeout(() => { if (cfg?.running !== false && cfg) void syncSharedHere(cfg, apiOf(cfg)).then(n => { if (n) event('Took in ' + n + ' change' + (n === 1 ? '' : 's') + ' from your other devices'); }).catch(e => console.warn('GLUE Home: couldn’t sync the shared collections', e)); }, 1500);
+  sharedTimer = setTimeout(() => { if (cfg?.running !== false && cfg) void syncSharedHere(cfg, apiOf(cfg)).then(n => { if (n) event('Took in ' + n + ' change' + (n === 1 ? '' : 's') + ' from your other devices'); }).catch(e => console.warn('GLUE Home: couldn’t sync the shared collections', e)); }, ms);
 }
 
 async function findFolders() {
@@ -486,6 +486,11 @@ async function boot() {
   // lease and writes by itself): nothing the engine keeps may go stale meanwhile.
   engine.on.event = event;
   engine.on.changed = servedSoon;
+  // The user's edits go up to GLUE Cloud soon (a burst makes one push); the analysis's wait while it runs (ADR 0105).
+  // Bulk work (a scan, removing many songs) goes up once it's settled for 2 minutes.
+  let bulkUntil = 0;
+  engine.on.edited = (p, c, paths, bulk) => { if (bulk) bulkUntil = Date.now() + 120_000; else sharedEdited(p, c, paths); sharedSoon(5000); };
+  pacing.busy = () => Date.now() < bulkUntil || analysis.state.running > 0 || (analysis.state.left > 0 && !analysis.state.paused);
   setTimeout(() => void engine.runJobs(() => cfg), 10_000);
   setInterval(() => { void bridge.leaseHeld().then(held => { if (held) engine.forget(); else void engine.runJobs(() => cfg); }).catch(() => {}); }, 10_000);
   // This computer's songs analysed for the library (ADR 0103): soon after starting, then every minute.

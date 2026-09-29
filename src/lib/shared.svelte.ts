@@ -15,6 +15,7 @@ import { writeBlob } from '../store/fsx';
 import { moveCaches } from '../store/shared/caches';
 import { cacheDir } from '../platform';
 import { resolveClash, syncShared, waitingClashes, type Place, type SharedCloud } from '../store/shared/engine';
+import { PushPace } from '../core/shared/pace';
 import { mergeBoth, type Clash } from '../core/shared/merge3';
 
 /** deleteAfter: cloud sync was turned off and its account copy goes then (ADR 0102). */
@@ -63,6 +64,7 @@ class Shared {
     })().finally(() => { this.listing = null; }));
   }
   private listing: Promise<void> | null = null;
+  private pace = new PushPace(10 * 60e3);
   /** Shared collections of the account that this profile doesn't have yet. */
   missing() { const have = new Set(lib.profile?.collections.map(c => c.id) ?? []); return this.list.filter(c => !have.has(c.id)); }
 
@@ -77,7 +79,10 @@ class Shared {
     this.status = { ...this.status, busy: true, error: '' };
     try {
       await lib.flush();
-      const r = await syncShared(p);
+      // While this tab analyses, its changes go up at most every 10 minutes (ADR 0105).
+      const plan = this.pace.plan(Date.now(), lib.analysis.running > 0);
+      const r = await syncShared(p, plan);
+      this.pace.pushed(Date.now(), plan);
       if (lib.store !== s) return;
       if (r.changed.length) await s.reloadFiles(r.changed.filter(f => !f.startsWith('dupes/')));
       if (r.changed.some(f => f.startsWith('dupes/'))) void dupes.loadOthers();   // another computer's duplicates (ADR 0098)

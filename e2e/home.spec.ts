@@ -220,4 +220,8 @@ test('GLUE Home’s window says what it’s doing: the analysis, a pause button,
   await status({ ...base, paused: true, running: 0, current: [] }, []);
   await expect(page.locator('#an-state')).toHaveText('Paused · 118 songs to analyse');
   await expect(page.locator('#an-pause')).toHaveText('Resume analysis');
+  // Songs at a time: automatic unless set (ADR 0105).
+  await expect(page.locator('#an-workers option').first()).toHaveText(/^Automatic \(\d+\)$/);
+  await page.selectOption('#an-workers', '8');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config') ?? '{}').analysisWorkers)).toBe(8);
 });

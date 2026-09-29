@@ -115,7 +115,7 @@ async function scan(cfg: HomeConfig): Promise<Job[]> {
   return jobs.sort((x, y) => x.added.localeCompare(y.added));
 }
 
-/** Analyse what's to analyse, with cache.POOL workers; take the results in when GLUE Home is the writer. */
+/** Analyse what's to analyse, cache.poolSize songs at a time; take the results in when GLUE Home is the writer. */
 export async function run(cfg: () => HomeConfig | null): Promise<void> {
   await load();
   if (looping) return;
@@ -135,17 +135,23 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
       if (await bridge.leaseHeld() && Date.now() > delegatedUntil) { state.by = 'tab-self'; return null; }
       return queue.shift()!;
     };
+    // As many at a time as the settings say, changed while it runs too.
+    let live = 0;
+    const running: Promise<void>[] = [];
+    const spawn = () => { while (live < cache.poolSize(cfg())) { live++; running.push(worker().finally(() => { live--; })); } };
     const worker = async () => {
-      for (let j = await next(); j; j = await next()) {
+      for (let j = await next(); j; j = live > cache.poolSize(cfg()) ? null : await next()) {
         const c = cfg();
         if (!c) return;
         state.running++; state.current = [...state.current, j.name]; state.left = urgent.length + queue.length; changed();
         try { await cache.analyse(j.p, j.c, j.id, c); state.done++; } catch (e) { state.failed++; console.warn('GLUE Home: couldn’t analyse', j.name, e); }
         state.running--; state.current = state.current.filter(n => n !== j!.name); changed();
         if (++sinceWrite >= 25) { sinceWrite = 0; await write(c).catch(e => console.warn('GLUE Home: couldn’t take the analyses in', e)); }
+        spawn();
       }
     };
-    await Promise.all(Array.from({ length: cache.POOL }, worker));
+    spawn();
+    for (let n = 0; n < running.length; n = running.length) await Promise.all(running.slice(n));
     const c1 = cfg();
     if (c1) await write(c1).catch(e => console.warn('GLUE Home: couldn’t take the analyses in', e));
     if (!state.left && state.done) hooks.event?.('Analysis done: ' + state.done + ' song' + (state.done === 1 ? '' : 's') + (state.failed ? ', ' + state.failed + ' couldn’t be read' : ''));

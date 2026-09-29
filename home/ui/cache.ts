@@ -3,7 +3,7 @@
    (ADR 0085) and `d/…/<id>.json` + `.bin`.
    Filled by the website on this computer (it hands over what it analysed), and by GLUE Home itself
    with the website's own analysis code: in the background, and at once when another computer asks. */
-import { bridge, type HomeConfig } from './bridge';
+import { autoPool, bridge, type HomeConfig } from './bridge';
 import { shared, describe, here, trackPath } from './library';
 import { AnalysisPool } from '../../src/lib/pool';
 import { shardOf, type Collection, type Track } from '../../src/store/types';
@@ -31,8 +31,8 @@ export async function result(p: string, c: string, id: string): Promise<Analysed
 }
 /** Told of each song analysed here (lib: the library's queue of results to take in). */
 export const onAnalysed: { f: ((p: string, c: string, id: string) => void) | null } = { f: null };
-/** Workers: half this computer's cores, at most 4 (the same as a GLUE tab). */
-export const POOL = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
+/** Songs analysed at a time: as set in GLUE Home (Activity), else bridge.autoPool. */
+export const poolSize = (cfg: HomeConfig | null) => Math.max(1, Math.min(32, Math.round(cfg?.analysisWorkers || 0) || autoPool()));
 
 async function read(rel: string): Promise<Uint8Array | null> { try { return new Uint8Array(await bridge.cacheRead(rel)); } catch { return null; } }
 
@@ -125,13 +125,17 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig)
   const f = await trackPath(p, c, id, cfg);
   const size = await bridge.fileSize(f.path), parts: ArrayBuffer[] = [];
   for (let at = 0; at < size;) { const b = await bridge.fileRead(f.path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; }
-  pool ??= new AnalysisPool(POOL);
+  const want = poolSize(cfg);
+  if (pool && pool.size !== want) { const old = pool; pool = null; setTimeout(() => old.stop(), 150_000); }   // what runs there finishes
+  pool ??= new AnalysisPool(want);
   // A song that never finishes (it won't decode) mustn't hold up every other one: 2 minutes at most.
   const p0 = pool;
   let r: Awaited<ReturnType<AnalysisPool['analyze']>>;
   try {
     r = await Promise.race([p0.analyze(new File(parts, f.name, { lastModified: f.mtime }), f.mtime), new Promise<never>((_, no) => setTimeout(() => { p0.stop(); if (pool === p0) pool = null; no(new Error('the analysis took too long')); }, 120_000))]);
   } catch (e) {
+    // The worker ran out of memory (too many big songs at once): tried again later, not a failure.
+    if (/analysis worker stopped/.test(String((e as Error)?.message))) throw e;
     // Said once, like a GLUE tab says it: not tried again until the file changes.
     const msg = String((e as Error)?.message || 'It couldn’t be decoded.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'It couldn’t be decoded.');
     await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify({ summary: failed(msg, { size, mtime: f.mtime }), size, mtime: f.mtime, format: null, duration: null, fields: {} } satisfies Analysed)));

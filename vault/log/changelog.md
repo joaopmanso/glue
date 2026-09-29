@@ -1,9 +1,20 @@
 ---
-updated: 2026-09-28
+updated: 2026-09-29
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-09-29 · Fewer cloud writes, faster analysis (GLUE Home 0.30)
+- **Pushes to GLUE Cloud are paced** ([ADR 0105](../adr/0105-pace-cloud-pushes-and-analyse-more-at-once.md)).
+  - Before, each batch of 25 analysed songs re-sent ~50 whole files: about 90,000 rows written in a day,
+    against the free plan's 100,000.
+  - Now, while GLUE Home analyses (or right after a scan or a big removal), only the user's own edits go
+    up at once. The rest goes at most once an hour, and when the work ends.
+  - A tab without GLUE Home pushes at most every 10 minutes while it analyses.
+- **GLUE Home analyses more songs at once:** the computer's threads less 4, from 2 to 12 (it was at most
+  4). "Songs at a time" in GLUE Home's Activity sets it (1–24).
+- Tests: unit (the pacing; a push of some files, or none); e2e (the setting).
 
 ## 2026-09-29 · GLUE Home is the library's engine (GLUE Home 0.29)
 - **On a computer with GLUE Home, GLUE Home writes the library and the website is its screen**

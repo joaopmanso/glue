@@ -5,7 +5,7 @@
      received lately; the duplicates folder (ADR 0070). A desktop window: pages on the left, one pane
      that scrolls (2026-09-27). */
   import { onMount } from 'svelte';
-  import { API, WEBSITE, askYesNo, autostart, bridge, onPairLink, openFolder, openUrl, pickFolder, type Activity, type HomeConfig, type Status } from './bridge';
+  import { API, WEBSITE, askYesNo, autoPool, autostart, bridge, onPairLink, openFolder, openUrl, pickFolder, type Activity, type HomeConfig, type Status } from './bridge';
   import { claim, type Joined } from './cloud';
   import { collectionKey, describe, shared, type LibraryInfo } from './library';
   import { findUpdate, install, version } from './updates';
@@ -222,7 +222,14 @@
           <p class="fine">Analysed since GLUE Home started: {an.done.toLocaleString()}{an.failed ? ' · ' + an.failed + ' couldn’t be read' : ''}{an.waiting ? ' · ' + an.waiting.toLocaleString() + ' waiting to go into the library' + (an.by === 'tab' || an.by === 'tab-self' ? ' (the GLUE tab here takes them)' : '') : ''}</p>
           <div class="row">
             <button type="button" id="an-pause" onclick={() => void save({ analysisPaused: !cfg?.analysisPaused })}>{cfg?.analysisPaused ? 'Resume analysis' : 'Pause analysis'}</button>
+            <label>Songs at a time
+              <select id="an-workers" value={String(cfg?.analysisWorkers || 0)} onchange={e => void save({ analysisWorkers: Number((e.currentTarget as HTMLSelectElement).value) })}>
+                <option value="0">Automatic ({autoPool()})</option>
+                {#each [1, 2, 4, 6, 8, 12, 16, 24] as n (n)}<option value={String(n)}>{n}</option>{/each}
+              </select>
+            </label>
           </div>
+          <p class="fine">More at a time is faster and uses more of this computer’s processor and memory. Analysis runs on the processor, not the graphics card.</p>
         {:else}<p class="fine">Starting…</p>{/if}
         {#if status?.events?.length}
           <h3>Lately</h3>

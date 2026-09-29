@@ -13,8 +13,16 @@ import { writeUnwritten } from '../../src/store/writeInfo';
 import { syncShared, type SharedCloud } from '../../src/store/shared/engine';
 import { meFor, type SharedCollection } from '../../src/core/shared/project';
 import { INCOMING_ROOT } from '../../src/store/types';
+import { PushPace } from '../../src/core/shared/pace';
 
 let running: Promise<number> | null = null, again = false;
+/** When each collection's changes go up (ADR 0105): the user's edits at once; while GLUE Home analyses,
+    the rest at most once an hour. */
+const paces = new Map<string, PushPace>();
+const paceOf = (p: string, c: string) => paces.get(p + '/' + c) ?? paces.set(p + '/' + c, new PushPace()).get(p + '/' + c)!;
+export const edited = (p: string, c: string, paths: string[]) => paceOf(p, c).edited(paths);
+/** Is GLUE Home analysing (then only the user's edits go up at once)? */
+export const pacing: { busy: () => boolean } = { busy: () => false };
 export const sharedDone = { synced: 0, at: 0, error: '' };
 
 function cloudFor(api: string, token: () => Promise<string>, cid: string): SharedCloud {
@@ -62,7 +70,9 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
       const glue = disk.dir(roots.glue), r = roots;
       if (await bridge.leaseHeld()) return changed;   // a tab opened meanwhile: it's the writer now
       const place = { root: glue, pid: p.id, cid: c.id, me, cloud: cloudFor(api, token, c.id) };
-      const res = await syncShared(place);
+      const pace = paceOf(p.id, c.id), plan = pace.plan(Date.now(), pacing.busy());
+      const res = await syncShared(place, plan);
+      pace.pushed(Date.now(), plan);
       changed += res.changed.length;
       // What came in, into the engine's store (and a GLUE tab's feed).
       await engine.reload(cfg, p.id, c.id, res.changed);
@@ -76,7 +86,7 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
         return disk.tags(at, tr.relPath, tags);
       }, { stop: () => false });
       await s.flush();
-      await syncShared(place);
+      await syncShared(place, plan);
     }
     sharedDone.synced += changed; sharedDone.at = Date.now(); sharedDone.error = '';
   } catch (e) { sharedDone.error = (e as Error).message; throw e; }

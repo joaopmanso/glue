@@ -7,6 +7,10 @@ export const API = 'https://glue-api.joaopmanso.workers.dev';
 export const WEBSITE = 'https://joaopmanso.github.io/glue/';
 
 /** What GLUE Home keeps (config.json in the app's settings folder, readable by this user only). */
+/** Songs GLUE Home analyses at a time when not set: this computer's cores less 4 (some left for
+    everything else), 2 to 12. */
+export const autoPool = () => { const n = navigator.hardwareConcurrency || 4; return Math.max(Math.min(2, n), Math.min(12, n - 4)); };
+
 export interface HomeConfig {
   api?: string;
   /** The read-only token for a GLUE tab on this computer (ADR 0104): it reads, and asks the engine to change things. */
@@ -15,6 +19,8 @@ export interface HomeConfig {
   libraries?: unknown[];
   /** The analysis of this computer's songs is paused (ADR 0103): from the settings or a GLUE tab. */
   analysisPaused?: boolean;
+  /** Songs analysed at a time (0 or none: automatic, cache.autoPool). */
+  analysisWorkers?: number;
   deviceId: string | null;
   token: string | null;         // the device credential
   name: string;
