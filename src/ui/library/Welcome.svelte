@@ -103,12 +103,18 @@
   });
   async function toggleSync(pid: string) {
     if (!account.signedIn) { lib.notice = 'Sign in with Google (GLUE Cloud, below) to turn on Cloud sync.'; document.getElementById('cloud-panel')?.scrollIntoView({ behavior: 'smooth' }); return; }
-    if (syncOn[pid]) {
-      if (!confirm('Turn off Cloud sync for this profile? This computer keeps its collections and stops syncing them; your account keeps its copy until you delete it (GLUE Cloud, below).')) return;
-      await lib.setProfileSync(pid, false); syncOn = { ...syncOn, [pid]: false };
-    } else {
-      await lib.setProfileSync(pid, true); syncOn = { ...syncOn, [pid]: true };
-    }
+    if (syncOn[pid]) { offFor = pid; removeCloud = false; return; }   // asked first (the box below)
+    await shared.setSync(pid, true); syncOn = { ...syncOn, [pid]: true };
+  }
+  // Turning cloud sync off (ADR 0102): this computer keeps its collections; the account's copy stays, or
+  // goes in 30 days; only in this browser's storage, a copy can be downloaded first.
+  let offFor = $state<string | null>(null);
+  let removeCloud = $state(false);
+  async function turnOff() {
+    const pid = offFor;
+    offFor = null;
+    if (!pid) return;
+    await shared.setSync(pid, false, removeCloud); syncOn = { ...syncOn, [pid]: false };
   }
   const ago = (t: number | null) => { if (!t) return ''; const m = Math.round((Date.now() - t) / 60e3); return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
   const tracks = (m: BackupManifest) => m.collections.reduce((n, c) => n + c.tracks, 0);
@@ -341,7 +347,30 @@
   {#if busy}<p class="muted" role="status">{busy}</p>{/if}
 </section>
 
+{#if offFor}
+  <div class="offscrim" role="presentation"></div>
+  <div class="offbox" role="dialog" aria-modal="true" aria-labelledby="sync-off-h" id="sync-off">
+    <h3 id="sync-off-h">Turn off cloud sync?</h3>
+    <p>This {lib.homeKind === 'private' ? 'browser' : 'computer'} keeps its collections {lib.homeKind === 'private' ? 'in its own storage' : 'in its GLUE folder'} and stops syncing them. Your other devices keep theirs.</p>
+    {#if lib.homeKind === 'private'}
+      <p>They're only in this browser's storage: <button type="button" class="link" id="sync-off-download" onclick={() => offFor && void backup(offFor)}>download a copy (.zip)</button> to keep them safe, or choose a GLUE folder on the start page and restore it there.</p>
+    {/if}
+    <label class="chk"><input type="checkbox" id="sync-off-remove" bind:checked={removeCloud}> Also delete your account's copy from GLUE Cloud in 30 days (turning cloud sync on again, on any device, cancels it)</label>
+    <div class="acts">
+      <button type="button" class="btn" id="sync-off-go" onclick={() => void turnOff()}>Turn off</button>
+      <button type="button" class="mini" onclick={() => (offFor = null)}>Cancel</button>
+    </div>
+  </div>
+{/if}
+
 <style>
+  .offscrim { position: fixed; inset: 0; z-index: 80; background: rgb(0 0 0 / .5); }
+  .offbox { position: fixed; z-index: 81; left: 50%; top: 20vh; transform: translateX(-50%); width: min(500px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: grid; gap: 12px; box-shadow: 0 20px 50px rgb(0 0 0 / .5); font-size: 14px; color: var(--ink-2); }
+  .offbox h3 { margin: 0; color: var(--ink); font-size: 17px; }
+  .offbox p { margin: 0; }
+  .offbox .chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
+  .offbox .chk input { flex: none; width: 16px; height: 16px; padding: 0; margin-top: 2px; accent-color: var(--accent); }
+  .offbox .acts { display: flex; gap: 10px; align-items: center; }
   .opening { display: flex; align-items: center; gap: 10px; justify-content: center; padding: 14px; margin: 0 0 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-2)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); font-size: 14px; }
   .opening .spin { width: 14px; height: 14px; border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; animation: turn .8s linear infinite; }
   @keyframes turn { to { transform: rotate(360deg); } }

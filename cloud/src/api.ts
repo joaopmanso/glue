@@ -99,7 +99,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     // The shared collection (ADR 0094): one copy for all the account's devices.
     if (m === 'GET' && path === '/v1/shared') return reply(await shared.list(env, a));
     if (m === 'POST' && path === '/v1/shared') return reply(await shared.create(env, a, await body(), now, randomId));
-    const sh = /^\/v1\/shared\/([\w-]+)(\/changes|\/bundle|\/push|\/bin)?$/.exec(path);
+    const sh = /^\/v1\/shared\/([\w-]+)(\/changes|\/bundle|\/push|\/bin|\/leave)?$/.exec(path);
     if (sh) {
       const cid = sh[1];
       if (m === 'GET' && sh[2] === '/changes') return reply(await shared.changes(env, a, cid, Number(url.searchParams.get('since') ?? 0)));
@@ -112,6 +112,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
         return reply(await shared.push(env, a, cid, await req.text(), now, notify));
       }
       if (m === 'GET' && sh[2] === '/bin') return reply(await shared.bin(env, a, cid, now));
+      if (m === 'POST' && sh[2] === '/leave') return reply(await shared.leave(env, a, cid, await body(), now));
       if (m === 'DELETE' && !sh[2]) return reply(await shared.remove(env, a, cid));
     }
     if (m === 'DELETE' && path === '/v1/me') {

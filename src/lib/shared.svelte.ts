@@ -12,10 +12,13 @@ import { dupes } from './dupes.svelte';
 import { makeShared, moveInto } from '../store/shared/seed';
 import { buildBackup } from '../store/backup';
 import { writeBlob } from '../store/fsx';
+import { moveCaches } from '../store/shared/caches';
+import { cacheDir } from '../platform';
 import { resolveClash, syncShared, waitingClashes, type Place, type SharedCloud } from '../store/shared/engine';
 import { mergeBoth, type Clash } from '../core/shared/merge3';
 
-export interface SharedInfo { id: string; name: string; seq: number; stats: { tracks?: number } | null; updatedAt: number }
+/** deleteAfter: cloud sync was turned off and its account copy goes then (ADR 0102). */
+export interface SharedInfo { id: string; name: string; seq: number; stats: { tracks?: number } | null; updatedAt: number; deleteAfter?: number | null }
 const EVERY = 120_000;
 
 const holdsMusic = () => { const s = lib.store; if (!s) return false; for (const t of s.tracks.values()) if (!t.remote && t.status === 'linked') return true; return false; };
@@ -43,7 +46,8 @@ class Shared {
   private me() { return account.thisDevice; }
   private place(): Place | null {
     const s = lib.store, me = this.me();
-    if (!s?.shared || !lib.homeHandle || !lib.profile || !me || !account.signedIn || lib.readOnly) return null;
+    // Cloud sync off for the profile: its collections stay here as they are, and aren't synced (ADR 0102).
+    if (!s?.shared || !lib.homeHandle || !lib.profile || lib.profile.cloudSync === false || !me || !account.signedIn || lib.readOnly) return null;
     return { root: lib.homeHandle, pid: lib.profile.id, cid: s.meta.id, me, cloud: cloudFor(s.meta.id) };
   }
   /** The account's collections, asked for again (one request at a time). Known once GLUE Cloud answered. */
@@ -184,11 +188,25 @@ class Shared {
       await lib.home.saveProfile(p);
       lib.profile = { ...p };
       await lib.openCollection(id);
+      // Its waveforms, analyses, fingerprints and covers come along (in the background: thousands of files).
+      void cacheDir().then(d => d && moveCaches(d, own, id, st.ids)).then(() => { lib.version++; }).catch(e => console.warn('GLUE: the caches didn’t follow the collection', e));
       if (!opts.quiet) lib.notice = 'Put into “' + c.name + '”: ' + st.matched.toLocaleString() + ' songs were already there, ' + st.added.toLocaleString() + ' came in; '
         + (st.listsJoined + st.listsAdded).toLocaleString() + ' playlists and folders. A backup of the old one is in the GLUE folder’s backups.';
     } catch (e) { lib.notice = 'Couldn’t move it: ' + (e as Error).message; if (!lib.store) await lib.openCollection(own).catch(() => {}); }
     finally { this.status = { ...this.status, busy: false, at: Date.now() }; }
     await this.sync();
+  }
+
+  /** Cloud sync turned off (or on again) for a profile (ADR 0102): its collections in the account are kept, or
+      go in 30 days (`remove`); turning it on again cancels that. */
+  async setSync(pid: string, on: boolean, remove = false) {
+    await lib.setProfileSync(pid, on);
+    if (!account.signedIn) return;
+    const p = lib.profile?.id === pid ? lib.profile : await lib.profileInfo(pid);
+    const mine = new Set(p?.collections.map(c => c.id) ?? []);
+    for (const c of this.list) if (mine.has(c.id) && (on || remove || c.deleteAfter)) await account.request('POST', '/v1/shared/' + encodeURIComponent(c.id) + '/leave', { json: { remove: !on && remove } }).catch(() => {});
+    await this.refreshList();
+    if (on) void this.ensure();
   }
 
   /** Add one of the account's shared collections to this profile, and open it. */

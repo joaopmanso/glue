@@ -24,8 +24,8 @@ async function own(env: Env, a: Access, cid: string) {
 
 /** The account's shared collections. */
 export async function list(env: Env, a: Access) {
-  const rows = (await env.DB.prepare('SELECT id, name, seq, stats, created_by, created_at, updated_at FROM shared_collections WHERE user_id = ? ORDER BY updated_at DESC').bind(a.sub).all<{ id: string; name: string; seq: number; stats: string | null; created_by: string | null; created_at: number; updated_at: number }>()).results;
-  return { collections: rows.map(r => ({ id: r.id, name: r.name, seq: r.seq, stats: r.stats ? JSON.parse(r.stats) : null, createdBy: r.created_by, createdAt: r.created_at, updatedAt: r.updated_at })) };
+  const rows = (await env.DB.prepare('SELECT id, name, seq, stats, created_by, created_at, updated_at, delete_after FROM shared_collections WHERE user_id = ? ORDER BY updated_at DESC').bind(a.sub).all<{ id: string; name: string; seq: number; stats: string | null; created_by: string | null; created_at: number; updated_at: number; delete_after: number | null }>()).results;
+  return { collections: rows.map(r => ({ id: r.id, name: r.name, seq: r.seq, stats: r.stats ? JSON.parse(r.stats) : null, createdBy: r.created_by, createdAt: r.created_at, updatedAt: r.updated_at, deleteAfter: r.delete_after })) };
 }
 
 /** Make one (a collection's own id keeps its local folder's name). Making it again is fine. */
@@ -40,6 +40,7 @@ export async function create(env: Env, a: Access, b: { id?: unknown; name?: unkn
 /** What changed since `since` (metadata only): the collection's revision and each changed file. */
 export async function changes(env: Env, a: Access, cid: string, since: number) {
   const c = await own(env, a, cid);
+  await keep(env, a, cid);
   const rows = (await env.DB.prepare('SELECT path, rev, hash, size, deleted_at, updated_by, updated_at FROM shared_files WHERE user_id = ? AND collection_id = ? AND rev > ? ORDER BY rev LIMIT ?').bind(a.sub, cid, Math.max(0, since | 0), MAX_CHANGES + 1).all<Omit<Row, 'data'>>()).results;
   const more = rows.length > MAX_CHANGES, files = rows.slice(0, MAX_CHANGES);
   // A partial answer's cursor is the last revision it has, so the next ask carries on from there.
@@ -88,7 +89,7 @@ export async function push(env: Env, a: Access, cid: string, text: string, now: 
   const tier = (await env.DB.prepare('SELECT tier FROM users WHERE id = ?').bind(a.sub).first<{ tier: string }>())?.tier ?? 'free';
   if ((used?.n ?? 0) + rows.reduce((s, r) => s + (r.data?.length ?? 0), 0) > (MAX_BYTES[tier] ?? MAX_BYTES.free)) throw new SyncError(507, 'cloud storage for this account is full');
   // The revision of this push, taken at once: two pushes never share one, so no pull misses a file.
-  const rev = (await env.DB.prepare('UPDATE shared_collections SET seq = seq + 1, updated_at = ? WHERE user_id = ? AND id = ? RETURNING seq').bind(now, a.sub, cid).first<{ seq: number }>())!.seq;
+  const rev = (await env.DB.prepare('UPDATE shared_collections SET seq = seq + 1, updated_at = ?, delete_after = NULL WHERE user_id = ? AND id = ? RETURNING seq').bind(now, a.sub, cid).first<{ seq: number }>())!.seq;
   const res = await env.DB.batch(rows.map(r => r.data === null
     // A deletion keeps the last contents for the bin, and only lands on the revision it saw.
     ? env.DB.prepare('UPDATE shared_files SET rev = ?, deleted_at = ?, updated_by = ?, updated_at = ? WHERE user_id = ? AND collection_id = ? AND path = ? AND rev = ? AND deleted_at IS NULL').bind(rev, now, a.dev, now, a.sub, cid, r.path, r.base)
@@ -99,6 +100,28 @@ export async function push(env: Env, a: Access, cid: string, text: string, now: 
   res.forEach((x, i) => ((x as { meta: { changes: number } }).meta.changes ? stored : stale).push(rows[i].path));
   if (stored.length) await notify?.(rev).catch(() => {});
   return { rev: stored.length ? rev : null, stored, stale };
+}
+
+/** A device syncs it: in use, so a deletion asked for (cloud sync turned off elsewhere) is off (ADR 0102). */
+const keep = (env: Env, a: Access, cid: string) => env.DB.prepare('UPDATE shared_collections SET delete_after = NULL WHERE user_id = ? AND id = ? AND delete_after IS NOT NULL').bind(a.sub, cid).run();
+export const DELETE_AFTER_DAYS = 30;
+
+/** Cloud sync turned off on a device (ADR 0102): the account's copy goes in 30 days (`remove`), or stays. */
+export async function leave(env: Env, a: Access, cid: string, b: { remove?: unknown }, now: number) {
+  await own(env, a, cid);
+  const at = b?.remove === true ? now + DELETE_AFTER_DAYS * DAY : null;
+  await env.DB.prepare('UPDATE shared_collections SET delete_after = ? WHERE user_id = ? AND id = ?').bind(at, a.sub, cid).run();
+  return { deleteAfter: at };
+}
+
+/** Every account's collections whose time has come (the daily cron). */
+export async function purge(env: Env, now: number) {
+  const due = (await env.DB.prepare('SELECT user_id, id FROM shared_collections WHERE delete_after IS NOT NULL AND delete_after < ? LIMIT 200').bind(now).all<{ user_id: string; id: string }>()).results;
+  for (const c of due) await env.DB.batch([
+    env.DB.prepare('DELETE FROM shared_files WHERE user_id = ? AND collection_id = ?').bind(c.user_id, c.id),
+    env.DB.prepare('DELETE FROM shared_collections WHERE user_id = ? AND id = ?').bind(c.user_id, c.id),
+  ]);
+  return { removed: due.length };
 }
 
 /** Deleted files still kept (the bin), newest first. */

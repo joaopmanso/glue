@@ -50,6 +50,9 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
   let changed = 0;
   try {
     for (const p of lib.profiles) for (const c of p.collections) {
+      // Cloud sync turned off for the profile: its collections stay as they are (ADR 0102).
+      const prof = JSON.parse(await bridge.glueRead(`profiles/${p.id}/profile.json`).catch(() => 'null')) as { cloudSync?: boolean } | null;
+      if (prof?.cloudSync === false) continue;
       const meta = JSON.parse(await bridge.glueRead(`profiles/${p.id}/collections/${c.id}/collection.json`).catch(() => 'null')) as SharedCollection | null;
       if (!meta?.shared) continue;
       const me = meFor(meta, p.id, cfg.deviceId);

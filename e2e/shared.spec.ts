@@ -40,6 +40,7 @@ function fakeCloud() {
   const cols = new Map<string, { name: string; seq: number; files: Map<string, { rev: number; hash: string; data: string | null; by?: string; at?: number }> }>();
   const socks: Record<string, WebSocketRoute | null> = {};
   const offline = new Set<string>();   // devices that can't reach GLUE Cloud's shared collection
+  const leaves: { collection: string; remove: boolean }[] = [];   // cloud sync turned off (ADR 0102)
   const broadcast = (m: unknown) => { for (const w of Object.values(socks)) w?.send(JSON.stringify(m)); };
   const route = async (page: Page, me: string) => {
     await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
@@ -53,6 +54,8 @@ function fakeCloud() {
       if (p === '/v1/turn') return json({ iceServers: [], ttl: 0 });
       if (p === '/v1/shared' && m === 'GET') return json({ collections: [...cols].map(([id, c]) => ({ id, name: c.name, seq: c.seq, stats: null, updatedAt: 1 })) });
       if (p === '/v1/shared' && m === 'POST') { const b = req.postDataJSON(); if (!cols.has(b.id)) cols.set(b.id, { name: b.name, seq: 0, files: new Map() }); return json({ id: b.id, name: b.name, seq: cols.get(b.id)!.seq }); }
+      const lv = /^\/v1\/shared\/([\w-]+)\/leave$/.exec(p);
+      if (lv) { const remove = req.postDataJSON().remove === true; leaves.push({ collection: lv[1], remove }); return json({ deleteAfter: remove ? Date.now() + 30 * 864e5 : null }); }
       const sh = /^\/v1\/shared\/([\w-]+)\/(changes|bundle|push)$/.exec(p), c = sh ? cols.get(sh[1]) : undefined;
       if (sh && offline.has(me)) return r.abort('internetdisconnected');
       if (sh && c) {
@@ -76,7 +79,7 @@ function fakeCloud() {
     });
   };
 
-  return { cols, socks, offline, broadcast, route };
+  return { cols, socks, offline, leaves, broadcast, route };
 }
 
 test('cloud sync: the desktop’s collection is the account’s by itself; the laptop, with nothing of its own, takes it; a rating there shows on the desktop at once; a clash asks, and the answer reaches both (ADR 0101)', async ({ baseURL }) => {
@@ -191,6 +194,7 @@ test('a laptop with songs of its own is asked once: put into the account’s col
     await lap.page.click('#onb-skip');
     await lap.page.click('#add-folder');
     await expect(lap.page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
+    await expect(lap.page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });   // their details, in this browser's cache
     await lap.page.click('#new-playlist'); await lap.page.keyboard.type('Lap set'); await lap.page.keyboard.press('Enter');
     await expect(lap.page.locator('.lside .tree .name', { hasText: 'Lap set' })).toHaveCount(1);
     await expect(lap.page.locator('#saving')).toBeHidden({ timeout: 20_000 });
@@ -214,6 +218,19 @@ test('a laptop with songs of its own is asked once: put into the account’s col
     // On the desktop: the laptop's playlist, and still four songs.
     await expect(desk.page.locator('.lside .tree .name', { hasText: 'Lap set' })).toHaveCount(1, { timeout: 30_000 });
     await expect(desk.page.locator('.tr')).toHaveCount(4);
+    // The laptop's analyses came along to the account's collection, in this browser's cache (ADR 0102).
+    const cid = [...cols.keys()][0];
+    const cached = (col: string) => lap.page.evaluate(async col => {
+      type D = { entries(): AsyncIterable<[string, FileSystemHandle]> };
+      let n = 0;
+      try {
+        const d = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('cache')).getDirectoryHandle('details');
+        const c = await d.getDirectoryHandle(col);
+        for await (const [, sh] of (c as unknown as D).entries()) if (sh.kind === 'directory') for await (const [n2] of (sh as unknown as D).entries()) if (n2.endsWith('.json')) n++;
+      } catch { /* none */ }
+      return n;
+    }, col);
+    await expect.poll(() => cached(cid), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
     // The backup came first.
     expect(await lap.page.evaluate(async () => {
       const b = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('MCO')).getDirectoryHandle('backups');
@@ -302,7 +319,7 @@ const REKORDBOX = `<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="
 
 test('the desktop’s DJ library on the laptop: with the desktop’s name, not read here, and its playlists imported from here (ADR 0099)', async ({ baseURL }) => {
   test.setTimeout(240_000);
-  const { cols, route } = fakeCloud();
+  const { cols, leaves, route } = fakeCloud();
   const desk = await browserFor(baseURL), lap = await browserFor(baseURL);
   try {
     // The desktop: its rekordbox library, then shared.
@@ -349,5 +366,17 @@ test('the desktop’s DJ library on the laptop: with the desktop’s name, not r
     await expect(lap.page.locator('.lside .tree .name', { hasText: 'rekordbox' })).toHaveCount(1);   // its folder, Friday inside
     await expect(lap.page.locator('.tr')).toHaveCount(2);
     await expect(desk.page.locator('.lside .tree .name', { hasText: 'rekordbox' })).toHaveCount(1, { timeout: 30_000 });
+
+    // Cloud sync off on the desktop (ADR 0102): asked first; it keeps its collection; the account's copy
+    // is to go in 30 days (asked for here).
+    await desk.page.locator('.top .who').click();
+    const sw = desk.page.locator('[data-sync]');
+    await expect(sw).toHaveAttribute('aria-pressed', 'true');
+    await sw.click();
+    await expect(desk.page.locator('#sync-off')).toContainText('keeps its collections');
+    await desk.page.check('#sync-off-remove');
+    await desk.page.click('#sync-off-go');
+    await expect(sw).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(() => leaves, { timeout: 10_000 }).toEqual([{ collection: [...cols.keys()][0], remove: true }]);
   } finally { await desk.done(); await lap.done(); }
 });

@@ -96,10 +96,15 @@
   // The pages on the left jump to their section; the one in view is marked.
   const PAGES = [{ id: 'service', name: 'Service' }, { id: 'account', name: 'Account' }, { id: 'library', name: 'Library' }, { id: 'folders', name: 'Folders' }, { id: 'updates', name: 'Updates' }, { id: 'received', name: 'Received' }];
   let page = $state('service'), pane = $state<HTMLElement>();
-  function go(id: string) { page = id; pane?.querySelector('#sec-' + id)?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  // A page chosen stays chosen while the pane scrolls to it (the spy would pick the one above a short last
+  // section on the way).
+  let jumpUntil = 0;
+  function go(id: string) { page = id; jumpUntil = Date.now() + 900; pane?.querySelector('#sec-' + id)?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
   function spy() {
-    if (!pane) return;
+    if (!pane || Date.now() < jumpUntil) return;
     const top = pane.getBoundingClientRect().top + 40;
+    // Scrolled to the end: the last section, even when it's too short to reach the top.
+    if (pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 2) { page = PAGES[PAGES.length - 1].id; return; }
     let cur = PAGES[0].id;
     for (const pg of PAGES) { const el = pane.querySelector('#sec-' + pg.id); if (el && el.getBoundingClientRect().top <= top) cur = pg.id; }
     page = cur;

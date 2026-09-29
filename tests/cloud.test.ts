@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { handle, type DB, type Env, type Stmt } from '../cloud/src/api';
+import { purge } from '../cloud/src/shared';
 import { b64url, normCode, pairingCode, signAccess, verifyAccess, type JwkSet } from '../cloud/src/crypto';
 
 const CLIENT = 'test-client.apps.googleusercontent.com', ORIGIN = 'https://joaopmanso.github.io';
@@ -12,7 +13,7 @@ const CLIENT = 'test-client.apps.googleusercontent.com', ORIGIN = 'https://joaop
 function d1(): DB {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
-  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql', '0004_companions.sql', '0005_computers.sql', '0006_shared.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
+  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql', '0004_companions.sql', '0005_computers.sql', '0006_shared.sql', '0007_leave.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
   const stmt = (sql: string, args: unknown[] = []): Stmt => ({
     bind: (...v) => stmt(sql, v),
     first: async <T,>() => (db.prepare(sql).get(...(args as never[])) as T) ?? null,
@@ -352,6 +353,23 @@ describe('admin: free-tier usage (ADR 0093)', () => {
 describe('the shared collection (ADR 0094)', () => {
   const h = (c: string) => c.repeat(64);
   const line = (path: string, base: number, c: string, data = 'QUJD') => [path, base, c === '-' ? '' : h(c), 3, c === '-' ? '-' : data].join('\t');
+  it('cloud sync off (ADR 0102): the account’s copy goes 30 days later, unless a device syncs it meanwhile', async () => {
+    const lap = await signIn({}, { deviceName: 'Laptop' }), t = lap.json.access;
+    for (const id of ['c1', 'c2']) {
+      await call('POST', '/v1/shared', { id, name: id }, t);
+      await call('POST', '/v1/shared/' + id + '/push', line('lists/a.json', 0, 'a'), t);
+      expect((await call('POST', '/v1/shared/' + id + '/leave', { remove: true }, t)).json.deleteAfter).toBe(now + 30 * 864e5);
+    }
+    expect((await call('GET', '/v1/shared', undefined, t)).json.collections.map((c: { deleteAfter: number | null }) => c.deleteAfter)).toEqual([now + 30 * 864e5, now + 30 * 864e5]);
+    // A device syncs c2 again: it's in use, so it stays.
+    await call('GET', '/v1/shared/c2/changes?since=0', undefined, t);
+    expect(await purge(env, now + 29 * 864e5)).toEqual({ removed: 0 });   // not yet
+    expect(await purge(env, now + 31 * 864e5)).toEqual({ removed: 1 });
+    const left = (await call('GET', '/v1/shared', undefined, t)).json.collections;
+    expect(left.map((c: { id: string; deleteAfter: number | null }) => [c.id, c.deleteAfter])).toEqual([['c2', null]]);
+    // Kept on purpose ("keep it"): no date at all.
+    expect((await call('POST', '/v1/shared/c2/leave', { remove: false }, t)).json.deleteAfter).toBeNull();
+  });
   it('one copy for every device: files at revisions, what changed since a cursor, bundles', async () => {
     const lap = await signIn({}, { deviceName: 'Laptop' }), desk = await signIn({}, { deviceName: 'Desktop' });
     expect((await call('POST', '/v1/shared', { id: 'col1', name: 'My collection' }, desk.json.access)).json).toEqual({ id: 'col1', name: 'My collection', seq: 0 });

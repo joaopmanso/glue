@@ -35,7 +35,9 @@ export const INCOMING_ROOT = 'incoming';
     merged with other devices once (ADR 0042), so an unmerge is kept rather than merged again. */
 export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; dupConfirmed?: string[]; genres?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean;
   /** Moved into this shared collection (ADR 0096): kept as it was, read only, no longer synced. */
-  movedTo?: string }
+  movedTo?: string;
+  /** The songs that got another id there (ADR 0102). */
+  movedIds?: Record<string, string> }
 
 export type TrackStatus = 'linked' | 'unlinked' | 'missing';
 export interface TrackFormat { container: string; codec: string; lossless: boolean | null; sampleRate: number; bits: number; bitrate: number; channels: number }

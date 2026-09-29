@@ -49,7 +49,7 @@ async function readEach<T>(root: Dir, dir: string): Promise<T[]> {
 
 /** This computer's own collection `own` moved into the shared collection `cid` (ADR 0096), both in the
     profile's folder (the shared one already pulled). The own one is kept as it was, marked moved. */
-export async function moveInto(root: Dir, pid: string, own: string, cid: string, me: string, member: { profile: string; name: string }): Promise<Adopted['stats']> {
+export async function moveInto(root: Dir, pid: string, own: string, cid: string, me: string, member: { profile: string; name: string }): Promise<Adopted['stats'] & { ids: Map<string, string> }> {
   const ob = `profiles/${pid}/collections/${own}`, sb = `profiles/${pid}/collections/${cid}`;
   const ometa = await readJSON<Collection>(root, ob + '/collection.json');
   const smeta = await readJSON<SharedCollection>(root, sb + '/collection.json');
@@ -65,6 +65,8 @@ export async function moveInto(root: Dir, pid: string, own: string, cid: string,
   for (const l of r.lists) await writeJSON(root, `${sb}/lists/${l.id}.json`, l);
   for (const s of r.sources) await writeJSON(root, `${sb}/sources/${s.id}.json`, s);
   await writeJSON(root, sb + '/collection.json', r.meta);
-  await writeJSON(root, ob + '/collection.json', { ...ometa, movedTo: cid });
-  return r.stats;
+  // Where it went, and the songs that got another id there (for the caches that follow it, ADR 0102).
+  const movedIds = Object.fromEntries([...r.trackIds].filter(([a, b]) => a !== b));
+  await writeJSON(root, ob + '/collection.json', { ...ometa, movedTo: cid, movedIds });
+  return { ...r.stats, ids: r.trackIds };
 }

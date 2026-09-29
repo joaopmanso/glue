@@ -9,6 +9,7 @@ import * as cache from './cache';
 import * as lookup from './lookup';
 import { backupDaily } from './backups';
 import { syncSharedHere } from './sharedSync';
+import { followMoves } from './moves';
 import { describe, locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
 import { checkReminders } from './reminders';
@@ -402,6 +403,10 @@ async function boot() {
   })().catch(e => console.warn('GLUE Home: couldn’t attach the browser', e)));
   setTimeout(() => void remind(), 90_000);
   setInterval(() => void remind(), 3600e3);
+  // A collection that went into another (ADR 0102): this cache follows it, soon after starting and hourly.
+  const moves = () => void followMoves(cfg).catch(e => console.warn('GLUE Home: the cache didn’t follow a moved collection', e));
+  setTimeout(moves, 30_000);
+  setInterval(moves, 3600e3);
   // Shared collections (ADR 0097): synced here when no GLUE tab is, soon after starting and every minute.
   setTimeout(sharedSoon, 25_000);
   setInterval(sharedSoon, 60_000);

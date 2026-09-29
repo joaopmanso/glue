@@ -11,6 +11,10 @@ ALLOWED_ORIGINS = "https://joaopmanso.github.io,http://localhost:5174,http://loc
 ADMIN_EMAILS = "joao.pedro.manso@gmail.com"
 # SESSION_KEY is a secret: `wrangler secret put SESSION_KEY`.
 
+# Daily: account copies of collections whose cloud sync was turned off 30 days ago (ADR 0102).
+[triggers]
+crons = ["23 3 * * *"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "glue"

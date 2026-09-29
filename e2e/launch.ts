@@ -7,7 +7,8 @@ type Opts = NonNullable<Parameters<typeof chromium.launchPersistentContext>[1]>;
 export async function launch(dir: string, opts: Opts): Promise<BrowserContext> {
   // No GPU process: headless Edge renders in software there, a core per browser (about a fifth of a
   // test's time with four at once, measured 2026-09-29).
-  const ctx = await chromium.launchPersistentContext(dir, { ...opts, args: [...(opts.args ?? []), '--disable-gpu', '--disable-gpu-compositing'] });
+  // Dark, as the laptop is (the themes follow the system): the same on CI's light-mode runner.
+  const ctx = await chromium.launchPersistentContext(dir, { colorScheme: 'dark', ...opts, args: [...(opts.args ?? []), '--disable-gpu', '--disable-gpu-compositing'] });
   await ctx.addInitScript(() => { Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', { get: () => 2, configurable: true }); });
   return ctx;
 }

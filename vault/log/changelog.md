@@ -5,6 +5,27 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · Caches follow a collection; turning cloud sync off (GLUE Home 0.26, GLUE Cloud migration 0007)
+- **Waveforms, analyses, fingerprints and covers follow a collection** when it's put into the account's
+  ([ADR 0102](../adr/0102-caches-follow-and-cloud-sync-off.md)): in the browser's cache, and in GLUE
+  Home's own (once, soon after it starts).
+- **Turning cloud sync off asks first:**
+  - this computer keeps its collections and stops syncing them;
+  - in a browser's storage only, a copy can be downloaded;
+  - a checkbox also deletes the account's copy from GLUE Cloud in 30 days. A device still syncing it, or
+    turning sync on again, cancels that.
+  - GLUE Cloud removes what's due once a day.
+- A profile with cloud sync off isn't synced, by the tab or by GLUE Home.
+- Fixed:
+  - a checkbox squeezed to nothing on the start page;
+  - GLUE Home's settings marking the page above a short section after a jump to it.
+- Tests: the e2e browsers are dark, as the laptop is (CI's runner is light).
+- Tests:
+  - unit: the cache move (renamed songs, packs left to be made again); the 30-day deletion, cancelled by
+    a sync;
+  - e2e: the laptop's analyses under the account's collection after "Put into"; the desktop turning
+    sync off.
+
 ## 2026-09-29 · One sync: cloud sync on means your collections are your account's (GLUE Home 0.25)
 - **No more Share or Move buttons** ([ADR 0101](../adr/0101-cloud-sync-is-the-accounts-collections.md)).
   With cloud sync on and signed in, a collection becomes the account's when it opens, and syncs with
