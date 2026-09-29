@@ -513,3 +513,145 @@ test('a shared collection with no GLUE tab open: GLUE Home takes in another devi
     await home.close();
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
+
+test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the library, and says what it’s doing (ADR 0103)', async ({ page }) => {
+  test.setTimeout(180_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-analyse-'));
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } });
+  try {
+    // This computer's GLUE folder: a collection with two songs never analysed (the browser was closed).
+    mkdirSync(join(tmp, 'Music'), { recursive: true }); mkdirSync(fake.dirs.incoming, { recursive: true });
+    copyFileSync(fixture('mp3-128k.mp3'), join(tmp, 'Music', 'a.mp3'));
+    copyFileSync(fixture('flac-96k-24.flac'), join(tmp, 'Music', 'b.flac'));
+    const col = 'profiles/p1/collections/c1';
+    const song = (id: string, file: string, size: number) => ({ id, status: 'linked', rootId: 'r1', relPath: file, importPath: null, fileName: file, size, mtime: 1000, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: null, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] });
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
+      [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
+      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1a: song('t1a', 'a.mp3', 65267), t1b: song('t1b', 'b.flac', 968141) } }),
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    await fake.start();
+
+    const home = await page.context().newPage();
+    await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'h' }) }));
+    await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+    await home.addInitScript(TAURI_MOCK);
+    // The songs' files, as GLUE Home's Rust side reads them (stood in): in this computer's Music folder.
+    const disk = { 'C:\\Users\\dj\\Music\\a.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\b.flac': [...readFileSync(fixture('flac-96k-24.flac'))] };
+    await home.addInitScript(({ glue, disk, port, token, dir }) => {
+      const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk; w.__localPort = port; w.__lease = false;
+      localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token }));
+    }, { glue: files, disk, port: fake.port, token: fake.token, dir: fake.dirs.glue });
+    await home.goto('http://localhost:5176/service.html');
+
+    home.on('console', m => { if (/GLUE Home/.test(m.text())) console.log('HOME:', m.text().slice(0, 300)); });
+    // Analysed by GLUE Home, into the collection's files (no GLUE tab holds the lease).
+    const analysis = () => { try { return JSON.parse(readFileSync(join(fake.dirs.glue, col, 'analysis', 't1.json'), 'utf8')).items as Record<string, { v: number; fileSize: number; fileMtime: number }>; } catch { return {}; } };
+    await expect.poll(() => Object.keys(analysis()).sort(), { timeout: 120_000 }).toEqual(['t1a', 't1b']);
+    expect(analysis().t1a).toMatchObject({ v: 3, fileSize: 65267, fileMtime: 1000 });
+    const tracks = JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items;
+    expect(tracks.t1b.format).toMatchObject({ lossless: true, sampleRate: 96000 });
+    expect(tracks.t1a.duration).toBeGreaterThan(3);
+    expect(tracks.t1a.title).toBe('Fixture MP3');   // from its tags (the song had none)
+    // What it did, for its settings window: the analysis state and the events.
+    const status = () => home.evaluate(() => (window as unknown as { __status?: { analysing?: { done: number; left: number; waiting: number }; events?: { text: string }[] } }).__status);
+    await expect.poll(async () => (await status())?.analysing?.done, { timeout: 20_000 }).toBe(2);
+    expect((await status())?.analysing).toMatchObject({ left: 0, waiting: 0 });
+    const texts = ((await status())?.events ?? []).map(e => e.text);
+    expect(texts).toContain('Analysing 2 songs');
+    expect(texts.some(t => t.startsWith('Put 2 analyses into the library'))).toBe(true);
+    await home.close();
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('a GLUE tab in Home mode leaves the analysis to GLUE Home and takes the results in: the songs, their details and waveforms; stop and resume (ADR 0103)', async ({ page }) => {
+  test.setTimeout(240_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-delegate-'));
+  // The tab can't read the songs itself (no music folder for it): only GLUE Home analyses them.
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} });
+  try {
+    mkdirSync(fake.dirs.incoming, { recursive: true });
+    const col = 'profiles/p1/collections/c1';
+    const song = (id: string, file: string, size: number) => ({ id, status: 'linked', rootId: 'r1', relPath: file, importPath: null, fileName: file, size, mtime: 1000, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: null, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] });
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
+      [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
+      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1a: song('t1a', 'a.mp3', 65267), t1b: song('t1b', 'b.flac', 968141) } }),
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    await fake.start();
+
+    // GLUE Cloud (sign-in, the account's devices: this browser and its GLUE Home) and the signaling room.
+    const user = { id: 'u1', email: 'dj@example.com', name: 'DJ', picture: null };
+    const devices = [{ id: 'desk', kind: 'browser', name: 'Desktop', platform: 'Win32', createdAt: 1, lastSeen: 1, role: 'device' }, { id: 'hdesk', kind: 'home', name: 'Desktop', platform: 'win32', createdAt: 2, lastSeen: 2, companionOf: 'desk', role: 'device' }];
+    const socks: Record<string, import('@playwright/test').WebSocketRoute | null> = {};
+    const presence = () => { const online = Object.keys(socks).filter(k => socks[k]); for (const w of Object.values(socks)) w?.send(JSON.stringify({ type: 'presence', online })); };
+    const room = (me: string) => (ws: import('@playwright/test').WebSocketRoute) => {
+      socks[me] = ws; presence();
+      ws.onMessage(raw => { const j = JSON.parse(String(raw)); if (j.type === 'signal') socks[j.to]?.send(JSON.stringify({ type: 'signal', from: me, data: j.data })); });
+    };
+    await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+      window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+        renderButton(el) { const b = document.createElement('button'); b.id = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
+    await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+      const p = new URL(r.request().url()).pathname, json = (b: unknown) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
+      if (p === '/v1/auth/google' || p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'desk', user });
+      if (p === '/v1/me') return json({ user, thisDevice: 'desk', devices, sessions: [] });
+      if (p === '/v1/turn') return json({ iceServers: [], ttl: 0 });
+      if (p === '/v1/shared') return json({ collections: [] });
+      return json({ ok: true });
+    });
+    await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('desk'));
+
+    // This computer's GLUE Home: its service page, the songs on its disk; a GLUE tab holds the lease.
+    const home = await page.context().newPage();
+    await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+      const p = new URL(r.request().url()).pathname;
+      return r.fulfill({ contentType: 'application/json', body: JSON.stringify(p === '/v1/turn' ? { iceServers: [], ttl: 0 } : { access: 'h' }) });
+    });
+    await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('hdesk'));
+    await home.addInitScript(TAURI_MOCK);
+    const disk = { 'C:\\Users\\dj\\Music\\a.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\b.flac': [...readFileSync(fixture('flac-96k-24.flac'))] };
+    await home.addInitScript(({ glue, disk, port, token, dir }) => {
+      const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk; w.__localPort = port; w.__lease = true;
+      localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token }));
+    }, { glue: files, disk, port: fake.port, token: fake.token, dir: fake.dirs.glue });
+    await home.goto('http://localhost:5176/service.html');
+    await expect(home.locator('#state')).toContainText('Online as Desktop', { timeout: 20_000 });
+
+    // The tab: Home mode (it knows the local link), signed in.
+    await page.goto('./#/analyze');
+    await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), fake.pref);
+    await page.goto('./');
+    await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
+    await page.click('#account-btn');
+    await page.click('#fake-google');
+    await page.keyboard.press('Escape');
+
+    // GLUE Home analyses (the tab can't), and the tab takes the results in: all analysed here.
+    await expect(page.locator('#analysis-by')).toBeVisible({ timeout: 40_000 });
+    await expect(page.locator('.an')).toContainText('All analysed', { timeout: 120_000 });
+    await expect(page.locator('.tr', { hasText: 'Fixture MP3' })).toHaveCount(1);   // its title, from its tags
+    // Its details and mini waveform are in this browser's cache (the song's page opens at once).
+    expect(await page.evaluate(async () => {
+      const c = await (await navigator.storage.getDirectory()).getDirectoryHandle('cache');
+      const has = async (parts: string[]) => { try { let d = c; for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p); await d.getFileHandle(parts[parts.length - 1]); return true; } catch { return false; } };
+      return [await has(['details', 'c1', 't1', 't1a.json']), await has(['fp', 'c1', 't1', 't1a.bin'])];
+    })).toEqual([true, true]);
+    // Into the GLUE folder by the tab (it holds the lease), and nothing waits in GLUE Home any more.
+    await expect.poll(() => { try { return Object.keys(JSON.parse(readFileSync(join(fake.dirs.glue, col, 'analysis', 't1.json'), 'utf8')).items).sort(); } catch { return []; } }, { timeout: 20_000 }).toEqual(['t1a', 't1b']);
+    await expect.poll(() => home.evaluate(() => (window as unknown as { __status?: { analysing?: { waiting: number; by: string } } }).__status?.analysing), { timeout: 20_000 }).toMatchObject({ waiting: 0 });
+
+    // Stop in the tab pauses GLUE Home; turning background analysis on again resumes it.
+    await page.locator('.an .switch').click();
+    await expect(page.locator('#auto-analyse')).not.toBeChecked();
+    await expect.poll(() => home.evaluate(() => (window as unknown as { __status?: { analysing?: { paused: boolean } } }).__status?.analysing?.paused), { timeout: 20_000 }).toBe(true);
+    await page.locator('.an .switch').click();
+    await expect(page.locator('#auto-analyse')).toBeChecked();
+    await expect.poll(() => home.evaluate(() => (window as unknown as { __status?: { analysing?: { paused: boolean } } }).__status?.analysing?.paused), { timeout: 20_000 }).toBe(false);
+    await home.close();
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});

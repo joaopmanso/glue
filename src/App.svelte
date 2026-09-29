@@ -49,6 +49,7 @@
   import { djWatch } from './lib/djWatch.svelte';   // DJ libraries kept in step (ADR 0063)
   import { account } from './lib/account.svelte';
   import './lib/shared.svelte';   // cloud sync hooks (ADR 0101)
+  import './lib/homeAnalysis.svelte';   // this computer's GLUE Home analyses its songs (ADR 0103)
   import { auto } from './lib/auto.svelte';
   import { nowPlaying } from './lib/nowPlaying.svelte';
   import { themes } from './lib/themes.svelte';

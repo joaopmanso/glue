@@ -194,3 +194,30 @@ test('GLUE Home shows what it was asked since it started, the most time first, a
   await page.click('#activity-copy');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^GLUE Home .*running 2 min\r?\n.*\/fs\/list\t40\t30 ms/);   // Windows' clipboard ends lines with \r\n
 });
+
+test('GLUE Home’s window says what it’s doing: the analysis, a pause button, and a toast for each new event (ADR 0103)', async ({ page }) => {
+  await page.addInitScript(TAURI_MOCK);
+  await page.addInitScript(() => localStorage.setItem('home-config', JSON.stringify({ deviceId: null, token: null, name: 'Desk', user: null, incoming: null, running: true, askedAutostart: true })));
+  await page.goto(HOME + 'index.html');
+  const status = (analysing: Record<string, unknown>, events: { at: number; text: string }[]) => page.evaluate(({ analysing, events }) => {
+    (window as unknown as { __tauriEvent: (e: string, p: unknown) => void }).__tauriEvent('status', { state: 'online', text: 'Online', running: true, receiving: null, received: [], analysing, events });
+  }, { analysing, events });
+  const base = { paused: false, running: 2, current: ['Genorale', 'Manyaro'], left: 118, done: 40, failed: 1, waiting: 3, by: 'home' };
+  await status(base, [{ at: Date.now() - 60_000, text: 'Analysing 160 songs' }]);
+  await page.click('nav [data-page="now"]');
+  await expect(page.locator('#an-state')).toHaveText('Analysing 2 songs · 118 to go');
+  await expect(page.locator('#an-current li')).toHaveText(['Genorale', 'Manyaro']);
+  await expect(page.locator('#sec-now')).toContainText('Analysed since GLUE Home started: 40 · 1 couldn’t be read · 3 waiting to go into the library');
+  await expect(page.locator('#events')).toContainText('Analysing 160 songs');
+  await expect(page.locator('.toast')).toHaveCount(0);   // what happened before the window opened isn't a toast
+  // Something new: a toast, for a few seconds.
+  await status(base, [{ at: Date.now(), text: 'Received Covered.mp3 from iPhone' }, { at: Date.now() - 60_000, text: 'Analysing 160 songs' }]);
+  await expect(page.locator('.toast')).toHaveText('Received Covered.mp3 from iPhone');
+  await expect(page.locator('.toast')).toHaveCount(0, { timeout: 10_000 });
+  // Pause: kept in the settings (the service follows them).
+  await page.click('#an-pause');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config') ?? '{}').analysisPaused)).toBe(true);
+  await status({ ...base, paused: true, running: 0, current: [] }, []);
+  await expect(page.locator('#an-state')).toHaveText('Paused · 118 songs to analyse');
+  await expect(page.locator('#an-pause')).toHaveText('Resume analysis');
+});

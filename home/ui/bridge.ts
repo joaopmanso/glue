@@ -9,6 +9,8 @@ export const WEBSITE = 'https://joaopmanso.github.io/glue/';
 /** What GLUE Home keeps (config.json in the app's settings folder, readable by this user only). */
 export interface HomeConfig {
   api?: string;
+  /** The analysis of this computer's songs is paused (ADR 0103): from the settings or a GLUE tab. */
+  analysisPaused?: boolean;
   deviceId: string | null;
   token: string | null;         // the device credential
   name: string;
@@ -33,6 +35,10 @@ export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online
   library?: { searching: boolean; found: number; missing: { id: string; name: string; collection: string }[] };
   /** Making mini spectrograms and analyses of the shared songs (ADR 0046). */
   analysis?: { done: number; total: number; running: boolean };
+  /** Analysing this computer's songs for the library (ADR 0103). */
+  analysing?: import('./analysis').AnalysisState;
+  /** What GLUE Home did lately, newest first (the settings window shows each new one as a toast). */
+  events?: { at: number; text: string }[];
   /** The last look at the events (ADR 0074): when, how many need music, which were just notified. */
   reminders?: { at: number; coming: number; sent: string[] };
   /** What other devices asked since GLUE Home started, by kind (ADR 0083). */

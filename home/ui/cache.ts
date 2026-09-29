@@ -12,11 +12,27 @@ import { DETAILS_VERSION, decodeDetails, type DetailsHeader } from '../../src/st
 import { makeWaveThumb, WAVE_BYTES } from '../../src/core/library/thumb';
 import { incomingKey } from '../../src/core/transfer';
 import { coverOf, type Cover } from '../../src/workers/cover';
+import { analysed, type Analysed } from '../../src/core/library/analysed';
+import { failed } from '../../src/core/library/summary';
+import { encodeFingerprint } from '../../src/store/fingerprints';
 
 const tKey = (p: string, c: string, id: string) => `t/${p}/${c}/${shardOf(id)}/${id}.bin`;
 const wKey = (p: string, c: string, id: string) => `w/${p}/${c}/${shardOf(id)}/${id}.bin`;
 const dKey = (p: string, c: string, id: string, ext: 'json' | 'bin') => `d/${p}/${c}/${shardOf(id)}/${id}.${ext}`;
 const HEX = '0123456789abcdef';
+/** The library's analysis of a song (ADR 0103): its summary and the file's facts, for the collection; and
+    its fingerprint, for duplicates. Made here, taken in by whoever writes the collection. */
+const sKey = (p: string, c: string, id: string) => `s/${p}/${c}/${shardOf(id)}/${id}.json`;
+export const pKey = (p: string, c: string, id: string) => `p/${p}/${c}/${shardOf(id)}/${id}.bin`;
+export { sKey as resultKey };
+export async function result(p: string, c: string, id: string): Promise<Analysed | null> {
+  const b = await read(sKey(p, c, id));
+  try { return b ? JSON.parse(new TextDecoder().decode(b)) as Analysed : null; } catch { return null; }
+}
+/** Told of each song analysed here (lib: the library's queue of results to take in). */
+export const onAnalysed: { f: ((p: string, c: string, id: string) => void) | null } = { f: null };
+/** Workers: half this computer's cores, at most 4 (the same as a GLUE tab). */
+export const POOL = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
 
 async function read(rel: string): Promise<Uint8Array | null> { try { return new Uint8Array(await bridge.cacheRead(rel)); } catch { return null; } }
 
@@ -105,18 +121,30 @@ export async function cacheFile(key: string) { return read(key); }
 let pool: AnalysisPool | null = null;
 
 /** Read a song of this computer's library (in 4 MB steps) and analyse it like the website does. */
-async function analyse(p: string, c: string, id: string, cfg: HomeConfig): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null }> {
+export async function analyse(p: string, c: string, id: string, cfg: HomeConfig): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null }> {
   const f = await trackPath(p, c, id, cfg);
   const size = await bridge.fileSize(f.path), parts: ArrayBuffer[] = [];
   for (let at = 0; at < size;) { const b = await bridge.fileRead(f.path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; }
-  pool ??= new AnalysisPool(1);
+  pool ??= new AnalysisPool(POOL);
   // A song that never finishes (it won't decode) mustn't hold up every other one: 2 minutes at most.
   const p0 = pool;
-  const r = await Promise.race([p0.analyze(new File(parts, f.name), 0), new Promise<never>((_, no) => setTimeout(() => { p0.stop(); if (pool === p0) pool = null; no(new Error('the analysis took too long')); }, 120_000))]);
+  let r: Awaited<ReturnType<AnalysisPool['analyze']>>;
+  try {
+    r = await Promise.race([p0.analyze(new File(parts, f.name, { lastModified: f.mtime }), f.mtime), new Promise<never>((_, no) => setTimeout(() => { p0.stop(); if (pool === p0) pool = null; no(new Error('the analysis took too long')); }, 120_000))]);
+  } catch (e) {
+    // Said once, like a GLUE tab says it: not tried again until the file changes.
+    const msg = String((e as Error)?.message || 'It couldn’t be decoded.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'It couldn’t be decoded.');
+    await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify({ summary: failed(msg, { size, mtime: f.mtime }), size, mtime: f.mtime, format: null, duration: null, fields: {} } satisfies Analysed)));
+    onAnalysed.f?.(p, c, id);
+    throw e;
+  }
   if (r.thumb) await putThumb(p, c, id, r.thumb);
   if (r.wave) await putWave(p, c, id, r.wave);
   if (r.details) await putDetails(p, c, id, r.details.header, r.details.bin);
   if (r.art !== undefined) await keepCover(p, c, id, r.art);
+  if (r.fp) await bridge.cacheWrite(pKey(p, c, id), encodeFingerprint(r.fp));
+  await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify(analysed(r, size, f.mtime))));   // last: a result has all its parts
+  onAnalysed.f?.(p, c, id);
   return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null };
 }
 

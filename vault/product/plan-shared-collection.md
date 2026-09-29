@@ -268,7 +268,7 @@ Also, per "Computers and sessions" above:
 - Tests: a unit test for `seedShared` shaped like this user's data (7,989 tracks, 10, and an empty
   phone), and an e2e of the migration.
 
-## Phase 5: the computer's worker (GLUE Home, or the open tab without one). In progress: 5a done 2026-09-28 (ADR 0097: GLUE Home syncs and writes song info); 5b done (ADR 0098: duplicates across computers); 5c done (ADR 0099: every computer's DJ libraries)
+## Phase 5: the computer's worker (GLUE Home, or the open tab without one). In progress: 5a done 2026-09-28 (ADR 0097: GLUE Home syncs and writes song info); 5b done (ADR 0098: duplicates across computers); 5c done (ADR 0099: every computer's DJ libraries); GLUE Home analysing the library done (ADR 0103)
 Everything below is written once, in `src/store` and `src/core`, and runs from GLUE Home's service
 page, or from the tab on a computer without GLUE Home (while it's open), or with the lease.
 - **Sync with no tab:** the Phase 2 engine through `HomeDisk` (it replaces `home/ui/edits.ts`),

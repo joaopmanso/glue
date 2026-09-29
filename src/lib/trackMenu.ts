@@ -2,6 +2,7 @@
    song or all the selected ones. The selection bar keeps the most used of these as buttons. */
 import { lib } from './library.svelte';
 import { removeNote, view, withCopies, type FilterGroup } from './view.svelte';
+import { homeAnalysis } from './homeAnalysis.svelte';
 import { router, trackHref } from './route.svelte';
 import { nowPlaying } from './nowPlaying.svelte';
 import { player } from './player.svelte';
@@ -79,6 +80,8 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
   const rating = ts.every(t => (t.rating ?? null) === (ts[0].rating ?? null)) ? ts[0].rating ?? null : null;
   const group = one ? dupes.groupOf.get(one.id) : undefined;
   const needs = ts.filter(t => lib.needsAnalysis(t)).length;
+  // Another computer's songs not analysed yet: its GLUE Home does them first (ADR 0103).
+  const remoteNeeds = ts.filter(t => t.remote && !s.analysis.get(t.id)).length;
   // Songs GLUE cautions about (or suspects): they can be marked fine.
   const flagged = ts.filter(t => { const a = s.analysis.get(t.id); return !t.remote && a && !a.error && a.grade !== 'ok'; });
   const homes = sendTargets();
@@ -148,7 +151,11 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     SEP,
     { label: one ? 'Build a playlist from this' : 'Build a playlist with these ' + n, attrs: { 'data-m': 'auto' }, run: () => auto.show(ids[0], ids.slice(1)) },
     !one && { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: plural(n, 'song') + ' selected', ids }) },
-    needs > 0 && { label: 'Analyse now', hint: n > 1 ? String(needs) : undefined, attrs: { 'data-m': 'analyse' }, run: () => { const k = lib.analyseNow(ids); lib.notice = k ? 'Analysing ' + plural(k, 'song') + '.' : 'Nothing to analyse here that GLUE can read now.'; } },
+    (needs > 0 || remoteNeeds > 0) && { label: 'Analyse now', hint: n > 1 ? String(needs + remoteNeeds) : undefined, attrs: { 'data-m': 'analyse' }, run: () => {
+      const k = lib.analyseNow(ids), r = homeAnalysis.remoteNow(ids);
+      lib.notice = k || r ? 'Analysing ' + plural(k + r, 'song') + (r ? ' (' + plural(r, 'song') + ' by the GLUE Home of the computer that has ' + (r === 1 ? 'it' : 'them') + ')' : '') + '.'
+        : remoteNeeds ? 'The computer with ' + (remoteNeeds === 1 ? 'this song' : 'these songs') + ' isn’t online: start its GLUE Home to analyse ' + (remoteNeeds === 1 ? 'it' : 'them') + '.' : 'Nothing to analyse here that GLUE can read now.';
+    } },
     group && { label: 'Show its duplicates', hint: group.ids.length + '×', attrs: { 'data-m': 'dupes' }, run: () => { view.select({ kind: 'dupes' }); view.focusDupe = one!.id; } },
     SEP,
     dock.available && { label: 'Add to drag dock', attrs: { 'data-m': 'dock' }, run: () => void dock.add(ts) },

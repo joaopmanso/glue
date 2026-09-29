@@ -1264,6 +1264,25 @@ test('builds a playlist from a track: seed first, included tracks kept, saved as
   await expect(page.locator('#auto-dialog')).toHaveCount(0);
 });
 
+test('Stop stops the analysis at once, and background analysis stays off until it’s on again (ADR 0103)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await page.click('#stop-analysis', { timeout: 30_000 });
+  await expect(page.locator('#auto-analyse')).not.toBeChecked();
+  await expect(page.locator('#stop-analysis')).toHaveCount(0);
+  await expect(page.locator('.an')).toContainText('not analysed');
+  const left = await page.locator('.an').textContent();
+  await page.waitForTimeout(4000);
+  await expect(page.locator('.an')).toHaveText(left!);   // nothing more was analysed
+  await page.locator('label.switch').click();
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+});
+
 test('background analysis can be switched off per collection; chosen tracks can still be analysed', async ({ page }) => {
   await seed(page);
   await page.goto('./');

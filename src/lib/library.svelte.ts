@@ -19,6 +19,7 @@ import { findLibraries, libraryAt, type Detected } from '../core/library/detect'
 import { makeThumb, makeWaveThumb } from '../core/library/thumb';
 import { AUDIO_EXT, INFO_FIELDS, fillInfo, formatOf, nameFields, tagFields, type InfoField } from '../core/library/tags';
 import { failed, summarize } from '../core/library/summary';
+import { afterAnalysis, analysed, needsAnalysis } from '../core/library/analysed';
 import { classify } from '../core/audio/verdict';
 import { addTags, cleanTag, removeTags, tagKey, tagsOf, uniqTags } from '../core/library/tagging';
 import { encodeDetails, loadDetails, removeDetails, restampDetails, writeDetails, type DetailsHeader } from '../store/details';
@@ -1134,7 +1135,7 @@ class Library {
     try { await this.putDetails(t.id, await encodeDetails(info, res, { size: t.size, mtime: t.mtime })); this.onThumb?.(t.id, makeThumb(res)); this.onWave?.(t.id, makeWaveThumb(res)); }
     catch (e) { console.warn('Couldn’t store the track analysis', e); }
   }
-  private async putDetails(id: string, d: { header: DetailsHeader; bin: Uint8Array }) {
+  async putDetails(id: string, d: { header: DetailsHeader; bin: Uint8Array }) {
     const s = this.store, dir = await platform.cacheDir();
     if (s && dir) await writeDetails(dir, s.meta.id, id, d);
   }
@@ -1166,11 +1167,7 @@ class Library {
     if (others) this.notice = others + ' of these track' + (others === 1 ? ' is' : 's are') + ' only on another device: remove ' + (others === 1 ? 'it' : 'them') + ' there.';
   }
 
-  needsAnalysis(t: Track) {
-    if (t.status !== 'linked' || t.remote) return false;
-    const a = this.store?.analysis.get(t.id);
-    return !a || a.v < ANALYSIS_VERSION || a.fileSize !== t.size || a.fileMtime !== t.mtime;
-  }
+  needsAnalysis(t: Track) { return needsAnalysis(t, this.store?.analysis.get(t.id), ANALYSIS_VERSION); }
   pendingCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (this.needsAnalysis(t)) n++; return n; }
   enqueueAll() {
     const s = this.store;
@@ -1187,12 +1184,32 @@ class Library {
     const s = this.store;
     if (s) { s.meta.autoAnalyse = !p; s.saveMeta(); }
     this.analysis = { ...this.analysis, paused: p };
+    this.analysisElsewhere?.pause(p);
     if (!p) this.enqueueAll();
+  }
+  /** This computer's GLUE Home analyses its songs (ADR 0103): lib/homeAnalysis says so, and takes the asks. */
+  analysisElsewhere: { active: () => boolean; now: (ids: string[]) => number; pause: (p: boolean) => void } | null = null;
+  /** A song analysed elsewhere on this computer (its GLUE Home), taken in like one analysed here. */
+  takeAnalysed(id: string, a: import('../core/library/analysed').Analysed) {
+    const s = this.store, cur = s?.tracks.get(id);
+    if (!s || !cur || cur.remote) return false;
+    s.putAnalysis(id, a.summary);
+    s.putTrack(afterAnalysis(cur, a));
+    this.analysis = { ...this.analysis, done: this.analysis.done + 1, failed: this.analysis.failed + (a.summary.error ? 1 : 0) };
+    return true;
+  }
+  /** This tab's own analysis stops (its GLUE Home took over, ADR 0103); nothing is paused. */
+  stopOwnAnalysis() { const paused = this.analysis.paused; this.stopAnalysis(); this.analysis = { ...this.analysis, paused }; }
+  /** Stop now: what runs stops, and background analysis is off until it's turned on again. */
+  stopAnalysisNow() {
+    this.pauseAnalysis(true);
+    this.stopAnalysis();
   }
   /** Analyse these tracks now, even with background analysis off. */
   analyseNow(ids: string[]) {
     const s = this.store;
     if (!s) return 0;
+    if (this.analysisElsewhere?.active()) return this.analysisElsewhere.now(ids);
     const want = ids.filter(id => { const t = s.tracks.get(id); return !!t && this.canRead(t) && this.needsAnalysis(t) && !this.active.has(id); });
     this.manual = [...want, ...this.manual.filter(x => !want.includes(x))];
     this.pump();
@@ -1201,10 +1218,14 @@ class Library {
   private manual: string[] = [];
   /** Stem separation is running: no new analyses start (they'd compete for the processor and memory). */
   private stemsBusy = false;
-  private stopAnalysis() { this.queue = []; this.manual = []; this.pool?.stop(); this.pool = null; this.active.clear(); this.analysis = { running: 0, done: 0, failed: 0, paused: this.analysis.paused }; }
+  /** Bumped by every stop: an analysis that was running then is dropped, never stored as failed. */
+  private stops = 0;
+  private stopAnalysis() { this.stops++; this.queue = []; this.manual = []; this.pool?.stop(); this.pool = null; this.active.clear(); this.analysis = { running: 0, done: 0, failed: 0, paused: this.analysis.paused }; }
 
   private pump() {
     if (this.readOnly || this.stemsBusy) return;
+    // This computer's GLUE Home analyses its songs (ADR 0103): none here.
+    if (this.analysisElsewhere?.active()) return;
     // With background analysis off, only tracks asked for explicitly are analysed.
     if (this.analysis.paused && !this.manual.length) return;
     this.pool ??= new AnalysisPool();
@@ -1225,14 +1246,14 @@ class Library {
     }
   }
   private async analyseOne(t: Track) {
-    const s = this.store, pool = this.pool;
+    const s = this.store, pool = this.pool, stops = this.stops;
     if (!s || !pool) return;
     let file: File;
     try { file = t.fileKey ? await this.looseFile(t, false) : await fileAt(this.rootState(t.rootId)!.dir!, t.relPath!); }
     catch (e) { if ((e as DOMException).name === 'NotFoundError') s.putTrack({ ...t, status: 'missing' }); return; }
     try {
       const r = await timeAsync('analysis.track', () => pool.analyze(file, file.lastModified));
-      if (this.store !== s) return;
+      if (this.store !== s || this.stops !== stops) return;
       // The stored analysis and fingerprint go first: once a track shows as analysed, its page opens instantly.
       if (r.details) await this.putDetails(t.id, r.details).catch(e => console.warn('Couldn’t store the track analysis', e));
       if (r.fp) { const d = await platform.cacheDir(); if (d) await writeFingerprint(d, s.meta.id, t.id, r.fp).catch(e => console.warn('Couldn’t store the fingerprint', e)); }
@@ -1241,15 +1262,10 @@ class Library {
       if (r.wave) this.onWave?.(t.id, r.wave);
       if (r.art) await this.onArt?.(r.art);
       s.putAnalysis(t.id, r.summary);
-      const cur = s.tracks.get(t.id) ?? t;
-      const f = tagFields(r.info.tags);
-      const upd: Track = { ...cur, size: file.size, mtime: file.lastModified, format: formatOf(r.info), duration: r.duration || cur.duration };
-      fillInfo(upd, f);
-      if (r.art !== undefined) upd.art = r.art?.hash ?? '';
-      s.putTrack(upd);
+      s.putTrack(afterAnalysis(s.tracks.get(t.id) ?? t, analysed(r, file.size, file.lastModified)));
       this.analysis = { ...this.analysis, done: this.analysis.done + 1 };
     } catch (e) {
-      if (this.store !== s) return;
+      if (this.store !== s || this.stops !== stops) return;   // stopped: not a failure, analysed another time
       s.putAnalysis(t.id, failed(String((e as Error)?.message || 'The browser couldn’t decode it.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'The browser couldn’t decode it.'), { size: file.size, mtime: file.lastModified }));
       this.analysis = { ...this.analysis, done: this.analysis.done + 1, failed: this.analysis.failed + 1 };
     }

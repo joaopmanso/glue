@@ -94,7 +94,7 @@
   }
 
   // The pages on the left jump to their section; the one in view is marked.
-  const PAGES = [{ id: 'service', name: 'Service' }, { id: 'account', name: 'Account' }, { id: 'library', name: 'Library' }, { id: 'folders', name: 'Folders' }, { id: 'updates', name: 'Updates' }, { id: 'received', name: 'Received' }];
+  const PAGES = [{ id: 'service', name: 'Service' }, { id: 'now', name: 'Activity' }, { id: 'account', name: 'Account' }, { id: 'library', name: 'Library' }, { id: 'folders', name: 'Folders' }, { id: 'updates', name: 'Updates' }, { id: 'received', name: 'Received' }];
   let page = $state('service'), pane = $state<HTMLElement>();
   // A page chosen stays chosen while the pane scrolls to it (the spy would pick the one above a short last
   // section on the way).
@@ -109,6 +109,20 @@
     for (const pg of PAGES) { const el = pane.querySelector('#sec-' + pg.id); if (el && el.getBoundingClientRect().top <= top) cur = pg.id; }
     page = cur;
   }
+  // What GLUE Home is doing (ADR 0103): the analysis, and each new event as a toast for a few seconds.
+  const an = $derived(status?.analysing);
+  let toasts = $state<{ at: number; text: string }[]>([]);
+  let seenEvents = 0;
+  $effect(() => {
+    const ev = status?.events ?? [];
+    if (!seenEvents) { seenEvents = ev[0]?.at ?? Date.now(); return; }   // not what happened before the window opened
+    const fresh = ev.filter(e => e.at > seenEvents).reverse();
+    if (!fresh.length) return;
+    seenEvents = fresh[fresh.length - 1].at;
+    toasts = [...toasts, ...fresh].slice(-4);
+    for (const t of fresh) setTimeout(() => { toasts = toasts.filter(x => x !== t); }, 6000);
+  });
+  const ago = (t: number) => { const m = Math.round((Date.now() - t) / 60e3); return m < 1 ? 'now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
   async function setAtLogin(on: boolean) {
     const a = await autostart();
     try { if (on) await a.enable(); else await a.disable(); atLogin = await a.isEnabled(); } catch (e) { error = (e as Error).message; }
@@ -192,6 +206,28 @@
           {:else}<p class="fine">Nothing yet.</p>{/if}
           <div class="row"><button type="button" id="activity-refresh" onclick={() => void loadActivity()}>Refresh</button><button type="button" id="activity-copy" disabled={!activity.length} onclick={copyActivity}>Copy</button></div>
         </details>
+      </section>
+
+      <section id="sec-now">
+        <h2>Activity</h2>
+        {#if an}
+          <p id="an-state">
+            {#if an.running}Analysing {an.running} song{an.running === 1 ? '' : 's'}{an.left ? ' · ' + an.left.toLocaleString() + ' to go' : ''}
+            {:else if an.paused && an.left}Paused · {an.left.toLocaleString()} song{an.left === 1 ? '' : 's'} to analyse
+            {:else if an.paused}Paused
+            {:else if an.left}{an.left.toLocaleString()} song{an.left === 1 ? '' : 's'} to analyse{an.by === 'tab-self' ? ' (the GLUE tab here is analysing them)' : ''}
+            {:else}All this computer’s songs are analysed{/if}
+          </p>
+          {#if an.current.length}<ul class="now" id="an-current">{#each an.current as n, i (n + i)}<li>{n}</li>{/each}</ul>{/if}
+          <p class="fine">Analysed since GLUE Home started: {an.done.toLocaleString()}{an.failed ? ' · ' + an.failed + ' couldn’t be read' : ''}{an.waiting ? ' · ' + an.waiting.toLocaleString() + ' waiting to go into the library' + (an.by === 'tab' || an.by === 'tab-self' ? ' (the GLUE tab here takes them)' : '') : ''}</p>
+          <div class="row">
+            <button type="button" id="an-pause" onclick={() => void save({ analysisPaused: !cfg?.analysisPaused })}>{cfg?.analysisPaused ? 'Resume analysis' : 'Pause analysis'}</button>
+          </div>
+        {:else}<p class="fine">Starting…</p>{/if}
+        {#if status?.events?.length}
+          <h3>Lately</h3>
+          <ul class="events" id="events">{#each status.events.slice(0, 12) as e (e.at + e.text)}<li><span>{e.text}</span><small>{ago(e.at)}</small></li>{/each}</ul>
+        {/if}
       </section>
 
       <section id="sec-account">
@@ -302,6 +338,7 @@
         </section>
       {/if}
     </main>
+  {#if toasts.length}<div class="toasts" role="status" aria-live="polite">{#each toasts as t (t.at + t.text)}<div class="toast">{t.text}</div>{/each}</div>{/if}
   </div>
 </div>
 
@@ -323,6 +360,13 @@
   nav button.on { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); font-weight: 600; }
   .ver { margin-top: auto; padding: 6px 10px 0; color: var(--muted); font-size: 11px; }
   main { overflow-y: auto; padding: 14px 18px 40vh; display: grid; gap: 12px; align-content: start; }
+  .now { margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
+  .events { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+  .events li { display: flex; justify-content: space-between; gap: 10px; }
+  .events small { color: var(--muted); white-space: nowrap; }
+  h3 { font-size: 13px; margin: 6px 0 0; color: var(--muted); font-weight: 600; }
+  .toasts { position: fixed; right: 14px; bottom: 14px; z-index: 50; display: grid; gap: 6px; max-width: min(340px, calc(100vw - 28px)); }
+  .toast { background: var(--raised, var(--surface)); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; box-shadow: 0 8px 24px rgb(0 0 0 / .35); }
   section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; scroll-margin-top: 14px; }
   h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
   p { margin: 0; }

@@ -18,7 +18,8 @@ function clicks(bpm: number, offset: number, seconds: number, accent: number, sr
 }
 
 describe('Prepare: waveform and beat grid (ADR 0052)', () => {
-  it('places the grid on the beats, to a few milliseconds, and finds the bar', () => {
+  // Three 40 s waveforms: over the default 5 s when every test file runs at once.
+  it('places the grid on the beats, to a few milliseconds, and finds the bar', { timeout: 30_000 }, () => {
     for (const [bpm, offset, accent] of [[124, 0.137, 1], [174, 0.05, 0], [90, 0.41, 3]] as const) {
       const w = computeWaveform(clicks(bpm, offset, 40, accent), 44100);
       const g = beatGrid(w.env, w.envRate, w.envT0, bpm, { data: w.peak, rate: w.rate });

@@ -104,14 +104,15 @@ export async function locateAll(cfg: HomeConfig): Promise<{ folders: Record<stri
 }
 
 /** A song's file on this computer, from its ids (asked for by the website on another computer). */
-export async function trackPath(profile: string, collection: string, id: string, cfg: HomeConfig): Promise<{ path: string; name: string; folder?: { id: string; path: string } }> {
+/** mtime and size: as the collection has them (an analysis is of the file as the collection knows it). */
+export async function trackPath(profile: string, collection: string, id: string, cfg: HomeConfig): Promise<{ path: string; name: string; mtime: number; size: number | null; folder?: { id: string; path: string } }> {
   if (!shared(cfg, profile, collection)) throw new Error('That collection isn’t shared by GLUE Home (see its settings).');
   const base = `profiles/${profile}/collections/${collection}`;
   const shard = await json<{ items: Record<string, Track> }>(`${base}/tracks/${shardOf(id)}.json`);
   const h = here(await json<Collection | SharedCollection>(`${base}/collection.json`), profile, collection, cfg.deviceId);
   const t = shard?.items[id] ? h.track(shard.items[id]) : null;
   if (!t) throw new Error('That song isn’t in this computer’s GLUE library.');
-  if (t.fileKey?.startsWith('copy:')) return { path: join(cfg.glue!, t.fileKey.slice(5)), name: t.fileName };
+  if (t.fileKey?.startsWith('copy:')) return { path: join(cfg.glue!, t.fileKey.slice(5)), name: t.fileName, mtime: t.mtime ?? 0, size: t.size };
   if (t.remote) throw new Error('That song isn’t on this computer.');
   if (!t.rootId || !t.relPath) throw new Error('That song was added on its own in the browser; GLUE Home can’t find its file.');
   const meta = h.meta;
@@ -119,5 +120,5 @@ export async function trackPath(profile: string, collection: string, id: string,
   if (!root) throw new Error('That song’s music folder isn’t in the collection any more.');
   const dir = await locate(root, { relPath: t.relPath, importPath: t.importPath }, cfg);
   if (!dir) throw new Error('GLUE Home couldn’t find the music folder “' + root.name + '” on this computer (with ' + t.fileName + ' in it).');
-  return { path: join(dir, t.relPath), name: t.fileName, folder: cfg.folders?.[root.id] === dir ? undefined : { id: root.id, path: dir } };
+  return { path: join(dir, t.relPath), name: t.fileName, mtime: t.mtime ?? 0, size: t.size, folder: cfg.folders?.[root.id] === dir ? undefined : { id: root.id, path: dir } };
 }

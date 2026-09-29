@@ -5,6 +5,28 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · GLUE Home analyses the library, Stop, Analyse now, GLUE Home's Activity (GLUE Home 0.27)
+- **GLUE Home analyses its computer's songs, also with the browser closed**
+  ([ADR 0103](../adr/0103-glue-home-analyses-its-computers-songs.md)).
+  - With no GLUE tab open, it puts the analyses into the library itself, and they're synced.
+  - With a GLUE tab open in Home mode (signed in), that tab leaves the analysis to it, takes the results
+    in with their details, waveforms and fingerprints, and shows "by GLUE Home".
+- **Right-click "Analyse now"** also for another computer's songs: that computer's GLUE Home does them
+  first.
+- **Stop** in the library's analysis bar stops at once and turns background analysis off. In Home mode
+  the switch pauses and resumes GLUE Home too.
+- **GLUE Home's window: Activity.** What it's analysing, how many are left, how many wait to go into the
+  library, Pause / Resume, what happened lately. Each new event shows as a toast: songs being analysed,
+  a song received, analyses put into the library, changes from other devices.
+- Fixed:
+  - stopping an analysis stored the song being analysed as failed;
+  - GLUE Home's analyses carried no file date, so they could never count as the song's.
+- Tests:
+  - unit: an analysis as data;
+  - e2e: GLUE Home with no tab analyses into the library and says so; a tab in Home mode leaves it to
+    GLUE Home, takes the results in (its cache too), and pauses and resumes it; Stop; GLUE Home's
+    Activity, toasts and Pause.
+
 ## 2026-09-29 · Caches follow a collection; turning cloud sync off (GLUE Home 0.26, GLUE Cloud migration 0007)
 - **Waveforms, analyses, fingerprints and covers follow a collection** when it's put into the account's
   ([ADR 0102](../adr/0102-caches-follow-and-cloud-sync-off.md)): in the browser's cache, and in GLUE

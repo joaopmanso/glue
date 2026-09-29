@@ -10,6 +10,7 @@ import * as lookup from './lookup';
 import { backupDaily } from './backups';
 import { syncSharedHere } from './sharedSync';
 import { followMoves } from './moves';
+import * as analysis from './analysis';
 import { describe, locateAll, trackPath } from './library';
 import { findUpdate, install } from './updates';
 import { checkReminders } from './reminders';
@@ -30,12 +31,15 @@ const lookingUp = new Map<string, ReturnType<typeof trackPath>>();   // a song b
 const served: Record<string, { calls: number; ms: number; bytes: number }> = {};
 
 const apiOf = (c: HomeConfig) => c.api || API;
+/** What GLUE Home did lately (the settings window shows each new one as a toast), newest first. */
+const events: { at: number; text: string }[] = [];
+function event(text: string) { events.unshift({ at: Date.now(), text }); if (events.length > 30) events.length = 30; servedSoon(); }
 /** What was asked shows in the settings a moment after (at most every 2 s, ADR 0083). */
 let servedTimer = 0;
 const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, reminders, served: structuredClone(served) };
+  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), events: events.slice(), reminders, served: structuredClone(served) };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -149,6 +153,7 @@ function receive(dc: RTCDataChannel, from: string) {
         const r: Received = { name: f.name, path, from: fromName(), at: Date.now(), size: f.size };
         if (cfg) { cfg = { ...cfg, received: [r, ...(cfg.received ?? [])].slice(0, 30) }; await bridge.saveConfig(cfg).catch(() => {}); }
         reply({ t: 'saved', n: f.n, name: f.name });
+        event('Received ' + f.name + ' from ' + r.from);
       }
       report(state, text);
     }
@@ -301,6 +306,16 @@ function serve(dc: RTCDataChannel) {
         const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
         for (const p of parts) { all.set(p, at); at += p.length; }
         await answer(c.n, found, all);
+      } else if (c.t === 'analysis') {
+        // The analysis of this computer's songs (ADR 0103): asked about, paused, songs asked for now; the tab on
+        // this computer takes the results in (and says which).
+        if (c.take) analysis.delegate();
+        // Paused from a GLUE tab: kept in the settings, like a pause there (the settings window shows it).
+        if (c.pause !== undefined && cfg && !!cfg.analysisPaused !== c.pause) { cfg = { ...cfg, analysisPaused: c.pause }; await bridge.saveConfig(cfg).catch(() => {}); analysis.setPaused(c.pause, () => cfg); }
+        if (c.now?.length) analysis.now(c.profile, c.collection, c.now, c.names ?? {}, () => cfg);
+        if (c.taken?.length) await analysis.taken(c.profile, c.collection, c.taken);
+        void analysis.run(() => cfg);
+        await answer(c.n, { state: analysis.state, waiting: analysis.waitingIn(c.profile, c.collection).slice(0, 200) }, null);
       } else if (c.t === 'local') {
         // The website on this computer: how to reach GLUE Home without GLUE Cloud (ADR 0048).
         await answer(c.n, { port: await bridge.localPort(), token: cfg?.localToken ?? null }, null);
@@ -329,7 +344,7 @@ let sharedTimer: ReturnType<typeof setTimeout> | undefined;
 /** Sync the shared collections in a moment (several nudges at once make one). */
 function sharedSoon() {
   clearTimeout(sharedTimer);
-  sharedTimer = setTimeout(() => { if (cfg?.running !== false && cfg) void syncSharedHere(cfg, apiOf(cfg)).catch(e => console.warn('GLUE Home: couldn’t sync the shared collections', e)); }, 1500);
+  sharedTimer = setTimeout(() => { if (cfg?.running !== false && cfg) void syncSharedHere(cfg, apiOf(cfg)).then(n => { if (n) event('Took in ' + n + ' change' + (n === 1 ? '' : 's') + ' from your other devices'); }).catch(e => console.warn('GLUE Home: couldn’t sync the shared collections', e)); }, 1500);
 }
 
 async function findFolders() {
@@ -345,7 +360,8 @@ async function findFolders() {
       library = { searching: false, found: Object.keys(r.folders).length, missing: r.missing };
       report(state, text);
       // Then the mini spectrograms and analyses it doesn't have yet, gently in the background.
-      void cache.background(() => cfg, () => !!receiving || serving > 0, () => report(state, text));
+      // (after the library's own analysis: it makes these too.)
+      void cache.background(() => cfg, () => !!receiving || serving > 0 || analysis.state.running > 0 || analysis.state.left > 0, () => report(state, text));
     } while (again);
   })().finally(() => { finding = null; });
 }
@@ -372,6 +388,7 @@ async function boot() {
     const before = cfg;
     cfg = c;
     if (before?.glue !== c.glue || JSON.stringify(before?.serve ?? {}) !== JSON.stringify(c.serve ?? {}) || JSON.stringify(before?.folders ?? {}) !== JSON.stringify(c.folders ?? {})) void findFolders();
+    if (!!before?.analysisPaused !== !!c.analysisPaused) analysis.setPaused(!!c.analysisPaused, () => cfg);
     if (!before || before.deviceId !== c.deviceId || before.token !== c.token || before.running !== c.running || (before.api ?? '') !== (c.api ?? '')) start();
     else report(state, text);
   });
@@ -407,6 +424,13 @@ async function boot() {
   const moves = () => void followMoves(cfg).catch(e => console.warn('GLUE Home: the cache didn’t follow a moved collection', e));
   setTimeout(moves, 30_000);
   setInterval(moves, 3600e3);
+  // This computer's songs analysed for the library (ADR 0103): soon after starting, then every minute.
+  analysis.setPaused(!!cfg?.analysisPaused, undefined, true);
+  analysis.on.changed = servedSoon;
+  analysis.on.event = event;
+  analysis.on.written = n => { event('Put ' + n + ' analys' + (n === 1 ? 'is' : 'es') + ' into the library'); sharedSoon(); };
+  setTimeout(() => void analysis.run(() => cfg), 20_000);
+  setInterval(() => { if (cfg?.running !== false) void analysis.run(() => cfg); }, 60_000);
   // Shared collections (ADR 0097): synced here when no GLUE tab is, soon after starting and every minute.
   setTimeout(sharedSoon, 25_000);
   setInterval(sharedSoon, 60_000);

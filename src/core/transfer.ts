@@ -49,6 +49,9 @@ export type StreamReq =
   | { t: 'art'; n: number; profile: string; collection: string; px: 64 | 320; items: { track: string; hash?: string }[] }
   | { t: 'end'; n: number }
   /** Edits were sent for this computer (GLUE Home 0.18, ADR 0087): its GLUE Home applies them now, or tells the open tab. */
+  // GLUE Home's analysis of its computer's songs (ADR 0103), data: { state, waiting: ids }. `take`: the tab on its
+  // computer takes the results in (it delegates the analysis); `now`: analyse these first; `taken`: taken in.
+  | { t: 'analysis'; n: number; profile: string; collection: string; take?: boolean; pause?: boolean; now?: string[]; names?: Record<string, string>; taken?: string[] }
   | { t: 'local'; n: number }                                                           // the local link (data: { port, token }), for the website on the same computer (ADR 0048)
   | { t: 'cache'; n: number; keys: string[] };                                          // files of GLUE Home's cache (data: [key, size][])
 export type StreamReply =
