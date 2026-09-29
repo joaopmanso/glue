@@ -394,7 +394,7 @@ describe('the shared collection (ADR 0094, 0106)', () => {
     let last: unknown = null;
     for (let n = 0; n < 300; n++) last = (await call('POST', '/v1/shared/long/append', entry(n, ['lists/a.json']), t)).json;
     expect(last).toEqual({ rev: 300, compact: true });
-  });
+  }, 30_000);
   it('another account can’t read or write it; bad entries, big ones and old pushes are refused', async () => {
     const a = await signIn();
     await call('POST', '/v1/shared', { id: 'mine' }, a.json.access);

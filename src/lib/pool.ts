@@ -29,7 +29,8 @@ class Slot {
     const id = ++this.id;
     return new Promise((resolve, reject) => { this.waiting = { resolve, reject }; this.w!.postMessage({ id, ...msg }, transfer); });
   }
-  stop() { this.w?.terminate(); this.w = null; }
+  /** Its worker ends; what it was doing ends too, with `why` (never left waiting). */
+  stop(why = 'The analysis worker stopped') { const p = this.waiting; this.waiting = null; this.w?.terminate(); this.w = null; p?.reject(new Error(why)); }
 }
 
 let decoding = 0;
@@ -50,9 +51,11 @@ export class AnalysisPool {
   private async slot(): Promise<Slot> { return this.free.pop() ?? new Promise(r => this.waiters.push(r)); }
   private release(s: Slot) { const w = this.waiters.shift(); if (w) w(s); else this.free.push(s); }
 
-  async analyze(file: File, mtime: number): Promise<PoolResult> {
+  /** `limit`: at most this long (ms); then its worker ends ("took too long"), and only its. */
+  async analyze(file: File, mtime: number, limit?: number): Promise<PoolResult> {
     if (file.size > MAX_BYTES) throw new Error('File too large to analyse in the background; open it to analyse.');
     const s = await this.slot();
+    const timer = limit ? setTimeout(() => s.stop('the analysis took too long'), limit) : 0;
     try {
       const summary = { info: null, size: file.size, mtime };
       let r = await timeAsync('analysis.worker', () => s.run({ job: { type: 'file', file }, summary }, []));
@@ -69,7 +72,7 @@ export class AnalysisPool {
       if (!info.duration) info.duration = r.duration;
       if (!info.bitrate && info.duration && info.lossless === false) info.bitrate = file.size * 8 / info.duration / 1000;
       return { summary: r.out, info, duration: info.duration, details: r.details, fp: r.fp, thumb: r.thumb, wave: r.wave, art: r.art };
-    } finally { this.release(s); }
+    } finally { clearTimeout(timer); this.release(s); }
   }
   stop() { for (const s of this.slots) s.stop(); }
 }

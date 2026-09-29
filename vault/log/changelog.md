@@ -5,6 +5,23 @@ updated: 2026-09-29
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · GLUE Home and the browser no longer run out of memory while analysing (GLUE Home 0.33)
+- **Fixed: GLUE Home and Chrome crashed while analysing** (since 0.31,
+  [ADR 0107](../adr/0107-sync-looks-only-at-what-changed.md)).
+  - Every push to GLUE Cloud (every 25 analysed songs) read and parsed the whole collection, and rewrote a
+    sync state as big as the collection. Measured on 13,000 songs: 21 MB read and 22.6 MB written per push.
+    Now 1.3 MB and 0.66 MB, about the changed songs' files.
+  - The sync is told which files changed (what the store wrote). Every file is looked at on the first
+    sync and every 30 minutes.
+  - The sync state keeps each file's agreed copy on its own; the old single file is split once.
+  - Taking changes in reads only the files they touch.
+- **Fixed: a song's 2-minute limit ended every analysis running** (since 0.3.1, much worse with 12 at a
+  time). Songs running when it fired failed as "took too long", or hung. Now the limit is cancelled when the
+  song finishes, and ends only its own worker.
+- Comparing songs ignores the order of their fields (two stores never send a song back and forth).
+- Tests: `tests/syncCost.test.ts` measures bytes read and written per push and per pull on a 13,000-song
+  library.
+
 ## 2026-09-29 · GLUE Home online again for streaming (GLUE Home 0.32)
 - **Fixed: GLUE Home could stay offline for the account's other devices.** Since 0.28 it reads its settings
   fresh at start-up. Settings that never said "running" (Start or Stop never pressed) counted as stopped.

@@ -58,7 +58,7 @@ export function store(cfg: HomeConfig, p: string, c: string): Promise<Collection
       try { meta = JSON.parse(await bridge.glueRead(`profiles/${p}/collections/${c}/collection.json`)); } catch { /* checked by load */ }
       const me = meta && (meta as SharedCollection).shared ? meFor(meta as SharedCollection, p, cfg.deviceId) ?? undefined : undefined;
       const st = await CollectionStore.load(glue, p, c, me ? { me } : {});
-      st.onWrote = paths => changed(p, c, paths);
+      st.onWrote = paths => { wrote(p, c, paths); changed(p, c, paths); };
       return st;
     })();
     stores.set(k, s);
@@ -75,8 +75,27 @@ export async function reload(cfg: HomeConfig, p: string, c: string, paths: strin
 }
 /** A tab saved this collection itself just now (before it became the engine's screen): read it again. */
 export function drop(p: string, c: string) { stores.delete(key(p, c)); }
-/** A GLUE tab from before the engine holds the lease (it writes by itself): nothing kept here goes stale. */
-export function forget() { stores.clear(); }
+/** A GLUE tab from before the engine holds the lease (it writes by itself): nothing kept here goes stale,
+    and the next sync looks at every file. */
+export function forget() { stores.clear(); lookedAt.clear(); }
+
+// ---- what was written, for the shared sync (ADR 0107) ----------------------------------------------------
+/** Files written by the stores here since the last sync, per collection; and when every file was last
+    looked at (at the first sync, then every 30 minutes, in case something wrote around the stores). */
+const written = new Map<string, Set<string>>(), lookedAt = new Map<string, number>();
+const FULL_EVERY = 30 * 60e3;
+function wrote(p: string, c: string, paths: string[]) { const k = key(p, c); const s = written.get(k) ?? written.set(k, new Set()).get(k)!; for (const x of paths) s.add(x); }
+/** The files that may have changed since the last sync; undefined: look at every file this time. */
+export function takeWritten(p: string, c: string): string[] | undefined {
+  const k = key(p, c), s = written.get(k);
+  written.delete(k);
+  if (Date.now() - (lookedAt.get(k) ?? 0) > FULL_EVERY) { lookedAt.set(k, Date.now()); return undefined; }
+  return [...(s ?? [])];
+}
+/** A sync that failed: what it was to look at is looked at next time. */
+export function writtenAgain(p: string, c: string, paths: string[] | undefined) {
+  if (!paths) lookedAt.delete(key(p, c)); else wrote(p, c, paths);
+}
 
 export function changed(p: string, c: string, paths: string[], analysed?: string[]) {
   rev++;
@@ -88,7 +107,12 @@ export function changed(p: string, c: string, paths: string[], analysed?: string
 }
 /** What changed since `since` (waiting up to `ms` for something); `reset`: too far behind, read it all again. */
 export async function wait(since: number, ms = 25_000): Promise<{ rev: number; changes: Change[]; reset?: boolean }> {
-  if (rev <= since) await new Promise<void>(res => { const t = setTimeout(res, ms); wake.push(() => { clearTimeout(t); res(); }); });
+  if (rev <= since) await new Promise<void>(res => {
+    const w = () => { clearTimeout(t); res(); };
+    // Nothing changed in time: its call to wake goes too (a tab asks again and again while nothing happens).
+    const t = setTimeout(() => { wake = wake.filter(x => x !== w); res(); }, ms);
+    wake.push(w);
+  });
   if (log.length && since < log[0].rev - 1) return { rev, changes: [], reset: true };
   return { rev, changes: log.filter(x => x.rev > since) };
 }

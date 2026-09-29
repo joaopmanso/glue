@@ -128,11 +128,11 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig)
   const want = poolSize(cfg);
   if (pool && pool.size !== want) { const old = pool; pool = null; setTimeout(() => old.stop(), 150_000); }   // what runs there finishes
   pool ??= new AnalysisPool(want);
-  // A song that never finishes (it won't decode) mustn't hold up every other one: 2 minutes at most.
-  const p0 = pool;
+  // A song that never finishes (it won't decode) mustn't hold up the others: 2 minutes at most, then its
+  // worker ends (only its: every other song goes on).
   let r: Awaited<ReturnType<AnalysisPool['analyze']>>;
   try {
-    r = await Promise.race([p0.analyze(new File(parts, f.name, { lastModified: f.mtime }), f.mtime), new Promise<never>((_, no) => setTimeout(() => { p0.stop(); if (pool === p0) pool = null; no(new Error('the analysis took too long')); }, 120_000))]);
+    r = await pool.analyze(new File(parts, f.name, { lastModified: f.mtime }), f.mtime, 120_000);
   } catch (e) {
     // The worker ran out of memory (too many big songs at once): tried again later, not a failure.
     if (/analysis worker stopped/.test(String((e as Error)?.message))) throw e;

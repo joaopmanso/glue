@@ -65,7 +65,10 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
       const glue = disk.dir(roots.glue), r = roots;
       if (await bridge.leaseHeld()) return changed;   // a tab opened meanwhile: it's the writer now
       const place = { root: glue, pid: p.id, cid: c.id, me, cloud: cloudFor(api, token, c.id) };
-      const res = await syncShared(place);
+      // Only the files written here since the last sync are looked at (every one now and then, ADR 0107).
+      let hint = engine.takeWritten(p.id, c.id);
+      let res: Awaited<ReturnType<typeof syncShared>>;
+      try { res = await syncShared(place, hint); } catch (e) { engine.writtenAgain(p.id, c.id, hint); throw e; }
       changed += res.changed.length;
       // What came in, into the engine's store (and a GLUE tab's feed).
       await engine.reload(cfg, p.id, c.id, res.changed);
@@ -79,7 +82,8 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
         return disk.tags(at, tr.relPath, tags);
       }, { stop: () => false });
       await s.flush();
-      await syncShared(place);
+      hint = engine.takeWritten(p.id, c.id);
+      try { await syncShared(place, hint); } catch (e) { engine.writtenAgain(p.id, c.id, hint); throw e; }
     }
     sharedDone.synced += changed; sharedDone.at = Date.now(); sharedDone.error = '';
   } catch (e) { sharedDone.error = (e as Error).message; throw e; }

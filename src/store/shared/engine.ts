@@ -1,19 +1,21 @@
 /* Syncing a shared collection (ADR 0094, 0106): the collection's folder in the GLUE folder against its one
    copy in GLUE Cloud, a snapshot and a log. No DOM and no app state: a GLUE tab and GLUE Home's service
    page run the same code.
-   - The last copy both sides agreed on (per file: its text) is kept in `cloud/shared/<cid>.json`, with the
-     cursor (the cloud revision this device has seen everything up to).
+   - What both sides last agreed on: the cursor (the cloud revision this device has seen everything up to)
+     and the clashes waiting, in `cloud/shared/<cid>.json`; each file's agreed text in its own file under
+     `cloud/shared/<cid>/`, read only when that file is looked at (ADR 0107).
    - pull: the log's entries since the cursor (behind the snapshot's floor: the snapshot's files first).
      They make the cloud's copy of each file they touch, from the agreed one. A file changed only there is
      taken; one changed on both sides is merged three ways (merge3), and clashes are kept for the prompt.
    - push: what differs from the agreed copy, as one entry: of a file of songs (a shard) only the songs
      that changed, of any other file its text. It lands only on the cloud's latest revision; otherwise
      this device pulls, merges and pushes again. One push is one row in GLUE Cloud, however many songs.
+     Told which files changed (the store knows what it wrote), only those are looked at; else every one.
    - checkpoint: when GLUE Cloud says the log is long, the device that pushed writes the files the log
      changed, as they are at its cursor, into the snapshot, and the log before it goes.
    The collection's files are in the shared form (each song with every computer's copy): the store
    shows them as this computer sees them (core/shared/project). */
-import { type Dir, listNames, readText, removePath, subdir, writeText } from '../fsx';
+import { type Dir, listNames, readText, removePath, writeText } from '../fsx';
 import { merge3, setAt, type Clash } from '../../core/shared/merge3';
 
 export interface LogEntry { rev: number; by?: string | null; at?: number; data: string }
@@ -32,14 +34,13 @@ export interface SharedCloud {
   checkpoint(at: number, body: string, done: boolean): Promise<unknown>;
 }
 export interface Place { root: Dir; pid: string; cid: string; me: string; cloud: SharedCloud }
-interface Agreed { text: string | null }
-interface State { cursor: number; files: Record<string, Agreed>; clashes?: Clash[] }
 export interface SyncResult { changed: string[]; clashes: Clash[]; pushed: number }
 /** How one file changed: its songs (a shard: the other keys, and each song changed, null gone), its whole
     text, or deleted. */
 export type FileChange = { o: Record<string, unknown>; i: Record<string, unknown> } | { t: string } | { d: 1 };
 
 const SYNCED = /^(collection\.json|events\.json|(tracks|analysis|lists|sources|dupes)\/[\w.-]+\.json)$/;
+const DIRS = ['tracks', 'analysis', 'lists', 'sources', 'dupes'];
 /** One entry: at most this much JSON before it's packed (packed, it must stay under GLUE Cloud's 1.8 MB),
     and the snapshot's files per checkpoint call. */
 const MAX_ENTRY_JSON = 6_000_000, MAX_PACKED = 1_700_000, MAX_BODY = 1_500_000, MAX_FILES = 150;
@@ -53,37 +54,68 @@ export const packText = async (text: string) => toB64(await pipe(new TextEncoder
 export const unpackText = async (b64: string) => new TextDecoder().decode(await pipe(fromB64(b64), new DecompressionStream('gzip')));
 const parse = (t: string | null | undefined) => { if (t == null) return undefined; try { return JSON.parse(t) as unknown; } catch { return undefined; } };
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** The same value, whatever the order of its keys (two stores may write a song's fields in another order:
+    that's no change, and must never be sent back and forth). */
+function same(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a)) return Array.isArray(b) && a.length === b.length && a.every((x, i) => same(x, b[i]));
+  if (!isObj(a) || !isObj(b)) return false;
+  const ka = Object.keys(a).filter(k => a[k] !== undefined), kb = Object.keys(b).filter(k => b[k] !== undefined);
+  return ka.length === kb.length && ka.every(k => same(a[k], b[k]));
+}
 
 const base = (p: Place) => `profiles/${p.pid}/collections/${p.cid}`;
 const statePath = (p: Place) => `cloud/shared/${p.cid}.json`;
+const agreedDir = (p: Place) => `cloud/shared/${p.cid}`;
 
-async function loadState(p: Place): Promise<State> {
-  const t = await readText(p.root, statePath(p)).catch(() => null);
-  const s = (parse(t) as State | undefined) ?? { cursor: 0, files: {} };
-  // From before the log (per file also its revision and hash): the texts are what counts.
-  for (const [k, v] of Object.entries(s.files)) s.files[k] = { text: v.text ?? null };
-  return s;
-}
-const saveState = (p: Place, s: State) => writeText(p.root, statePath(p), JSON.stringify(s));
-
-/** The collection's synced files as they are now: path → text. */
-export async function localFiles(p: Place): Promise<Map<string, string>> {
-  const out = new Map<string, string>(), b = base(p);
-  for (const name of await listNames(p.root, b, 'file').catch(() => [] as string[])) if (SYNCED.test(name)) { const t = await readText(p.root, b + '/' + name); if (t != null) out.set(name, t); }
-  for (const dir of ['tracks', 'analysis', 'lists', 'sources', 'dupes']) {
-    for (const name of await listNames(p.root, b + '/' + dir, 'file').catch(() => [] as string[])) {
-      const path = dir + '/' + name;
-      if (!SYNCED.test(path)) continue;
-      const t = await readText(p.root, b + '/' + path);
-      if (t != null) out.set(path, t);
-    }
-  }
+/** The synced files under a folder (the collection's, or the agreed copies'). */
+async function syncedPaths(root: Dir, dir: string): Promise<string[]> {
+  const out = (await listNames(root, dir, 'file').catch(() => [] as string[])).filter(n => SYNCED.test(n));
+  for (const d of DIRS) for (const n of await listNames(root, dir + '/' + d, 'file').catch(() => [] as string[])) if (SYNCED.test(d + '/' + n)) out.push(d + '/' + n);
   return out;
 }
+
+/** What this device and GLUE Cloud last agreed on. The agreed texts are read when a file is looked at,
+    and written back when they change (never the whole collection at once, ADR 0107). */
+class State {
+  cursor = 0;
+  clashes: Clash[] = [];
+  /** Files merged here in this sync (this device's changes and the cloud's): they go up next. */
+  merged = new Set<string>();
+  private texts = new Map<string, string | null>();
+  private dirty = new Set<string>();
+  private constructor(private p: Place) {}
+  static async load(p: Place): Promise<State> {
+    const s = new State(p);
+    const meta = parse(await readText(p.root, statePath(p)).catch(() => null)) as { cursor?: number; clashes?: Clash[]; files?: Record<string, { text?: string | null }> } | undefined;
+    s.cursor = meta?.cursor ?? 0; s.clashes = meta?.clashes ?? [];
+    // From before (every agreed text in this one file): each into its own, once.
+    if (meta?.files) { for (const [k, v] of Object.entries(meta.files)) if (v?.text != null && SYNCED.test(k)) s.set(k, v.text); await s.save(); }
+    return s;
+  }
+  /** The agreed text of a file (null: none); `keep`: kept in memory for the rest of this sync. */
+  async get(path: string, keep = true): Promise<string | null> {
+    if (this.texts.has(path)) return this.texts.get(path)!;
+    const t = await readText(this.p.root, agreedDir(this.p) + '/' + path).catch(() => null);
+    if (keep) this.texts.set(path, t);
+    return t;
+  }
+  set(path: string, text: string | null) { this.texts.set(path, text); this.dirty.add(path); }
+  /** Every file agreed on. */
+  paths() { return syncedPaths(this.p.root, agreedDir(this.p)); }
+  async save() {
+    for (const path of this.dirty) {
+      const t = this.texts.get(path) ?? null, at = agreedDir(this.p) + '/' + path;
+      if (t == null) await removePath(this.p.root, at).catch(() => {}); else await writeText(this.p.root, at, t);
+    }
+    this.dirty.clear();
+    await writeText(this.p.root, statePath(this.p), JSON.stringify({ v: 2, cursor: this.cursor, ...(this.clashes.length ? { clashes: this.clashes } : {}) }));
+  }
+}
+
+const readLocal = (p: Place, path: string) => readText(p.root, base(p) + '/' + path).catch(() => null);
 async function writeLocal(p: Place, path: string, text: string | undefined) {
   if (text === undefined) { await removePath(p.root, base(p) + '/' + path).catch(() => {}); return; }
-  if (path.includes('/')) await subdir(p.root, [...base(p).split('/'), path.split('/')[0]], true);
   await writeText(p.root, base(p) + '/' + path, text);
 }
 const pretty = (v: unknown) => JSON.stringify(v);
@@ -119,17 +151,17 @@ export function applyChange(was: string | null | undefined, c: FileChange): stri
 // ---- pull ----------------------------------------------------------------------------------------------
 
 /** The cloud's copy of a file came in: taken, or merged with this device's own changes. */
-async function take(p: Place, s: State, local: Map<string, string>, path: string, remote: string | undefined, by: string | null | undefined, at: number | undefined, changed: string[], clashes: Clash[]) {
-  const mine = local.get(path), agreed = s.files[path]?.text ?? undefined;
+async function take(p: Place, s: State, path: string, remote: string | undefined, by: string | null | undefined, at: number | undefined, changed: string[], clashes: Clash[]) {
+  const mine = await readLocal(p, path) ?? undefined, agreed = await s.get(path) ?? undefined;
   if (mine === remote) { /* the same already */ }
   else if (mine === agreed || mine === undefined && agreed === undefined) { await writeLocal(p, path, remote); changed.push(path); }
   else {
     const m = merge3(path, parse(agreed), parse(mine), parse(remote), p.me);
     clashes.push(...m.clashes.map(c => ({ ...c, by: by ?? null, when: at })));
     await writeLocal(p, path, m.value === undefined ? undefined : pretty(m.value));
-    changed.push(path);
+    changed.push(path); s.merged.add(path);
   }
-  if (remote === undefined) delete s.files[path]; else s.files[path] = { text: remote };
+  s.set(path, remote ?? null);
 }
 
 /** Behind the floor: the snapshot's files changed since the cursor, then the cursor is the floor. */
@@ -139,27 +171,29 @@ async function fromSnapshot(p: Place, s: State, floor: number, changed: string[]
     if (!Array.isArray(c?.files) || typeof c.seq !== 'number') throw new Error('GLUE Cloud answered strangely');
     more = c.more; since = c.seq;
     const todo = c.files.filter(f => SYNCED.test(f.path));
-    const got = new Map<string, string>(), want = todo.filter(f => !f.deleted).map(f => f.path);
-    // A bundle answers as many as fit: ask again for the rest until all are here.
+    // In bundles of files, taken as each comes (a bundle answers as many as fit: the rest is asked again).
+    const byPath = new Map(todo.map(f => [f.path, f]));
+    for (const f of todo) if (f.deleted) await take(p, s, f.path, undefined, f.by, f.at, changed, clashes);
+    const want = todo.filter(f => !f.deleted).map(f => f.path);
     while (want.length) {
-      const before = got.size;
+      let got = 0;
       for (const line of (await p.cloud.bundle(want.slice(0, 400))).split('\n')) {
         if (!line) continue;
-        const [path, , , data] = line.split('\t');
-        got.set(path, await unpackText(data));
+        const [path, , , data] = line.split('\t'), f = byPath.get(path);
+        const i = want.indexOf(path);
+        if (!f || i < 0) continue;
+        want.splice(i, 1); got++;
+        await take(p, s, path, await unpackText(data), f.by, f.at, changed, clashes);
       }
-      for (let i = want.length - 1; i >= 0; i--) if (got.has(want[i])) want.splice(i, 1);
-      if (got.size === before) throw new Error('GLUE Cloud didn’t send ' + want[0]);
+      if (!got) throw new Error('GLUE Cloud didn’t send ' + want[0]);
     }
-    const local = await localFiles(p);
-    for (const f of todo) await take(p, s, local, f.path, f.deleted ? undefined : got.get(f.path), f.by, f.at, changed, clashes);
   }
   s.cursor = floor;
 }
 
 /** Take in what changed in the cloud. `changed`: the local files that changed (the store reloads them). */
 export async function pull(p: Place, st?: State): Promise<{ state: State; changed: string[]; clashes: Clash[] }> {
-  const s = st ?? await loadState(p);
+  const s = st ?? await State.load(p);
   const changed: string[] = [], clashes: Clash[] = [];
   for (let more = true, resets = 0; more;) {
     const r = await p.cloud.log(s.cursor);
@@ -176,44 +210,45 @@ export async function pull(p: Place, st?: State): Promise<{ state: State; change
         const body = parse(await unpackText(e.data)) as { f?: Record<string, FileChange> } | undefined;
         for (const [path, c] of Object.entries(body?.f ?? {})) {
           if (!SYNCED.test(path)) continue;
-          const was = next.has(path) ? next.get(path)!.text : s.files[path]?.text;
+          const was = next.has(path) ? next.get(path)!.text : await s.get(path);
           next.set(path, { text: applyChange(was, c), by: e.by, at: e.at });
         }
       }
-      if (next.size) {
-        const local = await localFiles(p);
-        for (const [path, n] of next) await take(p, s, local, path, n.text, n.by, n.at, changed, found);
-      }
+      for (const [path, n] of next) await take(p, s, path, n.text, n.by, n.at, changed, found);
       s.cursor = r.seq;
     }
-    if (found.length) { s.clashes = [...(s.clashes ?? []), ...found]; clashes.push(...found); }
-    await saveState(p, s);
+    if (found.length) { s.clashes.push(...found); clashes.push(...found); }
+    await s.save();
   }
   return { state: s, changed, clashes };
 }
 
 // ---- push ----------------------------------------------------------------------------------------------
 
-const entryOf = (batch: [string, FileChange, string | null][]) => packText(JSON.stringify({ v: 1, f: Object.fromEntries(batch.map(([path, c]) => [path, c])) }));
+type Todo = [path: string, change: FileChange, now: string | null];
+const entryOf = (batch: Todo[]) => packText(JSON.stringify({ v: 1, f: Object.fromEntries(batch.map(([path, c]) => [path, c])) }));
 
-/** Send what changed here, as entries of the log. On a stale revision: pulled, merged and sent again (a
-    few times at most). Then the log folded into the snapshot, if GLUE Cloud asks. */
-export async function push(p: Place, st?: State): Promise<{ state: State; pushed: number; changed: string[]; clashes: Clash[] }> {
-  let s = st ?? await loadState(p);
+/** Send what changed here, as entries of the log (`only`: just these files may have; else all are looked
+    at). On a stale revision: pulled, merged and sent again (a few times at most). Then the log folded into
+    the snapshot, if GLUE Cloud asks. */
+export async function push(p: Place, st?: State, only?: Iterable<string>): Promise<{ state: State; pushed: number; changed: string[]; clashes: Clash[] }> {
+  let s = st ?? await State.load(p);
   let pushed = 0, compact = false;
   const changed: string[] = [], clashes: Clash[] = [];
+  const hinted = only ? new Set([...only].filter(x => SYNCED.test(x))) : null;
   for (let round = 0; round < 5; round++) {
-    const local = await localFiles(p);
-    const todo: [string, FileChange, string | null][] = [];
-    for (const path of new Set([...local.keys(), ...Object.keys(s.files)])) {
-      const now = local.get(path) ?? null, c = diffFile(s.files[path]?.text, now);
+    // One file at a time: read, compared, and only what changed kept.
+    const paths = hinted ? [...hinted] : [...new Set([...await syncedPaths(p.root, base(p)), ...await s.paths()])];
+    const todo: Todo[] = [];
+    for (const path of paths) {
+      const now = await readLocal(p, path), c = diffFile(await s.get(path, false), now);
       if (c) todo.push([path, c, now]);
     }
     if (!todo.length) break;
     let stale = false;
     for (let i = 0; i < todo.length;) {
       // As many files as fit one entry.
-      let batch: [string, FileChange, string | null][] = [], n = 0;
+      let batch: Todo[] = [], n = 0;
       while (i < todo.length) {
         const len = JSON.stringify(todo[i][1]).length;
         if (batch.length && n + len > MAX_ENTRY_JSON) break;
@@ -231,14 +266,16 @@ export async function push(p: Place, st?: State): Promise<{ state: State; pushed
       if (r?.stale) { stale = true; break; }
       if (typeof r?.rev !== 'number') throw new Error('GLUE Cloud answered a push strangely');
       s.cursor = r.rev;
-      for (const [path, , now] of batch) { if (now === null) delete s.files[path]; else s.files[path] = { text: now }; }
+      for (const [path, , now] of batch) s.set(path, now);
       pushed += batch.length;
       compact ||= !!r.compact;
-      await saveState(p, s);
+      await s.save();
     }
     if (!stale) break;
     const pl = await pull(p, s);
     s = pl.state; changed.push(...pl.changed); clashes.push(...pl.clashes);
+    // What the merge wrote here goes up too.
+    if (hinted) for (const x of s.merged) hinted.add(x);
   }
   if (compact) await checkpoint(p, s).catch(e => console.warn('GLUE Cloud: couldn’t fold the log into the snapshot', e));
   return { state: s, pushed, changed, clashes };
@@ -246,38 +283,38 @@ export async function push(p: Place, st?: State): Promise<{ state: State; pushed
 
 /** Fold the log into the snapshot at this device's cursor: the files the log changed, as agreed here. */
 async function checkpoint(p: Place, s: State) {
-  const at = s.cursor, { paths } = await p.cloud.touched(at);
-  const lines: string[] = [];
-  for (const path of paths.filter(x => SYNCED.test(x))) {
-    const text = s.files[path]?.text;
-    lines.push(text == null ? [path, '', 0, '-'].join('\t') : [path, await sha256(text), new TextEncoder().encode(text).length, await packText(text)].join('\t'));
-  }
-  for (let i = 0; ;) {
+  const at = s.cursor, paths = (await p.cloud.touched(at)).paths.filter(x => SYNCED.test(x));
+  // A few files at a time, packed as they go.
+  for (let i = 0; i < paths.length || i === 0;) {
     const part: string[] = [];
     let n = 0;
-    while (i < lines.length && part.length < MAX_FILES && (!part.length || n + lines[i].length <= MAX_BODY)) { part.push(lines[i]); n += lines[i].length; i++; }
-    await p.cloud.checkpoint(at, part.join('\n'), i >= lines.length);
-    if (i >= lines.length) break;
+    while (i < paths.length && part.length < MAX_FILES && n < MAX_BODY) {
+      const path = paths[i], text = await s.get(path, false);
+      const line = text == null ? [path, '', 0, '-'].join('\t') : [path, await sha256(text), new TextEncoder().encode(text).length, await packText(text)].join('\t');
+      if (part.length && n + line.length > MAX_BODY) break;
+      part.push(line); n += line.length; i++;
+    }
+    await p.cloud.checkpoint(at, part.join('\n'), i >= paths.length);
+    if (i >= paths.length) break;
   }
 }
 
-/** Both ways: take in the cloud's changes, then send this side's. */
-export async function syncShared(p: Place): Promise<SyncResult> {
+/** Both ways: take in the cloud's changes, then send this side's. `changed`: the only files that may have
+    changed here since the last sync (the store says what it wrote); without, every file is looked at. */
+export async function syncShared(p: Place, changedHere?: Iterable<string>): Promise<SyncResult> {
   const a = await pull(p);
-  const b = await push(p, a.state);
+  const b = await push(p, a.state, changedHere ? [...changedHere, ...a.state.merged] : undefined);
   return { changed: [...new Set([...a.changed, ...b.changed])], clashes: [...a.clashes, ...b.clashes], pushed: b.pushed };
 }
 
 /** The clashes waiting for an answer (kept with the sync state). */
-export async function waitingClashes(p: Place): Promise<Clash[]> { return (await loadState(p)).clashes ?? []; }
+export async function waitingClashes(p: Place): Promise<Clash[]> { return (await State.load(p)).clashes; }
 /** Settle a clash: `value` goes into this device's file at the clash's place (the cloud's value is already
-    there when that's the answer), and the clash is forgotten. The next push sends it. */
+    there when that's the answer), and the clash is forgotten. The next push sends it (the file is one of
+    the changed ones). */
 export async function resolveClash(p: Place, c: Clash, value: unknown, keepRemote: boolean) {
-  const s = await loadState(p);
-  if (!keepRemote) {
-    const text = await readText(p.root, base(p) + '/' + c.file).catch(() => null);
-    await writeLocal(p, c.file, pretty(setAt(parse(text) ?? {}, c.at, value)));
-  }
-  s.clashes = (s.clashes ?? []).filter(x => !(x.file === c.file && x.at === c.at));
-  await saveState(p, s);
+  const s = await State.load(p);
+  if (!keepRemote) await writeLocal(p, c.file, pretty(setAt(parse(await readLocal(p, c.file)) ?? {}, c.at, value)));
+  s.clashes = s.clashes.filter(x => !(x.file === c.file && x.at === c.at));
+  await s.save();
 }

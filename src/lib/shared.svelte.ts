@@ -66,11 +66,15 @@ class Shared {
     })().finally(() => { this.listing = null; }));
   }
   private listing: Promise<void> | null = null;
+  /** Files the open collection's store wrote since the last sync, and when every file was last looked at. */
+  written = new Set<string>();
+  lookedAt = 0;
   /** Shared collections of the account that this profile doesn't have yet. */
   missing() { const have = new Set(lib.profile?.collections.map(c => c.id) ?? []); return this.list.filter(c => !have.has(c.id)); }
 
   /** Sync the open shared collection now (one at a time; asked again while running: once more after). */
-  sync(): Promise<void> {
+  sync(full = false): Promise<void> {
+    if (full) this.lookedAt = 0;
     if (this.running) { this.again = true; return this.running; }
     return (this.running = this.once().finally(() => { this.running = null; if (this.again) { this.again = false; void this.sync(); } }));
   }
@@ -80,7 +84,12 @@ class Shared {
     this.status = { ...this.status, busy: true, error: '' };
     try {
       await lib.flush();
-      const r = await syncShared(p);
+      // Only the files this tab's store wrote since the last sync are looked at (every one now and then, ADR 0107).
+      const full = Date.now() - this.lookedAt > 30 * 60e3, hint = full ? undefined : [...this.written];
+      if (full) this.lookedAt = Date.now();
+      this.written.clear();
+      let r: Awaited<ReturnType<typeof syncShared>>;
+      try { r = await syncShared(p, hint); } catch (e) { if (hint) for (const x of hint) this.written.add(x); else this.lookedAt = 0; throw e; }
       if (lib.store !== s) return;
       if (r.changed.length) await s.reloadFiles(r.changed.filter(f => !f.startsWith('dupes/')));
       if (r.changed.some(f => f.startsWith('dupes/'))) void dupes.loadOthers();   // another computer's duplicates (ADR 0098)
@@ -99,6 +108,7 @@ class Shared {
       const both = how === 'both' ? mergeBoth(c.local, c.remote) : undefined;
       const keepRemote = how === 'theirs' || (how === 'both' && both === undefined);
       await resolveClash(p, c, how === 'mine' ? c.local : both, keepRemote);
+      this.written.add(c.file);   // written around the store: the next sync looks at it
     }
     await s.reloadFiles([...new Set(cs.map(c => c.file))]);
     this.clashes = await waitingClashes(p);
@@ -233,7 +243,8 @@ class Shared {
 }
 
 export const shared = new Shared();
-dupes.onPublished = () => void shared.sync();
+// The duplicates are written around the store: every file is looked at.
+dupes.onPublished = () => void shared.sync(true);
 
 // Opened as this computer; synced after saves, when another device pushed, and when it opens.
 lib.loadOpts = () => ({ me: account.thisDevice, name: account.devices.find(d => d.id === account.thisDevice)?.name });
@@ -241,7 +252,14 @@ const prevFlushed = lib.onFlushed;
 lib.onFlushed = pid => { prevFlushed?.(pid); if (lib.store?.shared) { clearTimeout(flushTimer); flushTimer = window.setTimeout(() => void shared.sync(), 1500); } };
 let flushTimer = 0;
 const prevOpened = lib.onCollectionOpened;
-lib.onCollectionOpened = (pid, cid) => { prevOpened?.(pid, cid); shared.clashes = []; shared.ask = null; if (lib.store?.shared) void shared.sync(); else void shared.ensure(); };
+lib.onCollectionOpened = (pid, cid) => {
+  prevOpened?.(pid, cid); shared.clashes = []; shared.ask = null;
+  // What its store writes is what the next sync looks at; the first one looks at everything.
+  const s = lib.store;
+  shared.written.clear(); shared.lookedAt = 0;
+  if (s) { const prev = s.onWrote; s.onWrote = paths => { prev?.(paths); if (lib.store === s) for (const x of paths) shared.written.add(x); }; }
+  if (lib.store?.shared) void shared.sync(); else void shared.ensure();
+};
 account.onShared(m => { if (lib.store?.shared && lib.store.meta.id === m.collection && m.from !== account.thisDevice) void shared.sync(); if (!lib.profile?.collections.some(c => c.id === m.collection)) void shared.refreshList(); });
 const prevSignedIn = account.onSignedIn;
 account.onSignedIn = () => { prevSignedIn?.(); void shared.refreshList().then(() => lib.store?.shared ? shared.sync() : shared.ensure()); };
