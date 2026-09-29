@@ -1,27 +1,12 @@
 /* GLUE Cloud API (ADR 0036) against real SQLite (node:sqlite) with the real migration, and Google
    ID tokens signed by a test key in place of Google's. */
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { DatabaseSync } from 'node:sqlite';
-import { handle, type DB, type Env, type Stmt } from '../cloud/src/api';
+import { handle, type Env } from '../cloud/src/api';
+import { d1 } from './d1';
 import { purge } from '../cloud/src/shared';
 import { b64url, normCode, pairingCode, signAccess, verifyAccess, type JwkSet } from '../cloud/src/crypto';
 
 const CLIENT = 'test-client.apps.googleusercontent.com', ORIGIN = 'https://joaopmanso.github.io';
-
-/** The D1 API over node:sqlite. */
-function d1(): DB {
-  const db = new DatabaseSync(':memory:');
-  db.exec('PRAGMA foreign_keys = ON;');
-  for (const m of ['0001_init.sql', '0002_sync.sql', '0003_tiers_passwords.sql', '0004_companions.sql', '0005_computers.sql', '0006_shared.sql', '0007_leave.sql']) db.exec(readFileSync(new URL('../cloud/migrations/' + m, import.meta.url), 'utf8'));
-  const stmt = (sql: string, args: unknown[] = []): Stmt => ({
-    bind: (...v) => stmt(sql, v),
-    first: async <T,>() => (db.prepare(sql).get(...(args as never[])) as T) ?? null,
-    all: async <T,>() => ({ results: db.prepare(sql).all(...(args as never[])) as T[] }),
-    run: async () => ({ meta: { changes: Number(db.prepare(sql).run(...(args as never[])).changes) } }),
-  });
-  return { prepare: sql => stmt(sql), batch: async s => { db.exec('BEGIN'); try { const r = []; for (const x of s) r.push(await x.run()); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } };
-}
 
 let keys: CryptoKeyPair, jwks: JwkSet, env: Env, now = Date.UTC(2026, 8, 25);
 /** Stands in for Cloudflare's TURN service (ADR 0081). */
@@ -217,12 +202,12 @@ describe('GLUE Cloud: email + password, tiers, admin (ADR 0041)', () => {
   it('admin: statistics, users, tiers, clearing data, deleting accounts, maintenance', async () => {
     const boss = await signIn({ sub: 'g-boss', email: 'boss@example.com' }), dj = await signIn();
     await call('POST', '/v1/shared', { id: 'c1', name: 'x' }, dj.json.access);
-    await call('POST', '/v1/shared/c1/push', 'lists/a.json	0	' + 'a'.repeat(64) + '	1	AAAA', dj.json.access);
+    await call('POST', '/v1/shared/c1/append', '0	["lists/a.json"]\nAAAA', dj.json.access);
     const s = await call('GET', '/v1/admin/stats', undefined, boss.json.access);
     expect(s.json.users).toMatchObject({ total: 2, byTier: { admin: 1, paid: 1 }, byProvider: { google: 2 }, new7: 2 });
     expect(s.json.users.signups).toHaveLength(30);
     expect(s.json.users.signups[29]).toBe(2);
-    expect(s.json.cloud).toMatchObject({ collections: 1, files: 1, bytes: 4 });
+    expect(s.json.cloud).toMatchObject({ collections: 1, files: 0, entries: 1, bytes: 4 });
     // Every sign-in, with who and whether it only browses (ADR 0091); admins only.
     const ss = await call('GET', '/v1/admin/sessions', undefined, boss.json.access);
     expect(ss.json.sessions.map((x: { email: string; role: string }) => [x.email, x.role]).sort()).toEqual([['boss@example.com', 'browse'], ['dj@example.com', 'browse']]);
@@ -272,7 +257,8 @@ describe('computers and sessions (ADR 0091)', () => {
   // A push to the account's collection, from a computer with songs of its own (music=1) or not.
   const upload = async (tok: string, tracks: number, cid = 'c1') => {
     await call('POST', '/v1/shared', { id: cid, name: 'My collection' }, tok);
-    return call('POST', '/v1/shared/' + cid + '/push' + (tracks ? '?music=1' : ''), 'lists/l.json	0	' + h('a') + '	1	AAAA', tok);
+    const seq = (await call('GET', '/v1/shared/' + cid + '/log?since=0', undefined, tok)).json.seq as number;
+    return call('POST', '/v1/shared/' + cid + '/append' + (tracks ? '?music=1' : ''), seq + '	["lists/l.json"]\nAAAA', tok);
   };
   const devices = async (tok: string) => (await call('GET', '/v1/me', undefined, tok)).json as { thisDevice: string; devices: { id: string; kind: string; role: string; companionOf: string | null }[]; sessions: { id: string }[] };
   it('a sign-in that only browses stays a session; one that uploads a collection with songs becomes a device', async () => {
@@ -350,19 +336,21 @@ describe('admin: free-tier usage (ADR 0093)', () => {
   });
 });
 
-describe('the shared collection (ADR 0094)', () => {
+describe('the shared collection (ADR 0094, 0106)', () => {
   const h = (c: string) => c.repeat(64);
-  const line = (path: string, base: number, c: string, data = 'QUJD') => [path, base, c === '-' ? '' : h(c), 3, c === '-' ? '-' : data].join('\t');
+  /** An entry of the log, on revision `base`. */
+  const entry = (base: number, paths: string[], data = 'QUJD') => base + '\t' + JSON.stringify(paths) + '\n' + data;
+  const line = (path: string, c: string, data = 'QUJD') => [path, c === '-' ? '' : h(c), 3, c === '-' ? '-' : data].join('\t');
   it('cloud sync off (ADR 0102): the account’s copy goes 30 days later, unless a device syncs it meanwhile', async () => {
     const lap = await signIn({}, { deviceName: 'Laptop' }), t = lap.json.access;
     for (const id of ['c1', 'c2']) {
       await call('POST', '/v1/shared', { id, name: id }, t);
-      await call('POST', '/v1/shared/' + id + '/push', line('lists/a.json', 0, 'a'), t);
+      await call('POST', '/v1/shared/' + id + '/append', entry(0, ['lists/a.json']), t);
       expect((await call('POST', '/v1/shared/' + id + '/leave', { remove: true }, t)).json.deleteAfter).toBe(now + 30 * 864e5);
     }
     expect((await call('GET', '/v1/shared', undefined, t)).json.collections.map((c: { deleteAfter: number | null }) => c.deleteAfter)).toEqual([now + 30 * 864e5, now + 30 * 864e5]);
-    // A device syncs c2 again: it's in use, so it stays.
-    await call('GET', '/v1/shared/c2/changes?since=0', undefined, t);
+    // A device syncs c2 again: kept.
+    await call('GET', '/v1/shared/c2/log?since=0', undefined, t);
     expect(await purge(env, now + 29 * 864e5)).toEqual({ removed: 0 });   // not yet
     expect(await purge(env, now + 31 * 864e5)).toEqual({ removed: 1 });
     const left = (await call('GET', '/v1/shared', undefined, t)).json.collections;
@@ -370,41 +358,55 @@ describe('the shared collection (ADR 0094)', () => {
     // Kept on purpose ("keep it"): no date at all.
     expect((await call('POST', '/v1/shared/c2/leave', { remove: false }, t)).json.deleteAfter).toBeNull();
   });
-  it('one copy for every device: files at revisions, what changed since a cursor, bundles', async () => {
+  it('one copy for every device: a log of entries, each on the latest revision; folded into a snapshot of files', async () => {
     const lap = await signIn({}, { deviceName: 'Laptop' }), desk = await signIn({}, { deviceName: 'Desktop' });
     expect((await call('POST', '/v1/shared', { id: 'col1', name: 'My collection' }, desk.json.access)).json).toEqual({ id: 'col1', name: 'My collection', seq: 0 });
-    // The desktop puts its files in: revision 1.
-    const p1 = (await call('POST', '/v1/shared/col1/push', [line('collection.json', 0, 'a'), line('tracks/ab.json', 0, 'b'), line('lists/l1.json', 0, 'c')].join('\n'), desk.json.access)).json;
-    expect(p1).toMatchObject({ rev: 1, stale: [] });
-    // The laptop (same account) sees them all, and reads them.
-    const c1 = (await call('GET', '/v1/shared/col1/changes?since=0', undefined, lap.json.access)).json;
-    expect(c1.seq).toBe(1);
-    expect(c1.files.map((f: { path: string; rev: number }) => [f.path, f.rev])).toEqual([['collection.json', 1], ['tracks/ab.json', 1], ['lists/l1.json', 1]]);
-    const b = (await call('POST', '/v1/shared/col1/bundle', { paths: ['lists/l1.json', 'tracks/ab.json'] }, lap.json.access)).text.split('\n');
-    expect(b).toEqual(['lists/l1.json\t1\t' + h('c') + '\tQUJD', 'tracks/ab.json\t1\t' + h('b') + '\tQUJD']);
-    // The laptop changes the playlist, based on revision 1: it lands (revision 2); nothing else changed.
-    expect((await call('POST', '/v1/shared/col1/push', line('lists/l1.json', 1, 'd'), lap.json.access)).json).toMatchObject({ rev: 2, stored: ['lists/l1.json'], stale: [] });
-    expect((await call('GET', '/v1/shared/col1/changes?since=1', undefined, desk.json.access)).json.files.map((f: { path: string }) => f.path)).toEqual(['lists/l1.json']);
-    // The desktop, still at revision 1 for it, changes it too: stale (to pull, merge and push again).
-    expect((await call('POST', '/v1/shared/col1/push', [line('lists/l1.json', 1, 'e'), line('tracks/cd.json', 0, 'f')].join('\n'), desk.json.access)).json).toMatchObject({ rev: 3, stored: ['tracks/cd.json'], stale: ['lists/l1.json'] });
-    // Deleted: marked, kept for the bin, and gone from bundles; made again from 0.
-    expect((await call('POST', '/v1/shared/col1/push', line('lists/l1.json', 2, '-'), desk.json.access)).json.stored).toEqual(['lists/l1.json']);
-    const c4 = (await call('GET', '/v1/shared/col1/changes?since=3', undefined, lap.json.access)).json;
-    expect(c4.files).toMatchObject([{ path: 'lists/l1.json', deleted: true }]);
-    expect((await call('GET', '/v1/shared/col1/bin', undefined, lap.json.access)).json.files.map((f: { path: string }) => f.path)).toEqual(['lists/l1.json']);
-    expect((await call('POST', '/v1/shared/col1/bundle', { paths: ['lists/l1.json'] }, lap.json.access)).text).toBe('');
-    expect((await call('POST', '/v1/shared/col1/push', line('lists/l1.json', 0, 'a'), lap.json.access)).json.stored).toEqual(['lists/l1.json']);
-    expect((await call('GET', '/v1/shared', undefined, lap.json.access)).json.collections.map((c: { id: string; seq: number }) => [c.id, c.seq])).toEqual([['col1', 5]]);
+    // The desktop's first entry: revision 1.
+    expect((await call('POST', '/v1/shared/col1/append', entry(0, ['collection.json', 'tracks/ab.json', 'lists/l1.json'], 'AAAA'), desk.json.access)).json).toEqual({ rev: 1, compact: false });
+    // The laptop reads the log.
+    const l1 = (await call('GET', '/v1/shared/col1/log?since=0', undefined, lap.json.access)).json;
+    expect(l1).toMatchObject({ seq: 1, more: false, entries: [{ rev: 1, data: 'AAAA' }] });
+    // The laptop's entry, on revision 1: lands (revision 2). The desktop, still on 1: stale.
+    expect((await call('POST', '/v1/shared/col1/append', entry(1, ['lists/l1.json'], 'BBBB'), lap.json.access)).json).toEqual({ rev: 2, compact: false });
+    expect((await call('POST', '/v1/shared/col1/append', entry(1, ['tracks/cd.json'], 'CCCC'), desk.json.access)).json).toEqual({ stale: true, seq: 2 });
+    expect((await call('GET', '/v1/shared/col1/log?since=1', undefined, desk.json.access)).json.entries.map((e: { rev: number; data: string }) => [e.rev, e.data])).toEqual([[2, 'BBBB']]);
+    expect((await call('POST', '/v1/shared/col1/append', entry(2, ['tracks/cd.json'], 'CCCC'), desk.json.access)).json).toEqual({ rev: 3, compact: false });
+    // Folded into the snapshot at revision 3: the files the log touched, written as they are there.
+    expect((await call('GET', '/v1/shared/col1/touched?to=3', undefined, desk.json.access)).json.paths.sort()).toEqual(['collection.json', 'lists/l1.json', 'tracks/ab.json', 'tracks/cd.json']);
+    expect((await call('POST', '/v1/shared/col1/checkpoint?at=4', line('lists/l1.json', 'a'), desk.json.access)).status).toBe(409);   // not a revision there is
+    await call('POST', '/v1/shared/col1/checkpoint?at=3', [line('collection.json', 'a'), line('tracks/ab.json', 'b')].join('\n'), desk.json.access);
+    await call('POST', '/v1/shared/col1/checkpoint?at=3&done=1', [line('lists/l1.json', '-'), line('tracks/cd.json', 'c')].join('\n'), desk.json.access);
+    expect((await call('POST', '/v1/shared/col1/checkpoint?at=3&done=1', '', desk.json.access)).status).toBe(409);   // done already
+    // Behind the floor: read the snapshot first.
+    expect((await call('GET', '/v1/shared/col1/log?since=0', undefined, lap.json.access)).json).toMatchObject({ reset: true, floor: 3 });
+    const c = (await call('GET', '/v1/shared/col1/changes?since=0', undefined, lap.json.access)).json;
+    expect(c.files.map((f: { path: string; rev: number; deleted: boolean }) => [f.path, f.rev, f.deleted])).toEqual([['collection.json', 3, false], ['tracks/ab.json', 3, false], ['tracks/cd.json', 3, false]]);
+    const b = (await call('POST', '/v1/shared/col1/bundle', { paths: ['tracks/cd.json', 'tracks/ab.json'] }, lap.json.access)).text.split('\n');
+    expect(b).toEqual(['tracks/cd.json\t3\t' + h('c') + '\tQUJD', 'tracks/ab.json\t3\t' + h('b') + '\tQUJD']);
+    // The log after the floor, as usual.
+    expect((await call('POST', '/v1/shared/col1/append', entry(3, ['lists/l2.json']), lap.json.access)).json).toEqual({ rev: 4, compact: false });
+    expect((await call('GET', '/v1/shared/col1/log?since=3', undefined, desk.json.access)).json.entries.map((e: { rev: number }) => e.rev)).toEqual([4]);
+    expect((await call('GET', '/v1/shared', undefined, lap.json.access)).json.collections.map((c: { id: string; seq: number }) => [c.id, c.seq])).toEqual([['col1', 4]]);
   });
-  it('another account can’t read or write it; bad paths and oversized files are refused', async () => {
+  it('the device that pushes is asked to fold the log in once it’s long', async () => {
+    const t = (await signIn()).json.access;
+    await call('POST', '/v1/shared', { id: 'long' }, t);
+    let last: unknown = null;
+    for (let n = 0; n < 300; n++) last = (await call('POST', '/v1/shared/long/append', entry(n, ['lists/a.json']), t)).json;
+    expect(last).toEqual({ rev: 300, compact: true });
+  });
+  it('another account can’t read or write it; bad entries, big ones and old pushes are refused', async () => {
     const a = await signIn();
     await call('POST', '/v1/shared', { id: 'mine' }, a.json.access);
     const other = await signIn({ sub: 'g-other', email: 'other@example.com' });
-    expect((await call('GET', '/v1/shared/mine/changes?since=0', undefined, other.json.access)).status).toBe(404);
-    expect((await call('POST', '/v1/shared/mine/push', line('a.json', 0, 'a'), other.json.access)).status).toBe(404);
-    expect((await call('POST', '/v1/shared/mine/push', line('../x.json', 0, 'a'), a.json.access)).status).toBe(400);
-    expect((await call('POST', '/v1/shared/mine/push', line('a.json', 0, 'a', 'A'.repeat(1_800_001)), a.json.access)).status).toBe(413);
+    expect((await call('GET', '/v1/shared/mine/log?since=0', undefined, other.json.access)).status).toBe(404);
+    expect((await call('POST', '/v1/shared/mine/append', entry(0, ['a.json']), other.json.access)).status).toBe(404);
+    expect((await call('POST', '/v1/shared/mine/append', entry(0, ['../x.json']), a.json.access)).status).toBe(400);
+    expect((await call('POST', '/v1/shared/mine/append', entry(0, []), a.json.access)).status).toBe(400);
+    expect((await call('POST', '/v1/shared/mine/append', entry(0, ['a.json'], 'A'.repeat(1_800_001)), a.json.access)).status).toBe(413);
+    expect((await call('POST', '/v1/shared/mine/push', 'a.json\t0\t' + h('a') + '\t1\tAAAA', a.json.access)).status).toBe(410);
     expect((await call('DELETE', '/v1/shared/mine', undefined, a.json.access)).json).toEqual({ ok: true });
     expect((await call('GET', '/v1/shared', undefined, a.json.access)).json.collections).toEqual([]);
   });
 });
+

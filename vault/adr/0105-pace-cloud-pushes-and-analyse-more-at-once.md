@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; the pacing superseded by 0106
 date: 2026-09-29
 ---
 # 0105. Pace pushes to GLUE Cloud; GLUE Home analyses as many songs at once as the computer allows

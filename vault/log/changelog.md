@@ -5,6 +5,25 @@ updated: 2026-09-29
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · The account's collection as a snapshot and a log: real-time sync, few rows (GLUE Home 0.31)
+- **GLUE Cloud keeps each shared collection as a snapshot and a log of changes**
+  ([ADR 0106](../adr/0106-shared-collection-as-a-snapshot-and-a-log.md); supersedes the pacing of 0105).
+  - A push is one row, however many songs.
+  - Of a file of songs, only the songs that changed are sent, not the whole file.
+  - Now and then the device that pushed folds the log into the snapshot.
+- **No more waiting:** changes go up within seconds, while analysing too, and the account's other devices
+  are told at once.
+- A full analysis of a large library now costs a few thousand rows written, not ~80,000.
+- **Moving over:** what's in GLUE Cloud becomes each collection's snapshot. A GLUE tab or GLUE Home from
+  before is told to update when it tries to push (410).
+- **Admin:** the cloud card also counts the changes in the log.
+- **Tests:** the sync engine's unit tests and the shared, phone and GLUE Home end-to-end tests now run GLUE
+  Cloud's real code on an in-memory SQLite (`tests/sharedCloud.ts`), in place of three hand-written
+  stand-ins.
+  - New unit tests: a push is one entry; a rating sends one song; a long log is folded and a new device
+    reads snapshot then log; state from before the log; the old push refused.
+  - The cloud API tests: the log, stale entries, checkpoints, limits.
+
 ## 2026-09-29 · Fewer cloud writes, faster analysis (GLUE Home 0.30)
 - **Pushes to GLUE Cloud are paced** ([ADR 0105](../adr/0105-pace-cloud-pushes-and-analyse-more-at-once.md)).
   - Before, each batch of 25 analysed songs re-sent ~50 whole files: about 90,000 rows written in a day,

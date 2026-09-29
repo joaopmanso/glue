@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FakeHome } from './fakeHome';
 import { TAURI_MOCK } from './tauri-mock';
+import { SharedCloudServer } from '../tests/sharedCloud';
 
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
@@ -440,10 +441,8 @@ test('song info is edited in GLUE, kept while GLUE Home is away, and written int
 
 test('a shared collection with no GLUE tab open: GLUE Home takes in another device’s change, writes the song info into its file, and sends back what that changed (ADR 0097)', async ({ page }) => {
   test.setTimeout(180_000);
-  const { gzipSync, gunzipSync } = await import('node:zlib');
   const { createHash } = await import('node:crypto');
   const sha = (t: string) => createHash('sha256').update(t).digest('hex');
-  const pack = (t: string) => gzipSync(Buffer.from(t)).toString('base64');
   const tmp = mkdtempSync(join(tmpdir(), 'glue-shared-home-'));
   const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } });
   try {
@@ -470,8 +469,8 @@ test('a shared collection with no GLUE tab open: GLUE Home takes in another devi
 
     // GLUE Cloud: the laptop renamed the song (revision 2), which tells this computer to write it.
     const theirs = shardText(song('From the laptop', ['title']));
-    const cloud = new Map<string, { rev: number; hash: string; data: string }>([['collection.json', { rev: 1, hash: sha(metaText), data: pack(metaText) }], ['tracks/t1.json', { rev: 2, hash: sha(theirs), data: pack(theirs) }]]);
-    let seq = 2;
+    const server = new SharedCloudServer();
+    await server.seed('c1', 'Main', { 'collection.json': { text: metaText, rev: 1 }, 'tracks/t1.json': { text: theirs, rev: 2 } }, 'lap', 2);
     const home = await page.context().newPage();
     await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
       const req = r.request(), u = new URL(req.url()), p = u.pathname;
@@ -479,17 +478,8 @@ test('a shared collection with no GLUE tab open: GLUE Home takes in another devi
       if (p === '/v1/me') return json({ user: { id: 'u1' }, thisDevice: 'hdesk', devices: [{ id: 'hdesk', kind: 'home', name: 'Desktop' }], sessions: [] });
       if (p === '/v1/sync/ops') return json({ ops: [] });
       if (p === '/v1/turn') return json({ iceServers: [], ttl: 0 });
-      if (p === '/v1/shared/c1/changes') { const since = Number(u.searchParams.get('since')); return json({ seq, more: false, files: [...cloud].filter(([, f]) => f.rev > since).map(([path, f]) => ({ path, rev: f.rev, hash: f.hash, deleted: false, by: 'lap', at: Date.now() })) }); }
-      if (p === '/v1/shared/c1/bundle') return r.fulfill({ contentType: 'text/plain', body: (req.postDataJSON().paths as string[]).filter(x => cloud.has(x)).map(x => [x, cloud.get(x)!.rev, cloud.get(x)!.hash, cloud.get(x)!.data].join('\t')).join('\n') });
-      if (p === '/v1/shared/c1/push') {
-        const rev = ++seq, stored: string[] = [], stale: string[] = [];
-        for (const line of (req.postData() ?? '').split('\n').filter(Boolean)) {
-          const [path, base, hash, , data] = line.split('\t');
-          if ((cloud.get(path)?.rev ?? 0) !== Number(base)) { stale.push(path); continue; }
-          cloud.set(path, { rev, hash, data }); stored.push(path);
-        }
-        return json({ rev: stored.length ? rev : null, stored, stale });
-      }
+      const a = await server.answer(req.method(), u, req.postData(), 'hdesk');
+      if (a) return r.fulfill({ status: a.status, contentType: a.type, body: a.body });
       return json({ access: 'h' });
     });
     // GLUE Cloud's room says the collection changed.
@@ -505,8 +495,9 @@ test('a shared collection with no GLUE tab open: GLUE Home takes in another devi
     const local = () => JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items.t1;
     await expect.poll(() => local().title, { timeout: 60_000 }).toBe('From the laptop');
     await expect.poll(() => fake.tagWrites, { timeout: 60_000 }).toEqual([{ path: 'Sets/mp3-128k.mp3', tags: { title: 'From the laptop' } }]);
-    await expect.poll(() => cloud.get('tracks/t1.json')!.rev, { timeout: 60_000 }).toBeGreaterThan(2);
-    const up = JSON.parse(gunzipSync(Buffer.from(cloud.get('tracks/t1.json')!.data, 'base64')).toString()).items.t1;
+    const upNow = async () => JSON.parse(await server.current('c1', 'tracks/t1.json') ?? '{}').items?.t1;
+    await expect.poll(async () => (await upNow())?.copies?.hdesk?.mtime, { timeout: 60_000 }).toBeGreaterThan(1);
+    const up = await upNow();
     expect(up.title).toBe('From the laptop');
     expect(up.copies.hdesk.unwritten).toBeUndefined();
     expect(up.copies.hdesk.mtime).toBeGreaterThan(1);   // the file's new date, after its tags were written

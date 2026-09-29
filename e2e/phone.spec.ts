@@ -7,10 +7,9 @@ import { launch } from './launch';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
-import { gunzipSync, gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { TAURI_MOCK } from './tauri-mock';
+import { SharedCloudServer } from '../tests/sharedCloud';
 
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
@@ -21,9 +20,6 @@ const test = base.extend<{ page: Page }>({
   },
 });
 const fixture = (name: string) => fileURLToPath(new URL('../tests/fixtures/' + name, import.meta.url));
-const gz = (o: unknown) => gzipSync(Buffer.from(JSON.stringify(o))).toString('base64');
-const ungz = (b64: string) => JSON.parse(gunzipSync(Buffer.from(b64, 'base64')).toString());
-const sha = (o: unknown) => createHash('sha256').update(JSON.stringify(o)).digest('hex');
 
 test('a phone signs in and the account’s collection opens by itself: songs stream from the desktop, a rating goes up (ADR 0077, 0101)', async ({ page }) => {
   test.setTimeout(180_000);
@@ -43,15 +39,16 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   // dk03's cover is only in its file's tags: the phone gets it from the desktop's GLUE Home (ADR 0082).
   const tracks = { dk01: song('dk01', 'Genorale', 'Genorale.flac'), dk02: song('dk02', 'Manyaro', 'Manyaro.mp3'), dk03: song('dk03', 'Covered', 'Covered.mp3'), dk04: song('dk04', 'Aiffy', 'Aiffy.aiff') };
   const meta = { schemaVersion: 1, id: cid, name: 'My collection', createdAt: '', shared: true, rootsBy: { desk: [{ id: 'deskroot', name: 'Music', absPath: null, handleKey: 'x', addedAt: '' }] }, members: { desk: { profile: pid, name: 'Desktop' } } };
-  const put = (o: unknown) => ({ hash: sha(o), data: gz(o) });
-  let seq = 3;
-  const files = new Map<string, { rev: number; hash: string; data: string }>([
-    ['collection.json', { rev: 1, ...put(meta) }],
-    ['tracks/dk.json', { rev: 2, ...put({ schemaVersion: 1, items: tracks }) }],
-    ['lists/l1.json', { rev: 3, ...put({ schemaVersion: 1, id: 'l1', kind: 'playlist', name: 'Friday', parentId: null, position: 0, notes: '', items: ['dk02', 'dk01'], origin: null, createdAt: '' }) }],
-  ]);
+  // The account's collection: GLUE Cloud's real code, on an in-memory database (ADR 0106).
+  const server = new SharedCloudServer();
+  await server.seed(cid, 'My collection', {
+    'collection.json': { text: JSON.stringify(meta), rev: 1 },
+    'tracks/dk.json': { text: JSON.stringify({ schemaVersion: 1, items: tracks }), rev: 2 },
+    'lists/l1.json': { text: JSON.stringify({ schemaVersion: 1, id: 'l1', kind: 'playlist', name: 'Friday', parentId: null, position: 0, notes: '', items: ['dk02', 'dk01'], origin: null, createdAt: '' }), rev: 3 },
+  }, 'desk', 3);
+  const cloudFile = async (path: string) => JSON.parse(await server.current(cid, path) ?? '{}');
   /** The songs as the account's copy has them now. */
-  const cloudTracks = () => ungz(files.get('tracks/dk.json')!.data).items as Record<string, { rating?: number; title: string; copies: Record<string, { unwritten?: string[] }> }>;
+  const cloudTracks = async () => (await cloudFile('tracks/dk.json')).items as Record<string, { rating?: number; title: string; copies: Record<string, { unwritten?: string[] }> }>;
   const turnAsked: string[] = [];
   await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
     window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
@@ -66,18 +63,8 @@ test('a phone signs in and the account’s collection opens by itself: songs str
     // The relay (ADR 0081): an address that doesn't exist, so the connection stays direct.
     if (p === '/v1/turn') { turnAsked.push('phone'); return json({ iceServers: [{ urls: ['turn:relay.invalid:3478?transport=udp'], username: 'u', credential: 'c' }], ttl: 86400 }); }
     // The account's collections (cloud/src/shared.ts, the same rules).
-    if (p === '/v1/shared' && m === 'GET') return json({ collections: [{ id: cid, name: 'My collection', seq, stats: { tracks: 4 }, updatedAt: 1 }] });
-    if (p === `/v1/shared/${cid}/changes`) { const since = Number(u.searchParams.get('since')); return json({ seq, more: false, files: [...files].filter(([, f]) => f.rev > since).map(([path, f]) => ({ path, rev: f.rev, hash: f.hash, deleted: false, by: 'desk', at: 1 })) }); }
-    if (p === `/v1/shared/${cid}/bundle`) return r.fulfill({ contentType: 'text/plain', body: (req.postDataJSON().paths as string[]).filter(x => files.has(x)).map(x => [x, files.get(x)!.rev, files.get(x)!.hash, files.get(x)!.data].join('\t')).join('\n') });
-    if (p === `/v1/shared/${cid}/push`) {
-      const rev = ++seq, stored: string[] = [], stale: string[] = [];
-      for (const line of (req.postData() ?? '').split('\n').filter(Boolean)) {
-        const [path, base, hash, , data] = line.split('\t');
-        if ((files.get(path)?.rev ?? 0) !== Number(base)) { stale.push(path); continue; }
-        files.set(path, { rev, hash, data }); stored.push(path);
-      }
-      return json({ rev: stored.length ? rev : null, stored, stale });
-    }
+    const a = await server.answer(m, u, req.postData(), 'ph');
+    if (a) return r.fulfill({ status: a.status, contentType: a.type, body: a.body });
     return json({ error: 'not found' }, 404);
   });
   // The signaling room, relaying the handshake between the phone and the desktop's GLUE Home.
@@ -129,7 +116,7 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   // Kept in the browser's own storage (a GLUE folder there); the phone isn't a member of the collection
   // (it holds no copies).
   expect(await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const names: string[] = []; for await (const [n] of (r as unknown as { entries(): AsyncIterable<[string, unknown]> }).entries()) names.push(n); return names; })).toContain('mco.json');
-  expect(Object.keys(ungz(files.get('collection.json')!.data).members)).toEqual(['desk']);
+  expect(Object.keys((await cloudFile('collection.json')).members)).toEqual(['desk']);
 
   // A song streams from the desktop's GLUE Home.
   await all.click();
@@ -166,14 +153,14 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   // A rating, from the song's sheet, goes up to the account's copy (every device takes it in).
   await row.locator('.dots').click();
   await page.locator('#phone-sheet').getByRole('button', { name: 'Rate 4' }).click({ position: { x: 20, y: 13 } });
-  await expect.poll(() => cloudTracks().dk02.rating, { timeout: 15_000 }).toBe(4);
+  await expect.poll(async () => (await cloudTracks()).dk02.rating, { timeout: 15_000 }).toBe(4);
   // So does its song info: the title, from Edit info; the desktop's copy is marked for its file (ADR 0097).
   await row.locator('.dots').click();
   await page.locator('#phone-sheet [data-m="info"]').click();
   await page.fill('#edit-info [data-f="title"]', 'Manyaro (Edit)');
   await page.click('#info-save');
-  await expect.poll(() => cloudTracks().dk02.title, { timeout: 15_000 }).toBe('Manyaro (Edit)');
-  expect(cloudTracks().dk02.copies.desk.unwritten).toEqual(['title']);
+  await expect.poll(async () => (await cloudTracks()).dk02.title, { timeout: 15_000 }).toBe('Manyaro (Edit)');
+  expect((await cloudTracks()).dk02.copies.desk.unwritten).toEqual(['title']);
 
   // A song from the phone goes to the desktop's GLUE Home (its incoming folder), with no collection here:
   // More › the desktop's ⋯ › Send songs.

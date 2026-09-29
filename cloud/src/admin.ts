@@ -33,7 +33,7 @@ export async function route(env: Env, a: Access, m: string, path: string, q: URL
     }
     if (m === 'DELETE' && u[2]) {
       // Clear a user's cloud data (the account's collections, and what's left of the old sync); the account stays.
-      await env.DB.batch(['shared_files', 'shared_collections', 'sync_files', 'sync_profiles', 'sync_links', 'sync_ops'].map(t => env.DB.prepare('DELETE FROM ' + t + ' WHERE user_id = ?').bind(id)));
+      await env.DB.batch(['shared_files', 'shared_log', 'shared_collections', 'sync_files', 'sync_profiles', 'sync_links', 'sync_ops'].map(t => env.DB.prepare('DELETE FROM ' + t + ' WHERE user_id = ?').bind(id)));
       return { ok: true };
     }
     if (m === 'DELETE' && !u[2]) {
@@ -61,8 +61,8 @@ async function stats(env: Env, now: number) {
     devices: { byKind: Object.fromEntries(kinds.map(k => [k.kind, k.n])), revoked: await count(env, 'SELECT COUNT(*) AS n FROM devices WHERE revoked_at IS NOT NULL'),
       seen24h: await count(env, 'SELECT COUNT(*) AS n FROM devices WHERE last_seen > ? AND revoked_at IS NULL', now - DAY) },
     // The account's collections (ADR 0094, 0101).
-    cloud: { collections: await count(env, 'SELECT COUNT(*) AS n FROM shared_collections'), files: await count(env, 'SELECT COUNT(*) AS n FROM shared_files WHERE deleted_at IS NULL'),
-      bytes: await count(env, 'SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM shared_files') },
+    cloud: { collections: await count(env, 'SELECT COUNT(*) AS n FROM shared_collections'), files: await count(env, 'SELECT COUNT(*) AS n FROM shared_files WHERE deleted_at IS NULL'), entries: await count(env, 'SELECT COUNT(*) AS n FROM shared_log'),
+      bytes: await count(env, 'SELECT COALESCE(SUM(bytes), 0) AS n FROM shared_collections') },
     housekeeping: { expiredCodes: await count(env, 'SELECT COUNT(*) AS n FROM pairing_codes WHERE expires_at < ? OR used_at IS NOT NULL', now),
       expiredSessions: await count(env, 'SELECT COUNT(*) AS n FROM credentials WHERE expires_at < ?', now), attempts: await count(env, 'SELECT COUNT(*) AS n FROM attempts') },
     at: now,
@@ -82,7 +82,7 @@ async function users(env: Env, q: string, limit: number) {
       (SELECT GROUP_CONCAT(provider) FROM identities i WHERE i.user_id = u.id) AS providers,
       (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.id AND d.revoked_at IS NULL) AS devices,
       (SELECT MAX(last_seen) FROM devices d WHERE d.user_id = u.id) AS last_seen,
-      (SELECT COALESCE(SUM(LENGTH(data)), 0) FROM shared_files f WHERE f.user_id = u.id) AS bytes,
+      (SELECT COALESCE(SUM(c.bytes), 0) FROM shared_collections c WHERE c.user_id = u.id) AS bytes,
       (SELECT COUNT(*) FROM shared_collections c WHERE c.user_id = u.id) AS collections
     FROM users u WHERE LOWER(COALESCE(u.email, '')) LIKE ? OR LOWER(COALESCE(u.name, '')) LIKE ? ORDER BY u.created_at DESC LIMIT ?`).bind(like, like, limit).all<Record<string, unknown>>()).results;
   return { users: rows.map(r => ({ id: r.id, email: r.email, name: r.name, tier: r.tier, createdAt: r.created_at, providers: String(r.providers ?? '').split(',').filter(Boolean), devices: r.devices, lastSeen: r.last_seen, bytes: r.bytes, collections: r.collections })) };

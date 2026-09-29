@@ -7,7 +7,7 @@
   interface Stats {
     users: { total: number; byTier: Record<string, number>; byProvider: Record<string, number>; new7: number; new30: number; active7: number; signups: number[] };
     devices: { byKind: Record<string, number>; revoked: number; seen24h: number };
-    cloud: { collections: number; files: number; bytes: number };
+    cloud: { collections: number; files: number; entries?: number; bytes: number };
     housekeeping: { expiredCodes: number; expiredSessions: number; attempts: number };
     at: number;
   }
@@ -73,7 +73,7 @@
         <div class="card"><span class="label">New</span><b>{stats.users.new7}</b><small>this week · {stats.users.new30} in 30 days</small></div>
         <div class="card"><span class="label">Active</span><b>{stats.users.active7}</b><small>users seen this week · {stats.devices.seen24h} devices in 24 h</small></div>
         <div class="card"><span class="label">Devices</span><b>{Object.values(stats.devices.byKind).reduce((a, b) => a + b, 0)}</b><small>{Object.entries(stats.devices.byKind).map(([k, n]) => n + ' ' + (k === 'home' ? 'GLUE Home' : k)).join(' · ')}</small></div>
-        <div class="card"><span class="label">Cloud data</span><b>{fmtBytes(stats.cloud.bytes)}</b><small>{stats.cloud.collections} collections · {stats.cloud.files.toLocaleString()} files</small></div>
+        <div class="card"><span class="label">Cloud data</span><b>{fmtBytes(stats.cloud.bytes)}</b><small>{stats.cloud.collections} collections · {stats.cloud.files.toLocaleString()} files · {(stats.cloud.entries ?? 0).toLocaleString()} changes in the log</small></div>
         <div class="card"><span class="label">Sign-in</span><b>{Object.values(stats.users.byProvider).reduce((a, b) => a + b, 0)}</b><small>{Object.entries(stats.users.byProvider).map(([p, n]) => n + ' ' + p).join(' · ')}</small></div>
         <div class="card wide"><span class="label">Sign-ups, last 30 days</span>
           <svg class="spark" viewBox="0 0 300 50" preserveAspectRatio="none" role="img" aria-label="Sign-ups per day">

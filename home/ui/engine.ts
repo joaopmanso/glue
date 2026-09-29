@@ -27,18 +27,15 @@ const stores = new Map<string, Promise<CollectionStore>>();
 let rev = 0, jobs: Job[] = [], jobsLoaded = false, running = false;
 const log: Change[] = [];
 let wake: (() => void)[] = [];
-export const on: { event: ((text: string) => void) | null; changed: (() => void) | null; edited: ((p: string, c: string, paths: string[], bulk: boolean) => void) | null } = { event: null, changed: null, edited: null };
+export const on: { event: ((text: string) => void) | null; changed: (() => void) | null; edited: ((p: string, c: string, paths: string[]) => void) | null } = { event: null, changed: null, edited: null };
 
-/** Songs changed in one go above which it's bulk work (a scan, a big removal), not a quick edit. */
-const BULK = 50;
-/** Saved, and told as the user's own change (a quick one goes up to GLUE Cloud at once, bulk work once
-    it settles, ADR 0105). */
-async function flushEdit(s: CollectionStore, p: string, c: string, bulk: boolean) {
+/** Saved, and told as the user's own change (it goes up to GLUE Cloud within seconds, ADR 0106). */
+async function flushEdit(s: CollectionStore, p: string, c: string) {
   const prev = s.onWrote;
   let wrote: string[] = [];
   s.onWrote = paths => { wrote = paths; prev?.(paths); };
   try { await s.flush(); } finally { s.onWrote = prev; }
-  if (wrote.length) on.edited?.(p, c, wrote, bulk);
+  if (wrote.length) on.edited?.(p, c, wrote);
 }
 
 /** The GLUE folder, written through the local link with GLUE Home's own (full) token. */
@@ -131,7 +128,7 @@ export async function runJobs(cfg: () => HomeConfig | null) {
           s.removeTrack(id);
         }
         j.done = Math.min(j.ids.length, j.done + 250);
-        await flushEdit(s, j.p, j.c, j.ids.length > BULK);
+        await flushEdit(s, j.p, j.c);
         await saveJobs();
         on.changed?.();
       }
@@ -151,6 +148,6 @@ export async function edit(cfg: HomeConfig, p: string, c: string, ops: StoreOp[]
   if (await bridge.leaseHeld()) throw new Error('a GLUE tab from before GLUE Home’s engine is writing this library: close it, or update it');
   const s = await store(cfg, p, c);
   for (const op of ops) s.apply(op);
-  await flushEdit(s, p, c, ops.reduce((n, o) => n + (o.m === 'tracks' ? o.ts.length : o.m === 'removeTrack' || o.m === 'analysis' ? 1 : 0), 0) > BULK);
+  await flushEdit(s, p, c);
   return { rev };
 }

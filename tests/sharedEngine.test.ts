@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { MemDir, asDir } from './memfs';
-import { packText, pull, push, resolveClash, syncShared, unpackText, waitingClashes, type Place, type SharedCloud } from '../src/store/shared/engine';
+import { applyChange, diffFile, packText, pull, push, resolveClash, syncShared, unpackText, waitingClashes, type Place } from '../src/store/shared/engine';
+import { SharedCloudServer } from './sharedCloud';
+import { COMPACT_AFTER } from '../cloud/src/shared';
 import { mergeBoth, setAt } from '../src/core/shared/merge3';
 import { readJSON, writeJSON } from '../src/store/fsx';
 import { HomeStore } from '../src/store/home';
@@ -8,45 +10,20 @@ import { CollectionStore } from '../src/store/collection';
 import { makeShared } from '../src/store/shared/seed';
 import type { Track } from '../src/store/types';
 
-/** GLUE Cloud's shared collection (cloud/src/shared.ts), in memory, with the same rules. */
-function fakeCloud() {
-  let seq = 0;
-  const files = new Map<string, { rev: number; hash: string; data: string | null }>();
-  const cloud: SharedCloud = {
-    async changes(since) {
-      const out = [...files].filter(([, f]) => f.rev > since).sort((a, b) => a[1].rev - b[1].rev).map(([path, f]) => ({ path, rev: f.rev, hash: f.hash, deleted: f.data === null }));
-      return { seq, more: false, files: out };
-    },
-    async bundle(paths) { return paths.filter(p => files.get(p)?.data).map(p => [p, files.get(p)!.rev, files.get(p)!.hash, files.get(p)!.data].join('\t')).join('\n'); },
-    async push(body) {
-      const rev = ++seq, stored: string[] = [], stale: string[] = [];
-      for (const line of body.split('\n').filter(Boolean)) {
-        const [path, base, hash, , data] = line.split('\t');
-        const cur = files.get(path);
-        if ((cur?.rev ?? 0) !== Number(base) && !(cur?.data === null && Number(base) === 0)) { stale.push(path); continue; }
-        files.set(path, { rev, hash, data: data === '-' ? null : data });
-        stored.push(path);
-      }
-      return { rev: stored.length ? rev : null, stored, stale };
-    },
-  };
-  return { cloud, files };
-}
-
 const trackShard = (items: Record<string, unknown>) => ({ schemaVersion: 1, items });
 const song = (id: string, o: Record<string, unknown> = {}) => ({ id, title: 'Song ' + id, artist: 'A', copies: { desk: { status: 'linked', rootId: 'r1', relPath: id + '.mp3' } }, ...o });
 
-async function device(me: string, cloud: SharedCloud) {
+async function device(me: string, server: SharedCloudServer) {
   const root = asDir(new MemDir());
-  const p: Place = { root, pid: 'p-' + me, cid: 'c1', me, cloud };
+  const p: Place = { root, pid: 'p-' + me, cid: 'c1', me, cloud: server.cloudFor('c1', me) };
   const at = (path: string) => `profiles/${p.pid}/collections/c1/${path}`;
   return { p, write: (path: string, v: unknown) => writeJSON(root, at(path), v), read: <T>(path: string) => readJSON<T>(root, at(path)) };
 }
 
 describe('syncing a shared collection (ADR 0094)', () => {
   it('the desktop puts it in; the laptop takes it in; each one’s changes reach the other, merged', async () => {
-    const { cloud } = fakeCloud();
-    const desk = await device('desk', cloud), lap = await device('lap', cloud);
+    const server = new SharedCloudServer();
+    const desk = await device('desk', server), lap = await device('lap', server);
     await desk.write('collection.json', { id: 'c1', name: 'My collection', shared: true, rootsBy: { desk: [] }, members: { desk: { profile: 'p-desk', name: 'Desktop' } } });
     await desk.write('tracks/aa.json', trackShard({ aa1: song('aa1'), aa2: song('aa2') }));
     await desk.write('lists/l1.json', { id: 'l1', name: 'Friday', items: ['aa1'] });
@@ -72,8 +49,8 @@ describe('syncing a shared collection (ADR 0094)', () => {
     }
   });
   it('the same thing changed differently on both: the cloud’s kept, the clash reported and remembered', async () => {
-    const { cloud } = fakeCloud();
-    const desk = await device('desk', cloud), lap = await device('lap', cloud);
+    const server = new SharedCloudServer();
+    const desk = await device('desk', server), lap = await device('lap', server);
     await desk.write('lists/l1.json', { id: 'l1', name: 'Friday', items: [] });
     await syncShared(desk.p); await syncShared(lap.p);
     await desk.write('lists/l1.json', { id: 'l1', name: 'Friday night', items: [] });
@@ -86,8 +63,8 @@ describe('syncing a shared collection (ADR 0094)', () => {
     expect(st!.clashes).toHaveLength(1);
   });
   it('a clash settled as this device’s: its value goes up and reaches the other device; settled as theirs: nothing changes', async () => {
-    const { cloud } = fakeCloud();
-    const desk = await device('desk', cloud), lap = await device('lap', cloud);
+    const server = new SharedCloudServer();
+    const desk = await device('desk', server), lap = await device('lap', server);
     await desk.write('lists/l1.json', { id: 'l1', name: 'Friday', color: 'red', items: [] });
     await syncShared(desk.p); await syncShared(lap.p);
     await desk.write('lists/l1.json', { id: 'l1', name: 'Friday night', color: 'blue', items: [] });
@@ -111,15 +88,14 @@ describe('syncing a shared collection (ADR 0094)', () => {
     expect(mergeBoth(3, 4)).toBeUndefined();
   });
   it('a deletion reaches the other device; nothing is sent when nothing changed', async () => {
-    const { cloud, files } = fakeCloud();
-    const desk = await device('desk', cloud), lap = await device('lap', cloud);
+    const server = new SharedCloudServer();
+    const desk = await device('desk', server), lap = await device('lap', server);
     await desk.write('lists/l1.json', { id: 'l1', name: 'Old', items: [] });
     await desk.write('lists/l2.json', { id: 'l2', name: 'Keep', items: [] });
     await syncShared(desk.p); await syncShared(lap.p);
     const { removePath } = await import('../src/store/fsx');
     await removePath(desk.p.root, 'profiles/p-desk/collections/c1/lists/l1.json');
     await syncShared(desk.p);
-    expect(files.get('lists/l1.json')!.data).toBeNull();
     await syncShared(lap.p);
     expect(await lap.read('lists/l1.json')).toBeNull();
     expect(await lap.read('lists/l2.json')).toEqual({ id: 'l2', name: 'Keep', items: [] });
@@ -133,7 +109,7 @@ describe('syncing a shared collection (ADR 0094)', () => {
 
 describe('a collection made shared, as each computer sees it (ADR 0094)', () => {
   it('the desktop shares its collection; the laptop joins it and sees the songs as the desktop’s; a rating there reaches the desktop, whose files stay its own', async () => {
-    const { cloud } = fakeCloud();
+    const server = new SharedCloudServer();
     // The desktop: a collection of its own with a song and its analysis.
     const deskRoot = asDir(new MemDir()), dh = await HomeStore.open(deskRoot);
     const dp = await dh.createProfile('DJ'), dc = await dh.createCollection(dp, 'My collection');
@@ -142,7 +118,7 @@ describe('a collection made shared, as each computer sees it (ADR 0094)', () => 
     ds.putTracks([song]); ds.putAnalysis('aa01', { v: 3, bpm: 124 } as never); await ds.flush();
     // Made shared, then up.
     expect(await makeShared(deskRoot, dp.id, dc.id, 'desk', { profile: dp.id, name: 'Desktop' })).toBe(true);
-    const deskPlace: Place = { root: deskRoot, pid: dp.id, cid: dc.id, me: 'desk', cloud };
+    const deskPlace: Place = { root: deskRoot, pid: dp.id, cid: dc.id, me: 'desk', cloud: server.cloudFor(dc.id, 'desk') };
     await syncShared(deskPlace);
     ds = await CollectionStore.load(deskRoot, dp.id, dc.id, { me: 'desk' });
     expect(ds.shared).not.toBeNull();
@@ -156,7 +132,7 @@ describe('a collection made shared, as each computer sees it (ADR 0094)', () => 
     const lapRoot = asDir(new MemDir()), lh = await HomeStore.open(lapRoot);
     const lp = await lh.createProfile('DJ');
     await lh.joinCollection(lp, dc.id, 'My collection');
-    const lapPlace: Place = { root: lapRoot, pid: lp.id, cid: dc.id, me: 'lap', cloud };
+    const lapPlace: Place = { root: lapRoot, pid: lp.id, cid: dc.id, me: 'lap', cloud: server.cloudFor(dc.id, 'lap') };
     await syncShared(lapPlace);
     const ls = await CollectionStore.load(lapRoot, lp.id, dc.id, { me: 'lap', name: 'Laptop' });
     const t = ls.tracks.get('aa01')!;
@@ -201,5 +177,76 @@ describe('removing a song in a shared collection (ADR 0100)', () => {
     expect(s.tracks.get('aa1')!.remote).toMatchObject({ device: 'desk' });   // shown as the desktop's now
     expect(s.analysis.get('aa1')).toMatchObject({ bpm: 120 });
     expect(s.lists.get('l1')!.items).toEqual(['aa1']);
+  });
+});
+
+describe('GLUE Cloud’s copy as a snapshot and a log (ADR 0106)', () => {
+  const shard = (n: number, o: (i: number) => Record<string, unknown> = () => ({})) => trackShard(Object.fromEntries(Array.from({ length: n }, (_, i) => ['s' + i, song('s' + i, o(i))])));
+  it('a file of songs changes by its songs: only those are sent, and the other side rebuilds the file', () => {
+    const was = JSON.stringify(shard(3)), now = JSON.stringify(shard(3, i => i === 1 ? { rating: 4 } : {}));
+    const c = diffFile(was, now)!;
+    expect(c).toEqual({ o: { schemaVersion: 1 }, i: { s1: song('s1', { rating: 4 }) } });
+    expect(JSON.parse(applyChange(was, c)!)).toEqual(JSON.parse(now));
+    const gone = diffFile(was, JSON.stringify(trackShard({ s0: song('s0'), s2: song('s2') })))!;
+    expect(gone).toEqual({ o: { schemaVersion: 1 }, i: { s1: null } });
+    expect(diffFile(was, was)).toBeNull();
+    expect(diffFile('{"a":1}', '{"a":2}')).toEqual({ t: '{"a":2}' });
+    expect(diffFile('{"a":1}', null)).toEqual({ d: 1 });
+    expect(applyChange('{"a":1}', { d: 1 })).toBeUndefined();
+  });
+  it('one push is one entry, however many files and songs; a rating sends that song only', async () => {
+    const server = new SharedCloudServer();
+    const desk = await device('desk', server), lap = await device('lap', server);
+    for (let f = 0; f < 20; f++) await desk.write(`tracks/${f.toString(16).padStart(2, '0')}.json`, shard(50));
+    await desk.write('lists/l1.json', { id: 'l1', name: 'Friday', items: [] });
+    expect((await syncShared(desk.p)).pushed).toBe(21);
+    expect(await server.counts('c1')).toMatchObject({ log: 1, seq: 1 });
+    await syncShared(lap.p);
+    expect(await lap.read('tracks/13.json')).toEqual(shard(50));
+    await desk.write('tracks/07.json', shard(50, i => i === 9 ? { rating: 5 } : {}));
+    await syncShared(desk.p);
+    expect(await server.counts('c1')).toMatchObject({ log: 2, seq: 2 });
+    const { entries } = await server.cloudFor('c1', 'lap').log(1);
+    expect(JSON.parse(await unpackText(entries[0].data)).f).toEqual({ 'tracks/07.json': { o: { schemaVersion: 1 }, i: { s9: song('s9', { rating: 5 }) } } });
+    await syncShared(lap.p);
+    expect((await lap.read<{ items: Record<string, { rating?: number }> }>('tracks/07.json'))!.items.s9.rating).toBe(5);
+  });
+  it('a long log is folded into the snapshot; a new device, and one far behind, read the snapshot then the log', async () => {
+    const server = new SharedCloudServer();
+    const desk = await device('desk', server), lap = await device('lap', server);
+    await desk.write('lists/l1.json', { id: 'l1', name: 'Friday', items: [] });
+    await desk.write('tracks/aa.json', trackShard({ aa1: song('aa1') }));
+    await syncShared(desk.p); await syncShared(lap.p);
+    for (let n = 1; n < COMPACT_AFTER; n++) { await desk.write('tracks/aa.json', trackShard({ aa1: song('aa1', { playCount: n }) })); await syncShared(desk.p); }
+    const c = await server.counts('c1');
+    expect(c.floor).toBe(COMPACT_AFTER);
+    expect(c.log).toBe(0);
+    await desk.write('lists/l1.json', { id: 'l1', name: 'Friday night', items: [] });
+    await syncShared(desk.p);
+    for (const d of [lap, await device('phone', server)]) {
+      await syncShared(d.p);
+      expect((await d.read<{ items: Record<string, { playCount?: number }> }>('tracks/aa.json'))!.items.aa1.playCount).toBe(COMPACT_AFTER - 1);
+      expect((await d.read<{ name: string }>('lists/l1.json'))!.name).toBe('Friday night');
+    }
+  }, 60_000);
+  it('what’s there from before the log is its snapshot: a device takes it, and its own sync state from before still works', async () => {
+    const server = new SharedCloudServer();
+    const list = JSON.stringify({ id: 'l1', name: 'Old', items: [] }), tracks = JSON.stringify(trackShard({ aa1: song('aa1') }));
+    await server.seed('c1', 'My collection', { 'lists/l1.json': list, 'tracks/aa.json': tracks }, 'desk', 7);
+    const desk = await device('desk', server), lap = await device('lap', server);
+    // The desktop synced it before the log: its state has the old shape, at revision 7.
+    await desk.write('tracks/aa.json', JSON.parse(tracks));
+    await writeJSON(desk.p.root, 'cloud/shared/c1.json', { cursor: 7, files: { 'lists/l1.json': { rev: 7, hash: 'x', text: list }, 'tracks/aa.json': { rev: 7, hash: 'y', text: tracks } } });
+    await desk.write('lists/l1.json', { id: 'l1', name: 'New', items: [] });
+    expect((await syncShared(desk.p)).pushed).toBe(1);
+    const r = await syncShared(lap.p);
+    expect(r.changed.sort()).toEqual(['lists/l1.json', 'tracks/aa.json']);
+    expect((await lap.read<{ name: string }>('lists/l1.json'))!.name).toBe('New');
+  });
+  it('a GLUE from before the log can’t push around it', async () => {
+    const server = new SharedCloudServer();
+    await server.seed('c1', 'x', {});
+    const r = await server.answer('POST', new URL('https://x/v1/shared/c1/push'), 'lists/a.json\t0\t' + 'a'.repeat(64) + '\t1\tAAAA', 'old');
+    expect(r?.status).toBe(410);
   });
 });

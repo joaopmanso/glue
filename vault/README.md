@@ -176,6 +176,7 @@ Planned (GLUE):
 | [0100](adr/0100-one-row-per-song-and-own-copies.md) | One row per song, its best copy; a computer removes only its own copies | accepted |
 | [0101](adr/0101-cloud-sync-is-the-accounts-collections.md) | Cloud sync on means every collection is the account's; one sync only | accepted |
 | [0104](adr/0104-glue-home-is-the-librarys-engine.md) | GLUE Home is the library's engine; the website on its computer is its screen | accepted |
-| [0105](adr/0105-pace-cloud-pushes-and-analyse-more-at-once.md) | Pace pushes to GLUE Cloud; GLUE Home analyses as many songs at once as the computer allows | accepted |
+| [0105](adr/0105-pace-cloud-pushes-and-analyse-more-at-once.md) | Pace pushes to GLUE Cloud; GLUE Home analyses as many songs at once as the computer allows | accepted; pacing superseded by 0106 |
+| [0106](adr/0106-shared-collection-as-a-snapshot-and-a-log.md) | Keep the shared collection in GLUE Cloud as a snapshot and a log of changes | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |
