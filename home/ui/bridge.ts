@@ -9,6 +9,8 @@ export const WEBSITE = 'https://joaopmanso.github.io/glue/';
 /** What GLUE Home keeps (config.json in the app's settings folder, readable by this user only). */
 export interface HomeConfig {
   api?: string;
+  /** The DJ libraries GLUE Home follows (written by its Rust side, ADR 0065). */
+  libraries?: unknown[];
   /** The analysis of this computer's songs is paused (ADR 0103): from the settings or a GLUE tab. */
   analysisPaused?: boolean;
   deviceId: string | null;
@@ -49,6 +51,18 @@ export interface Activity { calls: number; ms: number; bytes: number }
 export const bridge = {
   config: () => invoke<HomeConfig | null>('get_config'),
   saveConfig: (config: HomeConfig) => invoke<void>('set_config', { config }),
+  /** Change some settings over what's saved now, never over a copy held in memory (another window, or the
+      local link's folder dialog, may have saved since): `f` sees the current settings and returns only
+      what changes (null: nothing). The settings saved. */
+  patchConfig: async (f: (cur: HomeConfig) => Partial<HomeConfig> | null): Promise<HomeConfig | null> => {
+    const cur = await invoke<HomeConfig | null>('get_config');
+    if (!cur) return null;
+    const p = f(cur);
+    if (!p) return cur;
+    const next = { ...cur, ...p } as HomeConfig;
+    await invoke<void>('set_config', { config: next });
+    return next;
+  },
   defaultIncoming: () => invoke<string>('default_incoming'),
   defaultDuplicates: () => invoke<string>('default_duplicates'),
   deviceName: () => invoke<string>('device_name'),

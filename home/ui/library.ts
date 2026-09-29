@@ -87,6 +87,15 @@ export async function locate(root: Collection['roots'][number], sample: Sample |
   return null;
 }
 
+/** The folders a search found that the settings should take: only new places, and only for folders the
+    settings didn't change since the search began (`before`); a folder picked meanwhile stays as picked.
+    Null: nothing to save. */
+export function newlyFound(before: Record<string, string>, found: Record<string, string>, cur: Record<string, string>): Record<string, string> | null {
+  const add: Record<string, string> = {};
+  for (const [id, at] of Object.entries(found)) if (at !== before[id] && cur[id] === before[id]) add[id] = at;
+  return Object.keys(add).length ? { ...cur, ...add } : null;
+}
+
 /** Find every music folder of every shared collection; returns what was found, and what wasn't. */
 export async function locateAll(cfg: HomeConfig): Promise<{ folders: Record<string, string>; missing: { id: string; name: string; collection: string }[] }> {
   const lib = await describe(), folders: Record<string, string> = {}, missing: { id: string; name: string; collection: string }[] = [];

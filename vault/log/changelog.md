@@ -5,6 +5,17 @@ updated: 2026-09-28
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · Music folders no longer lost after a refresh (GLUE Home 0.28)
+- **Fixed: music folders added in Home mode came back as "missing" after a refresh.**
+  - GLUE Home's background folder search saved the settings it had read *before* it searched. That put
+    every folder back at its old place, over a folder just picked with "Add folder".
+  - Now it saves only folders it found anew, never one the settings changed meanwhile.
+  - Every settings write of GLUE Home's service reads the current settings first and changes only its own
+    keys (`bridge.patchConfig`), and it listens for changes before its first write.
+- The start of the bigger change the user asked for: GLUE Home as the library's engine, the website as
+  its screen (the plan: `plan-shared-collection`, and the steps in the handoff note).
+- Tests: unit, a search's folders never over one picked meanwhile.
+
 ## 2026-09-29 · "Analyse now" is always there
 - **Right-click "Analyse now" and the selection bar's "Analyse now" are always offered** for songs with
   a file, and analyse them again even if they're analysed already (the user asked). Before, they showed

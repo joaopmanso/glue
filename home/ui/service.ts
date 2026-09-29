@@ -11,7 +11,7 @@ import { backupDaily } from './backups';
 import { syncSharedHere } from './sharedSync';
 import { followMoves } from './moves';
 import * as analysis from './analysis';
-import { describe, locateAll, trackPath } from './library';
+import { describe, locateAll, newlyFound, trackPath } from './library';
 import { findUpdate, install } from './updates';
 import { checkReminders } from './reminders';
 import * as ice from './ice';
@@ -74,7 +74,7 @@ async function unpaired() {
   // Connecting again with a new code removes the old device: then the settings hold the new one.
   const now = await bridge.config().catch(() => null);
   if (now && now.deviceId && now.deviceId !== gone) { cfg = now; start(); return; }
-  if (cfg) { cfg = { ...cfg, deviceId: null, token: null, user: null }; await bridge.saveConfig(cfg).catch(() => {}); }
+  if (cfg) cfg = await bridge.patchConfig(() => ({ deviceId: null, token: null, user: null })).catch(() => cfg) ?? cfg;
   report('removed', 'Removed from the GLUE account: connect again in the settings');
 }
 
@@ -151,7 +151,7 @@ function receive(dc: RTCDataChannel, from: string) {
         // Analysed at once, so it's ready in TO BE SORTED (ADR 0048).
         void cache.analyseIncoming(f.name, path, f.size).catch(e => console.warn('GLUE Home: couldn’t analyse', f.name, e));
         const r: Received = { name: f.name, path, from: fromName(), at: Date.now(), size: f.size };
-        if (cfg) { cfg = { ...cfg, received: [r, ...(cfg.received ?? [])].slice(0, 30) }; await bridge.saveConfig(cfg).catch(() => {}); }
+        if (cfg) cfg = await bridge.patchConfig(cur => ({ received: [r, ...(cur.received ?? [])].slice(0, 30) })).catch(() => cfg) ?? cfg;
         reply({ t: 'saved', n: f.n, name: f.name });
         event('Received ' + f.name + ' from ' + r.from);
       }
@@ -212,9 +212,10 @@ function serve(dc: RTCDataChannel) {
     }
     step(async () => {
       if (c.t === 'get') {
+        const seen = { ...(need().folders ?? {}) };
         const f = await trackPath(c.profile, c.collection, c.track, need());
         // A music folder found by name: remember it (and GLUE Home may read it from now on).
-        if (f.folder && cfg) { cfg = { ...cfg, folders: { ...(cfg.folders ?? {}), [f.folder.id]: f.folder.path } }; await bridge.saveConfig(cfg); }
+        if (f.folder) await keepFound(f.folder.id, f.folder.path, seen);
         await answer(c.n, null, { path: f.path, size: await bridge.fileSize(f.path) }, { name: f.name, type: typeOf(f.name) });
       } else if (c.t === 'range') {
         // Part of a song (streaming, ADR 0076): a collection's song, or one in the incoming folder.
@@ -228,8 +229,9 @@ function serve(dc: RTCDataChannel) {
           const key = c.profile + '/' + c.collection + '/' + c.track, known = located.get(key);
           if (known && known.until > Date.now()) ({ path, name } = known);
           else {
+            const seen = { ...(need().folders ?? {}) };
             const f = await (lookingUp.get(key) ?? (() => { const p = trackPath(c.profile!, c.collection!, c.track!, need()); lookingUp.set(key, p); void p.catch(() => {}).finally(() => lookingUp.delete(key)); return p; })());
-            if (f.folder && cfg) { cfg = { ...cfg, folders: { ...(cfg.folders ?? {}), [f.folder.id]: f.folder.path } }; await bridge.saveConfig(cfg); }
+            if (f.folder) await keepFound(f.folder.id, f.folder.path, seen);
             path = f.path; name = f.name;
             located.set(key, { path, name, until: Date.now() + 60_000 });
             if (located.size > 200) located.delete(located.keys().next().value!);
@@ -311,7 +313,7 @@ function serve(dc: RTCDataChannel) {
         // this computer takes the results in (and says which).
         if (c.take) analysis.delegate();
         // Paused from a GLUE tab: kept in the settings, like a pause there (the settings window shows it).
-        if (c.pause !== undefined && cfg && !!cfg.analysisPaused !== c.pause) { cfg = { ...cfg, analysisPaused: c.pause }; await bridge.saveConfig(cfg).catch(() => {}); analysis.setPaused(c.pause, () => cfg); }
+        if (c.pause !== undefined && cfg && !!cfg.analysisPaused !== c.pause) { cfg = await bridge.patchConfig(() => ({ analysisPaused: c.pause })).catch(() => cfg) ?? cfg; analysis.setPaused(!!c.pause, () => cfg); }
         if (c.now?.length) analysis.now(c.profile, c.collection, c.now, c.names ?? {}, () => cfg);
         if (c.taken?.length) await analysis.taken(c.profile, c.collection, c.taken);
         void analysis.run(() => cfg);
@@ -354,9 +356,12 @@ async function findFolders() {
       again = false;
       if (!cfg?.glue) { library = undefined; report(state, text); continue; }
       library = { searching: true, found: 0, missing: [] }; report(state, text);
-      const r = await locateAll(cfg).catch(() => ({ folders: {}, missing: [] }));
-      const merged = { ...(cfg.folders ?? {}), ...r.folders };
-      if (JSON.stringify(merged) !== JSON.stringify(cfg.folders ?? {})) { cfg = { ...cfg, folders: merged }; await bridge.saveConfig(cfg).catch(() => {}); }
+      const before = { ...(cfg.folders ?? {}) };
+      const r = await locateAll(cfg).catch(() => ({ folders: {} as Record<string, string>, missing: [] }));
+      // Only what the search found anew, and only where nothing changed meanwhile: a folder picked while
+      // it searched (the website's "Add folder") is never put back to what it was.
+      const next = await bridge.patchConfig(cur => { const f = newlyFound(before, r.folders, cur.folders ?? {}); return f ? { folders: f } : null; }).catch(() => null);
+      if (next) cfg = next;
       library = { searching: false, found: Object.keys(r.folders).length, missing: r.missing };
       report(state, text);
       // Then the mini spectrograms and analyses it doesn't have yet, gently in the background.
@@ -367,23 +372,9 @@ async function findFolders() {
 }
 
 // ---- wiring ---------------------------------------------------------------------------------------
-async function boot() {
-  cfg = await bridge.config();
-  if (cfg && cfg.running === undefined) cfg = { ...cfg, running: true };
-  // The token that lets the website on this computer use the local link.
-  if (cfg && !cfg.localToken) { cfg = { ...cfg, localToken: [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('') }; await bridge.saveConfig(cfg).catch(() => {}); }
-  // Songs already waiting without an analysis (arrived while it was off, or before this version).
-  void (async () => { for (const f of await bridge.incomingList().catch(() => [])) await cache.analyseIncoming(f.name, f.path, f.size).catch(() => {}); })();
-  // The website's GLUE folder, when it's in a usual place and none was chosen.
-  if (cfg && !cfg.glue) { const g = await bridge.findGlue().catch(() => null); if (g) { cfg = { ...cfg, glue: g }; await bridge.saveConfig(cfg).catch(() => {}); } }
-  start();
-  await bridge.onControl(async what => {
-    if (!cfg) return;
-    const running = what !== 'stop';
-    if (cfg.running !== running) { cfg = { ...cfg, running }; await bridge.saveConfig(cfg).catch(() => {}); }
-    if (what === 'stop') stop(); else start();
-  });
-  // New settings (joined an account, another incoming folder): reconnect if the account changed.
+/** New settings (joined an account, another incoming folder, a folder picked): acted on, reconnecting when
+    the account changed. */
+async function listenConfig() {
   await bridge.onConfig(c => {
     const before = cfg;
     cfg = c;
@@ -391,6 +382,33 @@ async function boot() {
     if (!!before?.analysisPaused !== !!c.analysisPaused) analysis.setPaused(!!c.analysisPaused, () => cfg);
     if (!before || before.deviceId !== c.deviceId || before.token !== c.token || before.running !== c.running || (before.api ?? '') !== (c.api ?? '')) start();
     else report(state, text);
+  });
+}
+/** A music folder found by its name while serving (it wasn't where the settings said): kept, unless the
+    settings changed that folder meanwhile (`seen`: the folders when the search started). */
+async function keepFound(id: string, at: string, seen: Record<string, string>) {
+  const next = await bridge.patchConfig(cur => (cur.folders ?? {})[id] === seen[id] ? { folders: { ...(cur.folders ?? {}), [id]: at } } : null).catch(() => null);
+  if (next) cfg = next;
+}
+
+async function boot() {
+  cfg = await bridge.config();
+  if (cfg && cfg.running === undefined) cfg = { ...cfg, running: true };
+  // Settings saved by others (the settings window, the local link's folder dialog) are heard from the start.
+  await listenConfig();
+  // The token that lets the website on this computer use the local link.
+  const token = [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
+  if (cfg && !cfg.localToken) cfg = await bridge.patchConfig(cur => cur.localToken ? null : { localToken: token }).catch(() => cfg) ?? cfg;
+  // Songs already waiting without an analysis (arrived while it was off, or before this version).
+  void (async () => { for (const f of await bridge.incomingList().catch(() => [])) await cache.analyseIncoming(f.name, f.path, f.size).catch(() => {}); })();
+  // The website's GLUE folder, when it's in a usual place and none was chosen.
+  if (cfg && !cfg.glue) { const g = await bridge.findGlue().catch(() => null); if (g) cfg = await bridge.patchConfig(cur => cur.glue ? null : { glue: g }).catch(() => cfg) ?? cfg; }
+  start();
+  await bridge.onControl(async what => {
+    if (!cfg) return;
+    const running = what !== 'stop';
+    if (cfg.running !== running) cfg = await bridge.patchConfig(() => ({ running })).catch(() => cfg) ?? cfg;
+    if (what === 'stop') stop(); else start();
   });
   await bridge.onAskStatus(() => report(state, text));
   void findFolders();
