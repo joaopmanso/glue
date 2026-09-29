@@ -306,7 +306,7 @@ canPlay = true;
           <span>This track’s file is on <b>{elsewhere}</b>. Its GLUE Home can send it here to play, with the full analysis.</span>
           <button type="button" class="btn" id="remote-load" onclick={() => load(true)}>Play and analyse from {elsewhere}</button>
         {:else}
-          <span>This track’s file is on <b>{elsewhere}</b>. Its details and analysis come from there. To play it here, run GLUE Home on {elsewhere}.</span>
+          <span>This track’s file is on <b>{elsewhere}</b>. Its details and analysis come from there. To play it here, run GLUE Home on {elsewhere}.{#if remoteFiles.whyNot(track)} <small id="remote-why">Now: {remoteFiles.whyNot(track)}.</small>{/if}</span>
         {/if}
       </div>
       {#if remoteNote}

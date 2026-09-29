@@ -5,6 +5,18 @@ updated: 2026-09-29
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-29 · GLUE Home online again for streaming (GLUE Home 0.32)
+- **Fixed: GLUE Home could stay offline for the account's other devices.** Since 0.28 it reads its settings
+  fresh at start-up. Settings that never said "running" (Start or Stop never pressed) counted as stopped.
+  - It never joined the signaling room, so nothing streamed from it: no waveforms, details or playback on
+    the laptop or phone.
+  - Analysis, the local link and the desktop's tab all kept working.
+  - Now only an explicit Stop stops it.
+- **The track page says why a song can't stream here:** no GLUE Home on that computer is connected to the
+  account, or it's offline (and when it was last seen).
+- Tests: GLUE Home with no "running" in its settings goes online, and stays connected when other settings
+  are saved (it fails on 0.31).
+
 ## 2026-09-29 · The account's collection as a snapshot and a log: real-time sync, few rows (GLUE Home 0.31)
 - **GLUE Cloud keeps each shared collection as a snapshot and a log of changes**
   ([ADR 0106](../adr/0106-shared-collection-as-a-snapshot-and-a-log.md); supersedes the pacing of 0105).

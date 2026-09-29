@@ -225,3 +225,24 @@ test('GLUE Home’s window says what it’s doing: the analysis, a pause button,
   await page.selectOption('#an-workers', '8');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config') ?? '{}').analysisWorkers)).toBe(8);
 });
+
+test('GLUE Home whose settings never said running or stopped goes online, and stays so as other settings are saved', async ({ page }) => {
+  const ctx = page.context();
+  let connects = 0;
+  await ctx.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'a' }) }));
+  await ctx.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { connects++; ws.send(JSON.stringify({ type: 'presence', online: ['h1'] })); ws.onMessage(() => {}); });
+  await ctx.addInitScript(TAURI_MOCK);
+  // Paired long ago; Start or Stop never pressed, so the settings have no `running` at all.
+  await ctx.addInitScript(({ glue }) => {
+    const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = {};
+    if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't1', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, askedAutostart: true, glue }));
+  }, { glue: GLUE });
+  const service = await ctx.newPage();
+  await service.goto(HOME + 'service.html');
+  await expect(service.locator('#state')).toContainText('Online as Desktop', { timeout: 15_000 });
+  // Other settings saved meanwhile (the tokens GLUE Home makes itself, a pause): still online, not reconnected.
+  await service.evaluate(() => { const c = JSON.parse(localStorage.getItem('home-config')!); localStorage.setItem('home-config', JSON.stringify({ ...c, analysisPaused: true })); (window as unknown as { __tauriEvent: (e: string, p: unknown) => void }).__tauriEvent('config', { ...c, analysisPaused: true }); });
+  await service.waitForTimeout(1000);
+  await expect(service.locator('#state')).toContainText('Online as Desktop');
+  expect(connects).toBe(1);
+});

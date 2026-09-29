@@ -32,6 +32,8 @@ const lookingUp = new Map<string, ReturnType<typeof trackPath>>();   // a song b
 const served: Record<string, { calls: number; ms: number; bytes: number }> = {};
 
 const apiOf = (c: HomeConfig) => c.api || API;
+/** Running unless stopped: settings that never said (Start or Stop never pressed) mean running. */
+const isRunning = (c: HomeConfig | null | undefined) => !!c && c.running !== false;
 /** What GLUE Home did lately (the settings window shows each new one as a toast), newest first. */
 const events: { at: number; text: string }[] = [];
 function event(text: string) { events.unshift({ at: Date.now(), text }); if (events.length > 30) events.length = 30; servedSoon(); }
@@ -40,7 +42,7 @@ let servedTimer = 0;
 const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: !!cfg?.running && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), events: events.slice(), reminders, served: structuredClone(served) };
+  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), events: events.slice(), reminders, served: structuredClone(served) };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -50,7 +52,7 @@ function report(s: Status['state'], t: string) {
 function start() {
   stop(false);
   if (!cfg?.deviceId || !cfg.token) return report('unpaired', 'Not connected to a GLUE account');
-  if (!cfg.running) return report('stopped', 'Stopped');
+  if (!isRunning(cfg)) return report('stopped', 'Stopped');
   report('connecting', 'Connecting…');
   room = stayOnline(apiOf(cfg), cfg.deviceId, cfg.token, e => {
     if (e.type === 'online') { report('online', 'Online as ' + cfg!.name + (cfg!.user?.email ? ' · ' + cfg!.user.email : '')); void ice.iceServers(apiOf(cfg!), cfg!.deviceId!, cfg!.token!); }
@@ -411,7 +413,7 @@ async function listenConfig() {
     cfg = c;
     if (before?.glue !== c.glue || JSON.stringify(before?.serve ?? {}) !== JSON.stringify(c.serve ?? {}) || JSON.stringify(before?.folders ?? {}) !== JSON.stringify(c.folders ?? {})) void findFolders();
     if (!!before?.analysisPaused !== !!c.analysisPaused) analysis.setPaused(!!c.analysisPaused, () => cfg);
-    if (!before || before.deviceId !== c.deviceId || before.token !== c.token || before.running !== c.running || (before.api ?? '') !== (c.api ?? '')) start();
+    if (!before || before.deviceId !== c.deviceId || before.token !== c.token || isRunning(before) !== isRunning(c) || (before.api ?? '') !== (c.api ?? '')) start();
     else report(state, text);
   });
 }
@@ -424,7 +426,6 @@ async function keepFound(id: string, at: string, seen: Record<string, string>) {
 
 async function boot() {
   cfg = await bridge.config();
-  if (cfg && cfg.running === undefined) cfg = { ...cfg, running: true };
   // Settings saved by others (the settings window, the local link's folder dialog) are heard from the start.
   await listenConfig();
   // The token that lets the website on this computer use the local link.
@@ -447,7 +448,7 @@ async function boot() {
   await bridge.onControl(async what => {
     if (!cfg) return;
     const running = what !== 'stop';
-    if (cfg.running !== running) cfg = await bridge.patchConfig(() => ({ running })).catch(() => cfg) ?? cfg;
+    if (isRunning(cfg) !== running) cfg = await bridge.patchConfig(() => ({ running })).catch(() => cfg) ?? cfg;
     if (what === 'stop') stop(); else start();
   });
   await bridge.onAskStatus(() => report(state, text));

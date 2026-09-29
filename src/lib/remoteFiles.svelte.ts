@@ -54,6 +54,16 @@ class RemoteFiles {
     if (r.via && this.reachable(r.via.home)) return true;
     return r.home ? this.reachable(r.home) : !!r.id && !!companionOnline(r.device);
   }
+  /** Why a song of another computer can't stream from here (null: it can): no GLUE Home serves that
+      computer on this account, or it's offline (since when). */
+  whyNot(t: Track): string | null {
+    const r = t.remote;
+    if (!r || this.canStream(t)) return null;
+    const home = r.home ? account.devices.find(d => d.id === r.home) : companionOf(r.device);
+    if (!home) return 'no GLUE Home on ' + r.name + ' is connected to this account';
+    const m = home.lastSeen ? Math.round((Date.now() - home.lastSeen) / 60e3) : null;
+    return r.name + '’s GLUE Home is offline' + (m == null ? '' : m < 2 ? ' (seen just now)' : m < 120 ? ' (seen ' + m + ' min ago)' : ' (seen ' + Math.round(m / 60) + ' h ago)');
+  }
   private homeFor(t: Track) { return t.remote?.home ?? companionOnline(t.remote?.device ?? '')?.id ?? null; }
   /** Where a song's file comes from: an incoming folder (its own, or a copy of another computer's
       song), else the other computer's library. */
