@@ -21,6 +21,8 @@ Newest first. Each entry: date, milestone, what changed, links.
   - A browser that kept a library in its own storage opens GLUE Home's on a computer where it runs.
   - Requests from other devices that name the wrong profile folder still find the collection.
   - A merge of two browsers moves GLUE Home's companion with them.
+- **GLUE Home 0.34.1:** in its settings, the page picked in the list stays marked when the pane can't
+  scroll it to the top ("Updates" lost its mark to a hidden "Received").
 - **Fixed: "Analysis done" every minute.** It now tells only what that run did, and only when it did
   something.
 - Tests:

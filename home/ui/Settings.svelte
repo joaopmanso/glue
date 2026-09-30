@@ -99,12 +99,13 @@
   // A page chosen stays chosen while the pane scrolls to it (the spy would pick the one above a short last
   // section on the way).
   let jumpUntil = 0;
-  function go(id: string) { page = id; jumpUntil = Date.now() + 900; pane?.querySelector('#sec-' + id)?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  function go(id: string) { page = id; jumpUntil = Date.now() + 1500; pane?.querySelector('#sec-' + id)?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
   function spy() {
     if (!pane || Date.now() < jumpUntil) return;
     const top = pane.getBoundingClientRect().top + 40;
-    // Scrolled to the end: the last section, even when it's too short to reach the top.
-    if (pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 2) { page = PAGES[PAGES.length - 1].id; return; }
+    // Scrolled to the end: the last section shown (Received only when there is some), even when it's too short to
+    // reach the top.
+    if (pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 2) { const last = [...PAGES].reverse().find(pg => pane!.querySelector('#sec-' + pg.id)); if (last) { page = last.id; return; } }
     let cur = PAGES[0].id;
     for (const pg of PAGES) { const el = pane.querySelector('#sec-' + pg.id); if (el && el.getBoundingClientRect().top <= top) cur = pg.id; }
     page = cur;
