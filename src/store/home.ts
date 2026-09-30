@@ -1,6 +1,6 @@
 /* The GLUE folder's top level: profiles (ADR 0018). */
 import { type Dir, readJSON, removePath, writeJSON } from './fsx';
-import { type Collection, type HomeIndex, type Profile, PROFILE_COLORS, SCHEMA, newId } from './types';
+import { type Alias, type Collection, type HomeIndex, type Profile, PROFILE_COLORS, SCHEMA, newId } from './types';
 import { migrate } from './migrations';
 
 const now = () => new Date().toISOString();
@@ -22,8 +22,9 @@ export class HomeStore {
   async rememberComputer(id: string) { if (this.index.computer === id) return; this.index.computer = id; await this.saveIndex(); }
   private profilePath(pid: string) { return `profiles/${pid}/profile.json`; }
 
-  async createProfile(name: string): Promise<Profile> {
-    const id = newId(), color = PROFILE_COLORS[this.index.profiles.length % PROFILE_COLORS.length];
+  /** `id`: the alias it's made for (the first library of a GLUE folder takes its alias's id, as older ones have). */
+  async createProfile(name: string, id = newId()): Promise<Profile> {
+    const color = PROFILE_COLORS[this.index.profiles.length % PROFILE_COLORS.length];
     const p: Profile = { schemaVersion: SCHEMA, id, name: name.trim() || 'Me', color, createdAt: now(), collections: [], lastCollection: null };
     await writeJSON(this.root, this.profilePath(id), p);
     this.index.profiles.push({ id, name: p.name, color });
@@ -50,18 +51,56 @@ export class HomeStore {
     await removePath(this.root, `profiles/${pid}`);
     this.index.profiles = this.index.profiles.filter(p => p.id !== pid);
     if (this.index.lastProfile === pid) this.index.lastProfile = this.index.profiles[0]?.id ?? null;
+    if (this.index.container === pid) this.index.container = this.index.profiles[0]?.id ?? null;
     await this.saveIndex();
   }
+
+  // ─── Aliases (ADR 0113) ────────────────────────────────────────────────────
+  /** From before aliases: each profile is an alias too, and the one used last holds the library (the container).
+      Nothing moves on disk. True when mco.json changed (saved unless `save` is false: a read-only tab). */
+  async ensureAliases(save = true): Promise<boolean> {
+    const ix = this.index;
+    let changed = false;
+    if (!ix.aliases) {
+      const aliases: Alias[] = [];
+      for (const r of ix.profiles) {
+        const p = await readJSON<Profile>(this.root, this.profilePath(r.id)).catch(() => null);
+        aliases.push({ id: r.id, name: r.name, color: r.color, ...(p?.bpmRange ? { bpmRange: p.bpmRange } : {}) });
+      }
+      ix.aliases = aliases; changed = true;
+    }
+    if (!ix.container || !ix.profiles.some(p => p.id === ix.container)) {
+      const c = ix.lastProfile && ix.profiles.some(p => p.id === ix.lastProfile) ? ix.lastProfile : ix.profiles[0]?.id ?? null;
+      if ((ix.container ?? null) !== c) { ix.container = c; changed = true; }
+    }
+    if (ix.lastAlias === undefined) { ix.lastAlias = ix.aliases.some(a => a.id === ix.container) ? ix.container : ix.aliases[0]?.id ?? null; changed = true; }
+    if (changed && save) await this.saveIndex();
+    return changed;
+  }
+  get aliases(): Alias[] { return this.index.aliases ?? []; }
+  async setAliases(list: Alias[]) {
+    this.index.aliases = list;
+    if (this.index.lastAlias && !list.some(a => a.id === this.index.lastAlias)) this.index.lastAlias = null;
+    await this.saveIndex();
+  }
+  async setLastAlias(id: string | null) { if (this.index.lastAlias !== id) { this.index.lastAlias = id; await this.saveIndex(); } }
+  /** The profile folder that holds this GLUE folder's library. */
+  async setContainer(pid: string) { if (this.index.container !== pid) { this.index.container = pid; this.index.lastProfile = pid; await this.saveIndex(); } }
 
   async setAppearance(a: { theme: string; mode: 'dark' | 'light' | 'system' }) {
     if (this.index.appearance?.theme === a.theme && this.index.appearance?.mode === a.mode) return;
     this.index.appearance = a; await this.saveIndex();
   }
 
-  /** A restored profile's files are in place: list it (replacing an entry with the same id). */
+  /** A restored profile's files are in place: list it (replacing an entry with the same id). It's the library now,
+      and its alias the one in use (added if it isn't one, ADR 0113). */
   async adoptProfile(ref: { id: string; name: string; color: string }) {
     this.index.profiles = [...this.index.profiles.filter(p => p.id !== ref.id), ref];
     this.index.lastProfile = ref.id;
+    this.index.container = ref.id;
+    const aliases = this.index.aliases ?? [];
+    if (!aliases.some(a => a.id === ref.id)) this.index.aliases = [...aliases, { id: ref.id, name: ref.name, color: ref.color }];
+    this.index.lastAlias = ref.id;
     await this.saveIndex();
   }
 

@@ -60,7 +60,7 @@
     if (!t || !shown || !inUse) return null;
     const bits: string[] = [];
     if (t.prep?.bpm != null) bits.push('your BPM (Prepare)');
-    if (Math.abs(shown - inUse) > 0.01) bits.push(t.prep?.flip ? 'shown at the other octave' : lib.profile?.bpmRange === 'half' ? 'shown half-time (60–120)' : 'shown in 120–240');
+    if (Math.abs(shown - inUse) > 0.01) bits.push(t.prep?.flip ? 'shown at the other octave' : lib.bpmRange === 'half' ? 'shown half-time (60–120)' : 'shown in 120–240');
     if (a?.bpm && Math.abs(a.bpm - shown) > 0.05) bits.push('analysis ' + fmtBpm(a.bpm));
     return { bpm: shown, note: bits.join(' · ') || '½× ' + (shown / 2).toFixed(1) + ' · 2× ' + (shown * 2).toFixed(1) };
   });

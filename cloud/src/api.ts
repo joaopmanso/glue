@@ -2,6 +2,7 @@
    the per-user signaling room. Plain request → response, so tests run it against real SQLite. */
 import { SyncError } from './limits';
 import * as shared from './shared';
+import * as profiles from './profiles';
 import * as admin from './admin';
 import { turnServers, type TurnEnv } from './turn';
 import type { UsageEnv } from './usage';
@@ -97,6 +98,16 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
       }
       await revokeDevice(env, a.sub, d.id, now);
       return reply({ ok: true });
+    }
+    // The account's profiles, its artist aliases (ADR 0113): the account's online devices hear of each change.
+    if (path === '/v1/profiles' || path.startsWith('/v1/profiles/')) {
+      const told = async <T>(r: T) => { if (env.SIGNAL && m !== 'GET') await env.SIGNAL.get(env.SIGNAL.idFromName(a.sub)).fetch(new Request('https://signal/broadcast', { method: 'POST', body: JSON.stringify({ type: 'profiles', from: a.dev }) })).catch(() => {}); return reply(r); };
+      const pm = /^\/v1\/profiles\/([\w-]+)$/.exec(path);
+      if (m === 'GET' && path === '/v1/profiles') return reply(await profiles.list(env, a));
+      if (m === 'POST' && path === '/v1/profiles') return told(await profiles.create(env, a, await body(), now, randomId));
+      if (m === 'POST' && path === '/v1/profiles/seed') return told(await profiles.seed(env, a, await body(), now));
+      if (m === 'PATCH' && pm) return told(await profiles.update(env, a, pm[1], await body(), now));
+      if (m === 'DELETE' && pm) return told(await profiles.remove(env, a, pm[1], now));
     }
     // The shared collection (ADR 0094): one copy for all the account's devices.
     if (m === 'GET' && path === '/v1/shared') return reply(await shared.list(env, a));

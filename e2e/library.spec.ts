@@ -368,6 +368,7 @@ test('the first question: how GLUE is used here; "Just this computer" uploads no
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
   await page.waitForTimeout(5_000);                                    // a synced collection goes up when it opens
   expect(asked.filter(p => p.startsWith('POST /v1/shared'))).toEqual([]);
+  expect(asked.filter(p => p.includes('/v1/profiles') && !p.startsWith('GET'))).toEqual([]);   // nor its profile (ADR 0113)
   // The profile screen says what this computer is, and how to change it.
   await page.locator('.top .who').click();
   await expect(page.locator('#this-computer')).toHaveAttribute('data-mode', 'local');
@@ -1111,7 +1112,7 @@ test('onboarding, backup, delete everything, restore on a fresh start', async ({
 
   // Backup from "Who's using MCO?".
   await page.locator('.top .who').click();
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('.pcard', { hasText: 'DJ Test' }).locator('.backup-btn').click()]);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('#backup-library').click()]);
   expect(dl.suggestedFilename()).toMatch(/^GLUE backup - DJ Test - \d{4}-\d\d-\d\d\.zip$/);
   const zip = join(mkdtempSync(join(tmpdir(), 'mco-bk-')), dl.suggestedFilename());
   await dl.saveAs(zip);

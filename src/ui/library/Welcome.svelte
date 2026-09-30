@@ -6,7 +6,6 @@
   import type { BackupManifest } from '../../store/backup';
   import type { ZipEntry } from '../../core/zip';
   import ThemePicker from '../ThemePicker.svelte';
-  import type { Profile } from '../../store/types';
   import CloudPanel from './CloudPanel.svelte';
   import Homepage from './Homepage.svelte';
   import { account } from '../../lib/account.svelte';
@@ -119,12 +118,10 @@
   const ago = (t: number | null) => { if (!t) return ''; const m = Math.round((Date.now() - t) / 60e3); return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
   const tracks = (m: BackupManifest) => m.collections.reduce((n, c) => n + c.tracks, 0);
   const step = $derived(lib.phase === 'welcome' || lib.phase === 'reconnect' ? 1 : lib.onboarding === 'music' ? 3 : 2);
-  // Each profile's BPM range (ADR 0052), from its profile file.
-  let bpmRanges = $state<Record<string, Profile['bpmRange']>>({});
-  $effect(() => {
-    const ids = lib.phase === 'profiles' ? lib.home?.index.profiles.map(p => p.id) ?? [] : [];
-    for (const id of ids) void lib.profileInfo(id)?.then(p => { if (p) bpmRanges[id] = p.bpmRange; });
-  });
+  // Profiles are the account's artist aliases; the GLUE folder has one library (ADR 0113).
+  const aliases = $derived(lib.home?.aliases ?? []);
+  const container = $derived(lib.home?.index.container ?? null);
+  const storages = $derived(lib.home?.index.profiles ?? []);
 </script>
 
 {#snippet saveHere()}
@@ -244,52 +241,64 @@
     </div>
 
   {:else if lib.phase === 'profiles'}
-    {#if !lib.home?.index.profiles.length}{@render stepper()}{/if}
+    {#if !aliases.length}{@render stepper()}{/if}
     <h2>Who’s using GLUE?</h2>
-    {#if lib.lastProfile && lib.home?.index.profiles.some(p => p.id === lib.lastProfile)}
+    {#if lib.lastProfile && aliases.some(a => a.id === lib.lastProfile)}
       <p class="back"><button type="button" class="btn" id="back-to-library" onclick={() => lib.backToLibrary()}>← Back to the library</button></p>
     {/if}
-    <p class="lede">Each profile has its own collections, playlists and ratings, all saved in <b>{lib.homeName}</b>.</p>
-    {#if lib.home?.index.profiles.length}
+    <p class="lede">{account.signedIn ? 'Your profiles are your artist names, the same on every device you sign in to.' : 'Your profiles are your artist names.'} Each one opens the same library, saved in <b>{lib.homeName}</b>.</p>
+    {#if aliases.length}
       <ul class="profiles">
-        {#each lib.home.index.profiles as p (p.id)}
-          <li class="pcard">
-            <button type="button" class="profile" onclick={() => lib.openProfile(p.id)} title="Open"><span class="dot" style:background={p.color}>{p.name.slice(0, 1).toUpperCase()}</span>{p.name}</button>
+        {#each aliases as a (a.id)}
+          <li class="pcard" data-alias={a.id}>
+            <button type="button" class="profile" onclick={() => lib.useAlias(a.id)} title="Open"><span class="dot" style:background={a.color}>{a.name.slice(0, 1).toUpperCase()}</span>{a.name}</button>
             <span class="ptools">
-              <button type="button" class="backup-btn" title="Download a backup (.zip) of this profile" onclick={() => backup(p.id)}>
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5v1h11v-1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Backup
-              </button>
-              <button type="button" class="syncbtn" class:on={syncOn[p.id] && account.signedIn} data-sync={p.id} aria-pressed={!!syncOn[p.id] && account.signedIn}
-                title={syncOn[p.id] ? 'Cloud sync is on: this profile’s collections are your account’s, the same on every device (never the music)' : 'Make this profile’s collections your account’s, the same on every device you sign in to'} onclick={() => toggleSync(p.id)}>
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7.2a3 3 0 0 0 .4-6 4.2 4.2 0 0 0-8.1 1.2 2.4 2.4 0 0 0 .5 4.8z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
-                {syncOn[p.id] && account.signedIn ? (lib.profile?.id === p.id && shared.status.busy ? 'Syncing…' : lib.profile?.id === p.id && shared.status.error ? 'Sync problem' : lib.profile?.id === p.id && shared.status.at ? 'Synced ' + ago(shared.status.at) : 'Cloud sync on') : 'Cloud sync'}
-              </button>
               <label class="bpmr" title="How BPMs show in the library: as detected, folded into half-time (60–120) or full (120–240). A track can be flipped on its Prepare tab.">BPM
-                <select data-bpm-range={p.id} value={bpmRanges[p.id] ?? ''} onchange={e => { const v = e.currentTarget.value as '' | 'half' | 'full'; bpmRanges[p.id] = v || undefined; void lib.setBpmRange(p.id, v || undefined); }}>
+                <select data-bpm-range={a.id} value={a.bpmRange ?? ''} onchange={e => { const v = e.currentTarget.value as '' | 'half' | 'full'; void lib.setBpmRange(a.id, v || undefined); }}>
                   <option value="">as detected</option><option value="half">60–120</option><option value="full">120–240</option>
                 </select>
               </label>
-              <button type="button" title="Rename" onclick={() => { const n = prompt('Rename profile', p.name); if (n?.trim()) void lib.renameProfile(p.id, n); }}>Rename</button>
-              <button type="button" class="del" title="Delete this profile" onclick={() => { if (confirm('Delete the profile “' + p.name + '” with all its collections and playlists? Download a backup first if you might want it back. Your music files aren’t touched.')) void lib.deleteProfile(p.id); }}>Delete</button>
+              <button type="button" title="Rename (on every device)" onclick={() => { const n = prompt('Rename profile', a.name); if (n?.trim()) void lib.renameProfile(a.id, n); }}>Rename</button>
+              <button type="button" class="del" title="Delete this profile" onclick={() => { if (confirm('Delete the profile “' + a.name + '”' + (account.signedIn ? ' on every device' : '') + '? The library stays as it is: its collections, playlists and ratings are every profile’s.')) void lib.deleteProfile(a.id); }}>Delete</button>
             </span>
           </li>
         {/each}
       </ul>
     {/if}
     <form class="create" onsubmit={e => { e.preventDefault(); if (profileName.trim()) void lib.createProfile(profileName, readPref('onboard', '') === 'local' ? { cloudSync: false } : {}); }}>
-      <label class="label" for="profile-name">{lib.home?.index.profiles.length ? 'New profile' : 'Your name or DJ name'}</label>
+      <label class="label" for="profile-name">{aliases.length ? 'New profile' : 'Your name or DJ name'}</label>
       <div class="row">
         <input id="profile-name" placeholder="e.g. DJ Nova" bind:value={profileName} maxlength="60" autocomplete="off">
         <button type="submit" class="btn" disabled={!profileName.trim()}>Create profile</button>
       </div>
     </form>
-    <!-- How this computer uses GLUE now, and how to change it (ADR 0092): no choice is final. -->
+    <!-- How this computer uses GLUE now, and how to change it (ADR 0092): no choice is final. Its library's
+         backup and cloud sync are here: every profile uses the same library (ADR 0113). -->
     <div class="card thiscomp" id="this-computer" data-mode={mode}>
       <h3>This computer</h3>
       {#if mode === 'home'}<p>With GLUE Home ({myHome?.name}): this computer's songs play on your other devices, even with this page closed.</p>
       {:else if mode === 'synced'}<p>Synced with your other devices through GLUE Cloud (your library's data, never your music). <b>Add GLUE Home</b> so its songs play elsewhere with this page closed: {#each Object.entries(HOME_DOWNLOADS) as [os, d] (os)}<a class="dl" class:mine={homeOs() === os} href={d.url}>{d.label}</a>{' '}{/each}then “+ GLUE Home” under Devices.</p>
-      {:else}<p>Just this computer: no account, nothing leaves it. <button type="button" class="link" id="turn-on-sync" onclick={() => { choose('synced'); if (!account.signedIn) signInBelow(); }}>Turn on cloud sync</button> to have the same library on your other devices{account.signedIn ? ', then switch on “Cloud sync” for a profile above' : ' (sign in below)'}.</p>{/if}
-      {#if mode !== 'local'}<p class="fine">Stop syncing a profile with its “Cloud sync” switch above; its library stays here.</p>{/if}
+      {:else}<p>Just this computer: no account, nothing leaves it. <button type="button" class="link" id="turn-on-sync" onclick={() => { choose('synced'); if (!account.signedIn) signInBelow(); }}>Turn on cloud sync</button> to have the same library on your other devices{account.signedIn ? ', then switch on “Cloud sync” below' : ' (sign in below)'}.</p>{/if}
+      {#if container}
+        <div class="ptools lib-tools">
+          {#if storages.length > 1}
+            <label class="bpmr" title="This GLUE folder has more than one library (from before profiles were artist names): the one every profile opens">Library
+              <select id="library-pick" value={container} onchange={e => void lib.useLibrary(e.currentTarget.value)}>
+                {#each storages as st (st.id)}<option value={st.id}>{st.name}</option>{/each}
+              </select>
+            </label>
+          {/if}
+          <button type="button" class="backup-btn" id="backup-library" title="Download a backup (.zip) of this library" onclick={() => backup(container)}>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5v1h11v-1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Backup
+          </button>
+          <button type="button" class="syncbtn" class:on={syncOn[container] && account.signedIn} data-sync={container} aria-pressed={!!syncOn[container] && account.signedIn}
+            title={syncOn[container] ? 'Cloud sync is on: this library’s collections are your account’s, the same on every device (never the music)' : 'Make this library’s collections your account’s, the same on every device you sign in to'} onclick={() => toggleSync(container)}>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7.2a3 3 0 0 0 .4-6 4.2 4.2 0 0 0-8.1 1.2 2.4 2.4 0 0 0 .5 4.8z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+            {syncOn[container] && account.signedIn ? (shared.status.busy ? 'Syncing…' : shared.status.error ? 'Sync problem' : shared.status.at ? 'Synced ' + ago(shared.status.at) : 'Cloud sync on') : 'Cloud sync'}
+          </button>
+        </div>
+        {#if mode !== 'local'}<p class="fine">Stop syncing with the “Cloud sync” switch; the library stays here.</p>{/if}
+      {/if}
     </div>
     <CloudPanel />
     <ThemePicker />
@@ -323,7 +332,7 @@
 
   {:else if lib.phase === 'library' && lib.onboarding === 'music'}
     {@render stepper()}
-    <h2>Add your music, {lib.profile?.name}</h2>
+    <h2>Add your music, {(lib.alias ?? lib.profile)?.name}</h2>
     <p class="lede">GLUE reads your music where it already is. Nothing is moved, copied or changed, and you can add more at any time from the sidebar.</p>
     <div class="paths three">
       {#if full}

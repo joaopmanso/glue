@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-27
-adrs: [0018, 0009]
+updated: 2026-09-30
+adrs: [0018, 0009, 0113]
 ---
 # Profiles
 
@@ -40,3 +40,18 @@ collections list. See [ADR 0018](../adr/0018-local-profiles.md).
   (`lib.lastProfile`, `backToLibrary()`).
 - **The header's GLUE logo** does the same there. It used to stay on the profile screen, and clicking
   the profile's name was the only way back.
+
+## Profiles are the account's artist aliases (2026-09-30, [ADR 0113](../adr/0113-profiles-are-the-accounts-aliases.md))
+- An alias: id, name, colour, BPM range. The account keeps the list (GLUE Cloud migration 0010,
+  `/v1/profiles`); `mco.json` keeps a copy (`aliases`, `lastAlias`) for offline.
+- Seeded once, with their ids, by the first computer with a GLUE folder of its own (`lib/profiles.svelte.ts`);
+  a phone never seeds. After that the account's list is the truth; the alias in use becomes its namesake or
+  the only one, else "Who's using GLUE?" asks.
+- One library per GLUE folder: the profile folder named in `mco.json.container`; every alias opens it
+  (`lib.useAlias`). Nothing moved on disk; `profiles`/`lastProfile` stay for older readers. More than one
+  profile folder from before: a "Library" choice on "This computer" (`#library-pick`).
+- "Who's using GLUE?": pick, create, rename, delete an alias, its BPM range. Backup (`#backup-library`) and
+  Cloud sync (`[data-sync]`) are the library's, on "This computer". Deleting an alias never deletes the library.
+- Tests: `tests/aliases.test.ts` (the migration, one and two profile folders, read-only), `tests/cloud.test.ts`
+  (seed once, CRUD), e2e `phone.spec` (the phone is 404), `shared.spec` (namesake, rename and a new alias
+  across devices, the same library).

@@ -40,6 +40,7 @@
   import AdminView from './ui/AdminView.svelte';
   import PerfHud from './ui/PerfHud.svelte';
   import { perf } from './lib/perf';
+  import './lib/profiles.svelte';        // the account's profiles, its artist aliases (ADR 0113)
   import './lib/anywhere.svelte';        // a device without a library opens the account's (ADR 0077)
   import './lib/covers.svelte';        // songs' covers, kept as they're found (ADR 0072)
   import './lib/remoteFiles.svelte';   // another computer's songs through its GLUE Home (ADR 0045)
@@ -163,10 +164,11 @@
           Open audio file
         </button>
       {:else if lib.profile}
+        {@const who = lib.alias ?? lib.profile}
         <small id="saving" class:hidden={!(lib.saving || lib.unsaved)} aria-hidden={!(lib.saving || lib.unsaved)}>Saving…</small>
         <small title={'Your library is stored in ' + lib.homeName}>📂 {lib.homeName}</small>
         <button type="button" class="who" title="Switch profile" onclick={() => lib.switchProfile()}>
-          <span class="dot" style:background={lib.profile.color}>{lib.profile.name.slice(0, 1).toUpperCase()}</span>{lib.profile.name}
+          <span class="dot" style:background={who.color}>{who.name.slice(0, 1).toUpperCase()}</span>{who.name}
         </button>
       {/if}
       <AccountButton />

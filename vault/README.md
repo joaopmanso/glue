@@ -92,7 +92,7 @@ Planned (GLUE):
 | [0015](adr/0015-installable-pwa.md) | GLUE is an installable PWA | superseded by 0017 |
 | [0016](adr/0016-keep-legacy-page-for-parity.md) | Keep the original Speklone page as the parity reference | accepted |
 | [0017](adr/0017-no-installable-app-for-now.md) | No installable app for now | accepted |
-| [0018](adr/0018-local-profiles.md) | Local profiles, no password; profiles own collections | accepted |
+| [0018](adr/0018-local-profiles.md) | Local profiles, no password; profiles own collections | superseded by 0113 |
 | [0019](adr/0019-background-analysis-decoding.md) | Background analysis: browser decoding + analysis worker pool | accepted (decoding superseded by 0060) |
 | [0020](adr/0020-imports-then-link-folders.md) | Imports bring metadata first; music folders linked afterwards | accepted |
 | [0021](adr/0021-single-songs.md) | Songs can be added one by one, kept by file handle | accepted |
@@ -184,5 +184,6 @@ Planned (GLUE):
 | [0110](adr/0110-screen-takes-glue-homes-analyses.md) | The screen takes GLUE Home's analyses when it needs them; a song page never re-analyses in Home mode | accepted |
 | [0111](adr/0111-removing-a-folder-removes-its-songs.md) | Removing a music folder removes its songs; songs left with no file are offered once | accepted |
 | [0112](adr/0112-the-accounts-collections.md) | The account's collections: one list with each computer's numbers, a rename and a deletion every device follows, no silent second collection | accepted |
+| [0113](adr/0113-profiles-are-the-accounts-aliases.md) | Profiles are the account's artist aliases; a GLUE folder keeps one library that every alias uses | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

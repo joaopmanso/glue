@@ -7,9 +7,14 @@ export const ANALYSIS_VERSION = 3;
 export const VERDICT_VERSION = 5;   // bump to re-analyse every track after an algorithm change (2: full analysis stored, 3: fingerprints, 4: content beyond a wall, 2026-09-27, 5: holes under a wall, 2026-09-28)
 
 export interface ProfileRef { id: string; name: string; color: string }
+/** A profile as the user sees it (ADR 0113): an artist alias, the account's (the same list on every device). */
+export interface Alias { id: string; name: string; color: string; bpmRange?: 'half' | 'full' }
 /** computer: the account device this GLUE folder's computer is (ADR 0108), remembered for when neither GLUE Home
-    nor a sign-in says. */
-export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null; appearance?: { theme: string; mode: 'dark' | 'light' | 'system' }; computer?: string }
+    nor a sign-in says.
+    ADR 0113: `aliases` (the account's, kept here for when it's offline), `lastAlias` (who used GLUE last), and
+    `container`: the one profile folder that holds this GLUE folder's library (every alias uses it). `profiles`
+    and `lastProfile` are the storage folders, as before (older GLUE versions read them). */
+export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null; appearance?: { theme: string; mode: 'dark' | 'light' | 'system' }; computer?: string; aliases?: Alias[]; lastAlias?: string | null; container?: string | null }
 
 export interface CollectionRef { id: string; name: string }
 /** cloudSync: this device keeps a copy of the profile's data in GLUE Cloud (ADR 0040). Absent = on

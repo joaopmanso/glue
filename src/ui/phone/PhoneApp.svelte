@@ -155,7 +155,7 @@
         <li><button type="button" class="ent" onclick={() => (view.statsFor = { title: 'This collection', sel: { kind: 'all' } })}>Stats</button></li>
         <li><button type="button" class="ent" onclick={() => router.go('#/analyze')}>Analyze a file</button></li>
         <li><button type="button" class="ent" id="phone-theme" onclick={() => themes.toggleMode()}>{themes.resolved === 'dark' ? 'Light mode' : 'Dark mode'}</button></li>
-        {#if lib.profile}<li><button type="button" class="ent" onclick={() => lib.switchProfile()}>Switch profile · {lib.profile.name}</button></li>{/if}
+        {#if lib.profile}<li><button type="button" class="ent" onclick={() => lib.switchProfile()}>Switch profile · {(lib.alias ?? lib.profile).name}</button></li>{/if}
         <li class="sec">Account</li>
         <li class="acct"><AccountButton /></li>
       </ul>

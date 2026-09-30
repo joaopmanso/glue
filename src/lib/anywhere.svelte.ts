@@ -8,6 +8,7 @@
 import { lib } from './library.svelte';
 import { account } from './account.svelte';
 import { shared } from './shared.svelte';
+import { profiles } from './profiles.svelte';
 import { homeMode } from '../platform';
 
 class Anywhere {
@@ -44,10 +45,12 @@ class Anywhere {
     shared.hold = true;
     try {
       if (lib.phase === 'welcome') await lib.usePrivateHome();
+      // The library here; who's using it is one of the account's profiles (ADR 0113), never one made from
+      // the account's name.
       if (!lib.profile) {
         const ps = lib.home?.index.profiles ?? [];
-        if (ps[0]) await lib.openProfile(ps[0].id);
-        else await lib.createProfile(account.user?.name || 'My library');
+        if (ps[0]) await lib.openProfile(lib.hasLibrary() ? lib.home!.index.container! : ps[0].id);
+        else await lib.createLibrary('Library');
         lib.onboarding = null;
       }
       const p = lib.profile;
@@ -59,6 +62,13 @@ class Anywhere {
       // The empty collection a new profile starts with isn't needed.
       for (const cid of empty) if (lib.store?.meta.id !== cid) await lib.deleteCollection(cid).catch(() => {});
       if (order[0] && lib.store?.meta.id !== order[0].id) await lib.openCollection(order[0].id);
+      // Who's using it: the account's only profile; with several, or none yet, "Who's using GLUE?" asks.
+      if (!lib.alias) {
+        await profiles.refresh();
+        const list = lib.home?.aliases ?? [];
+        if (list.length === 1) { lib.alias = list[0]; await lib.home?.setLastAlias(list[0].id); }
+        else lib.switchProfile();
+      }
     } catch (e) { lib.notice = 'Couldn’t open your library: ' + (e as Error).message; }
     finally { this.opening = ''; shared.hold = false; }
   }

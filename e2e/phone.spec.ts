@@ -46,6 +46,8 @@ test('a phone signs in and the account’s collection opens by itself: songs str
     'tracks/dk.json': { text: JSON.stringify({ schemaVersion: 1, items: tracks }), rev: 2 },
     'lists/l1.json': { text: JSON.stringify({ schemaVersion: 1, id: 'l1', kind: 'playlist', name: 'Friday', parentId: null, position: 0, notes: '', items: ['dk02', 'dk01'], origin: null, createdAt: '' }), rev: 3 },
   }, 'desk', 3);
+  // The account's profile, seeded by the desktop (ADR 0113).
+  await server.seedProfiles([{ id: pid, name: '404', color: '#7cc7ff' }]);
   const cloudFile = async (path: string) => JSON.parse(await server.current(cid, path) ?? '{}');
   /** The songs as the account's copy has them now. */
   const cloudTracks = async () => (await cloudFile('tracks/dk.json')).items as Record<string, { rating?: number; title: string; copies: Record<string, { unwritten?: string[] }> }>;
@@ -113,6 +115,8 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   await page.locator('#cloud-panel .fake-google').click();
   const all = page.locator('#phone-library [data-view="all"]');
   await expect(all).toContainText('4', { timeout: 30_000 });
+  // As the account's profile, 404: never one made from the account's name (the iPhone made "Joao Manso", 2026-09-30).
+  await expect.poll(() => page.evaluate(async () => { try { return JSON.parse(await (await (await (await navigator.storage.getDirectory()).getFileHandle('mco.json')).getFile()).text()); } catch { return null; } }), { timeout: 20_000 }).toMatchObject({ aliases: [{ id: 'pdesk', name: '404' }], lastAlias: 'pdesk' });
   // Kept in the browser's own storage (a GLUE folder there); the phone isn't a member of the collection
   // (it holds no copies).
   expect(await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const names: string[] = []; for await (const [n] of (r as unknown as { entries(): AsyncIterable<[string, unknown]> }).entries()) names.push(n); return names; })).toContain('mco.json');

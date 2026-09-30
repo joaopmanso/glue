@@ -453,3 +453,26 @@ describe('the shared collection (ADR 0094, 0106)', () => {
   });
 });
 
+
+describe('the account’s profiles, its artist aliases (ADR 0113)', () => {
+  it('seeded once, with their ids, from the first computer; then the same list everywhere', async () => {
+    const desk = (await signIn({}, { deviceName: 'Desktop' })).json.access, phone = (await signIn({}, { deviceName: 'iPhone' })).json.access;
+    expect((await call('GET', '/v1/profiles', undefined, phone)).json).toEqual({ profiles: [], seeded: false });
+    const seeded = (await call('POST', '/v1/profiles/seed', { profiles: [{ id: 'b2df29dc692b488f', name: ' 404 ', color: '#7cc7ff', bpmRange: 'half' }] }, desk)).json;
+    expect(seeded).toEqual({ profiles: [{ id: 'b2df29dc692b488f', name: '404', color: '#7cc7ff', bpmRange: 'half', updatedAt: now }], seeded: true });
+    // Another device's seed comes too late: nothing of it goes in.
+    expect((await call('POST', '/v1/profiles/seed', { profiles: [{ id: 'p-phone', name: 'Joao Manso' }] }, phone)).json.profiles.map((p: { name: string }) => p.name)).toEqual(['404']);
+    expect((await call('POST', '/v1/profiles/seed', { profiles: [{ id: 'bad id', name: 'x' }] }, phone)).status).toBe(400);
+    // Made, renamed, its BPM range, deleted: the same for every device.
+    const made = (await call('POST', '/v1/profiles', { name: 'Night alias', color: '#ff00aa' }, phone)).json;
+    expect(made).toMatchObject({ name: 'Night alias', color: '#ff00aa', bpmRange: null });
+    expect((await call('PATCH', '/v1/profiles/' + made.id, { name: 'Late', bpmRange: 'full' }, desk)).json).toMatchObject({ id: made.id, name: 'Late', color: '#ff00aa', bpmRange: 'full' });
+    expect((await call('PATCH', '/v1/profiles/' + made.id, { name: '' }, desk)).status).toBe(400);
+    expect((await call('DELETE', '/v1/profiles/' + made.id, undefined, phone)).json).toEqual({ ok: true });
+    expect((await call('GET', '/v1/profiles', undefined, desk)).json).toMatchObject({ profiles: [{ id: 'b2df29dc692b488f', name: '404' }], seeded: true });
+    expect((await call('PATCH', '/v1/profiles/' + made.id, { name: 'Back' }, desk)).status).toBe(404);
+    // Another account sees none of them.
+    const other = (await signIn({ sub: 'g-other', email: 'other@example.com' })).json.access;
+    expect((await call('GET', '/v1/profiles', undefined, other)).json).toEqual({ profiles: [], seeded: false });
+  });
+});

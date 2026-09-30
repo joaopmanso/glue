@@ -199,6 +199,9 @@ class Account {
   /** A shared collection moved on in GLUE Cloud (ADR 0094), or was deleted from the account (`gone`, ADR 0112). */
   private sharedListeners = new Set<(m: { collection: string; seq: number; from: string; gone?: boolean }) => void>();
   onShared(f: (m: { collection: string; seq: number; from: string; gone?: boolean }) => void) { this.sharedListeners.add(f); return () => this.sharedListeners.delete(f); }
+  /** The account’s profiles (its artist aliases) changed on another device (ADR 0113). */
+  private profilesListeners = new Set<() => void>();
+  onProfiles(f: () => void) { this.profilesListeners.add(f); return () => this.profilesListeners.delete(f); }
   signal(to: string, data: unknown): boolean {
     const ws = this.ws;
     if (!ws || ws.readyState !== 1) return false;
@@ -221,6 +224,7 @@ class Account {
         if (m.type === 'removed') { this.forget(); this.error = 'This browser was removed from your GLUE account.'; return; }
         // Another tab of this browser took over. Act now: the close handshake may never complete.
         if (m.type === 'replaced') { this.closing = true; ws.onclose = null; ws.close(); this.ws = null; this.connected = false; clearInterval(this.pingTimer); return; }
+        if (m.type === 'profiles') { for (const f of this.profilesListeners) f(); return; }
         if (m.type === 'shared') { for (const f of this.sharedListeners) f(m as unknown as { collection: string; seq: number; from: string; gone?: boolean }); return; }
         if (m.type === 'signal') { for (const f of this.signalListeners) f((m as unknown as { from: string }).from, (m as unknown as { data: unknown }).data); return; }
         if (m.type === 'presence' && m.online) {

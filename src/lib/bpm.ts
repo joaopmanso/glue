@@ -7,4 +7,4 @@ import type { AnalysisSummary, Track } from '../store/types';
 export { fmtBpm } from '../core/library/bpm';
 export const bpmOf = (t: Track | null | undefined, a: AnalysisSummary | null | undefined, dj?: number | null) => bpmInUse(t, a, dj);
 export const bpmShown = (t: Track | null | undefined, a: AnalysisSummary | null | undefined, dj?: number | null) =>
-  shownBpm(bpmInUse(t, a, dj), lib.profile?.bpmRange, t?.prep?.flip);
+  shownBpm(bpmInUse(t, a, dj), lib.bpmRange, t?.prep?.flip);

@@ -312,6 +312,70 @@ test('the account’s collections (ADR 0112): one box with each computer’s num
   } finally { await desk.done(); await lap.done(); }
 });
 
+test('profiles are the account’s artist aliases (ADR 0113): seeded by the desktop; the laptop’s own namesake becomes it; renamed and made on one device, seen on the other; every alias opens the same library', async ({ baseURL }) => {
+  test.setTimeout(240_000);
+  const { server, pathsOf, route } = fakeCloud();
+  const desk = await browserFor(baseURL), lap = await browserFor(baseURL);
+  let answer = '';
+  desk.page.removeAllListeners('dialog');
+  desk.page.on('dialog', d => void d.accept(answer));
+  const listed = async () => JSON.parse((await server.answer('GET', new URL('https://x/v1/profiles'), null, 'b1'))!.body).profiles.map((p: { name: string }) => p.name);
+  const index = (page: Page) => page.evaluate(async () => JSON.parse(await (await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle('MCO')).getFileHandle('mco.json')).getFile()).text()));
+  try {
+    await route(desk.page, 'b1');
+    await seed(desk.page, MUSIC);
+    await desk.page.goto('./');
+    await desk.page.click('#choose-home');
+    await desk.page.fill('#profile-name', 'DJ Test');
+    await desk.page.getByRole('button', { name: 'Create profile' }).click();
+    await desk.page.click('#onb-skip');
+    await desk.page.click('#add-folder');
+    await expect(desk.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+    await desk.page.click('#account-btn');
+    await desk.page.click('#fake-google');
+    await desk.page.keyboard.press('Escape');
+    await expect(desk.page.locator('#shared-chip')).toHaveText('Synced', { timeout: 30_000 });
+    await expect.poll(async () => (await pathsOf()).length, { timeout: 20_000 }).toBeGreaterThan(3);
+    // The desktop's profile is the account's first.
+    await expect.poll(listed, { timeout: 20_000 }).toEqual(['DJ Test']);
+    const deskAlias = (await index(desk.page)).lastAlias;
+
+    // The laptop made its own "DJ Test" before signing in: it becomes the account's.
+    await route(lap.page, 'b2');
+    await seed(lap.page, []);
+    await lap.page.goto('./');
+    await lap.page.click('#choose-home');
+    await lap.page.fill('#profile-name', 'DJ Test');
+    await lap.page.getByRole('button', { name: 'Create profile' }).click();
+    await lap.page.click('#onb-skip');
+    await lap.page.click('#account-btn');
+    await lap.page.click('#fake-google');
+    await lap.page.keyboard.press('Escape');
+    await expect(lap.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+    await expect.poll(async () => (await index(lap.page)).lastAlias, { timeout: 20_000 }).toBe(deskAlias);
+    expect((await index(lap.page)).aliases.map((a: { name: string }) => a.name)).toEqual(['DJ Test']);
+
+    // Renamed on the desktop: the laptop shows the new name.
+    answer = 'DJ Nova';
+    await desk.page.locator('button.who').click();
+    await desk.page.locator('.pcard', { hasText: 'DJ Test' }).getByRole('button', { name: 'Rename' }).click();
+    await expect(desk.page.locator('.pcard .profile')).toHaveText([/DJ Nova$/], { timeout: 20_000 });
+    await expect(lap.page.locator('.top .who')).toContainText('DJ Nova', { timeout: 30_000 });
+
+    // A second alias made on the laptop: the same library, and on the desktop's list.
+    await lap.page.locator('.top .who').click();
+    await lap.page.fill('#profile-name', 'Night');
+    await lap.page.getByRole('button', { name: 'Create profile' }).click();
+    await expect(lap.page.locator('.top .who')).toContainText('Night', { timeout: 20_000 });
+    await expect(lap.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+    await expect(desk.page.locator('.pcard .profile')).toHaveText([/DJ Nova$/, /Night$/], { timeout: 30_000 });
+    expect(await listed()).toEqual(['DJ Nova', 'Night']);
+    // The desktop as Night: the same songs.
+    await desk.page.locator('.pcard .profile', { hasText: 'Night' }).click();
+    await expect(desk.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  } finally { await desk.done(); await lap.done(); }
+});
+
 test('duplicates found on the desktop show on the laptop: the 2× badge on the desktop’s songs (ADR 0098)', async ({ baseURL }) => {
   test.setTimeout(240_000);
   const { execFileSync } = await import('node:child_process');

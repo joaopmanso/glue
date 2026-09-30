@@ -35,7 +35,7 @@
   const grid = $derived.by(() => { void lib.version; void prepare.wave; return prepare.grid(lib.store?.tracks.get(track.id) ?? track); });
   const analysed = $derived.by(() => { void lib.version; return lib.store?.analysis.get(track.id)?.bpm ?? null; });
   const corrected = $derived(track.prep?.bpm != null || track.prep?.beat0 != null);
-  const rangeName = $derived(lib.profile?.bpmRange);
+  const rangeName = $derived(lib.bpmRange);
   const shown = $derived(grid ? shownBpm(grid.bpm, rangeName, track.prep?.flip) : null);
   const other = $derived(grid ? shownBpm(grid.bpm, rangeName, !track.prep?.flip) : null);
   const here = $derived(player.sourceKey === key);

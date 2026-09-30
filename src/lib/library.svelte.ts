@@ -11,7 +11,7 @@ import { writeUnwritten } from '../store/writeInfo';
 import { LOOSE, absorbTracks, applyImport, applyScan, blankLibTrack, tidyTracks, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
-import { ANALYSIS_VERSION, INCOMING_ROOT, SCHEMA, VERDICT_VERSION, newId, type AnalysisSummary, type List, type Prep, type Profile, type Root, type Track } from '../store/types';
+import { ANALYSIS_VERSION, INCOMING_ROOT, PROFILE_COLORS, SCHEMA, VERDICT_VERSION, newId, type Alias, type AnalysisSummary, type List, type Prep, type Profile, type Root, type Track } from '../store/types';
 import type { ImportedLibrary } from '../core/interop/types';
 import { scanFolder, type FoundLibrary } from '../core/library/scan';
 import { fileHead, fileMeta } from '../core/library/files';
@@ -51,7 +51,14 @@ class Library {
   homeKind = $state<'folder' | 'private'>('folder');
   homeName = $state('');
   home = $state.raw<HomeStore | null>(null);
+  /** The GLUE folder's library: its one profile folder (`index.container`, ADR 0113). */
   profile = $state.raw<Profile | null>(null);
+  /** Who's using GLUE: one of the account's artist aliases (ADR 0113). The library is the same for each. */
+  alias = $state.raw<Alias | null>(null);
+  /** How BPMs show (ADR 0052): the alias's choice. */
+  get bpmRange() { return this.alias?.bpmRange ?? this.profile?.bpmRange; }
+  /** The account's side of aliases (lib/profiles, signed in): made, changed and removed there first. */
+  aliasCloud: { create(a: Alias): Promise<Alias>; update(a: Alias): Promise<Alias>; remove(id: string): Promise<void> } | null = null;
   store = $state.raw<CollectionStore | null>(null);
   roots = $state.raw<RootState[]>([]);
   found = $state.raw<(FoundLibrary & { rootId: string })[]>([]);
@@ -158,8 +165,10 @@ class Library {
     if (look && (look.theme !== themes.theme || look.mode !== themes.mode)) themes.set(look.theme, look.mode);
     themes.onChange = (theme, mode) => { if (!this.readOnly) void this.home?.setAppearance({ theme, mode }); };
     if (this.pendingRestore) { const b = this.pendingRestore; this.pendingRestore = null; await this.applyBackup(b, true); return; }
-    const last = this.home.index.lastProfile;
-    if (last && this.home.index.profiles.some(p => p.id === last)) await this.openProfile(last);
+    // Profiles are aliases now (ADR 0113): made from the profiles there were, once; nothing moves on disk.
+    await this.home.ensureAliases(!this.readOnly);
+    const ix = this.home.index;
+    if (ix.lastAlias && this.home.aliases.some(a => a.id === ix.lastAlias) && this.hasLibrary()) await this.useAlias(ix.lastAlias);
     else this.phase = 'profiles';
   }
   // ─── Home mode and back (ADR 0051) ────────────────────────────────────────
@@ -238,16 +247,74 @@ class Library {
     this.readOnly = true;
   }
 
-  // ─── Profiles and collections ──────────────────────────────────────────────
-  /** `cloudSync: false`: "Just this computer" (ADR 0092), so even signed in nothing is uploaded. */
+  // ─── Profiles (aliases) and the library ────────────────────────────────────
+  /** This GLUE folder has its library (the profile folder every alias uses). */
+  hasLibrary() { const c = this.home?.index.container; return !!c && !!this.home?.index.profiles.some(p => p.id === c); }
+  /** A new profile (the "Who's using GLUE?" form): an alias of the account; the first one also makes the
+      library. `cloudSync: false`: "Just this computer" (ADR 0092), so even signed in nothing is uploaded. */
   async createProfile(name: string, opts: { cloudSync?: boolean } = {}) {
+    const a = await this.addAlias(name, opts.cloudSync === false).catch(e => { this.notice = 'Couldn’t make the profile: ' + (e as Error).message; return null; });
+    if (!a || !this.home) return;
+    if (this.hasLibrary()) { await this.useAlias(a.id); return; }
+    this.alias = a;
+    await this.home.setLastAlias(a.id);
+    await this.createLibrary(a.name, opts, a.id);
+  }
+  /** The GLUE folder's library, made (a profile folder, with a first collection). */
+  async createLibrary(name: string, opts: { cloudSync?: boolean } = {}, id?: string) {
     if (!this.home) return;
-    let p = await this.home.createProfile(name);
+    let p = await this.home.createProfile(name, id);
     if (opts.cloudSync === false) { p = { ...p, cloudSync: false }; await this.home.saveProfile(p); }
+    await this.home.setContainer(p.id);
     this.profile = p;
     this.phase = 'collections';
     await this.createCollection('My collection');
     this.onboarding = 'music';
+  }
+  /** A GLUE folder with more than one library (from before aliases): the one every profile opens. */
+  async useLibrary(pid: string) {
+    const home = this.home;
+    if (!home || !home.index.profiles.some(p => p.id === pid)) return;
+    await home.setContainer(pid);
+    this.home = null; this.home = home;
+  }
+  /** Use GLUE as this alias: the library opens (made, if this GLUE folder has none yet). */
+  async useAlias(id: string) {
+    const home = this.home, a = home?.aliases.find(x => x.id === id);
+    if (!home || !a) return;
+    this.alias = a;
+    if (!this.readOnly) await home.setLastAlias(id);
+    if (this.hasLibrary()) await this.openProfile(home.index.container!);
+    else await this.createLibrary(a.name, {}, a.id);
+  }
+  /** `local`: "Just this computer" (ADR 0092): not the account's. */
+  async addAlias(name: string, local = false): Promise<Alias | null> {
+    const home = this.home;
+    if (!home || !name.trim()) return null;
+    let a: Alias = { id: newId(), name: name.trim().slice(0, 60), color: PROFILE_COLORS[home.aliases.length % PROFILE_COLORS.length] };
+    if (this.aliasCloud && !local) a = await this.aliasCloud.create(a);
+    await home.setAliases([...home.aliases.filter(x => x.id !== a.id), a]);
+    this.home = null; this.home = home;
+    return a;
+  }
+  private async changeAlias(id: string, change: Partial<Alias>) {
+    const home = this.home, cur = home?.aliases.find(x => x.id === id);
+    if (!home || !cur) return;
+    let a: Alias = { ...cur, ...change };
+    if (!a.bpmRange) delete a.bpmRange;
+    if (this.aliasCloud) a = await this.aliasCloud.update(a);
+    await home.setAliases(home.aliases.map(x => x.id === id ? a : x));
+    if (this.alias?.id === id) this.alias = a;
+    this.home = null; this.home = home;
+  }
+  /** The account's list came in (lib/profiles): kept here; the alias in use follows it. */
+  async takeAliases(list: Alias[]) {
+    const home = this.home;
+    if (!home) return;
+    if (!this.readOnly && JSON.stringify(list) !== JSON.stringify(home.aliases)) await home.setAliases(list);
+    else home.index.aliases = list;
+    this.home = null; this.home = home;
+    if (this.alias) this.alias = list.find(a => a.id === this.alias!.id) ?? null;
   }
 
   // ─── Backups ───────────────────────────────────────────────────────────────
@@ -277,7 +344,7 @@ class Library {
     await writeBackup(dir, b);
     await home.adoptProfile(b.manifest.profile);
     this.home = null; this.home = home;
-    await this.openProfile(pid);
+    await this.useAlias(pid);
     const folders = this.roots.length;
     this.notice = 'Restored ' + b.manifest.profile.name + '.' + (folders ? ' Link its music folder' + (folders === 1 ? '' : 's') + ' again with “Find folder” in the sidebar.' : '');
   }
@@ -301,19 +368,19 @@ class Library {
     else if (p.collections[0]) await this.openCollection(p.collections[0].id);
     else this.phase = 'collections';
   }
-  async renameProfile(pid: string, name: string) {
-    const home = this.home;
-    if (!home || !name.trim()) return;
-    const p = { ...(this.profile?.id === pid ? this.profile : await home.loadProfile(pid)), name: name.trim() };
-    await home.saveProfile(p);
-    if (this.profile?.id === pid) this.profile = p;
-    this.home = null; this.home = home;   // the profile list lives in home.index
+  /** Renamed for every device (an alias of the account, ADR 0113). */
+  async renameProfile(id: string, name: string) {
+    if (!name.trim()) return;
+    await this.changeAlias(id, { name: name.trim().slice(0, 60) }).catch(e => { this.notice = 'Couldn’t rename it: ' + (e as Error).message; });
   }
-  async deleteProfile(pid: string) {
-    if (!this.home) return;
-    if (this.profile?.id === pid) { await this.closeCollection(); this.profile = null; }
-    await this.home.deleteProfile(pid);
-    this.phase = 'profiles';
+  /** An alias gone for every device; the library stays (it's every alias's). */
+  async deleteProfile(id: string) {
+    const home = this.home;
+    if (!home) return;
+    try { await this.aliasCloud?.remove(id); } catch (e) { this.notice = 'Couldn’t delete it: ' + (e as Error).message; return; }
+    await home.setAliases(home.aliases.filter(a => a.id !== id));
+    this.home = null; this.home = home;
+    if (this.alias?.id === id) { await this.closeCollection(); this.alias = null; this.profile = null; this.phase = 'profiles'; }
   }
   /** The incoming folder was scanned (TO BE SORTED shows what's in it now). */
   onIncoming: (() => void) | null = null;
@@ -351,9 +418,9 @@ class Library {
   async profileInfo(pid: string) { return this.profile?.id === pid ? this.profile : this.home ? this.home.loadProfile(pid) : null; }
   /** The profile the profile screen was opened from: "Back to the library" and the logo return to it. */
   lastProfile = $state<string | null>(null);
-  switchProfile() { const from = this.profile?.id ?? null; void this.closeCollection().then(() => { this.lastProfile = from; this.profile = null; this.phase = 'profiles'; }); }
+  switchProfile() { const from = this.alias?.id ?? null; void this.closeCollection().then(() => { this.lastProfile = from; this.profile = null; this.alias = null; this.phase = 'profiles'; }); }
   /** Back to the profile the profile screen was opened from, if it's still there. */
-  backToLibrary() { const id = this.lastProfile; if (id && this.home?.index.profiles.some(p => p.id === id)) { void this.openProfile(id); return true; } return false; }
+  backToLibrary() { const id = this.lastProfile; if (id && this.home?.aliases.some(a => a.id === id)) { void this.useAlias(id); return true; } return false; }
 
   /** `own`: made on purpose ("New collection…"): with cloud sync, the account's own new collection, never put
       into another one (ADR 0112). */
@@ -762,13 +829,9 @@ class Library {
     s.putTrack({ ...t, prep: Object.keys(prep).length ? prep : undefined });
   }
   /** How BPMs are shown for a profile (ADR 0052). */
-  async setBpmRange(pid: string, range: Profile['bpmRange']) {
-    const home = this.home;
-    if (!home) return;
-    const p: Profile = { ...(this.profile?.id === pid ? this.profile : await home.loadProfile(pid)), bpmRange: range };
-    if (!range) delete p.bpmRange;
-    await home.saveProfile(p);
-    if (this.profile?.id === pid) this.profile = p;
+  /** An alias's BPM range (ADR 0052, 0113), for every device. */
+  async setBpmRange(id: string, range: Profile['bpmRange']) {
+    await this.changeAlias(id, { bpmRange: range }).catch(e => { this.notice = 'Couldn’t change it: ' + (e as Error).message; });
     this.version++;
   }
   /** Add and remove tags on tracks (ADR 0032). Tags new to the collection join its tag list. */

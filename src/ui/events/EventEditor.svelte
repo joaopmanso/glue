@@ -11,7 +11,7 @@
   // Its values once, when it opens.
   const e = untrack(() => (id ? events.get(id) : null)), first = untrack(() => day);
   const time = (s: string | null | undefined) => (s && s.length > 10 ? s.slice(11, 16) : s && /^\d{2}:\d{2}$/.test(s) ? s : '');
-  const me = lib.profile?.name.trim().toLowerCase() ?? '';
+  const me = (lib.alias ?? lib.profile)?.name.trim().toLowerCase() ?? '';
 
   let name = $state(e?.name ?? '');
   let date = $state(e?.starts.slice(0, 10) ?? first);

@@ -5,6 +5,20 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · Profiles are the account's artist aliases
+- **Profiles are the same on every device** ([ADR 0113](../adr/0113-profiles-are-the-accounts-aliases.md)):
+  artist aliases the account keeps (pick, create, rename, delete, BPM range), seen at once on the account's
+  other devices. A first sign-in with none asks for one.
+- **Fixed: the iPhone made "Joao Manso"** from the account's name. A device without a library of its own now
+  uses the account's profile ("404"), or asks.
+- The list is seeded once, from the first computer with a GLUE folder of its own: **open the desktop first**,
+  so "404" keeps its id. After that, a device's own profiles the account doesn't have drop out ("Joao
+  Manso", the laptop's own "404" becomes the account's).
+- Nothing moved on disk: each GLUE folder keeps one library (its profile folder), which every alias opens.
+  Backup and Cloud sync are the library's, on the "This computer" card.
+- GLUE Cloud migration 0010 (`profiles`). Tests: the migration, GLUE Cloud's profiles, e2e `phone.spec` and
+  `shared.spec`.
+
 ## 2026-09-30 · The account's collections: one box each, with its computers (GLUE Home 0.36)
 - **Fixed: two "My collection · 0 songs · changed just now" boxes** ([ADR 0112](../adr/0112-the-accounts-collections.md)).
   - One box per collection, listing its computers: each one's songs, whether it's online (or when it was

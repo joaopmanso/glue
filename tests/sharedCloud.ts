@@ -3,6 +3,7 @@
    them). One account; each device is who's asking. */
 import { d1 } from './d1';
 import * as shared from '../cloud/src/shared';
+import * as profiles from '../cloud/src/profiles';
 import { SyncError } from '../cloud/src/limits';
 import type { Env } from '../cloud/src/api';
 import type { Access } from '../cloud/src/crypto';
@@ -11,7 +12,7 @@ import { applyChange, packText, sha256, unpackText, type FileChange, type Shared
 export class SharedCloudServer {
   readonly env: Env;
   /** Told of each push (the signaling room's broadcast). */
-  onPush: ((m: { type: 'shared'; collection: string; seq: number; from: string; gone?: boolean }) => void) | null = null;
+  onPush: ((m: { type: 'shared'; collection: string; seq: number; from: string; gone?: boolean } | { type: 'profiles'; from: string }) => void) | null = null;
   constructor(readonly user = 'u1') {
     this.env = { DB: d1() } as unknown as Env;
   }
@@ -54,6 +55,20 @@ export class SharedCloudServer {
   async answer(method: string, url: URL, body: string | null, dev: string): Promise<{ status: number; body: string; type: string } | null> {
     const p = url.pathname, a = this.access(dev), env = this.env, now = Date.now();
     const json = (v: unknown, status = 200) => ({ status, body: JSON.stringify(v), type: 'application/json' });
+    // The account's profiles, its artist aliases (ADR 0113), the real code too.
+    if (p === '/v1/profiles' || p.startsWith('/v1/profiles/')) {
+      await this.init();
+      const told = (v: unknown) => { if (method !== 'GET') this.onPush?.({ type: 'profiles', from: dev }); return json(v); };
+      const pm = /^\/v1\/profiles\/([\w-]+)$/.exec(p);
+      try {
+        if (method === 'GET' && p === '/v1/profiles') return json(await profiles.list(env, a));
+        if (method === 'POST' && p === '/v1/profiles') return told(await profiles.create(env, a, JSON.parse(body || '{}'), now, () => crypto.randomUUID().slice(0, 16)));
+        if (method === 'POST' && p === '/v1/profiles/seed') return told(await profiles.seed(env, a, JSON.parse(body || '{}'), now));
+        if (method === 'PATCH' && pm) return told(await profiles.update(env, a, pm[1], JSON.parse(body || '{}'), now));
+        if (method === 'DELETE' && pm) return told(await profiles.remove(env, a, pm[1], now));
+        return json({ error: 'not found' }, 404);
+      } catch (e) { if (e instanceof SyncError) return json({ error: e.message }, e.status); throw e; }
+    }
     if (!p.startsWith('/v1/shared')) return null;
     await this.init();
     try {
@@ -83,6 +98,11 @@ export class SharedCloudServer {
     }
   }
 
+  /** The account's aliases, as a first computer would have seeded them. */
+  async seedProfiles(list: { id: string; name: string; color?: string }[]) {
+    await this.init();
+    return profiles.seed(this.env, this.access('seed'), { profiles: list }, Date.now());
+  }
   /** The account's collections' ids. */
   async collections() {
     await this.init();
