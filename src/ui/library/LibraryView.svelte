@@ -43,7 +43,7 @@
 
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import { account } from '../../lib/account.svelte';
-  import { shared } from '../../lib/shared.svelte';
+  import { askDeleteShared, shared } from '../../lib/shared.svelte';
   import { homeAnalysis } from '../../lib/homeAnalysis.svelte';
   import { engineClient } from '../../lib/engine.svelte';
   import type { HomeFolder } from '../../core/transfer';
@@ -112,11 +112,19 @@
     }
     catch (err) { lib.notice = (err as Error).message; }
   }
-  function newCollection() { const n = prompt('Name of the new collection'); if (n) void lib.createCollection(n); }
-  function renameCollection() { const n = prompt('Rename collection', lib.store?.meta.name); if (n) void lib.renameCollection(n); }
+  function newCollection() { const n = prompt('Name of the new collection'); if (n) void lib.createCollection(n, true); }
+  // The account's collection (ADR 0112): renamed and deleted for every device.
+  const accounts = () => !!lib.store?.shared && account.signedIn && shared.list.some(c => c.id === lib.store?.meta.id);
+  function renameCollection() {
+    const s = lib.store, n = prompt('Rename collection', s?.meta.name);
+    if (!s || !n?.trim()) return;
+    if (accounts()) void shared.rename(s.meta.id, n).catch(e => (lib.notice = 'Couldn’t rename it: ' + (e as Error).message)); else void lib.renameCollection(n);
+  }
   function deleteCollection() {
     const s = lib.store;
-    if (s && confirm('Delete the collection “' + s.meta.name + '”? Its playlists and analysis are removed from your GLUE folder. Your music files aren’t touched.')) void lib.deleteCollection(s.meta.id);
+    if (!s) return;
+    if (accounts()) { void askDeleteShared(s.meta.id, s.meta.name); return; }
+    if (confirm('Delete the collection “' + s.meta.name + '”? Its playlists and analysis are removed from your GLUE folder. Your music files aren’t touched.')) void lib.deleteCollection(s.meta.id);
   }
 
   // Songs left without a file for good by a folder removed before 0.35 (ADR 0111): asked once per collection.

@@ -355,12 +355,16 @@ class Library {
   /** Back to the profile the profile screen was opened from, if it's still there. */
   backToLibrary() { const id = this.lastProfile; if (id && this.home?.index.profiles.some(p => p.id === id)) { void this.openProfile(id); return true; } return false; }
 
-  async createCollection(name: string) {
+  /** `own`: made on purpose ("New collection…"): with cloud sync, the account's own new collection, never put
+      into another one (ADR 0112). */
+  async createCollection(name: string, own = false) {
     if (!this.home || !this.profile) return;
     const c = await this.home.createCollection(this.profile, name);
+    if (own) this.madeOnPurpose.add(c.id);
     this.profile = { ...this.profile };
     await this.openCollection(c.id);
   }
+  madeOnPurpose = new Set<string>();
   async openCollection(cid: string) {
     if (!this.home || !this.profile || !this.homeDir) return;
     await this.closeCollection();

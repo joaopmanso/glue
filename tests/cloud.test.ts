@@ -420,8 +420,36 @@ describe('the shared collection (ADR 0094, 0106)', () => {
     expect((await call('POST', '/v1/shared/mine/append', entry(0, []), a.json.access)).status).toBe(400);
     expect((await call('POST', '/v1/shared/mine/append', entry(0, ['a.json'], 'A'.repeat(1_800_001)), a.json.access)).status).toBe(413);
     expect((await call('POST', '/v1/shared/mine/push', 'a.json\t0\t' + h('a') + '\t1\tAAAA', a.json.access)).status).toBe(410);
-    expect((await call('DELETE', '/v1/shared/mine', undefined, a.json.access)).json).toEqual({ ok: true });
-    expect((await call('GET', '/v1/shared', undefined, a.json.access)).json.collections).toEqual([]);
+    expect((await call('DELETE', '/v1/shared/mine?cloudOnly=1', undefined, a.json.access)).json).toEqual({ ok: true });
+    expect((await call('GET', '/v1/shared', undefined, a.json.access)).json).toEqual({ collections: [], gone: [] });
+  });
+  it('the account’s collections (ADR 0112): each computer’s numbers and last change, a new name, deleted for every device', async () => {
+    const desk = await signIn({}, { deviceName: 'Chrome on Windows' }), lap = await signIn({}, { deviceName: 'Laptop' });
+    const home = (await call('POST', '/v1/pairing/claim', { code: (await call('POST', '/v1/pairing', {}, desk.json.access)).json.code, name: 'Desktop' })).json;
+    const ha = (await call('POST', '/v1/auth/device', { deviceId: home.deviceId, token: home.token })).json.access;
+    await call('POST', '/v1/shared', { id: 'col1', name: 'My collection' }, desk.json.access);
+    // Each computer's numbers: GLUE Home's are its computer's (the desktop's), the laptop's its own.
+    expect((await call('POST', '/v1/shared/col1/stats', { tracks: 13000, songs: 12900 }, ha)).json).toEqual({ ok: true });
+    now += 1000;
+    await call('POST', '/v1/shared/col1/stats', { tracks: 13001, songs: 120 }, lap.json.access);
+    await call('POST', '/v1/shared/col1/append', entry(0, ['lists/a.json']), ha);
+    const got = (await call('GET', '/v1/shared', undefined, lap.json.access)).json.collections[0].stats;
+    expect(got).toEqual({ tracks: 13001, by: { [desk.json.deviceId]: { songs: 12900, at: now - 1000, changed: now }, [lap.json.deviceId]: { songs: 120, at: now } } });
+    expect((await call('POST', '/v1/shared/col1/stats', { tracks: -1, songs: 2 }, ha)).status).toBe(400);
+    // A new name, for every device.
+    expect((await call('PATCH', '/v1/shared/col1', { name: ' Main ' }, lap.json.access)).json).toEqual({ id: 'col1', name: 'Main' });
+    expect((await call('PATCH', '/v1/shared/col1', { name: ' ' }, lap.json.access)).status).toBe(400);
+    expect((await call('GET', '/v1/shared', undefined, desk.json.access)).json.collections[0].name).toBe('Main');
+    // Deleted from the laptop: gone for every device (410), listed as gone, not made again by an old device.
+    expect((await call('DELETE', '/v1/shared/col1', undefined, lap.json.access)).json).toEqual({ ok: true, gone: true });
+    expect((await call('GET', '/v1/shared', undefined, desk.json.access)).json).toEqual({ collections: [], gone: ['col1'] });
+    expect((await call('GET', '/v1/shared/col1/log?since=0', undefined, ha)).status).toBe(410);
+    expect((await call('POST', '/v1/shared/col1/append', entry(1, ['lists/b.json']), ha)).status).toBe(410);
+    expect((await call('POST', '/v1/shared', { id: 'col1', name: 'My collection' }, desk.json.access)).status).toBe(410);
+    // Its files go 30 days later, with it.
+    expect(await purge(env, now + 29 * 864e5)).toEqual({ removed: 0 });
+    expect(await purge(env, now + 31 * 864e5)).toEqual({ removed: 1 });
+    expect((await call('GET', '/v1/shared', undefined, desk.json.access)).json).toEqual({ collections: [], gone: [] });
   });
 });
 

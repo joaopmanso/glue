@@ -5,6 +5,22 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · The account's collections: one box each, with its computers (GLUE Home 0.36)
+- **Fixed: two "My collection · 0 songs · changed just now" boxes** ([ADR 0112](../adr/0112-the-accounts-collections.md)).
+  - One box per collection, listing its computers: each one's songs, whether it's online (or when it was
+    last seen), whether GLUE Home runs there, and its last change. The counts come from each computer after
+    its sync (GLUE Cloud migration 0009).
+  - Rename and Delete on the box. A rename reaches every device. A deletion asks for the name to be typed;
+    every device then backs the collection up (`backups/pre-deleted-…zip`) and forgets it; GLUE Cloud keeps
+    its data 30 days, then purges it.
+  - The second box is the 8-song `c8f50116…`, made quietly: delete it from its box.
+- **Fixed: a second collection could become the account's with nobody asked.** While the account has
+  collections, the box asks (put into one, keep as its own, not now). "New collection…" is the account's own.
+- Putting a collection into the account's joins it only once that worked.
+- Tests: GLUE Cloud (numbers per computer, rename, deletion with 410 and purge); e2e `shared.spec` (heavy):
+  one box with both computers' numbers, a new collection, a rename, a deletion the laptop follows with a
+  backup.
+
 ## 2026-09-30 · One meaning of "not analysed", GLUE Home's analyses on screen, folders take their songs (GLUE Home 0.35)
 - **Fixed: "Not analysed yet 0" while Stats said 903** ([ADR 0109](../adr/0109-one-meaning-of-not-analysed.md)).
   - One function says where a song stands: done, couldn't analyse, waiting, on another computer, or no

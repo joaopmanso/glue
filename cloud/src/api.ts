@@ -101,13 +101,13 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     // The shared collection (ADR 0094): one copy for all the account's devices.
     if (m === 'GET' && path === '/v1/shared') return reply(await shared.list(env, a));
     if (m === 'POST' && path === '/v1/shared') return reply(await shared.create(env, a, await body(), now, randomId));
-    const sh = /^\/v1\/shared\/([\w-]+)(\/changes|\/bundle|\/push|\/log|\/append|\/touched|\/checkpoint|\/bin|\/leave)?$/.exec(path);
+    const sh = /^\/v1\/shared\/([\w-]+)(\/changes|\/bundle|\/push|\/log|\/append|\/touched|\/checkpoint|\/bin|\/leave|\/stats)?$/.exec(path);
     if (sh) {
       const cid = sh[1];
       if (m === 'GET' && sh[2] === '/changes') return reply(await shared.changes(env, a, cid, Number(url.searchParams.get('since') ?? 0)));
       if (m === 'POST' && sh[2] === '/bundle') return new Response(await shared.bundle(env, a, cid, await body()), { headers: { ...cors, 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
       // The account's online devices hear of it at once (the signaling room), and pull.
-      const notify = async (seq: number) => { if (env.SIGNAL) await env.SIGNAL.get(env.SIGNAL.idFromName(a.sub)).fetch(new Request('https://signal/broadcast', { method: 'POST', body: JSON.stringify({ type: 'shared', collection: cid, seq, from: a.dev }) })); };
+      const notify = async (seq: number, gone = false) => { if (env.SIGNAL) await env.SIGNAL.get(env.SIGNAL.idFromName(a.sub)).fetch(new Request('https://signal/broadcast', { method: 'POST', body: JSON.stringify({ type: 'shared', collection: cid, seq, from: a.dev, ...(gone ? { gone: true } : {}) }) })); };
       if (m === 'POST' && sh[2] === '/push') shared.oldPush();
       if (m === 'GET' && sh[2] === '/log') return reply(await shared.log(env, a, cid, Number(url.searchParams.get('since') ?? 0)));
       if (m === 'POST' && sh[2] === '/append') {
@@ -119,7 +119,10 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
       if (m === 'POST' && sh[2] === '/checkpoint') return reply(await shared.checkpoint(env, a, cid, Number(url.searchParams.get('at')), await req.text(), url.searchParams.get('done') === '1', now));
       if (m === 'GET' && sh[2] === '/bin') return reply(await shared.bin(env, a, cid, now));
       if (m === 'POST' && sh[2] === '/leave') return reply(await shared.leave(env, a, cid, await body(), now));
-      if (m === 'DELETE' && !sh[2]) return reply(await shared.remove(env, a, cid));
+      // The account's collections (ADR 0112): each computer's numbers, a new name, deleted for every device.
+      if (m === 'POST' && sh[2] === '/stats') return reply(await shared.stats(env, a, cid, await body(), now));
+      if (m === 'PATCH' && !sh[2]) return reply(await shared.rename(env, a, cid, await body()));
+      if (m === 'DELETE' && !sh[2]) return reply(await shared.remove(env, a, cid, now, url.searchParams.get('cloudOnly') === '1', () => notify(-1, true)));
     }
     if (m === 'DELETE' && path === '/v1/me') {
       // Delete the account: user, identities, devices, credentials and codes (cascades).

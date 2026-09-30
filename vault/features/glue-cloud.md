@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-09-30
-adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083]
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -391,3 +391,16 @@ First release: phases 1–3 (user, 2026-09-25).
   it vouches for. It's saved as `computer` in its settings and shown in Activity.
 - Only that computer's GLUE folder writes its parts of a shared collection; nothing is written under a
   stand-in. GLUE Home put the desktop's songs back under it once, after a backup.
+
+## The account's collections (2026-09-30, GLUE Home 0.36, [ADR 0112](../adr/0112-the-accounts-collections.md))
+- D1 migration 0009: `shared_collections.deleted_at`. `stats` is `{ tracks, by: { <computer>: { songs, at, changed } } }`.
+- `POST /v1/shared/<id>/stats` (after each sync, when the numbers change: the tab without GLUE Home, else
+  GLUE Home; a GLUE Home's are its computer's); each push records the computer's `changed`.
+- `PATCH /v1/shared/<id>` renames; the collection's own name follows on every device (`adoptNames`).
+- `DELETE /v1/shared/<id>` keeps a tombstone: 410 for its routes, `gone` in the list, a `shared` broadcast with
+  `gone`; each device backs up (`backups/pre-deleted-…zip`) and forgets it (`store/shared/forget.ts`); purged after
+  30 days. `?cloudOnly=1`: "Delete everything in my cloud", as before.
+- GLUE Cloud panel: one box per collection with its computers (name, GLUE Home, online or seen, songs, last
+  change), Rename and Delete (the name typed). The collection menu's ✎ and × do the same for the account's.
+- `shared.ensure()` never makes a second collection the account's quietly: the box asks. "New collection…"
+  (`lib.createCollection(name, true)`) is the account's own. `moveInto` joins only after it worked.

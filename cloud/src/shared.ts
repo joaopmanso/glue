@@ -22,17 +22,46 @@ export const MAX_ENTRY = 1_800_000, MAX_ENTRY_PATHS = 2000, COMPACT_AFTER = 300;
 
 interface Row { path: string; rev: number; hash: string; size: number; data: string | null; deleted_at: number | null; updated_by: string | null; updated_at: number }
 
+/** Deleted from one of the account's devices (ADR 0112): every other device is told so, and forgets it. */
+export const GONE = 'this collection was deleted from your account';
 async function own(env: Env, a: Access, cid: string) {
   if (!ID.test(cid)) throw new SyncError(400, 'bad collection');
-  const c = await env.DB.prepare('SELECT id, name, seq, floor FROM shared_collections WHERE user_id = ? AND id = ?').bind(a.sub, cid).first<{ id: string; name: string; seq: number; floor: number }>();
+  const c = await env.DB.prepare('SELECT id, name, seq, floor, deleted_at FROM shared_collections WHERE user_id = ? AND id = ?').bind(a.sub, cid).first<{ id: string; name: string; seq: number; floor: number; deleted_at: number | null }>();
   if (!c) throw new SyncError(404, 'no such shared collection');
+  if (c.deleted_at) throw new SyncError(410, GONE);
   return c;
 }
 
-/** The account's shared collections. */
+/** The account's collections, and those deleted lately (`gone`: each device forgets them, ADR 0112). */
 export async function list(env: Env, a: Access) {
-  const rows = (await env.DB.prepare('SELECT id, name, seq, stats, created_by, created_at, updated_at, delete_after FROM shared_collections WHERE user_id = ? ORDER BY updated_at DESC').bind(a.sub).all<{ id: string; name: string; seq: number; stats: string | null; created_by: string | null; created_at: number; updated_at: number; delete_after: number | null }>()).results;
-  return { collections: rows.map(r => ({ id: r.id, name: r.name, seq: r.seq, stats: r.stats ? JSON.parse(r.stats) : null, createdBy: r.created_by, createdAt: r.created_at, updatedAt: r.updated_at, deleteAfter: r.delete_after })) };
+  const rows = (await env.DB.prepare('SELECT id, name, seq, stats, created_by, created_at, updated_at, delete_after, deleted_at FROM shared_collections WHERE user_id = ? ORDER BY updated_at DESC').bind(a.sub).all<{ id: string; name: string; seq: number; stats: string | null; created_by: string | null; created_at: number; updated_at: number; delete_after: number | null; deleted_at: number | null }>()).results;
+  return {
+    collections: rows.filter(r => !r.deleted_at).map(r => ({ id: r.id, name: r.name, seq: r.seq, stats: r.stats ? JSON.parse(r.stats) : null, createdBy: r.created_by, createdAt: r.created_at, updatedAt: r.updated_at, deleteAfter: r.delete_after })),
+    gone: rows.filter(r => r.deleted_at).map(r => r.id),
+  };
+}
+
+/** The computer a device's numbers are under (ADR 0108): a GLUE Home's companion, else the device itself
+    (SQL, with the device as ?1). */
+const COMPUTER = 'COALESCE((SELECT companion_of FROM devices WHERE id = ?1), ?1)';
+/** One computer's numbers for a collection (after each sync): the songs it has, and the collection's total. */
+export async function stats(env: Env, a: Access, cid: string, b: { tracks?: unknown; songs?: unknown }, now: number) {
+  await own(env, a, cid);
+  const n = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < 1e7 ? v : null;
+  const tracks = n(b?.tracks), songs = n(b?.songs);
+  if (tracks === null || songs === null) throw new SyncError(400, 'bad numbers');
+  await env.DB.prepare(`UPDATE shared_collections SET stats = json_patch(COALESCE(stats, '{}'), json_object('tracks', ?2, 'by', json_object(${COMPUTER}, json_object('songs', ?3, 'at', ?4))))
+    WHERE user_id = ?5 AND id = ?6`).bind(a.dev, tracks, songs, now, a.sub, cid).run();
+  return { ok: true };
+}
+
+/** A new name, for every device. */
+export async function rename(env: Env, a: Access, cid: string, b: { name?: unknown }) {
+  await own(env, a, cid);
+  const name = typeof b?.name === 'string' ? b.name.trim().slice(0, 80) : '';
+  if (!name) throw new SyncError(400, 'a name, please');
+  await env.DB.prepare('UPDATE shared_collections SET name = ? WHERE user_id = ? AND id = ?').bind(name, a.sub, cid).run();
+  return { id: cid, name };
 }
 
 /** Make one (a collection's own id keeps its local folder's name). Making it again is fine. */
@@ -118,7 +147,9 @@ export async function append(env: Env, a: Access, cid: string, text: string, now
   // One transaction: the entry goes in at the next revision only if the collection is still at base.
   const res = await env.DB.batch([
     env.DB.prepare('INSERT INTO shared_log (user_id, collection_id, rev, paths, data, by, at) SELECT user_id, id, seq + 1, ?, ?, ?, ? FROM shared_collections WHERE user_id = ? AND id = ? AND seq = ?').bind(JSON.stringify(paths), data, a.dev, now, a.sub, cid, base),
-    env.DB.prepare('UPDATE shared_collections SET seq = seq + 1, bytes = bytes + ?, updated_at = ?, delete_after = NULL WHERE user_id = ? AND id = ? AND seq = ?').bind(data.length, now, a.sub, cid, base),
+    env.DB.prepare(`UPDATE shared_collections SET seq = seq + 1, bytes = bytes + ?1, updated_at = ?2, delete_after = NULL,
+      stats = json_patch(COALESCE(stats, '{}'), json_object('by', json_object(COALESCE((SELECT companion_of FROM devices WHERE id = ?6), ?6), json_object('changed', ?2))))
+      WHERE user_id = ?3 AND id = ?4 AND seq = ?5`).bind(data.length, now, a.sub, cid, base, a.dev),
   ]);
   if (!(res[0] as { meta: { changes: number } }).meta.changes) return { stale: true, seq: c.seq };
   const rev = base + 1;
@@ -197,9 +228,16 @@ export async function bin(env: Env, a: Access, cid: string, now: number) {
   return { files: rows.map(r => ({ path: r.path, rev: r.rev, deletedAt: r.deleted_at, by: r.updated_by })) };
 }
 
-/** The shared collection and all its files. */
-export async function remove(env: Env, a: Access, cid: string) {
+/** Deleted for every device (ADR 0112): kept as a tombstone, so each device hears it's gone, then purged with
+    its files after 30 days. `cloudOnly` ("delete everything in my cloud"): gone from GLUE Cloud at once, and
+    each computer keeps its own copy. */
+export async function remove(env: Env, a: Access, cid: string, now: number, cloudOnly = false, notify?: () => Promise<void>) {
   await own(env, a, cid);
+  if (!cloudOnly) {
+    await env.DB.prepare('UPDATE shared_collections SET deleted_at = ?, delete_after = ? WHERE user_id = ? AND id = ?').bind(now, now + DELETE_AFTER_DAYS * DAY, a.sub, cid).run();
+    await notify?.().catch(() => {});
+    return { ok: true, gone: true };
+  }
   await env.DB.batch([
     env.DB.prepare('DELETE FROM shared_files WHERE user_id = ? AND collection_id = ?').bind(a.sub, cid),
     env.DB.prepare('DELETE FROM shared_log WHERE user_id = ? AND collection_id = ?').bind(a.sub, cid),

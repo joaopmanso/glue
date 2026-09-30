@@ -183,5 +183,6 @@ Planned (GLUE):
 | [0109](adr/0109-one-meaning-of-not-analysed.md) | "Not analysed" means one thing everywhere; failures that pass are retried, never kept | accepted |
 | [0110](adr/0110-screen-takes-glue-homes-analyses.md) | The screen takes GLUE Home's analyses when it needs them; a song page never re-analyses in Home mode | accepted |
 | [0111](adr/0111-removing-a-folder-removes-its-songs.md) | Removing a music folder removes its songs; songs left with no file are offered once | accepted |
+| [0112](adr/0112-the-accounts-collections.md) | The account's collections: one list with each computer's numbers, a rename and a deletion every device follows, no silent second collection | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

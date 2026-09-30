@@ -11,7 +11,7 @@ import { applyChange, packText, sha256, unpackText, type FileChange, type Shared
 export class SharedCloudServer {
   readonly env: Env;
   /** Told of each push (the signaling room's broadcast). */
-  onPush: ((m: { type: 'shared'; collection: string; seq: number; from: string }) => void) | null = null;
+  onPush: ((m: { type: 'shared'; collection: string; seq: number; from: string; gone?: boolean }) => void) | null = null;
   constructor(readonly user = 'u1') {
     this.env = { DB: d1() } as unknown as Env;
   }
@@ -72,7 +72,9 @@ export class SharedCloudServer {
         case 'POST /leave': return json(await shared.leave(env, a, cid, JSON.parse(body || '{}'), now));
         case 'GET /bin': return json(await shared.bin(env, a, cid, now));
         case 'POST /push': shared.oldPush(); break;
-        case 'DELETE ': return json(await shared.remove(env, a, cid));
+        case 'POST /stats': return json(await shared.stats(env, a, cid, JSON.parse(body || '{}'), now));
+        case 'PATCH ': return json(await shared.rename(env, a, cid, JSON.parse(body || '{}')));
+        case 'DELETE ': return json(await shared.remove(env, a, cid, now, q.get('cloudOnly') === '1', async () => this.onPush?.({ type: 'shared', collection: cid, seq: -1, from: dev, gone: true })));
       }
       return json({ error: 'not found' }, 404);
     } catch (e) {

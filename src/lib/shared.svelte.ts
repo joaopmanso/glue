@@ -18,9 +18,16 @@ import { localHome } from './localHome.svelte';
 import { engineClient } from './engine.svelte';
 import { resolveClash, syncShared, waitingClashes, type Place, type SharedCloud } from '../store/shared/engine';
 import { mergeBoth, type Clash } from '../core/shared/merge3';
+import { countsOf, sendCounts } from '../core/shared/counts';
+import { forgetDeleted } from '../store/shared/forget';
+import type { CollectionStore } from '../store/collection';
 
+/** A computer's numbers for a collection (ADR 0112): its songs and when it said so, and its last change. */
+export interface ComputerStats { songs?: number; at?: number; changed?: number }
 /** deleteAfter: cloud sync was turned off and its account copy goes then (ADR 0102). */
-export interface SharedInfo { id: string; name: string; seq: number; stats: { tracks?: number } | null; updatedAt: number; deleteAfter?: number | null }
+export interface SharedInfo { id: string; name: string; seq: number; stats: { tracks?: number; by?: Record<string, ComputerStats> } | null; updatedAt: number; deleteAfter?: number | null }
+const at = (cid: string) => '/v1/shared/' + encodeURIComponent(cid);
+const GONE = /deleted from your account/;
 const EVERY = 120_000;
 
 const holdsMusic = () => { const s = lib.store; if (!s) return false; for (const t of s.tracks.values()) if (!t.remote && t.status === 'linked') return true; return false; };
@@ -61,13 +68,66 @@ class Shared {
   refreshList(): Promise<void> {
     if (!account.signedIn) { this.list = []; this.listed = false; return Promise.resolve(); }
     return (this.listing ??= (async () => {
-      const r = await account.request<{ collections?: SharedInfo[] }>('GET', '/v1/shared').catch(() => null);
+      const r = await account.request<{ collections?: SharedInfo[]; gone?: string[] }>('GET', '/v1/shared').catch(() => null);
       if (!account.signedIn) return;
       this.list = Array.isArray(r?.collections) ? r.collections : [];
       this.listed = !!r;
+      if (r) { await this.forgetGone(Array.isArray(r.gone) ? r.gone : []); await this.adoptNames(); }
     })().finally(() => { this.listing = null; }));
   }
   private listing: Promise<void> | null = null;
+
+  /** Deleted from the account on some device (ADR 0112): each of this GLUE folder's profiles that has it keeps
+      a backup, then forgets it (its files stay in the GLUE folder). */
+  private async forgetGone(gone: string[]) {
+    const home = lib.home;
+    if (!gone.length || !home || lib.readOnly) return;
+    const ids = new Set(gone);
+    for (const ref of home.index.profiles) {
+      const p = lib.profile?.id === ref.id ? lib.profile : await home.loadProfile(ref.id).catch(() => null);
+      for (const c of p?.collections.filter(x => ids.has(x.id)) ?? []) {
+        const open = lib.store?.meta.id === c.id && lib.profile?.id === ref.id;
+        if (open) await lib.closeCollection();
+        const done = await forgetDeleted(home, ref.id, c.id).catch(e => { console.warn('GLUE: couldn’t forget a deleted collection', e); return false; });
+        if (lib.profile?.id !== ref.id) continue;
+        lib.profile = await home.loadProfile(ref.id);
+        if (done) lib.notice = '“' + c.name + '” was deleted from your account. A backup of it is in the GLUE folder’s backups.';
+        if (open || !lib.store) { if (lib.profile.collections[0]) await lib.openCollection(lib.profile.lastCollection ?? lib.profile.collections[0].id); else lib.phase = 'collections'; }
+      }
+    }
+  }
+  /** Renamed on another device: the name here follows (the account's name is the collection's, ADR 0112). */
+  private async adoptNames() {
+    const p = lib.profile, home = lib.home;
+    if (!p || !home || lib.readOnly) return;
+    let changed = false;
+    for (const ref of p.collections) {
+      const c = this.list.find(x => x.id === ref.id);
+      if (!c || c.name === ref.name) continue;
+      if (lib.store?.meta.id === ref.id && lib.store.shared) { await lib.renameCollection(c.name); continue; }
+      ref.name = c.name; changed = true;
+    }
+    if (changed) { await home.saveProfile(p); lib.profile = { ...p }; }
+  }
+  /** A new name, for every device: GLUE Cloud's first, then the collection's own. */
+  async rename(id: string, name: string) {
+    name = name.trim();
+    if (!name) return;
+    await account.request('PATCH', at(id), { json: { name } });
+    this.list = this.list.map(c => c.id === id ? { ...c, name } : c);
+    await this.adoptNames();
+  }
+  /** Deleted for every device (ADR 0112): here too, after a backup. */
+  async remove(id: string) {
+    await account.request('DELETE', at(id));
+    await this.refreshList();
+  }
+  /** This computer's numbers for the collection, to GLUE Cloud when they changed (the account's list shows them). */
+  private counted = new Map<string, { key: string; at: number }>();
+  private sendCounts(s: CollectionStore) {
+    const c = countsOf(s.tracks.values()), cid = s.meta.id;
+    if (sendCounts(this.counted, cid, c)) void account.request('POST', at(cid) + '/stats', { json: c }).catch(() => this.counted.delete(cid));
+  }
   /** Files the open collection's store wrote since the last sync, and when every file was last looked at. */
   written = new Set<string>();
   lookedAt = 0;
@@ -97,8 +157,12 @@ class Shared {
       if (r.changed.some(f => f.startsWith('dupes/'))) void dupes.loadOthers();   // another computer's duplicates (ADR 0098)
       // Clashes wait for an answer (the box, ADR 0095), kept with the sync state until then.
       this.clashes = await waitingClashes(p);
+      this.sendCounts(s);
       this.status = { busy: false, at: Date.now(), error: '' };
-    } catch (e) { this.status = { ...this.status, busy: false, error: (e as Error).message }; }
+    } catch (e) {
+      this.status = { ...this.status, busy: false, error: (e as Error).message };
+      if (GONE.test((e as Error).message)) void this.refreshList();   // deleted on another device: forgotten here
+    }
   }
 
   /** Settle clashes (ADR 0095): this device's value, the other's (already in place), or both joined. */
@@ -166,13 +230,15 @@ class Shared {
     if (lib.store !== s || s.shared) return;
     const here = new Set(p.collections.map(c => c.id));
     if (this.list.some(c => c.id === s.meta.id)) { await this.share(true); return; }   // the account's already (its files come back in)
-    const into = this.list.filter(c => !here.has(c.id));
+    // The account's first collection, or one made on purpose ("New collection…"): the account's own (ADR 0112).
+    if (!this.list.length || lib.madeOnPurpose.has(s.meta.id)) { await this.share(true); return; }
+    // Otherwise never a second one quietly: the account's missing here first, else any of them.
+    const into = this.list.filter(c => !here.has(c.id)), pool = into.length ? into : this.list;
     const empty = !s.tracks.size && !s.lists.size;
-    if (!into.length) { await this.share(true); return; }
     const name = s.meta.name.trim().toLowerCase();
-    const order = [...into].sort((a, b) => Number(b.name.trim().toLowerCase() === name) - Number(a.name.trim().toLowerCase() === name) || (b.stats?.tracks ?? 0) - (a.stats?.tracks ?? 0));
-    // Nothing of its own yet (a new profile): it just becomes the account's collection.
-    if (empty) { await this.moveInto(order[0].id, { quiet: true }); return; }
+    const order = [...pool].sort((a, b) => Number(b.name.trim().toLowerCase() === name) - Number(a.name.trim().toLowerCase() === name) || (b.stats?.tracks ?? 0) - (a.stats?.tracks ?? 0));
+    // Nothing of its own yet (a new profile): it just takes the account's collection.
+    if (empty && into.length) { await this.moveInto(order[0].id, { quiet: true }); return; }
     if (this.notNow.has(s.meta.id)) return;
     this.ask = { collection: s.meta.id, name: s.meta.name, tracks: s.tracks.size, into: order };
   }
@@ -195,14 +261,13 @@ class Shared {
     this.status = { ...this.status, busy: true, error: '' };
     try {
       await writeBlob(root, `backups/pre-shared-${new Date().toISOString().slice(0, 10)}-${own}.zip`, await buildBackup(root, p, { songs: false }));
-      await lib.home.joinCollection(p, id, c.name);
       await syncShared({ root, pid: p.id, cid: id, me, cloud: cloudFor(id) });
       const name = account.devices.find(d => d.id === me)?.name ?? 'This computer';
       const st = await moveInto(root, p.id, own, id, me, { profile: p.id, name });
-      // The old one stays in the GLUE folder (and in the backup), out of the list.
+      // Joined only now it worked (ADR 0112): a failure leaves the profile as it was. The old one stays in the GLUE
+      // folder (and in the backup), out of the list.
       p.collections = p.collections.filter(x => x.id !== own);
-      p.lastCollection = id;
-      await lib.home.saveProfile(p);
+      await lib.home.joinCollection(p, id, c.name);
       lib.profile = { ...p };
       await lib.openCollection(id);
       // Its waveforms, analyses, fingerprints and covers come along (in the background: thousands of files).
@@ -245,6 +310,15 @@ class Shared {
 }
 
 export const shared = new Shared();
+
+/** Delete one of the account's collections for every device, once its name is typed (ADR 0112). */
+export async function askDeleteShared(id: string, name: string) {
+  const typed = prompt('Delete “' + name + '” from your account? Every device keeps a backup of it, then forgets it. Your music files aren’t touched.\n\nType its name to delete it:');
+  if (typed === null) return;
+  if (typed.trim() !== name.trim()) { lib.notice = 'Not deleted: the name didn’t match.'; return; }
+  try { await shared.remove(id); }
+  catch (e) { lib.notice = 'Couldn’t delete “' + name + '”: ' + (e as Error).message; }
+}
 // The duplicates are written around the store: every file is looked at.
 dupes.onPublished = () => void shared.sync(true);
 
@@ -270,7 +344,7 @@ lib.onCollectionOpened = (pid, cid) => {
   if (s) { const prev = s.onWrote; s.onWrote = paths => { prev?.(paths); if (lib.store === s) for (const x of paths) shared.written.add(x); }; }
   if (lib.store?.shared) void shared.sync(); else void shared.ensure();
 };
-account.onShared(m => { if (lib.store?.shared && lib.store.meta.id === m.collection && m.from !== account.thisDevice) void shared.sync(); if (!lib.profile?.collections.some(c => c.id === m.collection)) void shared.refreshList(); });
+account.onShared(m => { if (m.gone) { void shared.refreshList(); return; } if (lib.store?.shared && lib.store.meta.id === m.collection && m.from !== account.thisDevice) void shared.sync(); if (!lib.profile?.collections.some(c => c.id === m.collection)) void shared.refreshList(); });
 const prevSignedIn = account.onSignedIn;
 account.onSignedIn = () => { prevSignedIn?.(); void shared.refreshList().then(() => lib.store?.shared ? shared.sync() : shared.ensure()); };
 if (typeof window !== 'undefined') {

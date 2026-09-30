@@ -232,6 +232,86 @@ test('a laptop with songs of its own is asked once: put into the account’s col
   } finally { await desk.done(); await lap.done(); }
 });
 
+test('the account’s collections (ADR 0112): one box with each computer’s numbers; a new collection made on purpose is its own; renamed and deleted for every device, with a backup', async ({ baseURL }) => {
+  test.setTimeout(240_000);
+  const { server, firstId, pathsOf, route } = fakeCloud();
+  const desk = await browserFor(baseURL), lap = await browserFor(baseURL);
+  // The desktop's prompts get typed answers.
+  let answer = '';
+  desk.page.removeAllListeners('dialog');
+  desk.page.on('dialog', d => void d.accept(answer));
+  try {
+    await route(desk.page, 'b1');
+    await seed(desk.page, MUSIC);
+    await desk.page.goto('./');
+    await desk.page.click('#choose-home');
+    await desk.page.fill('#profile-name', 'DJ Test');
+    await desk.page.getByRole('button', { name: 'Create profile' }).click();
+    await desk.page.click('#onb-skip');
+    await desk.page.click('#add-folder');
+    await expect(desk.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+    await desk.page.click('#account-btn');
+    await desk.page.click('#fake-google');
+    await desk.page.keyboard.press('Escape');
+    await expect(desk.page.locator('#shared-chip')).toHaveText('Synced', { timeout: 30_000 });
+    await expect.poll(async () => (await pathsOf()).length, { timeout: 20_000 }).toBeGreaterThan(3);
+    const main = await firstId();
+
+    // The laptop takes it (nothing of its own).
+    await route(lap.page, 'b2');
+    await seed(lap.page, []);
+    await lap.page.goto('./');
+    await lap.page.click('#choose-home');
+    await lap.page.fill('#profile-name', 'DJ Test');
+    await lap.page.getByRole('button', { name: 'Create profile' }).click();
+    await lap.page.click('#onb-skip');
+    await lap.page.click('#account-btn');
+    await lap.page.click('#fake-google');
+    await lap.page.keyboard.press('Escape');
+    await expect(lap.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+
+    // A new collection made on purpose on the desktop: the account's own, not put into the first.
+    answer = 'Wedding';
+    await desk.page.selectOption('#collection-pick', '__new');
+    await expect.poll(async () => (await server.collections()).length, { timeout: 30_000 }).toBe(2);
+    const wedding = (await server.collections()).find(id => id !== main)!;
+    await desk.page.selectOption('#collection-pick', main);
+    await expect(desk.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+
+    // "Who's using GLUE?": one box per collection, with each computer's songs, online, and its last change.
+    await desk.page.locator('button.who').click();
+    const box = desk.page.locator(`#cloud-panel [data-cloud="${main}"]`);
+    await expect(box).toContainText('4 songs', { timeout: 30_000 });
+    await expect(box.locator('[data-computer="b1"]')).toContainText(/Desktop.*4 songs · online/, { timeout: 30_000 });
+    await expect(box.locator('[data-computer="b2"]')).toContainText(/Laptop.*0 songs · online/, { timeout: 30_000 });
+    await expect(desk.page.locator('#cloud-panel [data-cloud]')).toHaveCount(2);
+
+    // Renamed for every device.
+    answer = 'Wedding 2026';
+    await desk.page.locator(`[data-rename="${wedding}"]`).click();
+    await expect(desk.page.locator(`#cloud-panel [data-cloud="${wedding}"]`)).toContainText('Wedding 2026');
+    expect(JSON.parse((await server.answer('GET', new URL('https://x/v1/shared'), null, 'b2'))!.body).collections.find((c: { id: string }) => c.id === wedding).name).toBe('Wedding 2026');
+
+    // Deleted once its name is typed: gone from the account, and the laptop forgets it after a backup.
+    answer = 'not it';
+    await desk.page.locator(`[data-delete="${main}"]`).click();
+    await expect(desk.page.locator(`#cloud-panel [data-cloud="${main}"]`)).toHaveCount(1);   // the name didn't match
+    answer = 'My collection';
+    await desk.page.locator(`[data-delete="${main}"]`).click();
+    await expect(desk.page.locator(`#cloud-panel [data-cloud="${main}"]`)).toHaveCount(0, { timeout: 30_000 });
+    const backups = (page: Page) => page.evaluate(async () => {
+      try {
+        const b = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('MCO')).getDirectoryHandle('backups');
+        const names: string[] = []; for await (const [n] of (b as unknown as { entries(): AsyncIterable<[string, unknown]> }).entries()) names.push(n);
+        return names.filter(n => n.startsWith('pre-deleted-'));
+      } catch { return []; }
+    });
+    await expect.poll(() => backups(lap.page), { timeout: 30_000 }).toEqual([expect.stringMatching(new RegExp('^pre-deleted-\\d{4}-\\d{2}-\\d{2}-' + main + '\\.zip$'))]);
+    await expect(lap.page.locator('.tr')).toHaveCount(0, { timeout: 30_000 });
+    expect(await backups(desk.page)).toHaveLength(1);
+  } finally { await desk.done(); await lap.done(); }
+});
+
 test('duplicates found on the desktop show on the laptop: the 2× badge on the desktop’s songs (ADR 0098)', async ({ baseURL }) => {
   test.setTimeout(240_000);
   const { execFileSync } = await import('node:child_process');

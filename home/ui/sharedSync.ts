@@ -14,15 +14,20 @@ import { writeUnwritten } from '../../src/store/writeInfo';
 import { syncShared, type SharedCloud } from '../../src/store/shared/engine';
 import { unknownComputer, type SharedCollection } from '../../src/core/shared/project';
 import { INCOMING_ROOT } from '../../src/store/types';
+import { countsOf, sendCounts } from '../../src/core/shared/counts';
+import { forgetDeleted } from '../../src/store/shared/forget';
+import { HomeStore } from '../../src/store/home';
 
 let running: Promise<number> | null = null, again = false;
 export const sharedDone = { synced: 0, at: 0, error: '' };
+/** This computer's numbers last sent, per collection (ADR 0112). */
+const counted = new Map<string, { key: string; at: number }>();
 
 function cloudFor(api: string, token: () => Promise<string>, cid: string): SharedCloud {
   const at = api + '/v1/shared/' + encodeURIComponent(cid);
   const call = async (path: string, init: RequestInit = {}) => {
     const r = await fetch(at + path, { ...init, headers: { ...(init.headers ?? {}), Authorization: 'Bearer ' + await token() } });
-    if (!r.ok) throw new Error('GLUE Cloud: ' + r.status);
+    if (!r.ok) throw Object.assign(new Error('GLUE Cloud: ' + r.status), { status: r.status });
     return r;
   };
   return {
@@ -72,12 +77,21 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
       // Only the files written here since the last sync are looked at (every one now and then, ADR 0107).
       let hint = engine.takeWritten(p.id, c.id);
       let res: Awaited<ReturnType<typeof syncShared>>;
-      try { res = await syncShared(place, hint); } catch (e) { engine.writtenAgain(p.id, c.id, hint); throw e; }
+      try { res = await syncShared(place, hint); } catch (e) {
+        engine.writtenAgain(p.id, c.id, hint);
+        // Deleted from the account on another device (ADR 0112): a backup, then forgotten here.
+        if ((e as { status?: number }).status === 410) { await forget(glue, p.id, c.id, meta.name ?? c.id); continue; }
+        throw e;
+      }
       changed += res.changed.length;
       // What came in, into the engine's store (and a GLUE tab's feed).
       await engine.reload(cfg, p.id, c.id, res.changed);
       // Song info edited elsewhere, into this computer's files; their new size and date go back up.
       const s = await engine.store(cfg, p.id, c.id);
+      // This computer's numbers, for the account's list (ADR 0112), when they changed.
+      const n = countsOf(s.tracks.values());
+      if (sendCounts(counted, c.id, n)) await fetch(api + '/v1/shared/' + encodeURIComponent(c.id) + '/stats', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await token() }, body: JSON.stringify(n) })
+        .then(r => { if (!r.ok) counted.delete(c.id); }, () => counted.delete(c.id));
       if (![...s.tracks.values()].some(t => t.unwritten && !t.remote)) continue;
       if (await bridge.leaseHeld()) return changed;
       await writeUnwritten(s, (tr, tags) => {
@@ -92,4 +106,13 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
     sharedDone.synced += changed; sharedDone.at = Date.now(); sharedDone.error = '';
   } catch (e) { sharedDone.error = (e as Error).message; throw e; }
   return changed;
+}
+
+/** A collection deleted from the account (ADR 0112): the profile backed up, then the collection out of its list;
+    its files stay in the GLUE folder. */
+async function forget(glue: FileSystemDirectoryHandle, p: string, c: string, name: string) {
+  if (await bridge.leaseHeld()) return;   // a tab opened meanwhile: it forgets it
+  if (!await forgetDeleted(await HomeStore.open(glue), p, c)) return;
+  engine.drop(p, c);
+  engine.on.event?.('“' + name + '” was deleted from your account: backed up and put away');
 }
