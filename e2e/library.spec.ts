@@ -2648,3 +2648,38 @@ test('a DJ library found by several ways is listed once; × takes it off the lis
   await page.waitForTimeout(2000);
   await expect(engine).toHaveCount(0);
 });
+
+test('Engine DJ’s databases on several drives are one found library, imported together (the user’s C:, F:, G:, 2026-09-30)', async ({ page }) => {
+  const initSqlJs = (await import('sql.js')).default;
+  const SQL = await initSqlJs();
+  const mdb = (title: string, id: number) => {
+    const db = new SQL.Database();
+    db.run(`CREATE TABLE Track (id INTEGER PRIMARY KEY, path TEXT, filename TEXT, title TEXT, artist TEXT, bpmAnalyzed REAL, key INTEGER, length INTEGER);
+      CREATE TABLE Playlist (id INTEGER PRIMARY KEY, title TEXT, parentListId INTEGER, nextListId INTEGER);
+      CREATE TABLE PlaylistEntity (id INTEGER PRIMARY KEY, listId INTEGER, trackId INTEGER, nextEntityId INTEGER);
+      INSERT INTO Track VALUES (${id},'../Sets/${title}.flac','${title}.flac','${title}','E',126,1,4);`);
+    const b = Buffer.from(db.export()).toString('base64'); db.close(); return b;
+  };
+  await seed(page);
+  await page.evaluate(async ([a, b]) => {
+    const root = await navigator.storage.getDirectory();
+    for (const [top, data] of [['Music', a], ['NI', b]] as const) {
+      let d = await root.getDirectoryHandle(top, { create: true });
+      for (const p of ['Engine Library', 'Database2']) d = await d.getDirectoryHandle(p, { create: true });
+      const w = await (await d.getFileHandle('m.db', { create: true })).createWritable(); await w.write(Uint8Array.from(atob(data), c => c.charCodeAt(0))); await w.close();
+    }
+  }, [mdb('Drive one', 1), mdb('Drive two', 2)]);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.click('#find-libs');   // the picker gives NI: the second drive's database
+  const engine = page.locator('#dj-libs .found', { hasText: 'Engine DJ library' });
+  await expect(engine).toHaveCount(1, { timeout: 15_000 });
+  await expect(engine).toContainText('+ 1 more drive', { timeout: 15_000 });
+  await engine.locator('.addlib').click();
+  await expect(page.getByText(/\b2 tracks\b/).first()).toBeVisible({ timeout: 20_000 });
+  await expect(engine).toHaveCount(0);
+});

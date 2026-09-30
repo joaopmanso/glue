@@ -46,7 +46,8 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
 - Scan: audio files by extension; skips hidden, system, `Engine Library` and `_Serato_` folders but
   reports any DJ libraries found in them (Engine m.db, Serato, iTunes XML, rekordbox XML, Traktor
   NML) with an Import button. A file reached by several ways (a folder, a place inside it, GLUE Home's followed
-  libraries) is listed once; × takes it off the list for good (`meta.djDismissed`; 2026-09-30). Quick tags come from the first 512 KB of each new file; the background
+  libraries) is listed once; × takes it off the list for good (`meta.djDismissed`; 2026-09-30). Engine DJ's
+  databases on several drives are one entry, imported together (2026-10-01). Quick tags come from the first 512 KB of each new file; the background
   analysis fills in the rest from the whole file. Vanished files are marked missing.
 - Track table: virtualised rows, sort by every column, word search, click / Ctrl / Shift selection,
   keyboard (arrows, Enter opens, Delete removes from playlist, Ctrl+A), drag to playlists. BPM and key

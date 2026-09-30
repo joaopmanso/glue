@@ -5,6 +5,12 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · Engine DJ's databases on several drives are one found library
+- Engine DJ keeps a database on every drive it's used with; the user's desktop has three (`C:\Users\…\Music`,
+  `F:\`, `G:\`), listed as three "Engine DJ library" entries. GLUE already makes one source of an Engine DJ set, so
+  "DJ libraries found" now shows one entry for it ("+ 2 more drives", the paths in its tooltip), led by the file GLUE
+  Home follows (else the biggest). Add reads every database together (`combineEngine`); × takes the whole set off.
+
 ## 2026-09-30 · A found DJ library is listed once, and can be taken off the list
 - **One entry per DJ library file.** The user saw one Engine DJ `m.db` four times under "DJ libraries found": the same
   file was reached by several ways (a music folder, the GLUE folder, remembered "Look in…" places, GLUE Home's followed

@@ -63,8 +63,9 @@ class Library {
   roots = $state.raw<RootState[]>([]);
   found = $state.raw<(FoundLibrary & { rootId: string })[]>([]);
   /** DJ libraries found in allowed folders, with where they are and whether they're imported (ADR 0030). */
-/** `routes`: every place|relPath the same file was found by (a music folder and a place inside it…). */
-  detected = $state.raw<(Detected & { place: string; placeName: string; status: 'new' | 'imported' | 'changed'; sourceId: string | null; routes: string[] })[]>([]);
+/** `routes`: every place|relPath the same file was found by (a music folder and a place inside it…). `also`: an
+    Engine DJ set's other databases (one per drive), imported with it. `followed`: GLUE Home follows this file. */
+  detected = $state.raw<FoundDj[]>([]);
   detecting = $state(false);
   places = $state.raw<{ key: string; name: string; granted: boolean }[]>([]);
   version = $state(0);
@@ -716,12 +717,14 @@ class Library {
           ?? (d.kind === 'engine' ? mine.find(x => x.app === 'engine') : undefined);
         const own = src?.origin?.place === place && src.origin.relPath === d.relPath;
         const status = !src ? 'new' : own && d.modified > src.origin!.modified + 1000 ? 'changed' : 'imported';
-        found.push({ ...d, place, placeName, status, sourceId: src?.id ?? null, routes: [place + '|' + d.relPath] });
+        found.push({ ...d, place, placeName, status, sourceId: src?.id ?? null, routes: [place + '|' + d.relPath], followed });
       };
+      let followed = false;
       for (const w of where) for (const d of await findLibraries(w.dir, w.place === 'home' ? 2 : 3)) add(d, w.place, w.name);
       // The DJ libraries GLUE Home follows (ADR 0065): their files are known, no looking around.
       for (const h of await platform.homeLibraries()) {
         const d = await libraryAt(h.dir, h.file).catch(() => null);
+        followed = true;
         if (d) add(d, h.place, h.name);
       }
       // The same file found by several ways (a music folder and a place inside it, GLUE Home's followed libraries…)
@@ -733,7 +736,18 @@ class Library {
         if (!twin) { one.push(d); continue; }
         const keep = d.status !== 'new' && twin.status === 'new' ? d : twin, other = keep === d ? twin : d;
         keep.routes = [...new Set([...keep.routes, ...other.routes])];
+        keep.followed ||= other.followed;
         if (keep === d) one[one.indexOf(twin)] = d;
+      }
+      // Engine DJ keeps a database on each drive it's used with (the user's C:, F: and G:, 2026-09-30), and GLUE
+      // makes one source of them all (merge.ts): one entry for the set, led by the file GLUE Home follows, else the
+      // biggest; Add imports every database.
+      const engines = one.filter(d => d.kind === 'engine' && d.status === 'new');
+      if (engines.length > 1) {
+        const [lead, ...rest] = engines.sort((a, b) => Number(!!b.followed) - Number(!!a.followed) || b.size - a.size);
+        one.splice(0, one.length, ...one.filter(d => !rest.includes(d)));
+        lead.also = rest;
+        lead.routes = [...new Set([lead, ...rest].flatMap(d => d.routes))];
       }
       // And none the user took off the list (they can still be imported by hand).
       const dismissed = new Set(s.meta.djDismissed ?? []);
@@ -1443,6 +1457,8 @@ export function remoteFileMessage(device: string) {
 
 
 export const lib = new Library();
+
+export type FoundDj = Detected & { place: string; placeName: string; status: 'new' | 'imported' | 'changed'; sourceId: string | null; routes: string[]; followed?: boolean; also?: FoundDj[] };
 
 /** Two found DJ libraries that are one file: the browser says so (the same file handle), or, where it can't (GLUE
     Home's disk), the same app, file name, size and date. */

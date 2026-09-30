@@ -60,10 +60,13 @@ export async function importFound(f: FoundLibrary) {
 }
 
 /** Add (or update) a library the finder detected, remembering where it came from. */
-export async function importDetected(d: Detected & { place: string }) {
+export async function importDetected(d: Detected & { place: string; also?: Detected[] }) {
   lib.job = { text: 'Importing ' + d.relPath + '…', done: 0, total: null };
   try {
-    const r = await parseInWorker(d.kind === 'serato' ? await seratoFiles(d.handle as FileSystemDirectoryHandle) : [await (d.handle as FileSystemFileHandle).getFile()]);
+    // An Engine DJ set's databases (one per drive) are read together: one library (combineEngine).
+    const files = d.kind === 'serato' ? await seratoFiles(d.handle as FileSystemDirectoryHandle)
+      : await Promise.all([d, ...(d.also ?? [])].map(x => (x.handle as FileSystemFileHandle).getFile()));
+    const r = await parseInWorker(files);
     if (!r.libs.length) throw new Error(r.skipped.join(', ') || 'not recognised');
     const parsed: { lib: ImportedLibrary; fileName: string }[] = r.libs;
     const lines: string[] = [];
