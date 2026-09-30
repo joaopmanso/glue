@@ -41,9 +41,10 @@
     const s = lib.store;
     let all = 0, pending = 0, failed = 0, unlinked = 0, attention = 0;
     if (s) for (const t of s.tracks.values()) {
-      // One meaning each (ADR 0109), as the lists and Stats count them.
+      // One meaning each (ADR 0109), as the lists and Stats count them; only the best copy of a song counts.
+      if (dupes.hidden.has(t.id)) continue;
       const st = lib.analysisState(t);
-      if (!dupes.hidden.has(t.id) && st !== 'failed') all++;   // one per song (its best copy), as All tracks shows them
+      if (st !== 'failed') all++;   // as All tracks shows them
       if (st === 'nofile') unlinked++; else if (st === 'waiting') pending++; else if (st === 'failed') failed++;
       const a = s.analysis.get(t.id);
       if (a && (a.grade === 'bad' || a.grade === 'warn') && asShown(t, a)?.grade !== 'ok') attention++;

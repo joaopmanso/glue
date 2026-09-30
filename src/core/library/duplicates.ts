@@ -152,3 +152,35 @@ type Songish = { title: string; album: string; duration: number | null };
 export const sameVersion = (a: Songish, b: Songish) => versionOf(a.title, a.album) === versionOf(b.title, b.album) && similarLength(a.duration, b.duration);
 /** A pair of songs, either way round. */
 export const pairKey = (a: string, b: string) => a < b ? a + '+' + b : b + '+' + a;
+
+type Copy = { title: string; album: string; artist: string; duration: number | null; fileName: string };
+const plain = (s: string) => (s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/\(([^)]*)\)|\[([^\]]*)\]/g, ' ').replace(/\bfeat\.?.*$|\bft\.?.*$/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const stem = (f: string) => (f || '').replace(/\.[^.]+$/, '');
+/** How sure GLUE is that a group's copies are one recording, 0–100 (the user, 2026-09-30: "choose all over 95 %"):
+    - by the user's say-so (marked, or confirmed): 100;
+    - by sound: from the fingerprint similarity (1 − 2 × bit error rate; matches start at 0.4, identical is 1),
+      60 at the weakest match to 100, less 10 when the names disagree and 10 when the lengths spread over 2 s;
+    - by name only ("probable"): 50, or 60 with lengths within a second. */
+export function certainty(kind: 'same' | 'probable', similarity: number | null, said: boolean, copies: Copy[]): number {
+  if (said) return 100;
+  const lens = copies.map(c => c.duration).filter((d): d is number => !!d), spread = lens.length > 1 ? Math.max(...lens) - Math.min(...lens) : 0;
+  if (kind === 'probable') return spread <= 1 ? 60 : 50;
+  const names = new Set(copies.map(c => plain(c.artist) + '|' + plain(c.title || stem(c.fileName))));
+  let c = 60 + 40 * Math.max(0, Math.min(1, ((similarity ?? 0.4) - 0.4) / 0.55));
+  if (names.size > 1) c -= 10;
+  if (spread > 2) c -= 10;
+  return Math.max(0, Math.min(100, Math.round(c)));
+}
+/** What to look at before removing a group's copies in bulk (the user: "if one copy says instrumental on the title
+    and the other doesn't"): version words in the title or the file name that differ, lengths more than 3 s apart,
+    other artists. Nothing: nothing to look at. */
+export function concerns(copies: Copy[]): string[] {
+  const out: string[] = [];
+  const marks = copies.map(c => [...new Set([...versionOf(c.title, c.album).split(','), ...versionOf(stem(c.fileName)).split(',')].filter(Boolean))].sort().join(', '));
+  if (new Set(marks).size > 1) out.push('versions differ: ' + [...new Set(marks.map(m => m || 'none'))].join(' / '));
+  const lens = copies.map(c => c.duration).filter((d): d is number => !!d);
+  if (lens.length > 1 && Math.max(...lens) - Math.min(...lens) > 3) out.push('lengths differ by ' + Math.round(Math.max(...lens) - Math.min(...lens)) + ' s');
+  const artists = new Set(copies.map(c => plain(c.artist)).filter(Boolean));
+  if (artists.size > 1) out.push('other artists');
+  return out;
+}

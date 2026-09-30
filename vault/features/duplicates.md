@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M5
 updated: 2026-09-30
-adrs: [0013, 0025, 0117]
+adrs: [0013, 0025, 0117, 0120]
 ---
 # Duplicates
 
@@ -13,6 +13,10 @@ adrs: [0013, 0025, 0117]
 - **Your say:** "Keep · not a duplicate" takes a copy out of its group for good; "Mark as duplicates" (song menu, 2+
   songs) makes your own group.
 - **Cleaning up:** with GLUE Home, the rest move to its duplicates folder or the Recycle Bin (ADR 0070).
+- **One copy shown and used** (ADR 0120): the best copy, everywhere but here and a music folder's files; playlists
+  use it (rewritten when groups change); "Make it the best" picks another.
+- **In bulk:** filter by type and certainty (each group 0–100 %), "Tick all shown", and a removal that sets aside
+  groups with concerns (versions, lengths, artists) unless included.
 - The sections below are the history.
 
 ## What it does
@@ -136,3 +140,11 @@ them at the best copy.
 - "Keep · not a duplicate" (`[data-apart]`, `dupes.apart`); "Mark as duplicates" (`[data-m="mark-dupes"]`,
   `dupes.markSame`).
 - Tests: `tests/versions.test.ts`, e2e `library.spec` ("duplicates by hand").
+
+## One copy shown and used; bulk review (2026-09-30, [ADR 0120](../adr/0120-one-copy-shown-and-used.md))
+- Reported: "Lower quality" listed an MP3 copy of a song whose best copy is lossless; playlists could use another
+  copy; 4,000 duplicates can't be gone through one by one; the "Best copy" label shifted the first row's columns.
+- `tracksFor` (views), `dupes.bestOf` / `bestInLists` (playlists), `certainty` / `concerns` (`core/library/duplicates.ts`),
+  the page's filters (`#dupes-filters`, `#dupes-sure`, `#tick-all`) and the dialog's `#clean-doubtful`.
+- Tests: `tests/versions.test.ts` (certainty, concerns), e2e `library.spec` ("duplicates by hand": the playlist,
+  Lower quality, 100 %, the columns).

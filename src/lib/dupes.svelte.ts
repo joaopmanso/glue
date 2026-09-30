@@ -13,13 +13,15 @@ import { fingerprintOf } from './analysis';
 import { jobOf } from './audioJob';
 import type { Fingerprint } from '../core/audio/fingerprint';
 import type { Match } from '../core/library/duplicates';
-import { groupMatches, pairKey, sameVersion } from '../core/library/duplicates';
+import { certainty, concerns, groupMatches, pairKey, sameVersion } from '../core/library/duplicates';
 import { time, timeAsync } from '../core/perf';
 import type { DupReply, DupRequest } from '../workers/duplicates.worker';
 import type { AnalysisSummary, Track } from '../store/types';
 
 /** confirmed: a probable group the user said is the same recording (it can be cleaned up like one). */
-export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null; confirmed?: boolean; byHand?: boolean }
+/** how: found by sound, marked by the user, confirmed by the user (a probable group), or by name only. sure: 0–100.
+    concerns: what to look at before removing its copies (versions, lengths, artists). */
+export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null; confirmed?: boolean; byHand?: boolean; how: 'sound' | 'hand' | 'confirmed' | 'name'; sure: number; concerns: string[] }
 
 const GRADE: Record<string, number> = { ok: 3, info: 2, warn: 1, bad: 0 };
 /** Higher is better: genuine before suspect, lossless before lossy, then resolution / bitrate. */
@@ -62,6 +64,9 @@ class Dupes {
   private seenTracks = -1;
   private rebuildTimer = 0;
   constructor() {
+    // Every playlist uses each song's best copy (the user, 2026-09-30: "there is no scenario where we have a best
+    // copy but another copy is in use in playlists"), an imported one too: rewritten whenever the groups change.
+    $effect.root(() => { $effect(() => { const gs = this.groups; queueMicrotask(() => this.bestInLists(gs)); }); });
     $effect.root(() => {
       $effect(() => {
         void lib.version;
@@ -224,7 +229,7 @@ class Dupes {
     // Another version (instrumental, live, remix…, or a length that differs) is never a duplicate, however the sound
     // matched; nor a pair the user kept apart.
     const same = (m: Match) => { const a = s.tracks.get(m.a), b = s.tracks.get(m.b); return !a || !b || sameVersion(a, b); };
-    // The copy the user chose ("Use in playlists"), else the best by quality.
+    // The copy the user chose ("Make it the best"), else the best by quality.
     const best = (ids: string[]) => { const chosen = s.meta.dupBest?.[groupKey(ids)]; return chosen && ids.includes(chosen) ? chosen : ids.reduce((b, id) => copyScore(s.tracks.get(id)!, s.analysis.get(id) ?? null) > copyScore(s.tracks.get(b)!, s.analysis.get(b) ?? null) ? id : b); };
     const out: DupGroup[] = [];
     const inGroup = new Set<string>();
@@ -233,7 +238,8 @@ class Dupes {
       const live = ids.filter(id => s.tracks.has(id));
       if (live.length < 2 || ignored.has(groupKey(live))) continue;
       const pairs = all.filter(m => live.includes(m.a) && live.includes(m.b)), hand = pairs.some(m => byHand.has(pairKey(m.a, m.b)));
-      out.push({ key: groupKey(live), kind: 'same', ids: live, best: best(live), similarity: hand ? null : 1 - 2 * Math.max(...pairs.map(m => m.ber)), ...(hand ? { confirmed: true, byHand: true } : {}) });
+      const sim = hand ? null : 1 - 2 * Math.max(...pairs.map(m => m.ber)), copies = live.map(id => s.tracks.get(id)!);
+      out.push({ key: groupKey(live), kind: 'same', ids: live, best: best(live), similarity: sim, ...(hand ? { confirmed: true, byHand: true } : {}), how: hand ? 'hand' : 'sound', sure: certainty('same', sim, hand, copies), concerns: concerns(copies) });
       live.forEach(id => inGroup.add(id));
     }
     // Probable: same artist + title, similar length, not already matched by sound.
@@ -250,7 +256,8 @@ class Dupes {
       const ids = near.map(t => t.id);
       if (ids.length < 2 || ignored.has(groupKey(ids))) continue;
       const key = groupKey(ids);
-      out.push(confirmed.has(key) ? { key, kind: 'same', ids, best: best(ids), similarity: null, confirmed: true } : { key, kind: 'probable', ids, best: best(ids), similarity: null });
+      const said = confirmed.has(key), extra = { sure: certainty(said ? 'same' : 'probable', null, said, near), concerns: concerns(near) };
+      out.push(said ? { key, kind: 'same', ids, best: best(ids), similarity: null, confirmed: true, how: 'confirmed', ...extra } : { key, kind: 'probable', ids, best: best(ids), similarity: null, how: 'name', ...extra });
     }
     return out.sort((a, b) => (a.kind === b.kind ? b.ids.length - a.ids.length : a.kind === 'same' ? -1 : 1));
   }
@@ -264,7 +271,22 @@ class Dupes {
     if (!s || g.kind !== 'probable') return;
     s.meta.dupConfirmed = [...(s.meta.dupConfirmed ?? []), g.key];
     s.saveMeta();
-    this.groups = this.groups.map((x): DupGroup => x.key === g.key ? { ...x, kind: 'same', confirmed: true } : x).sort((a, b) => (a.kind === b.kind ? b.ids.length - a.ids.length : a.kind === 'same' ? -1 : 1));
+    this.groups = this.groups.map((x): DupGroup => x.key === g.key ? { ...x, kind: 'same', confirmed: true, how: 'confirmed', sure: 100 } : x).sort((a, b) => (a.kind === b.kind ? b.ids.length - a.ids.length : a.kind === 'same' ? -1 : 1));
+  }
+  /** The best copy for each "same recording" copy (the copies that don't show in the library). */
+  bestOf = $derived.by(() => { const m = new Map<string, string>(); for (const g of this.groups) if (g.kind === 'same') for (const id of g.ids) if (id !== g.best) m.set(id, g.best); return m; });
+  /** Playlists and folders point at the best copies (their order kept; never the same song twice). */
+  private bestInLists(gs: DupGroup[]) {
+    const s = lib.store;
+    if (!s || lib.readOnly || gs !== this.groups) return;
+    const to = this.bestOf;
+    if (!to.size) return;
+    for (const l of [...s.lists.values()]) {
+      if (!l.items.some(i => to.has(i))) continue;
+      const items: string[] = [];
+      for (const i of l.items) { const v = to.get(i) ?? i; if (!items.includes(v)) items.push(v); }
+      lib.updateList(l.id, { items });
+    }
   }
   /** "Keep · not a duplicate" (ADR 0117): this copy isn't a duplicate of the others in its group (another version),
       remembered pair by pair; the rest of the group stays, to be cleaned up. */

@@ -62,3 +62,10 @@ Publishes the app as a static site on GitHub Pages.
   (`@tauri-apps/api` and `tauri`, each plugin and its crate). A new plugin's npm package can pull a
   newer `@tauri-apps/api` than crates.io's `tauri`: pin them (`~2.11.1`) and check with a local
   `npx tauri build --no-bundle` in `home/` before tagging.
+
+## GLUE Home: one build per change (2026-09-30)
+- The user: "Home app always triggers two different builds, one for main and one for the home-xx tag… they take
+  almost 6 min each". A push to main built it, then the tag built it again.
+- Now `home.yml` runs on pushes to main only. When the version in `tauri.conf.json` has no release yet, the same
+  build creates the tag and the release (`gh release create --target`), and `latest.json` follows. Releasing is
+  bumping the version; no tag is pushed.

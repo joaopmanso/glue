@@ -5,6 +5,20 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · One copy shown and used; Duplicates in bulk; one GLUE Home build per change
+- **Only the best copy of a song shows and is used** ([ADR 0120](../adr/0120-one-copy-shown-and-used.md)): "Lower quality",
+  "Not analysed yet", "Couldn't analyse" and "No file linked" leave out the other copies (the sidebar counts too).
+  Playlists, imports and DJ lists show the best copy, and every playlist is rewritten to use it whenever duplicates
+  change (an imported playlist too). "Use in playlists" is "Make it the best".
+- **Duplicates in bulk:**
+  - filters by type (by sound, marked by you, confirmed, probable) and by certainty (each group has a %);
+  - "Tick all shown";
+  - a bulk removal sets aside groups whose copies may be different versions (a version word in a title or file
+    name, lengths more than 3 s apart, other artists) unless you include them.
+- **Duplicates' rows line up:** the best copy is outlined, and its "Best copy" label takes the place of the button.
+- **GLUE Home builds once per change:** a push to main with a new version publishes the release itself; no tag
+  and no second 6-minute build.
+
 ## 2026-09-30 · Content beyond a wall is lossless; phones hide failed songs; scrolling loads what's on screen (GLUE Home 0.37.3)
 - **"Caution: steep top end, with content beyond" is "Lossless" now**
   ([ADR 0119](../adr/0119-content-beyond-a-wall-is-lossless.md), superseding 0118). Content above the wall that follows

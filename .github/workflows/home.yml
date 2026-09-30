@@ -1,18 +1,18 @@
 name: GLUE Home
 
-# Builds GLUE Home (home/, ADR 0044, 0045) for Windows and macOS. Every push that touches it checks
-# that it builds; a tag home-v<version> (the version in home/src-tauri/tauri.conf.json) publishes the
-# installers as a GitHub release, which the website's download links point at (releases/latest),
-# with signed update files and latest.json for GLUE Home's own updater.
+# Builds GLUE Home (home/, ADR 0044, 0045) for Windows and macOS on every push to main that touches it. When
+# the version in home/src-tauri/tauri.conf.json has no release yet, the same build publishes it: the tag
+# home-v<version>, the installers (the website's download links point at releases/latest), signed update
+# files and latest.json for GLUE Home's own updater. One build per change (2026-09-30: a push and then a tag
+# built everything twice, about 6 minutes each).
 on:
   push:
     branches: [main]
-    tags: ['home-v*']
     paths: ['home/**', 'src/core/**', 'src/store/types.ts', 'src/ui/GlueStick.svelte', '.github/workflows/home.yml', 'package.json', 'package-lock.json']
   workflow_dispatch:
 
 permissions:
-  contents: write   # publish the release (tags only)
+  contents: write   # publish the release (a new version only)
 
 concurrency:
   group: home-${{ github.ref }}
@@ -20,6 +20,9 @@ concurrency:
 
 jobs:
   build:
+    outputs:
+      release: ${{ steps.rel.outputs.release }}
+      tag: ${{ steps.rel.outputs.tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +34,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+      - name: A new version? (then this build is its release)
+        id: rel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="home-v$(node -p "require('./home/src-tauri/tauri.conf.json').version")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "release=false" >> "$GITHUB_OUTPUT"; else echo "release=true" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -41,7 +53,7 @@ jobs:
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: npm run home:ui
       # The Rust build cache: the dependencies (~400 crates) are compiled once, not on every run. Only
-      # main's builds save it; release tags read it (a tag's own cache would be private to that tag).
+      # main's builds save it and read it (a new version's release is one of them).
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: home/src-tauri -> target
@@ -70,20 +82,20 @@ jobs:
             cp "$(ls "$d"/macos/*.app.tar.gz.sig | head -1)" out/GLUE-Home.app.tar.gz.sig
           fi
           ls -la out
-      - name: Publish (tags only)
-        if: startsWith(github.ref, 'refs/tags/home-v')
+      - name: Publish (a new version only)
+        if: steps.rel.outputs.release == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "GLUE Home ${tag#home-v}" --notes-file home/RELEASE.md || true
+          tag="${{ steps.rel.outputs.tag }}"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --target "$GITHUB_SHA" --title "GLUE Home ${tag#home-v}" --notes-file home/RELEASE.md || true
           gh release upload "$tag" out/* --clobber
 
   # The updater's manifest: this version, and where each platform's signed update is.
   manifest:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/home-v')
+    if: needs.build.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: latest.json
@@ -91,7 +103,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
+          tag="${{ needs.build.outputs.tag }}"
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag"
           gh release download "$tag" -p '*.sig' -D sigs
           jq -n --arg v "${tag#home-v}" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg base "$base" \

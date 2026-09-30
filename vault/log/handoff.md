@@ -9,7 +9,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 ## Standing rules (from the user, also in CLAUDE.md and memory)
 - **Deploying:** once checks pass, deploy without asking:
   - push `main`;
-  - tag `home-v<version>` when `home/` changed;
+  - when `home/` changed, bump its version (`tauri.conf.json`, `Cargo.toml`, `Cargo.lock`): the push publishes it
+    (no tag to push);
   - watch CI (GitHub API with the Git Credential Manager token; never print it).
 - **The vault** is updated in the same commit as the code.
 - **Real fixes, not patches.** The user hand-tests on two computers, the desktop JMansoPC (Rust, runs GLUE Home)
@@ -36,7 +37,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - content beyond a wall without frequent drop-outs is "Lossless" (ADR 0119, superseding 0118); the analysis bar
     shows GLUE Home's queue; Duplicates' buttons no longer overlap;
   - songs that failed on the desktop leave the library on every device; Overviews and covers load for the rows on
-    screen, newest first.
+    screen, newest first;
+  - only the best copy shows and is used (playlists rewritten), Duplicates filters by type and certainty with a bulk
+    removal that sets aside doubtful groups (ADR 0120); GLUE Home builds once per change (no tags).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
@@ -52,6 +55,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - Duplicates' new buttons.
 
 ## Next
+- **Flaky e2e under load:** playback tests ("Play" not turning to "Pause") fail now and then in the full suite, never
+  on their own. The user: "we can deal with the flakiness later".
 - **The laptop's sync is slow** (the user: "takes quite some time but has no issues"). Measure it first: how many
   log entries and files a sync reads on the laptop, and where the time goes.
 - **Bug:** on a phone's first load the library shows 8 songs, then the whole collection (timing; low priority).

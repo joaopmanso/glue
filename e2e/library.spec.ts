@@ -1074,7 +1074,7 @@ test('finds the same recording under different names and formats', async ({ page
   await expect(page.locator('#dupes-missing')).toHaveCount(0, { timeout: 60_000 });
 
   // Another copy chosen as the one to keep: that one is the song's row now.
-  await page.locator('#dupes .grp li', { hasText: 'HHH-Bebida' }).getByRole('button', { name: 'Use in playlists' }).click();
+  await page.locator('#dupes .grp li', { hasText: 'HHH-Bebida' }).getByRole('button', { name: 'Make it the best' }).click();
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
   await expect(page.locator('.tr', { hasText: 'HHH-Bebida' }).locator('.dup')).toHaveText('2×');
   await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' })).toHaveCount(0);
@@ -2527,6 +2527,14 @@ test('duplicates by hand: songs marked as duplicates group; “Keep · not a dup
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
   const row = (t: string) => page.locator('.tr', { hasText: t });
+  // The MP3 in a playlist, and among the lower-quality songs.
+  page.once('dialog', d => void d.accept('Set'));
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="add"]').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
+  await expect(page.locator('.lside .tree .name', { hasText: 'Set' })).toBeVisible();
+  await page.locator('.lside [data-view="attention"]').click();
+  await expect(row('Fixture MP3')).toHaveCount(1);
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
   // Two songs, marked by hand.
   await row('Fixture MP3').locator('.c-title').click();
   await row('Fixture FLAC').locator('.c-title').click({ modifiers: ['Control'] });
@@ -2537,6 +2545,19 @@ test('duplicates by hand: songs marked as duplicates group; “Keep · not a dup
   const grp = page.locator('.grp', { hasText: 'you marked them as duplicates' });
   await expect(grp).toHaveCount(1);
   await expect(grp.locator('li')).toHaveCount(2);
+  await expect(grp.locator('.sure')).toHaveText('100%');
+  await expect(page.locator('#dupes-filters [data-how="hand"]')).toContainText('1');
+  // Every row's columns line up: the best copy's label takes its button's place (2026-09-30).
+  const xs = await grp.locator('li .act').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().x)));
+  expect(new Set(xs).size).toBe(1);
+  await expect(grp.locator('li.best .bestb')).toHaveText('Best copy');
+  // Only the best copy anywhere else: the playlist uses it, and the MP3 copy isn't among the lower-quality songs.
+  await page.locator('.lside .tree .name', { hasText: 'Set' }).click();
+  await expect(page.locator('.tr')).toHaveCount(1);
+  await expect(row('Fixture FLAC')).toHaveCount(1);
+  await page.locator('.lside [data-view="attention"]').click();
+  await expect(row('Fixture MP3')).toHaveCount(0);
+  await page.locator('.lside [data-view="dupes"]').click();
   // Each copy's buttons stay clear of "in no playlist" (they spilled over it, 2026-09-30).
   for (const li of await grp.locator('li').all()) {
     const a = (await li.locator('.lists').boundingBox())!, b = (await li.locator('.act').boundingBox())!;

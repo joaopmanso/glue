@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pairKey, sameVersion, similarLength, versionOf } from '../src/core/library/duplicates';
+import { certainty, concerns, pairKey, sameVersion, similarLength, versionOf } from '../src/core/library/duplicates';
 
 const song = (title: string, duration: number | null = 240, album = '') => ({ title, album, duration });
 
@@ -27,5 +27,20 @@ describe('another version is never a duplicate (the user’s list, 2026-09-30; A
   });
   it('a pair is the same either way round', () => {
     expect(pairKey('b', 'a')).toBe(pairKey('a', 'b'));
+  });
+  const copy = (title: string, duration = 240, fileName = title + '.flac', artist = 'Loxy') => ({ title, album: '', artist, duration, fileName });
+  it('how sure: the user’s say-so 100; by sound from the similarity, less for other names or lengths; by name 50–60', () => {
+    expect(certainty('same', null, true, [copy('A'), copy('A')])).toBe(100);
+    expect(certainty('same', 0.95, false, [copy('A'), copy('A')])).toBe(100);
+    expect(certainty('same', 0.4, false, [copy('A'), copy('A')])).toBe(60);
+    expect(certainty('same', 0.95, false, [copy('A'), copy('B')])).toBe(90);
+    expect(certainty('same', 0.95, false, [copy('A', 240), copy('A', 250)])).toBe(90);
+    expect(certainty('probable', null, false, [copy('A', 240), copy('A', 240.5)])).toBe(60);
+  });
+  it('what to look at before a bulk removal: a version word in a title or a file name, lengths, artists', () => {
+    expect(concerns([copy('Song'), copy('Song')])).toEqual([]);
+    expect(concerns([copy('Song'), copy('Song', 240, 'Song (Instrumental).wav')])[0]).toMatch(/^versions differ/);
+    expect(concerns([copy('Song', 240), copy('Song', 250)])).toEqual(['lengths differ by 10 s']);
+    expect(concerns([copy('Song'), copy('Song', 240, 'Song.flac', 'Other')])).toEqual(['other artists']);
   });
 });

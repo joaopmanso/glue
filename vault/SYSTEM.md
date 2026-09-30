@@ -149,7 +149,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     library it switches over when GLUE Home appears.
 - **Releases:**
   - version in `home/src-tauri/tauri.conf.json`, `Cargo.toml` and `Cargo.lock`;
-  - a tag `home-v<version>` publishes a signed release, and GLUE Home updates itself within a few hours.
+  - a push to `main` with a new version builds and publishes the signed release (tag `home-v<version>`, made by
+    the build: one build per change); GLUE Home updates itself within a few hours.
 
 ## 6. Analysis
 - **Where it runs:** in a worker pool (`src/lib/pool.ts`, `src/workers/`), in GLUE Home where it runs, otherwise
@@ -174,7 +175,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     ADR 0117);
   - the user's say: "Keep · not a duplicate" on a copy (`meta.dupApart`), and "Mark as duplicates" on chosen
     songs (`meta.dupManual`);
-  - a same-recording group shows as one row, its best copy.
+  - only the best copy shows and is used, anywhere but Duplicates and a music folder's own files; playlists are
+    rewritten to the best copies whenever groups change (`bestInLists`, ADR 0120);
+  - each group has a certainty (0–100) and concerns; the page filters by type and certainty, ticks all shown, and a
+    bulk removal leaves out groups with concerns unless included.
 - **Other analysis:** duplicates (fingerprints, three tiers, ADR 0013); stems in the browser (HT-Demucs,
   `src/core/stems`).
 

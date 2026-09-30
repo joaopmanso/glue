@@ -177,12 +177,26 @@ export const removeNote = () => lib.store?.shared ? ' Songs another computer als
     copy), and not one whose file couldn't be analysed (those are in "Couldn't analyse" only; the user's list,
     2026-09-30). Playlists and folders show what the user put in them. */
 export const inLibrary = (t: Track) => !dupes.hidden.has(t.id) && lib.analysisState(t) !== 'failed';
-/** `copies`: every copy, even in a view of one row per song (to search or filter them all). */
+/** Only the best copy of a song shows, anywhere but Duplicates and a music folder's own files (the user, 2026-09-30:
+    "Lower quality" listed the MP3 copy of a song whose best copy is lossless):
+    - the library's own views: one row per song, never one that couldn't be analysed;
+    - views of songs by a quality (Lower quality, Not analysed yet, Couldn't analyse, No file…): the copies that
+      don't show aren't counted;
+    - playlists, folders, imports and DJ libraries' lists: each song as its best copy (once).
+    `copies`: every copy, even in a view of one row per song (to search or filter them all). */
+const FILES = new Set<ViewSel['kind']>(['dupes', 'root']);
+const BY_LIST = new Set<ViewSel['kind']>(['list', 'source', 'dj']);
 export function tracksFor(sel: ViewSel, opts: { copies?: boolean } = {}): Track[] {
   const out = tracksForAll(sel);
-  if (!ONE_PER_SONG.has(sel.kind)) return out;
-  if (opts.copies) return out.filter(t => lib.analysisState(t) !== 'failed');
-  return out.filter(inLibrary);
+  if (FILES.has(sel.kind)) return out;
+  if (ONE_PER_SONG.has(sel.kind)) return opts.copies ? out.filter(t => lib.analysisState(t) !== 'failed') : out.filter(inLibrary);
+  if (!dupes.hidden.size || opts.copies) return out;
+  if (BY_LIST.has(sel.kind)) {
+    const s = lib.store, seen = new Set<string>(), best: Track[] = [];
+    for (const t of out) { const b = dupes.bestOf.get(t.id), u = (b && s?.tracks.get(b)) || t; if (!seen.has(u.id)) { seen.add(u.id); best.push(u); } }
+    return best;
+  }
+  return out.filter(t => !dupes.hidden.has(t.id));
 }
 function tracksForAll(sel: ViewSel): Track[] {
   const s = lib.store;

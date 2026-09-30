@@ -79,9 +79,9 @@ After working:
   incoming-folder writes, autostart, `gluehome://`,
   `local.rs`: the local link on 127.0.0.1:47400–47409, ADR 0048), `home/ui` its settings and hidden service pages.
   The desktop (JMansoPC) has Rust and runs GLUE Home, so it can build and test it locally; the laptop has
-  no Rust. `.github/workflows/home.yml` builds Windows + macOS on every change; a tag
-  `home-v<version>` (version in `home/src-tauri/tauri.conf.json`) publishes the release the website
-  links to. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts`.
+  no Rust. `.github/workflows/home.yml` builds Windows + macOS on every push to `main` that
+  touches it; when the version in `home/src-tauri/tauri.conf.json` (also `Cargo.toml`, `Cargo.lock`) has no release
+  yet, that build publishes it (tag `home-v<version>`, the release the website links to). Don't push tags. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts`.
 - Routes: `#/` library, `#/track/<id>` track page, `#/events` calendar (`#/events/<id>` an event),
   `#/analyze` analyze a file, `#/admin`.
 - GLUE Home updates are signed: private key = GitHub secret `TAURI_SIGNING_PRIVATE_KEY` (copy in
