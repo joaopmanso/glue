@@ -3,7 +3,7 @@
    to vouch for it (GLUE Home tells GLUE Cloud with its own credential), and from then on this sign-in is
    the computer's device: one row in Devices, one copy of its library, one set of edits. */
 import { account } from './account.svelte';
-import { discover } from './localHome.svelte';
+import { discover, localHome } from './localHome.svelte';
 import { remoteFiles } from './remoteFiles.svelte';
 
 let tried = false;
@@ -17,9 +17,11 @@ export async function attachHere(): Promise<'joined' | 'already' | 'none' | 'ref
   const home = account.devices.find(d => d.id === here.device && d.kind === 'home');
   if (!home) return 'none';                                   // another account's GLUE Home, or not online yet
   if (home.companionOf === me) return 'already';
-  // The local link's token, over the account's channel; then GLUE Home is asked on 127.0.0.1.
-  const a = await remoteFiles.ask(home.id, { t: 'local' }, { firstWait: 15_000 }).catch(() => null);
-  const link = a?.data as { port: number; token: string | null } | undefined;
+  // The local link's token: the one this tab has (Home mode), else over the account's channel; then GLUE Home is
+  // asked on 127.0.0.1 (ADR 0108: the channel alone left the desktop's GLUE Home without its computer).
+  const own = localHome.link?.home === home.id ? localHome.link : null;
+  const a = own ? null : await remoteFiles.ask(home.id, { t: 'local' }, { firstWait: 15_000 }).catch(() => null);
+  const link = own ?? a?.data as { port: number; token: string | null } | undefined;
   if (!link?.token) return 'none';
   const r = await fetch('http://127.0.0.1:' + here.port + '/attach?t=' + encodeURIComponent(link.token), { method: 'POST', body: JSON.stringify({ browser: me }) }).catch(() => null);
   if (!r?.ok) return 'none';

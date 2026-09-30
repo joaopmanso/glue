@@ -11,7 +11,7 @@ import { HomeDisk } from '../../src/platform/homeDisk';
 import * as engine from './engine';
 import { writeUnwritten } from '../../src/store/writeInfo';
 import { syncShared, type SharedCloud } from '../../src/store/shared/engine';
-import { meFor, type SharedCollection } from '../../src/core/shared/project';
+import { unknownComputer, type SharedCollection } from '../../src/core/shared/project';
 import { INCOMING_ROOT } from '../../src/store/types';
 
 let running: Promise<number> | null = null, again = false;
@@ -58,12 +58,15 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
       if (prof?.cloudSync === false) continue;
       const meta = JSON.parse(await bridge.glueRead(`profiles/${p.id}/collections/${c.id}/collection.json`).catch(() => 'null')) as SharedCollection | null;
       if (!meta?.shared) continue;
-      const me = meFor(meta, p.id, cfg.deviceId);
-      if (!me) continue;
+      // As this computer, once GLUE Home knows which it is (ADR 0108); until then, not synced from here.
+      if (unknownComputer(cfg.computer)) continue;
+      const me = cfg.computer!;
       roots ??= await disk.roots();
       if (!roots.glue) return changed;
       const glue = disk.dir(roots.glue), r = roots;
       if (await bridge.leaseHeld()) return changed;   // a tab opened meanwhile: it's the writer now
+      // The engine's store first: anything written under another id is put right before this syncs (ADR 0108).
+      await engine.store(cfg, p.id, c.id);
       const place = { root: glue, pid: p.id, cid: c.id, me, cloud: cloudFor(api, token, c.id) };
       // Only the files written here since the last sync are looked at (every one now and then, ADR 0107).
       let hint = engine.takeWritten(p.id, c.id);

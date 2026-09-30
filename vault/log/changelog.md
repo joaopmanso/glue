@@ -1,9 +1,34 @@
 ---
-updated: 2026-09-29
+updated: 2026-09-30
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-09-30 · One id per computer, and the desktop's songs put back under it (GLUE Home 0.34)
+- **Fixed: the desktop's songs were written under a stand-in ("this-computer")** ([ADR 0108](../adr/0108-one-id-per-computer.md)).
+  - What happened: a tab opened before sign-in finished, and Edge's own private library claimed the
+    desktop's entry. After that, GLUE Home saw every one of the desktop's songs as another computer's: it
+    stopped analysing them, and other devices couldn't stream them.
+  - GLUE Home now learns its computer: from GLUE Cloud (`GET /v1/computer`), or from the music folders it
+    found on this disk (then it vouches for it). Activity says which, or why it can't tell.
+  - Only the GLUE folder recorded for a computer writes its copies, analyses, folders and entry. An unknown
+    computer writes none of them, and nothing is ever written as "this-computer".
+  - **The repair, once, with a backup first** (`backups/pre-repair-…zip`): the stand-in's copies,
+    analyses, folders and libraries become the computer's; a song that was twice in TO BE SORTED is once,
+    with its playlist places kept; the computer's entry names its own folder again. It's sent up to GLUE
+    Cloud like any edit.
+  - A browser that kept a library in its own storage opens GLUE Home's on a computer where it runs.
+  - Requests from other devices that name the wrong profile folder still find the collection.
+  - A merge of two browsers moves GLUE Home's companion with them.
+- **Fixed: "Analysis done" every minute.** It now tells only what that run did, and only when it did
+  something.
+- Tests:
+  - unit tests: who may write a computer's parts, and the repair (a store shaped like the desktop's data);
+  - `/v1/computer`, and the companion following a merge;
+  - e2e `identity.spec` (heavy): GLUE Home vouches, repairs, and GLUE Cloud gets it; a browser's own
+    library gives way to GLUE Home's;
+  - `homemode.spec`: a second run with nothing to do says nothing.
 
 ## 2026-09-29 · GLUE Home and the browser no longer run out of memory while analysing (GLUE Home 0.33)
 - **Fixed: GLUE Home and Chrome crashed while analysing** (since 0.31,

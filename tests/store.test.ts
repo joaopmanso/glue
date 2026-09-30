@@ -3,7 +3,7 @@ import { HomeStore } from '../src/store/home';
 import { CollectionStore } from '../src/store/collection';
 import { readJSON } from '../src/store/fsx';
 import { autoBackup } from '../src/store/backup';
-import { newId, SCHEMA, type Track } from '../src/store/types';
+import { newId, SCHEMA, shardOf, type Track } from '../src/store/types';
 import { MemDir, asDir } from './memfs';
 
 const track = (over: Partial<Track> = {}): Track => ({
@@ -154,5 +154,63 @@ describe('daily backups (ADR 0090)', () => {
     const kept = mem.paths().filter(x => x.startsWith('backups/auto/')).sort();
     expect(kept).toHaveLength(14);
     expect(kept[0]).toBe(`backups/auto/2026-09-03-${p.id}.zip`);
+  });
+});
+
+describe('a shared collection’s computer (ADR 0108)', () => {
+  // Shaped like the user's collection on 2026-09-30: the desktop's entry claimed by another browser's folder
+  // (pedge), a stand-in written by the desktop's own folder (b2df), the laptop untouched.
+  const copy = (rootId: string, relPath: string) => ({ status: 'linked', rootId, relPath, importPath: null, size: 10, mtime: 1, sources: [] });
+  const song = (id: string, added: string, copies: Record<string, unknown>) => ({ id, fileName: id + '.wav', title: id, artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: 1, format: null, addedAt: added, copies });
+  async function folder() {
+    const mem = new MemDir(), root = asDir(mem), base = 'profiles/b2df/collections/bf92';
+    const { writeJSON } = await import('../src/store/fsx');
+    await writeJSON(root, base + '/collection.json', {
+      schemaVersion: SCHEMA, id: 'bf92', name: 'My collection', createdAt: '', shared: true,
+      members: { lap: { profile: 'plap', name: 'INW Laptop' }, mmJiL: { profile: 'pedge', name: 'Desktop' }, 'this-computer': { profile: 'b2df', name: 'This computer' } },
+      rootsBy: { lap: [], mmJiL: [{ id: 'incoming', name: 'TO BE SORTED', hidden: true }, { id: 'music', name: 'Music' }], 'this-computer': [{ id: 'incoming', name: 'TO BE SORTED', hidden: true }] },
+    });
+    const items = { a: song('a', '2026-09-01', { mmJiL: copy('music', 'a.wav'), 'this-computer': copy('music', 'a.wav') }), b: song('b', '2026-09-01', { mmJiL: copy('incoming', 'b.wav') }), b2: song('b2', '2026-09-30', { 'this-computer': copy('incoming', 'b.wav') }), l: song('l', '2026-09-01', { lap: copy('lr', 'l.wav') }) };
+    const byShard: Record<string, Record<string, unknown>> = {};
+    for (const [id, t] of Object.entries(items)) (byShard[shardOf(id)] ??= {})[id] = t;
+    for (const [sh, its] of Object.entries(byShard)) await writeJSON(root, `${base}/tracks/${sh}.json`, { schemaVersion: SCHEMA, items: its });
+    await writeJSON(root, `${base}/lists/p1.json`, { schemaVersion: SCHEMA, id: 'p1', kind: 'playlist', name: 'Set', parentId: null, position: 0, notes: '', items: ['b2', 'a'], origin: null, createdAt: '' });
+    return { mem, root, base };
+  }
+  const allText = (mem: MemDir) => mem.paths().map(p => p).join('\n');
+
+  it('a store that isn’t this computer’s folder, or doesn’t know its computer, writes none of its parts', async () => {
+    const { root, base } = await folder();
+    const s = await CollectionStore.load(root, 'b2df', 'bf92', { me: 'mmJiL' });   // the entry names another folder
+    expect(s.shared!.own).toBe(false);
+    s.putTrack({ ...s.tracks.get('a')!, rating: 5, relPath: 'elsewhere.wav' });
+    await s.flush();
+    const a = (await readJSON<{ items: Record<string, { rating?: number; copies: Record<string, { relPath: string }> }> }>(root, base + '/tracks/' + shardOf('a') + '.json'))!.items.a;
+    expect(a.rating).toBe(5);                                  // the song's own facts are anyone's to change
+    expect(a.copies.mmJiL.relPath).toBe('a.wav');              // the computer's copy isn't
+    const n = await CollectionStore.load(root, 'b2df', 'bf92', { me: 'this-computer' });
+    expect(n.shared!.here.me).not.toBe('this-computer');
+  });
+
+  it('GLUE Home, knowing its computer, folds the stand-in back and takes the entry; the twin row folds into the older one', async () => {
+    const { mem, root, base } = await folder();
+    const s = await CollectionStore.load(root, 'b2df', 'bf92', { me: 'mmJiL' });
+    const r = s.foldComputer('mmJiL')!;
+    expect(r.twins).toEqual([['b2', 'b']]);
+    const { absorbTracks } = await import('../src/store/merge');
+    absorbTracks(s, new Map(r.twins.map(([from, into]) => [from, s.tracks.get(into)!])));
+    await s.flush();
+    const meta = (await readJSON<{ members: Record<string, { profile: string }>; rootsBy: Record<string, unknown> }>(root, base + '/collection.json'))!;
+    expect(Object.keys(meta.members).sort()).toEqual(['lap', 'mmJiL']);
+    expect(meta.members.mmJiL.profile).toBe('b2df');
+    expect(Object.keys(meta.rootsBy).sort()).toEqual(['lap', 'mmJiL']);
+    const again = await CollectionStore.load(root, 'b2df', 'bf92', { me: 'mmJiL' });
+    expect(again.shared!.own).toBe(true);
+    expect([...again.tracks.keys()].sort()).toEqual(['a', 'b', 'l']);
+    expect(again.lists.get('p1')!.items).toEqual(['b', 'a']);
+    for (const p of mem.paths()) if (p.endsWith('.json')) expect(JSON.stringify(await readJSON(root, p)), p).not.toContain('this-computer');
+    expect(allText(mem)).not.toContain('this-computer');
+    // Nothing more to do the next time.
+    expect(again.foldComputer('mmJiL')).toBeNull();
   });
 });

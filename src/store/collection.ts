@@ -5,7 +5,8 @@ import { type AnalysisSummary, type Collection, type List, type Source, type Tra
 import type { GlueEvent } from '../core/library/events';
 import { migrate } from './migrations';
 import { record, time, timeAsync } from '../core/perf';
-import { analysisHere, analysisShared, collectionHere, collectionShared, toLocal, toShared, type Here, type SharedCollection, type SharedTrack, meFor } from '../core/shared/project';
+import { analysisHere, analysisShared, collectionHere, collectionShared, toLocal, toShared, type Here, type SharedCollection, type SharedTrack, meFor, unknownComputer, writesFor } from '../core/shared/project';
+import { foldComputer, needsFold, type FoldResult } from '../core/shared/repair';
 
 /** A shared collection (ADR 0094): its files hold every computer's parts; this is how this computer sees
     them, and what was read, so saving changes only this computer's parts. */
@@ -14,8 +15,13 @@ export type StoreOp =
   | { m: 'meta'; meta: Collection } | { m: 'tracks'; ts: Track[] } | { m: 'removeTrack'; id: string } | { m: 'analysis'; id: string; a: AnalysisSummary }
   | { m: 'list'; l: List } | { m: 'deleteList'; id: string } | { m: 'event'; e: GlueEvent } | { m: 'deleteEvent'; id: string }
   | { m: 'source'; s: Source } | { m: 'deleteSource'; id: string };
-export interface SharedMode { here: Here; member: { profile: string; name: string }; meta: SharedCollection; tracks: Map<string, SharedTrack>; analysis: Map<string, Record<string, AnalysisSummary>> }
-export interface LoadOpts { me?: string | null; name?: string }
+/** `own`: this GLUE folder may write its computer's parts (its copies, analyses, music folders): the
+    computer is known and this is the folder recorded for it (ADR 0108). Otherwise they're shown, never
+    written. */
+export interface SharedMode { here: Here; own: boolean; shownOnly?: boolean; member: { profile: string; name: string }; meta: SharedCollection; tracks: Map<string, SharedTrack>; analysis: Map<string, Record<string, AnalysisSummary>> }
+/** me: this computer (GLUE Home's computer, this browser's device, the GLUE folder's own); `shownOnly`: write
+    none of this computer's parts whatever (GLUE Home before it knows its computer). */
+export interface LoadOpts { me?: string | null; name?: string; shownOnly?: boolean }
 
 type Shard<T> = { schemaVersion: number; items: Record<string, T> };
 /** A deleted playlist or folder with everything that was in it, in the bin (ADR 0090). */
@@ -67,12 +73,14 @@ export class CollectionStore {
     const base = `profiles/${pid}/collections/${cid}`;
     const raw = await readJSON<Collection | SharedCollection>(root, base + '/collection.json');
     if (!raw) throw new Error('Collection not found in your GLUE folder.');
-    // A shared collection: seen as this computer (the one whose profile this folder is in, if not told).
+    // A shared collection: seen as this computer (the one whose profile this folder is in, if not told), and
+    // its parts written only when it's known and this is its folder (ADR 0108; never as a stand-in).
     let mode: SharedMode | null = null;
     if ((raw as SharedCollection).shared) {
       const sc = raw as SharedCollection, members = sc.members ?? {};
-      const me = opts.me || meFor(sc, pid) || 'this-computer';
-      mode = { here: { me, collection: cid, members, rootsBy: sc.rootsBy }, member: { profile: pid, name: opts.name ?? members[me]?.name ?? 'This computer' }, meta: sc, tracks: new Map(), analysis: new Map() };
+      const me = (!unknownComputer(opts.me) ? opts.me : null) || meFor(sc, pid) || '';
+      const own = !opts.shownOnly && writesFor(sc, me, pid);
+      mode = { here: { me, collection: cid, members, rootsBy: sc.rootsBy }, own, shownOnly: !!opts.shownOnly, member: { profile: pid, name: opts.name ?? members[me]?.name ?? 'This computer' }, meta: sc, tracks: new Map(), analysis: new Map() };
     }
     const s = new CollectionStore(root, base, migrate('collection', mode ? collectionHere(raw as SharedCollection, mode.here.me) : raw as Collection));
     s.shared = mode;
@@ -97,7 +105,7 @@ export class CollectionStore {
     for (const src of sources) if (src) s.sources.set(src.id, migrate('source', src));
     for (const [id, e] of Object.entries(events?.items ?? {})) s.events.set(id, e);
     // Opened on a computer that isn't a member yet (it just joined): it becomes one on the next save.
-    if (mode && opts.me && !mode.meta.members?.[mode.here.me]) s.saveMeta();
+    if (mode?.own && opts.me && !mode.meta.members?.[mode.here.me]) s.saveMeta();
     return s;
   }
 
@@ -123,7 +131,7 @@ export class CollectionStore {
       const v = await readJSON<unknown>(this.root, `${this.base}/${p}`).catch(() => null);
       if (p === 'collection.json') {
         if (!v) continue;
-        if (this.shared) { this.shared.meta = v as SharedCollection; this.shared.here = { ...this.shared.here, members: (v as SharedCollection).members ?? {}, rootsBy: (v as SharedCollection).rootsBy }; this.meta = migrate('collection', collectionHere(v as SharedCollection, this.shared.here.me)); }
+        if (this.shared) { this.shared.meta = v as SharedCollection; this.shared.here = { ...this.shared.here, members: (v as SharedCollection).members ?? {}, rootsBy: (v as SharedCollection).rootsBy }; if (!this.shared.shownOnly) this.shared.own = writesFor(this.shared.meta, this.shared.here.me, this.shared.member.profile); this.meta = migrate('collection', collectionHere(v as SharedCollection, this.shared.here.me)); }
         else this.meta = migrate('collection', v as Collection);
       } else if (p === 'events.json') {
         this.events.clear();
@@ -176,6 +184,8 @@ export class CollectionStore {
   putTracks(ts: Track[]) { if (this.sink) { const own = ts.filter(t => !this.ephemeral.has(t.id)); if (own.length) this.sink({ m: 'tracks', ts: own }); } for (const t of ts) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); } this.rev.tracks++; this.changed(); }
   removeTrack(id: string) {
     if (this.ephemeral.has(id)) return;   // another device's track: removed there, not here
+    // Shared, and this folder doesn't hold this computer's parts (ADR 0108): it removes nothing.
+    if (this.shared && !this.shared.own && !this.sink) return;
     this.sink?.({ m: 'removeTrack', id });
     // Shared, and another computer has it too: only this computer's copy goes (ADR 0100). The song, its
     // playlists and the other computers' analyses stay, now shown as theirs.
@@ -256,6 +266,34 @@ export class CollectionStore {
 
   get hasPending() { return this.dirty.size > 0 || this.deleted.size > 0 || this.binned.length > 0; }
 
+  /** GLUE Home knows its computer (ADR 0108): parts written under another id (the old stand-in, another
+      member naming this folder) are folded into it, this folder takes the computer's entry back, and the
+      store writes as that computer from now on. Saved on the next flush; the rows that became the same file
+      twice come back for the caller to fold (store/merge absorbTracks). Null: nothing to put right. */
+  foldComputer(into: string, name?: string): { counts: FoldResult['counts']; twins: [string, string][] } | null {
+    const m = this.shared;
+    if (!m || unknownComputer(into)) return null;
+    const folder = m.member.profile, input = { meta: m.meta, tracks: m.tracks, analysis: m.analysis, sources: [...this.sources.values()] };
+    if (!needsFold(input, into, folder)) { if (m.here.me === into && !m.shownOnly) m.own = true; return null; }
+    const r = foldComputer(input, into, folder, name);
+    m.meta = r.meta; m.own = true; m.shownOnly = false;
+    m.here = { ...m.here, me: into, members: r.meta.members ?? {}, rootsBy: r.meta.rootsBy };
+    m.member = { profile: folder, name: r.meta.members[into].name };
+    this.meta = migrate('collection', collectionHere(r.meta, into));
+    for (const [id, st] of r.tracks) m.tracks.set(id, st);
+    for (const [id, by] of r.analysis) m.analysis.set(id, by);
+    // Every song seen again as this computer.
+    for (const [id, st] of m.tracks) if (!this.ephemeral.has(id)) this.tracks.set(id, toLocal(st, m.here));
+    for (const [id, by] of m.analysis) { const a = analysisHere(by, into); if (a) this.analysis.set(id, a); else this.analysis.delete(id); }
+    for (const s of r.sources) { this.sources.set(s.id, s); this.mark(`sources/${s.id}.json`); }
+    const shards = new Set([...r.tracks.keys(), ...r.analysis.keys()].map(shardOf));
+    for (const sh of shards) { this.mark(`tracks/${sh}.json`); this.mark(`analysis/${sh}.json`); }
+    this.mark('collection.json');
+    this.rev.tracks++; this.rev.analysis++; this.rev.sources++;
+    this.changed();
+    return { counts: r.counts, twins: r.twins };
+  }
+
   // ─── The bin (ADR 0090): deleted playlists and folders, kept 30 days ─────────────────────────
   private get binDir() { const [, pid, , cid] = this.base.split('/'); return `bin/${pid}/${cid}`; }
   /** What's in the bin, newest first (entries older than 30 days are removed as they're found). */
@@ -315,7 +353,7 @@ export class CollectionStore {
 
   private serialize(p: string): unknown {
     const m = this.shared;
-    if (p === 'collection.json') { if (!m) return this.meta; m.meta = collectionShared(this.meta, m.here.me, m.meta, m.member, [...m.tracks.values()].some(t => !!t.copies?.[m.here.me])); m.here = { ...m.here, members: m.meta.members, rootsBy: m.meta.rootsBy }; return m.meta; }
+    if (p === 'collection.json') { if (!m) return this.meta; m.meta = collectionShared(this.meta, m.own ? m.here.me : '', m.meta, m.member, m.own && [...m.tracks.values()].some(t => !!t.copies?.[m.here.me])); m.here = { ...m.here, members: m.meta.members, rootsBy: m.meta.rootsBy }; return m.meta; }
     if (p === 'events.json') return { schemaVersion: SCHEMA, items: Object.fromEntries(this.events) };
     const [dir, file] = p.split('/'), key = file.replace(/\.json$/, '');
     if (dir === 'tracks' || dir === 'analysis') {
@@ -323,11 +361,13 @@ export class CollectionStore {
       const items: Record<string, unknown> = {};
       // Shared (ADR 0094): this computer's copy and analysis written in, every other computer's kept as read.
       if (m) {
-        if (dir === 'tracks') for (const [id, t] of this.tracks) { if (shardOf(id) !== key || this.ephemeral.has(id)) continue; const st = toShared(t, m.here, m.tracks.get(id)); m.tracks.set(id, st); items[id] = st; }
+        // Not this folder's to write (ADR 0108): the songs' common parts only, every copy kept as read.
+        const w = m.own ? m.here : { ...m.here, me: '' };
+        if (dir === 'tracks') for (const [id, t] of this.tracks) { if (shardOf(id) !== key || this.ephemeral.has(id)) continue; const st = toShared(t, w, m.tracks.get(id)); m.tracks.set(id, st); items[id] = st; }
         else for (const [id, t] of this.tracks) {
           if (shardOf(id) !== key || this.ephemeral.has(id)) continue;
           const a = this.analysis.get(id), prev = m.analysis.get(id);
-          const by = a && !t.remote ? analysisShared(a, m.here.me, prev) : prev;
+          const by = a && !t.remote ? analysisShared(a, w.me, prev) : prev;
           if (by) { m.analysis.set(id, by); items[id] = by; }
         }
         return { schemaVersion: SCHEMA, items };

@@ -13,9 +13,11 @@
 import { bridge, type HomeConfig } from './bridge';
 import { HomeDisk } from '../../src/platform/homeDisk';
 import { CollectionStore, type StoreOp } from '../../src/store/collection';
-import { removePath } from '../../src/store/fsx';
-import { meFor, type SharedCollection } from '../../src/core/shared/project';
-import type { Collection } from '../../src/store/types';
+import { removePath, writeBlob, type Dir } from '../../src/store/fsx';
+import { OLD_STAND_IN, unknownComputer, type SharedCollection } from '../../src/core/shared/project';
+import { absorbTracks } from '../../src/store/merge';
+import { buildBackup } from '../../src/store/backup';
+import type { Collection, Profile, Track } from '../../src/store/types';
 
 export interface Job { id: string; kind: 'remove-tracks'; p: string; c: string; ids: string[]; done: number; at: number }
 export interface EngineStatus { rev: number; jobs: { kind: string; left: number; total: number }[] }
@@ -56,8 +58,11 @@ export function store(cfg: HomeConfig, p: string, c: string): Promise<Collection
       const glue = await glueDir(cfg);
       let meta: SharedCollection | Collection | null = null;
       try { meta = JSON.parse(await bridge.glueRead(`profiles/${p}/collections/${c}/collection.json`)); } catch { /* checked by load */ }
-      const me = meta && (meta as SharedCollection).shared ? meFor(meta as SharedCollection, p, cfg.deviceId) ?? undefined : undefined;
-      const st = await CollectionStore.load(glue, p, c, me ? { me } : {});
+      // A shared collection as this computer (ADR 0108), once GLUE Home knows which it is; until then it's read,
+      // and none of its per-computer parts is written. Then what was written under another id is put right.
+      const shared = !!(meta as SharedCollection | null)?.shared, computer = !unknownComputer(cfg.computer) ? cfg.computer! : null;
+      const st = await CollectionStore.load(glue, p, c, shared ? (computer ? { me: computer } : { shownOnly: true }) : {});
+      if (shared && computer) await repair(glue, st, p, c, computer);
       st.onWrote = paths => { wrote(p, c, paths); changed(p, c, paths); };
       return st;
     })();
@@ -66,6 +71,23 @@ export function store(cfg: HomeConfig, p: string, c: string): Promise<Collection
   }
   return s;
 }
+/** A shared collection's parts written under another id (the old stand-in, another folder's claim), folded back
+    into this computer, once (ADR 0108): a backup of the profile first (backups/pre-repair-…zip), then the fold,
+    saved and sent up like an edit. A backup that fails puts nothing right. */
+async function repair(glue: Dir, st: CollectionStore, p: string, c: string, computer: string) {
+  const r = st.foldComputer(computer);
+  if (!r) return;
+  const profile = JSON.parse(await bridge.glueRead(`profiles/${p}/profile.json`)) as Profile;
+  await writeBlob(glue, `backups/pre-repair-${new Date().toISOString().slice(0, 10)}-${p}-${c}.zip`, await buildBackup(glue, profile, { songs: false }));
+  const twins = new Map<string, Track>();
+  for (const [from, into] of r.twins) { const t = st.tracks.get(into); if (t) twins.set(from, t); }
+  absorbTracks(st, twins);
+  await removePath(glue, `profiles/${p}/collections/${c}/dupes/${OLD_STAND_IN}.json`).catch(() => {});
+  await flushEdit(st, p, c);
+  const n = r.counts.copiesMoved + r.counts.copiesDropped + r.counts.analysesMoved + r.counts.twins;
+  on.event?.('Put this computer’s part of “' + st.meta.name + '” back under it' + (n ? ' (' + n + ' record' + (n === 1 ? '' : 's') + ')' : ''));
+}
+
 /** Files changed under a store by another writer (the shared sync): read again, and in the feed. */
 export async function reload(cfg: HomeConfig, p: string, c: string, paths: string[]) {
   if (!paths.length) return;

@@ -104,8 +104,11 @@ export type HomeState = { dir: Dir; kind: 'folder' | 'private'; granted: boolean
 export async function restoreHome(): Promise<HomeState> {
   let saved: { dir: Dir; kind: 'folder' | 'private' } | undefined;
   try { saved = await idbGet(HOME_KEY); } catch { saved = undefined; }
-  // GLUE Home's GLUE folder, unless this browser keeps its data elsewhere (another folder, or the
-  // browser's own storage): then it stays in browser mode rather than show another library.
+  // GLUE Home's GLUE folder, unless this browser keeps its data in another folder: then it stays in browser
+  // mode rather than show another library. A library in the browser's own storage (made when this browser
+  // opened the account's collections with no folder, ADR 0077) gives way to it: a computer with GLUE Home has
+  // one library, its GLUE folder (ADR 0108; Edge's own copy claimed the desktop's songs, 2026-09-30). The
+  // browser's copy stays, unused.
   const r = await homeRoots(true);
   if (r?.glue && disk) {
     const dir = disk.dir(r.glue);
@@ -113,7 +116,7 @@ export async function restoreHome(): Promise<HomeState> {
     // Can't read this browser's own folder without a click: the same folder name is taken as the same
     // folder (GLUE Home found it where the website keeps it), so no prompt is needed.
     const same = mine ? await sameText(mine, dir) : saved?.kind === 'folder' && saved.dir.name === dir.name;
-    if (!saved || same) { active = true; return { dir, kind: 'folder', granted: true }; }
+    if (!saved || same || saved.kind === 'private') { active = true; return { dir, kind: 'folder', granted: true }; }
   }
   active = false;
   if (!saved) return null;

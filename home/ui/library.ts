@@ -2,13 +2,14 @@
    (the website stays its only writer), and where its music folders are on disk: found by itself. */
 import { bridge, type HomeConfig } from './bridge';
 import { INCOMING_ROOT, shardOf, type Collection, type HomeIndex, type Profile, type Track } from '../../src/store/types';
-import { collectionHere, meFor, toLocal, type SharedCollection, type SharedTrack } from '../../src/core/shared/project';
+import { collectionHere, meFor, toLocal, unknownComputer, type SharedCollection, type SharedTrack } from '../../src/core/shared/project';
 
 /** A collection as this computer has it: a shared one (ADR 0094) seen as this computer (its music
-    folders, its copy of each song); any other as it is. */
-export function here(meta: Collection | SharedCollection | null, pid: string, cid: string, device?: string | null) {
+    folders, its copy of each song); any other as it is. `computer`: this computer as GLUE Home knows it (ADR
+    0108); not known yet, the member this folder's entry names (for reading only: nothing is written from here). */
+export function here(meta: Collection | SharedCollection | null, pid: string, cid: string, computer?: string | null) {
   const sc = meta && (meta as SharedCollection).shared ? meta as SharedCollection : null;
-  const me = sc ? meFor(sc, pid, device) ?? '' : '';
+  const me = sc ? (!unknownComputer(computer) ? computer! : meFor(sc, pid) ?? '') : '';
   return {
     meta: sc ? collectionHere(sc, me) : meta as Collection | null,
     track: (t: Track | SharedTrack): Track => sc ? toLocal(t as SharedTrack, { me, collection: cid, members: sc.members ?? {} }) : t as Track,
@@ -17,6 +18,21 @@ export function here(meta: Collection | SharedCollection | null, pid: string, ci
 
 async function json<T>(rel: string): Promise<T | null> {
   try { return JSON.parse(await bridge.glueRead(rel)) as T; } catch { return null; }
+}
+
+/** The profile folder a collection is in, asked for with another folder's id (a computer's entry that named
+    the wrong one, ADR 0108): the one that has it. Remembered for a minute (a song streams in many parts). */
+const folders = new Map<string, { p: string; at: number }>();
+export async function folderOf(profile: string, collection: string): Promise<string> {
+  const k = profile + '/' + collection, known = folders.get(k);
+  if (known && Date.now() - known.at < 60_000) return known.p;
+  let p = profile;
+  if (!await json(`profiles/${profile}/collections/${collection}/collection.json`)) {
+    const index = await json<HomeIndex>('mco.json');
+    for (const ref of index?.profiles ?? []) { const pf = await json<Profile>(`profiles/${ref.id}/profile.json`); if (pf?.collections.some(c => c.id === collection)) { p = pf.id; break; } }
+  }
+  folders.set(k, { p, at: Date.now() });
+  return p;
 }
 
 export interface LibraryInfo { profiles: { id: string; name: string; collections: { id: string; name: string; roots: Collection['roots'] }[] }[] }
@@ -118,7 +134,7 @@ export async function trackPath(profile: string, collection: string, id: string,
   if (!shared(cfg, profile, collection)) throw new Error('That collection isn’t shared by GLUE Home (see its settings).');
   const base = `profiles/${profile}/collections/${collection}`;
   const shard = await json<{ items: Record<string, Track> }>(`${base}/tracks/${shardOf(id)}.json`);
-  const h = here(await json<Collection | SharedCollection>(`${base}/collection.json`), profile, collection, cfg.deviceId);
+  const h = here(await json<Collection | SharedCollection>(`${base}/collection.json`), profile, collection, cfg.computer);
   const t = shard?.items[id] ? h.track(shard.items[id]) : null;
   if (!t) throw new Error('That song isn’t in this computer’s GLUE library.');
   if (t.fileKey?.startsWith('copy:')) return { path: join(cfg.glue!, t.fileKey.slice(5)), name: t.fileName, mtime: t.mtime ?? 0, size: t.size };

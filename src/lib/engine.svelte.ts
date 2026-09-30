@@ -37,15 +37,21 @@ class EngineClient {
   }
   private where() { const s = lib.store, p = lib.profile; return s && p ? { p: p.id, c: s.meta.id } : null; }
 
+  /** Which computer GLUE Home says this is (ADR 0108); null: it doesn't know yet, or it's from before 0.34. */
+  async computer(): Promise<string | null> { return (await this.rpc<{ computer?: string | null }>({ op: 'hello' }, 5000)).computer ?? null; }
+
   /** In Home mode, with an engine that answers: the open collection's changes go to it. */
   async check() {
     const on = homeMode() && !!localHome.link && !!lib.store && !lib.readOnly;
     if (!on) { this.detach(); return; }
     if (this.attached === lib.store) return;
-    try { const h = await this.rpc<{ engine?: number; rev: number }>({ op: 'hello' }, 5000); if (!h.engine) throw new Error('an older GLUE Home'); this.rev = h.rev; }
+    let computer: string | null = null;
+    try { const h = await this.rpc<{ engine?: number; rev: number; computer?: string | null }>({ op: 'hello' }, 5000); if (!h.engine) throw new Error('an older GLUE Home'); this.rev = h.rev; computer = h.computer ?? null; }
     catch { this.detach(); return; }   // GLUE Home from before its engine: this tab writes, as before
     const s = lib.store;
     if (!s) return;
+    // Opened as another computer than GLUE Home's (before it knew, ADR 0108): seen again as GLUE Home's.
+    if (computer && s.shared && s.shared.here.me !== computer) { void lib.openCollection(s.meta.id); return; }
     await lib.flush();   // what this tab had waiting, saved first (as it did before)
     setLeaseHeld(false);
     const w = this.where();

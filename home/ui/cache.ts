@@ -194,7 +194,7 @@ export async function background(cfg: () => HomeConfig | null, busy: () => boole
       const k = await kept(p.id, col.id), have = new Set(k.thumbs), waves = new Set(k.waves);
       let meta: Collection | SharedCollection | null = null;
       try { meta = JSON.parse(await bridge.glueRead(`profiles/${p.id}/collections/${col.id}/collection.json`)); } catch { /* none */ }
-      const h = here(meta, p.id, col.id, c0.deviceId);
+      const h = here(meta, p.id, col.id, c0.computer);
       for (const a of HEX) for (const b of HEX) {
         let shard: { items: Record<string, Track> } | null = null;
         try { shard = JSON.parse(await bridge.glueRead(`profiles/${p.id}/collections/${col.id}/tracks/${a + b}.json`)); } catch { /* no such shard */ }

@@ -8,6 +8,7 @@
 import { lib } from './library.svelte';
 import { account } from './account.svelte';
 import { shared } from './shared.svelte';
+import { homeMode } from '../platform';
 
 class Anywhere {
   /** Opening now (the start page says so). */
@@ -25,6 +26,8 @@ class Anywhere {
 
   /** This device has no library of its own. */
   private bare() {
+    // A computer whose GLUE Home keeps its library: that's its library (ADR 0108).
+    if (homeMode()) return false;
     if (lib.phase === 'welcome') return true;
     if (lib.homeKind !== 'private') return false;
     const profiles = lib.home?.index.profiles.length ?? 0;

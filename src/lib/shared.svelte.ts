@@ -13,7 +13,9 @@ import { makeShared, moveInto } from '../store/shared/seed';
 import { buildBackup } from '../store/backup';
 import { writeBlob } from '../store/fsx';
 import { moveCaches } from '../store/shared/caches';
-import { cacheDir } from '../platform';
+import { cacheDir, homeMode } from '../platform';
+import { localHome } from './localHome.svelte';
+import { engineClient } from './engine.svelte';
 import { resolveClash, syncShared, waitingClashes, type Place, type SharedCloud } from '../store/shared/engine';
 import { mergeBoth, type Clash } from '../core/shared/merge3';
 
@@ -247,7 +249,15 @@ export const shared = new Shared();
 dupes.onPublished = () => void shared.sync(true);
 
 // Opened as this computer; synced after saves, when another device pushed, and when it opens.
-lib.loadOpts = () => ({ me: account.thisDevice, name: account.devices.find(d => d.id === account.thisDevice)?.name });
+/** Which computer a shared collection is seen as here (ADR 0108): GLUE Home's, where it's the library's engine;
+    else this browser's device; else the one this GLUE folder remembers. Said by GLUE Home or a sign-in, it's
+    remembered in the GLUE folder. None: the collection is read, and nothing is written for this computer. */
+lib.loadOpts = async () => {
+  const home = homeMode() && localHome.link ? await engineClient.computer().catch(() => null) : null;
+  const me = home ?? account.thisDevice ?? lib.home?.index.computer ?? null;
+  if ((home ?? account.thisDevice) && me && !lib.readOnly) await lib.home?.rememberComputer(me).catch(() => {});
+  return { me, name: account.devices.find(d => d.id === me)?.name };
+};
 const prevFlushed = lib.onFlushed;
 lib.onFlushed = pid => { prevFlushed?.(pid); if (lib.store?.shared) { clearTimeout(flushTimer); flushTimer = window.setTimeout(() => void shared.sync(), 1500); } };
 let flushTimer = 0;

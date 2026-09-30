@@ -18,6 +18,8 @@ export class HomeStore {
   }
 
   private saveIndex() { return writeJSON(this.root, 'mco.json', this.index); }
+  /** Which computer this GLUE folder is on (ADR 0108), once GLUE Home or a sign-in has said. */
+  async rememberComputer(id: string) { if (this.index.computer === id) return; this.index.computer = id; await this.saveIndex(); }
   private profilePath(pid: string) { return `profiles/${pid}/profile.json`; }
 
   async createProfile(name: string): Promise<Profile> {

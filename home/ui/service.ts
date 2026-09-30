@@ -11,10 +11,11 @@ import { backupDaily } from './backups';
 import { syncSharedHere } from './sharedSync';
 import { followMoves } from './moves';
 import * as analysis from './analysis';
-import { describe, locateAll, newlyFound, trackPath } from './library';
+import { describe, locateAll, newlyFound, trackPath, folderOf } from './library';
 import { findUpdate, install, version } from './updates';
 import * as engine from './engine';
 import { checkReminders } from './reminders';
+import { whoAmI } from './identity';
 import * as ice from './ice';
 
 let cfg: HomeConfig | null = null;
@@ -42,7 +43,7 @@ let servedTimer = 0;
 const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), events: events.slice(), reminders, served: structuredClone(served) };
+  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), events: events.slice(), reminders, served: structuredClone(served), computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -55,7 +56,7 @@ function start() {
   if (!isRunning(cfg)) return report('stopped', 'Stopped');
   report('connecting', 'Connecting…');
   room = stayOnline(apiOf(cfg), cfg.deviceId, cfg.token, e => {
-    if (e.type === 'online') { report('online', 'Online as ' + cfg!.name + (cfg!.user?.email ? ' · ' + cfg!.user.email : '')); void ice.iceServers(apiOf(cfg!), cfg!.deviceId!, cfg!.token!); }
+    if (e.type === 'online') { learnComputer(); report('online', 'Online as ' + cfg!.name + (cfg!.user?.email ? ' · ' + cfg!.user.email : '')); void ice.iceServers(apiOf(cfg!), cfg!.deviceId!, cfg!.token!); }
     else if (e.type === 'offline') report('offline', 'Offline: ' + e.why);
     else if (e.type === 'replaced') report('stopped', 'Stopped: GLUE Home started on another computer with this account’s same device');
     else if (e.type === 'removed') void unpaired();
@@ -214,6 +215,10 @@ function serve(dc: RTCDataChannel) {
       return;
     }
     step(async () => {
+      // Asked with a folder that isn't this collection's (a computer's entry that named the wrong one, ADR 0108):
+      // the folder that has it.
+      const pc = c as { profile?: string; collection?: string };
+      if (pc.profile && pc.collection) pc.profile = await folderOf(pc.profile, pc.collection);
       if (c.t === 'get') {
         const seen = { ...(need().folders ?? {}) };
         const f = await trackPath(c.profile, c.collection, c.track, need());
@@ -387,7 +392,8 @@ async function rpc(b: Rpc): Promise<unknown> {
   const c = cfg;
   if (!c) throw new Error('GLUE Home isn’t set up yet');
   switch (b.op) {
-    case 'hello': return { engine: 1, version: await version().catch(() => ''), rev: engine.status().rev };
+    // `computer`: which computer this is (ADR 0108), for a GLUE tab here to see the library as.
+    case 'hello': return { engine: 1, version: await version().catch(() => ''), rev: engine.status().rev, computer: c.computer ?? null };
     case 'wait': return engine.wait(Number(b.since) || 0);
     case 'open': engine.drop(b.p, b.c); return { ok: true };
     case 'status': return { ...engine.status(), analysis: analysis.state };
@@ -403,6 +409,29 @@ async function rpc(b: Rpc): Promise<unknown> {
     case 'job': await engine.addJob(() => cfg, { kind: b.kind, p: b.p, c: b.c, ids: b.ids }); return { queued: true };
     default: throw new Error('GLUE Home doesn’t know that request');
   }
+}
+
+/** Which computer this is (ADR 0108): asked of GLUE Cloud (and this disk's music folders); saved when it
+    changes, and then everything here reads the library as that computer again (and puts right what was written
+    under another id). An unreachable GLUE Cloud changes nothing. */
+let learning: Promise<void> | null = null;
+function learnComputer() {
+  const c0 = cfg;
+  if (learning || !c0?.deviceId || !c0.token) return;
+  learning = (async () => {
+    const who = await whoAmI(c0, apiOf(c0)).catch(() => null);
+    if (!who || (who.computer === (cfg?.computer ?? null) && who.why === (cfg?.computerWhy ?? ''))) return;
+    await setComputer(who.computer, who.why);
+  })().finally(() => { learning = null; });
+}
+async function setComputer(computer: string | null, why: string) {
+  const was = cfg?.computer ?? null;
+  cfg = await bridge.patchConfig(() => ({ computer, computerWhy: why })).catch(() => cfg) ?? cfg;
+  if (computer === was) { report(state, text); return; }
+  engine.forget();
+  event(computer ? 'This computer is known (' + why + '): its songs are read and written as its own' : 'Which computer this is isn’t known (' + why + '): nothing is written for it');
+  report(state, text);
+  if (computer) { void analysis.run(() => cfg); sharedSoon(); }
 }
 
 /** New settings (joined an account, another incoming folder, a folder picked): acted on, reconnecting when
@@ -475,8 +504,12 @@ async function boot() {
     if (!browser || !cfg?.deviceId || !cfg.token) return;
     const api = apiOf(cfg), t = await access(api, cfg.deviceId, cfg.token);
     const r = await fetch(api + '/v1/computer/attach', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ browser }) });
-    if (!r.ok) console.warn('GLUE Home: couldn’t attach the browser', r.status, await r.text().catch(() => ''));
+    if (!r.ok) { console.warn('GLUE Home: couldn’t attach the browser', r.status, await r.text().catch(() => '')); return; }
+    // The device it's now: this computer (ADR 0108).
+    const j = await r.json().catch(() => ({})) as { device?: string };
+    if (j.device) await setComputer(j.device, 'a GLUE tab on this computer');
   })().catch(e => console.warn('GLUE Home: couldn’t attach the browser', e)));
+  setInterval(learnComputer, 3600e3);
   setTimeout(() => void remind(), 90_000);
   setInterval(() => void remind(), 3600e3);
   // A collection that went into another (ADR 0102): this cache follows it, soon after starting and hourly.

@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M6
-updated: 2026-09-28
+updated: 2026-09-30
 adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
@@ -385,3 +385,9 @@ First release: phases 1–3 (user, 2026-09-25).
 - **GLUE Home syncs shared collections (2026-09-28, GLUE Home 0.24, [ADR 0097](../adr/0097-glue-home-syncs-shared-collections.md)):** with no GLUE tab open, it takes in other devices' changes, writes song info edited elsewhere into this computer's files, and streams shared songs.
 - **Duplicates across computers (2026-09-28, [ADR 0098](../adr/0098-duplicates-across-computers.md)):** each computer publishes the same-recording matches among its own songs; every device shows the 2×/3× badge on them.
 - **Every computer's DJ libraries (2026-09-28, [ADR 0099](../adr/0099-dj-libraries-belong-to-their-computer.md)):** shown on every device with the computer's name and icon; their playlists can be imported from any device; only their own computer reads them.
+
+## One id per computer (2026-09-30, GLUE Home 0.34, [ADR 0108](../adr/0108-one-id-per-computer.md))
+- GLUE Home knows which computer it's on: `GET /v1/computer` (its companion), or its music folders, which
+  it vouches for. It's saved as `computer` in its settings and shown in Activity.
+- Only that computer's GLUE folder writes its parts of a shared collection; nothing is written under a
+  stand-in. GLUE Home put the desktop's songs back under it once, after a backup.

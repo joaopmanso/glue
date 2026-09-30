@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-28
+updated: 2026-09-30
 ---
 # GLUE vault
 
@@ -179,5 +179,6 @@ Planned (GLUE):
 | [0105](adr/0105-pace-cloud-pushes-and-analyse-more-at-once.md) | Pace pushes to GLUE Cloud; GLUE Home analyses as many songs at once as the computer allows | accepted; pacing superseded by 0106 |
 | [0106](adr/0106-shared-collection-as-a-snapshot-and-a-log.md) | Keep the shared collection in GLUE Cloud as a snapshot and a log of changes | accepted |
 | [0107](adr/0107-sync-looks-only-at-what-changed.md) | The shared sync looks only at the files that changed, and keeps its agreed copies file by file | accepted |
+| [0108](adr/0108-one-id-per-computer.md) | One id per computer: GLUE Home learns it, only the computer's GLUE folder writes its parts, nothing writes a stand-in | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

@@ -14,7 +14,7 @@ import { describe, here } from './library';
 import * as cache from './cache';
 import * as engine from './engine';
 import { afterAnalysis, needsAnalysis } from '../../src/core/library/analysed';
-import { meFor, type SharedCollection } from '../../src/core/shared/project';
+import { unknownComputer, type SharedCollection } from '../../src/core/shared/project';
 import { ANALYSIS_VERSION, type AnalysisSummary, type Collection, type Track } from '../../src/store/types';
 
 export interface AnalysisState {
@@ -92,8 +92,11 @@ async function scan(cfg: HomeConfig): Promise<Job[]> {
     let meta: Collection | SharedCollection | null = null;
     try { meta = JSON.parse(await bridge.glueRead(`profiles/${p.id}/collections/${col.id}/collection.json`)); } catch { continue; }
     if (!meta || (meta as { movedTo?: string }).movedTo) continue;
-    const sh = (meta as SharedCollection).shared ? meta as SharedCollection : null, me = sh ? meFor(sh, p.id, cfg.deviceId) : null;
-    const h = here(meta, p.id, col.id, cfg.deviceId), waiting = pending.get(key(p.id, col.id));
+    const sh = (meta as SharedCollection).shared ? meta as SharedCollection : null;
+    // A shared collection: this computer's songs, once GLUE Home knows which computer it is (ADR 0108).
+    if (sh && unknownComputer(cfg.computer)) continue;
+    const me = sh ? cfg.computer! : null;
+    const h = here(meta, p.id, col.id, cfg.computer), waiting = pending.get(key(p.id, col.id));
     // The shards there are (listed, not guessed).
     for (const f of (await bridge.glueList(`profiles/${p.id}/collections/${col.id}/tracks`).catch(() => [] as string[])).filter(n => n.endsWith('.json'))) {
       let tracks: Record<string, Track> = {}, an: Record<string, unknown> = {};
@@ -120,6 +123,8 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
   await load();
   if (looping) return;
   looping = true;
+  // What this run did: "Analysis done" tells only that (it ran every minute with the day's total, 2026-09-30).
+  const done0 = state.done, failed0 = state.failed;
   try {
     const c0 = cfg();
     if (!c0?.glue) return;
@@ -154,7 +159,8 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
     for (let n = 0; n < running.length; n = running.length) await Promise.all(running.slice(n));
     const c1 = cfg();
     if (c1) await write(c1).catch(e => console.warn('GLUE Home: couldn’t take the analyses in', e));
-    if (!state.left && state.done) hooks.event?.('Analysis done: ' + state.done + ' song' + (state.done === 1 ? '' : 's') + (state.failed ? ', ' + state.failed + ' couldn’t be read' : ''));
+    const done = state.done - done0, failed = state.failed - failed0;
+    if (!state.left && (done || failed)) hooks.event?.('Analysis done: ' + done + ' song' + (done === 1 ? '' : 's') + (failed ? ', ' + failed + ' couldn’t be read' : ''));
   } finally {
     looping = false; state.running = 0; state.current = []; state.left = urgent.length + queue.length;
     if (state.by !== 'tab-self') state.by = 'idle';

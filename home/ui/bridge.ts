@@ -36,6 +36,11 @@ export interface HomeConfig {
   localToken?: string;          // what the website on this computer shows the local link (ADR 0048)
   duplicates?: string | null;   // where duplicates the website puts aside go (ADR 0070)
   reminders?: boolean;          // notify of events that need music (ADR 0074; on unless false)
+  /** The computer GLUE Home is on (ADR 0108): the account device its shared parts go under; learned from GLUE
+      Cloud (its companion) or its music folders. None yet: nothing per computer is written. */
+  computer?: string | null;
+  /** Why it isn't known (for the Activity page). */
+  computerWhy?: string;
 }
 export interface Received { name: string; path: string; from: string; at: number; size: number }
 
@@ -47,6 +52,8 @@ export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online
   analysis?: { done: number; total: number; running: boolean };
   /** Analysing this computer's songs for the library (ADR 0103). */
   analysing?: import('./analysis').AnalysisState;
+  /** Which computer this is (ADR 0108), and how GLUE Home knows (or why it doesn't). */
+  computer?: { id: string | null; why: string };
   /** The library engine (ADR 0104): its revision, and the jobs under way. */
   engine?: import('./engine').EngineStatus;
   /** What GLUE Home did lately, newest first (the settings window shows each new one as a toast). */

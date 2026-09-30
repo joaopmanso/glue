@@ -477,6 +477,8 @@ test('a shared collection with no GLUE tab open: GLUE Home takes in another devi
       const json = (b: unknown) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
       if (p === '/v1/me') return json({ user: { id: 'u1' }, thisDevice: 'hdesk', devices: [{ id: 'hdesk', kind: 'home', name: 'Desktop' }], sessions: [] });
       if (p === '/v1/sync/ops') return json({ ops: [] });
+      // Which computer GLUE Home is on (ADR 0108): here its own id doubles as the computer's.
+      if (p === '/v1/computer') return json({ computer: 'hdesk' });
       if (p === '/v1/turn') return json({ iceServers: [], ttl: 0 });
       const a = await server.answer(req.method(), u, req.postData(), 'hdesk');
       if (a) return r.fulfill({ status: a.status, contentType: a.type, body: a.body });
@@ -553,6 +555,14 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
     const texts = ((await status())?.events ?? []).map(e => e.text);
     expect(texts).toContain('Analysing 2 songs');
     expect(texts.some(t => t.startsWith('Put 2 analyses into the library'))).toBe(true);
+    // "Analysis done" once: a later run with nothing to do says nothing (it said the day's total every minute,
+    // 2026-09-30). A run asked for with no songs stands in for the minute's.
+    const done = async () => ((await status())?.events ?? []).filter(e => e.text.startsWith('Analysis done')).length;
+    await expect.poll(done, { timeout: 20_000 }).toBe(1);
+    await home.evaluate(() => (window as unknown as { __tauriEvent: (e: string, p: unknown) => void }).__tauriEvent('rpc', { id: 1, body: JSON.stringify({ op: 'analyse', p: 'p1', c: 'c1', ids: [] }), read: false }));
+    await expect.poll(async () => ((await status())?.events ?? []).some(e => e.text.includes('as asked')), { timeout: 20_000 }).toBe(true);
+    await home.waitForTimeout(3000);
+    expect(await done()).toBe(1);
     await home.close();
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

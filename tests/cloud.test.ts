@@ -290,6 +290,21 @@ describe('computers and sessions (ADR 0091)', () => {
     // Edge's sign-in still works (both browsers are one device).
     expect((await call('POST', '/v1/auth/refresh', { refresh: edge.json.refresh })).json.deviceId).toBe(edge.json.deviceId);
   });
+  it('GLUE Home asks which computer it’s on (ADR 0108): its companion; a merge moves the companion with it', async () => {
+    const edge = await signIn({}, { deviceName: 'Edge on Windows' });
+    const home = (await call('POST', '/v1/pairing/claim', { code: (await call('POST', '/v1/pairing', {}, edge.json.access)).json.code, name: 'Desktop' })).json;
+    const ha = (await call('POST', '/v1/auth/device', { deviceId: home.deviceId, token: home.token })).json.access;
+    expect((await call('GET', '/v1/computer', undefined, ha)).json).toEqual({ computer: edge.json.deviceId });
+    // Only a GLUE Home asks.
+    expect((await call('GET', '/v1/computer', undefined, edge.json.access)).status).toBe(403);
+    // Its browser (a sign-in with no library of its own, as older accounts had) merged by hand into another
+    // device of the same computer: the GLUE Home follows it.
+    await env.DB.prepare("UPDATE devices SET role = 'browse' WHERE id = ?").bind(edge.json.deviceId).run();
+    const chrome = await signIn({}, { deviceName: 'Chrome on Windows' }); await upload(chrome.json.access, 4, 'c7');
+    expect((await call('POST', '/v1/devices/' + chrome.json.deviceId + '/same-computer', {}, edge.json.access)).json).toEqual({ device: chrome.json.deviceId });
+    expect((await call('GET', '/v1/computer', undefined, ha)).json).toEqual({ computer: chrome.json.deviceId });
+    expect((await devices(chrome.json.access)).devices.find(d => d.kind === 'home')!.companionOf).toBe(chrome.json.deviceId);
+  });
   it('a browser with a library of its own isn’t joined into another; by hand, one with none is', async () => {
     const a = await signIn({}, { deviceName: 'Edge' }); await upload(a.json.access, 5);
     const b = await signIn({}, { deviceName: 'Firefox' });

@@ -365,7 +365,7 @@ class Library {
     if (!this.home || !this.profile || !this.homeDir) return;
     await this.closeCollection();
     const t0 = performance.now();
-    const s = await CollectionStore.load(this.homeDir, this.profile.id, cid, this.loadOpts?.() ?? {});
+    const s = await CollectionStore.load(this.homeDir, this.profile.id, cid, await this.loadOpts?.() ?? {});
     s.onChange = () => { this.version++; };
     // A sync brought files in (a shared collection, ADR 0094): redraw, nothing to save or send.
     s.onReloaded = () => { this.version++; };
@@ -410,8 +410,8 @@ class Library {
     if (this.profile.collections[0]) await this.openCollection(this.profile.collections[0].id);
     else this.phase = 'collections';
   }
-  /** How a collection is opened (a shared one is seen as this computer, ADR 0094). */
-  loadOpts: (() => LoadOpts) | null = null;
+  /** How a collection is opened (a shared one is seen as this computer, ADR 0094, 0108). */
+  loadOpts: (() => LoadOpts | Promise<LoadOpts>) | null = null;
   /** Before the open collection closes (cloud sync lets go of it, ADR 0089). */
   onCollectionClosing: (() => void) | null = null;
   /** Closed: saved, analysis stopped, nothing more written for it (before its files change under it). */

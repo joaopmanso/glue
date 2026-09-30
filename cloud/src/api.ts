@@ -80,6 +80,8 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     // A browser on a GLUE Home's computer joins that computer (ADR 0091): asked by the GLUE Home, which only a
     // browser on the same computer can reach (its local link on 127.0.0.1).
     if (m === 'POST' && path === '/v1/computer/attach') return reply(await attach(env, a, str((await body()).browser, 40), now));
+    // Which computer a GLUE Home is on (ADR 0108): its companion, the device a computer's shared parts are under.
+    if (m === 'GET' && path === '/v1/computer') return reply(await computerOf(env, a));
     // By hand, without GLUE Home: this browser is the same computer as another of the account's devices.
     const sc = /^\/v1\/devices\/([\w-]+)\/same-computer$/.exec(path);
     if (m === 'POST' && sc) return reply(await join(env, a.sub, a.dev, sc[1], now));
@@ -303,6 +305,14 @@ async function attach(env: Env, a: Access, browser: string, now: number) {
   }
   return join(env, a.sub, b.id, primary.id, now);
 }
+/** The device a GLUE Home's computer is (ADR 0108): its companion while that's a live device, else none (it
+    learns it again: a browser on its computer attaches, or it vouches for the one its music folders show). */
+async function computerOf(env: Env, a: Access) {
+  const home = await env.DB.prepare("SELECT * FROM devices WHERE id = ? AND user_id = ? AND kind = 'home' AND revoked_at IS NULL").bind(a.dev, a.sub).first<DeviceRow>();
+  if (!home) throw new HttpError(403, 'only a GLUE Home asks which computer it is on');
+  const c = home.companion_of ? await env.DB.prepare('SELECT id FROM devices WHERE id = ? AND user_id = ? AND revoked_at IS NULL').bind(home.companion_of, a.sub).first<{ id: string }>() : null;
+  return { computer: c?.id ?? null };
+}
 /** Browser `from` becomes device `into` (same account): its sign-ins move over, and its own record goes.
     Refused when it holds music of its own (a device, not a session). */
 async function join(env: Env, userId: string, from: string, into: string, now: number) {
@@ -316,6 +326,8 @@ async function join(env: Env, userId: string, from: string, into: string, now: n
     env.DB.prepare("UPDATE credentials SET device_id = ? WHERE device_id = ? AND user_id = ? AND kind = 'refresh'").bind(into, from, userId),
     env.DB.prepare("UPDATE devices SET role = 'device' WHERE id = ?").bind(into),
     env.DB.prepare('UPDATE devices SET revoked_at = ? WHERE id = ? AND user_id = ?').bind(now, from, userId),
+    // A GLUE Home that served the browser now serves the device it became (ADR 0108): its computer stays known.
+    env.DB.prepare('UPDATE devices SET companion_of = ? WHERE companion_of = ? AND user_id = ?').bind(into, from, userId),
     env.DB.prepare('DELETE FROM sync_files WHERE device_id = ?').bind(from),
     env.DB.prepare('DELETE FROM sync_profiles WHERE device_id = ?').bind(from),
     env.DB.prepare('DELETE FROM sync_links WHERE device_id = ?').bind(from),

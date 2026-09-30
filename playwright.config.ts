@@ -9,7 +9,7 @@ const live = process.env.BASE_URL;
 // The tests with several browsers or a stand-in GLUE Home: heavy, and the ones that failed only when run
 // next to everything else. They get their own project, two at a time; every other test runs in parallel.
 // Also tagged @heavy: the ones inside other files (GLUE Home, GLUE Cloud, the local link).
-const HEAVY = /(computers|shared|phone|homemode|home)\.spec\.ts|@heavy/;
+const HEAVY = /(computers|shared|phone|homemode|home|identity)\.spec\.ts|@heavy/;
 export default defineConfig({
   testDir: 'e2e',
   timeout: 120_000,

@@ -210,6 +210,7 @@
 
       <section id="sec-now">
         <h2>Activity</h2>
+        {#if status?.computer}<p class="fine" id="computer-state">{status.computer.id ? 'This computer’s songs are its own in shared collections (known from ' + status.computer.why + ').' : 'Which computer this is isn’t known yet' + (status.computer.why ? ' (' + status.computer.why + ')' : '') + ': shared collections are read, and nothing is written for this computer.'}</p>{/if}
         {#if an}
           <p id="an-state">
             {#if an.running}Analysing {an.running} song{an.running === 1 ? '' : 's'}{an.left ? ' · ' + an.left.toLocaleString() + ' to go' : ''}
