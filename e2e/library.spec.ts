@@ -2537,6 +2537,11 @@ test('duplicates by hand: songs marked as duplicates group; “Keep · not a dup
   const grp = page.locator('.grp', { hasText: 'you marked them as duplicates' });
   await expect(grp).toHaveCount(1);
   await expect(grp.locator('li')).toHaveCount(2);
+  // Each copy's buttons stay clear of "in no playlist" (they spilled over it, 2026-09-30).
+  for (const li of await grp.locator('li').all()) {
+    const a = (await li.locator('.lists').boundingBox())!, b = (await li.locator('.act').boundingBox())!;
+    expect(a.x + a.width <= b.x || b.y >= a.y + a.height || b.y + b.height <= a.y).toBe(true);
+  }
   // One of them isn't (another version): it leaves the group, and the group goes.
   await grp.locator('li', { hasText: 'Fixture MP3' }).locator('[data-apart]').click();
   await expect(page.locator('.grp', { hasText: 'Fixture FLAC' })).toHaveCount(0);

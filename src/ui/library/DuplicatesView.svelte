@@ -230,7 +230,7 @@
   .kind.probable { color: var(--warn); }
   .sim { color: var(--muted); font-size: 12.5px; flex: 1; }
   ul { list-style: none; margin: 0; padding: 0; }
-  li { display: grid; grid-template-columns: minmax(28px, auto) minmax(200px, 1fr) 130px 50px 70px 150px 110px 210px; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
+  li { display: grid; grid-template-columns: minmax(28px, auto) minmax(200px, 1fr) 130px 50px 70px 150px 110px max-content; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
   li:last-child { border-bottom: 0; }
   li.best { background: color-mix(in srgb, var(--ok) 7%, transparent); }
   li.focus { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 12%, transparent); transition: background .4s; }
@@ -242,7 +242,7 @@
   .mono { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
   .fmt { white-space: nowrap; }
   .lists { color: var(--muted); font-size: 12px; }
-  .act { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+  .act { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; justify-content: flex-end; }   /* sized to its buttons: they spilled over "in no playlist" (2026-09-30) */
   .bestb { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 1px 6px; }
   .q { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
   .q[data-grade="ok"] { color: var(--ok); } .q[data-grade="warn"] { color: var(--warn); } .q[data-grade="bad"] { color: var(--bad); } .q[data-grade="info"] { color: var(--muted); }
@@ -270,5 +270,5 @@
   .plan .more { color: var(--muted); }
   .acts { display: flex; gap: 8px; justify-content: flex-end; }
   .dangerbtn { background: var(--bad); border-color: var(--bad); color: #fff; }
-  @media (max-width: 1200px) { li { grid-template-columns: 28px minmax(160px, 1fr) 120px 140px 210px; } li > :nth-child(4), li > :nth-child(5), li > :nth-child(7) { display: none; } }
+  @media (max-width: 1200px) { li { grid-template-columns: 28px minmax(160px, 1fr) 120px 140px max-content; } li > :nth-child(4), li > :nth-child(5), li > :nth-child(7) { display: none; } }
 </style>

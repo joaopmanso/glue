@@ -5,6 +5,17 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · A home master's steep top end is lossless; the analysis bar shows GLUE Home's queue (GLUE Home 0.37.2)
+- **Fixed: a home master called "Caution: steep top end at 19.0 kHz, with content beyond"**
+  ([ADR 0118](../adr/0118-mastering-lowpass-from-17-khz.md)). No drop-outs under the step and content above it that
+  follows the music (20 dB under it): a mastering lowpass, "Lossless". `VERDICT_VERSION` 7 re-judges stored verdicts
+  on open.
+- **Fixed: the analysis bar said "Analysing · 0 left" while GLUE Home worked through 300 songs.** It showed only
+  the browser's count of songs waiting; it shows GLUE Home's own queue now.
+- **Fixed: Duplicates' buttons overlapped "in no playlist".** The column fits its buttons.
+- Another browser on the computer looks for GLUE Home more patiently (2 s per port) and again every 15 s until it
+  finds it, instead of once a minute (a busy computer could leave it on its own storage meanwhile).
+
 ## 2026-09-30 · Duplicates: versions kept apart; "Keep · not a duplicate" and "Mark as duplicates"
 - **Fixed: an instrumental and the vocal, a studio and a live take, a 4- and a 7-minute version grouped as
   duplicates** ([ADR 0117](../adr/0117-duplicates-are-one-version.md)). Copies are duplicates only if they're the

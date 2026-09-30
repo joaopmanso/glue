@@ -262,7 +262,12 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
   const edge = (fc >= 19600 && cut.drop < 35) || (fc >= SOFT_WALL.hz && cut.drop < SOFT_WALL.drop);
 
   if (lossless) {
-    if (lossySig && fc >= 19800 && holes != null && holes <= 0.02) {
+    // A mastering lowpass, not an encoder: near the top, a wall whose band under it never switches off (2026-09-28);
+    // or from 17 kHz, one that also has strong content above it that follows the music (within 25 dB of it). An
+    // encoder removes everything above its lowpass, all the time; a limiter after a lossy source adds only faint
+    // distortion up there (2026-09-30: a home master's 21 dB step at 19 kHz, content 20 dB under the music, was a
+    // caution).
+    if (lossySig && holes != null && holes <= 0.02 && (fc >= 19800 || (fc >= 17000 && !!beyond?.content && beyond.below <= 25))) {
       // Near the top, a wall whose band under it never switches off isn't an encoder's (2026-09-28).
       origin = 'Steep lowpass (mastering)';
       add('info', 'Steep top end at ' + kHz, 'The spectrum drops ' + Math.round(cut.drop) + ' dB at ' + kHz + ', but the band just under it carries on through every loud passage. Lossy encoders keep switching that band off moment to moment; a mastering or sample-rate-conversion lowpass doesn’t. So this is a lowpass, not a lossy source.' + (beyond && beyond.level > cut.globalFloor + 12 ? ' Quieter content above it, around ' + Math.round(beyond.level) + ' dB, moves with the music.' : ''));

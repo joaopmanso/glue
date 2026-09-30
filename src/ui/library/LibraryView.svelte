@@ -52,7 +52,9 @@
   // A DJ library's view shows its app's badge.
   const djApp = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'source' ? lib.store?.sources.get(s.id)?.app : s.kind === 'dj' ? lib.store?.sources.get(s.sourceId)?.app : undefined; });
   const count = $derived.by(() => { void lib.version; void view.search; return view.rows('camelot').length; });
-  const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
+  // Where GLUE Home analyses (ADR 0104), its own queue: what it has left, and what it's on now (it said "0 left" while
+  // GLUE Home worked through 300 songs, 2026-09-30).
+  const pending = $derived.by(() => { void lib.version; const st = engineClient.active ? engineClient.state?.analysis : null; return st ? Math.max(lib.pendingCount(), st.left + st.running) : lib.pendingCount(); });
   // Where songs can be added: the playlists as the sidebar shows them (ADR 0062), the user's own first,
   // then each import's (replaced when it's imported again). Folders are playlists too (ADR 0049).
   const targets = $derived.by(() => { void lib.version; return listTree(lib.store?.lists.values() ?? [], l => l.id === TO_BE_SORTED); });

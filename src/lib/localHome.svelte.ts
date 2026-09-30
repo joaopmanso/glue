@@ -35,7 +35,7 @@ async function connect(port: number, ms = 1500): Promise<LocalLink | null> {
 
 /** Any GLUE Home running on this computer, found by asking each of its ports (ADR 0091). */
 export async function discover(): Promise<{ port: number; device: string } | null> {
-  const found = await Promise.all(Array.from({ length: 10 }, (_, i) => 47400 + i).map(async port => { const h = await hello(port, 900); return h?.app === 'glue-home' && h.device ? { port, device: h.device } : null; }));
+  const found = await Promise.all(Array.from({ length: 10 }, (_, i) => 47400 + i).map(async port => { const h = await hello(port, 2000); return h?.app === 'glue-home' && h.device ? { port, device: h.device } : null; }));
   return found.find(Boolean) ?? null;
 }
 
@@ -59,6 +59,7 @@ class LocalHome {
       if (this.link) return;
       this.finding = null;
       void this.find();
+      if (account.signedIn) this.lookIfAccountHasOne();   // another browser here, signed in (ADR 0115): until found
     }, 5_000);
   }
   private learning = false;
@@ -105,9 +106,9 @@ class LocalHome {
     return true;
   }
   private lookedHere = 0;
-  /** Signed in to an account with a GLUE Home, and none linked here yet: look on this computer (once a minute). */
+  /** Signed in to an account with a GLUE Home, and none linked here yet: look on this computer (every 15 s at most). */
   lookIfAccountHasOne() {
-    if (this.link || Date.now() - this.lookedHere < 60_000 || !account.devices.some(d => d.kind === 'home')) return;
+    if (this.link || Date.now() - this.lookedHere < 15_000 || !account.devices.some(d => d.kind === 'home')) return;
     this.lookedHere = Date.now();
     void this.findHere();
   }

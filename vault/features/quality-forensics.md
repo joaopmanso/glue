@@ -2,7 +2,7 @@
 status: shipped
 milestone: Speklone
 updated: 2026-09-30
-adrs: [0002, 0033, 0034, 0116]
+adrs: [0002, 0033, 0034, 0116, 0118]
 ---
 # Quality forensics
 
@@ -89,3 +89,8 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
 - Checked on the user's Doechii 24/88.2 album (11 tracks: all genuine now), and on fakes made from it with
   soxr and with ffmpeg's default resampler (all upsampled; the default one used to pass).
 - Tests: `tests/verdict.test.ts` (a quiet genuine top end; music stopping at 23.5 kHz with a resampler's residue).
+
+## A mastering lowpass from 17 kHz (2026-09-30, [ADR 0118](../adr/0118-mastering-lowpass-from-17-khz.md))
+- A home master's 21 dB step at 19.0 kHz (`Loxy & Resound … Infectious.aiff`) was a caution. With no drop-outs under
+  it and content above that follows the music within 25 dB, it's "Lossless" now (from 17 kHz; from 19.8 kHz no
+  drop-outs alone still suffices).

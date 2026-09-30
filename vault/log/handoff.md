@@ -21,7 +21,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-09-30, end of day)
-- **Live:** site, GLUE Cloud (migrations up to 0010), GLUE Home 0.37.1.
+- **Live:** site, GLUE Cloud (migrations up to 0010), GLUE Home 0.37.2.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -32,7 +32,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the library: its place kept, name links, unreadable songs only in "Couldn't analyse", playlist numbers always
     shown, "Lower quality", the phone's count, the Overview's background;
   - quality: a quiet top end is still hi-res, and upsamples that passed are caught (ADR 0116);
-  - duplicates: versions kept apart, "Keep · not a duplicate", "Mark as duplicates" (ADR 0117).
+  - duplicates: versions kept apart, "Keep · not a duplicate", "Mark as duplicates" (ADR 0117);
+  - a mastering lowpass from 17 kHz is "Lossless" (ADR 0118), the analysis bar shows GLUE Home's queue, and
+    Duplicates' buttons no longer overlap.
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The

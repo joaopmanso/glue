@@ -195,5 +195,6 @@ Planned (GLUE):
 | [0115](adr/0115-any-browser-takes-glue-homes-link.md) | Any browser on GLUE Home's computer takes its link from GLUE Home itself | accepted |
 | [0116](adr/0116-hi-res-by-what-reaches-past-24-khz.md) | A hi-res file is judged by what reaches past 24 kHz above digital silence | accepted |
 | [0117](adr/0117-duplicates-are-one-version.md) | Duplicates are the same version of a song; the user can say which aren't, and which are | accepted |
+| [0118](adr/0118-mastering-lowpass-from-17-khz.md) | A steep top end from 17 kHz, with no drop-outs under it and strong content above, is a mastering lowpass | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |
