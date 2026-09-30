@@ -7,6 +7,7 @@ import { idbDel, idbGet, idbSet } from './idb';
 import { HomeDir, HomeDisk, type HomeRoots } from './homeDisk';
 export { HomeDown } from './homeDisk';
 import { INCOMING_ROOT, type Root } from '../store/types';
+import { AUDIO_EXT } from '../core/library/tags';
 
 // ─── Home mode ───────────────────────────────────────────────────────────────
 let disk: HomeDisk | null = null, roots: HomeRoots | null = null, active = false;
@@ -202,6 +203,40 @@ export async function pickMusicFolder(id: string): Promise<{ dir: Dir; key: stri
   const p = picker();
   if (!p) throw new Error('This browser can’t open folders; drop files onto GLUE instead.');
   return rememberFolder(await p({ id: 'mco-music', mode: 'read', startIn: 'music' }));
+}
+/** A folder dropped onto the page. In Home mode GLUE Home reads the music folders and analyses their songs, so it
+    must know where this one is: `find` asks it (the folder's name and a song in it; it remembers what it finds),
+    else its folder dialog asks. (2026-10-01: a dropped folder was the browser's only, and GLUE Home searched every
+    drive for each of its songs, so nothing was analysed.) */
+export async function droppedFolder(dir: Dir, id: string, find: (name: string, sample: string) => Promise<string | null>): Promise<{ dir: Dir; key: string; path?: string }> {
+  if (!(homeMode() && disk)) return rememberFolder(dir);
+  const at = await find(dir.name, await firstSong(dir) ?? '').catch(() => null);
+  const path = at ?? (await disk.pick(`folder:${id}`, 'Where is “' + dir.name + '”? GLUE Home needs to know')).path;
+  if (!path) throw Object.assign(new Error('No folder chosen'), { name: 'AbortError' });
+  roots = null;
+  return { dir: disk.dir(path), key: 'home:' + id, path };
+}
+/** A song in a folder (its path inside), looked for a few levels down. */
+async function firstSong(dir: Dir): Promise<string | null> {
+  const todo: [Dir, string][] = [[dir, '']];
+  for (let n = 0; todo.length && n < 200; n++) {
+    const [d, at] = todo.shift()!;
+    for await (const [name, h] of (d as unknown as { entries(): AsyncIterable<[string, FileSystemHandle]> }).entries()) {
+      const p = at ? at + '/' + name : name;
+      if (h.kind === 'file' && AUDIO_EXT.test(name)) return p;
+      if (h.kind === 'directory' && !name.startsWith('.')) todo.push([h as Dir, p]);
+    }
+  }
+  return null;
+}
+/** A folder inside another (both GLUE Home's, or both the browser's). */
+export async function folderInside(parent: Dir, child: Dir): Promise<boolean> {
+  if (parent instanceof HomeDir || child instanceof HomeDir) {
+    if (!(parent instanceof HomeDir && child instanceof HomeDir)) return false;
+    const full = (d: HomeDir) => (d.root + '/' + d.path).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    return full(child).startsWith(full(parent) + '/');
+  }
+  try { return !!(await parent.resolve(child))?.length; } catch { return false; }
 }
 /** Keep a folder handle (picked, or dropped onto the page) for later visits. */
 export async function rememberFolder(dir: Dir): Promise<{ dir: Dir; key: string }> {

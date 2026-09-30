@@ -39,6 +39,8 @@ class EngineClient {
   private where() { const s = lib.store, p = lib.profile; return s && p ? { p: p.id, c: s.meta.id } : null; }
 
   /** Which computer GLUE Home says this is (ADR 0108); null: it doesn't know yet, or it's from before 0.34. */
+  /** Where a dropped music folder is on this computer (GLUE Home finds it, and remembers it as the folder `id`). */
+  async findFolder(id: string, name: string, sample: string): Promise<string | null> { return (await this.rpc<{ path?: string | null }>({ op: 'where', id, name, sample }, 60_000)).path ?? null; }
   async computer(): Promise<string | null> { return (await this.rpc<{ computer?: string | null }>({ op: 'hello' }, 5000)).computer ?? null; }
 
   /** In Home mode, with an engine that answers: the open collection's changes go to it. */
@@ -96,7 +98,8 @@ class EngineClient {
       while (this.active) {
         const r = await this.rpc<{ rev: number; changes: Change[]; reset?: boolean }>({ op: 'wait', since: this.rev }, 40_000).catch(() => null);
         if (!this.active) return;
-        if (!r) { await new Promise(res => setTimeout(res, 3000)); continue; }
+        // No answer: GLUE Home may be stopped or quit (the library then carries on in the browser).
+        if (!r) { void localHome.check(); await new Promise(res => setTimeout(res, 3000)); continue; }
         const s = this.attached, w = this.where();
         this.rev = r.rev;
         if (!s || !w) continue;
@@ -171,6 +174,7 @@ lib.analysisElsewhere = { active: () => engineClient.active, now: ids => engineC
 lib.beforeClose = () => engineClient.flush();
 // A collection opened: attached at once (not a change saved from here meanwhile).
 const prevOpened = lib.onCollectionOpened;
+lib.homeFind = (id, name, sample) => engineClient.findFolder(id, name, sample);
 lib.onCollectionOpened = (pid, cid) => { prevOpened?.(pid, cid); void engineClient.check(); };
 if (typeof window !== 'undefined') {
   window.setInterval(() => void engineClient.check(), 3000);

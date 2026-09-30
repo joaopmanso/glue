@@ -189,7 +189,7 @@
     <main bind:this={pane} onscroll={spy}>
       <section id="sec-service">
         <h2>Service</h2>
-        <p class="fine">While it runs, your other computers can send songs here from the GLUE website.</p>
+        <p class="fine">While it runs, GLUE on this computer uses it for your library, and your other computers can send songs here and play this computer’s. Stopped, it does nothing, and GLUE in the browser carries on by itself.</p>
         <div class="row">
           <button type="button" id="svc-start" disabled={!paired || status?.running} onclick={() => bridge.control('start')}>Start</button>
           <button type="button" id="svc-stop" disabled={!paired || !status?.running} onclick={() => bridge.control('stop')}>Stop</button>

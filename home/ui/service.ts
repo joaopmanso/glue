@@ -11,7 +11,7 @@ import { backupDaily } from './backups';
 import { syncSharedHere } from './sharedSync';
 import { followMoves } from './moves';
 import * as analysis from './analysis';
-import { describe, locateAll, newlyFound, trackPath, folderOf } from './library';
+import { describe, locate, locateAll, newlyFound, trackPath, folderOf, found } from './library';
 import { findUpdate, install, version } from './updates';
 import * as engine from './engine';
 import { checkReminders } from './reminders';
@@ -375,7 +375,7 @@ async function findFolders() {
       report(state, text);
       // Then the mini spectrograms and analyses it doesn't have yet, gently in the background.
       // (after the library's own analysis: it makes these too.)
-      void cache.background(() => cfg, () => !!receiving || serving > 0 || analysis.state.running > 0 || analysis.state.left > 0, () => report(state, text));
+      void cache.background(() => cfg, () => cfg?.running === false || !!receiving || serving > 0 || analysis.state.running > 0 || analysis.state.left > 0, () => report(state, text));
     } while (again);
   })().finally(() => { finding = null; });
 }
@@ -388,7 +388,8 @@ type Rpc =
   | { op: 'analyse'; p: string; c: string; ids: string[]; names?: Record<string, string> }
   | { op: 'pause'; on: boolean }
   | { op: 'restamp'; p: string; c: string; id: string; was: { size: number | null; mtime: number | null }; now: { size: number; mtime: number } }
-  | { op: 'job'; kind: 'remove-tracks'; p: string; c: string; ids: string[] };
+  | { op: 'job'; kind: 'remove-tracks'; p: string; c: string; ids: string[] }
+  | { op: 'where'; id: string; name: string; sample: string };
 async function rpc(b: Rpc): Promise<unknown> {
   const c = cfg;
   if (!c) throw new Error('GLUE Home isn’t set up yet');
@@ -410,6 +411,11 @@ async function rpc(b: Rpc): Promise<unknown> {
       if (!!c.analysisPaused !== !!b.on) { cfg = await bridge.patchConfig(() => ({ analysisPaused: !!b.on })).catch(() => cfg) ?? cfg; analysis.setPaused(!!b.on, () => cfg); }
       return { paused: !!b.on };
     case 'job': await engine.addJob(() => cfg, { kind: b.kind, p: b.p, c: b.c, ids: b.ids }); return { queued: true };
+    // A folder dropped onto a GLUE tab here (the browser doesn't say where it is): found, and remembered as `id`.
+    case 'where': {
+      const at = await locate({ id: b.id, name: b.name, absPath: null, handleKey: '', addedAt: '' }, b.sample ? { relPath: b.sample, importPath: null } : null, c);
+      return { path: at };
+    }
     default: throw new Error('GLUE Home doesn’t know that request');
   }
 }
@@ -455,6 +461,8 @@ async function keepFound(id: string, at: string, seen: Record<string, string>) {
   const next = await bridge.patchConfig(cur => (cur.folders ?? {})[id] === seen[id] ? { folders: { ...(cur.folders ?? {}), [id]: at } } : null).catch(() => null);
   if (next) cfg = next;
 }
+// A folder found by looking (an analysis, a dropped folder): remembered, unless the settings put it elsewhere meanwhile.
+found.f = async (id, at) => { const seen = { ...(cfg?.folders ?? {}) }; if (!seen[id]) await keepFound(id, at, seen); };
 
 async function boot() {
   cfg = await bridge.config();
@@ -477,11 +485,18 @@ async function boot() {
   // The website's GLUE folder, when it's in a usual place and none was chosen.
   if (cfg && !cfg.glue) { const g = await bridge.findGlue().catch(() => null); if (g) cfg = await bridge.patchConfig(cur => cur.glue ? null : { glue: g }).catch(() => cfg) ?? cfg; }
   start();
+  // Stopped, GLUE Home does nothing: offline, nothing analysed, synced or written, and the local link answers only
+  // GLUE Home's own windows, so a GLUE tab here carries on in the browser as if it were quit (2026-10-01: Stop only
+  // went offline). Start carries on; Restart also starts the engine and the analysis over.
   await bridge.onControl(async what => {
     if (!cfg) return;
     const running = what !== 'stop';
     if (isRunning(cfg) !== running) cfg = await bridge.patchConfig(() => ({ running })).catch(() => cfg) ?? cfg;
-    if (what === 'stop') stop(); else start();
+    if (what === 'stop') { stop(); event('Stopped: GLUE in the browser carries on by itself'); return; }
+    if (what === 'restart') { engine.forget(); analysis.restart(); }
+    start();
+    event(what === 'restart' ? 'Restarted' : 'Started');
+    void analysis.run(() => cfg); sharedSoon(); void findFolders();
   });
   await bridge.onAskStatus(() => report(state, text));
   void findFolders();
@@ -516,7 +531,7 @@ async function boot() {
   setTimeout(() => void remind(), 90_000);
   setInterval(() => void remind(), 3600e3);
   // A collection that went into another (ADR 0102): this cache follows it, soon after starting and hourly.
-  const moves = () => void followMoves(cfg).catch(e => console.warn('GLUE Home: the cache didn’t follow a moved collection', e));
+  const moves = () => void (cfg?.running === false ? Promise.resolve() : followMoves(cfg)).catch(e => console.warn('GLUE Home: the cache didn’t follow a moved collection', e));
   setTimeout(moves, 30_000);
   setInterval(moves, 3600e3);
   // The engine's jobs (ADR 0104): carried on after a restart; a GLUE tab from before the engine (it holds the
@@ -526,13 +541,13 @@ async function boot() {
   // What the tab changed goes up to GLUE Cloud within seconds (a burst makes one push, ADR 0106).
   engine.on.edited = () => sharedSoon(2000);
   setTimeout(() => void engine.runJobs(() => cfg), 10_000);
-  setInterval(() => { void bridge.leaseHeld().then(held => { if (held) engine.forget(); else void engine.runJobs(() => cfg); }).catch(() => {}); }, 10_000);
+  setInterval(() => { if (cfg?.running !== false) void bridge.leaseHeld().then(held => { if (held) engine.forget(); else void engine.runJobs(() => cfg); }).catch(() => {}); }, 10_000);
   // This computer's songs analysed for the library (ADR 0103): soon after starting, then every minute.
   analysis.setPaused(!!cfg?.analysisPaused, undefined, true);
   analysis.on.changed = servedSoon;
   analysis.on.event = event;
   analysis.on.written = n => { event('Put ' + n + ' analys' + (n === 1 ? 'is' : 'es') + ' into the library'); sharedSoon(); };
-  setTimeout(() => void analysis.run(() => cfg), 20_000);
+  setTimeout(() => { if (cfg?.running !== false) void analysis.run(() => cfg); }, 20_000);
   setInterval(() => { if (cfg?.running !== false) void analysis.run(() => cfg); }, 60_000);
   // Shared collections (ADR 0097): synced here when no GLUE tab is, soon after starting and every minute.
   setTimeout(sharedSoon, 25_000);

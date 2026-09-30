@@ -5,6 +5,19 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · Stop stops GLUE Home; a dropped folder is analysed (GLUE Home 0.38.0)
+- **A folder dropped onto the library, with GLUE Home running, is analysed**
+  ([ADR 0122](../adr/0122-stop-stops-everything-dropped-folders-found.md)). The browser never says where a dropped
+  folder is, so GLUE Home searched every drive for it, once per song, and never kept the answer: nothing was
+  analysed until the user quit GLUE Home. Now:
+  - GLUE Home finds a dropped folder when it's dropped (its name and a song in it) and keeps it; its folder dialog
+    asks if it can't;
+  - it searches for any music folder once, not per song, and remembers what it finds.
+- **A folder inside a music folder isn't added again** ("2025" inside "Music Collection"): its songs are there.
+- **Stop stops everything:** offline, no analysis, sync or writes, and the local link answers only GLUE Home's
+  windows, so GLUE in the browser carries on by itself as if GLUE Home were quit. Start goes back; Restart also
+  starts the engine and the analysis over. (Stop only went offline for other devices.)
+
 ## 2026-10-01 · Engine DJ's databases on several drives are one found library
 - Engine DJ keeps a database on every drive it's used with; the user's desktop has three (`C:\Users\…\Music`,
   `F:\`, `G:\`), listed as three "Engine DJ library" entries. GLUE already makes one source of an Engine DJ set, so

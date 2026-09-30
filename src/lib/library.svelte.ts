@@ -587,11 +587,14 @@ class Library {
     if (!s) return;
     let picked: { dir: FileSystemDirectoryHandle; key: string; path?: string };
     const id = newId();
-    try { picked = dropped ? await platform.rememberFolder(dropped) : await platform.pickMusicFolder(id); }
+    try { picked = dropped ? await platform.droppedFolder(dropped, id, (name, sample) => this.homeFind?.(id, name, sample) ?? Promise.resolve(null)) : await platform.pickMusicFolder(id); }
     catch (e) { if ((e as DOMException).name !== 'AbortError') this.notice = (e as Error).message; return; }
-    if (dropped && !(await platform.permission(dropped, 'read', true))) { await platform.forgetFolder(picked.key); return; }
+    if (dropped && picked.dir === dropped && !(await platform.permission(dropped, 'read', true))) { await platform.forgetFolder(picked.key); return; }
     const same = await Promise.all(this.roots.map(async r => r.dir ? r.dir.isSameEntry(picked.dir) : false));
     if (same.some(Boolean)) { this.notice = '“' + picked.dir.name + '” is already one of this collection’s music folders.'; await platform.forgetFolder(picked.key); return; }
+    // A folder inside a music folder: its songs are that folder's already (the user's "2025" in "Music Collection").
+    const outer = (await Promise.all(this.roots.map(async r => r.dir && !r.root.hidden && await platform.folderInside(r.dir, picked.dir) ? r : null))).find(Boolean);
+    if (outer) { this.notice = '“' + picked.dir.name + '” is inside “' + outer.root.name + '”, already one of this collection’s music folders: its songs are there.'; await platform.forgetFolder(picked.key); return; }
     const root: Root = { id, name: picked.dir.name, absPath: picked.path ?? null, handleKey: picked.key, addedAt: now() };
     s.meta.roots.push(root); s.saveMeta();
     this.roots = [...this.roots, { root, dir: picked.dir, granted: true }];
@@ -1346,6 +1349,8 @@ class Library {
     return true;
   }
   /** This tab's own analysis stops (its GLUE Home took over, ADR 0103); nothing is paused. */
+  /** Where GLUE Home finds a folder dropped onto the page (Home mode), by its name and a song in it; set by the engine client. */
+  homeFind: ((id: string, name: string, sample: string) => Promise<string | null>) | null = null;
   stopOwnAnalysis() { const paused = this.analysis.paused; this.stopAnalysis(); this.analysis = { ...this.analysis, paused }; }
   /** Stop now: what runs stops, and background analysis is off until it's turned on again. */
   stopAnalysisNow() {

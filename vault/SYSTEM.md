@@ -124,6 +124,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     `tags`, `dupes`, `pick`);
   - `/cache` (its analyses), `/rpc` (the engine), `/lease`, `/attach`, `/incoming`, `/dock`, `/folders`.
   - Every route but `/hello` and `/connect` needs the token (full, or read-only).
+  - Stopped (Stop in the tray or settings, `running: false`), it answers only GLUE Home's own windows: the website
+    carries on in the browser as if GLUE Home were quit, and nothing runs in GLUE Home (ADR 0122).
 - **Service page** (`home/ui/service.ts`), hidden, which does the work:
   - **engine** (`engine.ts`): one `CollectionStore` per collection. It applies the tab's edits (ops over `/rpc`
     `edit`), saves them, and feeds changes back (`wait`). It repairs parts written under another id (ADR 0108).
@@ -134,12 +136,15 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     (ADR 0070), DJ libraries followed live (ADR 0065), reminders, updates.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (`ice.ts`; the site's `remoteFiles.svelte.ts`);
     covers for songs whose tags have none, looked up on public services (`lookup.ts`, ADR 0086).
-  - finding music folders on disk (`library.ts` `locate`, `folderOf`).
+  - finding music folders on disk (`library.ts` `locate`, `folderOf`): one drive search per folder, and what's
+    found is kept in its settings (ADR 0122).
 - **The tab in Home mode** (`src/platform/homeDisk.ts`, `src/lib/engine.svelte.ts`, `localHome.svelte.ts`):
   - It reads the GLUE folder through the link.
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease.
   - Overviews and details come from GLUE Home's `/cache` when the browser has none (ADR 0110).
   - The analysis bar shows GLUE Home's own queue (its `status`: left + running).
+  - A folder dropped onto the library is found by GLUE Home (rpc `where`) and becomes its folder (`home:<id>`); one
+    inside a music folder isn't added (ADR 0122).
 - **Overviews and covers load for the rows on screen** (`thumbs`, `waves`, `covers`):
   - newest request first;
   - a row that scrolls away drops what it asked for (`hold`/`drop`), so a jump down the list loads the new rows

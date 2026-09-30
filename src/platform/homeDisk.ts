@@ -26,6 +26,8 @@ export class HomeDisk {
     try { r = await fetch(this.base + path + '?' + new URLSearchParams({ ...params, t: this.token }), init); }
     catch { this.onDown?.(); throw new HomeDown(); }
     if (r.ok) return r;
+    // Stopped (Stop in GLUE Home's tray or settings): as if it were quit, GLUE carries on in the browser.
+    if (r.status === 503) { this.onDown?.(); throw new HomeDown(); }
     const msg = (await r.json().catch(() => ({})) as { error?: string }).error || 'GLUE Home said no (' + r.status + ')';
     // The same errors the browser's handles throw, so fsx and the store treat them alike.
     throw r.status === 404 ? domError('NotFoundError', msg) : r.status === 409 ? domError('TypeMismatchError', msg) : r.status === 403 ? domError('NotAllowedError', msg) : new Error(msg);

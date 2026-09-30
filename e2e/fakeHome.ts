@@ -41,6 +41,8 @@ export class FakeHome {
   /** The writer lease (ADR 0087): when a tab last renewed it, and the edits counter it's told. */
   leasedAt = 0;
   edits = 0;
+  /** Stop pressed in GLUE Home (running: false): the local link answers the website 503 (local.rs), as if quit. */
+  stopped = false;
   private server: Server | null = null;
   constructor(readonly dirs: FakeHomeDirs) {}
 
@@ -60,6 +62,10 @@ export class FakeHome {
 
   private handle(url: string, method: string, headers: Record<string, string | string[] | undefined>, req: NodeJS.ReadableStream, res: import('node:http').ServerResponse) {
     const u = new URL(url, 'http://127.0.0.1'), q = u.searchParams;
+    if (this.stopped && method !== 'OPTIONS') {
+      res.writeHead(503, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': String(headers.origin ?? '*'), 'Access-Control-Allow-Private-Network': 'true' });
+      return res.end(JSON.stringify({ error: 'GLUE Home is stopped' }));
+    }
     this.calls.push(u.pathname);
     if (u.pathname === '/fs/file') this.reads.push((q.get('path') ?? '') + (headers.range ? ' (part)' : ''));
     const origin = String(headers.origin ?? '');

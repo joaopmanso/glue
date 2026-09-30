@@ -17,6 +17,14 @@ pub static PORT: AtomicU16 = AtomicU16::new(0);
 // open, ADR 0087): Tauri's origin on Windows and on macOS, and the test server's.
 const ORIGINS: [&str; 7] = ["https://joaopmanso.github.io", "http://localhost:5174", "http://localhost:5175", "http://localhost:5173", "http://tauri.localhost", "tauri://localhost", "http://localhost:5176"];
 
+/// Stopped (Stop in the tray or the settings, `running: false`), the local link answers only GLUE Home's own
+/// windows: a GLUE tab on this computer carries on in the browser, as if GLUE Home were quit (2026-10-01: Stop
+/// only went offline for other devices, and the website kept using GLUE Home).
+fn refused_while_stopped(cfg: Option<&serde_json::Value>, origin: Option<&str>) -> bool {
+    let stopped = cfg.and_then(|c| c.get("running")).and_then(|v| v.as_bool()) == Some(false);
+    stopped && !matches!(origin, Some("http://tauri.localhost") | Some("tauri://localhost"))
+}
+
 /// The writer lease (ADR 0051, 0087): when a GLUE tab in Home mode last said it's open (ms since 1970).
 pub static LEASE_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 /// Bumped when another device says it sent edits: the tab takes them in at once.
@@ -127,6 +135,9 @@ fn answer(app: AppHandle, req: Request) {
     let arg = |k: &str| q.iter().find(|(a, _)| a == k).map(|(_, v)| v.clone()).unwrap_or_default();
     let cfg = crate::get_config_impl(app.clone());
     let s = |key: &str| cfg.as_ref().and_then(|c| c.get(key)).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    if refused_while_stopped(cfg.as_ref(), origin.as_deref()) {
+        return reply(req, 503, b"{\"error\":\"GLUE Home is stopped\"}".to_vec(), "application/json");
+    }
     if path == "/hello" {
         let body = serde_json::json!({ "app": "glue-home", "version": app.package_info().version.to_string(), "device": s("deviceId") });
         return reply(req, 200, body.to_string().into_bytes(), "application/json");
@@ -323,4 +334,23 @@ pub(crate) fn send_file(req: Request, path: &std::path::Path, ctype: &str, cors:
         r.add_header(h);
     }
     let _ = req.respond(r);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::refused_while_stopped;
+
+    #[test]
+    fn stopped_answers_only_glue_homes_own_windows() {
+        let stopped = serde_json::json!({ "running": false });
+        let running = serde_json::json!({ "running": true });
+        let never = serde_json::json!({});
+        assert!(refused_while_stopped(Some(&stopped), Some("https://joaopmanso.github.io")));
+        assert!(refused_while_stopped(Some(&stopped), None));   // <audio src>: no Origin
+        assert!(!refused_while_stopped(Some(&stopped), Some("http://tauri.localhost")));
+        assert!(!refused_while_stopped(Some(&stopped), Some("tauri://localhost")));
+        assert!(!refused_while_stopped(Some(&running), Some("https://joaopmanso.github.io")));
+        assert!(!refused_while_stopped(Some(&never), Some("https://joaopmanso.github.io")));
+        assert!(!refused_while_stopped(None, None));
+    }
 }

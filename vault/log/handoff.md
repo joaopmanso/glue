@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-09-30, end of day)
-- **Live:** site, GLUE Cloud (migrations up to 0010), GLUE Home 0.37.3.
+- **Live:** site, GLUE Cloud (migrations up to 0010), GLUE Home 0.38.0.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -42,7 +42,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     removal that sets aside doubtful groups (ADR 0120); GLUE Home builds once per change (no tags);
   - an optional main music folder decides the best copy among equals (ADR 0121);
   - a found DJ library is listed once (it was four times: the same m.db reached by several ways), and × takes one off
-    the list; Engine DJ's databases on C:, F: and G: are one entry ("+ 2 more drives"), imported together.
+    the list; Engine DJ's databases on C:, F: and G: are one entry ("+ 2 more drives"), imported together;
+  - GLUE Home 0.38.0: a dropped folder is found by GLUE Home (it was searched for per song and never analysed); a
+    folder inside a music folder isn't added; Stop stops everything and hands the library to the browser (ADR 0122).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
@@ -56,7 +58,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - after the collection opens, the Doechii 24/88.2 album should read "Genuine hi-res" (stored verdicts are judged
     again on open);
   - Duplicates' new buttons;
-  - "DJ libraries found" shows one Engine DJ library (+ 2 more drives); Add imports all three, × removes the set.
+  - "DJ libraries found" shows one Engine DJ library (+ 2 more drives); Add imports all three, × removes the set;
+  - after GLUE Home updates to 0.38.0: drop a new folder onto the library, it's analysed by GLUE Home; Stop makes the
+    browser take over, Start takes it back. The "2025" music folder (inside "Music Collection", no songs of its own)
+    can be removed.
 
 ## Next
 - **Flaky e2e under load:** playback tests ("Play" not turning to "Pause") fail now and then in the full suite, never

@@ -76,10 +76,18 @@ let known: { home: string | null; music: string | null; documents: string | null
 const join = (base: string, rel: string) => { const sep = known?.sep ?? (base.includes('\\') ? '\\' : '/'); return base.replace(/[\\/]+$/, '') + sep + rel.split('/').join(sep); };
 const slashes = (p: string) => p.replace(/\\/g, '/');
 
+/** A music folder found by looking (not where the settings put it): told, so it's remembered (set by the service). */
+export const found: { f: ((id: string, at: string) => Promise<void>) | null } = { f: null };
+/** The drive searches running or just done, by music folder: one for all its songs (each song searched every drive
+    for itself, up to 25 s, several at once, and a dropped folder's songs were never analysed, 2026-10-01). */
+const searches = new Map<string, Promise<string | null>>();
+
 /** Where a music folder is on this computer, checked with one of its songs:
     1. where it was put (settings), 2. where the song's DJ app said the song is, 3. where the website
-    knows the folder is, 4. a folder of that name in Music, Documents, home, Desktop or Downloads,
-    5. a search of this computer's drives for a folder of that name with the song in it. */
+    knows the folder is, 4. a folder of that name in Music, Documents, home, Desktop or Downloads, or inside a
+    music folder GLUE Home knows, 5. a search of this computer's drives for a folder of that name with the song
+    in it (one at a time per folder; a folder that isn't found isn't searched for again for a minute). What's
+    found by 2–5 is remembered (`found`). */
 export async function locate(root: Collection['roots'][number], sample: Sample | null, cfg: HomeConfig, opts: { search?: boolean } = {}): Promise<string | null> {
   // This computer's incoming folder (ADR 0051): wherever GLUE Home keeps it.
   if (root.id === INCOMING_ROOT) return cfg.incoming || await bridge.defaultIncoming();
@@ -87,20 +95,33 @@ export async function locate(root: Collection['roots'][number], sample: Sample |
   const ok = async (dir: string | null | undefined): Promise<boolean> => !!dir && await bridge.exists(sample ? join(dir, sample.relPath) : dir);
   const chosen = cfg.folders?.[root.id];
   if (chosen && await ok(chosen)) return chosen;
+  const at = await look(root, sample, cfg, ok, opts);
+  if (at && root.id && at !== chosen) await found.f?.(root.id, at).catch(() => {});
+  return at;
+}
+async function look(root: Collection['roots'][number], sample: Sample | null, cfg: HomeConfig, ok: (dir: string | null | undefined) => Promise<boolean>, opts: { search?: boolean }): Promise<string | null> {
+  const k = known!;
   if (sample?.importPath) {
     const ip = slashes(sample.importPath).replace(/^file:\/\/(localhost)?\/?(?=[A-Za-z]:)/, '').replace(/^file:\/\/(localhost)?/, '');
     if (ip.toLowerCase().endsWith('/' + sample.relPath.toLowerCase())) {
       const dir = ip.slice(0, ip.length - sample.relPath.length - 1);
-      const native = known.sep === '\\' ? dir.replace(/\//g, '\\') : dir;
+      const native = k.sep === '\\' ? dir.replace(/\//g, '\\') : dir;
       if (await ok(native)) return native;
     }
   }
   if (root.absPath && await ok(root.absPath)) return root.absPath;
-  const cands = [known.music && root.name.toLowerCase() === 'music' ? known.music : null,
-    ...[known.music, known.documents, known.home, known.desktop, known.downloads].map(b => b ? join(b, root.name) : null)];
+  const cands = [k.music && root.name.toLowerCase() === 'music' ? k.music : null,
+    ...[k.music, k.documents, k.home, k.desktop, k.downloads, ...Object.values(cfg.folders ?? {})].map(b => b ? join(b, root.name) : null)];
   for (const c of cands) if (c && await ok(c)) return c;
-  if (opts.search !== false && sample) return bridge.findFolder(root.name, sample.relPath).catch(() => null);
-  return null;
+  if (opts.search === false || !sample) return null;
+  let s = searches.get(root.id);
+  if (!s) {
+    s = bridge.findFolder(root.name, sample.relPath).catch(() => null);
+    searches.set(root.id, s);
+    void s.then(at => setTimeout(() => searches.delete(root.id), at ? 0 : 60_000));
+  }
+  const at = await s;
+  return at && await ok(at) ? at : null;
 }
 
 /** The folders a search found that the settings should take: only new places, and only for folders the

@@ -161,7 +161,7 @@ export async function runJobs(cfg: () => HomeConfig | null) {
   try {
     while (jobs.length) {
       const c = cfg(), j = jobs[0];
-      if (!c) return;
+      if (!c || c.running === false) return;   // stopped: carried on at Start
       if (await bridge.leaseHeld()) return;   // a GLUE tab from before the engine writes: later
       const s = await store(c, j.p, j.c);
       const glue = await glueDir(c);
