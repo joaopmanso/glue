@@ -5,6 +5,16 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · Every device's profiles in one list; GLUE Home picks up new folders at once (GLUE Home 0.36.1)
+- **Profiles are every device's** ([ADR 0114](../adr/0114-profiles-are-every-devices.md), amends 0113): all the
+  profiles of all your devices show everywhere ("404", "404" and "Joao Manso" now); each device keeps its own
+  choice; delete the extras from "Who's using GLUE?" and they're gone on every device. The profiles the first
+  version dropped come back once.
+- **Fixed: songs of newly added folders waited until GLUE Home restarted.** It looked for new songs at most
+  every 5 minutes, and not while analysing; now songs added from a tab are looked for at once, also mid-run.
+- Tests: GLUE Cloud's merge, the profiles put back, e2e `shared.spec` (profiles on two devices) and
+  `homemode.spec` (a song added after "all analysed" is analysed within seconds).
+
 ## 2026-09-30 · Profiles are the account's artist aliases
 - **Profiles are the same on every device** ([ADR 0113](../adr/0113-profiles-are-the-accounts-aliases.md)):
   artist aliases the account keeps (pick, create, rename, delete, BPM range), seen at once on the account's

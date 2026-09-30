@@ -4,6 +4,8 @@ import { type Alias, type Collection, type HomeIndex, type Profile, PROFILE_COLO
 import { migrate } from './migrations';
 
 const now = () => new Date().toISOString();
+/** mco.json's aliases, as made (ADR 0113, 0114). */
+const ALIASES_V = 2;
 
 export class HomeStore {
   /** `root` changes when the library moves between GLUE Home's disk and the browser's (ADR 0051). */
@@ -61,13 +63,18 @@ export class HomeStore {
   async ensureAliases(save = true): Promise<boolean> {
     const ix = this.index;
     let changed = false;
-    if (!ix.aliases) {
-      const aliases: Alias[] = [];
+    // Each profile folder is an alias too: once when aliases come in, and once more (v2) to put back those the
+    // first version dropped for the account's list (the laptop's own "404", the iPhone's "Joao Manso",
+    // 2026-09-30). The library a device without one made that day ("Library") was never an alias.
+    if (!ix.aliases || (ix.aliasesV ?? 1) < ALIASES_V) {
+      const aliases: Alias[] = [...(ix.aliases ?? [])];
       for (const r of ix.profiles) {
+        if (aliases.some(a => a.id === r.id)) continue;
         const p = await readJSON<Profile>(this.root, this.profilePath(r.id)).catch(() => null);
+        if (ix.aliases && r.name === 'Library' && (p?.createdAt ?? '') >= '2026-09-30') continue;
         aliases.push({ id: r.id, name: r.name, color: r.color, ...(p?.bpmRange ? { bpmRange: p.bpmRange } : {}) });
       }
-      ix.aliases = aliases; changed = true;
+      ix.aliases = aliases; ix.aliasesV = ALIASES_V; changed = true;
     }
     if (!ix.container || !ix.profiles.some(p => p.id === ix.container)) {
       const c = ix.lastProfile && ix.profiles.some(p => p.id === ix.lastProfile) ? ix.lastProfile : ix.profiles[0]?.id ?? null;

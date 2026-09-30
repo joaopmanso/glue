@@ -12,21 +12,21 @@ const name = (v: unknown) => typeof v === 'string' && v.trim() ? v.trim().slice(
 const color = (v: unknown) => typeof v === 'string' && COLOR.test(v) ? v : null;
 const range = (v: unknown) => v === 'half' || v === 'full' ? v : null;
 
-/** The account's aliases (`seeded`: it has had some, so a device never seeds it again). */
+/** The account's aliases, and those deleted (`gone`: a device that still has one drops it, never sends it again). */
 export async function list(env: Env, a: Access) {
   const rows = (await env.DB.prepare('SELECT id, name, color, bpm_range, updated_at, deleted_at FROM profiles WHERE user_id = ? ORDER BY created_at, id').bind(a.sub).all<Row>()).results;
-  return { profiles: rows.filter(r => !r.deleted_at).map(out), seeded: rows.length > 0 };
+  return { profiles: rows.filter(r => !r.deleted_at).map(out), gone: rows.filter(r => r.deleted_at).map(r => r.id), seeded: rows.length > 0 };
 }
 
-/** The first computer's aliases, kept with their ids, only while the account has never had any. */
-export async function seed(env: Env, a: Access, b: { profiles?: unknown }, now: number) {
+/** A device's aliases the account doesn't have yet, added with their ids (every device's, ADR 0113 as amended
+    2026-09-30: the account's list is all of them). One the account had and deleted isn't added again. */
+export async function merge(env: Env, a: Access, b: { profiles?: unknown }, now: number) {
   const ps = Array.isArray(b?.profiles) ? b.profiles as { id?: unknown; name?: unknown; color?: unknown; bpmRange?: unknown }[] : [];
   const rows = ps.map(p => ({ id: typeof p.id === 'string' && ID.test(p.id) ? p.id : '', name: name(p.name), color: color(p.color), bpmRange: range(p.bpmRange) }));
-  if (!rows.length || rows.length > 50 || rows.some(r => !r.id || !r.name)) throw new SyncError(400, 'bad profiles');
-  // One statement: every alias goes in, or none does (another device seeded first).
-  await env.DB.prepare(`INSERT INTO profiles (user_id, id, name, color, bpm_range, created_at, updated_at)
+  if (rows.length > 50 || rows.some(r => !r.id || !r.name)) throw new SyncError(400, 'bad profiles');
+  if (rows.length) await env.DB.prepare(`INSERT INTO profiles (user_id, id, name, color, bpm_range, created_at, updated_at)
     SELECT ?1, json_extract(j.value, '$.id'), json_extract(j.value, '$.name'), json_extract(j.value, '$.color'), json_extract(j.value, '$.bpmRange'), ?2 + j.key, ?2
-    FROM json_each(?3) j WHERE NOT EXISTS (SELECT 1 FROM profiles WHERE user_id = ?1)`).bind(a.sub, now, JSON.stringify(rows)).run();
+    FROM json_each(?3) j WHERE true ON CONFLICT (user_id, id) DO NOTHING`).bind(a.sub, now, JSON.stringify(rows)).run();
   return list(env, a);
 }
 
@@ -34,7 +34,7 @@ export async function create(env: Env, a: Access, b: { id?: unknown; name?: unkn
   const n = name(b?.name);
   if (!n) throw new SyncError(400, 'a name, please');
   const id = typeof b?.id === 'string' && ID.test(b.id) ? b.id : randomId();
-  await env.DB.prepare('INSERT INTO profiles (user_id, id, name, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (user_id, id) DO UPDATE SET name = excluded.name, color = excluded.color, updated_at = excluded.updated_at, deleted_at = NULL')
+  await env.DB.prepare('INSERT INTO profiles (user_id, id, name, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (user_id, id) DO UPDATE SET name = excluded.name, color = excluded.color, updated_at = excluded.updated_at WHERE profiles.deleted_at IS NULL')
     .bind(a.sub, id, n, color(b?.color), now, now).run();
   return one(env, a, id);
 }

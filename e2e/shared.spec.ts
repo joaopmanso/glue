@@ -312,7 +312,7 @@ test('the account’s collections (ADR 0112): one box with each computer’s num
   } finally { await desk.done(); await lap.done(); }
 });
 
-test('profiles are the account’s artist aliases (ADR 0113): seeded by the desktop; the laptop’s own namesake becomes it; renamed and made on one device, seen on the other; every alias opens the same library', async ({ baseURL }) => {
+test('profiles are the account’s artist aliases (ADR 0113, 0114): every device’s in one list, each device its own choice; renamed, deleted and made on one device, seen on the other; every alias opens the same library', async ({ baseURL }) => {
   test.setTimeout(240_000);
   const { server, pathsOf, route } = fakeCloud();
   const desk = await browserFor(baseURL), lap = await browserFor(baseURL);
@@ -340,7 +340,8 @@ test('profiles are the account’s artist aliases (ADR 0113): seeded by the desk
     await expect.poll(listed, { timeout: 20_000 }).toEqual(['DJ Test']);
     const deskAlias = (await index(desk.page)).lastAlias;
 
-    // The laptop made its own "DJ Test" before signing in: it becomes the account's.
+    // The laptop made its own "DJ Test" before signing in: both are the account's now, on both devices, and each
+    // device keeps its own choice (ADR 0114).
     await route(lap.page, 'b2');
     await seed(lap.page, []);
     await lap.page.goto('./');
@@ -348,19 +349,30 @@ test('profiles are the account’s artist aliases (ADR 0113): seeded by the desk
     await lap.page.fill('#profile-name', 'DJ Test');
     await lap.page.getByRole('button', { name: 'Create profile' }).click();
     await lap.page.click('#onb-skip');
+    const lapAlias = (await index(lap.page)).lastAlias;
     await lap.page.click('#account-btn');
     await lap.page.click('#fake-google');
     await lap.page.keyboard.press('Escape');
     await expect(lap.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
-    await expect.poll(async () => (await index(lap.page)).lastAlias, { timeout: 20_000 }).toBe(deskAlias);
-    expect((await index(lap.page)).aliases.map((a: { name: string }) => a.name)).toEqual(['DJ Test']);
+    await expect.poll(listed, { timeout: 20_000 }).toEqual(['DJ Test', 'DJ Test']);
+    await expect.poll(async () => (await index(lap.page)).aliases.map((a: { id: string }) => a.id), { timeout: 20_000 }).toEqual([deskAlias, lapAlias]);
+    expect((await index(lap.page)).lastAlias).toBe(lapAlias);
 
-    // Renamed on the desktop: the laptop shows the new name.
+    // Renamed on the desktop: its own; the laptop's list shows it, the laptop stays its own "DJ Test".
     answer = 'DJ Nova';
     await desk.page.locator('button.who').click();
-    await desk.page.locator('.pcard', { hasText: 'DJ Test' }).getByRole('button', { name: 'Rename' }).click();
-    await expect(desk.page.locator('.pcard .profile')).toHaveText([/DJ Nova$/], { timeout: 20_000 });
-    await expect(lap.page.locator('.top .who')).toContainText('DJ Nova', { timeout: 30_000 });
+    await expect(desk.page.locator('.pcard .profile')).toHaveText([/DJ Test$/, /DJ Test$/], { timeout: 30_000 });
+    await desk.page.locator(`.pcard[data-alias="${deskAlias}"]`).getByRole('button', { name: 'Rename' }).click();
+    await expect(desk.page.locator('.pcard .profile')).toHaveText([/DJ Nova$/, /DJ Test$/], { timeout: 20_000 });
+    await lap.page.locator('.top .who').click();
+    await expect(lap.page.locator('.pcard .profile')).toHaveText([/DJ Nova$/, /DJ Test$/], { timeout: 30_000 });
+
+    // The extra one deleted on the laptop: gone on the desktop too; the laptop picks DJ Nova.
+    await lap.page.locator(`.pcard[data-alias="${lapAlias}"]`).getByRole('button', { name: 'Delete' }).click();
+    await expect(lap.page.locator('.pcard .profile')).toHaveText([/DJ Nova$/], { timeout: 20_000 });
+    await expect(desk.page.locator('.pcard .profile')).toHaveText([/DJ Nova$/], { timeout: 30_000 });
+    await lap.page.locator('.pcard .profile', { hasText: 'DJ Nova' }).click();
+    await expect(lap.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
 
     // A second alias made on the laptop: the same library, and on the desktop's list.
     await lap.page.locator('.top .who').click();

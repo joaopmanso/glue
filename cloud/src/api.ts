@@ -105,7 +105,8 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
       const pm = /^\/v1\/profiles\/([\w-]+)$/.exec(path);
       if (m === 'GET' && path === '/v1/profiles') return reply(await profiles.list(env, a));
       if (m === 'POST' && path === '/v1/profiles') return told(await profiles.create(env, a, await body(), now, randomId));
-      if (m === 'POST' && path === '/v1/profiles/seed') return told(await profiles.seed(env, a, await body(), now));
+      // Every device's aliases the account doesn't have yet (`/seed`: the name tabs from before used).
+      if (m === 'POST' && (path === '/v1/profiles/merge' || path === '/v1/profiles/seed')) return told(await profiles.merge(env, a, await body(), now));
       if (m === 'PATCH' && pm) return told(await profiles.update(env, a, pm[1], await body(), now));
       if (m === 'DELETE' && pm) return told(await profiles.remove(env, a, pm[1], now));
     }

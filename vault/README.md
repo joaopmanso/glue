@@ -184,6 +184,7 @@ Planned (GLUE):
 | [0110](adr/0110-screen-takes-glue-homes-analyses.md) | The screen takes GLUE Home's analyses when it needs them; a song page never re-analyses in Home mode | accepted |
 | [0111](adr/0111-removing-a-folder-removes-its-songs.md) | Removing a music folder removes its songs; songs left with no file are offered once | accepted |
 | [0112](adr/0112-the-accounts-collections.md) | The account's collections: one list with each computer's numbers, a rename and a deletion every device follows, no silent second collection | accepted |
-| [0113](adr/0113-profiles-are-the-accounts-aliases.md) | Profiles are the account's artist aliases; a GLUE folder keeps one library that every alias uses | accepted |
+| [0113](adr/0113-profiles-are-the-accounts-aliases.md) | Profiles are the account's artist aliases; a GLUE folder keeps one library that every alias uses | accepted (amended by 0114) |
+| [0114](adr/0114-profiles-are-every-devices.md) | The account's profiles are every device's; each device picks its own | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

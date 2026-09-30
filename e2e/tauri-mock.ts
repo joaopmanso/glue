@@ -69,7 +69,8 @@ export const TAURI_MOCK = `(() => {
         case 'find_folder': return (window.__find ?? {})[args.name] ?? null;
         case 'glue_list': return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
         case 'plugin:notification|is_permission_granted': return true;
-        case 'glue_read': { const t = (window.__glue ?? {})[args.rel]; if (t === undefined) throw 'not found'; return t; }
+        // window.__glueDisk (a test's exposed function): the GLUE folder read from the real disk, as GLUE Home does.
+        case 'glue_read': { const t = window.__glueDisk ? await window.__glueDisk(args.rel) ?? undefined : (window.__glue ?? {})[args.rel]; if (t === undefined) throw 'not found'; return t; }
         case 'file_size': { const b = disk(args.path); if (!b) throw 'not found'; return b.length; }
         case 'file_read': { const b = disk(args.path); if (!b) throw 'not found'; return new Uint8Array(b.slice(args.offset, args.offset + args.len)).buffer; }
         // ask() is a message dialog that answers with the clicked button's label.

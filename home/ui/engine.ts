@@ -193,7 +193,9 @@ export function status(): EngineStatus {
 export async function edit(cfg: HomeConfig, p: string, c: string, ops: StoreOp[]) {
   if (await bridge.leaseHeld()) throw new Error('a GLUE tab from before GLUE Home’s engine is writing this library: close it, or update it');
   const s = await store(cfg, p, c);
+  // Songs new to the collection (a scan of new music folders): the analysis looks for them now.
+  const added = ops.some(op => op.m === 'tracks' && op.ts.some(t => !s.tracks.has(t.id)));
   for (const op of ops) s.apply(op);
   await flushEdit(s, p, c);
-  return { rev };
+  return { rev, added };
 }

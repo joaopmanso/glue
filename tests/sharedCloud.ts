@@ -63,7 +63,7 @@ export class SharedCloudServer {
       try {
         if (method === 'GET' && p === '/v1/profiles') return json(await profiles.list(env, a));
         if (method === 'POST' && p === '/v1/profiles') return told(await profiles.create(env, a, JSON.parse(body || '{}'), now, () => crypto.randomUUID().slice(0, 16)));
-        if (method === 'POST' && p === '/v1/profiles/seed') return told(await profiles.seed(env, a, JSON.parse(body || '{}'), now));
+        if (method === 'POST' && (p === '/v1/profiles/merge' || p === '/v1/profiles/seed')) return told(await profiles.merge(env, a, JSON.parse(body || '{}'), now));
         if (method === 'PATCH' && pm) return told(await profiles.update(env, a, pm[1], JSON.parse(body || '{}'), now));
         if (method === 'DELETE' && pm) return told(await profiles.remove(env, a, pm[1], now));
         return json({ error: 'not found' }, 404);
@@ -101,7 +101,7 @@ export class SharedCloudServer {
   /** The account's aliases, as a first computer would have seeded them. */
   async seedProfiles(list: { id: string; name: string; color?: string }[]) {
     await this.init();
-    return profiles.seed(this.env, this.access('seed'), { profiles: list }, Date.now());
+    return profiles.merge(this.env, this.access('seed'), { profiles: list }, Date.now());
   }
   /** The account's collections' ids. */
   async collections() {

@@ -36,6 +36,10 @@ const key = (p: string, c: string) => p + '/' + c;
 const pending = new Map<string, Set<string>>();
 let urgent: Job[] = [], queue: Job[] = [], scanned = 0;
 let delegatedUntil = 0, looping = false, loaded = false;
+/** Songs were added since the last look (a tab scanned new folders): looked for again at once, even mid-run. */
+let stale = false;
+/** Being analysed now (a look while running doesn't queue them again). */
+const active = new Set<string>();
 const hooks: { changed: (() => void) | null; event: ((text: string) => void) | null; written: ((changed: number) => void) | null } = { changed: null, event: null, written: null };
 export const on = hooks;
 
@@ -76,6 +80,9 @@ export function now(p: string, c: string, ids: string[], names: Record<string, s
   changed();
   if (cfg) void run(cfg);
 }
+/** Songs added to a collection (a GLUE tab scanned new music folders): looked for now, not at the next
+    5-minute look (they waited until a restart, 2026-09-30). */
+export function added(cfg: () => HomeConfig | null) { stale = true; void run(cfg); }
 /** Paused or not, as the settings say (HomeConfig.analysisPaused); `quiet`: GLUE Home starting. */
 export function setPaused(paused: boolean, cfg?: () => HomeConfig | null, quiet = false) {
   if (state.paused === paused) return;
@@ -132,12 +139,20 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
     const c0 = cfg();
     if (!c0?.glue) return;
     // Looked for again at most every 5 minutes (a scan reads every collection's files).
-    if (!urgent.length && !queue.length && Date.now() - scanned > 5 * 60e3) { scanned = Date.now(); queue = await scan(c0); }
+    if (!urgent.length && !queue.length && (stale || Date.now() - scanned > 5 * 60e3)) { stale = false; scanned = Date.now(); queue = await scan(c0); }
     state.left = urgent.length + queue.length;
     if (state.left) hooks.event?.('Analysing ' + state.left + ' song' + (state.left === 1 ? '' : 's'));
     let sinceWrite = 0;
     const next = async (): Promise<Job | null> => {
       if (urgent.length) return urgent.shift()!;
+      // Songs added while this runs: into the queue (those running or queued already aren't twice).
+      const c = cfg();
+      if (stale && c) {
+        stale = false; scanned = Date.now();
+        const have = new Set([...queue.map(j => j.p + '/' + j.c + '/' + j.id), ...active]);
+        queue.push(...(await scan(c)).filter(j => !have.has(j.p + '/' + j.c + '/' + j.id)));
+        state.left = urgent.length + queue.length;
+      }
       if (state.paused || !queue.length) return null;
       // A tab here analysing by itself (it holds the lease and doesn't ask): the songs are its.
       if (await bridge.leaseHeld() && Date.now() > delegatedUntil) { state.by = 'tab-self'; return null; }
@@ -151,8 +166,11 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
       for (let j = await next(); j; j = live > cache.poolSize(cfg()) ? null : await next()) {
         const c = cfg();
         if (!c) return;
+        const jk = j.p + '/' + j.c + '/' + j.id;
+        active.add(jk);
         state.running++; state.current = [...state.current, j.name]; state.left = urgent.length + queue.length; changed();
         try { await cache.analyse(j.p, j.c, j.id, c); state.done++; } catch (e) { state.failed++; const k = key(j.p, j.c) + '/' + j.id; tries.set(k, (tries.get(k) ?? 0) + 1); console.warn('GLUE Home: couldn’t analyse', j.name, e); }
+        active.delete(jk);
         state.running--; state.current = state.current.filter(n => n !== j!.name); changed();
         if (++sinceWrite >= 25) { sinceWrite = 0; await write(c).catch(e => console.warn('GLUE Home: couldn’t take the analyses in', e)); }
         spawn();

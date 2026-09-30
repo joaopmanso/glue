@@ -76,3 +76,11 @@ the UI stuttering.
 - Lasting failures show under "Couldn't analyse"; "Analyse now" tries them again.
 - In Home mode, the screen takes GLUE Home's results from its cache when it needs them
   ([ADR 0110](../adr/0110-screen-takes-glue-homes-analyses.md)).
+
+## Songs added from a tab are looked for at once (2026-09-30, GLUE Home 0.36.1)
+- The user added music folders while GLUE Home ran: the tab said the songs were being analysed by GLUE Home,
+  GLUE Home said "all analysed", until it was restarted. It looked for songs at most every 5 minutes, and not
+  at all while a run went on.
+- Now an edit that adds songs new to the collection (`engine.edit` → `added`) makes GLUE Home look again at
+  once (`analysis.added`), and during a run the new songs join its queue (those running or queued aren't
+  queued twice). Ratings and other edits don't cause a look (it reads every file of the collection).

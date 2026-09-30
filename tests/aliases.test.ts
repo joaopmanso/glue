@@ -35,6 +35,21 @@ describe('profiles become aliases; the GLUE folder keeps one library (ADR 0113)'
     await home.deleteProfile('p2');
     expect(home.index.container).toBe('p1');
   });
+  it('the profiles the first version dropped for the account’s come back, once; a device’s “Library” never was one (ADR 0114)', async () => {
+    const mem = new MemDir(), root = asDir(mem);
+    // The laptop after the first version: its own "404" replaced by the account's (another id).
+    await writeJSON(root, 'mco.json', { schemaVersion: SCHEMA, profiles: [{ id: '420555da', name: '404', color: '#f472b6' }, { id: 'lib1', name: 'Library', color: '#111' }], lastProfile: '420555da',
+      aliases: [{ id: 'b2df', name: '404', color: '#7cc7ff' }], container: '420555da', lastAlias: 'b2df' });
+    await writeJSON(root, 'profiles/lib1/profile.json', { schemaVersion: SCHEMA, id: 'lib1', name: 'Library', color: '#111', createdAt: '2026-09-30T13:00:00Z', collections: [], lastCollection: null });
+    const home = await HomeStore.open(root);
+    expect(await home.ensureAliases()).toBe(true);
+    expect(home.aliases.map(a => a.id + ' ' + a.name)).toEqual(['b2df 404', '420555da 404']);
+    expect(home.index).toMatchObject({ aliasesV: 2, lastAlias: 'b2df', container: '420555da' });
+    // Deleted afterwards (by the user): not back.
+    await home.setAliases(home.aliases.filter(a => a.id !== '420555da'));
+    expect(await (await HomeStore.open(root)).ensureAliases()).toBe(false);
+    expect((await HomeStore.open(root)).aliases.map(a => a.id)).toEqual(['b2df']);
+  });
   it('a fresh GLUE folder: the first library takes its alias’s id', async () => {
     const home = await HomeStore.open(asDir(new MemDir()));
     await home.ensureAliases();

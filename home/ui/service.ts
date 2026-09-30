@@ -400,7 +400,7 @@ async function rpc(b: Rpc): Promise<unknown> {
     case 'status': return { ...engine.status(), analysis: analysis.state };
     case 'edit': {
       const r = await engine.edit(c, b.p, b.c, b.ops);
-      if (b.ops.some(o => o.m === 'tracks')) void analysis.run(() => cfg);   // songs added (a scan): analysed next
+      if (r.added) analysis.added(() => cfg);   // songs new to it (a scan): looked for now
       return r;
     }
     // A GLUE tab here wrote a song's tags (ADR 0110): what's kept of it follows the file.

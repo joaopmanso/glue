@@ -455,24 +455,33 @@ describe('the shared collection (ADR 0094, 0106)', () => {
 
 
 describe('the account’s profiles, its artist aliases (ADR 0113)', () => {
-  it('seeded once, with their ids, from the first computer; then the same list everywhere', async () => {
+  it('every device’s profiles, with their ids, in one list; a deleted one never comes back', async () => {
     const desk = (await signIn({}, { deviceName: 'Desktop' })).json.access, phone = (await signIn({}, { deviceName: 'iPhone' })).json.access;
-    expect((await call('GET', '/v1/profiles', undefined, phone)).json).toEqual({ profiles: [], seeded: false });
-    const seeded = (await call('POST', '/v1/profiles/seed', { profiles: [{ id: 'b2df29dc692b488f', name: ' 404 ', color: '#7cc7ff', bpmRange: 'half' }] }, desk)).json;
-    expect(seeded).toEqual({ profiles: [{ id: 'b2df29dc692b488f', name: '404', color: '#7cc7ff', bpmRange: 'half', updatedAt: now }], seeded: true });
-    // Another device's seed comes too late: nothing of it goes in.
-    expect((await call('POST', '/v1/profiles/seed', { profiles: [{ id: 'p-phone', name: 'Joao Manso' }] }, phone)).json.profiles.map((p: { name: string }) => p.name)).toEqual(['404']);
-    expect((await call('POST', '/v1/profiles/seed', { profiles: [{ id: 'bad id', name: 'x' }] }, phone)).status).toBe(400);
+    expect((await call('GET', '/v1/profiles', undefined, phone)).json).toEqual({ profiles: [], gone: [], seeded: false });
+    const first = (await call('POST', '/v1/profiles/merge', { profiles: [{ id: 'b2df29dc692b488f', name: ' 404 ', color: '#7cc7ff', bpmRange: 'half' }] }, desk)).json;
+    expect(first).toEqual({ profiles: [{ id: 'b2df29dc692b488f', name: '404', color: '#7cc7ff', bpmRange: 'half', updatedAt: now }], gone: [], seeded: true });
+    // The phone's and the laptop's own join it (the same name twice too: the user deletes what they don't want).
+    now += 1;
+    await call('POST', '/v1/profiles/merge', { profiles: [{ id: 'p-phone', name: 'Joao Manso' }] }, phone);
+    now += 1;
+    const all = (await call('POST', '/v1/profiles/merge', { profiles: [{ id: '420555da', name: '404' }, { id: 'b2df29dc692b488f', name: 'renamed here' }] }, desk)).json;
+    expect(all.profiles.map((p: { id: string; name: string }) => p.id + ' ' + p.name)).toEqual(['b2df29dc692b488f 404', 'p-phone Joao Manso', '420555da 404']);
+    expect((await call('POST', '/v1/profiles/merge', { profiles: [{ id: 'bad id', name: 'x' }] }, phone)).status).toBe(400);
+    // Deleted on one device: gone for all; a device that still has it sends it in vain.
+    expect((await call('DELETE', '/v1/profiles/p-phone', undefined, desk)).json).toEqual({ ok: true });
+    const after = (await call('POST', '/v1/profiles/merge', { profiles: [{ id: 'p-phone', name: 'Joao Manso' }] }, phone)).json;
+    expect(after.profiles.map((p: { id: string }) => p.id)).toEqual(['b2df29dc692b488f', '420555da']);
+    expect(after.gone).toEqual(['p-phone']);
+    expect((await call('POST', '/v1/profiles', { id: 'p-phone', name: 'Joao Manso' }, phone)).status).toBe(404);
     // Made, renamed, its BPM range, deleted: the same for every device.
     const made = (await call('POST', '/v1/profiles', { name: 'Night alias', color: '#ff00aa' }, phone)).json;
     expect(made).toMatchObject({ name: 'Night alias', color: '#ff00aa', bpmRange: null });
     expect((await call('PATCH', '/v1/profiles/' + made.id, { name: 'Late', bpmRange: 'full' }, desk)).json).toMatchObject({ id: made.id, name: 'Late', color: '#ff00aa', bpmRange: 'full' });
     expect((await call('PATCH', '/v1/profiles/' + made.id, { name: '' }, desk)).status).toBe(400);
     expect((await call('DELETE', '/v1/profiles/' + made.id, undefined, phone)).json).toEqual({ ok: true });
-    expect((await call('GET', '/v1/profiles', undefined, desk)).json).toMatchObject({ profiles: [{ id: 'b2df29dc692b488f', name: '404' }], seeded: true });
     expect((await call('PATCH', '/v1/profiles/' + made.id, { name: 'Back' }, desk)).status).toBe(404);
     // Another account sees none of them.
     const other = (await signIn({ sub: 'g-other', email: 'other@example.com' })).json.access;
-    expect((await call('GET', '/v1/profiles', undefined, other)).json).toEqual({ profiles: [], seeded: false });
+    expect((await call('GET', '/v1/profiles', undefined, other)).json).toEqual({ profiles: [], gone: [], seeded: false });
   });
 });

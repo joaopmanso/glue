@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-09-30
-adrs: [0018, 0009, 0113]
+adrs: [0018, 0009, 0113, 0114]
 ---
 # Profiles
 
@@ -55,3 +55,12 @@ collections list. See [ADR 0018](../adr/0018-local-profiles.md).
 - Tests: `tests/aliases.test.ts` (the migration, one and two profile folders, read-only), `tests/cloud.test.ts`
   (seed once, CRUD), e2e `phone.spec` (the phone is 404), `shared.spec` (namesake, rename and a new alias
   across devices, the same library).
+
+## Every device's profiles, each device its own choice (2026-09-30, [ADR 0114](../adr/0114-profiles-are-every-devices.md))
+- The user: "if 3 exist… show all three on all devices, so I can choose the one I prefer as default for that
+  device". 0113's seed-once is replaced: signed in, a device sends the profiles the account doesn't have
+  (`POST /v1/profiles/merge`, only ids it never had) and takes the account's list (`lib/profiles.svelte.ts`).
+- Deleted on any device: gone for all (`gone` in `GET /v1/profiles`; never sent or made again under that id).
+- `mco.json` `aliasesV: 2`: the profiles 0113 dropped come back once, from the profile folders.
+- Tests: `tests/cloud.test.ts` (merge, gone), `tests/aliases.test.ts` (put back once), e2e `shared.spec` (two
+  "DJ Test"s on both devices, a rename, the extra deleted, a new one).

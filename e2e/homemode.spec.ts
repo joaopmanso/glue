@@ -710,6 +710,14 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
     await page.locator('.tr', { hasText: 'Fixture MP3' }).locator('.c-title').dblclick();
     await expect(page.locator('.src')).toHaveText('Stored analysis', { timeout: 30_000 });
     expect(asked.some(k => k.includes('d/'))).toBe(true);
+
+    // All analysed; then a tab adds a song (a new music folder scanned): GLUE Home looks for it at once, not at its
+    // next 5-minute look (the new folders' songs waited until a restart, 2026-09-30).
+    await home.evaluate(b => { (window as unknown as { __disk: Record<string, number[]> }).__disk['C:\\Users\\dj\\Music\\c.mp3'] = b; }, [...readFileSync(fixture('mp3-128k.mp3'))]);
+    // GLUE Home's own reads of its GLUE folder (Rust, stood in): the real folder now, as the edit writes it.
+    await home.exposeFunction('__glueDisk', (rel: string) => { try { return readFileSync(join(fake.dirs.glue, rel), 'utf8'); } catch { return null; } });
+    await fake.rpc(JSON.stringify({ op: 'edit', p: 'p1', c: 'c1', ops: [{ m: 'tracks', ts: [song('t1c', 'c.mp3', 65267)] }] }), false);
+    await expect.poll(() => !!analysis().t1c?.label, { timeout: 30_000 }).toBe(true);
     await home.close();
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
