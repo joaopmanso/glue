@@ -6,7 +6,13 @@ adrs: [0018, 0009, 0113, 0114]
 ---
 # Profiles
 
-## What it does
+## Now
+A profile is an artist alias (name, colour, BPM range), the same list on every device you sign in to (every
+device's profiles, merged; a deletion is final everywhere). Each device picks its own. Every profile opens the
+same library: the GLUE folder's one profile folder (`mco.json.container`). See [SYSTEM.md](../SYSTEM.md) §3,
+ADRs 0113 and 0114. The sections below are the history (until 2026-09-30 a profile owned its collections).
+
+## What it did (M2, 2026-09-24)
 Local users without passwords: each profile has a name and a colour and its own collections and
 playlists. Several people, or personas ("Club", "Weddings"), can share one computer and GLUE folder.
 

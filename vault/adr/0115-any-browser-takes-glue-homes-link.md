@@ -9,7 +9,7 @@ Amends [ADR 0048](0048-local-link-to-glue-home.md) (how a page gets the local li
 
 ## Context
 The user, 2026-09-30, with GLUE Home running and Chrome using it:
-- In Edge, signing in showed the library in Edge's own storage, not the MCO folder.
+- In Edge, signing in showed the library in Edge's own storage, not the GLUE folder.
 - Every music folder said "Find folder", and every song "GLUE needs your permission to read 'Music Collection'
   again".
 - "If I'm running [GLUE Home] and I have a session logged on, doesn't matter what browser I use, I should always

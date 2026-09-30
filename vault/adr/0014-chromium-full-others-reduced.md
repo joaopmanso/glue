@@ -11,7 +11,7 @@ ship it.
 
 ## Decision
 Target Chromium (Chrome, Edge, Arc, Brave, Opera) for the full product. Safari and Firefox get:
-drop-to-load music (per session), MCO data in OPFS, zip backup download/restore, analysis, lists and
+drop-to-load music (per session), GLUE data in OPFS, zip backup download/restore, analysis, lists and
 exports as downloads. Capability flags from the platform layer (ADR 0007) decide what's shown; a
 banner explains what Chrome/Edge add.
 

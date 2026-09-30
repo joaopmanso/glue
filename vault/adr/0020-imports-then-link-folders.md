@@ -7,15 +7,15 @@ date: 2026-09-24
 ## Context
 DJ libraries (Rekordbox XML, Engine DJ m.db, Serato database V2 + crates, Traktor NML, Apple Music /
 iTunes XML, M3U8) reference audio by absolute path, but a website can only open files inside folders
-the user grants. Chosen with the user: import shows everything right away, then MCO asks for the
+the user grants. Chosen with the user: import shows everything right away, then GLUE asks for the
 music folder(s) once and matches (2026-09-24).
 
 ## Decision
 - Importing a library file creates a **source** (read-only record of what was imported), adds its
   tracks to the collection as **unlinked** tracks carrying the imported metadata (title, artist,
   album, genre, BPM, key, rating, cues, play count, date added), and turns its playlists / crates
-  into MCO playlists (marked with their origin).
-- **Link music folder**: after granting a folder, MCO scans it and matches unlinked tracks by path
+  into GLUE playlists (marked with their origin).
+- **Link music folder**: after granting a folder, GLUE scans it and matches unlinked tracks by path
   suffix (longest common suffix of the imported absolute path and the file's relative path), then by
   file name + size. A match also records the root's absolute path (ADR 0012).
 - Only linked tracks can be played or analysed; unlinked tracks show their imported details and a

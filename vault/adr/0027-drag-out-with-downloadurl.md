@@ -5,7 +5,7 @@ date: 2026-09-24
 # 0027. Dragging out to other apps uses Chromium's DownloadURL
 
 ## Context
-The user wants to drag tracks and playlists out of MCO into Windows Explorer, rekordbox, Engine DJ
+The user wants to drag tracks and playlists out of GLUE into Windows Explorer, rekordbox, Engine DJ
 (2026-09-24). A web page can't hand another app a path to an existing file: the only way out is
 Chromium's `DownloadURL` drag type (`mime:name:url`, one file per drag, blob URLs allowed; not in
 Safari or Firefox; see [web.dev case study](https://web.dev/case-studies/box-dnd-download),

@@ -16,7 +16,7 @@ of reach; its XML export is the supported path ([ADR 0011](0011-rekordbox-xml-sh
   `Engine Library/Database2/m.db`, `_Serato_/database V2`, `collection.nml`, XML files whose start
   is `<DJ_PLAYLISTS` (rekordbox) or a `<plist` named *Library* (iTunes / Apple Music).
 - It runs on every collection open, after scans, imports and new places, over: the music folders,
-  the MCO folder itself (always readable: the place to export rekordbox / Apple Music XML to), and
+  the GLUE folder itself (always readable: the place to export rekordbox / Apple Music XML to), and
   "library places" the user allows with **Look in…** (remembered in IndexedDB; e.g. Documents ›
   Native Instruments for Traktor). Places whose permission lapsed show **Allow**.
 - Each import started from a detected library records `origin` (place, relative path, file date) on
@@ -26,5 +26,5 @@ of reach; its XML export is the supported path ([ADR 0011](0011-rekordbox-xml-sh
 
 ## Consequences
 - Engine DJ, Serato and iTunes appear as soon as the Music folder is added; Traktor after one "Look
-  in…"; rekordbox after exporting into the MCO folder (repeat the export, press Update).
+  in…"; rekordbox after exporting into the GLUE folder (repeat the export, press Update).
 - Detection never reads whole libraries until the user presses Add.

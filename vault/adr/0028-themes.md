@@ -6,7 +6,7 @@ date: 2026-09-24
 
 ## Context
 The user finds the single look functional but generic ("AI like") and wants themes, chosen on the
-"Who's using MCO?" screen, each with dark and light modes, more distinctive colours and fonts, while
+"Who's using GLUE?" screen, each with dark and light modes, more distinctive colours and fonts, while
 staying professional. They'll try them and pick a new default (2026-09-24).
 
 ## Decision
@@ -23,7 +23,7 @@ staying professional. They'll try them and pick a new default (2026-09-24).
   is open, for the previews).
 - Mode: dark, light or match the system; also a sun/moon button in the header.
 - The choice is stored in the browser (`mco.theme`, `mco.mode`) and in `mco.json` (`appearance`), so
-  the MCO folder opens with the same look elsewhere.
+  the GLUE folder opens with the same look elsewhere.
 - Data displays keep their black plot areas and spectrogram palettes in light mode (as audio tools do);
   axes, labels and chrome follow the theme. Canvases redraw on a theme change (`themes.version`).
 

@@ -17,5 +17,5 @@ opt-in, with an automatic backup before every write.
 
 ## Consequences
 - Zero risk to the user's DJ libraries.
-- One manual step per app (import the MCO playlist), made as easy as possible by a live export file
+- One manual step per app (import the GLUE playlist), made as easy as possible by a live export file
   (ADR 0011).

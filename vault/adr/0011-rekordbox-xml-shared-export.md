@@ -11,12 +11,12 @@ rekordbox XML too (Preferences › Library › Integration), and has no M3U impo
 priority targets.
 
 ## Decision
-MCO maintains `MCO/exports/rekordbox.xml`, regenerated a few seconds after any list change, containing
-the whole MCO tree (Playlists, Shows › Sessions) and the tracks they use. Users point both apps at this
-file once; afterwards MCO's lists appear in both and refresh without re-exporting.
+GLUE maintains `GLUE/exports/rekordbox.xml`, regenerated a few seconds after any list change, containing
+the whole GLUE tree (Playlists, Shows › Sessions) and the tracks they use. Users point both apps at this
+file once; afterwards GLUE's lists appear in both and refresh without re-exporting.
 
 ## Consequences
 - One exporter to perfect instead of two; one setup step per app.
 - Needs absolute file paths (ADR 0012).
-- XML can't carry Rekordbox smart lists or My Tags; MCO smart lists are exported as their current
+- XML can't carry Rekordbox smart lists or My Tags; GLUE smart lists are exported as their current
   contents.

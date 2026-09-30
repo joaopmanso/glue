@@ -6,6 +6,12 @@ adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
+## Now
+The current model is in [SYSTEM.md](../SYSTEM.md): §4 (the account's collections: shared form, one id per
+computer, sync, the collections' list), §5 (GLUE Home: the local link, the engine, Home mode, any browser on the
+computer), §7 (accounts, devices and sessions, signaling). What follows is this feature's history, oldest first
+per section: read only the part you're changing.
+
 ## What it does
 An optional tier. You sign in with Google or Apple. On the computer with your main collection you
 run **GLUE Home**, a small app. From the GLUE website on any other computer you can see that

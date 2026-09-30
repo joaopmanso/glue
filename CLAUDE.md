@@ -3,10 +3,9 @@
 The name is always written **GLUE**, in capitals, everywhere people can see it (the theme is
 "GLUE Stick", the headline "The GLUE between…"); the user asked for this on 2026-09-25.
 
-Formerly **MCO** (Music Collection Organizer), renamed 2026-09-25 ([ADR 0035](vault/adr/0035-rename-to-glue.md)).
-Internal identifiers keep the old prefix on purpose (`mco.json`, `mco-backup.json`, IndexedDB `mco`,
-prefs `mco.*`, picker ids `mco-home`…) so existing data folders, backups and settings keep working.
-Repo `joaopmanso/glue`, live at https://joaopmanso.github.io/glue/ (`joaopmanso/mco` only redirects there).
+Internal identifiers use the prefix `mco` (`mco.json`, `mco-backup.json`, IndexedDB `mco`, prefs `mco.*`, picker
+ids `mco-home`…): keep them, existing data folders, backups and settings depend on them.
+Repo `joaopmanso/glue`, live at https://joaopmanso.github.io/glue/.
 
 Local-first web app for DJs: builds a music collection from folders and DJ-app libraries (Rekordbox,
 Engine DJ, Traktor, Apple Music), analyses quality / BPM / key in the background, manages playlists,
@@ -15,15 +14,23 @@ shows and sessions, finds duplicates, and exports back to Rekordbox and Engine D
 Inspector and "Analyze a file" mode.
 
 ## The vault is the source of truth
-Before working, read:
-1. `vault/product/roadmap.md` (current milestone),
-2. the feature file(s) in `vault/features/` you're touching,
-3. the ADRs they link in `vault/adr/`,
-4. the newest handoff note in `vault/log/` (`YYYY-MM-DD-handoff.md`), if there is one.
+Before working, read only:
+1. `vault/SYSTEM.md`: how GLUE works now (about 13 KB);
+2. `vault/log/handoff.md`: the current state, what's waiting on the user, what's next;
+3. `vault/product/roadmap.md` if the work belongs to a milestone.
+
+Then look things up, don't read in bulk:
+- the "Now" section of the feature file(s) you're touching (`vault/features/`), and the dated sections
+  below it only for the part you change;
+- an ADR only when you need why something is the way it is: `grep -l` `vault/adr/` for the term. Don't
+  read the ADR index, the changelog or the archive whole.
 
 After working:
-- update the feature's `status` and notes, the roadmap if a milestone moved, and
-  `vault/log/changelog.md` (dated entry);
+- update `vault/SYSTEM.md` in the same commit when how GLUE works changed (it must stay true);
+- update the feature's "Now" and `status`, the roadmap if a milestone moved, and
+  `vault/log/changelog.md` (dated entry; entries older than about two weeks move to
+  `vault/log/archive/`);
+- rewrite `vault/log/handoff.md` at the end of a session (state, waiting on the user, next);
 - every new architectural decision gets a new ADR (`vault/adr/NNNN-slug.md`, from `_template.md`);
   never rewrite an accepted ADR, supersede it;
 - research findings go in `vault/research/` with sources; mark unverified claims **[UNVERIFIED]**.

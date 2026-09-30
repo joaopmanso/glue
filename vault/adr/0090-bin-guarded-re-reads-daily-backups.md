@@ -10,7 +10,7 @@ of the plan for one shared collection (handoff 2026-09-28, "The user's fifth lis
 ## Context
 When every playlist was deleted on 2026-09-28, nothing could bring them back:
 - there was no bin;
-- the daily backups planned in [mco-folder-backups](../features/mco-folder-backups.md) were never
+- the daily backups planned in [glue-folder-backups](../features/glue-folder-backups.md) were never
   built;
 - GLUE Cloud keeps only each device's latest copy.
 

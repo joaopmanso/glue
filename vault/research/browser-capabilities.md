@@ -21,7 +21,7 @@ Researched 2026-09-24. **[UNVERIFIED]** marks claims not confirmed from a primar
     ProgramData, Chrome profile, `~/.ssh`, `~/.gnupg`; macOS `/Applications`, `~/Library`,
     `/System/Volumes`; Linux `/etc`, `~/.config`, …
   - **Not blocked**: Music, Pictures, Videos → `~/Music` can be granted whole.
-  - Consequence: Rekordbox master.db (AppData / `~/Library/Pioneer`) is unreachable; `Documents/MCO`
+  - Consequence: Rekordbox master.db (AppData / `~/Library/Pioneer`) is unreachable; `Documents/GLUE`
     and `Documents/Native Instruments` are fine; iCloud Drive's `com~apple~CloudDocs` is grantable.
 - **Persistence**: store handles in IndexedDB; `queryPermission` / `requestPermission` (needs a click).
   Chrome 122+ prompt offers "Allow this time / Allow on every visit / Don't allow".

@@ -2,7 +2,7 @@
 status: accepted (layout amended by 0018)
 date: 2026-09-24
 ---
-# 0009. JSON files in the MCO folder are the store; no database
+# 0009. JSON files in the GLUE folder are the store; no database
 
 ## Context
 The user wants the library stored locally in their Documents folder, in files they own, and asked
@@ -13,16 +13,16 @@ target atomically on `close()`. Safari/Firefox can't write to Documents but offe
 directory-handle API.
 
 ## Decision
-The MCO folder *is* the library. Layout:
+The GLUE folder *is* the library. Layout:
 ```
-MCO/mco.json                          settings, collections list, format version
-MCO/collections/<id>/collection.json  name, roots (id, name, abs_path)
-MCO/collections/<id>/tracks/<00..ff>.json    track records sharded by id prefix
-MCO/collections/<id>/analysis/<00..ff>.json  analysis summaries, same sharding
-MCO/collections/<id>/lists/<list-id>.json    one file per folder/playlist/smart/show/session
-MCO/collections/<id>/sources/<id>.json       one per imported library
-MCO/cache/fingerprints/<00..ff>.json  derived, rebuildable
-MCO/backups/<date>.zip  ·  MCO/imports/  ·  MCO/exports/  ·  MCO/stems/
+GLUE/mco.json                          settings, collections list, format version
+GLUE/collections/<id>/collection.json  name, roots (id, name, abs_path)
+GLUE/collections/<id>/tracks/<00..ff>.json    track records sharded by id prefix
+GLUE/collections/<id>/analysis/<00..ff>.json  analysis summaries, same sharding
+GLUE/collections/<id>/lists/<list-id>.json    one file per folder/playlist/smart/show/session
+GLUE/collections/<id>/sources/<id>.json       one per imported library
+GLUE/cache/fingerprints/<00..ff>.json  derived, rebuildable
+GLUE/backups/<date>.zip  ·  GLUE/imports/  ·  GLUE/exports/  ·  GLUE/stems/
 ```
 - Load everything into memory at start; search/sort/filter on in-memory indexes.
 - Write only changed files, debounced ~2 s and on tab hide, via atomic writes.

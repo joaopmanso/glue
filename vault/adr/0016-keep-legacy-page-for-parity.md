@@ -21,4 +21,4 @@ changed on purpose in the same commit, with the reason in the changelog.
 
 ## Consequences
 - Behaviour changes are always deliberate and visible in review.
-- The file is ~2,800 lines of dead code for the app itself (not built or deployed with MCO).
+- The file is ~2,800 lines of dead code for the app itself (not built or deployed with GLUE).

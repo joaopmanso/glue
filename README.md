@@ -1,4 +1,4 @@
-# MCO: Music Collection Organizer
+# GLUE: GLUE
 
 A local-first music collection tool for DJs, growing out of **Speklone** (spectral forensics: "is this
 hi-res actually hi-res?"). Everything runs in the visitor's browser; no audio ever leaves their machine.

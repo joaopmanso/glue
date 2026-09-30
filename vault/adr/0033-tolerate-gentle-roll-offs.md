@@ -18,7 +18,7 @@ The collection has ~10k analysed tracks, which shouldn't need decoding again.
   Lossy encoders leave a wall, not a slope. A fade ending below 17 kHz stays a Caution.
 - A detected "wall" that is both high and shallow (≥ 18.5 kHz, < 30 dB drop, `SOFT_WALL`) is a
   Caution at most, never "Transcoded" on its own: steep mastering lowpasses look like that; the
-  encoder walls MCO is sure of drop far more (the synthetic ones ~70 dB). The old rule (≥ 19.6 kHz,
+  encoder walls GLUE is sure of drop far more (the synthetic ones ~70 dB). The old rule (≥ 19.6 kHz,
   < 35 dB) still applies too.
 - Verdicts carry `vv` (`VERDICT_VERSION`, now 2). When a collection opens, stored verdicts from an
   older version that were a warning or a fail are judged again from the stored analysis (the full

@@ -22,7 +22,7 @@ showed no waveform and "This track's file is on Laptop … run GLUE Home on Lapt
 Why the song misbehaved: the website can't read GLUE Home's incoming folder (it never granted it),
 so the song stayed *the laptop's track* with a pointer to the copy (`remote.via`). Only playing
 followed the pointer; the track page, waveform and summary didn't
-([handoff](../log/2026-09-26-handoff.md)).
+([handoff](../log/archive/2026-09-26-handoff.md)).
 
 Options for where the library runs were put to the user on 2026-09-26; they chose "GLUE Home as disk
 and engine" over "GLUE Home as the full backend".

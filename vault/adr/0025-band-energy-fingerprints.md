@@ -6,7 +6,7 @@ amends: 0013 (how tier 2 fingerprints are made and kept)
 # 0025. Band-energy fingerprints for "same recording", kept in the browser's cache
 
 ## Context
-[ADR 0013](0013-duplicate-tiers.md) planned chroma codes over 30 s from the middle, stored in the MCO
+[ADR 0013](0013-duplicate-tiers.md) planned chroma codes over 30 s from the middle, stored in the GLUE
 folder. The user's case (2026-09-24): "HHH 04 RADIX.wav" and "HHH-Bebida.mp3" are two rips of one
 song, under different names and codecs. Rips also differ in length and lead-in, so a fixed 30 s
 middle window may not overlap enough, and fingerprints are derived data like the stored analyses

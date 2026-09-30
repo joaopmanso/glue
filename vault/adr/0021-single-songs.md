@@ -14,12 +14,12 @@ page gets no path for a file, only a `File` (gone after reload) or, in Chromium,
 - A song that lies inside a linked music folder (`dir.resolve(handle)`) becomes a folder track
   instead; when a folder is added later, loose songs inside it are adopted the same way.
 - A song whose name (and size, when known) matches an imported track without a file links to it.
-- Browsers without file handles (Safari/Firefox) keep a **copy** in the MCO home under `files/`
+- Browsers without file handles (Safari/Firefox) keep a **copy** in the GLUE home under `files/`
   (`fileKey: copy:files/<id>-<name>`); removing the track deletes the copy.
 - "Remove from collection" drops tracks (never touches user files).
 
 ## Alternatives considered
-- Always copy into the MCO folder: doubles disk use for Chromium users; rejected.
+- Always copy into the GLUE folder: doubles disk use for Chromium users; rejected.
 - Session-only files: lost on reload; rejected.
 
 ## Consequences

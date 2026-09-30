@@ -5,7 +5,7 @@ date: 2026-09-24
 # 0029. Automatic playlists: a greedy walk along a BPM ramp with weighted randomness
 
 ## Context
-With BPM, key, ratings and fingerprints in place, the user wants to pick a song and have MCO build a
+With BPM, key, ratings and fingerprints in place, the user wants to pick a song and have GLUE build a
 playlist around it (2026-09-24): start / end BPM, harmonic mixing, number of songs (20 by default,
 fewer if the collection is smaller), must-include songs, always favour the highest rated unless told
 otherwise, different every time; later, avoid repeating songs from shows and sessions.

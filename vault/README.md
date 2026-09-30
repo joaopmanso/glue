@@ -8,10 +8,14 @@ Written for both people and AI agents. Plain Markdown with relative links, so it
 opens as an [Obsidian](https://obsidian.md) vault.
 
 ## Start here
-- [Vision](product/vision.md): what GLUE is for and the principles it keeps.
+- **[SYSTEM.md](SYSTEM.md): how GLUE works now**, in one place. Read this first.
+- **[Handoff](log/handoff.md):** where things stand, what's waiting on the user, what's next.
 - [Roadmap](product/roadmap.md): milestones and their status.
-- [Glossary](product/glossary.md): the words we use (collection, root, source, show, session…).
-- [Changelog](log/changelog.md): what changed, newest first.
+- [Vision](product/vision.md) and [Glossary](product/glossary.md): what GLUE is for, and the words we use.
+- [Changelog](log/changelog.md): what changed lately, newest first (older entries in [log/archive/](log/archive/)).
+
+The feature files and ADRs below are the detail and the history: look up the ones for what you're changing
+(search for a term), rather than reading them in order.
 
 ## Sections
 | Folder | Holds | One file per |
@@ -20,7 +24,7 @@ opens as an [Obsidian](https://obsidian.md) vault.
 | [features/](features/) | what each feature does, its status, how it works, how it's tested | feature |
 | [adr/](adr/) | architecture decision records: context, decision, consequences | decision |
 | [research/](research/) | sourced findings (browser APIs, DJ library formats, performance) | subject |
-| [log/](log/) | changelog and session write-ups | release / session |
+| [log/](log/) | the handoff (rewritten each session), the changelog (recent), and [archive/](log/archive/) (older handoffs and changelog) | — |
 
 ## Conventions
 - **Status** (front matter `status:`): `idea` · `planned` · `in-progress` · `shipped` · `superseded`.
@@ -30,8 +34,10 @@ opens as an [Obsidian](https://obsidian.md) vault.
   renumbered. A changed decision gets a new ADR that supersedes the old one; the old one stays.
 - **Research** always cites sources and marks anything unverified as **[UNVERIFIED]**.
 - Dates are absolute (`2026-09-24`), never "last week".
-- Every change to the app updates: the feature's status/notes, the roadmap if a milestone moves, and
-  the changelog. Every new architectural choice gets an ADR.
+- Every change to the app updates: [SYSTEM.md](SYSTEM.md) when how GLUE works changed, the feature's "Now"
+  and status, the roadmap if a milestone moves, the changelog, and the handoff at the end of a session.
+  Every new architectural choice gets an ADR.
+- The changelog keeps about the last two weeks; older entries move to `log/archive/changelog-<from>-to-<to>.md`.
 
 ## Feature index
 Shipped (from Speklone):
@@ -44,7 +50,7 @@ Shipped (from Speklone):
 [deployment](features/deployment.md)
 
 Planned (GLUE):
-[GLUE folder & backups](features/mco-folder-backups.md) ·
+[GLUE folder & backups](features/glue-folder-backups.md) ·
 [library & scanner](features/library-scanner.md) ·
 [background analysis](features/background-analysis.md) ·
 [quality tiers & filters](features/quality-tiers.md) ·
@@ -109,7 +115,7 @@ Planned (GLUE):
 | [0032](adr/0032-tags.md) | Tags as plain names on tracks and playlists; found tags stand in until edited | accepted |
 | [0033](adr/0033-tolerate-gentle-roll-offs.md) | Tolerate gentle top-end roll-offs; re-check stored verdicts when the rules change | accepted |
 | [0034](adr/0034-quiet-content-above-the-fade.md) | Count quiet content above a gentle fade (peak-hold reach) | accepted |
-| [0035](adr/0035-rename-to-glue.md) | Rename MCO to GLUE (Global Library Utility Exporter); keep internal identifiers | accepted (name spelled out by 0039) |
+| [0035](adr/0035-rename-to-glue.md) | Rename GLUE to GLUE (Global Library Utility Exporter); keep internal identifiers | accepted (name spelled out by 0039) |
 | [0036](adr/0036-optional-accounts-and-cloud-signaling.md) | Optional accounts and a small free cloud service (Cloudflare) for devices and signaling | accepted; "no library data in the cloud" superseded by 0040 (opt-in cloud sync) |
 | [0037](adr/0037-p2p-webrtc-transport.md) | WebRTC data channels between the website and GLUE Home | proposed |
 | [0038](adr/0038-glue-home-app.md) | GLUE Home: a small Node.js/TypeScript app that serves the main computer's library | superseded by 0044 |

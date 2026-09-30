@@ -6,6 +6,9 @@ adrs: []
 ---
 # Feature name
 
+## Now
+Three to six lines: how it works today, what's left. Kept current; the dated sections below are history.
+
 ## What it does
 One paragraph, from the user's side of the screen.
 

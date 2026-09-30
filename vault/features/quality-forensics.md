@@ -45,7 +45,7 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
   (brick wall = ≥18 dB drop with floor above; else gradual fade at floor + 6 dB; rising ultrasonic
   noise; mirror-image upsampling around 22.05/24 kHz) → `classify`.
 - The 6 dB fade threshold (was 15 dB) came from a real 48 kHz Bandcamp AIFF falsely flagged
-  "band-limited"; see [log](../log/2026-09-23-speklone.md).
+  "band-limited"; see [log](../log/archive/2026-09-23-speklone.md).
 
 ## Acceptance (met)
 - [x] Synthetic 96 kHz file with a 16 kHz wall and 16-bit samples → "Transcoded", "Only 16 of 24 bits".

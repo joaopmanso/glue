@@ -5,7 +5,7 @@ date: 2026-09-24
 # 0007. Web first; all OS access goes through a platform layer
 
 ## Context
-MCO stays a website for now, and a downloadable desktop client will follow for what browsers can't
+GLUE stays a website for now, and a downloadable desktop client will follow for what browsers can't
 do: auto-detecting libraries anywhere on disk, Rekordbox's master.db in AppData / ~/Library (blocked
 for web pages), absolute paths, native-speed stems.
 
@@ -14,7 +14,7 @@ Only `src/platform/` touches the OS: picking folders, persisting and re-requesti
 reading files, writing files, watching folders, revealing absolute paths when possible. It exposes one
 `Platform` interface with capability flags. Implementations:
 - `web-fsa` (Chrome/Edge): File System Access API, handles persisted in IndexedDB, FileSystemObserver.
-- `web-basic` (Safari/Firefox): drop-to-load (`webkitGetAsEntry`), OPFS for MCO's own data.
+- `web-basic` (Safari/Firefox): drop-to-load (`webkitGetAsEntry`), OPFS for GLUE's own data.
 - `desktop` (later): native file system, auto-detection, absolute paths.
 UI shows or hides features from the capability flags, never from browser sniffing.
 
