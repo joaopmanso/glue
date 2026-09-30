@@ -49,6 +49,12 @@ class Thumbs {
     if (dir && cid) await writeBlob(dir, this.path(cid, id), new Blob([data.slice().buffer])).catch(() => {});
   }
   forget(id: string) { this.cache.delete(id); }
+  /** Those found missing are looked for again (GLUE Home's cache just became reachable, ADR 0110). */
+  retryMissing() {
+    let n = 0;
+    for (const [id, v] of this.cache) if (v === null) { this.cache.delete(id); n++; }
+    if (n) this.version++;
+  }
 
   private checkCollection() {
     const cid = lib.store?.meta.id ?? '';
@@ -68,6 +74,9 @@ class Thumbs {
   }
   /** Another computer's songs: from its GLUE Home, a screenful at a time (ADR 0046). */
   remote: ((ts: Track[]) => Promise<Map<string, Uint8Array>>) | null = null;
+  /** This computer's song, analysed by GLUE Home (ADR 0110): its copy in GLUE Home's cache, when this browser has
+      none (it was analysed while no tab listened, or in another browser). */
+  fromHome: ((id: string) => Promise<Uint8Array | null>) | null = null;
   private wantRemote: Track[] = [];
   private remoteTimer = 0;
   private tries = new Map<string, number>();
@@ -103,6 +112,9 @@ class Thumbs {
       if (this.cid === cid && b.length === this.size) { this.remember(id, b); return; }
     } catch { /* not stored yet */ }
     if (this.cid !== cid) return;
+    const home = await this.fromHome?.(id).catch(() => null);
+    if (this.cid !== cid) return;
+    if (home && home.length === this.size) { await this.put(id, home); return; }
     // Analysed before thumbnails existed: make it from the stored analysis, one at a time.
     const a = lib.store?.analysis.get(id);
     if (a && !a.error) { if (!this.derive.includes(id)) this.derive.push(id); void this.deriveNext(); }

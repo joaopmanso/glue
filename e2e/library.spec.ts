@@ -2428,3 +2428,55 @@ test('the user\'s list, 2026-09-28, batch C: genres picked like tags; browsing b
   await row('Fixture MP3').locator('.c-title').dblclick();
   await expect(page.locator('#track-genre')).toHaveText('Techno');
 });
+
+test('removing a music folder removes its songs, and says what goes with them; songs left with no file are offered once (ADR 0111)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  const row = (t: string) => page.locator('.tr', { hasText: t });
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+
+  // One leftover from before (a song whose folder was removed by an older GLUE): the prompt, once.
+  const cid = await page.evaluate(async () => {
+    const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('MCO');
+    const read = async (d: FileSystemDirectoryHandle, p: string) => JSON.parse(await (await (await d.getFileHandle(p)).getFile()).text());
+    const home = await read(root, 'mco.json'), pid = home.lastProfile;
+    const prof = await read(await (await root.getDirectoryHandle('profiles')).getDirectoryHandle(pid), 'profile.json');
+    return { pid, cid: prof.lastCollection as string };
+  });
+  await page.evaluate(async ({ pid, cid }) => {
+    const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('MCO');
+    let d = root; for (const p of ['profiles', pid, 'collections', cid, 'tracks']) d = await d.getDirectoryHandle(p, { create: true });
+    const song = { id: 'orphan01', status: 'unlinked', rootId: null, relPath: null, importPath: null, fileName: 'gone.wav', size: 1, mtime: 1, title: 'Left behind', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: 1, format: null, addedAt: '2026-09-29', sources: [] };
+    const f = await (await d.getFileHandle('or.json', { create: true })).createWritable(); await f.write(JSON.stringify({ schemaVersion: 1, items: { orphan01: song } })); await f.close();
+  }, cid);
+  await page.reload();
+  await expect(page.locator('#orphans')).toContainText('1 song here has no file', { timeout: 30_000 });
+  await page.click('#orphans-remove');
+  await expect(page.locator('#orphans')).toHaveCount(0);
+  await expect(row('Left behind')).toHaveCount(0);
+  expect(await page.evaluate(async () => { const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('MCO'); const names: string[] = []; for await (const [n] of (await root.getDirectoryHandle('backups') as unknown as { entries(): AsyncIterable<[string]> }).entries()) names.push(n); return names; })).toEqual([expect.stringMatching(/^pre-orphans-\d{4}-\d{2}-\d{2}-/)]);
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('#orphans')).toHaveCount(0);
+
+  // A rating and a playlist place, then the folder goes: the question says so, and its songs go with it.
+  await row('Fixture MP3').hover();
+  await row('Fixture MP3').locator('.c-rate button').nth(3).click({ position: { x: 10, y: 6 } });
+  page.once('dialog', d => void d.accept('Friday'));
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="add"]').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
+  await expect(page.locator('.lside .tree .name', { hasText: 'Friday' })).toBeVisible();
+  let asked = '';
+  page.once('dialog', d => { asked = d.message(); void d.accept(); });
+  await page.locator('.lside [data-root] .name').first().click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Remove from collection…' }).click();
+  await expect(page.locator('.tr')).toHaveCount(0, { timeout: 10_000 });
+  expect(asked).toContain('Its songs leave the collection: 4 songs, 1 rated, 1 in 1 playlist.');
+  await expect(page.locator('.lside [data-view="unlinked"]')).not.toContainText(/[1-9]/);
+});

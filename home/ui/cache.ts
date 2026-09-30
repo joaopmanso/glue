@@ -12,7 +12,7 @@ import { DETAILS_VERSION, decodeDetails, type DetailsHeader } from '../../src/st
 import { makeWaveThumb, WAVE_BYTES } from '../../src/core/library/thumb';
 import { incomingKey } from '../../src/core/transfer';
 import { coverOf, type Cover } from '../../src/workers/cover';
-import { analysed, type Analysed } from '../../src/core/library/analysed';
+import { analysed, type Analysed, isTransient } from '../../src/core/library/analysed';
 import { failed } from '../../src/core/library/summary';
 import { encodeFingerprint } from '../../src/store/fingerprints';
 
@@ -25,6 +25,16 @@ const HEX = '0123456789abcdef';
 const sKey = (p: string, c: string, id: string) => `s/${p}/${c}/${shardOf(id)}/${id}.json`;
 export const pKey = (p: string, c: string, id: string) => `p/${p}/${c}/${shardOf(id)}/${id}.bin`;
 export { sKey as resultKey };
+/** A song's file changed because its tags were written (ADR 0110): what's kept of it (the details' header,
+    the analysis result) follows its new size and date, so it isn't analysed again. Only if they were of the
+    file as it was. */
+export async function restamp(p: string, c: string, id: string, was: { size: number | null; mtime: number | null }, now: { size: number; mtime: number }) {
+  const enc = (o: unknown) => new TextEncoder().encode(JSON.stringify(o));
+  const h = await read(dKey(p, c, id, 'json'));
+  if (h) { const header = JSON.parse(new TextDecoder().decode(h)) as DetailsHeader; if (header.fileSize === was.size && header.fileMtime === was.mtime) await bridge.cacheWrite(dKey(p, c, id, 'json'), enc({ ...header, fileSize: now.size, fileMtime: now.mtime })); }
+  const r = await result(p, c, id);
+  if (r && r.size === was.size && r.mtime === was.mtime) await bridge.cacheWrite(sKey(p, c, id), enc({ ...r, size: now.size, mtime: now.mtime, summary: { ...r.summary, fileSize: now.size, fileMtime: now.mtime } }));
+}
 export async function result(p: string, c: string, id: string): Promise<Analysed | null> {
   const b = await read(sKey(p, c, id));
   try { return b ? JSON.parse(new TextDecoder().decode(b)) as Analysed : null; } catch { return null; }
@@ -134,8 +144,8 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig)
   try {
     r = await pool.analyze(new File(parts, f.name, { lastModified: f.mtime }), f.mtime, 120_000);
   } catch (e) {
-    // The worker ran out of memory (too many big songs at once): tried again later, not a failure.
-    if (/analysis worker stopped/.test(String((e as Error)?.message))) throw e;
+    // Out of time or memory, or its worker stopped: tried again later (ADR 0109), never saved as the song's.
+    if (/analysis worker stopped/.test(String((e as Error)?.message)) || isTransient(String((e as Error)?.message))) throw e;
     // Said once, like a GLUE tab says it: not tried again until the file changes.
     const msg = String((e as Error)?.message || 'It couldn’t be decoded.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'It couldn’t be decoded.');
     await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify({ summary: failed(msg, { size, mtime: f.mtime }), size, mtime: f.mtime, format: null, duration: null, fields: {} } satisfies Analysed)));

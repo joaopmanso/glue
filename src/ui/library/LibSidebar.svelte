@@ -2,6 +2,7 @@
   import { readPref, writePref } from '../../lib/prefs';
   import { FACETS, facetItems } from '../../core/library/browse';
   import { asShown } from '../../core/library/summary';
+  import { describeRemoval, removalImpact } from '../../core/library/removal';
   import { untrack } from 'svelte';
   import { dock } from '../../lib/dock.svelte';
   import { sidebar, type LibView, type SideKey } from '../../lib/sidebar.svelte';
@@ -38,15 +39,16 @@
   const counts = $derived.by(() => {
     void lib.version;
     const s = lib.store;
-    let all = 0, pending = 0, unlinked = 0, attention = 0;
+    let all = 0, pending = 0, failed = 0, unlinked = 0, attention = 0;
     if (s) for (const t of s.tracks.values()) {
       if (!dupes.hidden.has(t.id)) all++;   // one per song (its best copy)
-      if (t.status !== 'linked') unlinked++;
-      if (lib.needsAnalysis(t)) pending++;
+      // One meaning each (ADR 0109), as the lists and Stats count them.
+      const st = lib.analysisState(t);
+      if (st === 'nofile') unlinked++; else if (st === 'waiting') pending++; else if (st === 'failed') failed++;
       const a = s.analysis.get(t.id);
       if (a && (a.grade === 'bad' || a.grade === 'warn') && asShown(t, a)?.grade !== 'ok') attention++;
     }
-    return { all, pending, unlinked, attention };
+    return { all, pending, failed, unlinked, attention };
   });
   const top = $derived.by(() => { void lib.version; return lib.childLists(null); });
   // Takes the version so nested folders re-render when any list changes (the store's maps aren't reactive).
@@ -199,7 +201,7 @@
   function onMore(el: Element, key: string, build: () => MenuEntry[], label: string) { menu.from(el, build, label); menuRow = key; }
   const plural = (n: number, one: string) => n + ' ' + one + (n === 1 ? '' : 's');
 
-  const LIB_VIEWS: [ViewSel['kind'], string][] = [['all', 'All tracks'], ['recent', 'Recently added'], ['attention', 'Needs attention'], ['pending', 'Not analysed yet'], ['unlinked', 'No file linked'], ['dupes', 'Duplicates']];
+  const LIB_VIEWS: [ViewSel['kind'], string][] = [['all', 'All tracks'], ['recent', 'Recently added'], ['attention', 'Needs attention'], ['pending', 'Not analysed yet'], ['failed', 'Couldn’t analyse'], ['unlinked', 'No file linked'], ['dupes', 'Duplicates']];
   const libShown = (): MenuEntry[] => tidy([
     ...LIB_VIEWS.filter(([k]) => k !== 'all').map(([k, label]) => {
       const v = k as LibView, on = !sidebar.hidden.has(v);
@@ -297,7 +299,13 @@
       { label: 'Delete…', danger: true, run: () => deleteTag(t.name, t.tracks) },
     ]);
   }
-  function removeFolder(r: RootState) { if (confirm('Remove “' + r.root.name + '” from this collection? Its tracks stay but become unlinked. No files are deleted.')) void lib.removeFolder(r.root.id); }
+  // What it takes with it, said first (ADR 0111): its songs leave the collection, with their ratings, notes, cues
+  // and playlist places; the files stay on disk.
+  function removeFolder(r: RootState) {
+    const songs = lib.folderSongs(r.root.id), what = removalImpact(songs, lib.store?.lists.values() ?? []);
+    const kept = what.elsewhere ? ' ' + what.elsewhere.toLocaleString() + ' also on another computer stay, as that computer’s.' : '';
+    if (confirm('Remove “' + r.root.name + '” from this collection?\n\nIts songs leave the collection: ' + describeRemoval(what) + '. Their ratings, notes, cues and places in playlists go with them.' + kept + ' No files are deleted from the disk.')) void lib.removeFolder(r.root.id);
+  }
   function copyPath(path: string) { void navigator.clipboard.writeText(path).then(() => (lib.notice = 'Copied ' + path + '.'), () => (lib.notice = 'The browser didn’t allow copying.')); }
   function folderMenu(r: RootState): MenuEntry[] {
     const path = r.root.absPath;
@@ -427,7 +435,7 @@
     <div class="head" class:menued={menued('sec:library')} oncontextmenu={e => onMenu(e, 'sec:library', () => secMenu('library'), 'Section')}>{@render secHead('library', 'Library')}<span class="add">{@render maxBtn('library')}</span></div>
     {#if sidebar.open('library')}
     <ul>
-      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length]].filter(([k]) => !sidebar.hidden.has(k as LibView)) as [k, label, n] (k)}
+      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['failed', 'Couldn’t analyse', counts.failed], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length]].filter(([k, , n]) => !sidebar.hidden.has(k as LibView) && (k !== 'failed' || !!n)) as [k, label, n] (k)}
         <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} class:menued={menued('v:' + k)} data-view={k} onclick={() => view.select({ kind: k } as ViewSel)}
           oncontextmenu={e => onMenu(e, 'v:' + k, () => libMenu(k as ViewSel['kind'], String(label)), String(label))}>{label}<span class="n">{n ?? ''}</span></button></li>
         {#if k === 'all'}

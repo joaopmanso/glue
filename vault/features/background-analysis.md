@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-26
-adrs: [0006, 0009, 0019, 0024]
+updated: 2026-09-30
+adrs: [0006, 0009, 0019, 0024, 0103, 0109, 0110]
 ---
 # Background analysis
 
@@ -66,3 +66,13 @@ the UI stuttering.
 - **The page only decodes what a worker can't** (ALAC, HE-AAC), the old way.
 - **Six 3-minute songs analysed:** no frame over 50 ms, against 4 before (up to 83 ms). The user's
   real stalls were 140–560 ms every few seconds.
+
+## One meaning of "not analysed" (2026-09-30, [ADR 0109](../adr/0109-one-meaning-of-not-analysed.md))
+- `analysisState` (`src/core/library/analysed.ts`): done, failed (couldn't analyse), waiting, elsewhere (another
+  computer's song), nofile. The sidebar, its views, Stats, the analysis bar, the tab's queue and GLUE Home's
+  all count with it; `needsAnalysis` is "waiting".
+- Passing failures (`isTransient`: took too long, allocation failed, out of memory, worker stopped) are never
+  stored. GLUE Home and the tab retry a song up to three times per session. Old stored ones count as waiting.
+- Lasting failures show under "Couldn't analyse"; "Analyse now" tries them again.
+- In Home mode, the screen takes GLUE Home's results from its cache when it needs them
+  ([ADR 0110](../adr/0110-screen-takes-glue-homes-analyses.md)).

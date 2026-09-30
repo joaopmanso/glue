@@ -11,6 +11,7 @@
   import FilterMenu from './FilterMenu.svelte';
   import PlaylistInsights from './PlaylistInsights.svelte';
   import { readPref, writePref } from '../../lib/prefs';
+  import { describeRemoval, orphans, removalImpact } from '../../core/library/removal';
   import { auto } from '../../lib/auto.svelte';
   import { app } from '../../lib/app.svelte';
   import { sendTracks } from '../../lib/sendToHome.svelte';
@@ -117,6 +118,24 @@
     const s = lib.store;
     if (s && confirm('Delete the collection “' + s.meta.name + '”? Its playlists and analysis are removed from your GLUE folder. Your music files aren’t touched.')) void lib.deleteCollection(s.meta.id);
   }
+
+  // Songs left without a file for good by a folder removed before 0.35 (ADR 0111): asked once per collection.
+  const orphanList = $derived.by(() => { void lib.version; return lib.store && !lib.readOnly ? orphans(lib.store.tracks.values()) : []; });
+  let askedFor = $state('');
+  const orphansAsked = $derived.by(() => { const cid = lib.store?.meta.id ?? ''; return askedFor === cid || readPref('orphans.asked.' + cid, '') === '1'; });
+  let removingOrphans = $state(false);
+  function keepOrphans() { const cid = lib.store?.meta.id ?? ''; writePref('orphans.asked.' + cid, '1'); askedFor = cid; }
+  async function removeOrphans() {
+    removingOrphans = true;
+    try {
+      await lib.backupBefore('orphans');
+      const n = orphanList.length;
+      await lib.removeTracks(orphanList.map(t => t.id));
+      keepOrphans();
+      lib.notice = 'Removed ' + n.toLocaleString() + ' song' + (n === 1 ? '' : 's') + ' with no file (a backup is in your GLUE folder’s backups).';
+    } catch (e) { lib.notice = 'Couldn’t remove them: ' + (e as Error).message; }
+    finally { removingOrphans = false; }
+  }
 </script>
 
 <svelte:window onkeydown={foldKey} />
@@ -180,6 +199,11 @@
     <div class="notice warn" id="home-lost">GLUE Home stopped. To carry on in the browser meanwhile, GLUE needs your permission to use its folder again. <button type="button" class="btn" onclick={() => lib.allowBrowserFolder()}>Allow</button></div>
   {:else if lib.homeLost === 'no-folder'}
     <div class="notice warn" id="home-lost">GLUE Home stopped. This browser has only used your GLUE folder through GLUE Home, so changes wait until GLUE Home is running again.</div>
+  {/if}
+  {#if orphanList.length && !orphansAsked}
+    <!-- Songs whose music folder was removed before removing a folder took its songs (ADR 0111): asked once. -->
+    <div class="notice warn" id="orphans"><span>{orphanList.length.toLocaleString()} song{orphanList.length === 1 ? '' : 's'} here {orphanList.length === 1 ? 'has' : 'have'} no file: {orphanList.length === 1 ? 'its' : 'their'} music folder was removed from this collection ({describeRemoval(removalImpact(orphanList, lib.store?.lists.values() ?? []))}). Remove {orphanList.length === 1 ? 'it' : 'them'} too? A backup is made first.</span>
+      <span class="acts"><button type="button" class="btn" id="orphans-remove" disabled={removingOrphans} onclick={removeOrphans}>{removingOrphans ? 'Removing…' : 'Remove them'}</button><button type="button" class="mini" id="orphans-keep" onclick={keepOrphans}>Keep</button></span></div>
   {/if}
   {#if lib.readOnly}
     <div class="notice warn">GLUE is open in another tab, so this one is read-only. Close the other tab and reload to make changes here.</div>
@@ -295,6 +319,8 @@
   .bar-line span.indet { animation: indet 1.2s ease-in-out infinite; }
   @keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(350%); } }
   .notice { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: var(--radius); padding: 7px 12px; font-size: 13px; }
+  .notice .acts { display: flex; gap: 8px; flex: none; }
+  .notice .acts .btn { color: var(--accent-ink); font-size: 13px; }
   .notice.warn { background: color-mix(in srgb, var(--warn) 9%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
   .notice button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; }
   .main { display: grid; grid-template-columns: var(--sidew, 270px) 10px minmax(0, 1fr); gap: 6px; min-height: 0; }

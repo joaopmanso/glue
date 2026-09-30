@@ -79,7 +79,8 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
   const lists = [...having.keys()].sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b)));
   const rating = ts.every(t => (t.rating ?? null) === (ts[0].rating ?? null)) ? ts[0].rating ?? null : null;
   const group = one ? dupes.groupOf.get(one.id) : undefined;
-  const needs = ts.filter(t => lib.needsAnalysis(t)).length;
+  // Not analysed yet, or couldn't be (ADR 0109: "Analyse now" is its Try again).
+  const needs = ts.filter(t => { const st = lib.analysisState(t); return st === 'waiting' || st === 'failed'; }).length;
   // "Analyse now" is for any song with a file (analysed or not): this computer's here (or by its GLUE Home),
   // another computer's by that computer's GLUE Home first (ADR 0103).
   const analysable = ts.filter(t => t.status === 'linked' && (t.remote || lib.canRead(t))).length;

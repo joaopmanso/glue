@@ -85,6 +85,9 @@ export function setPaused(paused: boolean, cfg?: () => HomeConfig | null, quiet 
   if (!paused && cfg) void run(cfg);
 }
 
+/** Songs that failed this session (ran out of time or memory: tried again, ADR 0109), at most three times. */
+const tries = new Map<string, number>();
+
 /** This computer's songs that need an analysis, oldest added first (a result already made is waiting). */
 async function scan(cfg: HomeConfig): Promise<Job[]> {
   const lib = await describe(), jobs: (Job & { added: string })[] = [];
@@ -106,7 +109,7 @@ async function scan(cfg: HomeConfig): Promise<Job[]> {
         const t = h.track(raw);
         if ((!t.rootId || !t.relPath) && !t.fileKey?.startsWith('copy:')) continue;
         const mine = (sh ? (an[t.id] as Record<string, AnalysisSummary> | undefined)?.[me ?? ''] : an[t.id]) as AnalysisSummary | undefined;
-        if (!needsAnalysis(t, mine, ANALYSIS_VERSION) || waiting?.has(t.id)) continue;
+        if (!needsAnalysis(t, mine, ANALYSIS_VERSION) || waiting?.has(t.id) || (tries.get(key(p.id, col.id) + '/' + t.id) ?? 0) >= 3) continue;
         // Analysed already (the result wasn't taken in yet, GLUE Home was restarted): waiting, not again.
         const r = await cache.result(p.id, col.id, t.id);
         if (r && r.size === t.size && r.mtime === t.mtime && r.summary.v >= ANALYSIS_VERSION) { add(p.id, col.id, t.id); continue; }
@@ -149,7 +152,7 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
         const c = cfg();
         if (!c) return;
         state.running++; state.current = [...state.current, j.name]; state.left = urgent.length + queue.length; changed();
-        try { await cache.analyse(j.p, j.c, j.id, c); state.done++; } catch (e) { state.failed++; console.warn('GLUE Home: couldn’t analyse', j.name, e); }
+        try { await cache.analyse(j.p, j.c, j.id, c); state.done++; } catch (e) { state.failed++; const k = key(j.p, j.c) + '/' + j.id; tries.set(k, (tries.get(k) ?? 0) + 1); console.warn('GLUE Home: couldn’t analyse', j.name, e); }
         state.running--; state.current = state.current.filter(n => n !== j!.name); changed();
         if (++sinceWrite >= 25) { sinceWrite = 0; await write(c).catch(e => console.warn('GLUE Home: couldn’t take the analyses in', e)); }
         spawn();

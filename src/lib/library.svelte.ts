@@ -19,7 +19,7 @@ import { findLibraries, libraryAt, type Detected } from '../core/library/detect'
 import { makeThumb, makeWaveThumb } from '../core/library/thumb';
 import { AUDIO_EXT, INFO_FIELDS, fillInfo, formatOf, nameFields, tagFields, type InfoField } from '../core/library/tags';
 import { failed, summarize } from '../core/library/summary';
-import { afterAnalysis, analysed, needsAnalysis } from '../core/library/analysed';
+import { afterAnalysis, analysed, analysisState, isTransient, needsAnalysis } from '../core/library/analysed';
 import { classify } from '../core/audio/verdict';
 import { addTags, cleanTag, removeTags, tagKey, tagsOf, uniqTags } from '../core/library/tagging';
 import { encodeDetails, loadDetails, removeDetails, restampDetails, writeDetails, type DetailsHeader } from '../store/details';
@@ -531,11 +531,22 @@ class Library {
     if (!r?.dir) return;
     if (await platform.permission(r.dir, 'read', true)) { this.roots = this.roots.map(x => x.root.id === id ? { ...x, granted: true } : x); this.enqueueAll(); }
   }
+  /** A backup of the open profile before something removes a lot (`backups/pre-<why>-<date>-<profile>.zip`, no songs). */
+  async backupBefore(why: string) {
+    const d = this.homeDir, p = this.profile;
+    if (!d || !p) return;
+    await writeBlob(d, 'backups/pre-' + why + '-' + new Date().toISOString().slice(0, 10) + '-' + p.id + '.zip', await buildBackup(d, p, { songs: false }));
+  }
+  /** This computer's songs in a music folder (what removing it takes, ADR 0111). */
+  folderSongs(id: string) { return [...this.store?.tracks.values() ?? []].filter(t => t.rootId === id && !t.remote); }
+  /** Removing a music folder removes its songs from the collection (ADR 0111; files untouched): they no longer
+      stay as songs with no file for good (484 of them from two removed folders, 2026-09-30). A song another
+      computer also has stays, as that computer's. */
   async removeFolder(id: string) {
     const s = this.store, r = this.rootState(id);
     if (!s || !r) return;
+    await this.removeTracks(this.folderSongs(id).map(t => t.id));
     s.meta.roots = s.meta.roots.filter(x => x.id !== id); s.saveMeta();
-    s.putTracks([...s.tracks.values()].filter(t => t.rootId === id).map(t => ({ ...t, status: 'unlinked' as const, rootId: null, relPath: null })));
     await platform.forgetFolder(r.root.handleKey);
     this.roots = this.roots.filter(x => x.root.id !== id);
     this.found = this.found.filter(f => f.rootId !== id);
@@ -881,7 +892,7 @@ class Library {
         return platform.writeTags(root, t.relPath, tags);
       }, {
         stop,
-        restamp: async (t, was, now) => { const cache = await platform.cacheDir(); if (cache) await restampDetails(cache, s.meta.id, t.id, was, now); },
+        restamp: async (t, was, now) => { const cache = await platform.cacheDir(); if (cache) await restampDetails(cache, s.meta.id, t.id, was, now); await this.restampHome?.(t.id, was, now); },
         fatal: e => (e as Error).name === 'HomeDown',
       });
     } catch { return; }
@@ -1129,8 +1140,19 @@ class Library {
   /** The full analysis stored for a track's page, if it's still valid for the file. */
   async trackDetails(t: Track) {
     const s = this.store, dir = await platform.cacheDir();
-    return s && dir ? loadDetails(dir, s.meta.id, t.id, { size: t.size, mtime: t.mtime }) : null;
+    if (!s || !dir) return null;
+    const here = await loadDetails(dir, s.meta.id, t.id, { size: t.size, mtime: t.mtime });
+    if (here || t.remote || !this.detailsFromHome) return here;
+    // Not in this browser: GLUE Home's (ADR 0110), kept here once it's of this file.
+    const d = await this.detailsFromHome(t.id).catch(() => null);
+    if (!d || this.store !== s) return null;
+    await writeDetails(dir, s.meta.id, t.id, d).catch(() => {});
+    return loadDetails(dir, s.meta.id, t.id, { size: t.size, mtime: t.mtime });
   }
+  /** GLUE Home's copy of a song's analysis follows its file after this tab wrote its tags (ADR 0110). */
+  restampHome: ((id: string, was: { size: number | null; mtime: number | null }, now: { size: number; mtime: number }) => Promise<void>) | null = null;
+  /** A song's full analysis in GLUE Home's cache (Home mode, ADR 0110). */
+  detailsFromHome: ((id: string) => Promise<{ header: DetailsHeader; bin: Uint8Array } | null>) | null = null;
   async saveTrackDetails(t: Track, info: FileInfo, res: AnalysisResult) {
     if (t.size == null || t.mtime == null) return;
     try { await this.putDetails(t.id, await encodeDetails(info, res, { size: t.size, mtime: t.mtime })); this.onThumb?.(t.id, makeThumb(res)); this.onWave?.(t.id, makeWaveThumb(res)); }
@@ -1173,12 +1195,16 @@ class Library {
   }
 
   needsAnalysis(t: Track) { return needsAnalysis(t, this.store?.analysis.get(t.id), ANALYSIS_VERSION); }
+  /** Where a song's analysis stands (ADR 0109): one meaning for the sidebar, the lists and Stats. */
+  analysisState(t: Track) { return analysisState(t, this.store?.analysis.get(t.id), ANALYSIS_VERSION); }
+  /** Songs that ran out of time or memory this visit: tried at most three times. */
+  private tries = new Map<string, number>();
   pendingCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (this.needsAnalysis(t)) n++; return n; }
   enqueueAll() {
     const s = this.store;
     if (!s) return;
     // Another computer's songs are analysed there (and shared): never downloaded here to be analysed.
-    this.queue = [...s.tracks.values()].filter(t => !t.remote && this.canRead(t) && this.needsAnalysis(t) && !this.active.has(t.id))
+    this.queue = [...s.tracks.values()].filter(t => !t.remote && this.canRead(t) && this.needsAnalysis(t) && !this.active.has(t.id) && (this.tries.get(t.id) ?? 0) < 3)
       .sort((a, b) => a.addedAt.localeCompare(b.addedAt)).map(t => t.id);
     this.pump();
   }
@@ -1276,6 +1302,8 @@ class Library {
       this.analysis = { ...this.analysis, done: this.analysis.done + 1 };
     } catch (e) {
       if (this.store !== s || this.stops !== stops) return;   // stopped: not a failure, analysed another time
+      // Out of time or memory: tried again later, a few times a visit (ADR 0109), never saved as the song's.
+      if (isTransient(String((e as Error)?.message))) { this.tries.set(t.id, (this.tries.get(t.id) ?? 0) + 1); this.analysis = { ...this.analysis, done: this.analysis.done + 1, failed: this.analysis.failed + 1 }; return; }
       s.putAnalysis(t.id, failed(String((e as Error)?.message || 'The browser couldn’t decode it.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'The browser couldn’t decode it.'), { size: file.size, mtime: file.lastModified }));
       this.analysis = { ...this.analysis, done: this.analysis.done + 1, failed: this.analysis.failed + 1 };
     }

@@ -20,7 +20,7 @@
     const a0 = asShown(t, s?.analysis.get(t.id)), a = a0 && !a0.error ? a0 : null, d = dj.get(t.id) ?? null;
     return {
       duration: t.duration, size: t.size, artist: t.artist, album: t.album, label: t.label, genre: t.genre, year: t.year,
-      format: formatOf(t), lossless: t.format?.lossless ?? null, grade: a?.grade ?? null,
+      format: formatOf(t), lossless: t.format?.lossless ?? null, grade: a?.grade ?? null, state: lib.analysisState(t),
       bpm: bpmShown(t, a, d?.bpm ?? null), key: a?.key ? keyLabel(a.key, app.keyNotation) : d?.key ?? null,
       addedAt: t.addedAt, rating: t.rating ?? d?.rating ?? null, tags: tagsOf(t), linked: t.status === 'linked',
     };
@@ -35,6 +35,8 @@
     return d >= 2 ? d + ' d ' + (h % 24) + ' h' : h ? h + ' h ' + (m % 60) + ' min' : m ? m + ' min' : Math.round(sec) + ' s';
   }
   const GRADES = [['ok', 'Good'], ['info', 'Info'], ['warn', 'Caution'], ['bad', 'Suspect'], ['none', 'Not analysed']] as const;
+  // Why songs have no grade: the sidebar's buckets (ADR 0109).
+  const WHY = [['waiting', 'not analysed yet'], ['failed', 'couldn’t analyse'], ['nofile', 'no file'], ['elsewhere', 'on another computer']] as const;
   const maxOf = (xs: [string, number][]) => Math.max(1, ...xs.map(x => x[1]));
   const bpmMax = Math.max(1, ...st.bpmSteps.map(b => b.n));
   const addedMax = maxOf(st.added), yearsMax = maxOf(st.years);
@@ -78,7 +80,7 @@
         {#each GRADES as [k] (k)}{#if st.grades[k]}<i data-grade={k} style:flex-grow={st.grades[k]}></i>{/if}{/each}
       </div>
       <div class="legend">
-        {#each GRADES as [k, name] (k)}<span data-grade={k}><i></i>{name} {st.grades[k]}</span>{/each}
+        {#each GRADES as [k, name] (k)}<span data-grade={k}><i></i>{name} {st.grades[k]}{#if k === 'none' && st.grades.none}<small id="stat-ungraded"> ({WHY.filter(([w]) => st.ungraded[w]).map(([w, n]) => st.ungraded[w].toLocaleString() + ' ' + n).join(', ')})</small>{/if}</span>{/each}
         <span class="sep">Lossless {pct(st.lossless)}</span>
       </div>
       <div class="fcols">{@render bars('Formats', st.formats, 'stat-formats')}</div>

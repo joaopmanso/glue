@@ -19,8 +19,26 @@ export function afterAnalysis(cur: Track, a: Analysed): Track {
   return upd;
 }
 
+/** A failure worth trying again (ADR 0109): the analysis ran out of time or memory, or its worker was stopped;
+    the file itself may be fine (295 songs "took too long" in one night, from a timer bug fixed in 0.33). */
+export const isTransient = (msg: string | null | undefined) => !!msg && /took too long|allocation failed|out of memory|worker stopped/i.test(msg);
+
+/** Where a song's analysis stands, one meaning everywhere (the sidebar, the list, Stats, GLUE Home, ADR 0109):
+    - done: analysed, this file as it is;
+    - failed: its file couldn't be analysed (it doesn't decode): shown as "Couldn't analyse", tried again only
+      when asked or when the file changes;
+    - waiting: never analysed, the file changed, an older version, or a failure worth trying again;
+    - elsewhere: another computer's song (analysed there);
+    - nofile: no file linked here. */
+export type AnalysisState = 'done' | 'failed' | 'waiting' | 'elsewhere' | 'nofile';
+export function analysisState(t: Pick<Track, 'status' | 'remote' | 'size' | 'mtime'>, a: AnalysisSummary | undefined, version: number): AnalysisState {
+  if (t.remote) return 'elsewhere';
+  if (t.status !== 'linked') return 'nofile';
+  if (!a || a.v < version || a.fileSize !== t.size || a.fileMtime !== t.mtime) return 'waiting';
+  if (a.error) return isTransient(a.error) ? 'waiting' : 'failed';
+  return 'done';
+}
 /** Does this song need (another) analysis? `a`: its analysis on this computer. */
 export function needsAnalysis(t: Pick<Track, 'status' | 'remote' | 'size' | 'mtime'>, a: AnalysisSummary | undefined, version: number): boolean {
-  if (t.status !== 'linked' || t.remote) return false;
-  return !a || a.v < version || a.fileSize !== t.size || a.fileMtime !== t.mtime;
+  return analysisState(t, a, version) === 'waiting';
 }

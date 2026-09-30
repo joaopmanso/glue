@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M3
-updated: 2026-09-27
-adrs: [0067]
+updated: 2026-09-30
+adrs: [0067, 0109]
 ---
 # Stats
 
@@ -48,3 +48,7 @@ for the selected songs.
 ## Limits & open questions
 - No charts over time beyond "added per month" (plays aren't known to GLUE).
 - Events (Batch 7) will get "Stats…" too.
+
+## Why songs aren't graded (2026-09-30, [ADR 0109](../adr/0109-one-meaning-of-not-analysed.md))
+- `Stats.ungraded`: waiting, couldn't analyse, no file, on another computer (`#stat-ungraded`), counted with
+  `analysisState`, as the sidebar counts them.

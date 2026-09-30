@@ -7,6 +7,7 @@
    - analysis, Analyse now, Stop and Resume are the engine's; its numbers show in the analysis bar.
    This tab no longer holds the writer lease (that's for tabs from before the engine). */
 import { lib } from './library.svelte';
+import { thumbs, waves } from './thumbs.svelte';
 import { localHome } from './localHome.svelte';
 import { cacheDir, homeMode, setLeaseHeld } from '../platform';
 import { decodeFingerprint, writeFingerprint } from '../store/fingerprints';
@@ -60,6 +61,7 @@ class EngineClient {
     this.attached = s;
     s.sink = op => { this.outbox.push(op); clearTimeout(this.timer); this.timer = window.setTimeout(() => void this.send(), 150); };
     this.active = true;
+    thumbs.retryMissing(); waves.retryMissing();   // asked for before GLUE Home's cache could answer
     lib.stopOwnAnalysis?.();
     void this.poll();
     void this.refresh();
@@ -110,6 +112,23 @@ class EngineClient {
       }
     } finally { this.polling = false; }
   }
+  /** A file of GLUE Home's cache for a song of the open collection (ADR 0110): `t` its mini spectrogram, `w` its
+      waveform, `d` its details, `p` its fingerprint. Null: not there (or no engine). */
+  fromCache(kind: 't' | 'w' | 'd' | 'p', id: string, ext: 'bin' | 'json' = 'bin', w = this.where()): Promise<Uint8Array | null> {
+    if (!this.active || !w || !localHome.link) return Promise.resolve(null);
+    return localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(`${kind}/${w.p}/${w.c}/${shardOf(id)}/${id}.${ext}`)).then(b => new Uint8Array(b)).catch(() => null);
+  }
+  /** A song's tags were written from here: GLUE Home's copy of its analysis follows the file. */
+  async restamp(id: string, was: { size: number | null; mtime: number | null }, now: { size: number; mtime: number }) {
+    const w = this.where();
+    if (this.active && w) await this.rpc({ op: 'restamp', ...w, id, was, now }).catch(() => {});
+  }
+  /** A song's details from GLUE Home's cache. */
+  async details(id: string): Promise<{ header: DetailsHeader; bin: Uint8Array } | null> {
+    const [h, bin] = await Promise.all([this.fromCache('d', id, 'json'), this.fromCache('d', id, 'bin')]);
+    return h && bin ? { header: JSON.parse(new TextDecoder().decode(h)) as DetailsHeader, bin } : null;
+  }
+
   /** Songs the engine analysed: their mini spectrogram, waveform, details and fingerprint, from its cache. */
   private async takeDerived(w: { p: string; c: string }, ids: string[]) {
     const dir = await cacheDir();
@@ -157,3 +176,9 @@ if (typeof window !== 'undefined') {
   window.setInterval(() => void engineClient.check(), 3000);
   window.setInterval(() => void engineClient.refresh(), 4000);
 }
+
+// This computer's songs' mini spectrograms, waveforms and details, from GLUE Home when this browser has none (ADR 0110).
+thumbs.fromHome = id => engineClient.fromCache('t', id);
+waves.fromHome = id => engineClient.fromCache('w', id);
+lib.detailsFromHome = id => engineClient.details(id);
+lib.restampHome = (id, was, now) => engineClient.restamp(id, was, now);

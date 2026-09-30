@@ -5,6 +5,36 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · One meaning of "not analysed", GLUE Home's analyses on screen, folders take their songs (GLUE Home 0.35)
+- **Fixed: "Not analysed yet 0" while Stats said 903** ([ADR 0109](../adr/0109-one-meaning-of-not-analysed.md)).
+  - One function says where a song stands: done, couldn't analyse, waiting, on another computer, or no
+    file. The sidebar, its views, Stats, the analysis bar and both queues (the tab's and GLUE Home's) count
+    with it.
+  - New "Couldn't analyse" entry in the sidebar (only when there are some). "Analyse now" tries them again.
+  - Stats says why songs aren't graded: waiting, couldn't analyse, no file, on another computer.
+  - Failures that aren't the file's fault (took too long, out of memory, the worker stopped) are never
+    stored, and are tried up to three times a session. The ones already stored (297 on the desktop) are
+    analysed again, with no migration.
+- **Fixed: songs with a label but no Overview, and song pages that analysed again**
+  ([ADR 0110](../adr/0110-screen-takes-glue-homes-analyses.md)).
+  - In Home mode the Overview, the waveform and a song's details come from GLUE Home's cache when the
+    browser has none, also for songs analysed while no tab was open.
+  - A song page there never analyses in the tab: it asks GLUE Home to do it now, and says so.
+  - Writing song info into a file restamps its cached analysis, so it isn't analysed again.
+- **Fixed: removing a music folder left its songs as "No file linked"**
+  ([ADR 0111](../adr/0111-removing-a-folder-removes-its-songs.md)).
+  - Its songs on this computer now leave with it (a song another computer has stays). The question says
+    what goes with them: "4 songs, 1 rated, 1 in 1 playlist".
+  - Songs already left with no file get a bar once per collection: "Remove them" (after a backup,
+    `backups/pre-orphans-….zip`) or "Keep them". On the desktop that's the 484 from F:\preparation and
+    F:\temp.
+  - The song page says why a song has no file (a DJ library, added on its own, its folder removed).
+- Tests:
+  - unit tests: `analysisState`, and what a removal takes with it;
+  - e2e `library.spec`: the removal question's counts, the folder's songs gone, the orphans bar once;
+  - e2e `homemode.spec` (heavy): a stored time-out analysed again by GLUE Home; with a tab opened later,
+    the Overviews and a song page come from GLUE Home's cache.
+
 ## 2026-09-30 · One id per computer, and the desktop's songs put back under it (GLUE Home 0.34)
 - **Fixed: the desktop's songs were written under a stand-in ("this-computer")** ([ADR 0108](../adr/0108-one-id-per-computer.md)).
   - What happened: a tab opened before sign-in finished, and Edge's own private library claimed the

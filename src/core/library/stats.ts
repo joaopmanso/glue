@@ -9,6 +9,8 @@ export interface StatTrack {
   /** What the Format filter calls it (MP3, FLAC, WAV…), and whether it's lossless. */
   format: string; lossless: boolean | null;
   grade: Grade | null;
+  /** Where its analysis stands (ADR 0109): songs with no grade are counted by it. */
+  state?: 'done' | 'failed' | 'waiting' | 'elsewhere' | 'nofile';
   bpm: number | null;
   /** A key as shown ('8A', 'Am'…), or null. */
   key: string | null;
@@ -31,6 +33,8 @@ export interface Stats {
   formats: [string, number][];   // most first
   lossless: number;
   grades: Record<Grade | 'none', number>;
+  /** The songs with no grade, by why (ADR 0109): the same buckets as the sidebar. */
+  ungraded: { waiting: number; failed: number; nofile: number; elsewhere: number };
   bpm: { min: number; max: number; avg: number; median: number } | null;
   /** Songs per BPM step (from the lowest step with songs to the highest). */
   bpmSteps: { from: number; n: number }[];
@@ -62,7 +66,8 @@ export function stats(ts: StatTrack[]): Stats {
   const years = counts(ts.map(t => yearOf(t.year)), false).sort((a, b) => a[0].localeCompare(b[0]));
   const decades = counts(ts.map(t => { const y = yearOf(t.year); return y ? y.slice(0, 3) + '0s' : ''; }), false).sort((a, b) => a[0].localeCompare(b[0]));
   const grades = { ok: 0, warn: 0, bad: 0, info: 0, none: 0 };
-  for (const t of ts) grades[t.grade ?? 'none']++;
+  const ungraded = { waiting: 0, failed: 0, nofile: 0, elsewhere: 0 };
+  for (const t of ts) { grades[t.grade ?? 'none']++; if (!t.grade) { const k = t.state && t.state !== 'done' ? t.state : 'waiting'; ungraded[k]++; } }
   const bpms = ts.map(t => t.bpm).filter((b): b is number => b != null && b > 0).sort((a, b) => a - b);
   let bpmSteps: Stats['bpmSteps'] = [];
   if (bpms.length) {
@@ -81,6 +86,7 @@ export function stats(ts: StatTrack[]): Stats {
     formats: counts(ts.map(t => t.format), false),
     lossless: ts.filter(t => t.lossless).length,
     grades,
+    ungraded,
     bpm: bpms.length ? { min: bpms[0], max: bpms[bpms.length - 1], avg: bpms.reduce((a, b) => a + b, 0) / bpms.length, median: bpms.length % 2 ? bpms[mid] : (bpms[mid - 1] + bpms[mid]) / 2 } : null,
     bpmSteps,
     keys: counts(ts.map(t => t.key ?? ''), false),

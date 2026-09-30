@@ -180,5 +180,8 @@ Planned (GLUE):
 | [0106](adr/0106-shared-collection-as-a-snapshot-and-a-log.md) | Keep the shared collection in GLUE Cloud as a snapshot and a log of changes | accepted |
 | [0107](adr/0107-sync-looks-only-at-what-changed.md) | The shared sync looks only at the files that changed, and keeps its agreed copies file by file | accepted |
 | [0108](adr/0108-one-id-per-computer.md) | One id per computer: GLUE Home learns it, only the computer's GLUE folder writes its parts, nothing writes a stand-in | accepted |
+| [0109](adr/0109-one-meaning-of-not-analysed.md) | "Not analysed" means one thing everywhere; failures that pass are retried, never kept | accepted |
+| [0110](adr/0110-screen-takes-glue-homes-analyses.md) | The screen takes GLUE Home's analyses when it needs them; a song page never re-analyses in Home mode | accepted |
+| [0111](adr/0111-removing-a-folder-removes-its-songs.md) | Removing a music folder removes its songs; songs left with no file are offered once | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

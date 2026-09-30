@@ -4,6 +4,7 @@
   import { covers } from '../../lib/covers.svelte';
   import { untrack } from 'svelte';
   import { lib } from '../../lib/library.svelte';
+  import { engineClient } from '../../lib/engine.svelte';
   import { app, analyzeFile, showResult } from '../../lib/app.svelte';
   import { player } from '../../lib/player.svelte';
   import { router, trackHref, trackTab } from '../../lib/route.svelte';
@@ -78,6 +79,8 @@
   let stored = $state(false);        // showing the analysis kept from an earlier visit
   let canPlay = $state(true);        // false: a stored analysis is shown but the file isn't readable yet
   let loaded = '';
+  /** GLUE Home is analysing this song for the page (ADR 0110). */
+  let homeWaiting = $state(false);
   // Another computer's song: its full analysis is on its way ('loading'), still being made there
   // ('pending'), or couldn't come ('failed').
   let remoteNote = $state<'' | 'loading' | 'pending' | 'failed'>('');
@@ -116,22 +119,38 @@
       return;
     }
     if (t.remote) { phase = 'remote'; return; }
+    const showKept = async (kept: NonNullable<Awaited<ReturnType<typeof lib.trackDetails>>>) => {
+      app.playKey = key;
+      const playing = player.sourceKey === key && !!player.url;
+      let blob: Blob | string | null = null;
+      if (!playing && lib.canRead(t)) { try { blob = await lib.mediaFor(t); } catch { blob = null; } }
+      if (id !== t.id) return;
+      showResult(kept.info, kept.res, blob);
+      canPlay = playing || !!blob;
+      stored = true; phase = 'ready';
+    };
     if (!fresh) {
       const kept = await lib.trackDetails(t);
       if (id !== t.id) return;
-      if (kept) {
-        app.playKey = key;
-        const playing = player.sourceKey === key && !!player.url;
-        let blob: Blob | string | null = null;
-        if (!playing && lib.canRead(t)) { try { blob = await lib.mediaFor(t); } catch { blob = null; } }
-        if (id !== t.id) return;
-        showResult(kept.info, kept.res, blob);
-        canPlay = playing || !!blob;
-        stored = true; phase = 'ready';
-        return;
-      }
+      if (kept) { await showKept(kept); return; }
     }
     if (t.status !== 'linked') { phase = 'no-file'; return; }
+    // GLUE Home is the library's engine here (ADR 0110): it analyses the song now, first in line, and its result
+    // shows when it's in (the tab doesn't analyse it a second time). Taking long: the tab does it after all.
+    if (engineClient.active && !fresh) {
+      phase = 'loading'; homeWaiting = true;
+      lib.analyseNow([t.id]);
+      try {
+        for (let i = 0; i < 45; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          if (loaded !== t.id) return;
+          const kept = await lib.trackDetails(lib.store?.tracks.get(t.id) ?? t);
+          if (loaded !== t.id) return;
+          if (kept) { await showKept(kept); return; }
+          if (lib.analysisState(lib.store?.tracks.get(t.id) ?? t) === 'failed') break;
+        }
+      } finally { homeWaiting = false; }
+    }
     if (!lib.canRead(t) && !ask) { phase = 'need-access'; return; }
     phase = 'loading';
     try {
@@ -324,8 +343,14 @@ canPlay = true;
       {/if}
     {:else if phase === 'need-access'}
       <div class="notice">GLUE needs your permission to read “{track.fileKey ? track.fileName : root?.root.name}” again. <button type="button" class="btn" onclick={() => load(true)}>Allow and analyse</button></div>
+    {:else if phase === 'loading' && homeWaiting}
+      <div class="notice" id="home-analysing">GLUE Home is analysing this song now; it shows here when it’s done.</div>
     {:else if phase === 'no-file'}
-      <div class="notice">{track.status === 'missing' ? 'The file wasn’t found where it was last seen. Scan its music folder again, or add the folder it moved to.' : 'This track came from an imported library and isn’t linked to a file yet. Add the music folder it lives in (sidebar › Music folders) and GLUE links it automatically.'}</div>
+      <!-- Why it has no file, as it is (ADR 0111): not always an imported library. -->
+      <div class="notice" id="no-file-why">{track.status === 'missing' ? 'The file wasn’t found where it was last seen. Scan its music folder again, or add the folder it moved to.'
+        : track.importPath || track.sources.length ? 'This track came from an imported library and isn’t linked to a file yet. Add the music folder it lives in (sidebar › Music folders) and GLUE links it automatically.'
+        : track.fileKey ? 'This song was added on its own, and its file isn’t here any more. Add it again, or remove the song.'
+        : 'Its music folder was removed from this collection, so it has no file here. Add that folder again to link it, or remove the song.'}</div>
     {:else if phase === 'error'}
       <div class="error"><b>Couldn’t analyse this track.</b> {message}</div>
     {/if}

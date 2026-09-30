@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-27
-adrs: [0007, 0009, 0012, 0014, 0021]
+updated: 2026-09-30
+adrs: [0007, 0009, 0012, 0014, 0021, 0111]
 ---
 # Library & scanner
 
@@ -106,3 +106,10 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
   - Made at analysis time, and for songs analysed before, once from the stored analysis, like the
     spectrogram thumbnails (`lib/thumbs`, now two kinds: `thumbs` and `waves`).
   - Drawn through the Prepare page's `drawWave`.
+
+## Removing a folder removes its songs (2026-09-30, [ADR 0111](../adr/0111-removing-a-folder-removes-its-songs.md))
+- `lib.removeFolder` removes this computer's copies in the folder (as removing songs does), then the folder.
+  The question says what goes with them (`removalImpact`, `describeRemoval` in `src/core/library/removal.ts`).
+- Songs with no file and nothing that could link them again (`orphans`) get a bar once per collection
+  (`#orphans`): remove them after a backup (`backups/pre-orphans-….zip`), or keep them.
+- "No file linked" counts `nofile` songs only; another computer's songs aren't in it.

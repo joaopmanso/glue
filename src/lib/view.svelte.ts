@@ -12,7 +12,7 @@ import { keyLabel, type KeyNotation } from '../core/audio/keys';
 import { hasTag, tagsOf } from '../core/library/tagging';
 import { readPref, writePref } from './prefs';
 
-export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string }
+export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'failed' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string }
   /** Browsing (2026-09-28): a field's values (Artists…), and one value's songs. */
   | { kind: 'browse'; by: Facet } | { kind: 'facet'; by: Facet; key: string; value: string };
 /** The table's value filters; each can also be opened from its column header. */
@@ -199,8 +199,11 @@ function tracksForAll(sel: ViewSel): Track[] {
   if (sel.kind === 'browse') return [];
   const all = [...s.tracks.values()];
   if (sel.kind === 'dupes') return byIds(dupes.groups.flatMap(g => g.ids));
-  if (sel.kind === 'pending') return all.filter(t => lib.needsAnalysis(t));
-  if (sel.kind === 'unlinked') return all.filter(t => t.status !== 'linked');
+  // One meaning of each (ADR 0109): not analysed yet (waiting), couldn't analyse (failed), no file here (this
+  // computer's songs only: another computer's are played from there).
+  if (sel.kind === 'pending') return all.filter(t => lib.analysisState(t) === 'waiting');
+  if (sel.kind === 'failed') return all.filter(t => lib.analysisState(t) === 'failed');
+  if (sel.kind === 'unlinked') return all.filter(t => lib.analysisState(t) === 'nofile');
   if (sel.kind === 'attention') return all.filter(t => { const a = asShown(t, s.analysis.get(t.id)); return a && (a.grade === 'bad' || a.grade === 'warn'); });
   if (sel.kind === 'recent') { const cut = Date.now() - 30 * 864e5; return all.filter(t => Date.parse(t.addedAt) >= cut); }
   return all;
@@ -212,6 +215,7 @@ export function viewTitle(s: ViewSel): string {
     case 'all': return 'All tracks';
     case 'recent': return 'Recently added';
     case 'pending': return 'Not analysed yet';
+    case 'failed': return 'Couldn’t analyse';
     case 'attention': return 'Needs attention';
     case 'unlinked': return 'No file linked';
     case 'dupes': return 'Duplicates';

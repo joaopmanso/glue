@@ -9,6 +9,7 @@ import { access } from './cloud';
 import { describe } from './library';
 import { HomeDisk } from '../../src/platform/homeDisk';
 import * as engine from './engine';
+import * as cache from './cache';
 import { writeUnwritten } from '../../src/store/writeInfo';
 import { syncShared, type SharedCloud } from '../../src/store/shared/engine';
 import { unknownComputer, type SharedCollection } from '../../src/core/shared/project';
@@ -83,7 +84,7 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
         const at = tr.rootId === INCOMING_ROOT ? r.incoming : r.folders[tr.rootId ?? ''];
         if (!at || !tr.relPath) throw new Error('GLUE Home doesn’t know this song’s music folder');
         return disk.tags(at, tr.relPath, tags);
-      }, { stop: () => false });
+      }, { stop: () => false, restamp: (tr, was, now) => cache.restamp(p.id, c.id, tr.id, was, now) });
       await s.flush();
       hint = engine.takeWritten(p.id, c.id);
       try { await syncShared(place, hint); } catch (e) { engine.writtenAgain(p.id, c.id, hint); throw e; }

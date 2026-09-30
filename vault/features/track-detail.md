@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-27
-adrs: [0019, 0023, 0024, 0071, 0072]
+updated: 2026-09-30
+adrs: [0019, 0023, 0024, 0071, 0072, 0110, 0111]
 ---
 # Track detail
 
@@ -58,3 +58,11 @@ libraries say about it (BPM, key, rating, play count, cue count, date added).
   - Previous and Next keep the tab.
 - **"In playlists" shows two;** "+N more" lists all of them (a find field once it's long). Clicking
   one opens it with the song selected. They used to run over the rest of the line.
+
+## GLUE Home's analyses, and why there's no file (2026-09-30)
+- In Home mode the page takes the song's details from GLUE Home's cache when the browser has none, and
+  never analyses in the tab: it asks GLUE Home to analyse it now (`#home-analysing`) and shows the result
+  when it's in ([ADR 0110](../adr/0110-screen-takes-glue-homes-analyses.md)).
+- A song with no file says why (`#no-file-why`): the file wasn't found where it was, it came from a DJ library,
+  it was added on its own, or its music folder was removed
+  ([ADR 0111](../adr/0111-removing-a-folder-removes-its-songs.md)).

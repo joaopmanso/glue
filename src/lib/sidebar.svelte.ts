@@ -5,7 +5,7 @@ import { readPref, writePref } from './prefs';
 
 export type SideKey = 'library' | 'playlists' | 'tags' | 'music' | 'dj';
 /** Library's entries that can be hidden (All tracks always shows). */
-export type LibView = 'recent' | 'attention' | 'pending' | 'unlinked' | 'dupes';
+export type LibView = 'recent' | 'attention' | 'pending' | 'failed' | 'unlinked' | 'dupes';
 
 const readSet = <T>(key: string) => { try { return new Set(JSON.parse(readPref(key, '[]') || '[]') as T[]); } catch { return new Set<T>(); } };
 

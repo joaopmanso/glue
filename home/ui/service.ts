@@ -387,6 +387,7 @@ type Rpc =
   | { op: 'edit'; p: string; c: string; ops: import('../../src/store/collection').StoreOp[] }
   | { op: 'analyse'; p: string; c: string; ids: string[]; names?: Record<string, string> }
   | { op: 'pause'; on: boolean }
+  | { op: 'restamp'; p: string; c: string; id: string; was: { size: number | null; mtime: number | null }; now: { size: number; mtime: number } }
   | { op: 'job'; kind: 'remove-tracks'; p: string; c: string; ids: string[] };
 async function rpc(b: Rpc): Promise<unknown> {
   const c = cfg;
@@ -402,6 +403,8 @@ async function rpc(b: Rpc): Promise<unknown> {
       if (b.ops.some(o => o.m === 'tracks')) void analysis.run(() => cfg);   // songs added (a scan): analysed next
       return r;
     }
+    // A GLUE tab here wrote a song's tags (ADR 0110): what's kept of it follows the file.
+    case 'restamp': await cache.restamp(b.p, b.c, b.id, b.was, b.now); return { ok: true };
     case 'analyse': analysis.now(b.p, b.c, b.ids, b.names ?? {}, () => cfg); return { ok: true };
     case 'pause':
       if (!!c.analysisPaused !== !!b.on) { cfg = await bridge.patchConfig(() => ({ analysisPaused: !!b.on })).catch(() => cfg) ?? cfg; analysis.setPaused(!!b.on, () => cfg); }
