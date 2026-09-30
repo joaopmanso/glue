@@ -40,7 +40,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     screen, newest first;
   - only the best copy shows and is used (playlists rewritten), Duplicates filters by type and certainty with a bulk
     removal that sets aside doubtful groups (ADR 0120); GLUE Home builds once per change (no tags);
-  - an optional main music folder decides the best copy among equals (ADR 0121).
+  - an optional main music folder decides the best copy among equals (ADR 0121);
+  - a found DJ library is listed once (it was four times: the same m.db reached by several ways), and × takes one off
+    the list.
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
@@ -53,7 +55,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - Hand-test the evening's list:
   - after the collection opens, the Doechii 24/88.2 album should read "Genuine hi-res" (stored verdicts are judged
     again on open);
-  - Duplicates' new buttons.
+  - Duplicates' new buttons;
+  - "DJ libraries found" shows the Engine m.db once, and × removes it.
 
 ## Next
 - **Flaky e2e under load:** playback tests ("Play" not turning to "Pause") fail now and then in the full suite, never

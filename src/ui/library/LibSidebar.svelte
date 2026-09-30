@@ -603,6 +603,7 @@
           <AppIcon app={d.kind} size={18} />
           <span class="fwho"><b>{FOUND_NAMES[d.kind]}</b><small title={d.placeName + '/' + d.relPath}>{d.placeName}/{d.relPath}</small></span>
           <button type="button" class="addlib" onclick={() => importDetected(d)}>Add</button>
+          <button type="button" class="dismiss" data-dismiss={d.relPath} title="Take it off this list (it can still be imported by hand, with + Import)" aria-label={'Take ' + FOUND_NAMES[d.kind] + ' off the list'} disabled={lib.readOnly} onclick={() => lib.dismissLibrary(d)}>×</button>
         </li>
       {/each}
       {#each lib.places.filter(p => !p.granted) as p (p.key)}

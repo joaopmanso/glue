@@ -5,6 +5,14 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · A found DJ library is listed once, and can be taken off the list
+- **One entry per DJ library file.** The user saw one Engine DJ `m.db` four times under "DJ libraries found": the same
+  file was reached by several ways (a music folder, the GLUE folder, remembered "Look in…" places, GLUE Home's followed
+  libraries), each listed as its own. Entries that are the same file (the browser's `isSameEntry`, or the same app,
+  name, size and date on GLUE Home's disk) are one now; the entry an import came from is kept.
+- **× next to Add** takes a found library off the list, whichever way it's found again (`meta.djDismissed`, synced
+  with the collection). "+ Import" still imports it by hand.
+
 ## 2026-09-30 · A main music folder for duplicates
 - **Optional main music folder** ([ADR 0121](../adr/0121-main-music-folder.md)): right-click a music folder › "Make it the
   main folder", or pick it on the Duplicates page. Among duplicates, its copy is the one kept and shown, after grade

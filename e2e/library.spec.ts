@@ -2611,3 +2611,40 @@ test('a main music folder: among duplicates its copy is the best, shown and used
   await expect(page.locator('#main-folder')).toHaveValue(/.+/);
   await expect(page.locator('#dupes .grp li.best')).toContainText('Sets/mp3-128k.mp3', { timeout: 30_000 });
 });
+
+test('a DJ library found by several ways is listed once; × takes it off the list, for good (the user’s report, 2026-09-30)', async ({ page }) => {
+  const initSqlJs = (await import('sql.js')).default;
+  const SQL = await initSqlJs(), db = new SQL.Database();
+  db.run(`CREATE TABLE Track (id INTEGER PRIMARY KEY, path TEXT, filename TEXT, title TEXT, artist TEXT, bpmAnalyzed REAL, key INTEGER, length INTEGER);
+    CREATE TABLE Playlist (id INTEGER PRIMARY KEY, title TEXT, parentListId INTEGER, nextListId INTEGER);
+    CREATE TABLE PlaylistEntity (id INTEGER PRIMARY KEY, listId INTEGER, trackId INTEGER, nextEntityId INTEGER);
+    INSERT INTO Track VALUES (1,'../Sets/flac-96k-24.flac','flac-96k-24.flac','Engine one','E',126,1,4);`);
+  const mdb = Buffer.from(db.export()).toString('base64'); db.close();
+  await seed(page);
+  await page.evaluate(async mdb => {
+    let d = await (await navigator.storage.getDirectory()).getDirectoryHandle('Music');
+    for (const p of ['Engine Library', 'Database2']) d = await d.getDirectoryHandle(p, { create: true });
+    const w = await (await d.getFileHandle('m.db', { create: true })).createWritable(); await w.write(Uint8Array.from(atob(mdb), c => c.charCodeAt(0))); await w.close();
+  }, mdb);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  const libs = page.locator('#dj-libs'), engine = libs.locator('.found', { hasText: 'Engine DJ library' });
+  await expect(engine).toHaveCount(1, { timeout: 15_000 });
+  // The same folder again, as a place to look in: still one.
+  await page.evaluate(() => { const w = window as unknown as { showDirectoryPicker: (o: { id?: string }) => Promise<FileSystemDirectoryHandle> }; const was = w.showDirectoryPicker; w.showDirectoryPicker = async o => o.id === 'mco-libraries' ? (await navigator.storage.getDirectory()).getDirectoryHandle('Music') : was(o); });
+  await page.click('#find-libs');
+  await page.waitForTimeout(1500);
+  await expect(engine).toHaveCount(1);
+  // ×: off the list, also after a reload.
+  await engine.locator('[data-dismiss]').click();
+  await expect(engine).toHaveCount(0);
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.waitForTimeout(2000);
+  await expect(engine).toHaveCount(0);
+});

@@ -63,7 +63,8 @@ class Library {
   roots = $state.raw<RootState[]>([]);
   found = $state.raw<(FoundLibrary & { rootId: string })[]>([]);
   /** DJ libraries found in allowed folders, with where they are and whether they're imported (ADR 0030). */
-  detected = $state.raw<(Detected & { place: string; placeName: string; status: 'new' | 'imported' | 'changed'; sourceId: string | null })[]>([]);
+/** `routes`: every place|relPath the same file was found by (a music folder and a place inside it…). */
+  detected = $state.raw<(Detected & { place: string; placeName: string; status: 'new' | 'imported' | 'changed'; sourceId: string | null; routes: string[] })[]>([]);
   detecting = $state(false);
   places = $state.raw<{ key: string; name: string; granted: boolean }[]>([]);
   version = $state(0);
@@ -715,7 +716,7 @@ class Library {
           ?? (d.kind === 'engine' ? mine.find(x => x.app === 'engine') : undefined);
         const own = src?.origin?.place === place && src.origin.relPath === d.relPath;
         const status = !src ? 'new' : own && d.modified > src.origin!.modified + 1000 ? 'changed' : 'imported';
-        found.push({ ...d, place, placeName, status, sourceId: src?.id ?? null });
+        found.push({ ...d, place, placeName, status, sourceId: src?.id ?? null, routes: [place + '|' + d.relPath] });
       };
       for (const w of where) for (const d of await findLibraries(w.dir, w.place === 'home' ? 2 : 3)) add(d, w.place, w.name);
       // The DJ libraries GLUE Home follows (ADR 0065): their files are known, no looking around.
@@ -723,7 +724,20 @@ class Library {
         const d = await libraryAt(h.dir, h.file).catch(() => null);
         if (d) add(d, h.place, h.name);
       }
-      if (this.store === s) this.detected = found;
+      // The same file found by several ways (a music folder and a place inside it, GLUE Home's followed libraries…)
+      // is one library (the user saw one Engine DJ m.db four times, 2026-09-30). The entry an import came from is kept.
+      const one: typeof found = [];
+      for (const d of found) {
+        let twin: (typeof found)[number] | undefined;
+        for (const k of one) if (await sameLibraryFile(k, d)) { twin = k; break; }
+        if (!twin) { one.push(d); continue; }
+        const keep = d.status !== 'new' && twin.status === 'new' ? d : twin, other = keep === d ? twin : d;
+        keep.routes = [...new Set([...keep.routes, ...other.routes])];
+        if (keep === d) one[one.indexOf(twin)] = d;
+      }
+      // And none the user took off the list (they can still be imported by hand).
+      const dismissed = new Set(s.meta.djDismissed ?? []);
+      if (this.store === s) this.detected = one.filter(d => d.status !== 'new' || !d.routes.some(r => dismissed.has(r)));
       // A library imported by hand (no place remembered) found here: it's kept up to date from now on
       // (ADR 0063). Of several (an Engine DJ set), the biggest file: the computer's own library.
       // modified 0: the next look reads it once, and keeps its tree.
@@ -737,6 +751,14 @@ class Library {
     if (this.detectAgain) { this.detectAgain = false; await this.detectLibraries(); }
   }
   private detectAgain = false;
+  /** Take a found DJ library off the list (the ×): not suggested again, whichever way it's found. */
+  dismissLibrary(d: { routes: string[] }) {
+    const s = this.store;
+    if (!s || this.readOnly) return;
+    s.meta.djDismissed = [...new Set([...(s.meta.djDismissed ?? []), ...d.routes])];
+    s.saveMeta();
+    this.detected = this.detected.filter(x => !x.routes.some(r => d.routes.includes(r)));
+  }
   /** Allow another folder to look in (remembered), then look again. */
   async addLibraryPlace(startIn: 'music' | 'documents' = 'documents') {
     try { await platform.addLibraryPlace(startIn); } catch (e) { if ((e as DOMException).name !== 'AbortError') this.notice = (e as Error).message; return; }
@@ -1421,3 +1443,11 @@ export function remoteFileMessage(device: string) {
 
 
 export const lib = new Library();
+
+/** Two found DJ libraries that are one file: the browser says so (the same file handle), or, where it can't (GLUE
+    Home's disk), the same app, file name, size and date. */
+async function sameLibraryFile(a: Detected, b: Detected): Promise<boolean> {
+  if (a.kind !== b.kind) return false;
+  try { if (await (a.handle as FileSystemHandle).isSameEntry(b.handle as FileSystemHandle)) return true; } catch { /* not a browser handle */ }
+  return a.size === b.size && a.modified === b.modified && a.relPath.split('/').pop() === b.relPath.split('/').pop();
+}

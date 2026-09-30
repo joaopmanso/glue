@@ -42,8 +42,8 @@ export const INCOMING_ROOT = 'incoming';
     merged with other devices once (ADR 0042), so an unmerge is kept rather than merged again.
     dupApart: pairs of songs the user said aren't duplicates ("Keep · not a duplicate", pairKey); dupManual: groups the
     user marked as duplicates by hand (ADR 0117). mainRoot: the user's main music folder, whose copy is the best among
-    equals (ADR 0121). */
-export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; dupConfirmed?: string[]; dupApart?: string[]; dupManual?: string[][]; mainRoot?: string; genres?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean;
+    equals (ADR 0121). djDismissed: found DJ libraries the user took off the list (place|relPath of each way to the file). */
+export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; dupConfirmed?: string[]; dupApart?: string[]; dupManual?: string[][]; mainRoot?: string; djDismissed?: string[]; genres?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean;
   /** Moved into this shared collection (ADR 0096): kept as it was, read only, no longer synced. */
   movedTo?: string;
   /** The songs that got another id there (ADR 0102). */
