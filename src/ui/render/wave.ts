@@ -17,6 +17,8 @@ export const SCHEMES: { id: Scheme; name: string }[] = [
 export interface GridView { bpm: number; beat0: number; bar: number }
 export interface WaveOpts {
   scheme: Scheme;
+  /** No background of its own: the page's shows through (the Overview column, in any theme). */
+  clear?: boolean;
   t0: number; t1: number;            // the stretch shown (s)
   grid: GridView | null;
   playhead: number | null;           // s
@@ -38,7 +40,7 @@ function column(w: Waveform, a: number, b: number) {
 export function drawWave(ctx: CanvasRenderingContext2D, W: number, H: number, w: Waveform | null, o: WaveOpts) {
   const T = theme(), mid = H / 2, span = o.t1 - o.t0;
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#0b0b10'; ctx.fillRect(0, 0, W, H);
+  if (!o.clear) { ctx.fillStyle = '#0b0b10'; ctx.fillRect(0, 0, W, H); }
   if (!w || !(span > 0)) return;
   const x = (t: number) => (t - o.t0) / span * W;
   // Loop region behind the wave.
@@ -61,7 +63,7 @@ export function drawWave(ctx: CanvasRenderingContext2D, W: number, H: number, w:
       const hl = c.l / 255 * (mid - 2), hm = c.m / 255 * (mid - 2) * 0.8, hh = c.h / 255 * (mid - 2) * 0.6;
       ctx.fillStyle = '#ff8a1f'; ctx.fillRect(px, mid - hl, 1, hl * 2);
       ctx.fillStyle = '#ffd35c'; ctx.fillRect(px, mid - hm, 1, hm * 2);
-      ctx.fillStyle = '#f4f4f6'; ctx.fillRect(px, mid - hh, 1, hh * 2);
+      ctx.fillStyle = o.clear ? T.ink2 || '#f4f4f6' : '#f4f4f6'; ctx.fillRect(px, mid - hh, 1, hh * 2);
     } else {
       ctx.fillStyle = T.accent || '#f5c518';
       ctx.fillRect(px, mid - hp, 1, hp * 2);

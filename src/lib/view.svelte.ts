@@ -40,6 +40,9 @@ export function djTracks(src: Source | undefined, id: string): string[] {
 
 class View {
   sel = $state<ViewSel>({ kind: 'all' });
+  /** Where each view was scrolled to: a song's page and back (or another view and back) finds the table where it
+      was (the user, 2026-09-30: it always went back to the top). */
+  readonly scrolls = new Map<string, number>();
   search = $state('');
   sort = $state<{ key: SortKey; dir: 1 | -1 }>({ key: 'order', dir: 1 });
   selected = $state.raw<Set<string>>(new Set());
@@ -157,7 +160,7 @@ export const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engin
 /** What a view is called (its heading; the player says it's playing from there). */
 /** The songs a sidebar entry shows, in its order (before filters and search). */
 /** Views of the whole collection show one row per song (its best copy); a playlist, a folder, a DJ
-    library's list and the views about copies (Needs attention, No file…) show every copy they hold. */
+    library's list and the views about copies (Lower quality, No file…) show every copy they hold. */
 const ONE_PER_SONG = new Set<ViewSel['kind']>(['all', 'tag', 'facet', 'recent']);
 export const onePerSong = (sel: ViewSel) => ONE_PER_SONG.has(sel.kind);
 /** The songs behind rows of the current view: where a row stands for its song, every copy of it. */
@@ -170,11 +173,16 @@ export function withCopies(ids: string[]): string[] {
 /** What a removal says it does, in a shared collection (ADR 0100). */
 export const removeNote = () => lib.store?.shared ? ' Songs another computer also has stay in the collection, as that computer’s.' : '';
 
+/** A song of the library's own views (All tracks, Recently added, a tag, Browse): one row per song (its best
+    copy), and not one whose file couldn't be analysed (those are in "Couldn't analyse" only; the user's list,
+    2026-09-30). Playlists and folders show what the user put in them. */
+export const inLibrary = (t: Track) => !dupes.hidden.has(t.id) && lib.analysisState(t) !== 'failed';
 /** `copies`: every copy, even in a view of one row per song (to search or filter them all). */
 export function tracksFor(sel: ViewSel, opts: { copies?: boolean } = {}): Track[] {
   const out = tracksForAll(sel);
-  if (opts.copies || !ONE_PER_SONG.has(sel.kind) || !dupes.hidden.size) return out;
-  return out.filter(t => !dupes.hidden.has(t.id));
+  if (!ONE_PER_SONG.has(sel.kind)) return out;
+  if (opts.copies) return out.filter(t => lib.analysisState(t) !== 'failed');
+  return out.filter(inLibrary);
 }
 function tracksForAll(sel: ViewSel): Track[] {
   const s = lib.store;
@@ -216,7 +224,7 @@ export function viewTitle(s: ViewSel): string {
     case 'recent': return 'Recently added';
     case 'pending': return 'Not analysed yet';
     case 'failed': return 'Couldn’t analyse';
-    case 'attention': return 'Needs attention';
+    case 'attention': return 'Lower quality';
     case 'unlinked': return 'No file linked';
     case 'dupes': return 'Duplicates';
     case 'list': { const l = st?.lists.get(s.id); return l ? lib.listPath(l) : 'Playlist'; }

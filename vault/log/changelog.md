@@ -5,6 +5,46 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · Duplicates: versions kept apart; "Keep · not a duplicate" and "Mark as duplicates"
+- **Fixed: an instrumental and the vocal, a studio and a live take, a 4- and a 7-minute version grouped as
+  duplicates** ([ADR 0117](../adr/0117-duplicates-are-one-version.md)). Copies are duplicates only if they're the
+  same version: the same version words in the title (or "live" in the album), and lengths within 10 s (6 % on long
+  songs).
+- **"Keep · not a duplicate"** on a copy in Duplicates takes it out of its group for good; clean up the rest.
+- **"Mark as duplicates"** (song menu, two or more songs chosen) makes your own group, cleaned up like any other.
+- **Fixed: double-clicking a row over an artist or album opened another song.** A name opens its songs only on
+  a single click, a moment later.
+- The test fixture `flac-96k-24.flac` is "Genuine hi-res: content to 46.6 kHz" (flat noise to 48 kHz), not
+  "Upsampled"; the e2e tests that relied on the old label were changed on purpose (ADR 0116).
+
+## 2026-09-30 · Quality: a quiet top end is still hi-res, and upsamples that passed are caught (GLUE Home 0.37.1)
+- **Fixed: "FIREFLIES" (Doechii, 24/88.2 FLAC) called "Upsampled from 48 kHz"**
+  ([ADR 0116](../adr/0116-hi-res-by-what-reaches-past-24-khz.md)).
+  - Its music fades out before 24 kHz, but its own air and noise carry on to 44 kHz, 78 dB over 24-bit digital
+    silence. A hi-res file is now judged by how far its content reaches above digital silence: past 30 kHz,
+    genuine.
+  - All 11 of your songs called "Upsampled" (the same album) are "Genuine hi-res" now.
+- **Upsamples made with ffmpeg's default resampler were called "Genuine hi-res".** Its faint residue passed for
+  content. Content that stops at 22 or 24 kHz and falls off a cliff is "Upsampled" now (checked with soxr and
+  ffmpeg fakes of the same song).
+- Stored verdicts are judged again when a collection opens, with no decoding. That covers warnings, failures
+  and "Genuine hi-res", with the stored analysis from the browser or GLUE Home.
+- A song that fails to analyse is tried once more before it's saved as "Couldn't analyse" (under load, one
+  failure isn't proof, and a failed song leaves the library's lists).
+
+## 2026-09-30 · The library: its place kept, links on names, no unreadable songs in it
+- A song whose file can't be analysed is only in "Couldn't analyse", not in All tracks, Recently added, tags or
+  Browse (its count too). Playlists keep what you put in them.
+- The library keeps its place: a song's page and back (or another view and back) finds the table where it was.
+- A playlist's numbers always show (they shared a class with the drag handle, shown only on hover).
+- The phone's "All tracks" counts songs as the desktop does (one per song, not every copy of a duplicate).
+- The Overview column's mini spectrograms and waveforms have no black background: the theme's shows through.
+- An artist, album, genre or label clicked in the table shows that value's songs (the whole album, say). The
+  second click on the one selected song still edits it.
+- "Needs attention" is now "Lower quality", with a tooltip: it's for information.
+- Tests: e2e `narrow.spec` (its place kept on 3,000 songs; an album clicked), `library.spec` (an unreadable file,
+  the playlist's numbers).
+
 ## 2026-09-30 · The vault: one file for how GLUE works now; the name MCO retired
 - **A new session reads far less.** It used about 40% of a Claude Pro session's budget just to understand
   GLUE (about 700 KB of vault). Now:

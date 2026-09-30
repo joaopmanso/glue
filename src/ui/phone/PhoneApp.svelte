@@ -48,7 +48,8 @@
   const counts = $derived.by(() => {
     void lib.version;
     const n = (sel: ViewSel) => tracksFor(sel).length;
-    return { all: lib.store?.tracks.size ?? 0, attention: n({ kind: 'attention' }), pending: n({ kind: 'pending' }), unlinked: n({ kind: 'unlinked' }) };
+    // As the desktop's All tracks counts them: one per song, without the copies of duplicates (the user, 2026-09-30).
+    return { all: n({ kind: 'all' }), attention: n({ kind: 'attention' }), pending: n({ kind: 'pending' }), unlinked: n({ kind: 'unlinked' }) };
   });
   const tags = $derived.by(() => { void lib.version; return allTags().filter(t => t.tracks > 0); });
   const roots = $derived(lib.roots.filter(r => !r.root.hidden));
@@ -117,7 +118,7 @@
         <li><button type="button" class="ent strong" data-view="all" onclick={() => phone.songs({ kind: 'all' })}>All tracks<span class="n">{counts.all.toLocaleString()}</span></button></li>
         <li><button type="button" class="ent" data-view="recent" onclick={() => phone.songs({ kind: 'recent' })}>Recently added</button></li>
         {#if sorting}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'list', id: TO_BE_SORTED })}>TO BE SORTED<span class="n">{sorting.items.length}</span></button></li>{/if}
-        {#if counts.attention}<li><button type="button" class="ent" data-view="attention" onclick={() => phone.songs({ kind: 'attention' })}>Needs attention<span class="n">{counts.attention}</span></button></li>{/if}
+        {#if counts.attention}<li><button type="button" class="ent" data-view="attention" onclick={() => phone.songs({ kind: 'attention' })}>Lower quality<span class="n">{counts.attention}</span></button></li>{/if}
         {#if counts.pending}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'pending' })}>Not analysed yet<span class="n">{counts.pending}</span></button></li>{/if}
         {#if counts.unlinked}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'unlinked' })}>No file linked<span class="n">{counts.unlinked}</span></button></li>{/if}
         {#if tags.length}

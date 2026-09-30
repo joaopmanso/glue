@@ -1,10 +1,19 @@
 ---
 status: in-progress
 milestone: M5
-updated: 2026-09-27
-adrs: [0013, 0025]
+updated: 2026-09-30
+adrs: [0013, 0025, 0117]
 ---
 # Duplicates
+
+## Now
+- **Finding them:** fingerprints ("same recording") and names ("probable": artist + title, lengths within 3 s), but
+  only copies of the same version: the same version words (instrumental, live, remix, edit…), and lengths within
+  10 s or 6 % (ADR 0117).
+- **Your say:** "Keep · not a duplicate" takes a copy out of its group for good; "Mark as duplicates" (song menu, 2+
+  songs) makes your own group.
+- **Cleaning up:** with GLUE Home, the rest move to its duplicates folder or the Recycle Bin (ADR 0070).
+- The sections below are the history.
 
 ## What it does
 Finds every song the collection has more than once, even across formats (a FLAC and an MP3 of the
@@ -119,3 +128,11 @@ them at the best copy.
   `rev.tracks`). Before, an edit showed only after "Check again".
 - e2e: two songs given the same artist and title show as probable; confirmed, same; kept over a
   reload.
+
+## Versions kept apart; the user's say (2026-09-30, [ADR 0117](../adr/0117-duplicates-are-one-version.md))
+- Reported: an instrumental and the vocal, a studio and a live take, a 4- and a 7-minute version were grouped.
+- `versionOf(title, album)`, `similarLength`, `sameVersion`, `pairKey` (`core/library/duplicates.ts`); applied in
+  `dupes.build` to sound matches and to probable groups.
+- "Keep · not a duplicate" (`[data-apart]`, `dupes.apart`); "Mark as duplicates" (`[data-m="mark-dupes"]`,
+  `dupes.markSame`).
+- Tests: `tests/versions.test.ts`, e2e `library.spec` ("duplicates by hand").

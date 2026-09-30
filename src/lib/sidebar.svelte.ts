@@ -1,5 +1,5 @@
 /* The library sidebar's sections: each can be collapsed, and one "maximized" (the others collapse and
-   it gets the full height). Library's entries (Recently added, Needs attention…) can be hidden
+   it gets the full height). Library's entries (Recently added, Lower quality…) can be hidden
    (right-click, ADR 0067). Remembered per browser. */
 import { readPref, writePref } from './prefs';
 

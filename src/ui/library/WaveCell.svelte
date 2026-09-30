@@ -32,13 +32,13 @@
     if (wave) {
       time('draw:wave', () => {
         const pick = (k: number) => { const a = new Uint8Array(THUMB_W); for (let x = 0; x < THUMB_W; x++) a[x] = d[x * 4 + k]; return a; };
-        drawWave(c.getContext('2d')!, THUMB_W, WAVE_H, { rate: THUMB_W / dur, low: pick(0), mid: pick(1), high: pick(2), peak: pick(3), env: new Uint8Array(0), envRate: 1, envT0: 0, duration: dur }, { scheme, t0: 0, t1: dur, grid: null, playhead: null });
+        drawWave(c.getContext('2d')!, THUMB_W, WAVE_H, { rate: THUMB_W / dur, low: pick(0), mid: pick(1), high: pick(2), peak: pick(3), env: new Uint8Array(0), envRate: 1, envT0: 0, duration: dur }, { scheme, t0: 0, t1: dur, grid: null, playhead: null, clear: true });
       });
       return;
     }
     time('draw:thumb', () => {
       const ctx = c.getContext('2d')!, img = ctx.createImageData(THUMB_W, THUMB_H), px = img.data;
-      for (let i = 0; i < d.length; i++) { const li = d[i] * 3, p = i * 4; px[p] = lut[li]; px[p + 1] = lut[li + 1]; px[p + 2] = lut[li + 2]; px[p + 3] = 255; }
+      for (let i = 0; i < d.length; i++) { const li = d[i] * 3, p = i * 4; px[p] = lut[li]; px[p + 1] = lut[li + 1]; px[p + 2] = lut[li + 2]; px[p + 3] = Math.min(255, d[i] * 4); }
       ctx.putImageData(img, 0, 0);
     });
   });
@@ -78,7 +78,7 @@
 </div>
 
 <style>
-  .wave { position: relative; width: 100%; height: 22px; border-radius: 3px; overflow: hidden; background: #000; cursor: pointer; touch-action: none; }
+  .wave { position: relative; width: 100%; height: 22px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--ink) 5%, transparent); cursor: pointer; touch-action: none; }   /* the theme's, not black (the user, 2026-09-30) */
   .wave.empty { background: repeating-linear-gradient(90deg, var(--raised) 0 3px, transparent 3px 6px); opacity: .6; }
   canvas { display: block; width: 100%; height: 100%; image-rendering: auto; }
   .played { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--ground) 45%, transparent); pointer-events: none; }

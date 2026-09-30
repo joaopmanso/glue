@@ -4,7 +4,7 @@ import type { Severity } from '../core/types';
 export const SCHEMA = 1;             // bump + add a migration when a file format changes
 export const ANALYSIS_VERSION = 3;
 /** Bump when the verdict rules change: stored verdicts are re-checked from stored analyses, no decoding (2: gentle roll-offs, 3: quiet content above the fade, ADR 0033). */
-export const VERDICT_VERSION = 5;   // bump to re-analyse every track after an algorithm change (2: full analysis stored, 3: fingerprints, 4: content beyond a wall, 2026-09-27, 5: holes under a wall, 2026-09-28)
+export const VERDICT_VERSION = 6;   // bump to re-analyse every track after an algorithm change (2: full analysis stored, 3: fingerprints, 4: content beyond a wall, 2026-09-27, 5: holes under a wall, 2026-09-28, 6: a quiet top end is still hi-res, upsamples found by what reaches past 24 kHz, 2026-09-30)
 
 export interface ProfileRef { id: string; name: string; color: string }
 /** A profile as the user sees it (ADR 0113): an artist alias, the account's (the same list on every device). */
@@ -39,8 +39,10 @@ export interface Root { id: string; name: string; absPath: string | null; handle
     each computer's collection has its own). Its songs are TO BE SORTED. */
 export const INCOMING_ROOT = 'incoming';
 /** tags: tags made in GLUE, kept even while no track uses them (ADR 0032). cloudMerged: it has been
-    merged with other devices once (ADR 0042), so an unmerge is kept rather than merged again. */
-export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; dupConfirmed?: string[]; genres?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean;
+    merged with other devices once (ADR 0042), so an unmerge is kept rather than merged again.
+    dupApart: pairs of songs the user said aren't duplicates ("Keep · not a duplicate", pairKey); dupManual: groups the
+    user marked as duplicates by hand (ADR 0117). */
+export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; dupConfirmed?: string[]; dupApart?: string[]; dupManual?: string[][]; genres?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean;
   /** Moved into this shared collection (ADR 0096): kept as it was, read only, no longer synced. */
   movedTo?: string;
   /** The songs that got another id there (ADR 0102). */

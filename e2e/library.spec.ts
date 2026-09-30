@@ -950,7 +950,7 @@ test('track pages keep their analysis, and the playing track keeps playing', asy
   await page.exposeFunction('busySeen', () => { busySeen = true; });
   await page.evaluate(() => new MutationObserver(() => { if (document.querySelector('.detail .status')) (window as unknown as { busySeen: () => void }).busySeen(); }).observe(document.body, { childList: true, subtree: true }));
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
-  await expect(page.locator('#v-pill')).toHaveText('Upsampled', { timeout: 30_000 });
+  await expect(page.locator('#v-pill')).toHaveText('Genuine hi-res', { timeout: 30_000 });
   await expect(page.locator('.detail .src')).toHaveText('Stored analysis');
   expect(busySeen).toBe(false);
   await page.locator('.crumbs a').click();
@@ -959,8 +959,8 @@ test('track pages keep their analysis, and the playing track keeps playing', asy
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
   await expect(page.locator('.detail .src')).toHaveText('Stored analysis', { timeout: 10_000 });
-  await expect(page.locator('#v-pill')).toHaveText('Upsampled');
-  await expect(page.locator('#evidence')).toContainText('Content stops at 11.0 kHz');
+  await expect(page.locator('#v-pill')).toHaveText('Genuine hi-res');
+  await expect(page.locator('#evidence')).toContainText('Content reaches 46.6 kHz');
   expect(await page.evaluate(() => [...document.querySelectorAll('.detail *')].filter(e => { const cs = getComputedStyle(e); return /(auto|scroll)/.test(cs.overflowY) && e.scrollHeight > e.clientHeight && e.tagName !== 'TEXTAREA'; }).length)).toBe(0);
   await expect(page.locator('.detail .status')).toHaveCount(0);   // no "Computing spectrum…"
   // Re-analyse on demand.
@@ -1291,7 +1291,7 @@ test('Stop stops the analysis at once, and background analysis stays off until i
   await page.locator('.cmenu [data-m="analyse"]').click();
   await expect(page.locator('.notice')).toContainText('Analysing 1 song');
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
-  await expect(flac.locator('.q')).toHaveText('Upsampled');
+  await expect(flac.locator('.q')).toHaveText('Genuine hi-res');
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
   // Analysed again: its analysis is new.
   expect(await page.evaluate(async () => {
@@ -1328,7 +1328,7 @@ test('background analysis can be switched off per collection; chosen tracks can 
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).click();
   await page.click('#analyse-selected');
   await expect(page.locator('.an')).toContainText('3 not analysed', { timeout: 30_000 });
-  await expect(page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.q')).toHaveText('Upsampled');
+  await expect(page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.q')).toHaveText('Genuine hi-res');
 
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
   await page.reload();
@@ -1533,7 +1533,7 @@ test('filters the table by quality and format', async ({ page }) => {
   // A row's quality badge filters by it.
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.qbtn').click();
   await expect(page.locator('.tr')).toHaveCount(1);
-  await expect(page.locator('.selbar')).toContainText('Upsampled');
+  await expect(page.locator('.selbar')).toContainText('Genuine hi-res');
 });
 
 test('tags: on tracks and playlists, in the sidebar, filters, insights and the playlist builder', async ({ page }) => {
@@ -1588,7 +1588,7 @@ test('tags: on tracks and playlists, in the sidebar, filters, insights and the p
   await page.click('[data-hf="quality"]');
   const hf = page.locator('#head-filter');
   await expect(hf).toContainText('Caution');
-  await expect(hf).toContainText('Upsampled');
+  await expect(hf).toContainText('Genuine hi-res');
   await hf.locator('label', { hasText: 'Caution' }).click();
   await expect(page.locator('.tr')).toHaveCount(2);
   await hf.locator('label.all').click();
@@ -1665,7 +1665,7 @@ test('opening another track’s page doesn’t stop what’s playing; playing th
   await row.hover(); await row.locator('.pbtn').click();
   await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
   await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
-  await expect(page.locator('#v-pill')).toHaveText('Upsampled', { timeout: 30_000 });
+  await expect(page.locator('#v-pill')).toHaveText('Genuine hi-res', { timeout: 30_000 });
   // This page's player waits; the AIFF plays on (the fixtures are 4 s long, so it may have ended).
   await expect(page.locator('#play-btn')).toHaveAttribute('aria-label', 'Play');
   await expect(page.locator('#other-playing')).toContainText('aiff-44k-24');
@@ -2302,7 +2302,7 @@ test('the user\'s list, 2026-09-28, batch A: "Not a problem" on a caution; renam
   const before = Number((await attention.innerText()).match(/\d+$/)?.[0] ?? 0);
   expect(before).toBeGreaterThan(0);
 
-  // A caution marked fine on its page: fine in the library too, and out of Needs attention; Undo.
+  // A caution marked fine on its page: fine in the library too, and out of Lower quality; Undo.
   const aiff = page.locator('.tr', { hasText: 'aiff-44k-24' });
   await expect(aiff.locator('.q')).toHaveText('Caution');
   await aiff.dblclick();
@@ -2480,4 +2480,70 @@ test('removing a music folder removes its songs, and says what goes with them; s
   await expect(page.locator('.tr')).toHaveCount(0, { timeout: 10_000 });
   expect(asked).toContain('Its songs leave the collection: 4 songs, 1 rated, 1 in 1 playlist.');
   await expect(page.locator('.lside [data-view="unlinked"]')).not.toContainText(/[1-9]/);
+});
+
+test('a song that can’t be analysed is only under “Couldn’t analyse”; a playlist’s numbers always show; “Lower quality” (the user’s list, 2026-09-30)', async ({ page }) => {
+  await seed(page);
+  // A file that isn't audio at all, among the songs.
+  await page.evaluate(async () => {
+    const dir = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('Music')).getDirectoryHandle('Sets');
+    const w = await (await dir.getFileHandle('broken.mp3', { create: true })).createWritable(); await w.write(new Uint8Array(4096).fill(7)); await w.close();
+  });
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.lside [data-view="failed"]')).toContainText('1', { timeout: 90_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+  // Not in the library's own lists; in "Couldn't analyse".
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await expect(page.locator('.tr')).toHaveCount(4);
+  await expect(page.locator('.lside [data-view="all"] .n')).toHaveText('4');
+  await expect(page.locator('.tr', { hasText: 'broken' })).toHaveCount(0);
+  await page.locator('.lside [data-view="failed"]').click();
+  await expect(page.locator('.tr')).toHaveCount(1);
+  await expect(page.locator('.tr')).toContainText('broken');
+  // The informative quality entry has its new name.
+  await expect(page.locator('.lside [data-view="attention"]')).toContainText('Lower quality');
+  // A playlist's numbers show without hovering.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await page.click('#new-playlist'); await page.keyboard.type('Numbers'); await page.keyboard.press('Enter');
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await page.locator('.tr').first().dragTo(page.locator('.lside .item', { hasText: 'Numbers' }));
+  await page.locator('.lside .tree .name', { hasText: 'Numbers' }).click();
+  await expect(page.locator('.tr .c-n')).toHaveText('1');
+  await page.mouse.move(0, 0);
+  expect(Number(await page.locator('.tr .c-n').evaluate(el => getComputedStyle(el).opacity))).toBe(1);
+});
+
+test('duplicates by hand: songs marked as duplicates group; “Keep · not a duplicate” takes one out, for good (ADR 0117)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+  const row = (t: string) => page.locator('.tr', { hasText: t });
+  // Two songs, marked by hand.
+  await row('Fixture MP3').locator('.c-title').click();
+  await row('Fixture FLAC').locator('.c-title').click({ modifiers: ['Control'] });
+  await row('Fixture FLAC').locator('.c-title').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="mark-dupes"]').click();
+  await expect(page.locator('.tr')).toHaveCount(3);   // one row per song: the best copy
+  await page.locator('.lside [data-view="dupes"]').click();
+  const grp = page.locator('.grp', { hasText: 'you marked them as duplicates' });
+  await expect(grp).toHaveCount(1);
+  await expect(grp.locator('li')).toHaveCount(2);
+  // One of them isn't (another version): it leaves the group, and the group goes.
+  await grp.locator('li', { hasText: 'Fixture MP3' }).locator('[data-apart]').click();
+  await expect(page.locator('.grp', { hasText: 'Fixture FLAC' })).toHaveCount(0);
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await page.locator('.lside [data-view="dupes"]').click({ timeout: 30_000 });
+  await expect(page.locator('.grp', { hasText: 'Fixture FLAC' })).toHaveCount(0);
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await expect(page.locator('.tr')).toHaveCount(4);
 });

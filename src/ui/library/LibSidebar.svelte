@@ -41,9 +41,9 @@
     const s = lib.store;
     let all = 0, pending = 0, failed = 0, unlinked = 0, attention = 0;
     if (s) for (const t of s.tracks.values()) {
-      if (!dupes.hidden.has(t.id)) all++;   // one per song (its best copy)
       // One meaning each (ADR 0109), as the lists and Stats count them.
       const st = lib.analysisState(t);
+      if (!dupes.hidden.has(t.id) && st !== 'failed') all++;   // one per song (its best copy), as All tracks shows them
       if (st === 'nofile') unlinked++; else if (st === 'waiting') pending++; else if (st === 'failed') failed++;
       const a = s.analysis.get(t.id);
       if (a && (a.grade === 'bad' || a.grade === 'warn') && asShown(t, a)?.grade !== 'ok') attention++;
@@ -201,7 +201,7 @@
   function onMore(el: Element, key: string, build: () => MenuEntry[], label: string) { menu.from(el, build, label); menuRow = key; }
   const plural = (n: number, one: string) => n + ' ' + one + (n === 1 ? '' : 's');
 
-  const LIB_VIEWS: [ViewSel['kind'], string][] = [['all', 'All tracks'], ['recent', 'Recently added'], ['attention', 'Needs attention'], ['pending', 'Not analysed yet'], ['failed', 'Couldn’t analyse'], ['unlinked', 'No file linked'], ['dupes', 'Duplicates']];
+  const LIB_VIEWS: [ViewSel['kind'], string][] = [['all', 'All tracks'], ['recent', 'Recently added'], ['attention', 'Lower quality'], ['pending', 'Not analysed yet'], ['failed', 'Couldn’t analyse'], ['unlinked', 'No file linked'], ['dupes', 'Duplicates']];
   const libShown = (): MenuEntry[] => tidy([
     ...LIB_VIEWS.filter(([k]) => k !== 'all').map(([k, label]) => {
       const v = k as LibView, on = !sidebar.hidden.has(v);
@@ -435,8 +435,8 @@
     <div class="head" class:menued={menued('sec:library')} oncontextmenu={e => onMenu(e, 'sec:library', () => secMenu('library'), 'Section')}>{@render secHead('library', 'Library')}<span class="add">{@render maxBtn('library')}</span></div>
     {#if sidebar.open('library')}
     <ul>
-      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Needs attention', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['failed', 'Couldn’t analyse', counts.failed], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length]].filter(([k, , n]) => !sidebar.hidden.has(k as LibView) && (k !== 'failed' || !!n)) as [k, label, n] (k)}
-        <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} class:menued={menued('v:' + k)} data-view={k} onclick={() => view.select({ kind: k } as ViewSel)}
+      {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Lower quality', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['failed', 'Couldn’t analyse', counts.failed], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length]].filter(([k, , n]) => !sidebar.hidden.has(k as LibView) && (k !== 'failed' || !!n)) as [k, label, n] (k)}
+        <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} class:menued={menued('v:' + k)} data-view={k} title={k === 'attention' ? 'For information: songs whose quality is lower than a lossless file of their format (lossy, transcoded, upsampled, padded to 24-bit, or doubtful). Nothing to do.' : undefined} onclick={() => view.select({ kind: k } as ViewSel)}
           oncontextmenu={e => onMenu(e, 'v:' + k, () => libMenu(k as ViewSel['kind'], String(label)), String(label))}>{label}<span class="n">{n ?? ''}</span></button></li>
         {#if k === 'all'}
           <!-- Browse by a field (the user's list, 2026-09-28): its values, then one value's songs. -->

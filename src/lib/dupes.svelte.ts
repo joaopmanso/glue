@@ -13,13 +13,13 @@ import { fingerprintOf } from './analysis';
 import { jobOf } from './audioJob';
 import type { Fingerprint } from '../core/audio/fingerprint';
 import type { Match } from '../core/library/duplicates';
-import { groupMatches } from '../core/library/duplicates';
+import { groupMatches, pairKey, sameVersion } from '../core/library/duplicates';
 import { time, timeAsync } from '../core/perf';
 import type { DupReply, DupRequest } from '../workers/duplicates.worker';
 import type { AnalysisSummary, Track } from '../store/types';
 
 /** confirmed: a probable group the user said is the same recording (it can be cleaned up like one). */
-export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null; confirmed?: boolean }
+export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null; confirmed?: boolean; byHand?: boolean }
 
 const GRADE: Record<string, number> = { ok: 3, info: 2, warn: 1, bad: 0 };
 /** Higher is better: genuine before suspect, lossless before lossy, then resolution / bitrate. */
@@ -218,16 +218,22 @@ class Dupes {
 
   private build(matches: Match[]): DupGroup[] {
     const s = lib.store!, ignored = new Set(s.meta.ignoredDupes ?? []), confirmed = new Set(s.meta.dupConfirmed ?? []);
+    // What the user said (ADR 0117): pairs that aren't duplicates, and groups marked by hand.
+    const apart = new Set(s.meta.dupApart ?? []), manual: Match[] = [], byHand = new Set<string>();
+    for (const g of s.meta.dupManual ?? []) for (let i = 1; i < g.length; i++) { manual.push({ a: g[0], b: g[i], ber: 0, offsetSec: 0, overlapSec: 0 }); byHand.add(pairKey(g[0], g[i])); }
+    // Another version (instrumental, live, remix…, or a length that differs) is never a duplicate, however the sound
+    // matched; nor a pair the user kept apart.
+    const same = (m: Match) => { const a = s.tracks.get(m.a), b = s.tracks.get(m.b); return !a || !b || sameVersion(a, b); };
     // The copy the user chose ("Use in playlists"), else the best by quality.
     const best = (ids: string[]) => { const chosen = s.meta.dupBest?.[groupKey(ids)]; return chosen && ids.includes(chosen) ? chosen : ids.reduce((b, id) => copyScore(s.tracks.get(id)!, s.analysis.get(id) ?? null) > copyScore(s.tracks.get(b)!, s.analysis.get(b) ?? null) ? id : b); };
     const out: DupGroup[] = [];
     const inGroup = new Set<string>();
-    const all = this.others.length ? matches.concat(this.others) : matches;
+    const all = (this.others.length ? matches.concat(this.others) : matches).filter(m => !apart.has(pairKey(m.a, m.b)) && same(m)).concat(manual);
     for (const ids of groupMatches(all)) {
       const live = ids.filter(id => s.tracks.has(id));
       if (live.length < 2 || ignored.has(groupKey(live))) continue;
-      const bers = all.filter(m => live.includes(m.a) && live.includes(m.b)).map(m => m.ber);
-      out.push({ key: groupKey(live), kind: 'same', ids: live, best: best(live), similarity: 1 - 2 * Math.max(...bers) });
+      const pairs = all.filter(m => live.includes(m.a) && live.includes(m.b)), hand = pairs.some(m => byHand.has(pairKey(m.a, m.b)));
+      out.push({ key: groupKey(live), kind: 'same', ids: live, best: best(live), similarity: hand ? null : 1 - 2 * Math.max(...pairs.map(m => m.ber)), ...(hand ? { confirmed: true, byHand: true } : {}) });
       live.forEach(id => inGroup.add(id));
     }
     // Probable: same artist + title, similar length, not already matched by sound.
@@ -240,7 +246,7 @@ class Dupes {
     }
     for (const g of byName.values()) {
       if (g.length < 2) continue;
-      const near = g.filter(t => g.some(u => u !== t && (t.duration == null || u.duration == null || Math.abs(t.duration - u.duration) <= 3)));
+      const near = g.filter(t => g.some(u => u !== t && (t.duration == null || u.duration == null || Math.abs(t.duration - u.duration) <= 3) && sameVersion(t, u) && !apart.has(pairKey(t.id, u.id))));
       const ids = near.map(t => t.id);
       if (ids.length < 2 || ignored.has(groupKey(ids))) continue;
       const key = groupKey(ids);
@@ -259,6 +265,30 @@ class Dupes {
     s.meta.dupConfirmed = [...(s.meta.dupConfirmed ?? []), g.key];
     s.saveMeta();
     this.groups = this.groups.map((x): DupGroup => x.key === g.key ? { ...x, kind: 'same', confirmed: true } : x).sort((a, b) => (a.kind === b.kind ? b.ids.length - a.ids.length : a.kind === 'same' ? -1 : 1));
+  }
+  /** "Keep · not a duplicate" (ADR 0117): this copy isn't a duplicate of the others in its group (another version),
+      remembered pair by pair; the rest of the group stays, to be cleaned up. */
+  apart(g: DupGroup, id: string) {
+    const s = lib.store;
+    if (!s || lib.readOnly) return;
+    const pairs = new Set(s.meta.dupApart ?? []);
+    for (const o of g.ids) if (o !== id) pairs.add(pairKey(id, o));
+    s.meta.dupApart = [...pairs];
+    s.meta.dupManual = (s.meta.dupManual ?? []).map(m => m.includes(id) ? m.filter(x => x !== id) : m).filter(m => m.length > 1);
+    s.saveMeta();
+    this.rebuild();
+  }
+  /** "Mark as duplicates" (ADR 0117): the selected songs are one recording, by the user's say-so (with any group
+      they're already in); cleaned up like one. */
+  markSame(ids: string[]) {
+    const s = lib.store, set = new Set(ids);
+    if (!s || lib.readOnly || set.size < 2) return;
+    const keep: string[][] = [];
+    for (const m of s.meta.dupManual ?? []) if (m.some(x => set.has(x))) m.forEach(x => set.add(x)); else keep.push(m);
+    s.meta.dupManual = [...keep, [...set]];
+    s.meta.dupApart = (s.meta.dupApart ?? []).filter(k => { const [a, b] = k.split('+'); return !(set.has(a) && set.has(b)); });
+    s.saveMeta();
+    this.rebuild();
   }
   /** "Not duplicates": remember and hide this group. */
   ignore(g: DupGroup) {

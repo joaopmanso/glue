@@ -116,7 +116,7 @@
     <header>
       {#if g.kind === 'same'}
         {#if canClean}<input type="checkbox" class="gpick" aria-label="Choose this group" checked={picked.has(g.key)} onchange={e => pick(g, e.currentTarget.checked)}>{/if}
-        <span class="kind">Same recording</span><span class="sim">{g.confirmed ? 'same artist and title; you said it’s the same' : strength(g.similarity ?? 0)}</span>
+        <span class="kind">Same recording</span><span class="sim">{g.byHand ? 'you marked them as duplicates' : g.confirmed ? 'same artist and title; you said it’s the same' : strength(g.similarity ?? 0)}</span>
         {#if canClean}
           <button type="button" class="mini" data-clean="move" title="Keep the best copy; put the others in GLUE Home's duplicates folder (out of the library, not deleted)" onclick={() => (ask = { mode: 'move', groups: [g] })}>Move the others…</button>
           <button type="button" class="mini danger" data-clean="trash" title="Keep the best copy; move the others' files to the Recycle Bin" onclick={() => (ask = { mode: 'trash', groups: [g] })}>Delete the others…</button>
@@ -150,6 +150,7 @@
             <span class="act">
               {#if g.best === id}<span class="bestb" title="Best quality of the group">Best copy</span>{/if}
               <button type="button" class="mini" title="Make this the copy to keep: every playlist uses it, and a clean-up keeps it" onclick={() => keep(g, id)}>Use in playlists</button>
+              <button type="button" class="mini" data-apart={id} disabled={lib.readOnly} title="Not a duplicate of the others (another version: an instrumental, a live take, a longer mix…). It leaves this group for good; clean up the rest." onclick={() => dupes.apart(g, id)}>Keep · not a duplicate</button>
             </span>
           </li>
         {/if}

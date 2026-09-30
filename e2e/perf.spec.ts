@@ -94,7 +94,7 @@ for (const n of SIZES) {
     // Switching what's shown in the sidebar.
     const side = (text: string) => page.locator('.lside .name', { hasText: text }).first();
     const sw: Record<string, number> = {};
-    for (const name of ['Needs attention', 'Not analysed yet', 'No file linked', 'Recently added', 'All tracks']) sw[name] = await timed(side(name));
+    for (const name of ['Lower quality', 'Not analysed yet', 'No file linked', 'Recently added', 'All tracks']) sw[name] = await timed(side(name));
     sw['folder Gigs'] = await timed(page.locator('.lside .tree .name', { hasText: /^Gigs$/ }).first());
     const lists = page.locator('.lside .tree .item[data-drop="list"]');
     for (let i = 0; i < await lists.count(); i++) {
@@ -253,7 +253,7 @@ test('a real GLUE folder, step by step', async ({ page }) => {
     }
   };
   const side = (text: string) => page.locator('.lside .item', { hasText: text }).first();
-  for (const name of ['All tracks', 'Recently added', 'Needs attention', 'Not analysed yet', 'No file linked', 'Duplicates', 'All tracks']) await step('view ' + name, side(name));
+  for (const name of ['All tracks', 'Recently added', 'Lower quality', 'Not analysed yet', 'No file linked', 'Duplicates', 'All tracks']) await step('view ' + name, side(name));
   // Every folder and playlist in the tree, opening folders as they come (up to 60).
   const seen = new Set<string>();
   for (let round = 0; round < 60; round++) {

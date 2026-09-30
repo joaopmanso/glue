@@ -139,4 +139,18 @@ describe('verdicts on synthetic signals', () => {
     const v = verdictOf(bandLimitedNoise(48000, 6, 16000), 48000, info);
     expect(v.label).toBe('Lossy');
   });
+  // The user's 24/88.2 Doechii album, called "upsampled from 48 kHz" (2026-09-30): quiet songs whose music fades out
+  // before 24 kHz, but whose own air and noise carry on to 44 kHz, 80 dB over 24-bit silence.
+  const flat = (sr: number, secs: number, amp: number) => [0, 1].map(() => { const a = new Float32Array(sr * secs); for (let i = 0; i < a.length; i++) a[i] = (rnd() + rnd()) * amp; return a; });
+  const mix = (a: Float32Array[], b: Float32Array[]) => a.map((c, i) => c.map((v, j) => v + b[i][j]));
+  it('a quiet top end that carries on past 24 kHz, far over digital silence, is genuine hi-res', () => {
+    const v = verdictOf(quantize(mix(rolledOff(88200, 6, 6000, 4), flat(88200, 6, 1.2e-3)), 24), 88200, lossless(88200, 24));
+    expect(v.label).toBe('Genuine hi-res');
+    expect(v.headline).toBe('Real hi-res, with a quiet top end');
+  });
+  it('music that stops at 23.5 kHz with only a resampler’s faint residue above is upsampled from 48 kHz', () => {
+    const v = verdictOf(quantize(mix(bandLimitedNoise(88200, 6, 23500), flat(88200, 6, 3.8e-6)), 24), 88200, lossless(88200, 24));
+    expect(v.label).toBe('Upsampled');
+    expect(v.headline).toContain('48 kHz');
+  });
 });

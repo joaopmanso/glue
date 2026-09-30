@@ -74,6 +74,14 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 ## 4. Collections and the account's collections
 - **A collection:** music folders, DJ libraries, songs, playlists, analyses, events. The sidebar views count songs
   with one function, `analysisState` (§6).
+- **The library's own views** (All tracks, Recently added, a tag, Browse and its values) show one row per song, its
+  best copy (`view.inLibrary`), and never a song whose file couldn't be analysed: that's only in "Couldn't
+  analyse". Playlists and folders show what the user put in them. The phone counts the same way.
+- **The table** (`TrackTable.svelte`): each view remembers where it was scrolled (`view.scrolls`), so a song's
+  page and back finds it there. An artist, album, genre or label clicked opens that value's songs (a `facet`
+  view, as Browse does); the second click on the one selected song still edits the value in place.
+- "Lower quality" (internally `attention`, until 2026-09-30 "Needs attention") lists warn or bad verdicts, for
+  information.
 - **Removing a music folder removes this computer's songs in it** (ADR 0111). Songs left with no file are offered
   once (a bar, backup first).
 - **Signed in with cloud sync on, every collection is the account's** (ADRs 0101, 0112), one copy in GLUE Cloud:
@@ -146,6 +154,18 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   computer's song) or nofile. The sidebar, Stats, the analysis bar and both queues use it.
 - **Quality verdicts:** `src/core/audio/verdict.ts` (Speklone's forensics); `tests/parity.test.ts` checks them
   against `legacy/index.html`.
+  - A hi-res file is judged by what reaches past 24 kHz above digital silence (`ultrasonic`, ADR 0116). A quiet
+    top end that carries on is genuine; content that stops at 22 or 24 kHz, then falls off a cliff, is
+    upsampled.
+  - A rule change bumps `VERDICT_VERSION`, and stored verdicts are judged again on open (`recheckVerdicts`).
+  - The tab tries a failing song twice before saving it as failed, since a failed song leaves the library's lists.
+- **Duplicates** (`src/lib/dupes.svelte.ts`, `core/library/duplicates.ts`):
+  - how they're found: fingerprints ("same recording"), and artist + title with lengths within 3 s ("probable");
+  - only copies of the same version count (`sameVersion`: the same version words, lengths within 10 s or 6 %,
+    ADR 0117);
+  - the user's say: "Keep · not a duplicate" on a copy (`meta.dupApart`), and "Mark as duplicates" on chosen
+    songs (`meta.dupManual`);
+  - a same-recording group shows as one row, its best copy.
 - **Other analysis:** duplicates (fingerprints, three tiers, ADR 0013); stems in the browser (HT-Demucs,
   `src/core/stems`).
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { facetKey, facetValue, type Facet } from '../../core/library/browse';
   import { lib } from '../../lib/library.svelte';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
   import { view, qualityOf, devicesOf, manyDevices, valuesOf, NO_GENRE, NO_TAGS, type Row, type FilterGroup, type SortKey } from '../../lib/view.svelte';
@@ -46,6 +47,16 @@
     if (i < 0) { if (view.sel.kind !== 'all') view.select({ kind: 'all' }); else view.reveal = null; return; }
     view.reveal = null;
     scroller.scrollTop = Math.max(0, i * ROW - height / 2 + ROW / 2);
+  });
+  // Back where this view was (from a song's page, or another view): once its rows are there.
+  const selKey = $derived(JSON.stringify(view.sel));
+  let restoredFor = '';
+  $effect(() => {
+    const k = selKey, n = rows.length;
+    if (!scroller || restoredFor === k || !n) return;
+    restoredFor = k;
+    const y = view.scrolls.get(k);
+    scroller.scrollTop = y ?? 0; scrollTop = scroller.scrollTop;   // a view not seen yet: from its top
   });
   const order = $derived(rows.map(r => r.t.id));
   const list = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
@@ -246,6 +257,16 @@
     clearTimeout(slow);
     const k = (e.target as HTMLElement).closest<HTMLElement>('.cell')?.dataset.c as ColKey | undefined;
     const again = view.selected.size === 1 && view.selected.has(id) && e.detail === 1 && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
+    // An artist, album, genre or label clicked: its songs (the user, 2026-09-30), as Browse opens them. The second
+    // click on the one selected song still edits the value.
+    const facet = (e.target as HTMLElement).closest<HTMLElement>('[data-facet]')?.dataset.facet as Facet | undefined, t = lib.store?.tracks.get(id);
+    // Only a single click: the first click of a double-click (opening the song) must not leave the list, so the
+    // value's songs open a moment later, unless a second click comes.
+    if (facet && t && !again && e.detail === 1 && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      const v = facetValue(t, facet);
+      if (v) { slow = window.setTimeout(() => view.select({ kind: 'facet', by: facet, key: facetKey(v), value: v }), 320); return; }
+    }
+    if (facet && e.detail > 1) return;   // the second click of a double-click on a name: the song opens
     view.click(id, e, order);
     if (again && k && EDITABLE.includes(k) && editable(lib.store?.tracks.get(id))) slow = window.setTimeout(() => startInline(id, k), 550);
     else if (again && k === 'genre' && editable(lib.store?.tracks.get(id))) {
@@ -307,11 +328,11 @@
     {#if r.t.unwritten?.length}<span class="unw" title={'Edited in GLUE, not in the file yet (' + r.t.unwritten.join(', ') + '): GLUE Home writes it when it runs'}>●</span>{/if}
     {#if g?.kind === 'same'}<button type="button" class="dup" title={'Same recording as ' + (g.ids.length - 1) + ' other track' + (g.ids.length > 2 ? 's' : '') + ': show duplicates'}
       onclick={e => { e.stopPropagation(); view.select({ kind: 'dupes' }); view.focusDupe = r.t.id; }}>{g.ids.length}×</button>{/if}
-  {:else if k === 'artist'}<span class="c-artist">{r.t.artist}</span>
-  {:else if k === 'album'}<span class="c-soft">{r.t.album}</span>
+  {:else if k === 'artist'}<span class="c-artist" data-facet="artist" title={r.t.artist ? 'Every song by ' + r.t.artist : ''}>{r.t.artist}</span>
+  {:else if k === 'album'}<span class="c-soft" data-facet="album" title={r.t.album ? 'The whole album' : ''}>{r.t.album}</span>
   {:else if k === 'genre'}
     <!-- A slow second click on the selected song's genre opens the genre picker (as other cells are edited in place). -->
-    <span class="c-genre" data-genre-open title={r.t.genre ? r.t.genre + ' · click again to change' : 'Click again to set a genre'}>{#if r.t.genre}{r.t.genre}{:else}<span class="gadd">+ genre</span>{/if}</span>
+    <span class="c-genre" data-genre-open data-facet={r.t.genre ? 'genre' : undefined} title={r.t.genre ? 'Every ' + r.t.genre + ' song · on the selected song, click again to change it' : 'Click again to set a genre'}>{#if r.t.genre}{r.t.genre}{:else}<span class="gadd">+ genre</span>{/if}</span>
   {:else if k === 'tags'}
     {@const tg = tagsOf(r.t)}
     <button type="button" class="c-tags" data-tags-open title={tg.length ? tg.join(', ') + ' · click to edit' : 'Add tags'} aria-label={tg.length ? 'Tags: ' + tg.join(', ') : 'Add tags'}
@@ -323,7 +344,7 @@
       {#each devicesOf(r.t) as d (d)}<button type="button" class="dv" style:--c={deviceColor(d)} title={'On ' + d + ' · click to show only this device'}
         onclick={e => { e.stopPropagation(); view.toggleFilter('device', d); }} ondblclick={e => e.stopPropagation()}>{d}</button>{/each}
     </span>
-  {:else if k === 'label'}<span class="c-soft">{r.t.label}</span>
+  {:else if k === 'label'}<span class="c-soft" data-facet="label" title={r.t.label ? 'Every song on ' + r.t.label : ''}>{r.t.label}</span>
   {:else if k === 'year'}<span class="c-num">{r.t.year}</span>
   {:else if k === 'bpm'}
     {#if r.t.prep?.bpm}<span class="c-num mine" title="Your BPM (Prepare)">{fmtBpm(bpmShown(r.t, r.a)!)}</span>
@@ -413,7 +434,7 @@
   </div>
   <!-- The body takes keyboard focus for the whole grid (arrows, Enter, Delete, Ctrl+A). -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => { scrollTop = scroller.scrollTop; if (headWrap) headWrap.scrollLeft = scroller.scrollLeft; }} tabindex="0" role="rowgroup" onkeydown={onKey} oncontextmenu={onContext}>
+  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => { scrollTop = scroller.scrollTop; if (restoredFor === selKey) view.scrolls.set(selKey, scrollTop); if (headWrap) headWrap.scrollLeft = scroller.scrollLeft; }} tabindex="0" role="rowgroup" onkeydown={onKey} oncontextmenu={onContext}>
     <div class="spacer" style:height={rows.length * ROW + 'px'} style:min-width={minWidth + 'px'}>
       {#each visible as r, j (r.t.id)}
         {@const i = first + j}
@@ -445,7 +466,7 @@
               </button>
             {/if}
           </span>
-          {#if isPlaylist}<span class="c-n" class:grip={canReorder} title={canReorder ? 'Drag to rearrange' : ''}>{r.n + 1}</span>{/if}
+          {#if isPlaylist}<span class="c-n" class:reorder={canReorder} title={canReorder ? 'Drag to rearrange' : ''}>{r.n + 1}</span>{/if}
           {#each cols as k (k)}<span class="cell" data-c={k}>{#if inline && inline.id === r.t.id && inline.k === k}<input class="inl" data-inline={k} aria-label={COLUMNS[k].label}
             bind:value={inline.v} use:focusInline onkeydown={inlineKey} onblur={() => { if (inline?.id === r.t.id && inline.k === k) endInline(true); }} onclick={e => e.stopPropagation()} ondblclick={e => e.stopPropagation()}
             onpointerdown={e => e.stopPropagation()} />{:else}{@render cell(k, r)}{/if}</span>{/each}
@@ -553,7 +574,8 @@
   .dup:hover { background: color-mix(in srgb, var(--warn) 15%, transparent); }
   .c-artist, .c-soft { color: var(--ink-2); }
   .c-n, .c-num { color: var(--ink-2); font-size: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-  .c-n.grip { cursor: grab; }
+  [data-facet]:hover { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; color: var(--ink); }
+  .c-n.reorder { cursor: grab; }   /* its own class: .grip (the drag-out handle) shows only on hover */
   .c-play { display: flex; align-items: center; gap: 2px; }
   .grip { width: 14px; height: 22px; display: grid; place-items: center; color: var(--muted); cursor: grab; opacity: 0; border-radius: 3px; }
   .grip svg { width: 6px; height: 14px; fill: currentColor; }

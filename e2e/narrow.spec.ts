@@ -74,3 +74,36 @@ test('a narrow window keeps the table drawing only the rows on screen, and the p
   expect(await songs.count()).toBeLessThan(60);
   expect(errors).toEqual([]);
 });
+
+test('the library keeps its place: a song’s page and back finds the table where it was; an album clicked shows the whole album (the user’s list, 2026-09-30)', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.addInitScript(() => {
+    (window as unknown as { showDirectoryPicker: (o: { id?: string }) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker = async (o) => {
+      const root = await navigator.storage.getDirectory();
+      return root.getDirectoryHandle(o.id === 'mco-home' ? 'MCO' : 'Music', { create: true });
+    };
+  });
+  await seedFolder(page, JSON.stringify([...synthetic(3000, 1).files]));
+  await page.goto('./#/');
+  await page.click('#choose-home');
+  await expect(page.locator('.tr').first()).toBeVisible({ timeout: 60_000 });
+  const firstIndex = async () => Number(await page.locator('.tr').first().getAttribute('data-index'));
+  // Far down the list, then a song's page, and back.
+  await page.locator('.table .body').evaluate(el => { el.scrollTop = 30 * 1500; el.dispatchEvent(new Event('scroll')); });
+  await expect.poll(firstIndex).toBeGreaterThan(1000);
+  const row = page.locator('.tr').nth(15), title = await row.locator('.c-title').innerText();
+  await row.locator('.c-title').dblclick();
+  await expect(page).toHaveURL(/#\/track\//);
+  await page.locator('.crumbs a').click();
+  await expect(page.locator('.tr', { hasText: title }).first()).toBeVisible({ timeout: 10_000 });
+  expect(await firstIndex()).toBeGreaterThan(1000);
+  // An album's name, clicked: the whole album.
+  const withAlbum = page.locator('.tr').filter({ has: page.locator('[data-facet="album"]:not(:empty)') }).first();
+  const album = await withAlbum.locator('[data-facet="album"]').innerText();
+  await withAlbum.locator('[data-facet="album"]').click();
+  await expect(page.locator('#browse-back')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('h2', { has: page.locator('#browse-back') })).toContainText(album);
+  const albums = await page.locator('.tr [data-facet="album"]').allInnerTexts();
+  expect(albums.length).toBeGreaterThan(0);
+  expect(albums.every(a => a.toLowerCase() === album.toLowerCase())).toBe(true);
+});

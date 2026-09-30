@@ -187,6 +187,45 @@ export function holesUnderWall(spec: Float32Array, cols: number, rows: number, s
   return n ? holes / n : null;
 }
 
+/** How far a hi-res file's content reaches above digital silence (2026-09-30), and what that says.
+    - Digital silence, measured on this scale: TPDF dither sits at about -130 dB at 16 bits (-129 to -136 over
+      44.1–192 kHz), 6 dB lower per extra bit.
+    - `reach`: the highest frequency where the long-term spectrum stays 30 dB over that silence, and within 80 dB
+      of the music (`ref`), for 400 Hz. A resampler's residue has narrow spurs 90 dB under the music (ffmpeg's
+      default: -142 dB around 40 kHz); a quiet recording's own top end is about 50 dB under it.
+    - An upsample from 44.1 or 48 kHz reaches 22.05 or 24 kHz and no further: above it there's only the
+      resampler's stopband and dither (-22 dB and +23 dB over silence, with soxr and with ffmpeg's default
+      resampler: that one used to pass as "content to 44.1 kHz"). `from` is that source rate (44100 or 48000), or 0
+      when it could be either (a resampler's transition band blurs the edge by a few kHz).
+    - A genuine recording's own air and noise carry on well past 24 kHz, however quiet: the user's 24/88.2 Doechii
+      album, called "upsampled from 48 kHz", sits flat at about -100 dB from 24 to 44 kHz, 71–83 dB over 24-bit
+      silence (`real`). Rising noise (noise shaping) and mirror images (a bad upsample) never count as real. */
+export function ultrasonic(cut: Cutoff, binHz: number, sr: number, bits: number): { reach: number; overSilence: number; under: number; from: number | null; real: boolean } | null {
+  const nyq = sr / 2, sm = cut.sm, n = sm?.length ?? 0;
+  if (sr <= 48000 || nyq < 30000 || !n) return null;
+  const silence = -130 - 6.02 * (Math.max(16, bits || 24) - 16), over = Math.max(silence + 30, cut.ref - 80), need = Math.max(2, Math.round(400 / binHz));
+  let reach = 0, run = 0;
+  for (let k = Math.min(n - 1, Math.floor(nyq * 0.97 / binHz)); k >= 0; k--) {
+    if (sm[k] > over) { if (++run >= need) { reach = (k + need - 1) * binHz; break; } } else run = 0;
+  }
+  const a = Math.round(25000 / binHz), b = Math.min(n - 1, Math.round(nyq * 0.95 / binHz)), arr = Array.from(sm.subarray(a, b + 1)).sort((x, y) => x - y);
+  const overSilence = arr[Math.floor((arr.length - 1) / 2)] - silence;
+  // How far under the music the band above 24 kHz is (its median against ref): near it, it's plain content.
+  const up = Array.from(sm.subarray(a, Math.min(n - 1, Math.round(30000 / binHz)) + 1)).sort((x, y) => x - y), under = cut.ref - up[Math.floor((up.length - 1) / 2)];
+  // Stops by 28.5 kHz, then falls off a cliff (30 dB within 2 kHz: a resampler's filter, which can pass a few kHz
+  // past the source's limit): upsampled. From which rate: the one whose limit it stops just past (within 800 Hz),
+  // else either.
+  const at = (f: number) => sm[Math.max(0, Math.min(n - 1, Math.round(f / binHz)))];
+  const past = Array.from(sm.subarray(Math.round((reach + 500) / binHz), Math.round((reach + 2500) / binHz) + 1)).sort((x, y) => x - y);
+  const cliff = past.length ? at(reach - 1000) - past[Math.floor((past.length - 1) / 2)] : 0;
+  let from: number | null = null;
+  if (!cut.rising && reach >= 19000 && reach <= 28500 && cliff >= 30) {
+    const near = [44100, 48000].filter(r => reach >= r / 2 - 800 && reach <= r / 2 + 800);
+    from = near.length === 1 ? near[0] : 0;
+  }
+  return { reach, overSilence, under, from, real: reach >= 30000 && !cut.rising && !cut.imaging };
+}
+
 /** The note for specks above a wall that are only rounding (they show with the spectrogram's floor set very low). */
 const specks = (w: ReturnType<typeof beyondWall>, floor: number) => w && !w.content && w.level > floor + 12
   ? ' Specks above it, around ' + Math.round(w.level) + ' dB (' + Math.round(w.below) + ' dB under the music), are the decoder’s rounding, not content: they show when the spectrogram’s floor is set very low.' : '';
@@ -219,6 +258,7 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
   const beyond = lossySig && res.spec && res.cols && res.rows ? beyondWall(res.spec, res.cols, res.rows, sr, cut) : null;
   const holes = lossySig && res.spec && res.cols && res.rows ? holesUnderWall(res.spec, res.cols, res.rows, sr, cut) : null, holey = holes != null && holes >= 0.12;
   const resampledFrom = findResample(cut, sr);
+  const ultra = lossless && hiRes && !lossySig ? ultrasonic(cut, res.binHz, sr, info.bits || res.containerBits) : null;
   const edge = (fc >= 19600 && cut.drop < 35) || (fc >= SOFT_WALL.hz && cut.drop < SOFT_WALL.drop);
 
   if (lossless) {
@@ -240,9 +280,28 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
         'A lossless ' + fmtRate(sr) + ' file can carry content up to ' + fmtKHz(nyq) + '. Here it drops ' + Math.round(cut.drop) + ' dB within about a kilohertz at ' + kHz + ', which is what a lossy encoder’s lowpass filter leaves behind. Most likely source: ' + g.text + '.' +
         (holey ? ' The band just under it also keeps switching off (in ' + Math.round(holes! * 100) + '% of the loud moments), as lossy encoders do.' : edge ? ' Some masters are lowpassed near 20 kHz on purpose, so this one is not conclusive.' : '') + specks(beyond, cut.globalFloor));
       if (!soft) head = { grade: 'bad', label: 'Transcoded', headline: 'Lossy audio in ' + article(/^PCM/.test(info.codec) ? info.container.split(' ')[0] : info.codec) + ' wrapper', sub: 'The spectrum stops dead at ' + kHz + ', the signature of ' + g.short.replace(/^\w/, c => c.toLowerCase()) + (hiRes ? ', later upsampled to ' + fmtRate(sr) : '') + '. Converting to lossless can’t restore what the encoder removed.' };
+    } else if (ultra?.from != null && !cut.imaging) {
+      // Nothing past the source's limit but a resampler's faint residue: upsampled (2026-09-30).
+      const rate = ultra.from || (resampledFrom && resampledFrom <= 48000 ? resampledFrom : 0);   // the edge, else where the old measure put it
+      const at = fmtKHz(ultra.reach), src = rate ? fmtRate(rate) : 'CD or 48 kHz', lim = rate ? fmtKHz(rate / 2) : '22 or 24 kHz';
+      bwTone = 'bad';
+      origin = src + ' source, upsampled';
+      add('bad', 'Content stops at ' + at, 'Nothing past ' + at + ' but the faint residue a resampler leaves, close to digital silence: just past the ' + lim + ' limit of ' + src + ' audio. The file was upsampled from a ' + src + ' source; the extra samples carry no extra information.');
+      head = { grade: 'bad', label: 'Upsampled', headline: 'Not hi-res: upsampled from ' + src, sub: 'The content ends at ' + at + ', where a ' + src + ' recording has to stop. The ' + fmtRate(sr) + ' container adds size, not detail.' };
     } else if (cut.full) {
       add('ok', 'Content reaches ' + fmtKHz(Math.max(fc, cut.fade)), hiRes ? 'Energy continues well past 24 kHz, beyond anything a CD (22.05 kHz) or 48 kHz master can hold.' : 'The spectrum runs all the way to the ' + fmtKHz(nyq) + ' limit of a ' + fmtRate(sr) + ' file.');
       origin = hiRes ? 'Hi-res master' : 'Full-band master';
+    } else if (hiRes && (resampledFrom || fc < 24500) && ultra?.real && ultra.under < 20) {
+      // The band above 24 kHz nearly as loud as the music: plain content to the top (a flat signal set the cutoff low).
+      origin = 'Hi-res master';
+      add('ok', 'Content reaches ' + fmtKHz(ultra.reach), 'Energy continues well past 24 kHz, beyond anything a CD (22.05 kHz) or 48 kHz master can hold.');
+      head = { grade: 'ok', label: 'Genuine hi-res', headline: 'Real hi-res: content to ' + fmtKHz(ultra.reach), sub: 'The spectrum extends well past what a CD or 48 kHz master can hold.' };
+    } else if (hiRes && (resampledFrom || fc < 24500) && ultra?.real) {
+      // Most of it fades out by 24 kHz, but the band above isn't empty: it carries on, far over digital silence,
+      // with no step at 24 kHz. Not an upsample: a real hi-res recording with a quiet top end (2026-09-30).
+      origin = 'Hi-res master';
+      add('ok', 'Quiet content above 24 kHz', 'Most of the energy fades out by about ' + kHz + ', but quiet content carries on to ' + fmtKHz(ultra.reach) + ', about ' + Math.round(ultra.overSilence) + ' dB over digital silence. An upsample from CD or 48 kHz leaves nothing past 22 or 24 kHz. That’s the recording’s own air and detail, which no CD or 48 kHz source holds. Lower the spectrogram’s floor (to about −125 dB) to see it.');
+      head = { grade: 'ok', label: 'Genuine hi-res', headline: 'Real hi-res, with a quiet top end', sub: 'Quiet detail carries on above 24 kHz, up to ' + fmtKHz(ultra.reach) + ', where an upsample from CD or 48 kHz would be empty.' };
     } else if (hiRes && resampledFrom) {
       const bad = resampledFrom <= 48000;
       bwTone = bad ? 'bad' : 'warn';

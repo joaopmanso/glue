@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: Speklone
-updated: 2026-09-27
-adrs: [0002, 0033, 0034]
+updated: 2026-09-30
+adrs: [0002, 0033, 0034, 0116]
 ---
 # Quality forensics
 
@@ -80,3 +80,12 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
   - drop-outs in 12 % or more of loud moments make a wall a transcode, even near 20 kHz.
 - The user's `B2 - ARtroniks - The Escape` WAV (a caution at 20.3 kHz) now reads lossless.
 - `VERDICT_VERSION` 5.
+
+## Hi-res judged by what reaches past 24 kHz (2026-09-30, [ADR 0116](../adr/0116-hi-res-by-what-reaches-past-24-khz.md))
+- `ultrasonic(cut, binHz, sr, bits)` finds how far content reaches while staying 30 dB over digital silence (16-bit
+  about −130 dB on GLUE's scale, 6 dB lower per bit) and within 80 dB of the music.
+  - Past 30 kHz: genuine ("Real hi-res, with a quiet top end").
+  - Stopping by 28.5 kHz with a 30 dB cliff after it: upsampled.
+- Checked on the user's Doechii 24/88.2 album (11 tracks: all genuine now), and on fakes made from it with
+  soxr and with ffmpeg's default resampler (all upsampled; the default one used to pass).
+- Tests: `tests/verdict.test.ts` (a quiet genuine top end; music stopping at 23.5 kHz with a resampler's residue).

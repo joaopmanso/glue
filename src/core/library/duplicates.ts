@@ -127,3 +127,28 @@ export function groupMatches(matches: Match[]): string[][] {
   for (const x of parent.keys()) { const r = find(x); const g = groups.get(r); if (g) g.push(x); else groups.set(r, [x]); }
   return [...groups.values()].filter(g => g.length > 1);
 }
+
+/** Words that make another version of a song (the user, 2026-09-30: an instrumental and the vocal, a studio and a
+    live take, a 4- and a 7-minute version were grouped as duplicates). Read from the title's (…) and […] parts and
+    what follows " - ", so a name like "Clean Bandit" never counts; "live" also from the album ("Live at …"). */
+const MARK = /\b(instrumental|inst|a ?cappella|acappella|acapella|live|unplugged|remix|dub|vip|bootleg|acoustic|demo|extended|radio edit|radio version|edit|rework|flip|mashup|karaoke|reprise|clean version|clean)\b/g;
+const SAME_MARK: Record<string, string> = { inst: 'instrumental', 'a cappella': 'acapella', acappella: 'acapella', 'radio edit': 'edit', 'radio version': 'edit', 'clean version': 'clean' };
+export function versionOf(title: string, album = ''): string {
+  const t = (title || '').toLowerCase();
+  const parts = [...t.matchAll(/[([]([^)\]]*)[)\]]/g)].map(m => m[1]).join(' ') + ' ' + t.split(/\s[-–—]\s/).slice(1).join(' ');
+  const marks = new Set<string>();
+  for (const m of parts.matchAll(MARK)) { const w = m[1].replace(/\s+/g, ' '); marks.add(SAME_MARK[w] ?? w); }
+  if (/\blive\b/.test((album || '').toLowerCase())) marks.add('live');
+  return [...marks].sort().join(',');
+}
+/** Lengths close enough for one recording: 10 s apart at most, or 6 % on long songs (a rip trimmed of its
+    silence, not a radio edit against its extended mix). Unknown lengths pass. */
+export function similarLength(a: number | null | undefined, b: number | null | undefined): boolean {
+  if (!a || !b) return true;
+  return Math.abs(a - b) <= Math.max(10, 0.06 * Math.max(a, b));
+}
+type Songish = { title: string; album: string; duration: number | null };
+/** Two copies that could be the same recording: the same version words, and lengths close enough. */
+export const sameVersion = (a: Songish, b: Songish) => versionOf(a.title, a.album) === versionOf(b.title, b.album) && similarLength(a.duration, b.duration);
+/** A pair of songs, either way round. */
+export const pairKey = (a: string, b: string) => a < b ? a + '+' + b : b + '+' + a;

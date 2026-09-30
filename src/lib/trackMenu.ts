@@ -159,6 +159,8 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
       lib.notice = k || r ? 'Analysing ' + plural(k + r, 'song') + (r ? ' (' + plural(r, 'song') + ' by the GLUE Home of the computer that has ' + (r === 1 ? 'it' : 'them') + ')' : '') + '.'
         : remoteNeeds ? 'The computer with ' + (remoteNeeds === 1 ? 'this song' : 'these songs') + ' isn’t online: start its GLUE Home to analyse ' + (remoteNeeds === 1 ? 'it' : 'them') + '.' : 'Nothing to analyse here that GLUE can read now.';
     } },
+    // The user's own group (ADR 0117): these are one recording, whatever the fingerprints say.
+    n > 1 && !lib.readOnly && { label: 'Mark as duplicates', hint: String(n), attrs: { 'data-m': 'mark-dupes' }, title: 'They’re the same recording: group them in Duplicates, to keep the best and clean up the rest', run: () => { dupes.markSame(ids); lib.notice = n + ' songs marked as duplicates: see Duplicates.'; } },
     group && { label: 'Show its duplicates', hint: group.ids.length + '×', attrs: { 'data-m': 'dupes' }, run: () => { view.select({ kind: 'dupes' }); view.focusDupe = one!.id; } },
     SEP,
     dock.available && { label: 'Add to drag dock', attrs: { 'data-m': 'dock' }, run: () => void dock.add(ts) },
