@@ -21,7 +21,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-09-30, end of day)
-- **Live:** site, GLUE Cloud (migrations up to 0010), GLUE Home 0.37.2.
+- **Live:** site, GLUE Cloud (migrations up to 0010), GLUE Home 0.37.3.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -33,8 +33,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     shown, "Lower quality", the phone's count, the Overview's background;
   - quality: a quiet top end is still hi-res, and upsamples that passed are caught (ADR 0116);
   - duplicates: versions kept apart, "Keep · not a duplicate", "Mark as duplicates" (ADR 0117);
-  - a mastering lowpass from 17 kHz is "Lossless" (ADR 0118), the analysis bar shows GLUE Home's queue, and
-    Duplicates' buttons no longer overlap.
+  - content beyond a wall without frequent drop-outs is "Lossless" (ADR 0119, superseding 0118); the analysis bar
+    shows GLUE Home's queue; Duplicates' buttons no longer overlap;
+  - songs that failed on the desktop leave the library on every device; Overviews and covers load for the rows on
+    screen, newest first.
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
@@ -50,6 +52,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - Duplicates' new buttons.
 
 ## Next
+- **The laptop's sync is slow** (the user: "takes quite some time but has no issues"). Measure it first: how many
+  log entries and files a sync reads on the laptop, and where the time goes.
 - **Bug:** on a phone's first load the library shows 8 songs, then the whole collection (timing; low priority).
 - Events naming a profile (alias).
 - M4 step 3: the rekordbox XML export with cues and grid (`vault/features/prepare.md`, `exports.md`).

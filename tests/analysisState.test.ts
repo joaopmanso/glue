@@ -17,6 +17,9 @@ describe('one meaning of "not analysed" (ADR 0109)', () => {
     expect(analysisState(t, failed('the analysis took too long', { size: 10, mtime: 1 }), ANALYSIS_VERSION)).toBe('waiting');
     expect(analysisState(t, failed('Array buffer allocation failed', { size: 10, mtime: 1 }), ANALYSIS_VERSION)).toBe('waiting');
     expect(analysisState({ ...t, remote: { device: 'lap', name: 'Laptop' } }, undefined, ANALYSIS_VERSION)).toBe('elsewhere');
+    // Failed for good on the computer that has it: failed on every device (a phone showed them in the library).
+    expect(analysisState({ ...t, remote: { device: 'desk', name: 'Desktop' } }, failed('It couldn’t be decoded.', { size: 10, mtime: 1 }), ANALYSIS_VERSION)).toBe('failed');
+    expect(analysisState({ ...t, remote: { device: 'desk', name: 'Desktop' } }, failed('the analysis took too long', { size: 10, mtime: 1 }), ANALYSIS_VERSION)).toBe('elsewhere');
     expect(analysisState({ ...t, status: 'unlinked' }, undefined, ANALYSIS_VERSION)).toBe('nofile');
     expect(needsAnalysis(t, failed('the analysis took too long', { size: 10, mtime: 1 }), ANALYSIS_VERSION)).toBe(true);
     expect(needsAnalysis(t, failed('It couldn’t be decoded.', { size: 10, mtime: 1 }), ANALYSIS_VERSION)).toBe(false);

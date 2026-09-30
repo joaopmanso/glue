@@ -54,6 +54,17 @@ class Covers {
     if (h && !this.urls.has(h + '-' + size)) { void this.load(t, h, size); return; }
     if (this.canRead(t)) this.fromTags(t); else if (this.canAsk(t)) this.fromHome(t, size);
   }
+  /** The rows on screen: one that scrolls away drops what it asked for (its tag read, its place in the next batch
+      from another computer's GLUE Home), and may ask again when it's back (2026-09-30). */
+  private held = new Map<string, number>();
+  hold(t: Track, size: CoverSize) { const k = t.id + '-' + size; this.held.set(k, (this.held.get(k) ?? 0) + 1); }
+  drop(t: Track, size: CoverSize) {
+    const k = t.id + '-' + size, n = (this.held.get(k) ?? 1) - 1;
+    if (n > 0) { this.held.set(k, n); return; }
+    this.held.delete(k);
+    const w = this.want.indexOf(t.id); if (w >= 0) { this.want.splice(w, 1); this.tried.delete(t.id); }
+    if (this.homeWant.delete(k)) this.homeTried.delete(k);
+  }
   /** A fresh analysis found one: stored before the track names it. */
   async put(c: Cover) {
     const dir = await platform.cacheDir(), cid = lib.store?.meta.id;
@@ -138,7 +149,7 @@ class Covers {
   }
   private pump() {
     while (this.busy < AT_ONCE && this.want.length) {
-      const id = this.want.shift()!;
+      const id = this.want.pop()!;   // newest first: what was just scrolled to
       this.busy++;
       void this.readTags(id).catch(e => console.warn('Couldn’t read a cover', e)).finally(() => { this.busy--; this.pump(); });
     }

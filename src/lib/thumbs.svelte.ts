@@ -41,6 +41,18 @@ class Thumbs {
     this.queue.push(id);
     this.pump();
   }
+  /** The rows on screen (plus the table's overscan): a jump down the list drops what the rows it left asked for, so
+      the new ones load at once (the user, 2026-09-30: every jump got slower). */
+  private held = new Map<string, number>();
+  hold(id: string) { this.held.set(id, (this.held.get(id) ?? 0) + 1); }
+  drop(id: string) {
+    const n = (this.held.get(id) ?? 1) - 1;
+    if (n > 0) { this.held.set(id, n); return; }
+    this.held.delete(id);
+    const q = this.queue.indexOf(id); if (q >= 0) this.queue.splice(q, 1);
+    const d = this.derive.indexOf(id); if (d >= 0) this.derive.splice(d, 1);
+    const w = this.wantRemote.findIndex(t => t.id === id); if (w >= 0) this.wantRemote.splice(w, 1);
+  }
   /** A fresh analysis made one: keep it and store it. */
   async put(id: string, data: Uint8Array) {
     this.checkCollection();
@@ -67,7 +79,7 @@ class Thumbs {
   }
   private pump() {
     while (this.reading < READERS && this.queue.length) {
-      const id = this.queue.shift()!;
+      const id = this.queue.pop()!;
       this.reading++;
       void this.read(id).finally(() => { this.reading--; this.pump(); });
     }
@@ -94,9 +106,9 @@ class Thumbs {
           this.remember(t.id, null);
           const n = (this.tries.get(t.id) ?? 0) + 1;
           this.tries.set(t.id, n);
-          if (n < 10) setTimeout(() => { if (this.cid === cid) { this.cache.delete(t.id); this.request(t.id); } }, Math.min(60_000, 8_000 * n));
+          if (n < 10) setTimeout(() => { if (this.cid === cid && this.held.has(t.id)) { this.cache.delete(t.id); this.request(t.id); } }, Math.min(60_000, 8_000 * n));
         }
-      }).catch(() => { for (const t of batch) { this.remember(t.id, null); setTimeout(() => { if (this.cid === cid) { this.cache.delete(t.id); this.request(t.id); } }, 15_000); } });
+      }).catch(() => { for (const t of batch) { this.remember(t.id, null); setTimeout(() => { if (this.cid === cid && this.held.has(t.id)) { this.cache.delete(t.id); this.request(t.id); } }, 15_000); } });
     }, 120);
   }
   private async read(id: string) {
@@ -125,7 +137,7 @@ class Thumbs {
     this.deriving = true;
     try {
       while (this.derive.length) {
-        const id = this.derive.shift()!, t = lib.store?.tracks.get(id);
+        const id = this.derive.pop()!, t = lib.store?.tracks.get(id);
         if (!t) continue;
         const d = await lib.trackDetails(t);
         if (d) await this.put(id, this.make(d.res)); else this.remember(id, null);

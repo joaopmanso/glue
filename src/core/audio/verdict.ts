@@ -262,21 +262,20 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
   const edge = (fc >= 19600 && cut.drop < 35) || (fc >= SOFT_WALL.hz && cut.drop < SOFT_WALL.drop);
 
   if (lossless) {
-    // A mastering lowpass, not an encoder: near the top, a wall whose band under it never switches off (2026-09-28);
-    // or from 17 kHz, one that also has strong content above it that follows the music (within 25 dB of it). An
-    // encoder removes everything above its lowpass, all the time; a limiter after a lossy source adds only faint
-    // distortion up there (2026-09-30: a home master's 21 dB step at 19 kHz, content 20 dB under the music, was a
-    // caution).
-    if (lossySig && holes != null && holes <= 0.02 && (fc >= 19800 || (fc >= 17000 && !!beyond?.content && beyond.below <= 25))) {
+    // A mastering lowpass, not an encoder: near the top, a wall whose band under it never switches off (2026-09-28).
+    if (lossySig && holes != null && holes <= 0.02 && fc >= 19800 && !beyond?.content) {
       // Near the top, a wall whose band under it never switches off isn't an encoder's (2026-09-28).
       origin = 'Steep lowpass (mastering)';
       add('info', 'Steep top end at ' + kHz, 'The spectrum drops ' + Math.round(cut.drop) + ' dB at ' + kHz + ', but the band just under it carries on through every loud passage. Lossy encoders keep switching that band off moment to moment; a mastering or sample-rate-conversion lowpass doesn’t. So this is a lowpass, not a lossy source.' + (beyond && beyond.level > cut.globalFloor + 12 ? ' Quieter content above it, around ' + Math.round(beyond.level) + ' dB, moves with the music.' : ''));
       head = { grade: 'ok', label: 'Lossless', headline: 'Genuine ' + fmtRate(sr) + ' lossless', sub: 'A steep lowpass at ' + kHz + ', as some masters and sample-rate converters leave. The band under it never drops out the way a lossy encoder makes it.' };
     } else if (lossySig && beyond?.content && !holey) {
-      // Content that follows the music carries on past the wall: not an encoder's lowpass alone (2026-09-27).
-      bwTone = 'warn';
-      origin = 'Steep lowpass';
-      add('warn', 'Steep top end at ' + kHz + ', with content beyond', 'The spectrum drops ' + Math.round(cut.drop) + ' dB at ' + kHz + ', as a lossy encoder’s lowpass would, but quieter content that follows the music carries on above it (about ' + Math.round(beyond.below) + ' dB under the music). An encoder removes everything above its cutoff, so something came after the cut: a steep mastering filter and then limiting, or a lossy source that was processed again. Not proof either way.');
+      // Content that follows the music carries on past the wall, and the band under it doesn't keep switching off:
+      // a lowpass in the master, not an encoder's (ADR 0119; a caution until 2026-09-30: the user's DAW exports and
+      // home masters, 16.5–20.3 kHz walls with content 20–43 dB under the music, drop-outs in 0–8 % of the loud
+      // moments, where MP3 transcodes have 25–57 %).
+      origin = 'Steep lowpass (mastering)';
+      add('info', 'Steep top end at ' + kHz + ', with content beyond', 'The spectrum drops ' + Math.round(cut.drop) + ' dB at ' + kHz + ', as a lossy encoder’s lowpass would, but content that follows the music carries on above it (about ' + Math.round(beyond.below) + ' dB under the music), and the band just under it ' + (holes != null ? (holes <= 0.02 ? 'never drops out' : 'rarely drops out (' + Math.round(holes * 100) + '% of the loud moments)') : 'keeps going') + '. An encoder removes everything above its cutoff and keeps switching that band off (in a quarter to half of the loud moments), so this is a steep lowpass in the master, not a lossy source.');
+      head = { grade: 'ok', label: 'Lossless', headline: 'Genuine ' + fmtRate(sr) + ' lossless', sub: 'A steep lowpass at ' + kHz + ' with content carrying on above it: made in the master, not by a lossy encoder.' };
     } else if (lossySig) {
       const g = lossyGuess(fc, yt), soft = edge && !holey;
       origin = g.short;

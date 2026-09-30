@@ -22,6 +22,8 @@
   const data = $derived.by(() => { void thumbs.version; void waves.version; return wave ? waves.get(t.id) : thumbs.get(t.id); });
   const here = $derived(t.status === 'linked' && (!t.remote || lib.canRead(t)));
   $effect(() => { if (data === undefined && t.status === 'linked' && (!t.remote || here)) (wave ? waves : thumbs).request(t.id); });
+  // On screen: a row that scrolls away drops what it asked for.
+  $effect(() => { const id = t.id, which = wave ? waves : thumbs; which.hold(id); return () => which.drop(id); });
 
   // Draw through the spectrogram palette (the same one as the track page), or as the Prepare page's
   // waveform, mirrored, in its colour scheme.

@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0119
 date: 2026-09-30
 ---
 # 0118. A steep top end from 17 kHz, with no drop-outs under it and strong content above, is a mastering lowpass

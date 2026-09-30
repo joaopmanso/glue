@@ -140,6 +140,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease.
   - Overviews and details come from GLUE Home's `/cache` when the browser has none (ADR 0110).
   - The analysis bar shows GLUE Home's own queue (its `status`: left + running).
+- **Overviews and covers load for the rows on screen** (`thumbs`, `waves`, `covers`):
+  - newest request first;
+  - a row that scrolls away drops what it asked for (`hold`/`drop`), so a jump down the list loads the new rows
+    at once;
+  - the table draws 12 rows beyond each edge.
   - A page opens Home mode when it has the link, whatever the browser; on the start page or a browser-storage
     library it switches over when GLUE Home appears.
 - **Releases:**
@@ -158,8 +163,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - A hi-res file is judged by what reaches past 24 kHz above digital silence (`ultrasonic`, ADR 0116). A quiet
     top end that carries on is genuine; content that stops at 22 or 24 kHz, then falls off a cliff, is
     upsampled.
-  - A steep top end from 17 kHz, with no drop-outs under it and strong content above that follows the music, is a
-    mastering lowpass: "Lossless" (ADR 0118).
+  - A steep top end with content above that follows the music, and without frequent drop-outs under it (under
+    12 %), is a lowpass in the master: "Lossless" (ADR 0119).
+  - A song on another computer whose analysis failed there for good is "failed" on every device too.
   - A rule change bumps `VERDICT_VERSION`, and stored verdicts are judged again on open (`recheckVerdicts`).
   - The tab tries a failing song twice before saving it as failed, since a failed song leaves the library's lists.
 - **Duplicates** (`src/lib/dupes.svelte.ts`, `core/library/duplicates.ts`):

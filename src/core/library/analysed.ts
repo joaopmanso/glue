@@ -32,7 +32,9 @@ export const isTransient = (msg: string | null | undefined) => !!msg && /took to
     - nofile: no file linked here. */
 export type AnalysisState = 'done' | 'failed' | 'waiting' | 'elsewhere' | 'nofile';
 export function analysisState(t: Pick<Track, 'status' | 'remote' | 'size' | 'mtime'>, a: AnalysisSummary | undefined, version: number): AnalysisState {
-  if (t.remote) return 'elsewhere';
+  // Another computer's song: analysed there; one whose file failed there for good failed everywhere (a phone showed
+  // them in the library as "Not analysed", 2026-09-30).
+  if (t.remote) return a?.error && !isTransient(a.error) ? 'failed' : 'elsewhere';
   if (t.status !== 'linked') return 'nofile';
   if (!a || a.v < version || a.fileSize !== t.size || a.fileMtime !== t.mtime) return 'waiting';
   if (a.error) return isTransient(a.error) ? 'waiting' : 'failed';

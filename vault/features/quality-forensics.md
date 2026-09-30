@@ -2,7 +2,7 @@
 status: shipped
 milestone: Speklone
 updated: 2026-09-30
-adrs: [0002, 0033, 0034, 0116, 0118]
+adrs: [0002, 0033, 0034, 0116, 0118, 0119]
 ---
 # Quality forensics
 
@@ -94,3 +94,8 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
 - A home master's 21 dB step at 19.0 kHz (`Loxy & Resound … Infectious.aiff`) was a caution. With no drop-outs under
   it and content above that follows the music within 25 dB, it's "Lossless" now (from 17 kHz; from 19.8 kHz no
   drop-outs alone still suffices).
+
+## Content beyond a wall is lossless (2026-09-30, [ADR 0119](../adr/0119-content-beyond-a-wall-is-lossless.md), superseding 0118)
+- "Steep top end at … kHz, with content beyond" was a caution (136 of the user's songs, like Kame.wav and Dead
+  Stylus.wav). With the band under the wall not switching off often (under 12 % of the loud moments) it's
+  "Lossless" now, with the note kept. Checked on 10 of them and 10 "Transcoded" songs (which stay transcoded).

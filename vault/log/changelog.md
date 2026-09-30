@@ -5,6 +5,19 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · Content beyond a wall is lossless; phones hide failed songs; scrolling loads what's on screen (GLUE Home 0.37.3)
+- **"Caution: steep top end, with content beyond" is "Lossless" now**
+  ([ADR 0119](../adr/0119-content-beyond-a-wall-is-lossless.md), superseding 0118). Content above the wall that follows
+  the music, and a band under it that doesn't keep switching off (under 12 % of the loud moments), mean a lowpass in
+  the master, not a lossy encoder. That covers 136 of your songs (Kame.wav, Dead Stylus.wav…). Checked on 10 of them
+  and on 10 "Transcoded" songs, which stay transcoded. The note stays.
+- **Fixed: on the laptop and the phone, songs that failed on the desktop showed in the library as "Not
+  analysed"** (and "Not analysed yet" said 0). A song that failed for good on the computer that has it is under
+  "Couldn't analyse" on every device.
+- **Scrolling a big library:** Overviews and covers load newest first, and a row that scrolls away drops what it
+  asked for (its file read, its place in the next batch from another computer's GLUE Home, its retries). A jump
+  down the list loads the rows you land on at once, however many jumps came before.
+
 ## 2026-09-30 · A home master's steep top end is lossless; the analysis bar shows GLUE Home's queue (GLUE Home 0.37.2)
 - **Fixed: a home master called "Caution: steep top end at 19.0 kHz, with content beyond"**
   ([ADR 0118](../adr/0118-mastering-lowpass-from-17-khz.md)). No drop-outs under the step and content above it that

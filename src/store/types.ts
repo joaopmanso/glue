@@ -4,7 +4,7 @@ import type { Severity } from '../core/types';
 export const SCHEMA = 1;             // bump + add a migration when a file format changes
 export const ANALYSIS_VERSION = 3;
 /** Bump when the verdict rules change: stored verdicts are re-checked from stored analyses, no decoding (2: gentle roll-offs, 3: quiet content above the fade, ADR 0033). */
-export const VERDICT_VERSION = 7;   // bump to re-analyse every track after an algorithm change (2: full analysis stored, 3: fingerprints, 4: content beyond a wall, 2026-09-27, 5: holes under a wall, 2026-09-28, 6: a quiet top end is still hi-res, upsamples found by what reaches past 24 kHz, 7: a mastering lowpass from 17 kHz, 2026-09-30)
+export const VERDICT_VERSION = 8;   // bump to re-analyse every track after an algorithm change (2: full analysis stored, 3: fingerprints, 4: content beyond a wall, 2026-09-27, 5: holes under a wall, 2026-09-28, 6: a quiet top end is still hi-res, upsamples found by what reaches past 24 kHz, 7: a mastering lowpass from 17 kHz, 8: content beyond a wall without frequent drop-outs is lossless, 2026-09-30)
 
 export interface ProfileRef { id: string; name: string; color: string }
 /** A profile as the user sees it (ADR 0113): an artist alias, the account's (the same list on every device). */

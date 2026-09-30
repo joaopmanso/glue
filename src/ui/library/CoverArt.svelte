@@ -7,6 +7,7 @@
   let { t, size = 64, px = 26, zoom = false }: { t: Track; size?: CoverSize; px?: number; zoom?: boolean } = $props();
   const src = $derived.by(() => { void covers.version; return covers.get(t, size); });
   $effect(() => { if (src === undefined) covers.request(t, size); });
+  $effect(() => { const tr = t, sz = size; covers.hold(tr, sz); return () => covers.drop(tr, sz); });
 
   // Hovered: the large one beside it, kept inside the window.
   let at = $state<{ x: number; y: number } | null>(null);

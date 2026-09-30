@@ -104,7 +104,7 @@ describe('verdicts on synthetic signals', () => {
     const steep = verdictOf(quantize(kicks(sr, 6, 17300, 0.02, 16), 16), sr, info);
     expect(steep.cut.wall).toBe(true);
     expect(steep.label).toBe('Lossless');
-    expect(steep.findings[0]).toMatchObject({ sev: 'info', title: expect.stringMatching(/^Steep top end at 17\.\d kHz$/) });
+    expect(steep.findings[0]).toMatchObject({ sev: 'info', title: expect.stringMatching(/^Steep top end at 17\.\d kHz, with content beyond$/) });
     expect(verdictOf(quantize(kicks(sr, 6, 17300, 0, 16), 16), sr, info).label).toBe('Transcoded');
   });
   it('specks far under the music above a lossy file’s wall are explained, and change nothing', () => {
