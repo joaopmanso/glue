@@ -18,7 +18,7 @@ import { localHome } from './localHome.svelte';
 import { engineClient } from './engine.svelte';
 import { resolveClash, syncShared, waitingClashes, type Place, type SharedCloud } from '../store/shared/engine';
 import { mergeBoth, type Clash } from '../core/shared/merge3';
-import { countsOf, sendCounts } from '../core/shared/counts';
+import { countsOf, holdsMusic as aComputer, sendCounts } from '../core/shared/counts';
 import { forgetDeleted } from '../store/shared/forget';
 import type { CollectionStore } from '../store/collection';
 
@@ -117,6 +117,11 @@ class Shared {
     this.list = this.list.map(c => c.id === id ? { ...c, name } : c);
     await this.adoptNames();
   }
+  /** One computer's line off a collection's list (the user's ×). */
+  async forgetComputer(id: string, computer: string) {
+    await account.request('DELETE', at(id) + '/stats/' + encodeURIComponent(computer));
+    await this.refreshList();
+  }
   /** Deleted for every device (ADR 0112): here too, after a backup. */
   async remove(id: string) {
     await account.request('DELETE', at(id));
@@ -126,7 +131,7 @@ class Shared {
   private counted = new Map<string, { key: string; at: number }>();
   private sendCounts(s: CollectionStore) {
     const c = countsOf(s.tracks.values()), cid = s.meta.id;
-    if (sendCounts(this.counted, cid, c)) void account.request('POST', at(cid) + '/stats', { json: c }).catch(() => this.counted.delete(cid));
+    if (aComputer(c, s.meta.roots.length) && sendCounts(this.counted, cid, c)) void account.request('POST', at(cid) + '/stats', { json: c }).then(() => this.refreshList(), () => { this.counted.delete(cid); });   // the lists show them
   }
   /** Files the open collection's store wrote since the last sync, and when every file was last looked at. */
   written = new Set<string>();

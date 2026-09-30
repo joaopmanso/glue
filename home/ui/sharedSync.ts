@@ -14,7 +14,7 @@ import { writeUnwritten } from '../../src/store/writeInfo';
 import { syncShared, type SharedCloud } from '../../src/store/shared/engine';
 import { unknownComputer, type SharedCollection } from '../../src/core/shared/project';
 import { INCOMING_ROOT } from '../../src/store/types';
-import { countsOf, sendCounts } from '../../src/core/shared/counts';
+import { countsOf, holdsMusic, sendCounts } from '../../src/core/shared/counts';
 import { forgetDeleted } from '../../src/store/shared/forget';
 import { HomeStore } from '../../src/store/home';
 
@@ -90,7 +90,7 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
       const s = await engine.store(cfg, p.id, c.id);
       // This computer's numbers, for the account's list (ADR 0112), when they changed.
       const n = countsOf(s.tracks.values());
-      if (sendCounts(counted, c.id, n)) await fetch(api + '/v1/shared/' + encodeURIComponent(c.id) + '/stats', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await token() }, body: JSON.stringify(n) })
+      if (holdsMusic(n, s.meta.roots.length) && sendCounts(counted, c.id, n)) await fetch(api + '/v1/shared/' + encodeURIComponent(c.id) + '/stats', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await token() }, body: JSON.stringify(n) })
         .then(r => { if (!r.ok) counted.delete(c.id); }, () => counted.delete(c.id));
       if (![...s.tracks.values()].some(t => t.unwritten && !t.remote)) continue;
       if (await bridge.leaseHeld()) return changed;

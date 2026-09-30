@@ -69,6 +69,8 @@ export class FakeHome {
     };
     if (method === 'OPTIONS') return send(204, '');
     if (u.pathname === '/hello') return send(200, { app: 'glue-home', version: '0.5.0', device: this.device });
+    // A GLUE page on this computer takes the link (ADR 0115).
+    if (u.pathname === '/connect') return /^http:\/\/localhost:517\d$/.test(origin) ? send(200, { home: this.device, port: this.port, token: this.token, version: '0.37.0' }) : send(403, { error: 'not allowed' });
     const reading = q.get('t') === this.readToken;
     if (q.get('t') !== this.token && !reading) return send(401, { error: 'not allowed' });
     if (reading && ['/fs/write', '/fs/mkdir', '/fs/remove', '/fs/tags', '/fs/dupes', '/incoming/move'].includes(u.pathname)) { this.refused.push(u.pathname); return send(403, { error: 'read only' }); }

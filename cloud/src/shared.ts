@@ -50,8 +50,19 @@ export async function stats(env: Env, a: Access, cid: string, b: { tracks?: unkn
   const n = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < 1e7 ? v : null;
   const tracks = n(b?.tracks), songs = n(b?.songs);
   if (tracks === null || songs === null) throw new SyncError(400, 'bad numbers');
+  // A sign-in that only looks (a phone: a session, ADR 0091) with no songs isn't one of its computers.
+  if (!songs && (await env.DB.prepare('SELECT role FROM devices WHERE id = ?').bind(a.dev).first<{ role: string | null }>())?.role === 'browse') return { ok: true, ignored: true };
   await env.DB.prepare(`UPDATE shared_collections SET stats = json_patch(COALESCE(stats, '{}'), json_object('tracks', ?2, 'by', json_object(${COMPUTER}, json_object('songs', ?3, 'at', ?4))))
     WHERE user_id = ?5 AND id = ?6`).bind(a.dev, tracks, songs, now, a.sub, cid).run();
+  return { ok: true };
+}
+
+/** One computer's line taken off the collection's list (the user's ×: an old device, a phone from before). It
+    comes back only if that computer sends its numbers again. */
+export async function forgetStats(env: Env, a: Access, cid: string, computer: string) {
+  await own(env, a, cid);
+  if (!ID.test(computer)) throw new SyncError(400, 'bad computer');
+  await env.DB.prepare(`UPDATE shared_collections SET stats = json_remove(stats, '$.by."' || ? || '"') WHERE user_id = ? AND id = ? AND stats IS NOT NULL`).bind(computer, a.sub, cid).run();
   return { ok: true };
 }
 

@@ -5,6 +5,17 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · Edge shows what Chrome shows; phones off the collections' lists (GLUE Home 0.37)
+- **Fixed: another browser on the desktop (Edge) opened its own storage, with every folder asking for
+  permission** ([ADR 0115](../adr/0115-any-browser-takes-glue-homes-link.md)). GLUE Home now gives any GLUE page on
+  its computer its link directly: Edge, signed in, opens GLUE Home's library (the MCO folder, its music folders,
+  no permission), as Chrome does, and afterwards at once on every visit.
+- **Fixed: phones listed under a collection as "A computer no longer in your account · 0 songs".** Only a computer
+  with songs or music folders sends its numbers; GLUE Cloud ignores a phone's; the old lines no longer show, and
+  any computer's line can be taken off with its ×.
+- Tests: GLUE Cloud (a phone's numbers ignored, a line taken off), e2e `homemode.spec` (a browser that never met
+  GLUE Home signs in and opens its library), `shared.spec` (the lists).
+
 ## 2026-09-30 · Every device's profiles in one list; GLUE Home picks up new folders at once (GLUE Home 0.36.1)
 - **Profiles are every device's** ([ADR 0114](../adr/0114-profiles-are-every-devices.md), amends 0113): all the
   profiles of all your devices show everywhere ("404", "404" and "Joao Manso" now); each device keeps its own

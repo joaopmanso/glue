@@ -74,6 +74,8 @@ export class SharedCloudServer {
     try {
       if (p === '/v1/shared' && method === 'GET') return json(await shared.list(env, a));
       if (p === '/v1/shared' && method === 'POST') return json(await shared.create(env, a, JSON.parse(body || '{}'), now, () => crypto.randomUUID()));
+      const fs = /^\/v1\/shared\/([\w-]+)\/stats\/([\w-]+)$/.exec(p);
+      if (fs && method === 'DELETE') return json(await shared.forgetStats(env, a, fs[1], fs[2]));
       const m = /^\/v1\/shared\/([\w-]+)(\/[a-z]+)?$/.exec(p);
       if (!m) return null;
       const cid = m[1], q = url.searchParams;

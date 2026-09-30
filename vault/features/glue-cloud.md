@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-09-30
-adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112]
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112, 0115]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -404,3 +404,13 @@ First release: phases 1–3 (user, 2026-09-25).
   change), Rename and Delete (the name typed). The collection menu's ✎ and × do the same for the account's.
 - `shared.ensure()` never makes a second collection the account's quietly: the box asks. "New collection…"
   (`lib.createCollection(name, true)`) is the account's own. `moveInto` joins only after it worked.
+
+## Any browser on the computer is GLUE Home's screen; the collections' lists hold computers only (2026-09-30, GLUE Home 0.37)
+- [ADR 0115](../adr/0115-any-browser-takes-glue-homes-link.md): `GET /connect` on the local link gives a GLUE page on
+  this computer the link (the live site's origin only; localhost only from a debug build). `localHome.findHere`:
+  at load when this browser met GLUE Home before, and once signed in when the account has a GLUE Home (before a
+  device without a library opens one in its storage). `lib.enterHomeMode` switches the start page or a library in
+  the browser's own storage to GLUE Home's GLUE folder.
+- The collections' lists (ADR 0112): only a computer with songs or music folders sends numbers (`holdsMusic`);
+  GLUE Cloud ignores "0 songs" from a session; the panel shows only lines with numbers, not sessions or long-gone
+  devices with none; each line has a × (`DELETE /v1/shared/<id>/stats/<computer>`).

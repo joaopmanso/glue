@@ -16,7 +16,10 @@
   const ago = (t: number) => { const m = Math.round((Date.now() - t) / 60e3); return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : m < 48 * 60 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
   // Each computer of a collection (ADR 0112): its numbers as it last sent them, and whether it's there now.
   function computers(c: SharedInfo) {
-    return Object.entries(c.stats?.by ?? {}).map(([id, st]) => {
+    // A sign-in that only looks (a phone: a session), or one long gone, with no songs isn't one of the collection's
+    // computers (their "0 songs" lines came from GLUE from before, 2026-09-30); nor is one that only edited it (no numbers).
+    const sessions = new Set(account.sessions.map(x => x.id));
+    return Object.entries(c.stats?.by ?? {}).filter(([id, st]) => st.songs != null && (st.songs > 0 || (!sessions.has(id) && account.devices.some(x => x.id === id)))).map(([id, st]) => {
       const d = account.devices.find(x => x.id === id), home = account.devices.find(x => x.kind === 'home' && x.companionOf === id);
       const online = account.online.has(id) || (!!home && account.online.has(home.id));
       const seen = Math.max(d?.lastSeen ?? 0, home?.lastSeen ?? 0, st.at ?? 0) || null;
@@ -24,6 +27,11 @@
     }).sort((a, b) => (b.songs ?? 0) - (a.songs ?? 0));
   }
   const lastChange = (c: SharedInfo) => Math.max(0, ...Object.values(c.stats?.by ?? {}).map(s => s.changed ?? 0)) || null;
+  async function forget(c: SharedInfo, id: string, name: string) {
+    if (!confirm('Take “' + name + '” off “' + c.name + '”’s list? Nothing of the collection changes; it comes back if that computer syncs it again.')) return;
+    working = 'Removing…'; error = '';
+    try { await shared.forgetComputer(c.id, id); } catch (e) { error = (e as Error).message; } finally { working = ''; }
+  }
   async function rename(c: SharedInfo) {
     const n = prompt('Rename “' + c.name + '” (on every device)', c.name);
     if (!n?.trim() || n.trim() === c.name) return;
@@ -65,7 +73,8 @@
               <ul class="comps">
                 {#each comps as d (d.id)}
                   <li data-computer={d.id}><span class="dot" class:on={d.online} title={d.online ? 'Online now' : 'Not online'}></span><b>{d.name}</b>{#if d.home}<span class="tag">GLUE Home</span>{/if}
-                    <small>{d.songs != null ? d.songs.toLocaleString() + ' songs' : ''}{d.online ? ' · online' : d.seen ? ' · seen ' + ago(d.seen) : ''}{d.changed ? ' · changed ' + ago(d.changed) : ''}</small></li>
+                    <small>{d.songs != null ? d.songs.toLocaleString() + ' songs' : ''}{d.online ? ' · online' : d.seen ? ' · seen ' + ago(d.seen) : ''}{d.changed ? ' · changed ' + ago(d.changed) : ''}</small>
+                    <button type="button" class="x" data-forget={d.id} title="Take this computer off the list (it comes back if it syncs this collection again)" aria-label={'Take ' + d.name + ' off the list'} onclick={() => void forget(c, d.id, d.name)}>×</button></li>
                 {/each}
               </ul>
             {:else}<small class="fine">No computer has sent its numbers yet: they show after its next sync.</small>{/if}
@@ -101,6 +110,8 @@
   .comps li { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
   .comps b { color: var(--ink-2); font-weight: 600; }
   .comps small { color: var(--muted); }
+  .comps .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; }
+  .comps .x:hover { color: var(--bad); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); align-self: center; flex: none; }
   .dot.on { background: var(--ok, #3fb950); }
   .tag { font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }

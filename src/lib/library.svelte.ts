@@ -197,7 +197,16 @@ class Library {
   }
   /** GLUE Home is back: onto its disk again, if it has this library's GLUE folder. */
   async enterHomeMode() {
-    if (this.onHome || this.switching || !this.home) return;
+    if (this.onHome || this.switching) return;
+    // Nothing open yet (the start page), or this browser's own storage: GLUE Home's GLUE folder is this computer's
+    // library (ADR 0108, 0115), whatever the browser. It opens instead; the browser's copy stays, unused.
+    if (!this.home ? this.phase === 'welcome' : this.homeKind === 'private') {
+      this.switching = true;
+      try { await this.closeCollection(); this.home = null; this.profile = null; this.alias = null; await this.boot(); }
+      finally { this.switching = false; }
+      return;
+    }
+    if (!this.home) return;
     const dir = await platform.homeDirFor(this.homeLost ? null : this.homeDir);
     if (!dir) return;
     // What was saved while GLUE Home was away is on disk first.

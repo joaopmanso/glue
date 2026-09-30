@@ -9,6 +9,7 @@ import { lib } from './library.svelte';
 import { account } from './account.svelte';
 import { shared } from './shared.svelte';
 import { profiles } from './profiles.svelte';
+import { localHome } from './localHome.svelte';
 import { homeMode } from '../platform';
 
 class Anywhere {
@@ -44,6 +45,8 @@ class Anywhere {
     this.opening = 'Opening your library…';
     shared.hold = true;
     try {
+      // GLUE Home on this computer (Edge next to Chrome): its library, not one in this browser (ADR 0115).
+      if (account.devices.some(d => d.kind === 'home') && await localHome.findHere()) { this.tried = false; return; }
       if (lib.phase === 'welcome') await lib.usePrivateHome();
       // The library here; who's using it is one of the account's profiles (ADR 0113), never one made from
       // the account's name.

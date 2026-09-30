@@ -113,6 +113,8 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     // The shared collection (ADR 0094): one copy for all the account's devices.
     if (m === 'GET' && path === '/v1/shared') return reply(await shared.list(env, a));
     if (m === 'POST' && path === '/v1/shared') return reply(await shared.create(env, a, await body(), now, randomId));
+    const fs = /^\/v1\/shared\/([\w-]+)\/stats\/([\w-]+)$/.exec(path);
+    if (m === 'DELETE' && fs) return reply(await shared.forgetStats(env, a, fs[1], fs[2]));
     const sh = /^\/v1\/shared\/([\w-]+)(\/changes|\/bundle|\/push|\/log|\/append|\/touched|\/checkpoint|\/bin|\/leave|\/stats)?$/.exec(path);
     if (sh) {
       const cid = sh[1];

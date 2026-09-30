@@ -119,7 +119,7 @@ test('cloud sync: the desktop’s collection is the account’s by itself; the l
     await row.hover();
     await row.locator('.c-rate button').nth(3).click({ position: { x: 10, y: 6 } });
     await expect(desk.page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.stars')).toHaveAttribute('aria-valuenow', '4', { timeout: 30_000 });
-    await expect(desk.page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.pbtn')).toHaveCount(1);
+    await expect(desk.page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.pbtn')).toHaveCount(1, { timeout: 30_000 });
 
     // A clash (ADR 0095): a playlist renamed on the laptop while it's offline, and on the desktop too.
     await desk.page.click('#new-playlist'); await desk.page.keyboard.type('Friday'); await desk.page.keyboard.press('Enter');
@@ -278,12 +278,21 @@ test('the account’s collections (ADR 0112): one box with each computer’s num
     await desk.page.selectOption('#collection-pick', main);
     await expect(desk.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
 
+    // An old computer's line (it had songs), and a phone's from before (0 songs, not one of the account's).
+    for (const [dev, songs] of [['b9', 5], ['ph1', 0]] as const) await server.answer('POST', new URL('https://x/v1/shared/' + main + '/stats'), JSON.stringify({ tracks: 4, songs }), dev);
     // "Who's using GLUE?": one box per collection, with each computer's songs, online, and its last change.
     await desk.page.locator('button.who').click();
     const box = desk.page.locator(`#cloud-panel [data-cloud="${main}"]`);
     await expect(box).toContainText('4 songs', { timeout: 30_000 });
     await expect(box.locator('[data-computer="b1"]')).toContainText(/Desktop.*4 songs · online/, { timeout: 30_000 });
-    await expect(box.locator('[data-computer="b2"]')).toContainText(/Laptop.*0 songs · online/, { timeout: 30_000 });
+    // The laptop has no music of its own: not one of its computers. The phone's line doesn't show; the old one does,
+    // and goes with its ×.
+    await expect(box.locator('[data-computer="b2"]')).toHaveCount(0);
+    await expect(box.locator('[data-computer="ph1"]')).toHaveCount(0);
+    await expect(box.locator('[data-computer="b9"]')).toContainText('A computer no longer in your account');
+    await box.locator('[data-forget="b9"]').click();
+    await expect(box.locator('[data-computer="b9"]')).toHaveCount(0, { timeout: 20_000 });
+    expect(Object.keys(JSON.parse((await server.answer('GET', new URL('https://x/v1/shared'), null, 'b1'))!.body).collections.find((c: { id: string }) => c.id === main).stats.by)).not.toContain('b9');
     await expect(desk.page.locator('#cloud-panel [data-cloud]')).toHaveCount(2);
 
     // Renamed for every device.

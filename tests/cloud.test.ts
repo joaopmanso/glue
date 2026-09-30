@@ -436,6 +436,15 @@ describe('the shared collection (ADR 0094, 0106)', () => {
     const got = (await call('GET', '/v1/shared', undefined, lap.json.access)).json.collections[0].stats;
     expect(got).toEqual({ tracks: 13001, by: { [desk.json.deviceId]: { songs: 12900, at: now - 1000, changed: now }, [lap.json.deviceId]: { songs: 120, at: now } } });
     expect((await call('POST', '/v1/shared/col1/stats', { tracks: -1, songs: 2 }, ha)).status).toBe(400);
+    // A phone that only looks (a session) isn't one of its computers: its "0 songs" aren't kept.
+    const phone = await signIn({}, { deviceName: 'iPhone' });
+    await env.DB.prepare("UPDATE devices SET role = 'browse' WHERE id = ?").bind(phone.json.deviceId).run();
+    expect((await call('POST', '/v1/shared/col1/stats', { tracks: 13001, songs: 0 }, phone.json.access)).json).toEqual({ ok: true, ignored: true });
+    // One computer's line taken off by hand (an old device); the others stay.
+    await call('POST', '/v1/shared/col1/stats', { tracks: 13001, songs: 0 }, (await signIn({}, { deviceName: 'Old' })).json.access);
+    const old = Object.keys((await call('GET', '/v1/shared', undefined, lap.json.access)).json.collections[0].stats.by).find(k => k !== desk.json.deviceId && k !== lap.json.deviceId)!;
+    expect((await call('DELETE', '/v1/shared/col1/stats/' + old, undefined, lap.json.access)).json).toEqual({ ok: true });
+    expect(Object.keys((await call('GET', '/v1/shared', undefined, lap.json.access)).json.collections[0].stats.by).sort()).toEqual([desk.json.deviceId, lap.json.deviceId].sort());
     // A new name, for every device.
     expect((await call('PATCH', '/v1/shared/col1', { name: ' Main ' }, lap.json.access)).json).toEqual({ id: 'col1', name: 'Main' });
     expect((await call('PATCH', '/v1/shared/col1', { name: ' ' }, lap.json.access)).status).toBe(400);

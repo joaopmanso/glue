@@ -4,6 +4,7 @@
 import { account } from './account.svelte';
 import { readPref, writePref } from './prefs';
 import { setHomeLink } from '../platform';
+import { homeOs } from './homeApp';
 
 export interface LocalLink { home: string; port: number; token: string; version: string }
 const PREF = 'localHome';
@@ -20,6 +21,16 @@ async function hello(port: number, ms = 1500): Promise<{ app: string; version: s
     why = (e as Error).name === 'TimeoutError' ? 'no answer on 127.0.0.1:' + port : 'the browser couldn’t reach 127.0.0.1:' + port + ' (allow “apps and services on this device” for this site)';
     return null;
   }
+}
+
+/** The link, from GLUE Home itself (ADR 0115): it answers a GLUE page on this computer. Null: an older GLUE Home. */
+async function connect(port: number, ms = 1500): Promise<LocalLink | null> {
+  try {
+    const r = await fetch('http://127.0.0.1:' + port + '/connect', { signal: AbortSignal.timeout(ms) });
+    if (!r.ok) return null;
+    const j = await r.json() as Partial<LocalLink>;
+    return typeof j.token === 'string' && j.token && typeof j.port === 'number' ? { home: j.home ?? '', port: j.port, token: j.token, version: j.version ?? '' } : null;
+  } catch { return null; }
 }
 
 /** Any GLUE Home running on this computer, found by asking each of its ports (ADR 0091). */
@@ -75,8 +86,30 @@ class LocalHome {
   private async findOnce() {
     const known = JSON.parse(readPref(PREF, 'null') || 'null') as { home: string; port: number; token: string } | null;
     if (!known) return;
+    // GLUE Home hands a GLUE page its link itself (ADR 0115): the current one, even if it restarted elsewhere.
+    if (await this.findHere(known.port)) return;
+    // An older GLUE Home (no /connect): the link it gave this browser before, if it's still the one answering.
     const h = await hello(known.port);
     if (h?.app === 'glue-home' && h.device === known.home) { this.setLink({ ...known, version: h.version }); this.problem = ''; }
+  }
+  /** The GLUE Home on this computer, asked for its link directly (ADR 0115): any browser here gets it, so Edge
+      shows what Chrome shows. Only when there's a reason (this browser met it before, or the account has a GLUE
+      Home): asking 127.0.0.1 makes the browser ask a visitor about "apps on this device". */
+  async findHere(port?: number): Promise<boolean> {
+    if (!homeOs()) return false;   // a phone: no GLUE Home on it
+    let c = port ? await connect(port) : null;
+    if (!c) { const d = await discover(); if (d) c = await connect(d.port); }
+    if (!c) return false;
+    this.setLink(c); this.problem = '';
+    writePref(PREF, JSON.stringify({ home: c.home, port: c.port, token: c.token }));
+    return true;
+  }
+  private lookedHere = 0;
+  /** Signed in to an account with a GLUE Home, and none linked here yet: look on this computer (once a minute). */
+  lookIfAccountHasOne() {
+    if (this.link || Date.now() - this.lookedHere < 60_000 || !account.devices.some(d => d.kind === 'home')) return;
+    this.lookedHere = Date.now();
+    void this.findHere();
   }
   /** The first time (and after GLUE Home connected again): ask it over the account's channel. */
   async learn(home: string, ask: (home: string) => Promise<{ port: number; token: string | null }>) {
@@ -101,3 +134,5 @@ class LocalHome {
 }
 
 export const localHome = new LocalHome();
+// Signed in to an account with a GLUE Home: this browser may be on its computer (Edge next to Chrome, ADR 0115).
+if (typeof window !== 'undefined') $effect.root(() => { $effect(() => { void account.devices; if (account.signedIn) localHome.lookIfAccountHasOne(); }); });

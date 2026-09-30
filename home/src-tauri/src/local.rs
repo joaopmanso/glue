@@ -131,6 +131,21 @@ fn answer(app: AppHandle, req: Request) {
         let body = serde_json::json!({ "app": "glue-home", "version": app.package_info().version.to_string(), "device": s("deviceId") });
         return reply(req, 200, body.to_string().into_bytes(), "application/json");
     }
+    // A GLUE page in any browser on this computer takes the link (ADR 0115): being the GLUE website (its origin,
+    // which a web page can't fake) on this computer (127.0.0.1) is the proof. No account channel, no sign-in:
+    // every browser here is the same GLUE, GLUE Home's. (A program on this computer could fake the origin, but it
+    // can read the token from GLUE Home's settings file anyway.)
+    // Only the live website, in a release: pages on localhost (a test run, another project's dev server) never
+    // get the token of the GLUE Home that holds the user's real library.
+    if path == "/connect" {
+        let token = s("localToken");
+        let site = |o: &str| o == ORIGINS[0] || (cfg!(debug_assertions) && ORIGINS.contains(&o));
+        if !origin.as_deref().map(site).unwrap_or(false) || token.is_empty() {
+            return reply(req, 403, b"{\"error\":\"not allowed\"}".to_vec(), "application/json");
+        }
+        let body = serde_json::json!({ "home": s("deviceId"), "port": PORT.load(Ordering::Relaxed), "token": token, "version": app.package_info().version.to_string() });
+        return reply(req, 200, body.to_string().into_bytes(), "application/json");
+    }
     // Everything else: the token GLUE Home gave the website (a header, or ?t= for <audio src>). The full one
     // (GLUE Home's own service page, and websites until they use the engine), or the read-only one: a GLUE
     // tab while GLUE Home is the library's engine (ADR 0104) reads, and asks the engine for every change.
