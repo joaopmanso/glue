@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { certainty, concerns, pairKey, sameVersion, similarLength, versionOf } from '../src/core/library/duplicates';
+import { certainty, concerns, copyScore, pairKey, sameVersion, similarLength, versionOf } from '../src/core/library/duplicates';
+import type { AnalysisSummary, Track } from '../src/store/types';
 
 const song = (title: string, duration: number | null = 240, album = '') => ({ title, album, duration });
 
@@ -42,5 +43,16 @@ describe('another version is never a duplicate (the user’s list, 2026-09-30; A
     expect(concerns([copy('Song'), copy('Song', 240, 'Song (Instrumental).wav')])[0]).toMatch(/^versions differ/);
     expect(concerns([copy('Song', 240), copy('Song', 250)])).toEqual(['lengths differ by 10 s']);
     expect(concerns([copy('Song'), copy('Song', 240, 'Song.flac', 'Other')])).toEqual(['other artists']);
+  });
+  it('the best copy: lossless first, then the main folder’s, then resolution (ADR 0121)', () => {
+    const ok = { grade: 'ok' } as AnalysisSummary, warn = { grade: 'warn' } as AnalysisSummary;
+    const at = (rootId: string, lossless: boolean, sampleRate = 44100, bits = 16, bitrate = 320) => ({ rootId, format: { lossless, sampleRate, bits, bitrate } }) as unknown as Track;
+    const main = 'coll';
+    // Lossless elsewhere beats an MP3 in the main folder.
+    expect(copyScore(at('other', true), ok, main)).toBeGreaterThan(copyScore(at(main, false), warn, main));
+    // Two lossless copies: the main folder's, even at a lower resolution.
+    expect(copyScore(at(main, true, 44100, 16), ok, main)).toBeGreaterThan(copyScore(at('other', true, 192000, 24), ok, main));
+    // No main folder: the higher resolution.
+    expect(copyScore(at('a', true, 44100, 16), ok)).toBeLessThan(copyScore(at('b', true, 192000, 24), ok));
   });
 });

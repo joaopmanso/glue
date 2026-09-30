@@ -177,6 +177,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     songs (`meta.dupManual`);
   - only the best copy shows and is used, anywhere but Duplicates and a music folder's own files; playlists are
     rewritten to the best copies whenever groups change (`bestInLists`, ADR 0120);
+  - the best copy: genuine, then lossless, then the optional main music folder's (`meta.mainRoot`, ADR 0121), then
+    resolution; "Make it the best" overrides;
   - each group has a certainty (0–100) and concerns; the page filters by type and certainty, ticks all shown, and a
     bulk removal leaves out groups with concerns unless included.
 - **Other analysis:** duplicates (fingerprints, three tiers, ADR 0013); stems in the browser (HT-Demucs,

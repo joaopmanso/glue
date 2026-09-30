@@ -13,7 +13,8 @@ import { fingerprintOf } from './analysis';
 import { jobOf } from './audioJob';
 import type { Fingerprint } from '../core/audio/fingerprint';
 import type { Match } from '../core/library/duplicates';
-import { certainty, concerns, groupMatches, pairKey, sameVersion } from '../core/library/duplicates';
+import { certainty, concerns, copyScore, groupMatches, pairKey, sameVersion } from '../core/library/duplicates';
+export { copyScore };
 import { time, timeAsync } from '../core/perf';
 import type { DupReply, DupRequest } from '../workers/duplicates.worker';
 import type { AnalysisSummary, Track } from '../store/types';
@@ -23,13 +24,6 @@ import type { AnalysisSummary, Track } from '../store/types';
     concerns: what to look at before removing its copies (versions, lengths, artists). */
 export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null; confirmed?: boolean; byHand?: boolean; how: 'sound' | 'hand' | 'confirmed' | 'name'; sure: number; concerns: string[] }
 
-const GRADE: Record<string, number> = { ok: 3, info: 2, warn: 1, bad: 0 };
-/** Higher is better: genuine before suspect, lossless before lossy, then resolution / bitrate. */
-export function copyScore(t: Track, a: AnalysisSummary | null): number {
-  const f = t.format;
-  const q = f ? (f.lossless ? 1e6 + (f.sampleRate / 1000) * (f.bits || 16) : f.bitrate) : 0;
-  return (a && !a.error ? GRADE[a.grade] ?? 1 : 1) * 1e7 + q;
-}
 const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
   .replace(/\((original|extended|radio|club)?\s*(mix|edit|version)\)|\[[^\]]*\]|\bfeat\.?.*$|\bft\.?.*$/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 export const groupKey = (ids: string[]) => [...ids].sort().join('+');
@@ -230,7 +224,7 @@ class Dupes {
     // matched; nor a pair the user kept apart.
     const same = (m: Match) => { const a = s.tracks.get(m.a), b = s.tracks.get(m.b); return !a || !b || sameVersion(a, b); };
     // The copy the user chose ("Make it the best"), else the best by quality.
-    const best = (ids: string[]) => { const chosen = s.meta.dupBest?.[groupKey(ids)]; return chosen && ids.includes(chosen) ? chosen : ids.reduce((b, id) => copyScore(s.tracks.get(id)!, s.analysis.get(id) ?? null) > copyScore(s.tracks.get(b)!, s.analysis.get(b) ?? null) ? id : b); };
+    const best = (ids: string[]) => { const chosen = s.meta.dupBest?.[groupKey(ids)]; return chosen && ids.includes(chosen) ? chosen : ids.reduce((b, id) => copyScore(s.tracks.get(id)!, s.analysis.get(id) ?? null, s.meta.mainRoot) > copyScore(s.tracks.get(b)!, s.analysis.get(b) ?? null, s.meta.mainRoot) ? id : b); };
     const out: DupGroup[] = [];
     const inGroup = new Set<string>();
     const all = (this.others.length ? matches.concat(this.others) : matches).filter(m => !apart.has(pairKey(m.a, m.b)) && same(m)).concat(manual);
@@ -287,6 +281,15 @@ class Dupes {
       for (const i of l.items) { const v = to.get(i) ?? i; if (!items.includes(v)) items.push(v); }
       lib.updateList(l.id, { items });
     }
+  }
+  /** The main music folder (ADR 0121), or none: the best copies are chosen again, and playlists follow. */
+  setMainRoot(id: string | null) {
+    const s = lib.store;
+    if (!s || lib.readOnly) return;
+    if (id) s.meta.mainRoot = id; else delete s.meta.mainRoot;
+    s.saveMeta();
+    this.rebuild();
+    lib.version++;
   }
   /** "Keep · not a duplicate" (ADR 0117): this copy isn't a duplicate of the others in its group (another version),
       remembered pair by pair; the rest of the group stays, to be cleaned up. */

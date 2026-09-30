@@ -39,7 +39,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - songs that failed on the desktop leave the library on every device; Overviews and covers load for the rows on
     screen, newest first;
   - only the best copy shows and is used (playlists rewritten), Duplicates filters by type and certainty with a bulk
-    removal that sets aside doubtful groups (ADR 0120); GLUE Home builds once per change (no tags).
+    removal that sets aside doubtful groups (ADR 0120); GLUE Home builds once per change (no tags);
+  - an optional main music folder decides the best copy among equals (ADR 0121).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The

@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M5
 updated: 2026-09-30
-adrs: [0013, 0025, 0117, 0120]
+adrs: [0013, 0025, 0117, 0120, 0121]
 ---
 # Duplicates
 
@@ -15,6 +15,7 @@ adrs: [0013, 0025, 0117, 0120]
 - **Cleaning up:** with GLUE Home, the rest move to its duplicates folder or the Recycle Bin (ADR 0070).
 - **One copy shown and used** (ADR 0120): the best copy, everywhere but here and a music folder's files; playlists
   use it (rewritten when groups change); "Make it the best" picks another.
+- **The best copy:** genuine, then lossless, then the main music folder's (optional, ADR 0121), then resolution.
 - **In bulk:** filter by type and certainty (each group 0–100 %), "Tick all shown", and a removal that sets aside
   groups with concerns (versions, lengths, artists) unless included.
 - The sections below are the history.
@@ -148,3 +149,9 @@ them at the best copy.
   the page's filters (`#dupes-filters`, `#dupes-sure`, `#tick-all`) and the dialog's `#clean-doubtful`.
 - Tests: `tests/versions.test.ts` (certainty, concerns), e2e `library.spec` ("duplicates by hand": the playlist,
   Lower quality, 100 %, the columns).
+
+## A main music folder (2026-09-30, [ADR 0121](../adr/0121-main-music-folder.md))
+- Optional: a folder's right-click menu, or the Duplicates page's "Main folder" menu (`#main-folder`). The sidebar marks
+  it "main". Among copies of equal grade and lossless-ness, its copy is the best (`copyScore`, now in
+  `core/library/duplicates.ts`).
+- Tests: `tests/versions.test.ts` (the order), e2e `library.spec` ("a main music folder": the same MP3 in two folders).

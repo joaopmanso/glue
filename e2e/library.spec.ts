@@ -2573,3 +2573,41 @@ test('duplicates by hand: songs marked as duplicates group; “Keep · not a dup
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
   await expect(page.locator('.tr')).toHaveCount(4);
 });
+
+test('a main music folder: among duplicates its copy is the best, shown and used; none, the best by quality (ADR 0121)', async ({ page }) => {
+  await seed(page);
+  // The same MP3 in a second folder, "Main".
+  await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const src = await (await (await (await root.getDirectoryHandle('Music')).getDirectoryHandle('Sets')).getFileHandle('mp3-128k.mp3')).getFile();
+    const w = await (await (await root.getDirectoryHandle('Main', { create: true })).getFileHandle('copy.mp3', { create: true })).createWritable(); await w.write(await src.arrayBuffer()); await w.close();
+  });
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  // The second folder.
+  await page.evaluate(() => { (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle('Main'); });
+  await page.click('#add-folder');
+  await expect(page.locator('.lside [data-root]')).toHaveCount(2, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+  // One recording in two folders: a group, its best copy the first found (equal quality).
+  await page.locator('.lside [data-view="dupes"]').click();
+  const grp = page.locator('#dupes .grp');
+  await expect(grp).toHaveCount(1, { timeout: 60_000 });
+  // "Main" is the main folder (from the Duplicates page): its copy is the best.
+  await page.locator('#main-folder').selectOption({ label: 'Main' });
+  await expect(grp.locator('li.best')).toContainText('Main/copy.mp3');
+  await expect(page.locator('.lside [data-root]', { hasText: 'Main' }).locator('.mainf')).toHaveText('main');
+  // The other folder instead (its right-click menu): its copy.
+  await page.locator('.lside [data-root] .name', { hasText: 'Music' }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Make it the main folder' }).click();
+  await expect(grp.locator('li.best')).toContainText('Sets/mp3-128k.mp3');
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await page.locator('.lside [data-view="dupes"]').click({ timeout: 30_000 });
+  await expect(page.locator('#main-folder')).toHaveValue(/.+/);
+  await expect(page.locator('#dupes .grp li.best')).toContainText('Sets/mp3-128k.mp3', { timeout: 30_000 });
+});

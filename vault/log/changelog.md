@@ -5,6 +5,11 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-09-30 · A main music folder for duplicates
+- **Optional main music folder** ([ADR 0121](../adr/0121-main-music-folder.md)): right-click a music folder › "Make it the
+  main folder", or pick it on the Duplicates page. Among duplicates, its copy is the one kept and shown, after grade
+  and lossless (a lossless copy elsewhere still beats an MP3 in the main folder). The sidebar marks it "main".
+
 ## 2026-09-30 · One copy shown and used; Duplicates in bulk; one GLUE Home build per change
 - **Only the best copy of a song shows and is used** ([ADR 0120](../adr/0120-one-copy-shown-and-used.md)): "Lower quality",
   "Not analysed yet", "Couldn't analyse" and "No file linked" leave out the other copies (the sidebar counts too).

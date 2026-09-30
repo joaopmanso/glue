@@ -3,6 +3,7 @@
    recording share many pieces at a consistent time offset, unrelated tracks only by chance. Each
    candidate pair is then confirmed by bit error rate at the best alignment. */
 import { ber, FP_FRAME_SEC, type Fingerprint } from '../audio/fingerprint';
+import type { AnalysisSummary, Track } from '../../store/types';
 
 export const SAME_BER = 0.3;          // at or below: same recording (unrelated audio ≈ 0.5)
 export const MIN_OVERLAP_SEC = 20;    // at least this much sound in common
@@ -183,4 +184,15 @@ export function concerns(copies: Copy[]): string[] {
   const artists = new Set(copies.map(c => plain(c.artist)).filter(Boolean));
   if (artists.size > 1) out.push('other artists');
   return out;
+}
+
+const GRADE: Record<string, number> = { ok: 3, info: 2, warn: 1, bad: 0 };
+/** Higher is better: genuine before suspect, lossless before lossy, then a copy in the user's main music folder
+    (ADR 0121: lossless still comes first, so a lossless copy elsewhere beats an MP3 there), then resolution /
+    bitrate. */
+export function copyScore(t: Track, a: AnalysisSummary | null, mainRoot?: string | null): number {
+  const f = t.format;
+  const q = f ? (f.lossless ? 1e6 + (f.sampleRate / 1000) * (f.bits || 16) : f.bitrate) : 0;
+  const main = mainRoot && t.rootId === mainRoot ? 5e5 : 0;   // over any resolution (≤ 6,144) or bitrate, under lossless
+  return (a && !a.error ? GRADE[a.grade] ?? 1 : 1) * 1e7 + q + main;
 }

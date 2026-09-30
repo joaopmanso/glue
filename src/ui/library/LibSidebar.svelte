@@ -52,6 +52,8 @@
     return { all, pending, failed, unlinked, attention };
   });
   const top = $derived.by(() => { void lib.version; return lib.childLists(null); });
+  /** The main music folder (ADR 0121), read when the collection changes. */
+  const mainRoot = $derived.by(() => { void lib.version; return lib.store?.meta.mainRoot ?? null; });
   // Takes the version so nested folders re-render when any list changes (the store's maps aren't reactive).
   const childrenOf = (id: string, _version: number) => lib.childLists(id || null);
   const loose = $derived.by(() => { void lib.version; let n = 0; for (const t of lib.store?.tracks.values() ?? []) if (t.fileKey) n++; return n; });
@@ -321,6 +323,11 @@
       !!path && { label: 'Copy its path', title: path, run: () => copyPath(path) },
       dock.available && { label: 'Add its songs to the drag dock', run: () => void dock.add(dock.tracksOfFolder(r.root.id), r.root.name) },
       SEP,
+      // The main folder (ADR 0121): among duplicates, its copy is the best (a lossless one elsewhere still wins).
+      !lib.readOnly && (mainRoot === r.root.id
+        ? { label: 'Not the main folder any more', attrs: { 'data-m': 'unmain' }, run: () => dupes.setMainRoot(null) }
+        : { label: 'Make it the main folder', attrs: { 'data-m': 'main' }, title: 'Among duplicates, the copy in this folder is kept (a lossless copy elsewhere still beats a lossy one here)', run: () => dupes.setMainRoot(r.root.id) }),
+      SEP,
       { label: 'Remove from collection…', danger: true, run: () => removeFolder(r) },
     ]);
   }
@@ -523,7 +530,7 @@
         <li>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="item" class:sel={isSel({ kind: 'root', id: r.root.id })} class:menued={menued('r:' + r.root.id)} data-root={r.root.id} oncontextmenu={e => onMenu(e, 'r:' + r.root.id, () => folderMenu(r), r.root.name)}>
-            <button type="button" class="name" onclick={() => view.select({ kind: 'root', id: r.root.id })} title={r.root.absPath ?? 'Location on disk not known yet'}>📁 {r.root.name}</button>
+            <button type="button" class="name" onclick={() => view.select({ kind: 'root', id: r.root.id })} title={r.root.absPath ?? 'Location on disk not known yet'}>📁 {r.root.name}{#if mainRoot === r.root.id}<span class="mainf" title="Your main folder: among duplicates, its copy is kept">main</span>{/if}</button>
             {#if !r.dir}<button type="button" class="reconnect" title="GLUE lost its link to this folder (restored backup or cleared browser data): choose it again" onclick={() => lib.relinkFolder(r.root.id)}>Find folder</button>
             {:else if !r.granted}<button type="button" class="reconnect" onclick={() => lib.reconnectFolder(r.root.id)}>Allow</button>{/if}
             <span class="tools">
@@ -710,6 +717,7 @@
   @keyframes blink { to { opacity: .35; } }
   .refresh { font-size: 11px; padding: 1px 6px; }
   .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; }
+  .mainf { margin-left: 6px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; vertical-align: 1px; }
   .djtree { list-style: none; margin: 0; padding: 0; }
   .onpc { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); white-space: nowrap; }
   .onpc svg { width: 12px; height: 12px; }

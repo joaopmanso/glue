@@ -22,6 +22,8 @@
   import { fmtBytes } from '../../core/format';
 
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
+  const folders = $derived(lib.musicFolders);
+  const mainRoot = $derived.by(() => { void lib.version; return lib.store?.meta.mainRoot ?? ''; });
   // Which groups show (the user, 2026-09-30: 4,000 duplicates can't be gone through one by one): by how they were found,
   // and how sure GLUE is. Remembered for the visit.
   const HOW: [DupGroup['how'] | 'all', string][] = [['all', 'All'], ['sound', 'Same recording'], ['hand', 'Marked by you'], ['confirmed', 'Confirmed by you'], ['name', 'Probable']];
@@ -181,6 +183,16 @@
       <button type="button" class="mini" id="dupes-rescan" disabled={dupes.running} onclick={() => dupes.scan(true)}>Check again</button>
     </span>
   </div>
+  <!-- The main folder (ADR 0121), optional: among duplicates, its copy is kept (a lossless one elsewhere still wins). -->
+  {#if folders.length > 1}
+    <div class="mainpick" id="dupes-main">
+      <span><b>Main folder</b> (optional): when a song is in it and in another folder, the copy in it is the one kept and shown. A lossless copy elsewhere still beats a lossy one in it. Also from a folder's right-click menu.</span>
+      <select id="main-folder" aria-label="Main folder" value={mainRoot} disabled={lib.readOnly} onchange={e => dupes.setMainRoot(e.currentTarget.value || null)}>
+        <option value="">None</option>
+        {#each folders as r (r.root.id)}<option value={r.root.id}>{r.root.name}</option>{/each}
+      </select>
+    </div>
+  {/if}
   {#if dupes.missing}
     <p class="note" id="dupes-missing">{dupes.missing.toLocaleString()} analysed song{dupes.missing === 1 ? ' has' : 's have'} no fingerprint in this browser (analysed in another browser or on another computer). {dupes.filling ? 'Making them now: ' + dupes.filled.toLocaleString() + ' done…' : 'They’re made in the background as the files can be read.'} Duplicates among them show as they're done.</p>
   {/if}
@@ -277,6 +289,8 @@
   .sure { font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 3px; padding: 0 5px; }
   .sure[data-sure="100"] { color: var(--ok); border-color: currentColor; }
   .concern { color: var(--warn); }
+  .mainpick { display: flex; gap: 12px; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--ink-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; }
+  .mainpick select { min-width: 180px; }
   .filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; }
   .chip { background: none; border: 1px solid var(--line-2); border-radius: 999px; color: var(--ink-2); padding: 3px 10px; cursor: pointer; font-size: 12.5px; }
   .chip.on { border-color: var(--accent); color: var(--accent); }
