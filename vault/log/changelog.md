@@ -5,6 +5,17 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · A dropped song is analysed with GLUE Home running (GLUE Home 0.40.0)
+- **A song dragged onto the library is found by GLUE Home**
+  ([ADR 0125](../adr/0125-dropped-songs-placed-by-glue-home.md)). The browser never says where a dropped file is, so
+  with GLUE Home running such a song was "added on its own": GLUE Home couldn't read it, and the tab left all
+  analysis to GLUE Home, so it was never analysed. Now:
+  - GLUE Home finds it by name and size, in the collection's music folders first;
+  - in a music folder, it's that folder's song again; elsewhere, GLUE Home keeps its path and analyses it;
+  - if GLUE Home can't find it, the tab analyses it itself.
+- **"Waiting to go into the library" no longer cycles:** GLUE Home's background cache-filling isn't counted there, and
+  an analysis the library already has isn't written (and synced) again.
+
 ## 2026-10-01 · "No file linked" finds the songs in your library (GLUE Home 0.39.1)
 - **"No file linked" is a matching page** ([ADR 0124](../adr/0124-no-file-songs-matched-and-linked.md)). An Engine DJ
   import's playlists named duplicates removed since; most of those songs are in the library.

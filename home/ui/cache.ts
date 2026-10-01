@@ -131,7 +131,8 @@ export async function cacheFile(key: string) { return read(key); }
 let pool: AnalysisPool | null = null;
 
 /** Read a song of this computer's library (in 4 MB steps) and analyse it like the website does. */
-export async function analyse(p: string, c: string, id: string, cfg: HomeConfig): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null }> {
+/** `tell`: the result is for the library (false: only this cache's, filled in the background; the library has it). */
+export async function analyse(p: string, c: string, id: string, cfg: HomeConfig, tell = true): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null }> {
   const f = await trackPath(p, c, id, cfg);
   const size = await bridge.fileSize(f.path), parts: ArrayBuffer[] = [];
   let got = 0;
@@ -152,7 +153,7 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig)
     // Said once, like a GLUE tab says it: not tried again until the file changes.
     const msg = String((e as Error)?.message || 'It couldn’t be decoded.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'It couldn’t be decoded.');
     await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify({ summary: failed(msg, { size, mtime: f.mtime }), size, mtime: f.mtime, format: null, duration: null, fields: {} } satisfies Analysed)));
-    onAnalysed.f?.(p, c, id);
+    if (tell) onAnalysed.f?.(p, c, id);
     throw e;
   }
   if (r.thumb) await putThumb(p, c, id, r.thumb);
@@ -161,7 +162,7 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig)
   if (r.art !== undefined) await keepCover(p, c, id, r.art);
   if (r.fp) await bridge.cacheWrite(pKey(p, c, id), encodeFingerprint(r.fp));
   await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify(analysed(r, size, f.mtime))));   // last: a result has all its parts
-  onAnalysed.f?.(p, c, id);
+  if (tell) onAnalysed.f?.(p, c, id);
   return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null };
 }
 
@@ -223,7 +224,7 @@ export async function background(cfg: () => HomeConfig | null, busy: () => boole
       // Handed over meanwhile, or only the waveform missing: made from the kept analysis if it can be.
       if (await thumb(j.p, j.c, j.id) && (await wave(j.p, j.c, j.id) || await waveFromDetails(j.p, j.c, j.id))) { progress.background.done++; continue; }
       running = true;
-      try { await analyse(j.p, j.c, j.id, c); } catch { /* not found or not decodable: skipped */ } finally { running = false; }
+      try { await analyse(j.p, j.c, j.id, c, false); } catch { /* not found or not decodable: skipped */ } finally { running = false; }
       if (urgent.length) void drain(cfg);
       progress.background.done++;
       if (progress.background.done % 10 === 0) report();

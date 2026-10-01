@@ -389,7 +389,8 @@ type Rpc =
   | { op: 'pause'; on: boolean }
   | { op: 'restamp'; p: string; c: string; id: string; was: { size: number | null; mtime: number | null }; now: { size: number; mtime: number } }
   | { op: 'job'; kind: 'remove-tracks'; p: string; c: string; ids: string[] }
-  | { op: 'where'; id: string; name: string; sample: string };
+  | { op: 'where'; id: string; name: string; sample: string }
+  | { op: 'whereFile'; name: string; size: number; roots: string[] };
 async function rpc(b: Rpc): Promise<unknown> {
   const c = cfg;
   if (!c) throw new Error('GLUE Home isn’t set up yet');
@@ -411,6 +412,18 @@ async function rpc(b: Rpc): Promise<unknown> {
       if (!!c.analysisPaused !== !!b.on) { cfg = await bridge.patchConfig(() => ({ analysisPaused: !!b.on })).catch(() => cfg) ?? cfg; analysis.setPaused(!!b.on, () => cfg); }
       return { paused: !!b.on };
     case 'job': await engine.addJob(() => cfg, { kind: b.kind, p: b.p, c: b.c, ids: b.ids }); return { queued: true };
+    // A song dropped onto a GLUE tab here (ADR 0125): where it is, and the collection's music folder it's in, if one.
+    case 'whereFile': {
+      const folders = Object.entries(c.folders ?? {}).filter(([id]) => b.roots.includes(id));
+      const at = await bridge.findFile(b.name, b.size, folders.map(f => f[1])).catch(() => null);
+      if (!at) return { path: null };
+      const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, ''), low = (p: string) => /^[a-z]:\//i.test(p) ? p.toLowerCase() : p;
+      for (const [id, dir] of folders) {
+        const d = norm(dir), f = norm(at);
+        if (low(f).startsWith(low(d) + '/')) return { path: at, folder: { id, relPath: f.slice(d.length + 1) } };
+      }
+      return { path: at };
+    }
     // A folder dropped onto a GLUE tab here (the browser doesn't say where it is): found, and remembered as `id`.
     case 'where': {
       const at = await locate({ id: b.id, name: b.name, absPath: null, handleKey: '', addedAt: '' }, b.sample ? { relPath: b.sample, importPath: null } : null, c);

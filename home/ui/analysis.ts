@@ -120,7 +120,7 @@ async function scan(cfg: HomeConfig): Promise<Job[]> {
       try { an = (JSON.parse(await bridge.glueRead(`profiles/${p.id}/collections/${col.id}/analysis/${f}`)) as { items: Record<string, unknown> }).items; } catch { /* none yet */ }
       for (const raw of Object.values(tracks)) {
         const t = h.track(raw);
-        if ((!t.rootId || !t.relPath) && !t.fileKey?.startsWith('copy:')) continue;
+        if ((!t.rootId || !t.relPath) && !t.fileKey?.startsWith('copy:') && !t.filePath) continue;
         const mine = (sh ? (an[t.id] as Record<string, AnalysisSummary> | undefined)?.[me ?? ''] : an[t.id]) as AnalysisSummary | undefined;
         if (!needsAnalysis(t, mine, ANALYSIS_VERSION) || waiting?.has(t.id) || (tries.get(key(p.id, col.id) + '/' + t.id) ?? 0) >= 3) continue;
         // Analysed already (the result wasn't taken in yet, GLUE Home was restarted): waiting, not again.
@@ -232,6 +232,9 @@ async function writeAll(cfg: HomeConfig): Promise<number> {
       const a = await cache.result(p, c, id), cur = s.tracks.get(id);
       done.push(id);
       if (!a || !cur || cur.remote) continue;
+      // The library has this already (the same file, as new an analysis): nothing to write, or to sync.
+      const had = s.analysis.get(id);
+      if (had && !had.error && had.v >= a.summary.v && had.fileSize === a.size && had.fileMtime === a.mtime) continue;
       s.putAnalysis(id, a.summary);
       s.putTrack(afterAnalysis(cur, a));
       n++;

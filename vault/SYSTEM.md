@@ -152,6 +152,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - The analysis bar shows GLUE Home's own queue (its `status`: left + running).
   - A folder dropped onto the library is found by GLUE Home (rpc `where`) and becomes its folder (`home:<id>`); one
     inside a music folder isn't added (ADR 0122).
+  - A song dropped onto the library is found by GLUE Home (rpc `whereFile`): in a music folder it's that folder's
+    song; elsewhere GLUE Home keeps its path (`Track.filePath`). The tab analyses only songs only it can read (a
+    browser handle and no `filePath`); GLUE Home analyses the rest (ADR 0125).
 - **Overviews and covers load for the rows on screen** (`thumbs`, `waves`, `covers`):
   - newest request first;
   - a row that scrolls away drops what it asked for (`hold`/`drop`), so a jump down the list loads the new rows

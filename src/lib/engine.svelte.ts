@@ -41,6 +41,8 @@ class EngineClient {
   /** Which computer GLUE Home says this is (ADR 0108); null: it doesn't know yet, or it's from before 0.34. */
   /** Where a dropped music folder is on this computer (GLUE Home finds it, and remembers it as the folder `id`). */
   async findFolder(id: string, name: string, sample: string): Promise<string | null> { return (await this.rpc<{ path?: string | null }>({ op: 'where', id, name, sample }, 60_000)).path ?? null; }
+  /** Where a dropped song is on this computer, and the music folder it's in (ADR 0125). */
+  async findFile(name: string, size: number, roots: string[]) { return this.rpc<{ path: string | null; folder?: { id: string; relPath: string } }>({ op: 'whereFile', name, size, roots }, 60_000); }
   async computer(): Promise<string | null> { return (await this.rpc<{ computer?: string | null }>({ op: 'hello' }, 5000)).computer ?? null; }
 
   /** In Home mode, with an engine that answers: the open collection's changes go to it. */
@@ -175,6 +177,7 @@ lib.beforeClose = () => engineClient.flush();
 // A collection opened: attached at once (not a change saved from here meanwhile).
 const prevOpened = lib.onCollectionOpened;
 lib.homeFind = (id, name, sample) => engineClient.findFolder(id, name, sample);
+lib.homeFindFile = (name, size, roots) => homeMode() ? engineClient.findFile(name, size, roots) : Promise.resolve({ path: null });
 lib.onCollectionOpened = (pid, cid) => { prevOpened?.(pid, cid); void engineClient.check(); };
 if (typeof window !== 'undefined') {
   window.setInterval(() => void engineClient.check(), 3000);

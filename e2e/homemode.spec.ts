@@ -179,7 +179,7 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
   }
 });
 
-test('with GLUE Home, a dropped folder is found by it at once; one inside a music folder is refused; Stop hands the library to the browser and Start takes it back (2026-10-01)', async ({ page }) => {
+test('with GLUE Home, a dropped folder is found by it at once; one inside a music folder is refused; a dropped song is placed by it; Stop hands the library to the browser and Start takes it back (2026-10-01)', async ({ page }) => {
   test.setTimeout(180_000);
   const tmp = mkdtempSync(join(tmpdir(), 'glue-home-e2e-'));
   const home = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} });
@@ -212,10 +212,16 @@ test('with GLUE Home, a dropped folder is found by it at once; one inside a musi
     home.dirs.folders[(JSON.parse(readFileSync(metaFile, 'utf8')) as { roots: { id: string }[] }).roots[0].id] = join(tmp, 'Music');
     mkdirSync(home.dirs.incoming, { recursive: true });
     // GLUE Home's engine answers where a dropped folder is (and remembers it); anything else: an older GLUE Home.
-    const asked: { id: string; name: string; sample: string }[] = [];
+    const asked: { id: string; name: string; sample: string }[] = [], askedFiles: string[] = [];
     const places: Record<string, string> = { Dropped: join(tmp, 'Crate', 'Dropped'), Sets: join(tmp, 'Music', 'Sets') };
     home.rpc = async body => {
-      const b = JSON.parse(body) as { op: string; id: string; name: string; sample: string };
+      const b = JSON.parse(body) as { op: string; id: string; name: string; sample: string; roots?: string[] };
+      // A dropped song (ADR 0125): Fresh.mp3 is in the music folder "Music", Loose.mp3 elsewhere.
+      if (b.op === 'whereFile') {
+        askedFiles.push(b.name);
+        const music = Object.entries(home.dirs.folders).find(([, at]) => at === join(tmp, 'Music'))![0];
+        return JSON.stringify(b.name === 'Fresh.mp3' ? { path: join(tmp, 'Music', 'Sets', 'Fresh.mp3'), folder: { id: music, relPath: 'Sets/Fresh.mp3' } } : { path: join(tmp, 'Elsewhere', 'Loose.mp3') });
+      }
       if (b.op !== 'where') return '{}';
       asked.push(b); home.dirs.folders[b.id] = places[b.name];
       return JSON.stringify({ path: places[b.name] ?? null });
@@ -225,6 +231,7 @@ test('with GLUE Home, a dropped folder is found by it at once; one inside a musi
     await page.reload();
     await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
     await expect.poll(() => home.calls.includes('/fs/roots')).toBe(true);
+    const tracksOnDisk = () => { const d = join(dirname(metaFile), 'tracks'); return readdirSync(d).flatMap(f => Object.values((JSON.parse(readFileSync(join(d, f), 'utf8')) as { items: Record<string, { fileName: string; rootId: string | null; relPath: string | null; fileKey?: string | null; filePath?: string }> }).items)); };
 
     const drop = (top: string, name: string) => page.evaluate(async ([top, name]) => {
       let d = await navigator.storage.getDirectory();
@@ -244,6 +251,36 @@ test('with GLUE Home, a dropped folder is found by it at once; one inside a musi
     await drop('Music', 'Sets');
     await expect(page.locator('.notice')).toContainText('“Sets” is inside “Music”', { timeout: 20_000 });
     await expect(page.locator('.tr')).toHaveCount(5);
+
+    // A song dropped on its own (the browser never says where it is, ADR 0125): GLUE Home finds it. In a music folder,
+    // it's that folder's song; elsewhere, GLUE Home keeps its path (and analyses it).
+    const dropFile = (top: string, dir: string | null, name: string) => page.evaluate(async ([top, dir, name]) => {
+      let d = await (await navigator.storage.getDirectory()).getDirectoryHandle(top);
+      if (dir) d = await d.getDirectoryHandle(dir);
+      const h = await d.getFileHandle(name);
+      (DataTransferItem.prototype as unknown as { getAsFileSystemHandle: () => Promise<FileSystemHandle> }).getAsFileSystemHandle = async () => h;
+      const dt = new DataTransfer(); dt.items.add(await h.getFile());
+      window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    }, [top, dir, name] as const);
+    // New files, after the folder was scanned: one in the music folder "Music", one elsewhere (in the browser and on disk).
+    const other = readFileSync(fixture('mp3-cover.mp3'));
+    await page.evaluate(async b => {
+      const root = await navigator.storage.getDirectory();
+      for (const [d, n] of [[await (await root.getDirectoryHandle('Music')).getDirectoryHandle('Sets'), 'Fresh.mp3'], [await root.getDirectoryHandle('Elsewhere', { create: true }), 'Loose.mp3']] as const) {
+        const w = await (await d.getFileHandle(n, { create: true })).createWritable(); await w.write(Uint8Array.from(atob(b), c => c.charCodeAt(0))); await w.close();
+      }
+    }, other.toString('base64'));
+    writeFileSync(join(tmp, 'Music', 'Sets', 'Fresh.mp3'), other);
+    mkdirSync(join(tmp, 'Elsewhere'), { recursive: true }); writeFileSync(join(tmp, 'Elsewhere', 'Loose.mp3'), other);
+    await dropFile('Music', 'Sets', 'Fresh.mp3');
+    await expect(page.locator('.notice')).toContainText('Added 1 song', { timeout: 20_000 });
+    await dropFile('Elsewhere', null, 'Loose.mp3');
+    await expect.poll(() => askedFiles, { timeout: 20_000 }).toEqual(['Fresh.mp3', 'Loose.mp3']);
+    await expect.poll(() => tracksOnDisk().filter(t => t.fileName === 'Fresh.mp3' || t.fileName === 'Loose.mp3').map(t => ({ name: t.fileName, root: !!t.rootId, relPath: t.relPath, handle: !!t.fileKey, filePath: t.filePath ?? null })).sort((a, b) => a.name.localeCompare(b.name)), { timeout: 20_000 })
+      .toEqual([
+        { name: 'Fresh.mp3', root: true, relPath: 'Sets/Fresh.mp3', handle: false, filePath: null },
+        { name: 'Loose.mp3', root: false, relPath: null, handle: true, filePath: join(tmp, 'Elsewhere', 'Loose.mp3') },
+      ]);
 
     // Stop pressed in GLUE Home: the library carries on in the browser (a song plays from the browser's folder).
     home.stopped = true;
@@ -658,7 +695,7 @@ test('a shared collection with no GLUE tab open: GLUE Home takes in another devi
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 
-test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the library, and says what it’s doing; a folder only a drive search finds is searched for once; one not connected waits (ADR 0103, 0122)', async ({ page }) => {
+test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the library, and says what it’s doing; a folder only a drive search finds is searched for once; one not connected waits; a song added on its own where GLUE Home found it (ADR 0103, 0122, 0125)', async ({ page }) => {
   test.setTimeout(180_000);
   const tmp = mkdtempSync(join(tmpdir(), 'glue-home-analyse-'));
   const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } });
@@ -673,7 +710,7 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
       'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
       'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
       [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }, { id: 'r2', name: 'Promos', absPath: null, handleKey: 'root:x', addedAt: '' }, { id: 'r3', name: 'Share', absPath: null, handleKey: 'home:r3', addedAt: '' }] }),
-      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1a: song('t1a', 'a.mp3', 65267), t1b: song('t1b', 'b.flac', 968141), t1c: song('t1c', 'c.mp3', 65267, 'r2'), t1d: song('t1d', 'd.mp3', 65267, 'r2'), t1e: song('t1e', 'e.mp3', 65267, 'r3') } }),
+      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1a: song('t1a', 'a.mp3', 65267), t1b: song('t1b', 'b.flac', 968141), t1c: song('t1c', 'c.mp3', 65267, 'r2'), t1d: song('t1d', 'd.mp3', 65267, 'r2'), t1e: song('t1e', 'e.mp3', 65267, 'r3'), t1f: { ...song('t1f', 'f.mp3', 65267), rootId: null, relPath: null, fileKey: 'file:x', filePath: 'D:\\Loose\\f.mp3' } } }),
     };
     for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
     await fake.start();
@@ -685,7 +722,7 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
     // The songs' files, as GLUE Home's Rust side reads them (stood in): in this computer's Music folder.
     // "Promos" (a folder added in the browser, which never says where it is): only a search of the drives finds it.
     const mp3 = [...readFileSync(fixture('mp3-128k.mp3'))];
-    const disk = { 'C:\\Users\\dj\\Music\\a.mp3': mp3, 'C:\\Users\\dj\\Music\\b.flac': [...readFileSync(fixture('flac-96k-24.flac'))], 'E:\\DJ\\Promos\\c.mp3': mp3, 'E:\\DJ\\Promos\\d.mp3': mp3 };
+    const disk = { 'C:\\Users\\dj\\Music\\a.mp3': mp3, 'C:\\Users\\dj\\Music\\b.flac': [...readFileSync(fixture('flac-96k-24.flac'))], 'E:\\DJ\\Promos\\c.mp3': mp3, 'E:\\DJ\\Promos\\d.mp3': mp3, 'D:\\Loose\\f.mp3': mp3 };
     await home.addInitScript(({ glue, disk, port, token, dir }) => {
       const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk; w.__find = { Promos: 'E:\\DJ\\Promos' }; w.__localPort = port; w.__lease = false;
       localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token, folders: { r3: 'Z:\\Share' } }));
@@ -695,7 +732,7 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
     home.on('console', m => { if (/GLUE Home/.test(m.text())) console.log('HOME:', m.text().slice(0, 300)); });
     // Analysed by GLUE Home, into the collection's files (no GLUE tab holds the lease).
     const analysis = () => { try { return JSON.parse(readFileSync(join(fake.dirs.glue, col, 'analysis', 't1.json'), 'utf8')).items as Record<string, { v: number; fileSize: number; fileMtime: number }>; } catch { return {}; } };
-    await expect.poll(() => Object.keys(analysis()).sort(), { timeout: 120_000 }).toEqual(['t1a', 't1b', 't1c', 't1d']);
+    await expect.poll(() => Object.keys(analysis()).sort(), { timeout: 120_000 }).toEqual(['t1a', 't1b', 't1c', 't1d', 't1f']);
     expect(analysis().t1a).toMatchObject({ v: 3, fileSize: 65267, fileMtime: 1000 });
     const tracks = JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items;
     expect(tracks.t1b.format).toMatchObject({ lossless: true, sampleRate: 96000 });
@@ -709,11 +746,11 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
     expect(await home.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).folders)).toMatchObject({ r2: 'E:\\DJ\\Promos' });
     // What it did, for its settings window: the analysis state and the events.
     const status = () => home.evaluate(() => (window as unknown as { __status?: { analysing?: { done: number; left: number; waiting: number }; events?: { text: string }[] } }).__status);
-    await expect.poll(async () => (await status())?.analysing?.done, { timeout: 20_000 }).toBe(4);
+    await expect.poll(async () => (await status())?.analysing?.done, { timeout: 20_000 }).toBe(5);
     expect((await status())?.analysing).toMatchObject({ left: 0, waiting: 0, failed: 0, away: 1 });
     const texts = ((await status())?.events ?? []).map(e => e.text);
-    expect(texts).toContain('Analysing 5 songs');
-    expect(texts.some(t => t.startsWith('Put 4 analyses into the library'))).toBe(true);
+    expect(texts).toContain('Analysing 6 songs');
+    expect(texts.some(t => t.startsWith('Put 5 analyses into the library'))).toBe(true);
     // "Analysis done" once: a later run with nothing to do says nothing (it said the day's total every minute,
     // 2026-09-30). A run asked for with no songs stands in for the minute's.
     const done = async () => ((await status())?.events ?? []).filter(e => e.text.startsWith('Analysis done')).length;
@@ -790,6 +827,21 @@ test('GLUE Home is the library’s engine: the tab shows, GLUE Home analyses and
     await expect.poll(() => tracksOnDisk().t1a?.rating, { timeout: 20_000 }).toBe(3);
     const lists = join(fake.dirs.glue, col, 'lists');
     await expect.poll(() => existsSync(lists) ? readdirSync(lists).length : 0, { timeout: 20_000 }).toBe(1);
+
+    // A song dropped on its own that GLUE Home can't find (ADR 0125): only this browser can read it, so the tab analyses
+    // it, GLUE Home being the engine (it waited for ever, 2026-10-01).
+    await page.evaluate(async b => {
+      const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('Elsewhere', { create: true });
+      const h = await d.getFileHandle('Loose.mp3', { create: true }), w = await h.createWritable(); await w.write(Uint8Array.from(atob(b), c => c.charCodeAt(0))); await w.close();
+      (DataTransferItem.prototype as unknown as { getAsFileSystemHandle: () => Promise<FileSystemHandle> }).getAsFileSystemHandle = async () => h;
+      const dt = new DataTransfer(); dt.items.add(await h.getFile());
+      window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    }, readFileSync(fixture('mp3-cover.mp3')).toString('base64'));
+    const shards = (dir: string) => existsSync(join(fake.dirs.glue, col, dir)) ? readdirSync(join(fake.dirs.glue, col, dir)).flatMap(f => Object.entries(JSON.parse(readFileSync(join(fake.dirs.glue, col, dir, f), 'utf8')).items as Record<string, { fileName?: string; v?: number }>)) : [];
+    await expect.poll(() => shards('tracks').find(([, t]) => t.fileName === 'Loose.mp3')?.[0] ?? null, { timeout: 20_000 }).not.toBeNull();
+    const loose = shards('tracks').find(([, t]) => t.fileName === 'Loose.mp3')![0];
+    await expect.poll(() => shards('analysis').some(([id, a]) => id === loose && !!a.v), { timeout: 60_000 }).toBe(true);
+    await expect(page.locator('.an')).toContainText('All analysed', { timeout: 30_000 });
 
     // Stop in the tab pauses GLUE Home; turning background analysis on again resumes it.
     const paused = () => home.evaluate(() => (window as unknown as { __status?: { analysing?: { paused: boolean } } }).__status?.analysing?.paused);

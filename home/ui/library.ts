@@ -167,6 +167,11 @@ export async function trackPath(profile: string, collection: string, id: string,
   if (!t) throw new Error('That song isn’t in this computer’s GLUE library.');
   if (t.fileKey?.startsWith('copy:')) return { path: join(cfg.glue!, t.fileKey.slice(5)), name: t.fileName, mtime: t.mtime ?? 0, size: t.size };
   if (t.remote) throw new Error('That song isn’t on this computer.');
+  // Added on its own, where GLUE Home found it (ADR 0125).
+  if ((!t.rootId || !t.relPath) && t.filePath) {
+    if (!await bridge.exists(t.filePath)) throw new FolderAway(t.fileName, t.filePath);
+    return { path: t.filePath, name: t.fileName, mtime: t.mtime ?? 0, size: t.size };
+  }
   if (!t.rootId || !t.relPath) throw new Error('That song was added on its own in the browser; GLUE Home can’t find its file.');
   const meta = h.meta;
   const root = meta?.roots.find(r => r.id === t.rootId);

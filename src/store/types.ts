@@ -60,6 +60,8 @@ export interface Track {
       GLUE folder (browsers without file handles). Absent for folder and imported tracks. */
   fileKey?: string | null;
   importPath: string | null;    // absolute path as an imported library saw it
+  /** Where a song added on its own is on this computer (GLUE Home found it, ADR 0125: the browser never says). */
+  filePath?: string;
   /** Other DJ-library records that are this song: their paths, linked by the user from "No file linked" (ADR 0124).
       A new read of the library takes them for this song (their own files are gone). */
   aka?: string[];

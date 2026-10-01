@@ -41,7 +41,7 @@ type Phase = 'boot' | 'welcome' | 'reconnect' | 'profiles' | 'collections' | 'li
 export interface RootState { root: Root; dir: FileSystemDirectoryHandle | null; granted: boolean }
 export interface Job { text: string; done: number; total: number | null }
 /** A song being added: its file, where it lives (a music folder, or on its own), how to remember it. */
-type SongInput = { file: File; rootId: string | null; relPath: string | null; handle: FileSystemFileHandle | null; key: (() => Promise<string>) | null };
+type SongInput = { file: File; rootId: string | null; relPath: string | null; handle: FileSystemFileHandle | null; key: (() => Promise<string>) | null; filePath?: string | null };
 
 const now = () => new Date().toISOString();
 
@@ -1183,13 +1183,23 @@ class Library {
           const inside = r.dir && r.granted ? await r.dir.resolve(h) : null;
           if (inside) { rootId = r.root.id; relPath = inside.join('/'); break; }
         }
+        // With GLUE Home (ADR 0125): the browser never says where a dropped song is, GLUE Home finds it. In one of the
+        // collection's music folders, it's that folder's song; elsewhere, GLUE Home keeps its path.
+        let filePath: string | null = null;
+        if (!rootId && this.homeFindFile) {
+          this.job = { text: 'Finding ' + h.name + ' on this computer…', done: i, total: handles.length };
+          const f0 = await h.getFile();
+          const w = await this.homeFindFile(h.name, f0.size, this.roots.map(r => r.root.id)).catch(() => null);
+          if (w?.folder && this.rootState(w.folder.id)) { rootId = w.folder.id; relPath = w.folder.relPath; }
+          else if (w?.path) filePath = w.path;
+        }
         let known = false;
         for (const t of s.tracks.values()) {
           const lh = this.looseHandles.get(t.id);
           if (rootId ? t.rootId === rootId && t.relPath === relPath : lh && await lh.isSameEntry(h)) { known = true; break; }
         }
         if (known) { already++; continue; }
-        fresh.push({ file: await h.getFile(), rootId, relPath, handle: rootId ? null : h, key: rootId ? null : () => platform.rememberFile(h) });
+        fresh.push({ file: await h.getFile(), rootId, relPath, handle: rootId ? null : h, key: rootId ? null : () => platform.rememberFile(h), filePath });
       }
       const r = await this.createSongTracks(fresh);
       this.report(r.added, r.linked, already);
@@ -1230,7 +1240,7 @@ class Library {
       if (matchId) linked++;
       const base = matchId ? s.tracks.get(matchId)! : blankLibTrack(it.file.name);
       const fileKey = it.key ? await it.key() : null;
-      const t: Track = { ...base, status: 'linked', rootId: it.rootId, relPath: it.relPath, fileKey, fileName: it.file.name, size: it.file.size, mtime: it.file.lastModified };
+      const t: Track = { ...base, status: 'linked', rootId: it.rootId, relPath: it.relPath, fileKey, fileName: it.file.name, size: it.file.size, mtime: it.file.lastModified, ...(it.filePath ? { filePath: it.filePath } : {}) };
       if (it.handle) { this.looseHandles.set(t.id, it.handle); granted.add(t.id); }
       out.push(await quickTags(t, new Uint8Array(await it.file.slice(0, TAG_BYTES).arrayBuffer())));
       this.job = { text: this.job?.text ?? 'Adding songs…', done: i + 1, total: items.length };
@@ -1368,7 +1378,13 @@ class Library {
   /** This tab's own analysis stops (its GLUE Home took over, ADR 0103); nothing is paused. */
   /** Where GLUE Home finds a folder dropped onto the page (Home mode), by its name and a song in it; set by the engine client. */
   homeFind: ((id: string, name: string, sample: string) => Promise<string | null>) | null = null;
-  stopOwnAnalysis() { const paused = this.analysis.paused; this.stopAnalysis(); this.analysis = { ...this.analysis, paused }; }
+  stopOwnAnalysis() { const paused = this.analysis.paused; this.stopAnalysis(); this.analysis = { ...this.analysis, paused }; this.enqueueAll(); }
+  /** A song only this browser can read: added on its own, a file handle with no path (ADR 0125). GLUE Home can't
+      analyse it, so this tab does, even while GLUE Home analyses the rest (a dropped song was never analysed,
+      2026-10-01). */
+  private onlyHere(t: Track | undefined) { return !!t && !t.remote && !!t.fileKey?.startsWith('file:') && !t.filePath; }
+  /** Where GLUE Home finds a song dropped onto the page (Home mode, ADR 0125); set by the engine client. */
+  homeFindFile: ((name: string, size: number, roots: string[]) => Promise<{ path: string | null; folder?: { id: string; relPath: string } }>) | null = null;
   /** Stop now: what runs stops, and background analysis is off until it's turned on again. */
   stopAnalysisNow() {
     this.pauseAnalysis(true);
@@ -1378,12 +1394,17 @@ class Library {
   analyseNow(ids: string[]) {
     const s = this.store;
     if (!s) return 0;
-    if (this.analysisElsewhere?.active()) return this.analysisElsewhere.now(ids);
+    let asked = 0;
+    if (this.analysisElsewhere?.active()) {
+      const there = ids.filter(id => !this.onlyHere(s.tracks.get(id)));
+      if (there.length) asked = this.analysisElsewhere.now(there);
+      ids = ids.filter(id => this.onlyHere(s.tracks.get(id)));
+    }
     const want = ids.filter(id => { const t = s.tracks.get(id); return !!t && !t.remote && t.status === 'linked' && this.canRead(t) && !this.active.has(id); });
     for (const id of want) this.forced.add(id);
     this.manual = [...want, ...this.manual.filter(x => !want.includes(x))];
     this.pump();
-    return want.length;
+    return asked + want.length;
   }
   /** Asked for by hand: analysed again even if its analysis is up to date. */
   private forced = new Set<string>();
@@ -1396,8 +1417,13 @@ class Library {
 
   private pump() {
     if (this.readOnly || this.stemsBusy) return;
-    // This computer's GLUE Home analyses its songs (ADR 0103): none here.
-    if (this.analysisElsewhere?.active()) return;
+    // This computer's GLUE Home analyses its songs (ADR 0103): here, only those it can't read (ADR 0125).
+    if (this.analysisElsewhere?.active()) {
+      const s = this.store;
+      this.queue = this.queue.filter(id => this.onlyHere(s?.tracks.get(id)));
+      this.manual = this.manual.filter(id => this.onlyHere(s?.tracks.get(id)));
+      if (!this.queue.length && !this.manual.length) return;
+    }
     // With background analysis off, only tracks asked for explicitly are analysed.
     if (this.analysis.paused && !this.manual.length) return;
     this.pool ??= new AnalysisPool();

@@ -67,6 +67,8 @@ export const TAURI_MOCK = `(() => {
         case 'incoming_move': { const f = files.find(x => x.name === args.name && x.done && !x.moved); if (!f) throw 'not found'; f.moved = args.to; return args.to + '\\\\' + f.name; }
         // window.__find: folder name → where the drive search finds it.
         case 'find_folder': return (window.__find ?? {})[args.name] ?? null;
+        // window.__findFile: song name → where the search finds it.
+        case 'find_file': return (window.__findFile ?? {})[args.name] ?? null;
         case 'glue_list': return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
         case 'plugin:notification|is_permission_granted': return true;
         // window.__glueDisk (a test's exposed function): the GLUE folder read from the real disk, as GLUE Home does.
