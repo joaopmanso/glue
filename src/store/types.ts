@@ -43,7 +43,7 @@ export const INCOMING_ROOT = 'incoming';
     dupApart: pairs of songs the user said aren't duplicates ("Keep · not a duplicate", pairKey); dupManual: groups the
     user marked as duplicates by hand (ADR 0117). mainRoot: the user's main music folder, whose copy is the best among
     equals (ADR 0121). djDismissed: found DJ libraries the user took off the list (place|relPath of each way to the file). */
-export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; dupConfirmed?: string[]; dupApart?: string[]; dupManual?: string[][]; mainRoot?: string; djDismissed?: string[]; genres?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean;
+export interface Collection { schemaVersion: number; id: string; name: string; createdAt: string; roots: Root[]; ignoredDupes?: string[]; dupBest?: Record<string, string>; dupConfirmed?: string[]; dupApart?: string[]; dupManual?: string[][]; mainRoot?: string; djDismissed?: string[]; relinkNo?: string[]; genres?: string[]; autoAnalyse?: boolean; tags?: string[]; cloudMerged?: boolean;
   /** Moved into this shared collection (ADR 0096): kept as it was, read only, no longer synced. */
   movedTo?: string;
   /** The songs that got another id there (ADR 0102). */
@@ -60,6 +60,9 @@ export interface Track {
       GLUE folder (browsers without file handles). Absent for folder and imported tracks. */
   fileKey?: string | null;
   importPath: string | null;    // absolute path as an imported library saw it
+  /** Other DJ-library records that are this song: their paths, linked by the user from "No file linked" (ADR 0124).
+      A new read of the library takes them for this song (their own files are gone). */
+  aka?: string[];
   fileName: string;
   size: number | null;
   mtime: number | null;

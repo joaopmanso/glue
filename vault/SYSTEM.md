@@ -57,6 +57,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **A music folder that can't be reached** (a network folder not connected, a drive not plugged in; an empty folder
   counts) is away, not gone: its songs aren't marked missing, analysed, rescanned or written into. They wait for it
   (ADR 0123).
+- **Songs with no file** (a DJ library's records whose files are gone) are matched to the library's songs on the
+  "No file linked" page (`core/library/relink.ts`, a certainty each) and linked (`linkRecords`): the song takes
+  their playlists and what was set on them, and their record's path (`Track.aka`), so a new read of the DJ library
+  keeps them linked (ADR 0124).
 - **Caches** are not in the GLUE folder:
   - in the browser (OPFS `cache/`): details (the full analysis), thumbs (mini spectrograms), waveforms,
     fingerprints, covers, kept per collection;

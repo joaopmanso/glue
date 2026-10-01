@@ -2702,3 +2702,62 @@ test('a music folder that comes back empty (a network folder not connected) keep
   await expect(page.locator('.tr')).toHaveCount(4);
   await expect(page.locator('.tr .q.bad', { hasText: 'missing' })).toHaveCount(0);
 });
+
+test('No file linked: songs an Engine DJ library lists whose files are gone are matched to the library’s, refused or linked in bulk (ADR 0124)', async ({ page }) => {
+  const initSqlJs = (await import('sql.js')).default;
+  const SQL = await initSqlJs(), db = new SQL.Database();
+  // Removed duplicates: their files are gone, the library has the songs.
+  db.run(`CREATE TABLE Track (id INTEGER PRIMARY KEY, path TEXT, filename TEXT, title TEXT, artist TEXT, bpmAnalyzed REAL, key INTEGER, length INTEGER);
+    CREATE TABLE Playlist (id INTEGER PRIMARY KEY, title TEXT, parentListId INTEGER, nextListId INTEGER);
+    CREATE TABLE PlaylistEntity (id INTEGER PRIMARY KEY, listId INTEGER, trackId INTEGER, nextEntityId INTEGER);
+    INSERT INTO Track VALUES (1,'../Old/mp3-128k (1).mp3','mp3-128k (1).mp3','Fixture MP3','',126,1,4);
+    INSERT INTO Track VALUES (2,'../Old/flac-96k-24 copy.flac','flac-96k-24 copy.flac','Fixture FLAC','',126,1,4);
+    INSERT INTO Track VALUES (3,'../Old/Fixture AAC.m4a','Fixture AAC.m4a','Fixture AAC','',126,1,4);
+    INSERT INTO Track VALUES (4,'../Old/gone.mp3','gone.mp3','Nothing Like It','Nobody',126,1,200);`);
+  const mdb = Buffer.from(db.export()).toString('base64'); db.close();
+  await seed(page);
+  await page.evaluate(async mdb => {
+    let d = await (await navigator.storage.getDirectory()).getDirectoryHandle('Music');
+    for (const p of ['Engine Library', 'Database2']) d = await d.getDirectoryHandle(p, { create: true });
+    const w = await (await d.getFileHandle('m.db', { create: true })).createWritable(); await w.write(Uint8Array.from(atob(mdb), c => c.charCodeAt(0))); await w.close();
+  }, mdb);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });   // titles from the tags
+  await page.locator('#dj-libs .found', { hasText: 'Engine DJ library' }).locator('.addlib').click();
+  await page.locator('.lside .name', { hasText: 'No file linked' }).click();
+  const rows = page.locator('#relink li[data-orphan]');
+  await expect(rows).toHaveCount(3, { timeout: 20_000 });
+  await expect(page.locator('#relink-none')).toContainText('Nothing Like It');
+  for (const t of ['Fixture MP3', 'Fixture FLAC', 'Fixture AAC']) await expect(rows.filter({ hasText: t })).toHaveCount(1);
+  expect(Number(await rows.first().locator('.sure').getAttribute('data-sure'))).toBeGreaterThanOrEqual(90);
+  // Not this one: not offered again.
+  const aac = rows.filter({ hasText: 'Fixture AAC' });
+  await aac.locator('[data-not]').click();
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator('#relink-none')).toContainText('Fixture AAC');
+  // The sure ones, at once.
+  await page.locator('#relink-sure').selectOption('90');
+  await page.click('#relink-tick-all');
+  await page.click('#relink-bulk-link');
+  await page.click('#relink-go');
+  await expect(page.locator('.notice')).toContainText('Linked 2 songs');
+  await expect(rows).toHaveCount(0);
+  await expect(page.locator('#relink-none li')).toHaveCount(2);
+  // The plain list, and back.
+  await page.click('#relink-list');
+  await expect(page.locator('.tr')).toHaveCount(2);
+  await page.click('#relink-find');
+  await expect(page.locator('#relink')).toBeVisible();
+  // After a reload: the linked ones aren't back.
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click({ timeout: 20_000 });
+  await expect(page.locator('.tr')).toHaveCount(6);   // the 4 with files and the 2 left without (it was 8)
+  await page.locator('.lside .name', { hasText: 'No file linked' }).click();
+  await expect(page.locator('#relink-none li')).toHaveCount(2);
+});

@@ -5,6 +5,18 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · "No file linked" finds the songs in your library (GLUE Home 0.39.1)
+- **"No file linked" is a matching page** ([ADR 0124](../adr/0124-no-file-songs-matched-and-linked.md)). An Engine DJ
+  import's playlists named duplicates removed since; most of those songs are in the library.
+  - Each song with no file shows its likely match, with a certainty from title, artist, length, file name, album
+    and size, and why.
+  - "Link", "Not this one", another candidate, or a certainty filter with "Tick all shown" and "Link N…". Doubtful
+    matches (another version, another artist, two as good) are left out of a bulk link unless included.
+  - A linked song takes the playlist places, rating, notes and cues, and keeps the DJ library's record, so Engine
+    DJ's next read doesn't bring the song with no file back.
+  - "Show them as a list" gives the usual table.
+- GLUE Home 0.39.1: the same song format (its engine keeps a linked record per computer in a shared collection).
+
 ## 2026-10-01 · Network folders that come and go; errors that say what's wrong (GLUE Home 0.39.0)
 - **A music folder that can't be reached is away, not gone**
   ([ADR 0123](../adr/0123-music-folders-that-come-and-go.md)). A tester's Mac has all its music on network folders

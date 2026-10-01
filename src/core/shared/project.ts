@@ -9,7 +9,7 @@ import type { AnalysisSummary, Collection, Root, Track } from '../../store/types
 import { INFO_FIELDS } from '../library/tags';
 
 /** A computer's copy of a song: where its file is, and what only that file knows. */
-export const COPY_FIELDS = ['status', 'rootId', 'relPath', 'fileKey', 'importPath', 'size', 'mtime', 'unwritten', 'sources'] as const;
+export const COPY_FIELDS = ['status', 'rootId', 'relPath', 'fileKey', 'importPath', 'aka', 'size', 'mtime', 'unwritten', 'sources'] as const;
 type CopyField = typeof COPY_FIELDS[number];
 export type Copy = Pick<Track, CopyField>;
 /** A song as the shared collection holds it. */

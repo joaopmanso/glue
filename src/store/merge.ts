@@ -63,6 +63,23 @@ export function absorbTracks(store: CollectionStore, into: Map<string, Track>) {
   }
 }
 
+/** Songs with no file linked to songs the library has (ADR 0124): each folds into its song (playlists, rating, notes,
+    cues and the DJ libraries' records), and its record's path is kept on that song, so the next read of the DJ
+    library takes the record for it. `pairs`: no-file song → song. Returns how many were linked. */
+export function linkRecords(store: CollectionStore, pairs: Map<string, string>): number {
+  const into = new Map<string, Track>();
+  for (const [fromId, toId] of pairs) {
+    const from = store.tracks.get(fromId), to = store.tracks.get(toId);
+    if (!from || !to || from.id === to.id || from.status === 'linked' || to.remote) continue;
+    const paths = [from.importPath, ...(from.aka ?? [])].filter((p): p is string => !!p && p !== to.importPath);
+    const cur = store.tracks.get(to.id)!;
+    if (paths.length) store.putTrack({ ...cur, aka: [...new Set([...(cur.aka ?? []), ...paths])] });
+    into.set(fromId, store.tracks.get(to.id)!);
+  }
+  absorbTracks(store, into);
+  return into.size;
+}
+
 function inferRoots(store: CollectionStore, rootPaths: Map<string, string>) {
   let changed = false;
   for (const r of store.meta.roots) { const p = rootPaths.get(r.id); if (p && !r.absPath) { r.absPath = p; changed = true; } }
@@ -101,6 +118,8 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
     return { sourceId: existing.id, tracks: lib.tracks.length, matched: 0, linked: 0, lists: lib.lists.length, linkedLists: { updated: 0, added: 0, removed: 0, incomplete: true }, dropped: 0, entries: lib.stats };
   const sourceId = existing?.id ?? newId();
   const byImportPath = new Map<string, Track>();
+  // Records the user linked to a song (ADR 0124) first; a song's own import path wins over another's link.
+  for (const t of store.tracks.values()) if (!t.remote) for (const p of t.aka ?? []) byImportPath.set(pathKey(p), t);
   for (const t of store.tracks.values()) if (t.importPath && !t.remote) byImportPath.set(pathKey(t.importPath), t);
 
   const ext2track = new Map<string, Track>(), fresh: Track[] = [];

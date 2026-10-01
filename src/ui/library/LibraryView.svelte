@@ -8,6 +8,8 @@
   import LibSidebar from './LibSidebar.svelte';
   import TrackTable from './TrackTable.svelte';
   import DuplicatesView from './DuplicatesView.svelte';
+  import RelinkView from './RelinkView.svelte';
+  import { relink } from '../../lib/relink.svelte';
   import FilterMenu from './FilterMenu.svelte';
   import PlaylistInsights from './PlaylistInsights.svelte';
   import { readPref, writePref } from '../../lib/prefs';
@@ -284,7 +286,9 @@
       </div>
       {/if}
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
-      {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else if view.sel.kind === 'browse'}<BrowseView by={view.sel.by} />{:else}<TrackTable />{/if}
+      {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else if view.sel.kind === 'browse'}<BrowseView by={view.sel.by} />{:else if view.sel.kind === 'unlinked' && !relink.asList}<RelinkView />{:else}
+        {#if view.sel.kind === 'unlinked'}<p class="relinkbar"><button type="button" class="mini" id="relink-find" onclick={() => (relink.asList = false)}>Find them in your library</button></p>{/if}
+        <TrackTable />{/if}
     </div>
   </div>
 </div>
@@ -319,6 +323,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini:hover { border-color: var(--accent); color: var(--accent); }
+  .relinkbar { margin: 0 0 6px; display: flex; justify-content: flex-end; }
   #stats-btn { display: inline-grid; place-items: center; align-self: stretch; }
   #stats-btn svg { width: 12px; height: 12px; }
   .mini.accent { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line-2)); }

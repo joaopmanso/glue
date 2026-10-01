@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-09-30, end of day)
-- **Live:** site, GLUE Cloud (migrations up to 0010), GLUE Home 0.39.0.
+- **Live:** site, GLUE Cloud (migrations up to 0010), GLUE Home 0.39.1.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -46,7 +46,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - GLUE Home 0.38.0: a dropped folder is found by GLUE Home (it was searched for per song and never analysed); a
     folder inside a music folder isn't added; Stop stops everything and hands the library to the browser (ADR 0122);
   - GLUE Home 0.39.0: network folders that come and go (a tester, jbvidigal, on a Mac with all music on Wi-Fi shares):
-    away folders' songs wait instead of going missing or failing; errors say what's wrong (ADR 0123).
+    away folders' songs wait instead of going missing or failing; errors say what's wrong (ADR 0123);
+  - "No file linked" matches songs with no file to the library's, with a certainty, and links them in bulk; links
+    survive Engine DJ's next read (ADR 0124).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
@@ -66,6 +68,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     can be removed.
   - jbvidigal (Mac, 0.39.0): the "needs 0.12" popup should be gone; if a share is down, one calm line instead. If
     GLUE Home's window still shows songs waiting to go into the library, it now says why; ask for that line.
+  - "No file linked" on the Engine DJ import: link the sure ones (95 %+) in bulk, check a few doubtful ones.
 
 ## Next
 - **Flaky e2e under load:** playback tests ("Play" not turning to "Pause") fail now and then in the full suite, never
