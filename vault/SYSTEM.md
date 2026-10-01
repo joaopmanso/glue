@@ -144,7 +144,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     (ADR 0109). Results go into the collection while no pre-engine tab holds the lease.
   - shared sync, song info written into files (`writeUnwritten`), backups, duplicates moved or recycled
     (ADR 0070), DJ libraries followed live (ADR 0065), reminders, updates.
-  - streaming to other devices over WebRTC, signaled through GLUE Cloud (`ice.ts`; the site's `remoteFiles.svelte.ts`);
+  - streaming to other devices over WebRTC, signaled through GLUE Cloud (`ice.ts`; the site's `remoteFiles.svelte.ts`).
+    Bounded (ADR 0132): a connection not open within 30 s is let go, at most 20 are being set up at once, and an
+    offer it can't take is answered "bye". The website says "bye" when it gives up, and waits 5 to 60 s before
+    connecting again for background asks;
     covers for songs whose tags have none, looked up on public services (`lookup.ts`, ADR 0086).
   - finding music folders on disk (`library.ts` `locate`, `folderOf`): one drive search per folder, and what's
     found is kept in its settings (ADR 0122).

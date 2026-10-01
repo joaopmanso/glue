@@ -5,6 +5,21 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · GLUE Home 0.40.2: connections bounded
+- **The user's report:**
+  - the laptop couldn't connect to the desktop at all ("Desktop: no addresses; new"), so no waveforms and no
+    playing;
+  - the iPhone's song pages said "The connection closed".
+- **The cause** ([ADR 0132](../adr/0132-connections-to-glue-home-are-bounded.md)):
+  - every failed connection left a half-made one in GLUE Home;
+  - at 500, the most a page can hold (measured), GLUE Home answered nobody new;
+  - ADR 0131's retries made it come within hours.
+- **GLUE Home:** set-ups not open within 30 s are let go, at most 20 at once, and an offer it can't take is answered.
+- **The website:**
+  - says "bye" when it gives up on a connection;
+  - waits 5 to 60 s before connecting again for background asks (row thumbnails, covers);
+  - playing and song pages try at once.
+
 ## 2026-10-01 · The first screen's waveforms load without scrolling; shared helpers
 - **The user's report:** on the laptop, the first screen's waveforms often didn't load until scrolled away and
   back ([ADR 0131](../adr/0131-rows-on-screen-ask-until-answered.md)).

@@ -18,7 +18,8 @@ export async function connectHome(home: string, label: 'files' | 'stream', opts:
   const say = (h: Handshake) => { account.signal(home, h); };
   let off = () => {};
   let open = false, closed = false;
-  const close = () => { if (closed) return; closed = true; off(); for (const c of [dc, play]) try { c?.close(); } catch { /* closed */ } pc.close(); };
+  // Given up before it opened: GLUE Home is told, so it lets its side go at once (ADR 0132).
+  const close = () => { if (closed) return; closed = true; if (!open) say({ app: 'glue-send', t: 'bye', id }); off(); for (const c of [dc, play]) try { c?.close(); } catch { /* closed */ } pc.close(); };
   const dc = pc.createDataChannel(label, { ordered: true });
   dc.binaryType = 'arraybuffer';
   const play = label === 'stream' ? pc.createDataChannel(label, { ordered: true }) : undefined;

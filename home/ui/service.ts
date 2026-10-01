@@ -26,6 +26,8 @@ let serving = 0;   // songs being sent to another computer right now
 let library: Status['library'] = undefined;
 let reminders: Status['reminders'] = undefined;
 const peers = new Map<string, RTCPeerConnection>();   // handshake id → connection
+/** A connection not open by then is let go; at most this many being set up at once (ADR 0132). */
+const SETUP_MS = 30_000, MAX_SETUPS = 20;
 const early = new Map<string, (RTCIceCandidateInit | null)[]>();   // candidates that came before their connection
 const located = new Map<string, { path: string; name: string; until: number }>();   // songs being streamed: where they are
 const lookingUp = new Map<string, ReturnType<typeof trackPath>>();   // a song being looked for now: its lookup, shared
@@ -87,35 +89,50 @@ async function onSignal(from: string, data: unknown) {
   if (!isHandshake(data) || !room) return;
   const say = (h: Handshake) => room?.send(from, h);
   if (data.t === 'offer') {
-    // The relay's credentials (ADR 0081), asked for once a day: the other side's first candidates
-    // may come meanwhile, so they wait for the connection.
-    let servers = ice.iceNow();
-    if (!servers && cfg?.deviceId && cfg.token) { early.set(data.id, []); servers = await ice.iceServers(apiOf(cfg), cfg.deviceId, cfg.token); }
-    const pc = new RTCPeerConnection({ iceServers: servers ?? ICE_SERVERS });
-    peers.set(data.id, pc);
-    const waiting = early.get(data.id) ?? [];
-    early.delete(data.id);
-    pc.onicecandidate = e => say({ app: 'glue-send', t: 'ice', id: data.id, candidate: e.candidate?.toJSON() ?? null });
-    // "disconnected" often passes (a phone moving between Wi-Fi and mobile data): only give up if it stays.
-    let gone = 0;
-    pc.onconnectionstatechange = () => {
-      clearTimeout(gone);
-      const end = () => { peers.delete(data.id); pc.close(); };
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') end();
-      else if (pc.connectionState === 'disconnected') gone = window.setTimeout(end, 15_000);
-    };
-    pc.ondatachannel = ev => ev.channel.label === 'stream' ? serve(ev.channel) : receive(ev.channel, from);
-    await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
-    for (const c of waiting) await pc.addIceCandidate(c ?? undefined).catch(() => {});
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    say({ app: 'glue-send', t: 'answer', id: data.id, sdp: answer.sdp ?? '' });
+    try {
+      // Connections still being set up: a device retrying while the link can't form left one behind each time,
+      // until this page could make no more and answered nobody (2026-10-01, ADR 0132). The oldest go first.
+      const setting = [...peers].filter(([, pc]) => pc.connectionState !== 'connected');
+      while (setting.length >= MAX_SETUPS) { const [id, pc] = setting.shift()!; peers.delete(id); early.delete(id); pc.close(); }
+      // The relay's credentials (ADR 0081), asked for once a day: the other side's first candidates
+      // may come meanwhile, so they wait for the connection.
+      let servers = ice.iceNow();
+      if (!servers && cfg?.deviceId && cfg.token) { early.set(data.id, []); servers = await ice.iceServers(apiOf(cfg), cfg.deviceId, cfg.token); }
+      const pc = new RTCPeerConnection({ iceServers: servers ?? ICE_SERVERS });
+      peers.set(data.id, pc);
+      const waiting = early.get(data.id) ?? [];
+      early.delete(data.id);
+      const end = () => { clearTimeout(setup); clearTimeout(gone); if (peers.get(data.id) === pc) peers.delete(data.id); pc.close(); };
+      // Not open in time (the other side gave up, or its candidates never came): let it go.
+      const setup = window.setTimeout(() => { if (pc.connectionState !== 'connected') end(); }, SETUP_MS);
+      pc.onicecandidate = e => say({ app: 'glue-send', t: 'ice', id: data.id, candidate: e.candidate?.toJSON() ?? null });
+      // "disconnected" often passes (a phone moving between Wi-Fi and mobile data): only give up if it stays.
+      let gone = 0;
+      pc.onconnectionstatechange = () => {
+        clearTimeout(gone);
+        if (pc.connectionState === 'connected') clearTimeout(setup);
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') end();
+        else if (pc.connectionState === 'disconnected') gone = window.setTimeout(end, 15_000);
+      };
+      pc.ondatachannel = ev => ev.channel.label === 'stream' ? serve(ev.channel) : receive(ev.channel, from);
+      await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
+      for (const c of waiting) await pc.addIceCandidate(c ?? undefined).catch(() => {});
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      say({ app: 'glue-send', t: 'answer', id: data.id, sdp: answer.sdp ?? '' });
+    } catch (e) {
+      // Said, not left unanswered: the other side shows why at once instead of waiting for its time-out.
+      peers.get(data.id)?.close(); peers.delete(data.id); early.delete(data.id);
+      const why = (e as Error).message || String(e);
+      say({ app: 'glue-send', t: 'bye', id: data.id, reason: 'GLUE Home couldn’t take the connection: ' + why });
+      event('A connection couldn’t be set up: ' + why);
+    }
   } else if (data.t === 'ice') {
     const wait = early.get(data.id);
     if (wait) wait.push(data.candidate ?? null);
     else await peers.get(data.id)?.addIceCandidate(data.candidate ?? undefined).catch(() => {});
   }
-  else if (data.t === 'bye') { peers.get(data.id)?.close(); peers.delete(data.id); }
+  else if (data.t === 'bye') { peers.get(data.id)?.close(); peers.delete(data.id); early.delete(data.id); }
 }
 
 function receive(dc: RTCDataChannel, from: string) {

@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-01)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.40.1.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.40.2.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -73,6 +73,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **GLUE Home 0.40.2 on the desktop** (ADR 0132): the desktop's GLUE Home was at its limit of connections. Update
+  it, or Stop and Start it. Then the laptop should connect again: waveforms on the first screen, and songs play.
+  The iPhone's song pages should open.
 - **The first screen's waveforms on the laptop** (ADR 0131, not hand-tested yet): open the collection fresh on
   the laptop (desktop on). The first screen's Overviews and covers should fill in as soon as the desktop answers,
   without scrolling.

@@ -44,6 +44,10 @@ class RemoteFiles {
   /** The song being fetched (the player and its track page show it). */
   loading = $state<{ trackId: string; name: string; device: string; got: number; size: number } | null>(null);
   private links = new Map<string, Promise<Link>>();
+  /** A GLUE Home a connection to just failed: background asks (row thumbnails, covers) wait before connecting again
+      (5, 10, 20… up to 60 s), so rows asking again can't make a new connection every few seconds (ADR 0132). What
+      the user asked for (playing, a song's page) tries at once. */
+  private failed = new Map<string, { at: number; n: number }>();
   private kept = new Map<string, File>();
 
   /** A GLUE Home that can answer now: this computer's over the local link (ADR 0048), or online. */
@@ -76,9 +80,11 @@ class RemoteFiles {
     return h ? { home: h } : null;
   }
 
-  private link(home: string): Promise<Link> {
+  private link(home: string, now = false): Promise<Link> {
     let l = this.links.get(home);
     if (!l) {
+      const f = this.failed.get(home), wait = f && !now ? Math.min(60_000, 5_000 * 2 ** (f.n - 1)) - (Date.now() - f.at) : 0;
+      if (wait > 0) return Promise.reject(new Error('it couldn’t be reached just now (trying again in ' + Math.ceil(wait / 1000) + ' s)'));
       const drop = () => { if (this.links.get(home) === l) this.links.delete(home); };
       l = connectHome(home, 'stream', { onFail: () => { drop(); void l?.then(k => { for (const w of k.waiting.values()) w.gone(); }); } }).then(ch => {
         const k: Link = { ch, waiting: new Map(), running: 0, files: 0, timeouts: 0, queue: [] };
@@ -88,9 +94,10 @@ class RemoteFiles {
         };
         ch.dc.onmessage = onmessage;
         if (ch.play) ch.play.onmessage = onmessage;
+        this.failed.delete(home);
         return k;
       });
-      l.catch(drop);
+      l.catch(() => { drop(); const was = this.failed.get(home); this.failed.set(home, { at: Date.now(), n: (was?.n ?? 0) + 1 }); });
       this.links.set(home, l);
     }
     return l;
@@ -100,8 +107,8 @@ class RemoteFiles {
   /** One request to a GLUE Home: its answer's `data`, and the bytes that came with it. Several run at
       once; each gives up if its answer doesn't come. `upload`: bytes sent after the request. */
   async ask(home: string, req: Req, opts: { onBytes?: (got: number, size: number) => void; upload?: Uint8Array; firstWait?: number } = {}): Promise<Answer> {
-    const k = await this.link(home);
     const file = req.t === 'get' || req.t === 'get-incoming', play = file || req.t === 'range';
+    const k = await this.link(home, play || req.t === 'details');
     // Wait for a free place: what's playing goes first, and background asks leave it room.
     const fits = (f: boolean, p: boolean) => k.running < (p ? MAX_AT_ONCE : MAX_BACKGROUND) && (!f || k.files < MAX_FILES);
     if (!fits(file, play)) await new Promise<void>(go => { const q = { file, play, go }; if (play) k.queue.splice(k.queue.findIndex(x => !x.play) >>> 0, 0, q); else k.queue.push(q); });
