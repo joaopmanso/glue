@@ -224,6 +224,15 @@ test('GLUE Home’s window says what it’s doing: the analysis, a pause button,
   await expect(page.locator('#an-workers option').first()).toHaveText(/^Automatic \(\d+\)$/);
   await page.selectOption('#an-workers', '8');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config') ?? '{}').analysisWorkers)).toBe(8);
+  // From each network folder: no limit unless set, the user's to tune (ADR 0136).
+  await expect(page.locator('#net-workers')).toHaveValue('0');
+  await page.selectOption('#net-workers', '4');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config') ?? '{}').networkAtOnce)).toBe(4);
+  // How fast, and a suggestion from it.
+  const speed = { perMin: 42, localMBs: 85, netMBs: 22, localReadMs: 300, netReadMs: 5200, analyseMs: 900, songs: 84, netSongs: 30 };
+  await status({ ...base, speed, suggestion: 'Songs on network folders spend most of their time being read: fewer at once from each network folder (try 4) leaves places for songs on this computer’s drives.' }, []);
+  await expect(page.locator('#an-speed')).toHaveText('Speed: 42 songs a minute · reading 85 MB/s from this computer’s drives, 22 MB/s from network folders · a song takes 5.2 s to read and 900 ms to analyse');
+  await expect(page.locator('#an-suggest')).toContainText('try 4');
 });
 
 test('GLUE Home whose settings never said running or stopped goes online, and stays so as other settings are saved', async ({ page }) => {

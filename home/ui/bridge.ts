@@ -37,6 +37,7 @@ export interface HomeConfig {
   duplicates?: string | null;   // where duplicates the website puts aside go (ADR 0070)
   reminders?: boolean;          // notify of events that need music (ADR 0074; on unless false)
   maxSessions?: number;         // devices connected at once (ADR 0133; 5 unless set)
+  networkAtOnce?: number;       // songs analysed at once from each network folder (ADR 0136; 0 or unset: no limit)
   /** The computer GLUE Home is on (ADR 0108): the account device its shared parts go under; learned from GLUE
       Cloud (its companion) or its music folders. None yet: nothing per computer is written. */
   computer?: string | null;

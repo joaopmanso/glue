@@ -164,6 +164,9 @@
   });
   const mb = (b: number) => b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : b >= 1e3 ? Math.round(b / 1e3) + ' kB' : b ? b + ' B' : '';
   const secs = (ms: number) => ms >= 60_000 ? (ms / 60_000).toFixed(1) + ' min' : ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
+  /** The speed's numbers (ADR 0136): a read rate, and a time per song. */
+  const rate = (mbs: number) => (mbs >= 10 ? Math.round(mbs) : mbs.toFixed(1)) + ' MB/s';
+  const sec = (ms: number) => ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
   function copyActivity() {
     const text = 'GLUE Home ' + current + ', running ' + Math.round((own?.seconds ?? 0) / 60) + ' min\n' + activity.map(r => [r.what, r.calls, secs(r.ms), mb(r.bytes)].join('\t')).join('\n');
     void navigator.clipboard.writeText(text);
@@ -251,6 +254,21 @@
             </label>
           </div>
           <p class="fine">More at a time is faster and uses more of this computer’s processor and memory. Analysis runs on the processor, not the graphics card.</p>
+          <div class="row">
+            <label>From each network folder at a time
+              <select id="net-workers" value={String(cfg?.networkAtOnce || 0)} onchange={e => void save({ networkAtOnce: Number((e.currentTarget as HTMLSelectElement).value) })}>
+                <option value="0">No limit</option>
+                {#each [1, 2, 4, 6, 8, 12, 16] as n (n)}<option value={String(n)}>{n}</option>{/each}
+              </select>
+            </label>
+          </div>
+          <p class="fine">A song on a network folder (a NAS) is read over the network before it’s analysed: fewer at once from each one leaves places for songs on this computer’s drives.</p>
+          <!-- How fast, over the last two minutes, and what might make it faster (ADR 0136). -->
+          {#if an.speed}
+            {@const sp = an.speed}
+            <p class="fine" id="an-speed">Speed: {Math.round(sp.perMin)} song{Math.round(sp.perMin) === 1 ? '' : 's'} a minute · reading {sp.songs > sp.netSongs ? rate(sp.localMBs) + ' from this computer’s drives' : ''}{sp.songs > sp.netSongs && sp.netSongs ? ', ' : ''}{sp.netSongs ? rate(sp.netMBs) + ' from network folders' : ''} · a song takes {sec(Math.max(sp.localReadMs, sp.netReadMs))} to read and {sec(sp.analyseMs)} to analyse</p>
+          {/if}
+          {#if an.suggestion}<p class="fine tip" id="an-suggest">{an.suggestion}</p>{/if}
         {:else}<p class="fine">Starting…</p>{/if}
         {#if status?.events?.length}
           <h3>Lately</h3>
@@ -403,6 +421,7 @@
   h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
   p { margin: 0; }
   .fine { color: var(--muted); font-size: 12.5px; }
+  .fine.tip { color: var(--text, inherit); border-left: 3px solid var(--accent, #7cc7ff); padding-left: 8px; }
   #activity { margin-top: 10px; }
   #activity summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
   .act { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }

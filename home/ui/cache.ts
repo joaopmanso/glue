@@ -132,13 +132,15 @@ let pool: AnalysisPool | null = null;
 
 /** Read a song of this computer's library (in 4 MB steps) and analyse it like the website does. */
 /** `tell`: the result is for the library (false: only this cache's, filled in the background; the library has it). */
-export async function analyse(p: string, c: string, id: string, cfg: HomeConfig, tell = true): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null }> {
+export async function analyse(p: string, c: string, id: string, cfg: HomeConfig, tell = true): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null; bytes: number; readMs: number; analyseMs: number }> {
   const f = await trackPath(p, c, id, cfg);
+  const t0 = performance.now();
   const size = await bridge.fileSize(f.path), parts: ArrayBuffer[] = [];
   let got = 0;
   for (let at = 0; at < size;) { const b = await bridge.fileRead(f.path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; got = at; }
   // A network folder that dropped mid-file: tried again later, never decoded (and kept as failed) from a part.
   if (got < size) throw new Error('GLUE Home read only part of ' + f.name + ' (' + got + ' of ' + size + ' bytes): its folder isn’t reachable right now');
+  const t1 = performance.now();
   const want = poolSize(cfg);
   if (pool && pool.size !== want) { const old = pool; pool = null; setTimeout(() => old.stop(), 150_000); }   // what runs there finishes
   pool ??= new AnalysisPool(want);
@@ -156,6 +158,7 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig,
     if (tell) onAnalysed.f?.(p, c, id);
     throw e;
   }
+  const t2 = performance.now();
   if (r.thumb) await putThumb(p, c, id, r.thumb);
   if (r.wave) await putWave(p, c, id, r.wave);
   if (r.details) await putDetails(p, c, id, r.details.header, r.details.bin);
@@ -164,7 +167,7 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig,
   await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify(analysed(r, size, f.mtime))));   // last: a result has all its parts
   if (tell) onAnalysed.f?.(p, c, id);
   onMade.f?.(p, c, id);
-  return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null };
+  return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null, bytes: got, readMs: t1 - t0, analyseMs: t2 - t1 };
 }
 
 /** A song's parts were made here (any reason): the devices with a session are told (ADR 0133). */

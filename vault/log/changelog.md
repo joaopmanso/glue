@@ -5,6 +5,15 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · GLUE Home 0.41.3: the analysis speed shown, the limits yours
+- **The user:** the network cap shouldn't come from their NAS; leave it selectable and show stats instead
+  ([ADR 0136](../adr/0136-analysis-limits-are-the-users-with-speed-shown.md)).
+- **"From each network folder at a time"** in GLUE Home's window: No limit (unless set), or 1 to 16.
+- **Speed** over the last two minutes: songs a minute, MB/s from this computer's drives and from network folders,
+  and a song's time to read and to analyse.
+- **A suggestion when one stands out:** fewer at once from network folders when reading them takes most of the
+  time; more at a time when the processor has room; fewer when there are more than processors.
+
 ## 2026-10-01 · GLUE Home 0.41.2: analysing around a network folder
 - **The user's report:** the tab's and GLUE Home's "left" counts differed by 20–30; "Reading tags… 0/9807" sat
   still; with 24 songs at a time the processor stayed under 60%

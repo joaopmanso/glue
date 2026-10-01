@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; the fixed "4 at a time from each network folder" superseded by 0136 (the user's setting, with the speed shown)
 date: 2026-10-01
 ---
 # 0135. Analysis around network folders: their songs take turns, GLUE Home reads tags in batches, one "left" count

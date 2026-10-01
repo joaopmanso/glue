@@ -14,6 +14,7 @@ import { describe, here } from './library';
 import * as cache from './cache';
 import * as engine from './engine';
 import { isNetwork, pickNext } from './lanes';
+import { speedOf, suggest, type Sample, type Speed } from './speed';
 import { afterAnalysis, needsAnalysis } from '../../src/core/library/analysed';
 import { unknownComputer, type SharedCollection } from '../../src/core/shared/project';
 import { ANALYSIS_VERSION, type AnalysisSummary, type Collection, type Track } from '../../src/store/types';
@@ -30,9 +31,13 @@ export interface AnalysisState {
   why: string;
   /** Songs this run left for later: their music folder isn't reachable (a network folder not connected). */
   away: number;
+  /** How fast, over the last two minutes, and a suggestion from it (ADR 0136). */
+  speed?: Speed | null; suggestion?: string;
 }
 export const state: AnalysisState = { paused: false, running: 0, current: [], left: 0, done: 0, failed: 0, waiting: 0, by: 'idle', why: '', away: 0 };
 
+/** What the last songs took (ADR 0136): GLUE Home's window shows the speed from them. */
+const samples: Sample[] = [];
 /** `net`: its network folder (ADR 0135), if it's in one. */
 type Job = { p: string; c: string; id: string; name: string; net?: string };
 const PENDING = 's/pending.json';
@@ -171,7 +176,7 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
       if (await bridge.leaseHeld() && Date.now() > delegatedUntil) { state.by = 'tab-self'; return null; }
       // In order, but a network folder's songs take turns, so the other places go to songs on this computer's drives
       // (ADR 0135). None may start now: this place waits for one to finish.
-      const i = pickNext(queue, netRunning);
+      const i = pickNext(queue, netRunning, Math.max(0, Math.round(c?.networkAtOnce ?? 0)));
       return i < 0 ? null : queue.splice(i, 1)[0];
     };
     // As many at a time as the settings say, changed while it runs too.
@@ -187,7 +192,14 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
         active.add(jk);
         if (j.net) netRunning.set(j.net, (netRunning.get(j.net) ?? 0) + 1);
         state.running++; state.current = [...state.current, j.name]; state.left = urgent.length + queue.length; changed();
-        try { await cache.analyse(j.p, j.c, j.id, c); state.done++; }
+        try {
+          const r = await cache.analyse(j.p, j.c, j.id, c); state.done++;
+          const now = Date.now();
+          samples.push({ at: now, bytes: r.bytes, readMs: r.readMs, analyseMs: r.analyseMs, net: !!j.net });
+          while (samples.length && now - samples[0].at > 120_000) samples.shift();
+          state.speed = speedOf(samples, now);
+          state.suggestion = suggest(state.speed, { atOnce: cache.poolSize(c), cores: navigator.hardwareConcurrency || 4, netCap: Math.round(c.networkAtOnce ?? 0) });
+        }
         catch (e) {
           // Its folder isn't reachable (a network folder not connected): left for a later look, not a failure.
           if ((e as Error).name === 'FolderAway' || /isn’t reachable/.test(String((e as Error)?.message))) state.away++;
