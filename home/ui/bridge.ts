@@ -110,6 +110,8 @@ export const bridge = {
   incomingList: () => invoke<{ name: string; size: number; mtime: number; path: string }[]>('incoming_list'),
   incomingMove: (name: string, to: string) => invoke<string>('incoming_move', { name, to }),
   localPort: () => invoke<number>('local_port'),
+  /** When the website here last read a song file, ms (ADR 0138; 0 from a GLUE Home before 0.41.6). */
+  foregroundAt: () => invoke<number>('foreground_at').catch(() => 0),
   glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
   glueList: (rel: string) => invoke<string[]>('glue_list', { rel }),
   fileSize: (path: string) => invoke<number>('file_size', { path }),

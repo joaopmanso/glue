@@ -287,6 +287,8 @@ function serve(dc: RTCDataChannel, session?: Session) {
       // the folder that has it.
       const pc = c as { profile?: string; collection?: string };
       if (pc.profile && pc.collection) pc.profile = await folderOf(pc.profile, pc.collection);
+      // A song streamed to another device: the analysis lets it go first (ADR 0138).
+      if (c.t === 'get' || c.t === 'range') cache.playing.at = Date.now();
       if (c.t === 'get') {
         const seen = { ...(need().folders ?? {}) };
         const f = await trackPath(c.profile, c.collection, c.track, need());

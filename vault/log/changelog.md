@@ -5,6 +5,20 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · GLUE Home 0.41.6: what you ask for goes first
+- **The user's report:** analysing a NAS folder of 24-bit FLACs, 2 songs a minute at 10 MB/s; the page lost its
+  direct link again, and clicking 3 or 4 songs in a row broke playing
+  ([ADR 0138](../adr/0138-what-the-user-asks-for-goes-first.md)).
+- **Measured:** GLUE Home answered in 4–87 ms, but the page had used up the browser's 6 connections to it (the
+  analyses' results 20 at a time, the rows' pictures, the status poll piling up). The NAS gave 47–74 MB/s to plain
+  reads while GLUE Home got 10.
+- **The page:** background requests to GLUE Home's cache go through a gate, 3 at a time, a song page's first; the
+  status poll runs one at a time.
+- **GLUE Home:**
+  - while a song plays (here or streamed to a device), no new analysis beyond 2;
+  - it reads songs whole from its own local link in 1 MB steps, not 4 MB at a time through Tauri.
+- **Next:** a dedicated socket for the thousands of spectrograms, waveforms and covers (the user's idea).
+
 ## 2026-10-01 · GLUE Home 0.41.5: this computer is never a remote session
 - **The user's report:** while analysing, the desktop's page kept losing its direct link, and the iPhone couldn't
   connect; stopping the analysis fixed both ([ADR 0137](../adr/0137-this-computer-never-a-remote-session.md)).

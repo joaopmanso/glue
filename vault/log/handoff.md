@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-01)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.5.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.6.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -73,6 +73,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **GLUE Home 0.41.6** (ADR 0138): with the NAS folder analysing, click several songs in a row. They should play, and
+  the direct link should stay. Then compare the Speed panel's MB/s from network folders with before (10 MB/s; the NAS
+  gave 47–74 to plain reads).
 - **The analysis starving GLUE Home** (ADR 0137): **settled by 0.41.5.** The user confirmed the desktop keeps its
   direct link and the iPhone streams with 24 at a time and network folders at 4.
   - **Measured during it:** GLUE Home's `/hello` answered in 2 to 4 ms. Its analysis process used about a quarter of
@@ -134,6 +137,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     analysed by GLUE Home. "Odessa" (added on its own before the fix) can be removed and dropped again.
 
 ## Next
+- **A dedicated socket to GLUE Home** (the user's idea, ADR 0138's next): one WebSocket from the page to the local
+  link for the thousands of spectrograms, waveforms, covers and the analyses' results.
+  - Any number at once on one connection, cancelled when a row scrolls away.
+  - Replaces the gate; frees the browser's 6 connections for playing.
+  - GLUE Home 0.42: tiny_http's upgrade with a WebSocket library.
 - **From the code map** (function names defined in several files, 2026-10-01; the loaders and copy names are done):
   - **"the same name"** is judged five ways, with different rules: `duplicates.ts` and `relink.ts` `plain`,
     `dupes.svelte.ts` `norm`, `shared/match.ts` `norm`, `coverSearch.ts` `norm`. So Duplicates, No file linked and

@@ -130,7 +130,25 @@ export async function cacheFile(key: string) { return read(key); }
 // ---- analysing here --------------------------------------------------------------------------------
 let pool: AnalysisPool | null = null;
 
-/** Read a song of this computer's library (in 4 MB steps) and analyse it like the website does. */
+/** A song's bytes, read whole (ADR 0138): from GLUE Home's own local link in one request, one open file, the bytes a Blob
+    (never through this page's JavaScript a piece at a time). Through Tauri 4 MB at a time it came at about 10 MB/s in
+    all from a NAS that gives 47 to 74 (2026-10-01). Through Tauri still when the local link isn't there (a GLUE Home
+    window in a test), or answers no. */
+let localPort: Promise<number> | null = null;
+async function readWhole(path: string, size: number, cfg: HomeConfig): Promise<Blob> {
+  const port = await (localPort ??= bridge.localPort().catch(() => 0));
+  if (port && cfg.localToken) {
+    const r = await fetch('http://127.0.0.1:' + port + '/home/file?path=' + encodeURIComponent(path), { headers: { 'x-glue-token': cfg.localToken } }).catch(() => null);
+    // Cut off midway (a network folder dropping): through Tauri, which says how much it read ("isn't reachable").
+    const b = r?.ok ? await r.blob().catch(() => null) : null;
+    if (b) return b;
+  }
+  const parts: ArrayBuffer[] = [];
+  for (let at = 0; at < size;) { const b = await bridge.fileRead(path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; }
+  return new Blob(parts);
+}
+
+/** Read a song of this computer's library (whole, readWhole) and analyse it like the website does. */
 /** `tell`: the result is for the library (false: only this cache's, filled in the background; the library has it). */
 export async function analyse(p: string, c: string, id: string, cfg: HomeConfig, tell = true): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null; bytes: number; readMs: number; analyseMs: number }> {
   const f = await trackPath(p, c, id, cfg);
@@ -138,9 +156,8 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig,
   step(null, 'reading');
   let now: 'reading' | 'analysing' | null = 'reading';
   try {
-    const size = await bridge.fileSize(f.path), parts: ArrayBuffer[] = [];
-    let got = 0;
-    for (let at = 0; at < size;) { const b = await bridge.fileRead(f.path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; got = at; }
+    const size = await bridge.fileSize(f.path);
+    const whole = await readWhole(f.path, size, cfg), got = whole.size;
     // A network folder that dropped mid-file: tried again later, never decoded (and kept as failed) from a part.
     if (got < size) throw new Error('GLUE Home read only part of ' + f.name + ' (' + got + ' of ' + size + ' bytes): its folder isn’t reachable right now');
     const t1 = performance.now();
@@ -152,7 +169,7 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig,
     // worker ends (only its: every other song goes on).
     let r: Awaited<ReturnType<AnalysisPool['analyze']>>;
     try {
-      r = await pool.analyze(new File(parts, f.name, { lastModified: f.mtime }), f.mtime, 120_000);
+      r = await pool.analyze(new File([whole], f.name, { lastModified: f.mtime }), f.mtime, 120_000);
     } catch (e) {
       // Out of time or memory, or its worker stopped: tried again later (ADR 0109), never saved as the song's.
       if (/analysis worker stopped/.test(String((e as Error)?.message)) || isTransient(String((e as Error)?.message))) throw e;
@@ -175,6 +192,9 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig,
     return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null, bytes: got, readMs: t1 - t0, analyseMs: t2 - t1 };
   } finally { if (now) step(now, null); }
 }
+
+/** When another device last streamed a song from here (ADR 0138): the analysis eases off, as for this computer's page. */
+export const playing = { at: 0 };
 
 /** A song's parts were made here (any reason): the devices with a session are told (ADR 0133). */
 export const onMade: { f: ((p: string, c: string, id: string) => void) | null } = { f: null };

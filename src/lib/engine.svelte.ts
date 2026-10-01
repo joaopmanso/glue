@@ -6,6 +6,7 @@
      mini spectrogram, waveform, details and fingerprint from its cache, into this browser's;
    - analysis, Analyse now, Stop and Resume are the engine's; its numbers show in the analysis bar.
    This tab no longer holds the writer lease (that's for tabs from before the engine). */
+import { Gate } from './gate';
 import { lib } from './library.svelte';
 import { thumbs, waves } from './thumbs.svelte';
 import { localHome } from './localHome.svelte';
@@ -119,9 +120,10 @@ class EngineClient {
   }
   /** A file of GLUE Home's cache for a song of the open collection (ADR 0110): `t` its mini spectrogram, `w` its
       waveform, `d` its details, `p` its fingerprint. Null: not there (or no engine). */
-  fromCache(kind: 't' | 'w' | 'd' | 'p', id: string, ext: 'bin' | 'json' = 'bin', w = this.where()): Promise<Uint8Array | null> {
+  /** `first`: the user's (a song's page), ahead of the rows' and the analyses' results in the gate (ADR 0138). */
+  fromCache(kind: 't' | 'w' | 'd' | 'p', id: string, ext: 'bin' | 'json' = 'bin', w = this.where(), first = false): Promise<Uint8Array | null> {
     if (!this.active || !w || !localHome.link) return Promise.resolve(null);
-    return localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(`${kind}/${w.p}/${w.c}/${shardOf(id)}/${id}.${ext}`)).then(b => new Uint8Array(b)).catch(() => null);
+    return cacheGate.run(() => localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(`${kind}/${w.p}/${w.c}/${shardOf(id)}/${id}.${ext}`)).then(b => new Uint8Array(b)).catch(() => null), first);
   }
   /** A song's tags were written from here: GLUE Home's copy of its analysis follows the file. */
   async restamp(id: string, was: { size: number | null; mtime: number | null }, now: { size: number; mtime: number }) {
@@ -130,7 +132,8 @@ class EngineClient {
   }
   /** A song's details from GLUE Home's cache. */
   async details(id: string): Promise<{ header: DetailsHeader; bin: Uint8Array } | null> {
-    const [h, bin] = await Promise.all([this.fromCache('d', id, 'json'), this.fromCache('d', id, 'bin')]);
+    const w = this.where();
+    const [h, bin] = await Promise.all([this.fromCache('d', id, 'json', w, true), this.fromCache('d', id, 'bin', w, true)]);
     return h && bin ? { header: JSON.parse(new TextDecoder().decode(h)) as DetailsHeader, bin } : null;
   }
 
@@ -138,7 +141,7 @@ class EngineClient {
   private async takeDerived(w: { p: string; c: string }, ids: string[]) {
     const dir = await cacheDir();
     const k = (kind: string, id: string, ext: string) => `${kind}/${w.p}/${w.c}/${shardOf(id)}/${id}.${ext}`;
-    const get = (key: string) => localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(key)).then(b => new Uint8Array(b)).catch(() => null);
+    const get = (key: string) => cacheGate.run(() => localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(key)).then(b => new Uint8Array(b)).catch(() => null));
     for (let i = 0; i < ids.length; i += 4) await Promise.all(ids.slice(i, i + 4).map(async id => {
       const [th, wv, dh, db, fp] = await Promise.all([get(k('t', id, 'bin')), get(k('w', id, 'bin')), get(k('d', id, 'json')), get(k('d', id, 'bin')), get(k('p', id, 'bin'))]);
       if (lib.store?.meta.id !== w.c) return;
@@ -150,9 +153,12 @@ class EngineClient {
     }));
   }
   /** What the engine is doing (the analysis bar). */
+  private refreshing = false;
   async refresh() {
-    if (!this.active) return;
-    const st = await this.rpc<EngineState>({ op: 'status' }, 8000).catch(() => null);
+    // One at a time: a slow GLUE Home doesn't get a new one every 4 s on top (ADR 0138).
+    if (!this.active || this.refreshing) return;
+    this.refreshing = true;
+    const st = await this.rpc<EngineState>({ op: 'status' }, 8000).catch(() => null).finally(() => { this.refreshing = false; });
     if (!st || !this.active) return;
     this.state = st;
     lib.analysis = { ...lib.analysis, running: st.analysis.running, paused: st.analysis.paused };
@@ -171,6 +177,9 @@ class EngineClient {
   pause(p: boolean) { if (this.active) void this.rpc({ op: 'pause', on: p }).then(() => this.refresh()).catch(() => {}); }
 }
 
+/** GLUE Home's cache (the rows' spectrograms and waveforms, the analyses' results) at most 3 requests at a time: a
+    browser has 6 connections to 127.0.0.1, and these took them all, so a song clicked waited (ADR 0138). */
+const cacheGate = new Gate(3);
 export const engineClient = new EngineClient();
 lib.analysisElsewhere = { active: () => engineClient.active, now: ids => engineClient.now(ids), pause: p => engineClient.pause(p) };
 lib.beforeClose = () => engineClient.flush();

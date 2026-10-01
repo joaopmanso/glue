@@ -179,6 +179,9 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
       if (state.paused || !queue.length || c?.running === false) return null;
       // A tab here analysing by itself (it holds the lease and doesn't ask): the songs are its.
       if (await bridge.leaseHeld() && Date.now() > delegatedUntil) { state.by = 'tab-self'; return null; }
+      // A song being played here or on another device goes first: no new song beyond 2 while one was read in the last
+      // 10 s, so the drive or the NAS serves it (ADR 0138).
+      if (state.running >= 2 && Date.now() - Math.max(cache.playing.at, await bridge.foregroundAt()) < 10_000) return null;
       // In order, but a network folder's songs take turns, so the other places go to songs on this computer's drives
       // (ADR 0135). None may start now: this place waits for one to finish.
       const i = pickNext(queue, netRunning, Math.max(0, Math.round(c?.networkAtOnce ?? 0)));

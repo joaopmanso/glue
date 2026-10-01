@@ -407,7 +407,7 @@ async fn glue_list(app: AppHandle, rel: String) -> Result<Vec<String>, String> {
 }
 
 /// Files GLUE Home may read: in the GLUE folder, the music folders it located, the incoming folder.
-fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
+pub(crate) fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
     let c = get_config(app.clone());
     let mut roots: Vec<PathBuf> = [cfg_str(&c, "glue"), cfg_str(&c, "incoming")].into_iter().flatten().collect();
     if let Some(m) = c.as_ref().and_then(|c| c.get("folders")).and_then(|v| v.as_object()) {
@@ -562,6 +562,12 @@ fn set_status(app: AppHandle, tray: State<'_, Tray>, text: String, running: bool
     }
 }
 
+/// When the website here last read a song file (ADR 0138), ms.
+#[tauri::command]
+fn foreground_at() -> u64 {
+    local::FOREGROUND_AT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// The local link's port (0 until it's listening).
 #[tauri::command]
 fn local_port() -> u16 {
@@ -617,7 +623,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

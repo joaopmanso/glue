@@ -163,6 +163,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - It reads the GLUE folder through the link.
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease.
   - Overviews and details come from GLUE Home's `/cache` when the browser has none (ADR 0110).
+  - **What the user asks for goes first** (ADR 0138): the page's background requests to GLUE Home's cache go through a
+    gate (3 at a time, `src/lib/gate.ts`), leaving the browser's other connections for playing; while a song plays
+    (here or streamed), GLUE Home starts no new analysis beyond 2; it reads a song whole from its own local link
+    (`/home/file`), not 4 MB at a time through Tauri.
   - The analysis bar shows GLUE Home's own queue (its `status`: left + running), the same "left" its window shows
     (ADR 0135). A network folder's songs take turns, at most "From each network folder at a time" (the user's, no limit unless set, ADR 0136; `home/ui/lanes.ts`); its window shows the speed (tiles, a ten-minute chart, and meters of the songs running reading or analysing, `cache.steps`) and a suggestion (`home/ui/speed.ts`); new songs' tags are read
     by GLUE Home, 200 a request (`/fs/read-tags`).

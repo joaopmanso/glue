@@ -29,6 +29,9 @@ fn refused_while_stopped(cfg: Option<&serde_json::Value>, origin: Option<&str>) 
 pub static LEASE_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 /// Bumped when another device says it sent edits: the tab takes them in at once.
 pub static EDITS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// When the website on this computer last read a song file (playing it, mostly): GLUE Home's analysis eases off for a
+/// moment, so the song comes first (ADR 0138).
+pub static FOREGROUND_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 /// Requests to the library engine in the service page (ADR 0104): each waits here for its answer.
 static RPC_NEXT: AtomicU64 = AtomicU64::new(0);
 fn rpc_waiting() -> &'static Mutex<HashMap<u64, mpsc::Sender<String>>> {
@@ -240,8 +243,18 @@ fn answer(app: AppHandle, req: Request) {
         "/dock/show" if req.method() == &Method::Post => { crate::dock::show(&app); reply(req, 200, b"{}".to_vec(), "application/json") }
         "/dock" if req.method() == &Method::Get => reply(req, 200, crate::dock::current().to_string().into_bytes(), "application/json"),
         "/dock/clear" if req.method() == &Method::Post => { crate::dock::clear(&app); reply(req, 200, b"{}".to_vec(), "application/json") }
-        // The website's files, through GLUE Home (ADR 0051).
-        p if p.starts_with("/fs/") => crate::disk::handle(app.clone(), req, p, &arg, cors),
+        // A song read whole for GLUE Home's own analysis (ADR 0138): any file GLUE Home may read (as its file_read), in one
+        // request from one open file, for its own windows with the full token only. Through Tauri's messages, 4 MB at a
+        // time, it came at about 10 MB/s in all from a NAS that gives 47 to 74 (2026-10-01).
+        "/home/file" if full && matches!(origin.as_deref(), Some("http://tauri.localhost") | Some("tauri://localhost")) => {
+            match crate::allowed(&app, &arg("path")) {
+                Ok(p) if p.is_file() => send_file(req, &p, "application/octet-stream", cors),
+                Ok(_) => reply(req, 404, b"{\"error\":\"not a file\"}".to_vec(), "application/json"),
+                Err(e) => reply(req, 403, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json"),
+            }
+        }
+        // The website's files, through GLUE Home (ADR 0051). A song file read: the analysis lets it go first (ADR 0138).
+        p if p.starts_with("/fs/") => { if p == "/fs/file" { FOREGROUND_AT.store(now_ms(), Ordering::Relaxed); } crate::disk::handle(app.clone(), req, p, &arg, cors) }
         "/incoming" => {
             let list: Vec<serde_json::Value> = crate::incoming_list_impl(app.clone()).into_iter().map(|mut f| {
                 // With the analysis GLUE Home made when the song arrived, if it's done.
@@ -324,7 +337,8 @@ pub(crate) fn send_file(req: Request, path: &std::path::Path, ctype: &str, cors:
     }
     let count = if len == 0 { 0 } else { end.saturating_sub(start) + 1 };
     let _ = f.seek(SeekFrom::Start(start));
-    let mut r = Response::new(StatusCode(if partial { 206 } else { 200 }), vec![], f.take(count), Some(count as usize), None);
+    // Read in 1 MB steps: a network folder gives far more for big reads than for the server's small ones (ADR 0138).
+    let mut r = Response::new(StatusCode(if partial { 206 } else { 200 }), vec![], std::io::BufReader::with_capacity(1 << 20, f).take(count), Some(count as usize), None);
     r.add_header(header("Content-Type", ctype));
     r.add_header(header("Accept-Ranges", "bytes"));
     if partial {
