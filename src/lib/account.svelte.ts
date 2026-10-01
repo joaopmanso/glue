@@ -9,7 +9,7 @@ export const GOOGLE_CLIENT_ID = '486502590189-93o8r488c7gst4bviqvbsuflke7ujd06.a
 const GIS_URL = 'https://accounts.google.com/gsi/client';
 
 export type Tier = 'free' | 'paid' | 'admin';
-export interface CloudUser { id: string; email: string | null; name: string | null; picture: string | null; tier?: Tier; providers?: string[] }
+export interface CloudUser { id: string; email: string | null; name: string | null; picture: string | null; tier?: Tier; providers?: string[]; createdAt?: number; guide?: import('../core/guide/state').GuideState }
 
 export { passwordKey } from '../core/password';
 /** companionOf: for a GLUE Home, the browser on the same computer that it serves (ADR 0045). */
@@ -191,6 +191,13 @@ class Account {
     const j = await r.json().catch(() => ({})) as T & { error?: string };
     if (!r.ok) { if (r.status === 401) this.forget(); throw Object.assign(new Error(j.error || 'GLUE Cloud said no (' + r.status + ')'), { status: r.status }); }
     return j;
+  }
+
+  /** What Gluey has shown the person (ADR 0126), merged into the account's: the account's after. */
+  async addGuide(g: import('../core/guide/state').GuideState) {
+    const r = await this.call<{ guide: import('../core/guide/state').GuideState }>('PATCH', '/v1/me/guide', g);
+    if (this.user) this.user = { ...this.user, guide: r.guide };
+    return r.guide;
   }
 
   /** WebRTC handshakes with the account's other devices (sending songs to GLUE Home, ADR 0044). */

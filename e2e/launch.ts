@@ -4,11 +4,13 @@
 import { chromium, type BrowserContext } from '@playwright/test';
 
 type Opts = NonNullable<Parameters<typeof chromium.launchPersistentContext>[1]>;
-export async function launch(dir: string, opts: Opts): Promise<BrowserContext> {
+export async function launch(dir: string, opts: Opts, guide = false): Promise<BrowserContext> {
   // No GPU process: headless Edge renders in software there, a core per browser (about a fifth of a
   // test's time with four at once, measured 2026-09-29).
   // Dark, as the laptop is (the themes follow the system): the same on CI's light-mode runner.
   const ctx = await chromium.launchPersistentContext(dir, { colorScheme: 'dark', ...opts, args: [...(opts.args ?? []), '--disable-gpu', '--disable-gpu-compositing'] });
   await ctx.addInitScript(() => { Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', { get: () => 2, configurable: true }); });
+  // Gluey's first tour (ADR 0126) waits for a test that asks for it (`guide: true`): every other test would meet it.
+  if (!guide) await ctx.addInitScript(() => { (window as unknown as { __glueNoGuide: boolean }).__glueNoGuide = true; });
   return ctx;
 }

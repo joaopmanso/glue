@@ -2,6 +2,7 @@
 import { type Dir, readJSON, removePath, writeJSON } from './fsx';
 import { type Alias, type Collection, type HomeIndex, type Profile, PROFILE_COLORS, SCHEMA, newId } from './types';
 import { migrate } from './migrations';
+import { guideAdds, mergeGuide, type GuideState } from '../core/guide/state';
 
 const now = () => new Date().toISOString();
 /** mco.json's aliases, as made (ADR 0113, 0114). */
@@ -94,6 +95,12 @@ export class HomeStore {
   /** The profile folder that holds this GLUE folder's library. */
   async setContainer(pid: string) { if (this.index.container !== pid) { this.index.container = pid; this.index.lastProfile = pid; await this.saveIndex(); } }
 
+  /** What Gluey has shown (ADR 0126), merged in: every browser using this GLUE folder knows it. */
+  async setGuide(g: GuideState) {
+    const cur = mergeGuide(this.index.guide), next = mergeGuide(cur, g);
+    if (!guideAdds(cur, next)) return;
+    this.index.guide = next; await this.saveIndex();
+  }
   async setAppearance(a: { theme: string; mode: 'dark' | 'light' | 'system'; at?: number }) {
     if (this.index.appearance?.theme === a.theme && this.index.appearance?.mode === a.mode && (this.index.appearance?.at ?? 0) >= (a.at ?? 0)) return;
     this.index.appearance = a; await this.saveIndex();

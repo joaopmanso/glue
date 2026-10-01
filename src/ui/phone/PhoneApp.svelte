@@ -114,7 +114,7 @@
         <li><button type="button" class="ent add" id="phone-new-folder-inside" onclick={() => void newList('folder', f)}>+ New folder here</button></li>{/if}
       </ul>
     {:else if phone.tab === 'library'}
-      <ul class="menu" id="phone-library">
+      <ul class="menu" id="phone-library" data-guide="phone-library">
         <li><button type="button" class="ent strong" data-view="all" onclick={() => phone.songs({ kind: 'all' })}>All tracks<span class="n">{counts.all.toLocaleString()}</span></button></li>
         <li><button type="button" class="ent" data-view="recent" onclick={() => phone.songs({ kind: 'recent' })}>Recently added</button></li>
         {#if sorting}<li><button type="button" class="ent" onclick={() => phone.songs({ kind: 'list', id: TO_BE_SORTED })}>TO BE SORTED<span class="n">{sorting.items.length}</span></button></li>{/if}
@@ -167,7 +167,7 @@
   {#if phone.undo}<div class="toast" role="status" id="phone-undo-toast"><span>{phone.undo.text}</span><button type="button" class="undo" id="phone-undo" onclick={() => { phone.undo?.run(); phone.undo = null; }}>Undo</button></div>
   {:else if lib.notice}<div class="toast" role="status"><span>{lib.notice}</span><button type="button" aria-label="Dismiss" onclick={() => (lib.notice = '')}>×</button></div>{/if}
   <PhonePlayer />
-  <nav class="tabs" aria-label="Sections">
+  <nav class="tabs" aria-label="Sections" data-guide="phone-tabs">
     {#each TABS as [k, label, d] (k)}
       <button type="button" class:on={phone.tab === k} data-tab={k} aria-current={phone.tab === k ? 'page' : undefined} onclick={() => tap(k)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path {d} fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>

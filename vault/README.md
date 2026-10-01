@@ -203,5 +203,6 @@ Planned (GLUE):
 | [0123](adr/0123-music-folders-that-come-and-go.md) | Music folders that come and go (network folders): their songs wait, nothing about them changes | accepted |
 | [0124](adr/0124-no-file-songs-matched-and-linked.md) | Songs with no file are matched to the library's songs, with a certainty, and linked in bulk | accepted |
 | [0125](adr/0125-dropped-songs-placed-by-glue-home.md) | A song dropped onto the page is placed by GLUE Home; the tab analyses only what just it can read | accepted |
+| [0126](adr/0126-gluey-tours-and-help.md) | Gluey: a first tour once per person, a tour per feature, and help; seen kept across the account and the GLUE folder | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

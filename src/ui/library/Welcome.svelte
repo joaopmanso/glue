@@ -8,6 +8,8 @@
   import ThemePicker from '../ThemePicker.svelte';
   import CloudPanel from './CloudPanel.svelte';
   import Homepage from './Homepage.svelte';
+  import Gluey from '../guide/Gluey.svelte';
+  import { guide } from '../../lib/guide.svelte';
   import { account } from '../../lib/account.svelte';
   import { anywhere } from '../../lib/anywhere.svelte';
   import { shared } from '../../lib/shared.svelte';
@@ -272,6 +274,14 @@
         <button type="submit" class="btn" disabled={!profileName.trim()}>Create profile</button>
       </div>
     </form>
+    <!-- Gluey's tours again (ADR 0126), in the library they show. -->
+    {#if lib.lastProfile && aliases.some(a => a.id === lib.lastProfile)}
+      <div class="card gluey" id="gluey-card">
+        <Gluey size={46} pose="wave" />
+        <div><h3>Gluey’s tours</h3><p>A minute’s tour of GLUE, again. More tours, one per feature, are behind Gluey’s button in the library.</p></div>
+        <button type="button" class="btn-ghost" id="tour-again" onclick={() => { if (lib.backToLibrary()) setTimeout(() => guide.start('welcome'), 300); }}>Take the tour again</button>
+      </div>
+    {/if}
     <!-- How this computer uses GLUE now, and how to change it (ADR 0092): no choice is final. Its library's
          backup and cloud sync are here: every profile uses the same library (ADR 0113). -->
     <div class="card thiscomp" id="this-computer" data-mode={mode}>
@@ -406,6 +416,8 @@
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: grid; gap: 10px; align-content: start; color: var(--ink-2); font-size: 14px; }
   .card h3 { color: var(--ink); }
   .card.main { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .card.gluey { grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; }
+  .card.gluey p { margin: 2px 0 0; }
   .card.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
   .card .btn, .card .btn-ghost { justify-self: start; }
   .where { font-family: var(--font-mono); font-size: 13px; color: var(--ink); }

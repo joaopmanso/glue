@@ -1,5 +1,6 @@
 /* GLUE Cloud API (ADR 0036): Google sign-in, sessions, devices, pairing GLUE Home, and the door to
    the per-user signaling room. Plain request → response, so tests run it against real SQLite. */
+import { cleanGuide, guideAdds, mergeGuide, type GuideState } from '../../src/core/guide/state';
 import { SyncError } from './limits';
 import * as shared from './shared';
 import * as profiles from './profiles';
@@ -66,6 +67,8 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     // Everything else needs a signed-in device.
     const a = await authed(env, (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''), now);
     if (m === 'GET' && path === '/v1/me') return reply(await me(env, a));
+    // Gluey's tours and tips seen (ADR 0126): merged, never replaced.
+    if (m === 'PATCH' && path === '/v1/me/guide') return reply({ guide: await guideOf(env, a, await body()) });
     // The relay's credentials (ADR 0081): a failure leaves devices to connect directly.
     if (m === 'GET' && path === '/v1/turn') return reply(await turnServers(env, deps.fetch ?? ((u, i) => fetch(u, i))).catch(e => ({ iceServers: [], ttl: 0, error: (e as Error).message })));
     if (path.startsWith('/v1/admin/')) return reply(await admin.route(env, a, m, path, url.searchParams, m === 'GET' || m === 'DELETE' ? {} : await body(), now, deps.fetch));
@@ -353,12 +356,27 @@ async function join(env: Env, userId: string, from: string, into: string, now: n
   return { device: into };
 }
 
+/** What Gluey has shown the person (ADR 0126), merged with what a device sends: a union, so no device undoes another. */
+async function guideOf(env: Env, a: Access, add?: unknown) {
+  const row = await env.DB.prepare('SELECT guide FROM users WHERE id = ?').bind(a.sub).first<{ guide: string | null }>();
+  if (!row) throw new HttpError(401, 'sign in again');
+  let had: unknown = null;
+  try { had = row.guide ? JSON.parse(row.guide) : null; } catch { /* a bad value: started again */ }
+  const cur = cleanGuide(had);
+  if (add === undefined) return cur;
+  const next = mergeGuide(cur, add as Partial<GuideState>);
+  if (guideAdds(cur, next)) await env.DB.prepare('UPDATE users SET guide = ? WHERE id = ?').bind(JSON.stringify(next), a.sub).run();
+  return next;
+}
+
 async function me(env: Env, a: Access) {
-  const u = await env.DB.prepare('SELECT id, email, name, picture, created_at, tier FROM users WHERE id = ?').bind(a.sub).first<{ id: string; email: string | null; name: string | null; picture: string | null; created_at: number; tier: string }>();
+  const u = await env.DB.prepare('SELECT id, email, name, picture, created_at, tier, guide FROM users WHERE id = ?').bind(a.sub).first<{ id: string; email: string | null; name: string | null; picture: string | null; created_at: number; tier: string; guide: string | null }>();
   if (!u) throw new HttpError(401, 'sign in again');
   const ds = await env.DB.prepare('SELECT * FROM devices WHERE user_id = ? AND revoked_at IS NULL ORDER BY kind DESC, created_at').bind(a.sub).all<DeviceRow>();
   const ids = (await env.DB.prepare('SELECT provider FROM identities WHERE user_id = ?').bind(a.sub).all<{ provider: string }>()).results.map(r => r.provider);
   // Devices are computers that hold music; sessions are sign-ins only to browse (ADR 0091).
   const all = ds.results.map(device);
-  return { user: { id: u.id, email: u.email, name: u.name, picture: u.picture, createdAt: u.created_at, tier: u.tier, providers: ids }, thisDevice: a.dev, devices: all.filter(d => d.role !== 'browse'), sessions: all.filter(d => d.role === 'browse') };
+  let guide: GuideState;
+  try { guide = cleanGuide(u.guide ? JSON.parse(u.guide) : null); } catch { guide = cleanGuide(null); }
+  return { user: { id: u.id, email: u.email, name: u.name, picture: u.picture, createdAt: u.created_at, tier: u.tier, providers: ids, guide }, thisDevice: a.dev, devices: all.filter(d => d.role !== 'browse'), sessions: all.filter(d => d.role === 'browse') };
 }

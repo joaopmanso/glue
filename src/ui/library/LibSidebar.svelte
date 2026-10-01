@@ -438,7 +438,7 @@
 {/snippet}
 
 <nav class="lside" class:focused={!!sidebar.focus} aria-label="Library">
-  <section class:max={sidebar.focus === 'library'}>
+  <section class:max={sidebar.focus === 'library'} data-guide="library-views">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="head" class:menued={menued('sec:library')} oncontextmenu={e => onMenu(e, 'sec:library', () => secMenu('library'), 'Section')}>{@render secHead('library', 'Library')}<span class="add">{@render maxBtn('library')}</span></div>
     {#if sidebar.open('library')}
@@ -461,7 +461,7 @@
     {/if}
   </section>
 
-  <section class:max={sidebar.focus === 'playlists'}>
+  <section class:max={sidebar.focus === 'playlists'} data-guide="playlists">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="head" class:menued={menued('sec:playlists')} oncontextmenu={e => onMenu(e, 'sec:playlists', () => secMenu('playlists'), 'Section')}>
       {@render secHead('playlists', 'Playlists')}
@@ -512,7 +512,7 @@
     {/if}
   </section>
 
-  <section class:max={sidebar.focus === 'music'}>
+  <section class:max={sidebar.focus === 'music'} data-guide="add-music">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="head" class:menued={menued('sec:music')} oncontextmenu={e => onMenu(e, 'sec:music', () => secMenu('music'), 'Section')}>
       {@render secHead('music', 'Music')}

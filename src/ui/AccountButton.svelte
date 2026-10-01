@@ -33,12 +33,12 @@
 {#if account.available || account.signedIn || account.phase === 'working'}
 <span class="acct" bind:this={anchor}>
   {#if account.signedIn}
-    <button type="button" class="avatar" id="account-btn" aria-haspopup="dialog" aria-expanded={open} title={'Signed in as ' + (account.user?.email ?? '')} onclick={() => (open = !open)}>
+    <button type="button" class="avatar" id="account-btn" data-guide="devices" aria-haspopup="dialog" aria-expanded={open} title={'Signed in as ' + (account.user?.email ?? '')} onclick={() => (open = !open)}>
       {#if account.user?.picture}<img src={account.user.picture} alt="" referrerpolicy="no-referrer">{:else}{initial}{/if}
       <i class="live" class:on={account.connected} aria-hidden="true"></i>
     </button>
   {:else}
-    <button type="button" class="signin" id="account-btn" aria-haspopup="dialog" aria-expanded={open} disabled={account.phase === 'working'} onclick={() => (open = !open)}>
+    <button type="button" class="signin" id="account-btn" data-guide="devices" aria-haspopup="dialog" aria-expanded={open} disabled={account.phase === 'working'} onclick={() => (open = !open)}>
       {account.phase === 'working' ? 'Signing in…' : 'Sign in'}
     </button>
   {/if}

@@ -258,7 +258,7 @@ canPlay = true;
     </header>
     {#if track.unwritten?.length}<p class="unw" id="info-unwritten">Edited in GLUE, not in the file yet ({track.unwritten.join(', ')}): GLUE Home writes {track.unwritten.length === 1 ? 'it' : 'them'} into the file when it runs on this computer.</p>{/if}
 
-    <nav class="tabs" aria-label="Track page">
+    <nav class="tabs" aria-label="Track page" data-guide="track-tabs">
       <button type="button" class:on={tab === 'details'} aria-current={tab === 'details' ? 'page' : undefined} id="tab-details" onclick={() => goTab('details')}>Details</button>
       <button type="button" class:on={tab === 'prepare'} aria-current={tab === 'prepare' ? 'page' : undefined} id="tab-prepare" onclick={() => goTab('prepare')}>Prepare</button>
     </nav>

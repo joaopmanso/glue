@@ -14,7 +14,7 @@ export interface Alias { id: string; name: string; color: string; bpmRange?: 'ha
     ADR 0113: `aliases` (the account's, kept here for when it's offline), `lastAlias` (who used GLUE last), and
     `container`: the one profile folder that holds this GLUE folder's library (every alias uses it). `profiles`
     and `lastProfile` are the storage folders, as before (older GLUE versions read them). */
-export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null; appearance?: { theme: string; mode: 'dark' | 'light' | 'system'; at?: number }; computer?: string; aliases?: Alias[]; aliasesV?: number; lastAlias?: string | null; container?: string | null }
+export interface HomeIndex { schemaVersion: number; profiles: ProfileRef[]; lastProfile: string | null; appearance?: { theme: string; mode: 'dark' | 'light' | 'system'; at?: number }; guide?: import('../core/guide/state').GuideState; computer?: string; aliases?: Alias[]; aliasesV?: number; lastAlias?: string | null; container?: string | null }
 
 export interface CollectionRef { id: string; name: string }
 /** cloudSync: this device keeps a copy of the profile's data in GLUE Cloud (ADR 0040). Absent = on

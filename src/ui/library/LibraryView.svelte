@@ -178,7 +178,7 @@
     {/if}
     {#if incoming.busy}<span class="cloudload" id="incoming-loading" role="status"><span class="spin"></span>{incoming.busy}</span>{/if}
     {#if current}<button type="button" class="ibtn" class:on={showInsights} id="insights-btn" aria-pressed={showInsights} title="Length, tempo, keys and tags of this playlist" onclick={toggleInsights}>Insights</button>{/if}
-    <div class="an" title="Tracks are analysed in the background, several at a time">
+    <div class="an" data-guide="analysis" title="Tracks are analysed in the background, several at a time">
       {#if lib.analysis.running}
         <span class="spin"></span> Analysing · {pending} left
       {:else if pending && lib.analysis.paused}
@@ -299,7 +299,7 @@
   .lib { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 110px - 64px); min-height: 440px; }
   .lib > .main { flex: 1; }
   /* Floats above the player bar: an in-flow banner would shift the table (and cancel a drag). */
-  .toast { position: fixed; right: clamp(16px, 3vw, 32px); bottom: 76px; z-index: 25; max-width: min(560px, calc(100vw - 32px)); box-shadow: 0 8px 28px rgb(0 0 0 / .45); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
+  .toast { position: fixed; right: calc(clamp(16px, 3vw, 32px) + 64px); bottom: 76px; z-index: 25; max-width: min(560px, calc(100vw - 32px)); box-shadow: 0 8px 28px rgb(0 0 0 / .45); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
   .colbar { display: flex; gap: 6px; align-items: center; }
   .colbar select, .selbar select { background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; font-size: 13px; }
   .colbar select { font-weight: 700; }

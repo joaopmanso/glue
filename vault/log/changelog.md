@@ -5,6 +5,16 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · Gluey, and his first tour (GLUE Cloud migration 0011)
+- **Gluey, the glue stick, shows new people around** ([ADR 0126](../adr/0126-gluey-tours-and-help.md)):
+  - a one-minute tour on their first login (the library views, adding music, the analysis, a song's page,
+    playlists, devices, where help is); four stops on a phone;
+  - never again on another device: what's seen is kept in the browser, the GLUE folder and the account (new
+    `users.guide`, `PATCH /v1/me/guide`), merged as a union;
+  - people from before Gluey get an offer instead;
+  - "Take the tour again" is in "Who's using GLUE?"; Gluey's button (bottom right) has the tours.
+- Next: the help centre with a tour per feature, then the new homepage.
+
 ## 2026-10-01 · The newer look wins
 - **A theme or dark/light chosen just before a reload stays.** The GLUE folder's look always won over the browser's
   on opening, and the folder's copy is saved a moment after the choice: a reload in between brought the older look

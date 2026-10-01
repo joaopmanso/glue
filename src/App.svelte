@@ -24,6 +24,7 @@
   import ConflictBox from './ui/library/ConflictBox.svelte';
   import JoinBox from './ui/library/JoinBox.svelte';
   import PhoneApp from './ui/phone/PhoneApp.svelte';
+  import GuideLayer from './ui/guide/GuideLayer.svelte';
   import ActionSheet from './ui/phone/ActionSheet.svelte';
   import AskSheet from './ui/phone/AskSheet.svelte';
   import { phone } from './lib/phone.svelte';
@@ -228,6 +229,7 @@
 {#if inLibrary && view.binOpen && lib.store}<BinDialog />{/if}
 {#if inLibrary && lib.store?.shared}<ConflictBox />{/if}
 {#if inLibrary}<JoinBox />{/if}
+<GuideLayer />
 {#if inLibrary && view.statsFor}{#key view.statsFor}<StatsDialog />{/key}{/if}
 <!-- Menus: at the pointer, or on a phone a sheet from the bottom (ADR 0078). -->
 {#if phone.active}<ActionSheet /><AskSheet />{:else}<ContextMenu />{/if}

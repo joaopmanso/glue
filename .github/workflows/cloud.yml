@@ -4,7 +4,7 @@ name: Deploy GLUE Cloud
 on:
   push:
     branches: [main]
-    paths: ['cloud/**', '.github/workflows/cloud.yml']
+    paths: ['cloud/**', 'src/core/guide/state.ts', '.github/workflows/cloud.yml']
   workflow_dispatch:
 
 permissions:

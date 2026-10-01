@@ -208,6 +208,7 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **Signaling Durable Object:** presence, and broadcasts to the account's devices (`shared`, including `gone`, and
   `profiles`), plus WebRTC signals; TURN relay credentials come from `/v1/turn`.
 - **Operations:** a daily cron purges deleted collections; there's an admin panel (`#/admin`).
+- **Gluey's "seen"** (`users.guide`, ADR 0126): `/v1/me` returns it, `PATCH /v1/me/guide` merges it.
 - **Deploy:** `.github/workflows/cloud.yml` applies D1 migrations, then deploys.
 
 ## 8. The website's layout
@@ -222,6 +223,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   `LibraryView.svelte`, `LibSidebar.svelte`, `TrackDetail.svelte`, `CloudPanel.svelte`, and `src/ui/phone/` for
   the phone layout (ADR 0078).
 - **OS access** only through `src/platform/` (ADR 0007): the browser's handles, or GLUE Home's disk.
+- **Gluey** (ADR 0126):
+  - tours as data (`src/core/guide/tours.ts`), pointing at `data-guide` parts of the UI;
+  - `src/lib/guide.svelte.ts` runs them; `src/ui/guide/` draws them;
+  - the first tour shows once per person: "seen" is the union of the browser's, the GLUE folder's (`mco.json`
+    `guide`) and the account's.
 
 ## 9. Known issues and next
 - On a phone's first load, the library shows a few songs (8), then the whole collection.

@@ -463,6 +463,22 @@ describe('the shared collection (ADR 0094, 0106)', () => {
 });
 
 
+describe('what Gluey has shown the person (ADR 0126)', () => {
+  it('none at first; each device adds, nothing is ever undone; the newer quiet choice wins', async () => {
+    const desk = (await signIn({}, { deviceName: 'Desktop' })).json.access, phone = (await signIn({}, { deviceName: 'iPhone' })).json.access;
+    expect((await call('GET', '/v1/me', undefined, phone)).json.user.guide).toEqual({ seen: [], tips: [] });
+    expect((await call('PATCH', '/v1/me/guide', { seen: ['welcome'] }, desk)).json.guide).toEqual({ seen: ['welcome'], tips: [] });
+    // The phone, which saw nothing, sends a tip: the desktop's tour stays seen.
+    const both = (await call('PATCH', '/v1/me/guide', { seen: [], tips: ['dupes'], quiet: true, quietAt: 5 }, phone)).json.guide;
+    expect(both).toEqual({ seen: ['welcome'], tips: ['dupes'], quiet: true, quietAt: 5 });
+    expect((await call('PATCH', '/v1/me/guide', { quiet: false, quietAt: 3 }, desk)).json.guide.quiet).toBe(true);   // older
+    expect((await call('PATCH', '/v1/me/guide', { quiet: false, quietAt: 9, seen: ['BAD id', 'x'.repeat(50)] }, desk)).json.guide).toEqual({ seen: ['welcome'], tips: ['dupes'], quiet: false, quietAt: 9 });
+    expect((await call('GET', '/v1/me', undefined, desk)).json.user.guide).toEqual({ seen: ['welcome'], tips: ['dupes'], quiet: false, quietAt: 9 });
+    const other = (await signIn({ sub: 'g-other', email: 'other@example.com' })).json.access;
+    expect((await call('GET', '/v1/me', undefined, other)).json.user.guide).toEqual({ seen: [], tips: [] });
+  });
+});
+
 describe('the account’s profiles, its artist aliases (ADR 0113)', () => {
   it('every device’s profiles, with their ids, in one list; a deleted one never comes back', async () => {
     const desk = (await signIn({}, { deviceName: 'Desktop' })).json.access, phone = (await signIn({}, { deviceName: 'iPhone' })).json.access;
