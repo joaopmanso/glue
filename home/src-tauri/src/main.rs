@@ -434,7 +434,11 @@ async fn file_size(app: AppHandle, path: String) -> Result<u64, String> {
 
 /// Bytes of a song, from `offset` (at most `len`), as a raw answer.
 #[tauri::command]
-async fn file_read(app: AppHandle, path: String, offset: u64, len: u32) -> Result<tauri::ipc::Response, String> {
+/// `play`: read for a song streamed to a device (ADR 0140): the analysis's reads wait meanwhile.
+async fn file_read(app: AppHandle, path: String, offset: u64, len: u32, play: Option<bool>) -> Result<tauri::ipc::Response, String> {
+    if play == Some(true) {
+        local::mark_playing();
+    }
     use std::io::{Read, Seek, SeekFrom};
     let t0 = std::time::Instant::now();
     let r = (|| {

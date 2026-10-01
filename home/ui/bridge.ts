@@ -115,7 +115,8 @@ export const bridge = {
   glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
   glueList: (rel: string) => invoke<string[]>('glue_list', { rel }),
   fileSize: (path: string) => invoke<number>('file_size', { path }),
-  fileRead: (path: string, offset: number, len: number) => invoke<ArrayBuffer>('file_read', { path, offset, len }),
+  /** `play`: a song streamed to a device (ADR 0140): GLUE Home's analysis reads wait meanwhile. */
+  fileRead: (path: string, offset: number, len: number, play = false) => invoke<ArrayBuffer>('file_read', { path, offset, len, play }),
   /** A cover service's answer (ADR 0086); GLUE Home only reaches Deezer, iTunes and MusicBrainz. */
   webGet: (url: string) => invoke<ArrayBuffer>('web_get', { url }),
   /** A GLUE tab here holds the writer lease (ADR 0087). */

@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-01)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.42.0.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.42.1.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -73,6 +73,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **GLUE Home 0.42.1** (ADR 0140): with the NAS folder analysing, the first song played should start in seconds, not ~30.
 - **GLUE Home 0.42.0** (ADR 0139): scroll the library to a part not loaded yet (the scroll bar 30–40 % down). The songs
   on screen should stay put while waveforms and covers fill in. Click songs in a row while the NAS folder analyses.
 - **GLUE Home 0.41.6** (ADR 0138): with the NAS folder analysing, click several songs in a row. They should play, and

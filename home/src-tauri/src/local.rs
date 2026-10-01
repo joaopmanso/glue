@@ -29,9 +29,34 @@ fn refused_while_stopped(cfg: Option<&serde_json::Value>, origin: Option<&str>) 
 pub static LEASE_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 /// Bumped when another device says it sent edits: the tab takes them in at once.
 pub static EDITS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-/// When the website on this computer last read a song file (playing it, mostly): GLUE Home's analysis eases off for a
-/// moment, so the song comes first (ADR 0138).
+/// When a song was last read for playing (here, or streamed to a device): GLUE Home's analysis eases off, so the song
+/// comes first (ADR 0138, 0140).
 pub static FOREGROUND_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Who a file is read for (ADR 0140): a song played marks it as it's read; the analysis's own reads wait while one was
+/// marked in the last 3 s. Its new songs not starting wasn't enough: the ones running read on, about 30 s each from the
+/// user's NAS, and the first song played took about as long to start (2026-10-02).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum Pri { Play, Analysis }
+pub(crate) fn mark_playing() { FOREGROUND_AT.store(now_ms(), Ordering::Relaxed); }
+pub(crate) fn playing_now() -> bool { now_ms().saturating_sub(FOREGROUND_AT.load(Ordering::Relaxed)) < 3000 }
+
+/// A reader that marks playing, or waits while something plays (2 minutes at most: never stuck).
+pub(crate) struct Paced<R> { pub inner: R, pub pri: Pri, pub busy: fn() -> bool }
+impl<R: Read> Read for Paced<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self.pri {
+            Pri::Play => mark_playing(),
+            Pri::Analysis => {
+                let t0 = std::time::Instant::now();
+                while (self.busy)() && t0.elapsed() < std::time::Duration::from_secs(120) {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+            }
+        }
+        self.inner.read(buf)
+    }
+}
 /// Requests to the library engine in the service page (ADR 0104): each waits here for its answer.
 static RPC_NEXT: AtomicU64 = AtomicU64::new(0);
 fn rpc_waiting() -> &'static Mutex<HashMap<u64, mpsc::Sender<String>>> {
@@ -251,7 +276,7 @@ fn answer(app: AppHandle, req: Request) {
         // time, it came at about 10 MB/s in all from a NAS that gives 47 to 74 (2026-10-01).
         "/home/file" if full && matches!(origin.as_deref(), Some("http://tauri.localhost") | Some("tauri://localhost")) => {
             match crate::allowed(&app, &arg("path")) {
-                Ok(p) if p.is_file() => send_file(req, &p, "application/octet-stream", cors),
+                Ok(p) if p.is_file() => send_file(req, &p, "application/octet-stream", cors, Pri::Analysis),
                 Ok(_) => reply(req, 404, b"{\"error\":\"not a file\"}".to_vec(), "application/json"),
                 Err(e) => reply(req, 403, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json"),
             }
@@ -276,7 +301,7 @@ fn answer(app: AppHandle, req: Request) {
         "/incoming/file" => {
             let name = crate::safe_name(&arg("name"));
             let p = crate::incoming_dir(&app).join(&name);
-            send_file(req, &p, type_of(&name), cors)
+            send_file(req, &p, type_of(&name), cors, Pri::Play)
         }
         "/cache" => match crate::cache_path(&app, &arg("key")).ok().and_then(|p| std::fs::read(p).ok()) {
             Some(b) => reply(req, 200, b, "application/octet-stream"),
@@ -313,7 +338,7 @@ pub(crate) fn respond(req: Request, code: u16, body: Vec<u8>, ctype: &str, cors:
 }
 
 /// A file, whole or the byte range asked for (so the browser's <audio> plays and seeks at once).
-pub(crate) fn send_file(req: Request, path: &std::path::Path, ctype: &str, cors: Vec<Header>) {
+pub(crate) fn send_file(req: Request, path: &std::path::Path, ctype: &str, cors: Vec<Header>, pri: Pri) {
     let Ok(mut f) = File::open(path) else {
         let mut r = Response::from_data(b"{\"error\":\"not there\"}".to_vec()).with_status_code(StatusCode(404));
         for h in cors {
@@ -341,7 +366,7 @@ pub(crate) fn send_file(req: Request, path: &std::path::Path, ctype: &str, cors:
     let count = if len == 0 { 0 } else { end.saturating_sub(start) + 1 };
     let _ = f.seek(SeekFrom::Start(start));
     // Read in 1 MB steps: a network folder gives far more for big reads than for the server's small ones (ADR 0138).
-    let mut r = Response::new(StatusCode(if partial { 206 } else { 200 }), vec![], std::io::BufReader::with_capacity(1 << 20, f).take(count), Some(count as usize), None);
+    let mut r = Response::new(StatusCode(if partial { 206 } else { 200 }), vec![], Paced { inner: std::io::BufReader::with_capacity(1 << 20, f).take(count), pri, busy: playing_now }, Some(count as usize), None);
     r.add_header(header("Content-Type", ctype));
     r.add_header(header("Accept-Ranges", "bytes"));
     if partial {
@@ -355,7 +380,30 @@ pub(crate) fn send_file(req: Request, path: &std::path::Path, ctype: &str, cors:
 
 #[cfg(test)]
 mod tests {
-    use super::refused_while_stopped;
+    // A song played goes first (ADR 0140): the analysis's reads wait while one was read for playing.
+    static BUSY_UNTIL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    fn busy_for_test() -> bool { now_ms() < BUSY_UNTIL.load(std::sync::atomic::Ordering::Relaxed) }
+
+    #[test]
+    fn an_analysis_read_waits_while_a_song_plays_then_goes_on() {
+        BUSY_UNTIL.store(now_ms() + 400, std::sync::atomic::Ordering::Relaxed);
+        let mut r = Paced { inner: &b"abc"[..], pri: Pri::Analysis, busy: busy_for_test };
+        let t0 = std::time::Instant::now();
+        let mut s = String::new();
+        r.read_to_string(&mut s).unwrap();
+        assert_eq!(s, "abc");
+        assert!(t0.elapsed() >= std::time::Duration::from_millis(300));
+    }
+
+    #[test]
+    fn a_song_read_for_playing_says_so() {
+        let mut r = Paced { inner: &b"x"[..], pri: Pri::Play, busy: busy_for_test };
+        let mut v = vec![];
+        r.read_to_end(&mut v).unwrap();
+        assert!(playing_now());
+    }
+    use super::{now_ms, playing_now, refused_while_stopped, Paced, Pri};
+    use std::io::Read;
 
     #[test]
     fn stopped_answers_only_glue_homes_own_windows() {

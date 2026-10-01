@@ -5,6 +5,14 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.42.1: a song played pauses the analysis's reads
+- **The user:** "much much better", but the first song played took about 30 s to start; would a socket help the
+  stream? ([ADR 0140](../adr/0140-a-song-played-pauses-the-analysis-reads.md))
+- **No:** the player streams over HTTP ranges. The time went to the NAS: the analyses already running read on, about
+  30 s each, and only new ones waited.
+- **Now:** every piece of a song read for playing (here or streamed to a device) marks "playing now". The analysis's
+  reads wait while it's fresh (3 s), and carry on when the player's buffer is full.
+
 ## 2026-10-01 · GLUE Home 0.42.0: a socket for the background loads; the list stays put
 - **The user's report:** scrolling into a part not loaded yet, the songs on screen changed 5–7 times before
   settling, even with the analysis paused

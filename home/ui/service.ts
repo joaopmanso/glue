@@ -239,7 +239,7 @@ function serve(dc: RTCDataChannel, session?: Session) {
     send({ t: 'meta', n, size, data, ...extra });
     // Each binary message carries its request's number, so answers can go out at the same time (ADR 0047).
     const push = async (block: Uint8Array) => { for (let i = 0; i < block.length; i += CHUNK) { await drained(); if (dc.readyState !== 'open') return; dc.send(frame(n, block.subarray(i, Math.min(block.length, i + CHUNK)))); } };
-    if (bytes && 'path' in bytes) for (let at = 0; at < bytes.size;) { const b = new Uint8Array(await bridge.fileRead(bytes.path, at, 1024 * 1024)); if (!b.length) break; await push(b); at += b.length; }
+    if (bytes && 'path' in bytes) for (let at = 0; at < bytes.size;) { const b = new Uint8Array(await bridge.fileRead(bytes.path, at, 1024 * 1024, true)); if (!b.length) break; await push(b); at += b.length; }
     else if (bytes) await push(bytes);
     send({ t: 'eof', n, type: extra.type });
   };
@@ -317,7 +317,7 @@ function serve(dc: RTCDataChannel, session?: Session) {
         }
         const total = await bridge.fileSize(path), start = Math.max(0, Math.min(c.start, total)), len = Math.max(0, Math.min(c.len, 8 * 1024 * 1024, total - start));
         const parts: Uint8Array[] = [];
-        for (let at = 0; at < len;) { const b = new Uint8Array(await bridge.fileRead(path, start + at, Math.min(1024 * 1024, len - at))); if (!b.length) break; parts.push(b); at += b.length; }
+        for (let at = 0; at < len;) { const b = new Uint8Array(await bridge.fileRead(path, start + at, Math.min(1024 * 1024, len - at), true)); if (!b.length) break; parts.push(b); at += b.length; }
         const bytes = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
         for (const p of parts) { bytes.set(p, at); at += p.length; }
         await answer(c.n, { total, type: typeOf(name) }, bytes, { name });

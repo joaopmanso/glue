@@ -166,7 +166,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - **What the user asks for goes first** (ADR 0138, 0139): the page's background loads from GLUE Home's cache go on a
     socket (GLUE Home 0.42, `ws.rs`, `src/platform/homeSocket.ts`: numbered, cancellable), else through a gate (3 at a
     time, `src/lib/gate.ts`), leaving the browser's other connections for playing; while a song plays
-    (here or streamed), GLUE Home starts no new analysis beyond 2; it reads a song whole from its own local link
+    (here or streamed), GLUE Home starts no new analysis beyond 2, and the running ones' reads wait (ADR 0140,
+    `local.rs` `Paced`); it reads a song whole from its own local link
     (`/home/file`), not 4 MB at a time through Tauri.
   - The analysis bar shows GLUE Home's own queue (its `status`: left + running), the same "left" its window shows
     (ADR 0135). A network folder's songs take turns, at most "From each network folder at a time" (the user's, no limit unless set, ADR 0136; `home/ui/lanes.ts`); its window shows the speed (tiles, a ten-minute chart, and meters of the songs running reading or analysing, `cache.steps`) and a suggestion (`home/ui/speed.ts`); new songs' tags are read

@@ -125,7 +125,7 @@ pub fn handle(app: AppHandle, mut req: Request, path: &str, arg: &dyn Fn(&str) -
         return match locate(&app, arg).and_then(|(_, p)| fs::metadata(&p).map(|m| (p, m)).map_err(io_fail)) {
             Ok((p, m)) if m.is_file() => {
                 let extra = [crate::local::header("x-glue-mtime", &mtime(&m).to_string())];
-                send_file(req, &p, crate::local::type_of(&p.to_string_lossy()), cors.into_iter().chain(extra).collect());
+                send_file(req, &p, crate::local::type_of(&p.to_string_lossy()), cors.into_iter().chain(extra).collect(), crate::local::Pri::Play);
             }
             Ok(_) => refuse(req, fail(409, "that's a folder"), &cors),
             Err(f) => refuse(req, f, &cors),
