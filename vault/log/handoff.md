@@ -56,11 +56,13 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - Gluey, batch 2 (GLUE Home 0.40.1): the help centre (18 articles, `#/help`), a tour per feature, first-visit
     tips;
   - batch 3: the new homepage, with media recaptured (`scripts/demo/`).
-- **graphify** (ADR 0127, CLAUDE.md "graphify"): a knowledge graph of the code and the vault for coding sessions.
-  - **On the desktop:** uv 0.12 (`~/.local/bin`, not on Claude Code's PATH: `export PATH="$HOME/.local/bin:$PATH"`),
-    graphifyy 0.9.73 and the git hooks are installed. The graph is in `graphify-out/` (git-ignored).
-  - **Not in the graph:** the `.sql` migrations (the `[sql]` extra); ADR 0056 (queued for the next update).
-  - **Docs added since** (ADR 0127 onward) reach the graph only with `/graphify . --update`.
+- **graphify** (ADRs 0127, 0128, CLAUDE.md "graphify"): a code map for coding sessions.
+  - **CI** publishes it for every push to `main` (branch `graphify`); `node scripts/graph.mjs fetch` gets it, and a
+    session-start hook does that on a computer without one.
+  - **The desktop:** uv (`~/.local/bin`, not on Claude Code's PATH: `export PATH="$HOME/.local/bin:$PATH"`),
+    `graphifyy[sql]` 0.9.73 and the git hooks are installed.
+  - **The docs part** is from the first semantic pass (2026-10-01; ADR 0056 missing). Refresh it after a batch of
+    ADRs or articles: `/graphify . --update`, then `node scripts/graph.mjs publish`.
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
@@ -70,15 +72,13 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
-- **The laptop: set up graphify** (PowerShell, in the repo):
+- **The laptop: graphify's CLI** (to read the graph that CI publishes and the session-start hook fetches):
   1. uv: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`;
-  2. `uv tool install "graphifyy[sql]"`;
-  3. the graph:
-     - copy the desktop's `graphify-out/` (without `.graphify_python`), then `graphify update .`;
-     - or, without copying, `graphify update .` builds the code part only, and `/graphify .` in Claude Code adds the
-       docs (about 570k tokens);
-  4. `graphify hook install`, then take out the `graphify-out/graph.json merge=graphify` line it adds to
-     `.gitattributes`, and `git config --unset merge.graphify.name` / `merge.graphify.driver`.
+  2. `uv tool install "graphifyy[sql]==0.9.73"`;
+  3. optional, to rebuild locally after each commit: `graphify hook install`, then take out the
+     `graphify-out/graph.json merge=graphify` line it adds to `.gitattributes`.
+- **Docs in CI** (optional, the user's call): with an Anthropic key (or Claude Code's token) as a secret, CI could
+  run the semantic pass itself; it bills per push.
 - Hand-test the evening's list:
   - after the collection opens, the Doechii 24/88.2 album should read "Genuine hi-res" (stored verdicts are judged
     again on open);

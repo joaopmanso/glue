@@ -1,22 +1,23 @@
 {
   "hooks": {
-    "PreToolUse": [
+    "SessionStart": [
       {
-        "matcher": "Bash|Grep",
         "hooks": [
           {
             "type": "command",
-            "command": "g=$(command -v graphify || ls \"$HOME/.local/bin/graphify.exe\" \"$HOME/.local/bin/graphify\" 2>/dev/null | head -1); [ -n \"$g\" ] && exec \"$g\" hook-guard search; exit 0",
-            "timeout": 10
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" 2>/dev/null || exit 0; [ -f graphify-out/graph.json ] || node scripts/graph.mjs fetch >/dev/null 2>&1; exit 0",
+            "timeout": 60
           }
         ]
-      },
+      }
+    ],
+    "PreToolUse": [
       {
-        "matcher": "Read|Glob",
+        "matcher": "Grep|Glob",
         "hooks": [
           {
             "type": "command",
-            "command": "g=$(command -v graphify || ls \"$HOME/.local/bin/graphify.exe\" \"$HOME/.local/bin/graphify\" 2>/dev/null | head -1); [ -n \"$g\" ] && exec \"$g\" hook-guard read; exit 0",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/graphify-out/graph.json\" ] && printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"Code map: to find files, graphify affected/explain/path first (CLAUDE.md, graphify); grep for exact lines. Never graphify query.\"}}'; exit 0",
             "timeout": 10
           }
         ]

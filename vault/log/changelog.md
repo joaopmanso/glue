@@ -5,6 +5,19 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · The code map built on GitHub; the colleagues' rules
+- **Built for every push to `main`** ([ADR 0128](../adr/0128-code-map-built-on-github.md)):
+  - `.github/workflows/graph.yml` updates the code part on top of the last graph and publishes it to the branch
+    `graphify` (one commit, replaced each time);
+  - `node scripts/graph.mjs fetch` / `publish` (git only);
+  - a Claude Code session-start hook fetches it when a computer has none.
+- **Usage rules** (CLAUDE.md, from colleagues):
+  - `affected --depth 2` before planning; `god-nodes`, `explain`, `path`;
+  - distinctive labels; never `query`; never the 41 KB skill to answer questions.
+- graphify's own hook (a "MANDATORY: run graphify query" note on every Bash call and Read) is replaced by one line
+  before Grep and Glob.
+- The SQL migrations are in the graph now (the `[sql]` extra).
+
 ## 2026-10-01 · A map of the code for coding sessions (graphify)
 - **graphify** ([ADR 0127](../adr/0127-graphify-code-map.md)), a developer tool, not part of GLUE:
   - a knowledge graph of the code (tree-sitter) and the vault and help (one semantic pass): about 4,200 nodes,

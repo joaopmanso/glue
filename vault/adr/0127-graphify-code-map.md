@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; "built per computer, not committed" and the hooks superseded by 0128 (CI publishes the graph; usage rules)
 date: 2026-10-01
 ---
 # 0127. Give coding sessions a map of the code: a graphify knowledge graph, built per computer

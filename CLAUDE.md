@@ -94,17 +94,25 @@ After working:
   (ADR 0016). Change a parity expectation only on purpose, with a changelog note.
 - Push to `main` = checks, tests, build and deploy to https://joaopmanso.github.io/glue/.
 
-## graphify: the code map (ADR 0127)
-`graphify-out/graph.json` is a knowledge graph of the code (tree-sitter) and the vault and help (one semantic pass):
-files, symbols, imports and calls, ADRs and features, in named communities. It's built per computer and not in git.
-- **To find code,** ask the graph before grepping or reading files in bulk: `graphify explain "<file or symbol>"`
-  (what it imports, what uses it), `graphify path "<A>" "<B>"`, `graphify query "<question>" --budget 1500`.
-  Name a file or symbol rather than a broad question; broad ones return noise. Then read only the lines you need.
-- **The vault is still the source of truth** for how GLUE works and why (the rules above). The graph says where
-  things are and what they touch, not why.
-- **It stays current by itself:** a git hook rebuilds the code part after each commit (no tokens). New or changed
-  docs only reach it through `/graphify . --update` (a semantic pass, costs tokens): run it after a batch of ADRs
-  or help articles, not every session.
-- `graphify-out/GRAPH_REPORT.md` (hubs, communities) only for broad architecture review.
-- No `graphify` on this computer (the laptop, until set up: `vault/log/handoff.md`)? The hooks do nothing; work as
-  before.
+## graphify: the code map (ADR 0127, 0128)
+`graphify-out/graph.json` maps the code (tree-sitter: files, symbols, imports, calls, the SQL migrations) and the
+vault and help (ADRs, features, articles). **The order stays: the vault first (how and why), graphify to find the
+files, the source last.** A lookup costs about 100–1,500 tokens and gives `file:line`, against reading files one by
+one.
+- **Before planning a change:** `graphify affected "<symbol or file>" --depth 2` shows what depends on it, the
+  related ADRs and SYSTEM.md sections included. Use it as the starting list of files for the plan.
+- `graphify god-nodes --top 10`: the hubs (`Library`, `Track`, `CollectionStore`, `HomeStore`…). A change on
+  one gets extra care.
+- `graphify explain "<symbol>"` (a node and its neighbours) · `graphify path "<A>" "<B>"` (how two connect).
+- **Labels must be distinctive:** `shared/engine.ts`, not `engine.ts` (four files have that name). "No unique node
+  match" means qualify it.
+- **Never `graphify query "<natural language>"`:** a keyword-seeded search that returns a padded node dump of
+  thousands of tokens. A targeted grep beats it.
+- **Never load the `/graphify` skill to answer a question** (41 KB): it's for building the graph.
+- **Freshness:**
+  - CI publishes the graph for every push to `main` (branch `graphify`, `.github/workflows/graph.yml`);
+  - git hooks rebuild it locally after each commit where `graphify hook install` was run;
+  - stale after uncommitted edits: `graphify update . --no-cluster`;
+  - docs change the graph only through a semantic pass: `/graphify . --update`, then `node scripts/graph.mjs publish`.
+- **No graph on this computer?** A session-start hook fetches CI's (`node scripts/graph.mjs fetch`, git only). No `graphify`
+  CLI? `uv tool install "graphifyy[sql]==0.9.73"` (or `pipx install`). If neither works, work as before.

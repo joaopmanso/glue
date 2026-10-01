@@ -1,0 +1,40 @@
+name: Code map
+
+# graphify's knowledge graph of GLUE (ADR 0127, 0128), for coding sessions on a computer that doesn't build it.
+# Every push to main updates the code part (tree-sitter, no tokens) on top of the last published graph, which
+# keeps the docs part from the last semantic pass, and publishes it to the branch `graphify` (one commit,
+# replaced each time). Get it with `node scripts/graph.mjs fetch`.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # the branch graphify
+
+concurrency:
+  group: graph
+  cancel-in-progress: true
+
+jobs:
+  graph:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: graphify
+        run: pipx install "graphifyy[sql]==0.9.73"
+      - name: The last graph (its docs part and caches)
+        run: node scripts/graph.mjs fetch || echo "No graph published yet; this one has code only"
+      - name: Update the code part
+        env:
+          PYTHONHASHSEED: '0'   # the same communities for the same code
+        # --force: a graph with fewer nodes is right when code was deleted (graphify refuses it otherwise).
+        run: graphify update . --force
+      - name: Publish
+        env:
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: node scripts/graph.mjs publish
