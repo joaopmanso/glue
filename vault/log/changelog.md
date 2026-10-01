@@ -5,6 +5,20 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · GLUE Home 0.41.1: network folders
+- **The user's report:**
+  - on Windows, dropping a network folder took about 10 s before GLUE Home's dialog, with nothing on screen;
+  - on a Mac, + Folder on a network folder failed ("Can't scan Música: Bad Path")
+  ([ADR 0134](../adr/0134-network-folders-found-quickly-and-read-past-odd-names.md)).
+- **Mac:**
+  - GLUE Home refused names with `:` or `\` (fine on macOS: "Track 1/2" in Finder is `Track 1:2`), and one such name
+    failed the whole scan. Now allowed except on Windows;
+  - a scan skips what it can't read, says how many, and keeps those songs as they were.
+- **Dropped folders:**
+  - GLUE Home looks for 5 s (was 25), then asks;
+  - the page says "Looking for "Música"…", then "Choose it in GLUE Home's window".
+- **CI:** GLUE Home's Rust tests now run on Windows and macOS.
+
 ## 2026-10-01 · GLUE Home 0.41.0: a session per device
 - **The user's request:** one private, secure session from the laptop to the desktop, opened at sign-in, for a
   real-time conversation instead of separate calls, with a configurable maximum

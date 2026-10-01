@@ -197,8 +197,9 @@ export async function permission(h: FileSystemHandle, mode: 'read' | 'readwrite'
 
 /** Ask for a music folder (`id`: the collection's id for it); its handle is stored under a key the
     collection remembers. In Home mode GLUE Home remembers where it is, and says its path. */
-export async function pickMusicFolder(id: string): Promise<{ dir: Dir; key: string; path?: string }> {
+export async function pickMusicFolder(id: string, step?: (s: 'asking') => void): Promise<{ dir: Dir; key: string; path?: string }> {
   if (homeMode() && disk) {
+    step?.('asking');
     const r = await disk.pick(`folder:${id}`, 'Choose a music folder');
     if (!r.path) throw Object.assign(new Error('No folder chosen'), { name: 'AbortError' });
     roots = null;
@@ -212,9 +213,11 @@ export async function pickMusicFolder(id: string): Promise<{ dir: Dir; key: stri
     must know where this one is: `find` asks it (the folder's name and a song in it; it remembers what it finds),
     else its folder dialog asks. (2026-10-01: a dropped folder was the browser's only, and GLUE Home searched every
     drive for each of its songs, so nothing was analysed.) */
-export async function droppedFolder(dir: Dir, id: string, find: (name: string, sample: string) => Promise<string | null>): Promise<{ dir: Dir; key: string; path?: string }> {
+export async function droppedFolder(dir: Dir, id: string, find: (name: string, sample: string) => Promise<string | null>, step?: (s: 'looking' | 'asking') => void): Promise<{ dir: Dir; key: string; path?: string }> {
   if (!(homeMode() && disk)) return rememberFolder(dir);
+  step?.('looking');
   const at = await find(dir.name, await firstSong(dir) ?? '').catch(() => null);
+  if (!at) step?.('asking');
   const path = at ?? (await disk.pick(`folder:${id}`, 'Where is “' + dir.name + '”? GLUE Home needs to know')).path;
   if (!path) throw Object.assign(new Error('No folder chosen'), { name: 'AbortError' });
   roots = null;

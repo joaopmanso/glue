@@ -96,7 +96,8 @@ export const bridge = {
   findGlue: () => invoke<string | null>('find_glue_folder'),
   knownFolders: () => invoke<{ home: string | null; music: string | null; documents: string | null; desktop: string | null; downloads: string | null; sep: string }>('known_folders'),
   exists: (path: string) => invoke<boolean>('path_exists', { path }),
-  findFolder: (name: string, sample: string) => invoke<string | null>('find_folder', { name, sample }),
+  /** `secs`: how long to search (25 at most; a dropped folder looks briefly, then asks, ADR 0134). */
+  findFolder: (name: string, sample: string, secs?: number) => invoke<string | null>('find_folder', { name, sample, secs }),
   /** A song dropped onto a GLUE page: by its name and size, in `first` (music folders) first, then everywhere. */
   findFile: (name: string, size: number, first: string[]) => invoke<string | null>('find_file', { name, size, first }),
   // GLUE Home's own cache (mini spectrograms, analyses) and the incoming folder.

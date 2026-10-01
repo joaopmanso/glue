@@ -593,8 +593,13 @@ class Library {
     if (!s) return;
     let picked: { dir: FileSystemDirectoryHandle; key: string; path?: string };
     const id = newId();
-    try { picked = dropped ? await platform.droppedFolder(dropped, id, (name, sample) => this.homeFind?.(id, name, sample) ?? Promise.resolve(null)) : await platform.pickMusicFolder(id); }
+    // In Home mode GLUE Home finds the folder, or its window asks: said here meanwhile, not seconds of nothing (ADR 0134).
+    const name = dropped?.name ?? 'a music folder';
+    let shown = false;
+    const step = (s: 'looking' | 'asking') => { shown = true; this.job = { text: s === 'looking' ? 'Looking for “' + name + '” on this computer (GLUE Home)…' : 'Choose ' + (dropped ? '“' + name + '”' : 'a music folder') + ' in GLUE Home’s window (it may be behind this one)…', done: 0, total: null }; };
+    try { picked = dropped ? await platform.droppedFolder(dropped, id, (n, sample) => this.homeFind?.(id, n, sample) ?? Promise.resolve(null), step) : await platform.pickMusicFolder(id, step); }
     catch (e) { if ((e as DOMException).name !== 'AbortError') this.notice = (e as Error).message; return; }
+    finally { if (shown) this.job = null; }
     if (dropped && picked.dir === dropped && !(await platform.permission(dropped, 'read', true))) { await platform.forgetFolder(picked.key); return; }
     const same = await Promise.all(this.roots.map(async r => r.dir ? r.dir.isSameEntry(picked.dir) : false));
     if (same.some(Boolean)) { this.notice = '“' + picked.dir.name + '” is already one of this collection’s music folders.'; await platform.forgetFolder(picked.key); return; }
@@ -622,7 +627,6 @@ class Library {
     if (!r?.dir) return;
     if (await platform.permission(r.dir, 'read', true)) { this.roots = this.roots.map(x => x.root.id === id ? { ...x, granted: true } : x); this.enqueueAll(); }
   }
-  /** A backup of the open profile before something removes a lot (`backups/pre-<why>-<date>-<profile>.zip`, no songs). */
   /** Songs this computer has that are the same file as another computer's song: one song, on both (ADR 0130).
       Many at once (the first open after this came, 2026-10-01) are backed up first. */
   private async joinCopies() {
@@ -635,6 +639,7 @@ class Library {
     const n = joinCopies(s, pairs);
     if (n) console.info('Joined ' + n + ' song' + (n === 1 ? '' : 's') + ' with the same song on another computer');
   }
+  /** A backup of the open profile before something removes a lot (`backups/pre-<why>-<date>-<profile>.zip`, no songs). */
   async backupBefore(why: string) {
     const d = this.homeDir, p = this.profile;
     if (!d || !p) return;
@@ -667,7 +672,7 @@ class Library {
     if (!s || !r?.dir || this.job) return;
     this.job = { text: 'Scanning ' + r.root.name + '…', done: 0, total: null };
     try {
-      const { files, libraries } = await scanFolder(r.dir, n => { this.job = { text: 'Scanning ' + r.root.name + '…', done: n, total: null }; });
+      const { files, libraries, unreadable } = await scanFolder(r.dir, n => { this.job = { text: 'Scanning ' + r.root.name + '…', done: n, total: null }; });
       // Nothing found where songs were: a network folder not connected (an empty folder is left where it was
       // mounted), not every song gone. Kept as they are.
       const had = files.length || id === INCOMING_ROOT ? 0 : [...s.tracks.values()].filter(t => t.rootId === id && !t.remote && t.status === 'linked').length;
@@ -675,8 +680,12 @@ class Library {
       this.found = [...this.found.filter(f => f.rootId !== id), ...libraries.map(l => ({ ...l, rootId: id }))];
       this.job = { text: 'Reading file details…', done: 0, total: files.length };
       const entries = [], handles = new Map<string, FileSystemFileHandle>();
+      let skipped = 0;
+      const unsureFiles: string[] = [];
       for (let i = 0; i < files.length; i++) {
-        const f = await fileMeta(files[i].handle);
+        // A song whose details can't be read is skipped and counted, not the whole scan failed (ADR 0134).
+        const f = await fileMeta(files[i].handle).catch(() => null);
+        if (!f) { skipped++; unsureFiles.push(files[i].relPath); continue; }
         entries.push({ relPath: files[i].relPath, size: f.size, mtime: f.lastModified, fileName: f.name });
         handles.set(files[i].relPath, files[i].handle);
         if (i % 100 === 0) this.job = { text: 'Reading file details…', done: i, total: files.length };
@@ -690,7 +699,7 @@ class Library {
         await platform.forgetFolder(t.fileKey!);
         this.looseHandles.delete(t.id);
       }
-      const { added, linked, missing } = applyScan(s, id, entries);
+      const { added, linked, missing } = applyScan(s, id, entries, { files: unsureFiles, folders: unreadable });
       // Quick tags from the start of each new file; the background analysis fills in the rest.
       this.job = { text: 'Reading tags…', done: 0, total: added.length };
       const batch: Track[] = [];
@@ -703,6 +712,7 @@ class Library {
       if (linked) bits.push(linked + ' imported track' + (linked === 1 ? '' : 's') + ' linked');
       if (missing) bits.push(missing + ' missing');
       if (libraries.length) bits.push(libraries.length + ' DJ librar' + (libraries.length === 1 ? 'y' : 'ies') + ' found');
+      if (unreadable.length || skipped) bits.push([unreadable.length ? unreadable.length + ' folder' + (unreadable.length === 1 ? '' : 's') : '', skipped ? skipped + ' song' + (skipped === 1 ? '' : 's') : ''].filter(Boolean).join(' and ') + ' couldn’t be read' + (unreadable.length ? ' (' + unreadable.slice(0, 3).map(x => '“' + x + '”').join(', ') + (unreadable.length > 3 ? '…' : '') + ')' : '') + ', skipped');
       // A song that left the incoming folder was moved away or deleted there: it's no longer waiting.
       if (id === INCOMING_ROOT) for (const t of [...s.tracks.values()]) if (t.rootId === INCOMING_ROOT && t.status === 'missing' && !t.remote) s.removeTrack(t.id);
       if (!opts.quiet) this.notice = r.root.name + ': ' + bits.join(', ') + '.';

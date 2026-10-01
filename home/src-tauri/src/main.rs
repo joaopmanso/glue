@@ -288,7 +288,9 @@ fn search_file(starts: &[PathBuf], depth_max: u32, name: &str, size: u64) -> Opt
 /// path inside it) in it. Looks in the usual folders first, then every drive (or volume), a few
 /// levels deep, skipping system folders; gives up after a while.
 #[tauri::command]
-async fn find_folder(app: AppHandle, name: String, sample: String) -> Option<String> {
+/// `secs`: how long to look (25 at most). A folder just dropped on the website looks briefly, then GLUE Home's
+/// dialog asks: a network folder isn't on any drive here, and a long search showed nothing (ADR 0134).
+async fn find_folder(app: AppHandle, name: String, sample: String, secs: Option<u64>) -> Option<String> {
     let p = app.path();
     let mut starts: Vec<PathBuf> = [p.audio_dir(), p.document_dir(), p.desktop_dir(), p.download_dir(), p.home_dir()].into_iter().flatten().collect();
     #[cfg(windows)]
@@ -302,10 +304,11 @@ async fn find_folder(app: AppHandle, name: String, sample: String) -> Option<Str
     if let Ok(v) = fs::read_dir("/Volumes") {
         starts.extend(v.flatten().map(|e| e.path()));
     }
-    tauri::async_runtime::spawn_blocking(move || search(starts, &name, &sample)).await.ok().flatten()
+    let limit = secs.unwrap_or(25).clamp(1, 25);
+    tauri::async_runtime::spawn_blocking(move || search(starts, &name, &sample, limit)).await.ok().flatten()
 }
 
-fn search(starts: Vec<PathBuf>, name: &str, sample: &str) -> Option<String> {
+fn search(starts: Vec<PathBuf>, name: &str, sample: &str, limit: u64) -> Option<String> {
     use std::collections::{HashSet, VecDeque};
     let rel: PathBuf = sample.split('/').collect();
     let want = name.to_lowercase();
@@ -314,7 +317,7 @@ fn search(starts: Vec<PathBuf>, name: &str, sample: &str) -> Option<String> {
     let (mut seen, mut visited) = (HashSet::new(), 0usize);
     let mut queue: VecDeque<(PathBuf, u32)> = starts.into_iter().map(|s| (s, 0)).collect();
     while let Some((dir, depth)) = queue.pop_front() {
-        if visited > 300_000 || started.elapsed().as_secs() > 25 {
+        if visited > 300_000 || started.elapsed().as_secs() >= limit {
             break;
         }
         if !seen.insert(dir.clone()) {

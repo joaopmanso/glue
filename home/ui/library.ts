@@ -93,7 +93,7 @@ const searches = new Map<string, Promise<string | null>>();
     music folder GLUE Home knows, 5. a search of this computer's drives for a folder of that name with the song
     in it (one at a time per folder; a folder that isn't found isn't searched for again for a minute). What's
     found by 2–5 is remembered (`found`). */
-export async function locate(root: Collection['roots'][number], sample: Sample | null, cfg: HomeConfig, opts: { search?: boolean } = {}): Promise<string | null> {
+export async function locate(root: Collection['roots'][number], sample: Sample | null, cfg: HomeConfig, opts: { search?: boolean; secs?: number } = {}): Promise<string | null> {
   // This computer's incoming folder (ADR 0051): wherever GLUE Home keeps it.
   if (root.id === INCOMING_ROOT) return cfg.incoming || await bridge.defaultIncoming();
   known ??= await bridge.knownFolders();
@@ -106,7 +106,7 @@ export async function locate(root: Collection['roots'][number], sample: Sample |
   if (at && root.id && at !== chosen) await found.f?.(root.id, at).catch(() => {});
   return at;
 }
-async function look(root: Collection['roots'][number], sample: Sample | null, cfg: HomeConfig, ok: (dir: string | null | undefined) => Promise<boolean>, opts: { search?: boolean }): Promise<string | null> {
+async function look(root: Collection['roots'][number], sample: Sample | null, cfg: HomeConfig, ok: (dir: string | null | undefined) => Promise<boolean>, opts: { search?: boolean; secs?: number }): Promise<string | null> {
   const k = known!;
   if (sample?.importPath) {
     const ip = slashes(sample.importPath).replace(/^file:\/\/(localhost)?\/?(?=[A-Za-z]:)/, '').replace(/^file:\/\/(localhost)?/, '');
@@ -123,7 +123,7 @@ async function look(root: Collection['roots'][number], sample: Sample | null, cf
   if (opts.search === false || !sample) return null;
   let s = searches.get(root.id);
   if (!s) {
-    s = bridge.findFolder(root.name, sample.relPath).catch(() => null);
+    s = bridge.findFolder(root.name, sample.relPath, opts.secs).catch(() => null);
     searches.set(root.id, s);
     void s.then(at => setTimeout(() => searches.delete(root.id), at ? 0 : 60_000));
   }

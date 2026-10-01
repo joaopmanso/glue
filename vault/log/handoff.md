@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-01)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.0.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.1.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -73,6 +73,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **Network folders** (GLUE Home 0.41.1, ADR 0134):
+  - **Windows:** drop a network folder. The page says "Looking for…", then "Choose … in GLUE Home's window" after
+    about 5 s.
+  - **The Mac (jbvidigal):** + Folder on "Música" should scan; anything unreadable is named in the message.
+  - **Open:** whether GLUE Home analyses that Mac's songs (they seemed to be analysed in the browser). If not, ask for
+    the Activity text in GLUE Home's window ("which computer this is isn't known yet"?).
 - **Sessions** (GLUE Home 0.41.0, ADR 0133): after the desktop updates, GLUE Home's window › Service › Devices
   connected should list the laptop's and phone's tabs.
   - **Real time:** a song not analysed yet on the desktop should get its waveform on the laptop as soon as the

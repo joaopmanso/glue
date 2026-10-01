@@ -59,6 +59,9 @@ jobs:
           workspaces: home/src-tauri -> target
           shared-key: home-${{ matrix.os }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # GLUE Home's Rust tests, on each system: some rules differ (a ':' in a file name is fine on macOS, ADR 0134).
+      - name: Rust tests
+        run: cargo test --manifest-path home/src-tauri/Cargo.toml
       - name: Build
         working-directory: home
         env:

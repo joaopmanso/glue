@@ -9,7 +9,14 @@ const SKIP_DIR = /^(\.|\$RECYCLE\.BIN$|System Volume Information$|node_modules$|
 
 export async function scanFolder(root: FileSystemDirectoryHandle, onProgress?: (n: number) => void, signal?: { cancelled: boolean }) {
   const files: ScannedFile[] = [], libraries: FoundLibrary[] = [];
+  /** Folders inside that couldn't be read (a name this computer can't open, a network folder dropping for a moment):
+      skipped, and said, not the whole scan failed (ADR 0134). The folder itself unreadable still fails it. */
+  const unreadable: string[] = [];
   const walk = async (dir: FileSystemDirectoryHandle, prefix: string, depth: number) => {
+    try { await list(dir, prefix, depth); }
+    catch (e) { if (depth === 0) throw e; unreadable.push(prefix); }
+  };
+  const list = async (dir: FileSystemDirectoryHandle, prefix: string, depth: number) => {
     for await (const [name, h] of (dir as unknown as Entries).entries()) {
       if (signal?.cancelled) return;
       const rel = prefix ? prefix + '/' + name : name;
@@ -27,7 +34,7 @@ export async function scanFolder(root: FileSystemDirectoryHandle, onProgress?: (
     }
   };
   await walk(root, '', 0);
-  return { files, libraries };
+  return { files, libraries, unreadable };
 }
 
 async function findFile(dir: FileSystemDirectoryHandle, path: string[]): Promise<FileSystemFileHandle | null> {

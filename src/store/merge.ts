@@ -264,7 +264,8 @@ export function joinCopies(store: CollectionStore, pairs = copiesToJoin(store)):
   return into.size;
 }
 
-export function applyScan(store: CollectionStore, rootId: string, entries: ScanEntry[]): { added: Track[]; linked: number; missing: number } {
+/** `unsure`: what the scan couldn't read (songs, folders' paths): its songs are left as they were, not marked missing (ADR 0134). */
+export function applyScan(store: CollectionStore, rootId: string, entries: ScanEntry[], unsure: { files?: Iterable<string>; folders?: string[] } = {}): { added: Track[]; linked: number; missing: number } {
   const known = new Map<string, Track>();
   for (const t of store.tracks.values()) if (t.rootId === rootId && t.relPath && !t.remote) known.set(t.relPath, t);
   const seen = new Set<string>(), updates: Track[] = [];
@@ -276,7 +277,9 @@ export function applyScan(store: CollectionStore, rootId: string, entries: ScanE
     if (t.status !== 'linked' || t.size !== e.size || t.mtime !== e.mtime) updates.push({ ...t, status: 'linked', size: e.size, mtime: e.mtime });
   }
   let missing = 0;
-  for (const [rel, t] of known) if (!seen.has(rel) && t.status !== 'missing') { updates.push({ ...t, status: 'missing' }); missing++; }
+  for (const f of unsure.files ?? []) seen.add(f);
+  const inUnread = (rel: string) => (unsure.folders ?? []).some(d => rel.startsWith(d + '/'));
+  for (const [rel, t] of known) if (!seen.has(rel) && !inUnread(rel) && t.status !== 'missing') { updates.push({ ...t, status: 'missing' }); missing++; }
 
   // Another device's tracks (a merged collection, ADR 0042) belong to that device.
   const unlinked = [...store.tracks.values()].filter(t => t.status === 'unlinked' && !t.remote);

@@ -57,6 +57,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **A music folder that can't be reached** (a network folder not connected, a drive not plugged in; an empty folder
   counts) is away, not gone: its songs aren't marked missing, analysed, rescanned or written into. They wait for it
   (ADR 0123).
+- **A folder or song inside a music folder that can't be read** is skipped and said; its songs stay as they were
+  (`scanFolder` `unreadable`, `applyScan` `unsure`, ADR 0134). GLUE Home's disk takes `:` and `\` in names except
+  on Windows (`disk.rs` `inside`).
 - **Songs with no file** (a DJ library's records whose files are gone) are matched to the library's songs on the
   "No file linked" page (`core/library/relink.ts`, a certainty each) and linked (`linkRecords`): the song takes
   their playlists and what was set on them, and their record's path (`Track.aka`), so a new read of the DJ library
@@ -160,7 +163,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease.
   - Overviews and details come from GLUE Home's `/cache` when the browser has none (ADR 0110).
   - The analysis bar shows GLUE Home's own queue (its `status`: left + running).
-  - A folder dropped onto the library is found by GLUE Home (rpc `where`) and becomes its folder (`home:<id>`); one
+  - A folder dropped onto the library is found by GLUE Home (rpc `where`, a 5 s search, then its dialog asks; the page
+    says which, ADR 0134) and becomes its folder (`home:<id>`); one
     inside a music folder isn't added (ADR 0122).
   - A song dropped onto the library is found by GLUE Home (rpc `whereFile`): in a music folder it's that folder's
     song; elsewhere GLUE Home keeps its path (`Track.filePath`). The tab analyses only songs only it can read (a

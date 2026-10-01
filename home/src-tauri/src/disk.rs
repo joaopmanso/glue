@@ -69,10 +69,14 @@ fn root(app: &AppHandle, name: &str) -> Result<PathBuf, Fail> {
 }
 
 /// A '/'-separated path inside a root: plain names only (no '..', drive letters or stream names).
+/// On Windows a '\' or ':' in a name is a separator, a drive or a stream; on macOS and Linux they're ordinary
+/// characters (a song Finder shows as "Track 1/2" is "Track 1:2" on disk). Refusing them there failed a whole
+/// network folder's scan on a Mac, 2026-10-01 (ADR 0134).
 pub(crate) fn inside(root: &Path, rel: &str) -> Result<PathBuf, Fail> {
     let mut p = root.to_path_buf();
     for part in rel.split('/').filter(|s| !s.is_empty()) {
-        if part == "." || part == ".." || part.contains(['\\', ':', '\0']) || part.chars().any(|c| c.is_control()) {
+        let windows_only = cfg!(windows) && part.contains(['\\', ':']);
+        if part == "." || part == ".." || part.contains('\0') || windows_only || part.chars().any(|c| c.is_control()) {
             return Err(fail(400, "bad path"));
         }
         p.push(part);
@@ -275,5 +279,34 @@ pub fn handle(app: AppHandle, mut req: Request, path: &str, arg: &dyn Fn(&str) -
     match result {
         Ok((code, body)) => respond(req, code, body, "application/json", &cors),
         Err(f) => refuse(req, f, &cors),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plain_names_inside_the_root() {
+        let r = Path::new("music");
+        assert_eq!(inside(r, "A/b.mp3").unwrap(), r.join("A").join("b.mp3"));
+        assert!(inside(r, "A/../b.mp3").is_err());
+        assert!(inside(r, "./b.mp3").is_err());
+        assert!(inside(r, "a\0b").is_err());
+        assert!(inside(r, "a\u{7}b").is_err());
+    }
+
+    #[test]
+    fn colons_and_backslashes_only_matter_on_windows() {
+        let r = Path::new("music");
+        let mac = inside(r, "Albums/Track 1:2.mp3");
+        let back = inside(r, r"Albums/AC\DC.mp3");
+        if cfg!(windows) {
+            assert!(mac.is_err() && back.is_err());
+            assert!(inside(r, "C:/x").is_err());
+        } else {
+            assert_eq!(mac.unwrap(), r.join("Albums").join("Track 1:2.mp3"));
+            assert!(back.is_ok());
+        }
     }
 }

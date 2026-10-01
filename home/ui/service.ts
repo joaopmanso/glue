@@ -492,7 +492,9 @@ async function rpc(b: Rpc): Promise<unknown> {
     }
     // A folder dropped onto a GLUE tab here (the browser doesn't say where it is): found, and remembered as `id`.
     case 'where': {
-      const at = await locate({ id: b.id, name: b.name, absPath: null, handleKey: '', addedAt: '' }, b.sample ? { relPath: b.sample, importPath: null } : null, c);
+      // Dropped just now (ADR 0134): a brief search, then the website has GLUE Home's dialog ask (a network folder is on
+      // no drive here, and a long search showed nothing for seconds).
+      const at = await locate({ id: b.id, name: b.name, absPath: null, handleKey: '', addedAt: '' }, b.sample ? { relPath: b.sample, importPath: null } : null, c, { secs: 5 });
       return { path: at };
     }
     default: throw new Error('GLUE Home doesn’t know that request');
