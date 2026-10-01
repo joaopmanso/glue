@@ -218,6 +218,51 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
 export interface ScanEntry { relPath: string; size: number; mtime: number; fileName: string }
 
 /** A folder was scanned: link unlinked tracks to its files, add the rest as new tracks, flag vanished ones. */
+/** The same file on two computers: its size, and its name ("Song (2).mp3" is "Song.mp3" put where that name was
+    taken, as a song sent to a GLUE Home's incoming folder can be). */
+const fileKeyOf = (name: string, size: number | null) => name.toLowerCase().replace(/ \(\d+\)(\.[^.]*)$/, '$1') + '|' + size;
+/** Shared: the songs only other computers have, by file. */
+function theirsByFile(store: CollectionStore) {
+  const by = new Map<string, Track[]>();
+  if (store.shared) for (const t of store.tracks.values()) if (t.remote && t.size != null && !store.ephemeral.has(t.id)) {
+    const k = fileKeyOf(t.fileName, t.size);
+    (by.get(k) ?? by.set(k, []).get(k)!).push(t);
+  }
+  return by;
+}
+
+/** Shared (ADR 0130): songs only this computer has that are the same file as a song only other computers have
+    (2026-10-01: a song sent from the laptop to the desktop's GLUE Home was two songs there, shown as duplicates).
+    [this computer's song, theirs]. Both computers see the pair, so they agree on which song stays, the older (then
+    the lower id): only the computer whose song goes joins it, the other leaves it alone. A second copy on this
+    computer isn't paired: that's a duplicate here. */
+export function copiesToJoin(store: CollectionStore): [string, string][] {
+  const theirs = theirsByFile(store), pairs: [string, string][] = [];
+  if (!theirs.size) return pairs;
+  const older = (a: Track, b: Track) => a.addedAt < b.addedAt || (a.addedAt === b.addedAt && a.id < b.id);
+  for (const t of store.tracks.values()) {
+    if (t.remote || t.onDevices?.length || t.status !== 'linked' || !t.rootId || !t.relPath || store.ephemeral.has(t.id)) continue;
+    const same = theirs.get(fileKeyOf(t.fileName, t.size));
+    const i = same?.findIndex(x => older(x, t)) ?? -1;
+    if (i >= 0) pairs.push([t.id, same!.splice(i, 1)[0].id]);
+  }
+  return pairs;
+}
+/** Each pair is one song, on both: this computer's copy joins theirs, with its analysis, playlist places, rating
+    and notes, and its own row goes. Returns how many joined. */
+export function joinCopies(store: CollectionStore, pairs = copiesToJoin(store)): number {
+  const into = new Map<string, Track>();
+  for (const [mineId, theirsId] of pairs) {
+    const t = store.tracks.get(mineId);
+    if (!t?.rootId || !t.relPath || !store.addCopy(theirsId, { rootId: t.rootId, relPath: t.relPath, size: t.size, mtime: t.mtime })) continue;
+    const a = store.analysis.get(mineId);
+    if (a) store.putAnalysis(theirsId, a);
+    into.set(mineId, store.tracks.get(theirsId)!);
+  }
+  absorbTracks(store, into);
+  return into.size;
+}
+
 export function applyScan(store: CollectionStore, rootId: string, entries: ScanEntry[]): { added: Track[]; linked: number; missing: number } {
   const known = new Map<string, Track>();
   for (const t of store.tracks.values()) if (t.rootId === rootId && t.relPath && !t.remote) known.set(t.relPath, t);
@@ -245,8 +290,12 @@ export function applyScan(store: CollectionStore, rootId: string, entries: ScanE
     updates.push({ ...t, status: 'linked', rootId, relPath: f.relPath, size: f.size, mtime: f.mtime });
   }
   inferRoots(store, rootPaths);
+  // Shared (ADR 0130): a new file that's another computer's song, the same file, is this computer's copy of it.
+  const theirs = theirsByFile(store);
   const added: Track[] = [];
   for (const e of newFiles) if (!taken.has(e.relPath)) {
+    const twin = theirs.get(fileKeyOf(e.fileName, e.size))?.shift();
+    if (twin && store.addCopy(twin.id, { rootId, relPath: e.relPath, size: e.size, mtime: e.mtime })) continue;
     const t = blankLibTrack(e.fileName);
     Object.assign(t, { status: 'linked', rootId, relPath: e.relPath, size: e.size, mtime: e.mtime });
     added.push(t);

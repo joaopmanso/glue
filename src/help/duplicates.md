@@ -11,6 +11,7 @@ GLUE finds the same recording under any name, tag or format by how it **sounds**
 Each song shows as its **best copy** everywhere else, and every playlist uses it. The best copy is the better-judged one, lossless before lossy, then the one in your **main folder** (optional), then the higher resolution. **Make it the best** picks another.
 
 ## Not duplicates
+- **A song on two of your computers** isn't a duplicate: a song sent to another computer's GLUE Home, or copied there, is one song with a copy on each.
 - **Keep · not a duplicate** takes a copy out of a group (an instrumental, a live take, a longer mix).
 - **Not duplicates** hides a whole group.
 - **Mark as duplicates** (right-click songs) groups songs GLUE didn't match.

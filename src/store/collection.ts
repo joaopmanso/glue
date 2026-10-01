@@ -211,6 +211,17 @@ export class CollectionStore {
     for (const l of this.lists.values()) if (l.items.includes(id)) this.putList({ ...l, items: l.items.filter(x => x !== id) });
     this.changed();
   }
+  /** Shared (ADR 0130): this computer has another computer's song too, the same file. That song gets this
+      computer's copy (`copy`: where its file is here); the others' copies stay, so it's one row, on both.
+      False when it can't: not shared, not another computer's, or this folder doesn't write this computer's parts. */
+  addCopy(id: string, copy: Pick<Track, 'rootId' | 'relPath' | 'size' | 'mtime'>): boolean {
+    const m = this.shared, t = this.tracks.get(id), prev = m?.tracks.get(id);
+    if (!m || !t?.remote || !prev || this.ephemeral.has(id) || unknownComputer(m.here.me) || (!m.own && !this.sink)) return false;
+    const { remote: _r, onDevices: _d, aka: _a, unwritten: _u, filePath: _f, ...rest } = t;
+    const mine: Track = { ...rest, ...copy, status: 'linked', importPath: null, fileKey: null, sources: [] };
+    this.putTrack(toLocal(toShared(mine, m.here, prev), m.here));
+    return true;
+  }
   putAnalysis(id: string, a: AnalysisSummary) { if (!this.ephemeral.has(id)) this.sink?.({ m: 'analysis', id, a }); this.analysis.set(id, a); this.rev.analysis++; if (!this.ephemeral.has(id)) this.mark(`analysis/${shardOf(id)}.json`); this.changed(); }
   putList(l: List) { if (!this.ephemeral.has(l.id)) this.sink?.({ m: 'list', l }); this.lists.set(l.id, l); this.rev.lists++; if (!this.ephemeral.has(l.id)) this.mark(`lists/${l.id}.json`); this.changed(); }
   deleteList(id: string) {

@@ -96,6 +96,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     - `collection.json` has `shared`, `members` (computer → its library folder and name) and `rootsBy` (each
       computer's music folders);
     - a song has `copies[computer]` (its file on each computer);
+    - the same file on two computers (its size, and its name or "Name (2)") is one song, with a copy on each
+      (ADR 0130): a scan makes a new file another computer's song's copy here (`applyScan`, `store.addCopy`), and
+      pairs made before are joined when a collection opens and after a sync (`joinCopies`);
     - analyses are stored per computer.
     - `here(meta, me)` projects it for this computer: another computer's song gets `remote`. `toShared` and
       `collectionShared` write back.

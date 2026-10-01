@@ -13,6 +13,7 @@
 
 Unchanged docs are skipped by the manifest, and docs seen before by graphify's semantic cache (by content).
 """
+import hashlib
 import json
 import os
 import re
@@ -34,6 +35,10 @@ NODE_KEYS = {'id', 'label', 'file_type', 'source_file', 'source_location', 'sour
 
 def adr_files():
     return {p.name[:4]: p for p in (ROOT / 'vault' / 'adr').glob('[0-9][0-9][0-9][0-9]-*.md')}
+
+
+def digest(f):
+    return hashlib.sha1(Path(f).read_bytes()).hexdigest()
 
 
 def rel(f):
@@ -59,7 +64,8 @@ def prepare():
     known = json.loads(manifest.read_text(encoding='utf-8')) if manifest.exists() else {}
     gone = [k for k in known if k not in corpus]   # deleted, or left out since (.graphifyignore)
     STATE.write_text(json.dumps({'incremental': r, 'cached': {'nodes': cn, 'edges': ce, 'hyperedges': ch},
-                                 'uncached': uncached, 'batches': len(batches), 'gone': gone}, ensure_ascii=False),
+                                 'uncached': uncached, 'read': {f: digest(f) for f in uncached},
+                                 'batches': len(batches), 'gone': gone}, ensure_ascii=False),
                      encoding='utf-8')
     template = PROMPT.read_text(encoding='utf-8')
     for i, batch in enumerate(batches, 1):
@@ -154,7 +160,10 @@ def finish(publish):
         for h in d.get('hyperedges', []):
             h['nodes'], h['source_file'] = [node_id(x) for x in h.get('nodes', [])], source(h.get('source_file'))
             new['hyperedges'].append(h)
-    save_semantic_cache(new['nodes'], new['edges'], new['hyperedges'], root=ROOT, allowed_source_files=uncached,
+    # A doc edited after prepare was read as it was: not cached (the cache is by content), not stamped (below).
+    edited = {f for f, h in st.get('read', {}).items() if Path(f).exists() and digest(f) != h}
+    save_semantic_cache(new['nodes'], new['edges'], new['hyperedges'], root=ROOT,
+                        allowed_source_files=[f for f in uncached if f not in edited],
                         prompt_file=SPEC)
 
     # The code part first (tree-sitter, no tokens), so the graph below has both.
@@ -172,7 +181,7 @@ def finish(publish):
     # Docs whose batch failed stay unstamped, so the next prepare asks for them again.
     files = _stamped_manifest_files(r['files'], extraction, ROOT)
     stamped = {f for fl in files.values() for f in fl}
-    cleared = set(uncached) - stamped
+    cleared = (set(uncached) - stamped) | edited
     save_manifest(files, root=ROOT, scan_corpus={f for fl in r['files'].values() for f in fl},
                   clear_semantic=cleared or None)
     for old in OUT.glob('.docs_*'):

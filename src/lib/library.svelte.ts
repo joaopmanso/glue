@@ -8,7 +8,7 @@ import { importLists as importListsInto } from '../store/linked';
 const NO_DJ = new Map<string, DjValues>(), NO_LISTS = new Map<string, List[]>(), NO_LINKED = new Map<string, List>();
 import { CollectionStore, type LoadOpts } from '../store/collection';
 import { writeUnwritten } from '../store/writeInfo';
-import { LOOSE, absorbTracks, applyImport, applyScan, blankLibTrack, tidyTracks, type ImportReport } from '../store/merge';
+import { LOOSE, absorbTracks, applyImport, applyScan, blankLibTrack, copiesToJoin, joinCopies, tidyTracks, type ImportReport } from '../store/merge';
 import { fileAt, removePath, writeBlob } from '../store/fsx';
 import { matchTracks } from '../core/library/match';
 import { ANALYSIS_VERSION, INCOMING_ROOT, PROFILE_COLORS, SCHEMA, VERDICT_VERSION, newId, type Alias, type AnalysisSummary, type List, type Prep, type Profile, type Root, type Track } from '../store/types';
@@ -454,7 +454,8 @@ class Library {
     const s = await CollectionStore.load(this.homeDir, this.profile.id, cid, await this.loadOpts?.() ?? {});
     s.onChange = () => { this.version++; };
     // A sync brought files in (a shared collection, ADR 0094): redraw, nothing to save or send.
-    s.onReloaded = () => { this.version++; };
+    // A sync brought songs: one another computer has may be one this computer has too (ADR 0130).
+    s.onReloaded = () => { this.version++; void this.joinCopies(); };
     s.onDirty = () => this.scheduleFlush();
     this.store = s;
     if (this.profile.lastCollection !== cid) { this.profile = { ...this.profile, lastCollection: cid }; await this.home.saveProfile(this.profile); }
@@ -465,6 +466,7 @@ class Library {
     // Tracks naming imports that are gone, and tracks without a file whose file is here after all
     // (music folders' places known by now).
     if (!this.readOnly) { const t = tidyTracks(s); if (t.dropped || t.relinked) console.info('Tidied: ' + t.dropped + ' leftover tracks of removed imports, ' + t.relinked + ' tracks linked to their file'); }
+    await this.joinCopies();
     await this.loadLoose();
     await this.adoptIncoming();
     this.onQueue?.(cid);
@@ -621,6 +623,18 @@ class Library {
     if (await platform.permission(r.dir, 'read', true)) { this.roots = this.roots.map(x => x.root.id === id ? { ...x, granted: true } : x); this.enqueueAll(); }
   }
   /** A backup of the open profile before something removes a lot (`backups/pre-<why>-<date>-<profile>.zip`, no songs). */
+  /** Songs this computer has that are the same file as another computer's song: one song, on both (ADR 0130).
+      Many at once (the first open after this came, 2026-10-01) are backed up first. */
+  private async joinCopies() {
+    const s = this.store;
+    if (!s?.shared || this.readOnly) return;
+    const pairs = copiesToJoin(s);
+    if (!pairs.length) return;
+    if (pairs.length > 10) await this.backupBefore('join-copies');
+    if (this.store !== s) return;
+    const n = joinCopies(s, pairs);
+    if (n) console.info('Joined ' + n + ' song' + (n === 1 ? '' : 's') + ' with the same song on another computer');
+  }
   async backupBefore(why: string) {
     const d = this.homeDir, p = this.profile;
     if (!d || !p) return;

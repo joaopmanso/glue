@@ -73,6 +73,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **A song on two computers is one song** (ADR 0130, not hand-tested yet):
+  - **the reported song:** open the collection on the desktop. The song sent from the laptop should be one row
+    showing both computers, no longer in Duplicates;
+  - **older pairs:** the first open may also join older pairs (the same file in both computers' music folders).
+    With more than 10, a backup is made first (`backups/pre-join-copies-…zip`). The console says how many joined;
+  - **a new send:** send another song from the laptop; on the desktop it should go straight onto the laptop's song.
 - **The laptop: graphify's CLI** (to read the graph that CI publishes and the session-start hook fetches):
   1. uv: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`;
   2. `uv tool install "graphifyy[sql]==0.9.73"`;

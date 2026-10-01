@@ -5,6 +5,21 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · A song on two computers is one song
+- **The user's report:** a song added on the laptop and sent to the desktop was two songs there, one per computer,
+  shown as duplicates ([ADR 0130](../adr/0130-same-file-on-two-computers-is-one-song.md)).
+- **The cause:** the desktop's scan of its incoming folder made every new file a new song, never asking whether
+  another computer already had it.
+- **Now, in a shared collection, the same file (size, and name or "Name (2)") on two computers is one song** with a
+  copy on each:
+  - a scan makes it this computer's copy of the other's song (`applyScan`, `store.addCopy`);
+  - pairs made before are joined when a collection opens and after a sync (`joinCopies`), with the row's
+    analysis, playlists, rating and notes. More than 10 at once are backed up first.
+  - the older song stays, joined by the computer whose song goes, so two computers never drop each other's.
+- **Help:** duplicates and devices say so.
+- **Code map:** a doc edited between `graph_docs.py prepare` and `finish` is no longer marked read (nor cached
+  under its new content); the next refresh reads it again.
+
 ## 2026-10-01 · The code map's docs kept current; its view on the site
 - **Every session that changes docs refreshes them in the graph** before its commit
   ([ADR 0129](../adr/0129-code-map-docs-every-session.md)):
