@@ -56,6 +56,7 @@ class Thumbs {
   drop(id: string) {
     if (!this.screen.drop(id)) return;
     this.retries.cancel(id);
+    this.reads.get(id)?.abort();
     const q = this.queue.indexOf(id); if (q >= 0) this.queue.splice(q, 1);
     const d = this.derive.indexOf(id); if (d >= 0) this.derive.splice(d, 1);
     const w = this.wantRemote.findIndex(t => t.id === id); if (w >= 0) this.wantRemote.splice(w, 1);
@@ -104,7 +105,9 @@ class Thumbs {
   }
   /** This computer's song, analysed by GLUE Home (ADR 0110): its copy in GLUE Home's cache, when this browser has
       none (it was analysed while no tab listened, or in another browser). */
-  fromHome: ((id: string) => Promise<Uint8Array | null>) | null = null;
+  fromHome: ((id: string, signal?: AbortSignal) => Promise<Uint8Array | null>) | null = null;
+  /** What's being read from GLUE Home now, by song: a row that scrolls away cancels it (ADR 0139). */
+  private reads = new Map<string, AbortController>();
   private wantRemote: Track[] = [];
   private remoteTimer = 0;
   private fromRemote(t: Track) {
@@ -146,8 +149,12 @@ class Thumbs {
       if (this.cid === cid && b.length === this.size) { this.remember(id, b); return; }
     } catch { /* not stored yet */ }
     if (this.cid !== cid) return;
-    const home = await this.fromHome?.(id).catch(() => null);
+    const ctl = new AbortController();
+    this.reads.set(id, ctl);
+    const home = await this.fromHome?.(id, ctl.signal).catch(() => null).finally(() => { if (this.reads.get(id) === ctl) this.reads.delete(id); });
     if (this.cid !== cid) return;
+    // Scrolled away meanwhile: nothing kept, so the row asks again when it's back.
+    if (ctl.signal.aborted) return;
     if (home && home.length === this.size) { await this.put(id, home); return; }
     // Analysed before thumbnails existed: make it from the stored analysis, one at a time.
     const a = lib.store?.analysis.get(id);

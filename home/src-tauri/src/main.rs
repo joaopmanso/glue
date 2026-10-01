@@ -20,6 +20,7 @@ mod dupes;
 mod tags;
 mod libraries;
 mod local;
+mod ws;
 mod activity;
 mod web;
 
@@ -671,6 +672,7 @@ fn main() {
             // The website on this computer talks to GLUE Home directly (ADR 0048).
             activity::start();
             local::start(app.handle().clone());
+            ws::start(app.handle().clone());
             // Started with the computer: stay in the tray. Opened by hand (or the first time): settings.
             if !std::env::args().any(|a| a == "--background") {
                 open_settings(app.handle());

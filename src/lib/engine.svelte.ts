@@ -9,7 +9,7 @@
 import { Gate } from './gate';
 import { lib } from './library.svelte';
 import { thumbs, waves } from './thumbs.svelte';
-import { localHome } from './localHome.svelte';
+import { homeSocket, localHome } from './localHome.svelte';
 import { cacheDir, homeMode, setLeaseHeld } from '../platform';
 import { decodeFingerprint, writeFingerprint } from '../store/fingerprints';
 import { shardOf } from '../store/types';
@@ -121,9 +121,10 @@ class EngineClient {
   /** A file of GLUE Home's cache for a song of the open collection (ADR 0110): `t` its mini spectrogram, `w` its
       waveform, `d` its details, `p` its fingerprint. Null: not there (or no engine). */
   /** `first`: the user's (a song's page), ahead of the rows' and the analyses' results in the gate (ADR 0138). */
-  fromCache(kind: 't' | 'w' | 'd' | 'p', id: string, ext: 'bin' | 'json' = 'bin', w = this.where(), first = false): Promise<Uint8Array | null> {
-    if (!this.active || !w || !localHome.link) return Promise.resolve(null);
-    return cacheGate.run(() => localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(`${kind}/${w.p}/${w.c}/${shardOf(id)}/${id}.${ext}`)).then(b => new Uint8Array(b)).catch(() => null), first);
+  /** `signal`: not wanted any more (its row scrolled away), cancelled on the socket (ADR 0139). */
+  async fromCache(kind: 't' | 'w' | 'd' | 'p', id: string, ext: 'bin' | 'json' = 'bin', w = this.where(), first = false, signal?: AbortSignal): Promise<Uint8Array | null> {
+    if (!this.active || !w || !localHome.link) return null;
+    return cacheFile(`${kind}/${w.p}/${w.c}/${shardOf(id)}/${id}.${ext}`, first, signal);
   }
   /** A song's tags were written from here: GLUE Home's copy of its analysis follows the file. */
   async restamp(id: string, was: { size: number | null; mtime: number | null }, now: { size: number; mtime: number }) {
@@ -141,7 +142,7 @@ class EngineClient {
   private async takeDerived(w: { p: string; c: string }, ids: string[]) {
     const dir = await cacheDir();
     const k = (kind: string, id: string, ext: string) => `${kind}/${w.p}/${w.c}/${shardOf(id)}/${id}.${ext}`;
-    const get = (key: string) => cacheGate.run(() => localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(key)).then(b => new Uint8Array(b)).catch(() => null));
+    const get = (key: string) => cacheFile(key);
     for (let i = 0; i < ids.length; i += 4) await Promise.all(ids.slice(i, i + 4).map(async id => {
       const [th, wv, dh, db, fp] = await Promise.all([get(k('t', id, 'bin')), get(k('w', id, 'bin')), get(k('d', id, 'json')), get(k('d', id, 'bin')), get(k('p', id, 'bin'))]);
       if (lib.store?.meta.id !== w.c) return;
@@ -180,6 +181,13 @@ class EngineClient {
 /** GLUE Home's cache (the rows' spectrograms and waveforms, the analyses' results) at most 3 requests at a time: a
     browser has 6 connections to 127.0.0.1, and these took them all, so a song clicked waited (ADR 0138). */
 const cacheGate = new Gate(3);
+/** One of GLUE Home's cache files: on its socket (GLUE Home 0.42, ADR 0139), else over HTTP through the gate. */
+async function cacheFile(key: string, first = false, signal?: AbortSignal): Promise<Uint8Array | null> {
+  const s = await homeSocket.cache(key, signal).catch(() => undefined);
+  if (s !== undefined) return s;
+  if (signal?.aborted) return null;
+  return cacheGate.run(() => localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(key)).then(b => new Uint8Array(b)).catch(() => null), first);
+}
 export const engineClient = new EngineClient();
 lib.analysisElsewhere = { active: () => engineClient.active, now: ids => engineClient.now(ids), pause: p => engineClient.pause(p) };
 lib.beforeClose = () => engineClient.flush();
@@ -194,7 +202,7 @@ if (typeof window !== 'undefined') {
 }
 
 // This computer's songs' mini spectrograms, waveforms and details, from GLUE Home when this browser has none (ADR 0110).
-thumbs.fromHome = id => engineClient.fromCache('t', id);
-waves.fromHome = id => engineClient.fromCache('w', id);
+thumbs.fromHome = (id, signal) => engineClient.fromCache('t', id, 'bin', undefined, false, signal);
+waves.fromHome = (id, signal) => engineClient.fromCache('w', id, 'bin', undefined, false, signal);
 lib.detailsFromHome = id => engineClient.details(id);
 lib.restampHome = (id, was, now) => engineClient.restamp(id, was, now);

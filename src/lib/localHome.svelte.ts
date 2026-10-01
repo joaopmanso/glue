@@ -1,17 +1,19 @@
 /* The local link (ADR 0048): this computer's GLUE Home, straight on http://127.0.0.1, without GLUE
    Cloud. Found at once when the page opens (even offline or before signing in), from what GLUE Home
    told this browser the first time (its port and a token, over the account's channel). */
+import { HomeSocket } from '../platform/homeSocket';
 import { account } from './account.svelte';
 import { readPref, writePref } from './prefs';
 import { setHomeLink } from '../platform';
 import { homeOs } from './homeApp';
 
-export interface LocalLink { home: string; port: number; token: string; version: string }
+/** `wsPort`: its socket for the background loads (GLUE Home 0.42, ADR 0139). */
+export interface LocalLink { home: string; port: number; token: string; version: string; wsPort?: number }
 const PREF = 'localHome';
 
 /** Why the last try failed (shown in Devices). */
 let why = '';
-async function hello(port: number, ms = 1500): Promise<{ app: string; version: string; device: string } | null> {
+async function hello(port: number, ms = 1500): Promise<{ app: string; version: string; device: string; wsPort?: number } | null> {
   try {
     const r = await fetch('http://127.0.0.1:' + port + '/hello', { signal: AbortSignal.timeout(ms) });
     if (!r.ok) { why = 'it answered ' + r.status; return null; }
@@ -29,7 +31,7 @@ async function connect(port: number, ms = 1500): Promise<LocalLink | null> {
     const r = await fetch('http://127.0.0.1:' + port + '/connect', { signal: AbortSignal.timeout(ms) });
     if (!r.ok) return null;
     const j = await r.json() as Partial<LocalLink>;
-    return typeof j.token === 'string' && j.token && typeof j.port === 'number' ? { home: j.home ?? '', port: j.port, token: j.token, version: j.version ?? '' } : null;
+    return typeof j.token === 'string' && j.token && typeof j.port === 'number' ? { home: j.home ?? '', port: j.port, token: j.token, version: j.version ?? '', ...(j.wsPort ? { wsPort: j.wsPort } : {}) } : null;
   } catch { return null; }
 }
 
@@ -45,6 +47,7 @@ class LocalHome {
   /** …and the platform layer uses its disk (Home mode, ADR 0051). */
   private setLink(l: LocalLink | null) {
     const was = !!this.link;
+    if (l?.wsPort !== this.link?.wsPort || l?.token !== this.link?.token) homeSocket.close();
     this.link = l; setHomeLink(l);
     if (was !== !!l) this.onChange?.(!!l);
   }
@@ -91,7 +94,7 @@ class LocalHome {
     if (await this.findHere(known.port)) return;
     // An older GLUE Home (no /connect): the link it gave this browser before, if it's still the one answering.
     const h = await hello(known.port);
-    if (h?.app === 'glue-home' && h.device === known.home) { this.setLink({ ...known, version: h.version }); this.problem = ''; }
+    if (h?.app === 'glue-home' && h.device === known.home) { this.setLink({ ...known, version: h.version, ...(h.wsPort ? { wsPort: h.wsPort } : {}) }); this.problem = ''; }
   }
   /** The GLUE Home on this computer, asked for its link directly (ADR 0115): any browser here gets it, so Edge
       shows what Chrome shows. Only when there's a reason (this browser met it before, or the account has a GLUE
@@ -122,7 +125,7 @@ class LocalHome {
       // Long enough for the browser's "access apps on this device" question to be answered.
       const h = await hello(a.port, 60_000);
       if (h?.app !== 'glue-home' || h.device !== home) { this.problem = h ? 'another GLUE Home answers on 127.0.0.1:' + a.port : why; return; }
-      this.setLink({ home, port: a.port, token: a.token, version: h.version });
+      this.setLink({ home, port: a.port, token: a.token, version: h.version, ...(h.wsPort ? { wsPort: h.wsPort } : {}) });
       this.problem = '';
       writePref(PREF, JSON.stringify({ home, port: a.port, token: a.token }));
     } catch (e) { this.problem = 'it didn’t answer (' + (e as Error).message + ')'; } finally { this.learning = false; }
@@ -141,5 +144,7 @@ class LocalHome {
 }
 
 export const localHome = new LocalHome();
+/** The socket for the background loads from this computer's GLUE Home (ADR 0139); none before GLUE Home 0.42. */
+export const homeSocket = new HomeSocket(() => { const l = localHome.link; return l?.wsPort ? 'ws://127.0.0.1:' + l.wsPort + '/?t=' + encodeURIComponent(l.token) : null; });
 // Signed in to an account with a GLUE Home: this browser may be on its computer (Edge next to Chrome, ADR 0115).
 if (typeof window !== 'undefined') $effect.root(() => { $effect(() => { void account.devices; if (account.signedIn) localHome.lookIfAccountHasOne(); }); });

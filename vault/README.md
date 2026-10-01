@@ -216,5 +216,6 @@ Planned (GLUE):
 | [0136](adr/0136-analysis-limits-are-the-users-with-speed-shown.md) | Analysis limits are the user's ("From each network folder at a time"), with the speed shown in GLUE Home and a suggestion | accepted |
 | [0137](adr/0137-this-computer-never-a-remote-session.md) | This computer's browser is never a remote session nor counted; the direct link isn't dropped on one slow answer | accepted |
 | [0138](adr/0138-what-the-user-asks-for-goes-first.md) | What the user asks for goes first: background requests to GLUE Home gated (3), playing ahead of the analysis, songs read whole | accepted |
+| [0139](adr/0139-a-socket-for-background-loads-and-a-list-that-stays-put.md) | A socket for the background loads from GLUE Home (numbered, cancellable), and a list that stays put while it changes by itself | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

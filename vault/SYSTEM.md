@@ -163,8 +163,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - It reads the GLUE folder through the link.
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease.
   - Overviews and details come from GLUE Home's `/cache` when the browser has none (ADR 0110).
-  - **What the user asks for goes first** (ADR 0138): the page's background requests to GLUE Home's cache go through a
-    gate (3 at a time, `src/lib/gate.ts`), leaving the browser's other connections for playing; while a song plays
+  - **What the user asks for goes first** (ADR 0138, 0139): the page's background loads from GLUE Home's cache go on a
+    socket (GLUE Home 0.42, `ws.rs`, `src/platform/homeSocket.ts`: numbered, cancellable), else through a gate (3 at a
+    time, `src/lib/gate.ts`), leaving the browser's other connections for playing; while a song plays
     (here or streamed), GLUE Home starts no new analysis beyond 2; it reads a song whole from its own local link
     (`/home/file`), not 4 MB at a time through Tauri.
   - The analysis bar shows GLUE Home's own queue (its `status`: left + running), the same "left" its window shows
@@ -180,7 +181,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - newest request first;
   - a row that scrolls away drops what it asked for (`hold`/`drop`), so a jump down the list loads the new rows
     at once;
-  - the table draws 12 rows beyond each edge;
+  - the table draws 12 rows beyond each edge, and keeps the song at the top of its window where it is when the list
+    changes by itself (ADR 0139);
   - from another computer, asked until answered (`src/lib/onScreen.ts`, ADR 0131): a song the ask couldn't reach
     is asked again soon while its row is on screen; "none there yet" later, or when its row is back.
   - A page opens Home mode when it has the link, whatever the browser; on the start page or a browser-storage

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { facetKey, facetValue, type Facet } from '../../core/library/browse';
   import { lib } from '../../lib/library.svelte';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
@@ -83,6 +84,27 @@
   // all of them and froze the page (2026-09-27).
   const last = $derived(Math.min(rows.length, Math.ceil((scrollTop + Math.min(height, winH)) / ROW) + OVERSCAN));
   const visible = $derived(rows.slice(first, last));
+  // The song at the top of the window stays where it is while the list changes by itself (ADR 0139): copies found,
+  // songs taken in or failing their analysis add or remove rows above it, and the songs on screen changed 5, 6, 7
+  // times as a part not loaded yet filled in (the user, 2026-10-01). Not when the user changed what's shown (another
+  // view, sort, filter or search): that starts where that view was.
+  const shape = $derived(selKey + '|' + view.sort.key + view.sort.dir + '|' + JSON.stringify(view.filters) + '|' + view.search);
+  let anchor: { id: string; off: number; shape: string } | null = null;
+  function remember() {
+    const i = Math.floor(scrollTop / ROW), r = rows[i];
+    anchor = r ? { id: r.t.id, off: scrollTop - i * ROW, shape } : null;
+  }
+  $effect.pre(() => {
+    const rs = rows, sh = shape;
+    untrack(() => {
+      if (!scroller || !anchor || anchor.shape !== sh) return;
+      const i = rs.findIndex(r => r.t.id === anchor!.id);
+      if (i < 0) return;   // it left the list itself: where the window is stays
+      const y = i * ROW + anchor.off;
+      if (Math.abs(y - scrollTop) >= 1) scrollTop = y;   // drawn from here at once; the scroll bar follows below
+    });
+  });
+  $effect(() => { const y = scrollTop; if (scroller && Math.abs(scroller.scrollTop - y) >= 1 && y <= scroller.scrollHeight) scroller.scrollTop = y; });
   let colMenu = $state(false);
   /** A column's value filter, opened from ▾ in its header. */
   let headFilter = $state<{ group: FilterGroup; key: ColKey; sort: SortKey | null; x: number; y: number } | null>(null);
@@ -436,7 +458,7 @@
   </div>
   <!-- The body takes keyboard focus for the whole grid (arrows, Enter, Delete, Ctrl+A). -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => { scrollTop = scroller.scrollTop; if (restoredFor === selKey) view.scrolls.set(selKey, scrollTop); if (headWrap) headWrap.scrollLeft = scroller.scrollLeft; }} tabindex="0" role="rowgroup" onkeydown={onKey} oncontextmenu={onContext}>
+  <div class="body" bind:this={scroller} bind:clientHeight={height} onscroll={() => { scrollTop = scroller.scrollTop; remember(); if (restoredFor === selKey) view.scrolls.set(selKey, scrollTop); if (headWrap) headWrap.scrollLeft = scroller.scrollLeft; }} tabindex="0" role="rowgroup" onkeydown={onKey} oncontextmenu={onContext}>
     <div class="spacer" style:height={rows.length * ROW + 'px'} style:min-width={minWidth + 'px'}>
       {#each visible as r, j (r.t.id)}
         {@const i = first + j}

@@ -52,6 +52,9 @@ pub fn now_ms() -> u64 { std::time::SystemTime::now().duration_since(std::time::
 /// A GLUE tab holds the lease (renewed every 5 s; it lapses after 15).
 pub fn leased() -> bool { now_ms().saturating_sub(LEASE_AT.load(Ordering::Relaxed)) < 15_000 }
 
+/// A GLUE website (or GLUE Home's own windows, or a test server): the origins the local link answers.
+pub(crate) fn origin_ok(o: &str) -> bool { ORIGINS.contains(&o) }
+
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
         let Some((server, port)) = (47400..47410).find_map(|p| Server::http(("127.0.0.1", p)).ok().map(|s| (s, p))) else { return };
@@ -142,7 +145,7 @@ fn answer(app: AppHandle, req: Request) {
         return reply(req, 503, b"{\"error\":\"GLUE Home is stopped\"}".to_vec(), "application/json");
     }
     if path == "/hello" {
-        let body = serde_json::json!({ "app": "glue-home", "version": app.package_info().version.to_string(), "device": s("deviceId") });
+        let body = serde_json::json!({ "app": "glue-home", "version": app.package_info().version.to_string(), "device": s("deviceId"), "wsPort": crate::ws::WS_PORT.load(Ordering::Relaxed) });
         return reply(req, 200, body.to_string().into_bytes(), "application/json");
     }
     // A GLUE page in any browser on this computer takes the link (ADR 0115): being the GLUE website (its origin,
@@ -157,7 +160,7 @@ fn answer(app: AppHandle, req: Request) {
         if !origin.as_deref().map(site).unwrap_or(false) || token.is_empty() {
             return reply(req, 403, b"{\"error\":\"not allowed\"}".to_vec(), "application/json");
         }
-        let body = serde_json::json!({ "home": s("deviceId"), "port": PORT.load(Ordering::Relaxed), "token": token, "version": app.package_info().version.to_string() });
+        let body = serde_json::json!({ "home": s("deviceId"), "port": PORT.load(Ordering::Relaxed), "wsPort": crate::ws::WS_PORT.load(Ordering::Relaxed), "token": token, "version": app.package_info().version.to_string() });
         return reply(req, 200, body.to_string().into_bytes(), "application/json");
     }
     // Everything else: the token GLUE Home gave the website (a header, or ?t= for <audio src>). The full one

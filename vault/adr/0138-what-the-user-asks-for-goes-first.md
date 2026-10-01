@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; the gate superseded by 0139 for GLUE Home 0.42 and later (a socket; the gate is the fallback)
 date: 2026-10-01
 ---
 # 0138. What the user asks for goes first: background requests gated, playing ahead of the analysis, songs read whole

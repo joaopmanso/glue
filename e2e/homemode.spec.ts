@@ -902,7 +902,8 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
       w.__tauriEvent('rpc', { id, body, read });
     }), { body, read });
     const asked: string[] = [];
-    fake.cache = key => { asked.push(key); return home.evaluate(k => (window as unknown as { __cache: Record<string, number[]> }).__cache[k] ?? null, key); };
+    // A request that comes in after the test closed the page (a late row) finds nothing, not an error.
+    fake.cache = key => { asked.push(key); return home.evaluate(k => (window as unknown as { __cache: Record<string, number[]> }).__cache[k] ?? null, key).catch(() => null); };
 
     // With no GLUE tab open, GLUE Home analyses both: the time-out wasn't the file's fault, so it's tried again.
     const analysis = () => { try { return JSON.parse(readFileSync(join(fake.dirs.glue, col, 'analysis', 't1.json'), 'utf8')).items as Record<string, { error?: string; label: string }>; } catch { return {}; } };

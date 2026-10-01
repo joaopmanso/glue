@@ -5,6 +5,20 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · GLUE Home 0.42.0: a socket for the background loads; the list stays put
+- **The user's report:** scrolling into a part not loaded yet, the songs on screen changed 5–7 times before
+  settling, even with the analysis paused
+  ([ADR 0139](../adr/0139-a-socket-for-background-loads-and-a-list-that-stays-put.md)).
+- **The cause:** as rows loaded, songs just above the screen left or joined the list (one row per song, failed
+  analyses left out), shifting everything below. Reproduced in `e2e/scroll.spec.ts`.
+- **The list stays put:** the song at the top of the window keeps its place when the list changes by itself, in
+  every view; only the user moves it.
+- **The socket (the user's idea):** GLUE Home 0.42 has a WebSocket on 127.0.0.1 for the page's background loads
+  (spectrograms, waveforms, details, the analyses' results).
+  - Any number at once on one connection, numbered.
+  - A row that scrolls away cancels its read.
+  - The browser's connections are left for playing; older GLUE Homes use HTTP through the gate.
+
 ## 2026-10-01 · GLUE Home 0.41.6: what you ask for goes first
 - **The user's report:** analysing a NAS folder of 24-bit FLACs, 2 songs a minute at 10 MB/s; the page lost its
   direct link again, and clicking 3 or 4 songs in a row broke playing
