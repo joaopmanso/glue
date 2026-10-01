@@ -650,6 +650,10 @@ class Library {
     this.job = { text: 'Scanning ' + r.root.name + '…', done: 0, total: null };
     try {
       const { files, libraries } = await scanFolder(r.dir, n => { this.job = { text: 'Scanning ' + r.root.name + '…', done: n, total: null }; });
+      // Nothing found where songs were: a network folder not connected (an empty folder is left where it was
+      // mounted), not every song gone. Kept as they are.
+      const had = files.length || id === INCOMING_ROOT ? 0 : [...s.tracks.values()].filter(t => t.rootId === id && !t.remote && t.status === 'linked').length;
+      if (had) { this.notice = '“' + r.root.name + '” looks empty, or isn’t reachable right now (a network folder not connected?): its ' + had + ' song' + (had === 1 ? ' is' : 's are') + ' kept as they are. Scan it again when it’s back.'; return; }
       this.found = [...this.found.filter(f => f.rootId !== id), ...libraries.map(l => ({ ...l, rootId: id }))];
       this.job = { text: 'Reading file details…', done: 0, total: files.length };
       const entries = [], handles = new Map<string, FileSystemFileHandle>();
@@ -993,13 +997,21 @@ class Library {
   /** Songs whose edited info isn't in their file yet. */
   unwrittenCount() { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (t.unwritten?.length) n++; return n; }
   private writing: Promise<void> | null = null;
+  private infoAgain: ReturnType<typeof setTimeout> | undefined;
+  private awayTold = new Set<string>();
+  /** A music folder that can't be reached now: said once a visit; its songs wait, and nothing of theirs changes. */
+  private folderAway(root: Root) {
+    if (this.awayTold.has(root.id)) return;
+    this.awayTold.add(root.id);
+    this.notice = '“' + root.name + '” isn’t reachable right now (a network folder not connected, or a drive not plugged in): its songs wait, and nothing of theirs is changed.';
+  }
   /** Edited info into the files, through GLUE Home (Home mode only; the rest waits for it). */
   writeInfo() { return (this.writing ??= this.writeInfoOnce().finally(() => { this.writing = null; })); }
   private async writeInfoOnce() {
     const s = this.store;
     if (!s || this.readOnly || !platform.homeMode()) return;
     const stop = () => this.store !== s || this.readOnly || !platform.homeMode();
-    let r: { failed: number; why: string };
+    let r: { failed: number; why: string; away: string[] };
     try {
       r = await writeUnwritten(s, (t, tags) => {
         const root = this.rootState(t.rootId)?.root;
@@ -1009,10 +1021,15 @@ class Library {
         stop,
         restamp: async (t, was, now) => { const cache = await platform.cacheDir(); if (cache) await restampDetails(cache, s.meta.id, t.id, was, now); await this.restampHome?.(t.id, was, now); },
         fatal: e => (e as Error).name === 'HomeDown',
+        reachable: t => { const r = this.rootState(t.rootId); return r ? platform.folderReachable(r.root, r.dir) : Promise.resolve(true); },
       });
     } catch { return; }
-    const { failed, why } = r;
-    if (failed) this.notice = 'GLUE Home couldn’t write the info into ' + (failed === 1 ? 'one song’s file' : failed + ' songs’ files') + ': ' + why + ' GLUE keeps the edits, and tries again when GLUE Home next connects.';
+    const { failed, why, away } = r;
+    // A folder that isn't reachable (a network folder): its songs' info waits for it, tried again every few minutes.
+    for (const id of away) { const r = this.rootState(id); if (r) this.folderAway(r.root); }
+    clearTimeout(this.infoAgain);
+    if (away.length) this.infoAgain = setTimeout(() => void this.writeInfo(), 3 * 60e3);
+    if (failed) this.notice = 'GLUE Home couldn’t write the info into ' + (failed === 1 ? 'one song’s file' : failed + ' songs’ files') + ': ' + why.replace(/\.?$/, '.') + ' GLUE keeps the edits, and tries again when GLUE Home next connects.';
   }
   addToList(id: string, trackIds: string[], at?: number) {
     // Songs waiting in an incoming folder (TO BE SORTED) move into a music folder first.
@@ -1405,7 +1422,14 @@ class Library {
     if (!s || !pool) return;
     let file: File;
     try { file = t.fileKey ? await this.looseFile(t, false) : await fileAt(this.rootState(t.rootId)!.dir!, t.relPath!); }
-    catch (e) { if ((e as DOMException).name === 'NotFoundError') s.putTrack({ ...t, status: 'missing' }); return; }
+    catch (e) {
+      if ((e as DOMException).name !== 'NotFoundError') return;
+      // Its folder isn't reachable (a network folder not connected): the song waits, it isn't missing (each song
+      // looked at was marked missing, on every device).
+      const r = t.fileKey ? null : this.rootState(t.rootId);
+      if (r && !(await platform.folderReachable(r.root, r.dir).catch(() => false))) { this.folderAway(r.root); return; }
+      s.putTrack({ ...t, status: 'missing' }); return;
+    }
     try {
       const r = await timeAsync('analysis.track', () => pool.analyze(file, file.lastModified));
       if (this.store !== s || this.stops !== stops) return;

@@ -21,7 +21,9 @@ export function afterAnalysis(cur: Track, a: Analysed): Track {
 
 /** A failure worth trying again (ADR 0109): the analysis ran out of time or memory, or its worker was stopped;
     the file itself may be fine (295 songs "took too long" in one night, from a timer bug fixed in 0.33). */
-export const isTransient = (msg: string | null | undefined) => !!msg && /took too long|allocation failed|out of memory|worker stopped/i.test(msg);
+/** A failure that says nothing about the song: out of time or memory, or its file couldn't be read just then (a
+    network folder that dropped, 2026-10-01). Tried again, never kept as the song's. */
+export const isTransient = (msg: string | null | undefined) => !!msg && /took too long|allocation failed|out of memory|worker stopped|could not be read|isn’t reachable|NotReadableError|read only part of/i.test(msg);
 
 /** Where a song's analysis stands, one meaning everywhere (the sidebar, the list, Stats, GLUE Home, ADR 0109):
     - done: analysed, this file as it is;

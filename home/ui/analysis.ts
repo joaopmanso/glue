@@ -25,8 +25,12 @@ export interface AnalysisState {
   left: number; done: number; failed: number; waiting: number;
   /** Who takes the results in: GLUE Home, the open tab (it asked), or the open tab analysing by itself. */
   by: 'home' | 'tab' | 'tab-self' | 'idle';
+  /** Why results wait to go into the library, if something keeps them ('' nothing: they go in soon). */
+  why: string;
+  /** Songs this run left for later: their music folder isn't reachable (a network folder not connected). */
+  away: number;
 }
-export const state: AnalysisState = { paused: false, running: 0, current: [], left: 0, done: 0, failed: 0, waiting: 0, by: 'idle' };
+export const state: AnalysisState = { paused: false, running: 0, current: [], left: 0, done: 0, failed: 0, waiting: 0, by: 'idle', why: '', away: 0 };
 
 type Job = { p: string; c: string; id: string; name: string };
 const PENDING = 's/pending.json';
@@ -137,6 +141,7 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
   looping = true;
   // What this run did: "Analysis done" tells only that (it ran every minute with the day's total, 2026-09-30).
   const done0 = state.done, failed0 = state.failed;
+  state.away = 0;
   try {
     const c0 = cfg();
     if (!c0?.glue) return;
@@ -172,7 +177,12 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
         const jk = j.p + '/' + j.c + '/' + j.id;
         active.add(jk);
         state.running++; state.current = [...state.current, j.name]; state.left = urgent.length + queue.length; changed();
-        try { await cache.analyse(j.p, j.c, j.id, c); state.done++; } catch (e) { state.failed++; const k = key(j.p, j.c) + '/' + j.id; tries.set(k, (tries.get(k) ?? 0) + 1); console.warn('GLUE Home: couldn’t analyse', j.name, e); }
+        try { await cache.analyse(j.p, j.c, j.id, c); state.done++; }
+        catch (e) {
+          // Its folder isn't reachable (a network folder not connected): left for a later look, not a failure.
+          if ((e as Error).name === 'FolderAway' || /isn’t reachable/.test(String((e as Error)?.message))) state.away++;
+          else { state.failed++; const k = key(j.p, j.c) + '/' + j.id; tries.set(k, (tries.get(k) ?? 0) + 1); console.warn('GLUE Home: couldn’t analyse', j.name, e); }
+        }
         active.delete(jk);
         state.running--; state.current = state.current.filter(n => n !== j!.name); changed();
         if (++sinceWrite >= 25) { sinceWrite = 0; await write(c).catch(e => console.warn('GLUE Home: couldn’t take the analyses in', e)); }
@@ -194,9 +204,20 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
 
 /** The results into their collections, when no tab holds the lease (it takes them in itself). */
 export async function write(cfg: HomeConfig): Promise<number> {
-  if (!count() || !cfg.glue || !cfg.localToken || cfg.running === false) return 0;
-  if (await bridge.leaseHeld()) { state.by = Date.now() < delegatedUntil ? 'tab' : 'tab-self'; return 0; }
+  if (!count() || !cfg.glue || !cfg.localToken) { state.why = ''; return 0; }
+  if (cfg.running === false) { state.why = 'GLUE Home is stopped'; return 0; }
+  if (await bridge.leaseHeld()) {
+    state.by = Date.now() < delegatedUntil ? 'tab' : 'tab-self';
+    // A GLUE tab that writes the library itself and doesn't ask (one from before GLUE Home's engine): they wait for it.
+    state.why = state.by === 'tab' ? '' : 'a GLUE tab open on this computer writes the library itself; reload it, or close it';
+    return 0;
+  }
   state.by = 'home';
+  try { return await writeAll(cfg); }
+  catch (e) { state.why = 'couldn’t put them in: ' + ((e as Error).message || e); changed(); throw e; }
+}
+async function writeAll(cfg: HomeConfig): Promise<number> {
+  state.why = '';
   let n = 0;
   for (const [k, ids] of [...pending]) {
     if (!ids.size) continue;

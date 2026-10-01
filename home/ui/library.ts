@@ -76,6 +76,11 @@ let known: { home: string | null; music: string | null; documents: string | null
 const join = (base: string, rel: string) => { const sep = known?.sep ?? (base.includes('\\') ? '\\' : '/'); return base.replace(/[\\/]+$/, '') + sep + rel.split('/').join(sep); };
 const slashes = (p: string) => p.replace(/\\/g, '/');
 
+/** A music folder set in the settings that isn't reachable now (a network folder not connected, a drive not plugged
+    in): its songs wait for it, they aren't failures. */
+export class FolderAway extends Error {
+  constructor(name: string, at: string) { super('“' + name + '” isn’t reachable right now (' + at + '): a network folder not connected, or a drive not plugged in'); this.name = 'FolderAway'; }
+}
 /** A music folder found by looking (not where the settings put it): told, so it's remembered (set by the service). */
 export const found: { f: ((id: string, at: string) => Promise<void>) | null } = { f: null };
 /** The drive searches running or just done, by music folder: one for all its songs (each song searched every drive
@@ -95,7 +100,9 @@ export async function locate(root: Collection['roots'][number], sample: Sample |
   const ok = async (dir: string | null | undefined): Promise<boolean> => !!dir && await bridge.exists(sample ? join(dir, sample.relPath) : dir);
   const chosen = cfg.folders?.[root.id];
   if (chosen && await ok(chosen)) return chosen;
-  const at = await look(root, sample, cfg, ok, opts);
+  // Where it was put, gone (not mounted): the usual places only, no drive search for each song meanwhile.
+  const gone = !!chosen && !await bridge.exists(chosen);
+  const at = await look(root, sample, cfg, ok, gone ? { ...opts, search: false } : opts);
   if (at && root.id && at !== chosen) await found.f?.(root.id, at).catch(() => {});
   return at;
 }
@@ -165,6 +172,10 @@ export async function trackPath(profile: string, collection: string, id: string,
   const root = meta?.roots.find(r => r.id === t.rootId);
   if (!root) throw new Error('That song’s music folder isn’t in the collection any more.');
   const dir = await locate(root, { relPath: t.relPath, importPath: t.importPath }, cfg);
-  if (!dir) throw new Error('GLUE Home couldn’t find the music folder “' + root.name + '” on this computer (with ' + t.fileName + ' in it).');
+  if (!dir) {
+    const chosen = cfg.folders?.[root.id];
+    if (chosen && !await bridge.exists(chosen)) throw new FolderAway(root.name, chosen);
+    throw new Error('GLUE Home couldn’t find the music folder “' + root.name + '” on this computer (with ' + t.fileName + ' in it).');
+  }
   return { path: join(dir, t.relPath), name: t.fileName, mtime: t.mtime ?? 0, size: t.size, folder: cfg.folders?.[root.id] === dir ? undefined : { id: root.id, path: dir } };
 }

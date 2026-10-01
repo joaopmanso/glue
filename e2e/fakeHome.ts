@@ -41,6 +41,8 @@ export class FakeHome {
   /** The writer lease (ADR 0087): when a tab last renewed it, and the edits counter it's told. */
   leasedAt = 0;
   edits = 0;
+  /** /fs/tags answers this instead (a music folder GLUE Home can't reach, as local.rs says it). */
+  tagsFail: { code: number; error: string } | null = null;
   /** Stop pressed in GLUE Home (running: false): the local link answers the website 503 (local.rs), as if quit. */
   stopped = false;
   private server: Server | null = null;
@@ -153,6 +155,7 @@ export class FakeHome {
       return;
     }
     if (u.pathname === '/fs/tags' && method === 'POST') {
+      if (this.tagsFail) return send(this.tagsFail.code, { error: this.tagsFail.error });
       const chunks: Buffer[] = [];
       req.on('data', c => chunks.push(Buffer.from(c)));
       req.on('end', () => {

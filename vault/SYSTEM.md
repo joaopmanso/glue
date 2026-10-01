@@ -54,6 +54,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     the file).
 - **Music folders (`roots`):** handles live in IndexedDB (`handleKey`), or GLUE Home finds them (§5). The
   incoming folder is a hidden root (`INCOMING_ROOT`) shown as "TO BE SORTED".
+- **A music folder that can't be reached** (a network folder not connected, a drive not plugged in; an empty folder
+  counts) is away, not gone: its songs aren't marked missing, analysed, rescanned or written into. They wait for it
+  (ADR 0123).
 - **Caches** are not in the GLUE folder:
   - in the browser (OPFS `cache/`): details (the full analysis), thumbs (mini spectrograms), waveforms,
     fingerprints, covers, kept per collection;

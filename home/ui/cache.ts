@@ -134,7 +134,10 @@ let pool: AnalysisPool | null = null;
 export async function analyse(p: string, c: string, id: string, cfg: HomeConfig): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null }> {
   const f = await trackPath(p, c, id, cfg);
   const size = await bridge.fileSize(f.path), parts: ArrayBuffer[] = [];
-  for (let at = 0; at < size;) { const b = await bridge.fileRead(f.path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; }
+  let got = 0;
+  for (let at = 0; at < size;) { const b = await bridge.fileRead(f.path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; got = at; }
+  // A network folder that dropped mid-file: tried again later, never decoded (and kept as failed) from a part.
+  if (got < size) throw new Error('GLUE Home read only part of ' + f.name + ' (' + got + ' of ' + size + ' bytes): its folder isn’t reachable right now');
   const want = poolSize(cfg);
   if (pool && pool.size !== want) { const old = pool; pool = null; setTimeout(() => old.stop(), 150_000); }   // what runs there finishes
   pool ??= new AnalysisPool(want);

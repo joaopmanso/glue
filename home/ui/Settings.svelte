@@ -221,7 +221,7 @@
             {:else}All this computer’s songs are analysed{/if}
           </p>
           {#if an.current.length}<ul class="now" id="an-current">{#each an.current as n, i (n + i)}<li>{n}</li>{/each}</ul>{/if}
-          <p class="fine">Analysed since GLUE Home started: {an.done.toLocaleString()}{an.failed ? ' · ' + an.failed + ' couldn’t be read' : ''}{an.waiting ? ' · ' + an.waiting.toLocaleString() + ' waiting to go into the library' + (an.by === 'tab' || an.by === 'tab-self' ? ' (the GLUE tab here takes them)' : '') : ''}</p>
+          <p class="fine">Analysed since GLUE Home started: {an.done.toLocaleString()}{an.failed ? ' · ' + an.failed + ' couldn’t be read' : ''}{an.away ? ' · ' + an.away.toLocaleString() + ' wait for a music folder that isn’t reachable right now (a network folder not connected?)' : ''}{an.waiting ? ' · ' + an.waiting.toLocaleString() + ' waiting to go into the library' + (an.why ? ': ' + an.why : an.by === 'tab' ? ' (the GLUE tab here takes them)' : '') : ''}</p>
           <div class="row">
             <button type="button" id="an-pause" onclick={() => void save({ analysisPaused: !cfg?.analysisPaused })}>{cfg?.analysisPaused ? 'Resume analysis' : 'Pause analysis'}</button>
             <label>Songs at a time

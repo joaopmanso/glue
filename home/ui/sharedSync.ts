@@ -98,7 +98,11 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
         const at = tr.rootId === INCOMING_ROOT ? r.incoming : r.folders[tr.rootId ?? ''];
         if (!at || !tr.relPath) throw new Error('GLUE Home doesn’t know this song’s music folder');
         return disk.tags(at, tr.relPath, tags);
-      }, { stop: () => false, restamp: (tr, was, now) => cache.restamp(p.id, c.id, tr.id, was, now) });
+      }, {
+        stop: () => false, restamp: (tr, was, now) => cache.restamp(p.id, c.id, tr.id, was, now),
+        // A music folder that isn't reachable (a network folder not connected): its songs wait for it.
+        reachable: async tr => { const at = tr.rootId === INCOMING_ROOT ? r.incoming : r.folders[tr.rootId ?? '']; if (!at) return true; try { return (await disk.json<unknown[]>('/fs/list', { root: at, path: '' })).length > 0; } catch { return false; } },
+      });
       await s.flush();
       hint = engine.takeWritten(p.id, c.id);
       try { await syncShared(place, hint); } catch (e) { engine.writtenAgain(p.id, c.id, hint); throw e; }

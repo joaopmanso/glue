@@ -12,11 +12,15 @@ import { AUDIO_EXT } from '../core/library/tags';
 // ─── Home mode ───────────────────────────────────────────────────────────────
 let disk: HomeDisk | null = null, roots: HomeRoots | null = null, active = false;
 let downHook: (() => void) | null = null;
+/** The linked GLUE Home's version ('' not known). */
+let homeVersion = '';
+const older = (v: string, than: string) => { const a = v.split('.').map(Number), b = than.split('.').map(Number); for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0); return false; };
 /** Called when a request finds GLUE Home gone (lib/localHome checks, and the library falls back). */
 export function onHomeDown(f: () => void) { downHook = f; if (disk) disk.onDown = f; }
 /** This computer's GLUE Home answers on the local link (or stopped answering: null). */
-export function setHomeLink(link: { port: number; token: string } | null) {
+export function setHomeLink(link: { port: number; token: string; version?: string } | null) {
   disk = link ? new HomeDisk('http://127.0.0.1:' + link.port, link.token) : null;
+  homeVersion = link?.version ?? '';
   if (disk) disk.onDown = () => downHook?.();
   roots = null;
   if (!disk) active = false;
@@ -269,14 +273,27 @@ export async function fileLink(root: Root, path: string): Promise<string | null>
   const at = await musicFolderPath(root);
   return at ? disk.fileUrl(at, path) : null;
 }
+/** A music folder that can be read now: a network folder may not be connected, or a drive not plugged in (an empty
+    folder counts as not reachable: what's left where a network folder was mounted). */
+export async function folderReachable(root: Root, dir?: Dir | null): Promise<boolean> {
+  if (homeMode() && disk) {
+    const at = await musicFolderPath(root);
+    if (!at) return true;   // GLUE Home doesn't know it: said elsewhere
+    try { return (await disk.json<unknown[]>('/fs/list', { root: at, path: '' })).length > 0; }
+    catch (e) { if ((e as Error).name === 'HomeDown') throw e; return false; }
+  }
+  if (!dir) return true;
+  try { return !(await (dir as unknown as { values(): AsyncIterator<unknown> }).values().next()).done; } catch { return false; }
+}
 /** Song info written into a music file by GLUE Home (Home mode only, ADR 0071): the file's new size and date. */
 export async function writeTags(root: Root, path: string, tags: Record<string, string>): Promise<{ size: number; mtime: number }> {
   if (!homeMode() || !disk) throw new Error('Writing into files needs GLUE Home on this computer.');
   const at = await musicFolderPath(root);
   if (!at) throw new Error('GLUE Home doesn’t know this music folder.');
   try { return await disk.tags(at, path, tags); }
-  // An older GLUE Home has no /fs/tags: it looks for a folder named in the address, and finds none.
-  catch (e) { throw (e as Error).name === 'NotFoundError' ? new Error('Writing song info into files needs GLUE Home 0.12 or later: it updates itself, or download it again.') : e; }
+  // A GLUE Home before 0.12 has no /fs/tags (it answers "not found"); a newer one says why it couldn't (a folder
+  // that isn't there was told as "needs 0.12" to a Mac on 0.38, 2026-10-01).
+  catch (e) { throw (e as Error).name === 'NotFoundError' && homeVersion && older(homeVersion, '0.12.0') ? new Error('Writing song info into files needs GLUE Home 0.12 or later: it updates itself, or download it again.') : e; }
 }
 export async function folderHandle(key: string): Promise<Dir | null> {
   try { return (await idbGet<Dir>(key)) ?? null; } catch { return null; }

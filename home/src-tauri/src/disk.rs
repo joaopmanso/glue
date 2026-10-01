@@ -49,7 +49,11 @@ fn regular(app: &AppHandle, dir: &Path) -> bool {
 
 /// The root the website names, if it's one of GLUE Home's roots (compared once resolved).
 fn root(app: &AppHandle, name: &str) -> Result<PathBuf, Fail> {
-    let want = fs::canonicalize(name).map_err(|_| fail(404, "that folder isn't there"))?;
+    // Why it can't be reached, said (a Mac said "needs GLUE Home 0.12" for any of these, 2026-10-01).
+    let want = fs::canonicalize(name).map_err(|e| match e.kind() {
+        std::io::ErrorKind::PermissionDenied => fail(403, format!("this computer doesn't let GLUE Home into {name} (on a Mac: System Settings › Privacy & Security › Files and Folders, or Full Disk Access)")),
+        _ => fail(404, format!("{name} isn't reachable right now (a network folder not connected, a drive not plugged in, or the folder was moved or renamed)")),
+    })?;
     let (glue, incoming, folders) = roots(app);
     let all = glue.into_iter().chain(std::iter::once(incoming)).chain(folders.into_iter().map(|f| f.1));
     for r in all {

@@ -200,5 +200,6 @@ Planned (GLUE):
 | [0120](adr/0120-one-copy-shown-and-used.md) | Only a song's best copy is shown and used; Duplicates is where copies are decided, in bulk | accepted |
 | [0121](adr/0121-main-music-folder.md) | An optional main music folder: among duplicates, its copy is the best, after lossless | accepted |
 | [0122](adr/0122-stop-stops-everything-dropped-folders-found.md) | GLUE Home's Stop stops everything; a dropped folder is found by GLUE Home at once | accepted |
+| [0123](adr/0123-music-folders-that-come-and-go.md) | Music folders that come and go (network folders): their songs wait, nothing about them changes | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

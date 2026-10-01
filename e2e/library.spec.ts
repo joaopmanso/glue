@@ -2683,3 +2683,22 @@ test('Engine DJ’s databases on several drives are one found library, imported 
   await expect(page.getByText(/\b2 tracks\b/).first()).toBeVisible({ timeout: 20_000 });
   await expect(engine).toHaveCount(0);
 });
+
+test('a music folder that comes back empty (a network folder not connected) keeps its songs as they are (2026-10-01)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  // What a Mac leaves where a network share was mounted: the folder, empty.
+  await page.evaluate(async () => { const m = await (await navigator.storage.getDirectory()).getDirectoryHandle('Music'); await m.removeEntry('Sets', { recursive: true }); });
+  await page.locator('[data-root] .name', { hasText: 'Music' }).first().hover();
+  await page.locator('[data-root] [title="Scan again"]').first().click();
+  await expect(page.locator('.notice')).toContainText('looks empty, or isn’t reachable right now', { timeout: 20_000 });
+  await expect(page.locator('.notice')).toContainText('its 4 songs are kept as they are');
+  await expect(page.locator('.tr')).toHaveCount(4);
+  await expect(page.locator('.tr .q.bad', { hasText: 'missing' })).toHaveCount(0);
+});

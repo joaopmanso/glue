@@ -5,6 +5,20 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · Network folders that come and go; errors that say what's wrong (GLUE Home 0.39.0)
+- **A music folder that can't be reached is away, not gone**
+  ([ADR 0123](../adr/0123-music-folders-that-come-and-go.md)). A tester's Mac has all its music on network folders
+  over Wi-Fi:
+  - songs in an away folder are no longer marked missing by the analysis (saved and synced, for every song looked
+    at);
+  - GLUE Home leaves them for later instead of failing them (and no drive search);
+  - their song info waits instead of failing (said once, tried again every 3 minutes);
+  - a rescan that finds an empty folder where songs were keeps them;
+  - a read that drops mid-file is tried again, never kept as "couldn't analyse".
+- **Errors say what's wrong:** "needs GLUE Home 0.12" showed for any music folder GLUE Home couldn't reach. GLUE Home
+  now says why: not reachable, or not allowed by macOS's privacy settings. Its window also says why analysed songs
+  wait to go into the library.
+
 ## 2026-10-01 · Stop stops GLUE Home; a dropped folder is analysed (GLUE Home 0.38.0)
 - **A folder dropped onto the library, with GLUE Home running, is analysed**
   ([ADR 0122](../adr/0122-stop-stops-everything-dropped-folders-found.md)). The browser never says where a dropped
