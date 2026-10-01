@@ -15,6 +15,10 @@ describe('who may open a session with GLUE Home', () => {
     expect(admit('ph/t1', open(), 5, 1000, 999)).toEqual({ ok: false, why: 'refused' });
     expect(admit('ph/t1', open(), 5, 1000, 1001)).toEqual({ ok: true, replaces: false });
   });
+  it('this computer’s own browser is always let in, and the limit counts only the others (ADR 0137)', () => {
+    expect(admit('desk/t9', open('ph/t1', 'lap/a'), 2, undefined, 0, true)).toEqual({ ok: true, replaces: false });
+    expect(admit('desk/t9', open('ph/t1', 'lap/a'), 2, undefined, 0, false)).toEqual({ ok: false, why: 'full' });
+  });
   it('keys a session by device and tab; an older website’s connections each their own', () => {
     expect(sessionKey('ph', 'tab1', 'h1')).toBe('ph/tab1');
     expect(sessionKey('ph', undefined, 'h1')).toBe('ph/h1');

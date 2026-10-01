@@ -214,5 +214,6 @@ Planned (GLUE):
 | [0134](adr/0134-network-folders-found-quickly-and-read-past-odd-names.md) | Dropped folders in Home mode: a 5 s search then GLUE Home asks, the page saying so; scans read past odd names (':' fine on macOS) | accepted |
 | [0135](adr/0135-analysis-around-network-folders-and-tags-by-glue-home.md) | Network folders' songs take turns (4 each) so the processor works on local songs; GLUE Home reads tags in batches; one "left" count | accepted |
 | [0136](adr/0136-analysis-limits-are-the-users-with-speed-shown.md) | Analysis limits are the user's ("From each network folder at a time"), with the speed shown in GLUE Home and a suggestion | accepted |
+| [0137](adr/0137-this-computer-never-a-remote-session.md) | This computer's browser is never a remote session nor counted; the direct link isn't dropped on one slow answer | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

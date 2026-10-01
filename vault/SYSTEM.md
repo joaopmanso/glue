@@ -152,7 +152,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     "bye". The website says "bye" when it gives up, and waits 5 to 60 s before connecting again for background asks.
   - **Sessions** (ADR 0133, 0.41): each device's tab keeps one with each of the account's other GLUE Homes,
     opened at sign-in (`remoteFiles.tend`), kept alive by a `ping` every 15 s; requests, playing and songs sent all go
-    through it. GLUE Home keeps one per tab, at most "Most at once" (5), refuses a new one when full, and lists them
+    through it. Never to this computer's own GLUE Home (ADR 0137: 127.0.0.1 only). GLUE Home keeps one per tab, at most
+    "Most at once" (5, other devices only: its own computer's browser isn't counted), refuses a new one when full, and lists them
     with Disconnect (`home/ui/sessions.ts`). It says `{t:'session'}` first, then tells every session what happened:
     `made` (songs analysed: rows and song pages show them at once) and `incoming` (TO BE SORTED changed);
     covers for songs whose tags have none, looked up on public services (`lookup.ts`, ADR 0086).

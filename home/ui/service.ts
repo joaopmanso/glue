@@ -118,12 +118,15 @@ async function onSignal(from: string, data: unknown) {
     try {
       // A session per device's tab (ADR 0133). An older website says no tab: each of its connections is one.
       const key = sessionKey(from, data.tab, data.id), name = data.name || 'Another device';
-      const a = admit(key, sessions, maxSessions(), refused.get(key), Date.now());
+      // This computer's own browser isn't counted, nor ever refused for room (ADR 0137): the limit is other devices'.
+      const own = !!cfg?.computer && from === cfg.computer;
+      const others = [...sessions.values()].filter(s => s.from !== cfg?.computer).length;
+      const a = admit(key, { has: k => sessions.has(k), size: others }, maxSessions(), refused.get(key), Date.now(), own);
       if (!a.ok && a.why === 'refused') { say({ app: 'glue-send', t: 'bye', id: data.id, reason: 'Disconnected in GLUE Home’s settings on ' + (cfg?.name ?? 'that computer') + '.' }); return; }
       if (a.ok && a.replaces) endSession(key);   // the same tab again (it reconnected): the new one replaces it
       else if (!a.ok) {
-        say({ app: 'glue-send', t: 'bye', id: data.id, reason: 'GLUE Home on ' + (cfg?.name ?? 'that computer') + ' is full: ' + sessions.size + ' devices connected (raise the limit in its settings).' });
-        event(name + ' couldn’t connect: ' + sessions.size + ' devices are connected already (the most at once is ' + maxSessions() + ')');
+        say({ app: 'glue-send', t: 'bye', id: data.id, reason: 'GLUE Home on ' + (cfg?.name ?? 'that computer') + ' is full: ' + others + ' devices connected (raise the limit in its settings).' });
+        event(name + ' couldn’t connect: ' + others + ' devices are connected already (the most at once is ' + maxSessions() + ')');
         return;
       }
       // The relay's credentials (ADR 0081), asked for once a day: the other side's first candidates

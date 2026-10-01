@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-01)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.4.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.5.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -73,6 +73,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **The analysis starving GLUE Home** (ADR 0137, open): with 24 at a time (16 processors) and the network folder at 4,
+  the desktop's direct link and the iPhone's connection broke; stopping the analysis fixed them.
+  - 0.41.5 makes the link check patient and keeps this computer out of the remote sessions.
+  - The cause is to be measured with the analysis running (CPU per process, `/hello` times): the processor, or GLUE
+    Home's page carrying every song's bytes (4 MB `fileRead`s on its main thread). Then decide: keep processors
+    free while devices are connected, or read the files in the workers.
 - **Analysis on the desktop** (GLUE Home 0.41.2, ADR 0135):
   - the tab's "left" and GLUE Home's window should match;
   - a new big folder's "Reading tags…" should move in steps of 200;

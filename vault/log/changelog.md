@@ -5,6 +5,17 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · GLUE Home 0.41.5: this computer is never a remote session
+- **The user's report:** while analysing, the desktop's page kept losing its direct link, and the iPhone couldn't
+  connect; stopping the analysis fixed both ([ADR 0137](../adr/0137-this-computer-never-a-remote-session.md)).
+- **The page:**
+  - drops the direct link only when GLUE Home doesn't answer twice (3 s, then 5 s), not once in 1.5 s behind its
+    other requests;
+  - never opens a remote session to this computer's own GLUE Home.
+- **GLUE Home** lets its own computer's browser in always; "Most at once" counts other devices only.
+- **Still open:** why the analysis starves GLUE Home's answers and the phone's connection (the processor, or GLUE
+  Home's page carrying every song's bytes). To be measured with the analysis running.
+
 ## 2026-10-01 · GLUE Home 0.41.4: the speed as a panel
 - **The user:** a meter rather than a line of text, like the website's admin stats (ADR 0136).
 - **GLUE Home's window, Activity › Speed:**

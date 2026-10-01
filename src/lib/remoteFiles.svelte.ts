@@ -123,7 +123,10 @@ class RemoteFiles {
       computer's own GLUE Home is reached over the local link instead. */
   tend() {
     const local = localHome.link?.home;
-    const want = account.signedIn && lib.store ? account.devices.filter(d => d.kind === 'home' && account.online.has(d.id) && d.id !== local).map(d => d.id) : [];
+    // Never this computer's own GLUE Home, even while the direct link is down: it's reached on 127.0.0.1, never as a
+    // remote session (it would count against its limit, and fail under the same load; the user, 2026-10-01).
+    const own = (d: CloudDevice) => d.id === local || (!!account.thisDevice && d.companionOf === account.thisDevice);
+    const want = account.signedIn && lib.store ? account.devices.filter(d => d.kind === 'home' && account.online.has(d.id) && !own(d)).map(d => d.id) : [];
     for (const home of [...this.links.keys()]) if (!want.includes(home)) { this.closeLink(home); this.sessions.delete(home); }
     for (const home of want) {
       const open = this.links.get(home);

@@ -128,7 +128,13 @@ class LocalHome {
     } catch (e) { this.problem = 'it didn’t answer (' + (e as Error).message + ')'; } finally { this.learning = false; }
   }
   /** It stopped answering: check again (it may have restarted on another port). */
-  async check() { if (this.link && !(await hello(this.link.port))) { this.setLink(null); this.problem = why; } }
+  /** Asked twice, patiently (3 s, then 5 s): one slow answer while GLUE Home is busy analysing, or with this page's
+      other requests to it queued, isn't it gone (the link dropped every few seconds, 2026-10-01, ADR 0137). */
+  async check() {
+    const l = this.link;
+    if (!l || await hello(l.port, 3000) || await hello(l.port, 5000)) return;
+    if (this.link === l) { this.setLink(null); this.problem = why; }
+  }
   /** The name of a GLUE Home's computer (its browser's, when it's a companion). */
   computer(home: string) { const h = account.devices.find(d => d.id === home), b = h?.companionOf ? account.devices.find(d => d.id === h.companionOf) : null; return b?.name ?? h?.name ?? (this.for(home) ? this.deviceName : 'GLUE Home'); }
   get deviceName() { const me = account.thisDevice; return (me && account.devices.find(d => d.id === me)?.name) || 'This computer'; }
