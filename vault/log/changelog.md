@@ -5,6 +5,25 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · GLUE Home 0.41.0: a session per device
+- **The user's request:** one private, secure session from the laptop to the desktop, opened at sign-in, for a
+  real-time conversation instead of separate calls, with a configurable maximum
+  ([ADR 0133](../adr/0133-a-session-per-device-with-glue-home.md)).
+- **The session:**
+  - each device's tab keeps one session with each of the account's other GLUE Homes, opened at sign-in;
+  - a heartbeat every 15 s, reopened when it drops;
+  - requests, playing and songs sent all go through it (songs on their own channel, same connection).
+- **In GLUE Home:**
+  - "Devices connected" lists them, with Disconnect (refused for an hour);
+  - "Most at once" sets the maximum (5): a new device when full is told so;
+  - the same tab reconnecting replaces its own session.
+- **Real time:**
+  - GLUE Home tells every session when songs are analysed: rows' waveforms and a song page waiting for its analysis
+    show at once, with no asking again on a timer;
+  - it tells when TO BE SORTED changes: the 30 s check becomes 5 minutes.
+- **Older GLUE Homes** are used as before.
+- **Help:** GLUE Home › Devices connected.
+
 ## 2026-10-01 · GLUE Home 0.40.2: connections bounded
 - **The user's report:**
   - the laptop couldn't connect to the desktop at all ("Desktop: no addresses; new"), so no waveforms and no

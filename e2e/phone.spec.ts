@@ -95,7 +95,8 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   const disk = { 'C:\\Users\\dj\\Music\\Genorale.flac': [...readFileSync(fixture('flac-96k-24.flac'))], 'C:\\Users\\dj\\Music\\Manyaro.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\Covered.mp3': [...readFileSync(fixture('mp3-cover.mp3'))], 'C:\\Users\\dj\\Music\\Aiffy.aiff': [...readFileSync(fixture('aiff-44k-24.aiff'))] };
   await home.addInitScript(({ glue, disk }) => {
     const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk;
-    localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: 'C:\\Users\\dj\\Documents\\GLUE' }));
+    localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: 'C:\\Users\\dj\\Documents\\GLUE', maxSessions: 1 }));
+    // (maxSessions 1, ADR 0133: the phone's tab connecting again still gets in, replacing its own session.)
   }, { glue, disk });
   await home.goto('http://localhost:5176/service.html');
   await expect(home.locator('#state')).toContainText('Online as Desktop');
@@ -121,6 +122,9 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   // (it holds no copies).
   expect(await page.evaluate(async () => { const r = await navigator.storage.getDirectory(); const names: string[] = []; for await (const [n] of (r as unknown as { entries(): AsyncIterable<[string, unknown]> }).entries()) names.push(n); return names; })).toContain('mco.json');
   expect(Object.keys((await cloudFile('collection.json')).members)).toEqual(['desk']);
+  // A session with the desktop's GLUE Home (ADR 0133), opened by itself before anything was asked: GLUE Home lists it.
+  const sessionsNow = () => home.evaluate(() => ((window as unknown as { __status?: { sessions?: { list: { name: string; open: boolean }[] } } }).__status?.sessions?.list ?? []).filter(s => s.open).map(s => s.name));
+  await expect.poll(sessionsNow, { timeout: 30_000 }).toEqual(['iPhone']);
 
   // A song streams from the desktop's GLUE Home.
   await all.click();
@@ -177,11 +181,15 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   await (await chooser).setFiles([fixture('mp3-cover.mp3')]);
   await expect(page.locator('#send-panel')).toContainText('Sent to Desktop', { timeout: 30_000 });
   expect(await home.evaluate(() => (window as unknown as { __files: { name: string; done: boolean }[] }).__files.filter(f => f.done).map(f => f.name))).toEqual(['mp3-cover.mp3']);
+  // Sent on the session (its own channel), not on a connection of its own: still the one session.
+  expect(await sessionsNow()).toEqual(['iPhone']);
 
   // Next time on the phone: it opens by itself again, with the song it sent waiting on the desktop (TO BE
   // SORTED, ADR 0046).
   await page.reload();
   await expect(page.locator('#phone-library [data-view="all"]')).toContainText('5', { timeout: 30_000 });
+  // The same tab again: its new session replaced the old one, even with room for only one.
+  await expect.poll(sessionsNow, { timeout: 30_000 }).toEqual(['iPhone']);
   // A song's page asks GLUE Home for its full analysis: GLUE Home makes it, and keeps its waveform too,
   // for the Overview's waveform look on other devices (ADR 0085).
   await page.locator('#phone-library [data-view="all"]').click();

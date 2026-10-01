@@ -163,8 +163,12 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig,
   if (r.fp) await bridge.cacheWrite(pKey(p, c, id), encodeFingerprint(r.fp));
   await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify(analysed(r, size, f.mtime))));   // last: a result has all its parts
   if (tell) onAnalysed.f?.(p, c, id);
+  onMade.f?.(p, c, id);
   return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null };
 }
+
+/** A song's parts were made here (any reason): the devices with a session are told (ADR 0133). */
+export const onMade: { f: ((p: string, c: string, id: string) => void) | null } = { f: null };
 
 type Job = { p: string; c: string; id: string; done: ((ok: boolean) => void)[] };
 const urgent: Job[] = [];

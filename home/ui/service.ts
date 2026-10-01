@@ -13,6 +13,7 @@ import { followMoves } from './moves';
 import * as analysis from './analysis';
 import { describe, locate, locateAll, newlyFound, trackPath, folderOf, found } from './library';
 import { findUpdate, install, version } from './updates';
+import { admit, maxOf, sessionKey } from './sessions';
 import * as engine from './engine';
 import { checkReminders } from './reminders';
 import { whoAmI } from './identity';
@@ -26,8 +27,33 @@ let serving = 0;   // songs being sent to another computer right now
 let library: Status['library'] = undefined;
 let reminders: Status['reminders'] = undefined;
 const peers = new Map<string, RTCPeerConnection>();   // handshake id → connection
-/** A connection not open by then is let go; at most this many being set up at once (ADR 0132). */
-const SETUP_MS = 30_000, MAX_SETUPS = 20;
+/** A connection not open by then is let go (ADR 0132). */
+const SETUP_MS = 30_000;
+/** Sessions (ADR 0133): one per device's tab, at most `maxSessions` (the settings; 5 unless changed). A device whose
+    tab connects again replaces its own; a new one when full is refused, with why. */
+interface Session { key: string; from: string; name: string; since: number; last: number; calls: number; pc: RTCPeerConnection; chan?: RTCDataChannel }
+const sessions = new Map<string, Session>();
+/** Disconnected in the settings: refused for an hour (its tab would only connect again). */
+const refused = new Map<string, number>();
+const maxSessions = () => maxOf(cfg?.maxSessions);
+let myVersion = '';
+void version().then(v => (myVersion = v)).catch(() => {});
+/** What happened here, said to every session at once (ADR 0133): devices stop asking again and again. */
+function tell(e: StreamReply) { const s = JSON.stringify(e); for (const x of sessions.values()) if (x.chan?.readyState === 'open') try { x.chan.send(s); } catch { /* closing */ } }
+/** Songs analysed here, said together half a second later (a batch analyses many). */
+const made = new Map<string, Set<string>>();
+let madeTimer = 0;
+cache.onMade.f = (p, c, id) => {
+  if (!sessions.size) return;
+  const k = p + '|' + c;
+  (made.get(k) ?? made.set(k, new Set()).get(k)!).add(id);
+  if (!madeTimer) madeTimer = window.setTimeout(() => {
+    madeTimer = 0;
+    for (const [pc, ids] of made) { const [profile, collection] = pc.split('|'); tell({ t: 'event', kind: 'made', profile, collection, tracks: [...ids] }); }
+    made.clear();
+  }, 500);
+};
+function endSession(key: string) { const s = sessions.get(key); if (!s) return; sessions.delete(key); s.pc.close(); servedSoon(); }
 const early = new Map<string, (RTCIceCandidateInit | null)[]>();   // candidates that came before their connection
 const located = new Map<string, { path: string; name: string; until: number }>();   // songs being streamed: where they are
 const lookingUp = new Map<string, ReturnType<typeof trackPath>>();   // a song being looked for now: its lookup, shared
@@ -45,7 +71,7 @@ let servedTimer = 0;
 const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), events: events.slice(), reminders, served: structuredClone(served), computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
+  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), events: events.slice(), reminders, served: structuredClone(served), sessions: { list: [...sessions.values()].map(s => ({ key: s.key, name: s.name, since: s.since, last: s.last, calls: s.calls, open: s.pc.connectionState === 'connected' })), max: maxSessions() }, computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -70,7 +96,7 @@ function start() {
 function stop(say = true) {
   room?.stop(); room = null;
   for (const pc of peers.values()) pc.close();
-  peers.clear();
+  peers.clear(); sessions.clear();
   if (say) report(cfg?.deviceId ? 'stopped' : 'unpaired', cfg?.deviceId ? 'Stopped' : 'Not connected to a GLUE account');
 }
 /** Removed from the account on the website: forget the credential. */
@@ -90,19 +116,28 @@ async function onSignal(from: string, data: unknown) {
   const say = (h: Handshake) => room?.send(from, h);
   if (data.t === 'offer') {
     try {
-      // Connections still being set up: a device retrying while the link can't form left one behind each time,
-      // until this page could make no more and answered nobody (2026-10-01, ADR 0132). The oldest go first.
-      const setting = [...peers].filter(([, pc]) => pc.connectionState !== 'connected');
-      while (setting.length >= MAX_SETUPS) { const [id, pc] = setting.shift()!; peers.delete(id); early.delete(id); pc.close(); }
+      // A session per device's tab (ADR 0133). An older website says no tab: each of its connections is one.
+      const key = sessionKey(from, data.tab, data.id), name = data.name || 'Another device';
+      const a = admit(key, sessions, maxSessions(), refused.get(key), Date.now());
+      if (!a.ok && a.why === 'refused') { say({ app: 'glue-send', t: 'bye', id: data.id, reason: 'Disconnected in GLUE Home’s settings on ' + (cfg?.name ?? 'that computer') + '.' }); return; }
+      if (a.ok && a.replaces) endSession(key);   // the same tab again (it reconnected): the new one replaces it
+      else if (!a.ok) {
+        say({ app: 'glue-send', t: 'bye', id: data.id, reason: 'GLUE Home on ' + (cfg?.name ?? 'that computer') + ' is full: ' + sessions.size + ' devices connected (raise the limit in its settings).' });
+        event(name + ' couldn’t connect: ' + sessions.size + ' devices are connected already (the most at once is ' + maxSessions() + ')');
+        return;
+      }
       // The relay's credentials (ADR 0081), asked for once a day: the other side's first candidates
       // may come meanwhile, so they wait for the connection.
       let servers = ice.iceNow();
       if (!servers && cfg?.deviceId && cfg.token) { early.set(data.id, []); servers = await ice.iceServers(apiOf(cfg), cfg.deviceId, cfg.token); }
       const pc = new RTCPeerConnection({ iceServers: servers ?? ICE_SERVERS });
       peers.set(data.id, pc);
+      const session: Session = { key, from, name, since: Date.now(), last: Date.now(), calls: 0, pc };
+      sessions.set(key, session);
+      servedSoon();
       const waiting = early.get(data.id) ?? [];
       early.delete(data.id);
-      const end = () => { clearTimeout(setup); clearTimeout(gone); if (peers.get(data.id) === pc) peers.delete(data.id); pc.close(); };
+      const end = () => { clearTimeout(setup); clearTimeout(gone); if (peers.get(data.id) === pc) peers.delete(data.id); if (sessions.get(key)?.pc === pc) { sessions.delete(key); servedSoon(); } pc.close(); };
       // Not open in time (the other side gave up, or its candidates never came): let it go.
       const setup = window.setTimeout(() => { if (pc.connectionState !== 'connected') end(); }, SETUP_MS);
       pc.onicecandidate = e => say({ app: 'glue-send', t: 'ice', id: data.id, candidate: e.candidate?.toJSON() ?? null });
@@ -110,11 +145,11 @@ async function onSignal(from: string, data: unknown) {
       let gone = 0;
       pc.onconnectionstatechange = () => {
         clearTimeout(gone);
-        if (pc.connectionState === 'connected') clearTimeout(setup);
+        if (pc.connectionState === 'connected') { clearTimeout(setup); servedSoon(); }   // the settings show it open
         if (pc.connectionState === 'failed' || pc.connectionState === 'closed') end();
         else if (pc.connectionState === 'disconnected') gone = window.setTimeout(end, 15_000);
       };
-      pc.ondatachannel = ev => ev.channel.label === 'stream' ? serve(ev.channel) : receive(ev.channel, from);
+      pc.ondatachannel = ev => ev.channel.label === 'stream' ? serve(ev.channel, session) : receive(ev.channel, from);
       await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
       for (const c of waiting) await pc.addIceCandidate(c ?? undefined).catch(() => {});
       const answer = await pc.createAnswer();
@@ -122,7 +157,9 @@ async function onSignal(from: string, data: unknown) {
       say({ app: 'glue-send', t: 'answer', id: data.id, sdp: answer.sdp ?? '' });
     } catch (e) {
       // Said, not left unanswered: the other side shows why at once instead of waiting for its time-out.
-      peers.get(data.id)?.close(); peers.delete(data.id); early.delete(data.id);
+      const broken = peers.get(data.id);
+      broken?.close(); peers.delete(data.id); early.delete(data.id);
+      for (const [k, s] of sessions) if (s.pc === broken) sessions.delete(k);
       const why = (e as Error).message || String(e);
       say({ app: 'glue-send', t: 'bye', id: data.id, reason: 'GLUE Home couldn’t take the connection: ' + why });
       event('A connection couldn’t be set up: ' + why);
@@ -143,6 +180,8 @@ function receive(dc: RTCDataChannel, from: string) {
   let chain: Promise<void> = Promise.resolve();
   const fromName = () => 'another device';
   dc.onopen = () => reply({ t: 'ready', name: cfg?.name ?? 'GLUE Home' });
+  // On a session (ADR 0133) the channel can come already open: no `open` event then.
+  if (dc.readyState === 'open') reply({ t: 'ready', name: cfg?.name ?? 'GLUE Home' });
   dc.onmessage = e => { chain = chain.then(() => step(e.data)).catch(err => { if (cur) cur.error = (err as Error).message || String(err); }); };
   dc.onclose = () => { chain = chain.then(async () => { if (cur) { await bridge.end(cur.id, false).catch(() => {}); cur = null; receiving = null; report(state, text); } }); };
 
@@ -170,7 +209,8 @@ function receive(dc: RTCDataChannel, from: string) {
       } else {
         const path = await bridge.end(f.id, true);
         // Analysed at once, so it's ready in TO BE SORTED (ADR 0048).
-        void cache.analyseIncoming(f.name, path, f.size).catch(e => console.warn('GLUE Home: couldn’t analyse', f.name, e));
+        // TO BE SORTED changed: said once it's analysed, so devices show it with its waveform (ADR 0133).
+        void cache.analyseIncoming(f.name, path, f.size).catch(e => console.warn('GLUE Home: couldn’t analyse', f.name, e)).finally(() => tell({ t: 'event', kind: 'incoming' }));
         const r: Received = { name: f.name, path, from: fromName(), at: Date.now(), size: f.size };
         if (cfg) cfg = await bridge.patchConfig(cur => ({ received: [r, ...(cur.received ?? [])].slice(0, 30) })).catch(() => cfg) ?? cfg;
         reply({ t: 'saved', n: f.n, name: f.name });
@@ -184,7 +224,7 @@ function receive(dc: RTCDataChannel, from: string) {
 
 // ---- playing this computer's songs on another (ADR 0045) -----------------------------------------
 const TYPES: Record<string, string> = { mp3: 'audio/mpeg', flac: 'audio/flac', wav: 'audio/wav', aif: 'audio/aiff', aiff: 'audio/aiff', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', opus: 'audio/ogg', alac: 'audio/mp4' };
-function serve(dc: RTCDataChannel) {
+function serve(dc: RTCDataChannel, session?: Session) {
   dc.binaryType = 'arraybuffer';
   dc.bufferedAmountLowThreshold = HIGH_WATER / 4;
   const send = (c: StreamReply) => { if (dc.readyState === 'open') dc.send(JSON.stringify(c)); };
@@ -212,9 +252,17 @@ function serve(dc: RTCDataChannel) {
     whatOf.set(n, what);
     void (async () => { serving++; try { await f(); } catch (err) { send({ t: 'error', n, error: (err as Error).message || String(err) }); } finally { serving--; row.calls++; row.ms += performance.now() - t0; whatOf.delete(n); servedSoon(); } })();
   };
+  // A session (ADR 0133): said first, so the website knows it may ping, send songs on it, and hear what happens.
+  if (session && !session.chan) session.chan = dc;   // what happens here is said on its first channel
+  const hello = () => send({ t: 'session', version: myVersion, max: maxSessions() });
+  if (dc.readyState === 'open') hello(); else dc.addEventListener('open', hello, { once: true });
   dc.onmessage = e => {
+    if (session) session.last = Date.now();
     if (typeof e.data !== 'string') { const f = unframe(e.data as ArrayBuffer), u = uploads.get(f.n); if (u) { u.parts.push(f.data.slice()); u.got += f.data.length; } return; }
     const c = JSON.parse(e.data) as StreamReq;
+    // The heartbeat: answered at once, not counted as something asked.
+    if (c.t === 'ping') { send({ t: 'meta', n: c.n, size: 0, data: 'pong' }); send({ t: 'eof', n: c.n }); return; }
+    if (session) session.calls++;
     if (c.t === 'put') { uploads.set(c.n, { req: c, parts: [], got: 0 }); return; }
     if (c.t === 'end') {
       const u = uploads.get(c.n); uploads.delete(c.n);
@@ -359,6 +407,7 @@ function serve(dc: RTCDataChannel) {
         const to = cfg?.folders?.[c.folder];
         if (!to) throw new Error('GLUE Home doesn’t know that music folder.');
         await answer(c.n, await bridge.incomingMove(c.name, to), null);
+        tell({ t: 'event', kind: 'incoming' });
         report(state, text);
       }
     }, c.n, c.t);
@@ -546,6 +595,7 @@ async function boot() {
     if (r) { reminders = { at: Date.now(), coming: r.coming, sent: r.sent }; report(state, text); }
   };
   await bridge.onRemindNow(() => void remind(true));
+  await bridge.onDisconnect(key => { const name = sessions.get(key)?.name ?? 'a device'; refused.set(key, Date.now() + 3600e3); endSession(key); event('Disconnected ' + name + ' (refused for an hour)'); });
   // A browser on this computer joins it (ADR 0091): GLUE Home, which it reached on 127.0.0.1, vouches for it.
   await bridge.onAttach(body => void (async () => {
     const browser = (JSON.parse(body || '{}') as { browser?: string }).browser;

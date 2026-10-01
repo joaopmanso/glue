@@ -197,6 +197,23 @@
           <button type="button" id="svc-restart" disabled={!paired} onclick={() => bridge.control('restart')}>Restart</button>
         </div>
         <label class="check"><input type="checkbox" id="at-login" checked={atLogin} onchange={e => setAtLogin(e.currentTarget.checked)}> Start GLUE Home when this computer starts</label>
+        <h3>Devices connected</h3>
+        <p class="fine">Your other devices keep a private connection with GLUE Home while GLUE is open on them (one per browser tab): songs, waveforms and covers go through it, encrypted end to end.</p>
+        {#if status?.sessions?.list.length}
+          <ul class="sessions" id="sessions">
+            {#each status.sessions.list as s (s.key)}
+              <li><span>{s.name}{s.open ? '' : ' (connecting)'}</span><small>since {ago(s.since)}{s.calls ? ' · ' + s.calls.toLocaleString() + ' asked' : ''}</small><button type="button" class="mini" onclick={() => void bridge.disconnect(s.key)}>Disconnect</button></li>
+            {/each}
+          </ul>
+        {:else}<p class="fine" id="sessions">None right now.</p>{/if}
+        <div class="row">
+          <label>Most at once
+            <select id="max-sessions" value={String(cfg?.maxSessions || 5)} onchange={e => void save({ maxSessions: Number((e.currentTarget as HTMLSelectElement).value) })}>
+              {#each [1, 2, 3, 5, 8, 10, 20] as n (n)}<option value={String(n)}>{n}</option>{/each}
+            </select>
+          </label>
+        </div>
+        <p class="fine">When that many are connected, another device is told GLUE Home is full. Disconnecting one refuses it for an hour.</p>
         <details id="activity" ontoggle={e => { if (e.currentTarget.open) void loadActivity(); }}>
           <summary>What GLUE Home was asked</summary>
           <p class="fine">Since it started{own ? ' ' + Math.round(own.seconds / 60) + ' min ago' : ''}, the most time first: what keeps GLUE Home busy.</p>
@@ -373,6 +390,10 @@
   .now { margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
   .events { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
   .events li { display: flex; justify-content: space-between; gap: 10px; }
+  .sessions { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+  .sessions li { display: flex; align-items: center; gap: 10px; }
+  .sessions li span { flex: 1; }
+  .sessions small { color: var(--muted); white-space: nowrap; }
   .events small { color: var(--muted); white-space: nowrap; }
   h3 { font-size: 13px; margin: 6px 0 0; color: var(--muted); font-weight: 600; }
   .toasts { position: fixed; right: 14px; bottom: 14px; z-index: 50; display: grid; gap: 6px; max-width: min(340px, calc(100vw - 28px)); }

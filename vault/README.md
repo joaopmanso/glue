@@ -210,5 +210,6 @@ Planned (GLUE):
 | [0130](adr/0130-same-file-on-two-computers-is-one-song.md) | The same file on two computers is one song with a copy on each: a scan joins it to the other computer's song, pairs made before are joined | accepted |
 | [0131](adr/0131-rows-on-screen-ask-until-answered.md) | What rows on screen need from another computer is asked for until it's answered (onScreen.ts: OnScreen, Retries) | accepted |
 | [0132](adr/0132-connections-to-glue-home-are-bounded.md) | Connections to GLUE Home are bounded: abandoned set-ups let go (30 s, 20 at once), failures answered, background reconnects paced | accepted |
+| [0133](adr/0133-a-session-per-device-with-glue-home.md) | A session per device's tab with GLUE Home: opened at sign-in, kept alive, at most 5 (refused when full), told what happens | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

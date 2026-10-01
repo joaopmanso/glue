@@ -42,9 +42,18 @@ class Incoming {
   private src = new Map<string, { home: string; name: string }>();
   sourceOf(id: string) { return this.src.get(id) ?? null; }
 
+  private told = false;
+  private lastAsked = 0;
   start() {
+    // A GLUE Home with a session says when its TO BE SORTED changed (ADR 0133): asked then, and only every 5 minutes
+    // otherwise; a GLUE Home that doesn't say is asked every 30 s, as before.
+    if (!this.told) { this.told = true; remoteFiles.onEvent((_home, e) => { if (e.kind === 'incoming') void this.refresh(); }); }
     clearInterval(this.timer);
-    this.timer = window.setInterval(() => void this.refresh(), EVERY);
+    this.timer = window.setInterval(() => {
+      const homes = account.devices.filter(d => d.kind === 'home' && account.online.has(d.id) && d.id !== localHome.link?.home);
+      if (homes.length && homes.every(h => remoteFiles.tells(h.id)) && Date.now() - this.lastAsked < 300_000) return;
+      void this.refresh();
+    }, EVERY);
     clearInterval(this.hereTimer);
     this.hereTimer = window.setInterval(() => void this.watchHere(), EVERY_HERE);
     // A GLUE Home that comes online (or the sign-in finishing) is asked at once, not at the next round.
@@ -68,6 +77,7 @@ class Incoming {
     return (this.running = this.ask().finally(() => { this.running = null; if (this.again) { this.again = false; void this.refresh(); } }));
   }
   private async ask() {
+    this.lastAsked = Date.now();
     if (!lib.store) { this.show(new Map()); return; }
     const next = new Map<string, IncomingFile[]>();
     const local = localHome.link;

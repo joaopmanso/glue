@@ -87,6 +87,12 @@
   let remoteError = $state('');
   let tries = 0, retry = 0;
   const fetching = $derived(remoteFiles.loading && remoteFiles.loading.trackId === id ? remoteFiles.loading : null);
+  // Made there now (ADR 0133): shown at once, not at the next check.
+  $effect(() => remoteFiles.onEvent((_home, e) => {
+    const t = untrack(() => track);
+    if (e.kind !== 'made' || remoteNote !== 'pending' || !t?.remote?.id || t.remote.collection !== e.collection || !e.tracks.includes(t.remote.id)) return;
+    clearTimeout(retry); void load(false);
+  }));
 
   /** Show the stored analysis if there is one; otherwise (or with `fresh`) analyse the file and store it. */
   async function load(ask: boolean, fresh = false) {
@@ -105,7 +111,8 @@
       } catch (e) {
         if (id !== t.id) return;
         // Still being analysed there: ask again in a moment (a while, not for ever).
-        if ((e as { pending?: boolean }).pending && tries++ < 15) { remoteNote = 'pending'; retry = window.setTimeout(() => { if (loaded === t.id) void load(false); }, 8000); return; }
+        // Its GLUE Home says when it's made (ADR 0133): then sooner, and only checked now and then meanwhile.
+        if ((e as { pending?: boolean }).pending && tries++ < 15) { remoteNote = 'pending'; retry = window.setTimeout(() => { if (loaded === t.id) void load(false); }, remoteFiles.tellsFor(t) ? 30_000 : 8000); return; }
         remoteNote = 'failed'; remoteError = (e as Error).message;
         return;
       }

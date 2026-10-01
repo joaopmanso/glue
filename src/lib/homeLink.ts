@@ -6,11 +6,13 @@ import { candidateType, isHandshake, type Handshake } from '../core/transfer';
 import { hasRelay, iceServers } from './ice';
 
 /** `play`: a second channel on the same connection for what's playing, so a big answer on `dc` (an
-    analysis, covers) never holds up the music's bytes (ADR 0084). */
-export interface HomeChannel { dc: RTCDataChannel; play?: RTCDataChannel; close: () => void }
+    analysis, covers) never holds up the music's bytes (ADR 0084). `open`: another channel on the same connection (a
+    session's 'files', ADR 0133), with no new handshake. */
+export interface HomeChannel { dc: RTCDataChannel; play?: RTCDataChannel; close: () => void; open: (label: string) => RTCDataChannel }
 
 /** Open a channel (`label`: 'files' to send songs, 'stream' to get them) to an online GLUE Home. */
-export async function connectHome(home: string, label: 'files' | 'stream', opts: { timeout?: number; onFail?: (why: string) => void } = {}): Promise<HomeChannel> {
+/** `session` (ADR 0133): this tab's id and who it is, so GLUE Home keeps one session per tab and lists it. */
+export async function connectHome(home: string, label: 'files' | 'stream', opts: { timeout?: number; onFail?: (why: string) => void; session?: { tab: string; name: string } } = {}): Promise<HomeChannel> {
   const name = account.devices.find(d => d.id === home)?.name ?? 'GLUE Home';
   if (!account.online.has(home)) throw new Error(name + '’s GLUE Home is offline: start it on that computer.');
   const id = crypto.randomUUID();
@@ -38,7 +40,8 @@ export async function connectHome(home: string, label: 'files' | 'stream', opts:
     });
     pc.onicecandidate = e => { const k = candidateType(e.candidate?.candidate); if (k) mine.add(k); say({ app: 'glue-send', t: 'ice', id, candidate: e.candidate?.toJSON() ?? null }); };
     pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed') fail(open ? 'The connection to ' + name + ' dropped.' : 'Couldn’t connect to ' + name + seen() + '.'); };
-    const opened = () => { if (dc.readyState !== 'open' || (play && play.readyState !== 'open')) return; open = true; clearTimeout(timer); resolve({ dc, play, close }); };
+    const more = (l: string) => { const c = pc.createDataChannel(l, { ordered: true }); c.binaryType = 'arraybuffer'; return c; };
+    const opened = () => { if (dc.readyState !== 'open' || (play && play.readyState !== 'open')) return; open = true; clearTimeout(timer); resolve({ dc, play, close, open: more }); };
     dc.onopen = opened;
     if (play) play.onopen = opened;
     dc.onclose = () => { if (!closed) fail(name + ' closed the connection.'); };
@@ -46,7 +49,7 @@ export async function connectHome(home: string, label: 'files' | 'stream', opts:
     void (async () => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      if (!account.signal(home, { app: 'glue-send', t: 'offer', id, sdp: offer.sdp ?? '' } satisfies Handshake)) fail('Not connected to GLUE Cloud.');
+      if (!account.signal(home, { app: 'glue-send', t: 'offer', id, sdp: offer.sdp ?? '', ...opts.session } satisfies Handshake)) fail('Not connected to GLUE Cloud.');
     })().catch(e => fail((e as Error).message));
   });
 }

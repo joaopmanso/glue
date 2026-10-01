@@ -1,7 +1,7 @@
 /* Another computer's GLUE Home, from here (ADR 0045, 0046): its songs (played here), their mini
    spectrograms and full analyses (without the audio), what's in its incoming folder, and moving
    those songs into its music folders. One 'stream' channel per GLUE Home, one request at a time. */
-import { account, type CloudDevice } from './account.svelte';
+import { account, browserName, tabConn, type CloudDevice } from './account.svelte';
 import { lib } from './library.svelte';
 import { connectHome, type HomeChannel } from './homeLink';
 import { PENDING, frame, incomingKey, unframe, type HomeFolder, type IncomingFile, type StreamReply, type StreamReq } from '../core/transfer';
@@ -32,9 +32,12 @@ const FIRST_WAIT = 40_000, IDLE_WAIT = 20_000;
 const MAX_AT_ONCE = 6, MAX_FILES = 2, MAX_BACKGROUND = MAX_AT_ONCE - 2;
 let seq = 1;
 
-/** One channel to a GLUE Home, shared by requests that run at once: answers come back by number. */
+/** One channel to a GLUE Home, shared by requests that run at once: answers come back by number. A GLUE Home
+    0.41 and later makes it a session (ADR 0133): it says so first (`session`), answers the heartbeat, takes songs on
+    the same connection, and says what happened (`event`). */
 interface Link {
   ch: HomeChannel;
+  session: { version: string; max: number } | null;
   waiting: Map<number, { text: (c: StreamReply) => void; bytes: (b: Uint8Array) => void; gone: () => void }>;
   running: number; files: number; timeouts: number;
   queue: { file: boolean; play: boolean; go: () => void }[];
@@ -85,11 +88,17 @@ class RemoteFiles {
     if (!l) {
       const f = this.failed.get(home), wait = f && !now ? Math.min(60_000, 5_000 * 2 ** (f.n - 1)) - (Date.now() - f.at) : 0;
       if (wait > 0) return Promise.reject(new Error('it couldn’t be reached just now (trying again in ' + Math.ceil(wait / 1000) + ' s)'));
-      const drop = () => { if (this.links.get(home) === l) this.links.delete(home); };
-      l = connectHome(home, 'stream', { onFail: () => { drop(); void l?.then(k => { for (const w of k.waiting.values()) w.gone(); }); } }).then(ch => {
-        const k: Link = { ch, waiting: new Map(), running: 0, files: 0, timeouts: 0, queue: [] };
+      const drop = () => { if (this.links.get(home) === l) { this.links.delete(home); this.sessions.delete(home); } };
+      const me = account.devices.find(d => d.id === account.thisDevice)?.name ?? browserName();
+      l = connectHome(home, 'stream', { session: { tab: tabConn, name: me }, onFail: () => { drop(); void l?.then(k => { for (const w of k.waiting.values()) w.gone(); }); } }).then(ch => {
+        const k: Link = { ch, session: null, waiting: new Map(), running: 0, files: 0, timeouts: 0, queue: [] };
         const onmessage = (e: MessageEvent) => {
-          if (typeof e.data === 'string') { let c: StreamReply; try { c = JSON.parse(e.data); } catch { return; } k.waiting.get(c.n)?.text(c); }
+          if (typeof e.data === 'string') {
+            let c: StreamReply; try { c = JSON.parse(e.data); } catch { return; }
+            if (c.t === 'session') { k.session = { version: c.version, max: c.max }; return; }
+            if (c.t === 'event') { for (const f of this.listeners) f(home, c); return; }
+            k.waiting.get(c.n)?.text(c);
+          }
           else { const f = unframe(e.data as ArrayBuffer); k.waiting.get(f.n)?.bytes(f.data); }
         };
         ch.dc.onmessage = onmessage;
@@ -102,7 +111,37 @@ class RemoteFiles {
     }
     return l;
   }
-  private closeLink(home: string) { const l = this.links.get(home); this.links.delete(home); void l?.then(k => { k.ch.close(); for (const w of k.waiting.values()) w.gone(); }); }
+  /** What GLUE Homes say happened (ADR 0133): a waveform made, TO BE SORTED changed. */
+  private listeners = new Set<(home: string, e: Extract<StreamReply, { t: 'event' }>) => void>();
+  onEvent(f: (home: string, e: Extract<StreamReply, { t: 'event' }>) => void) { this.listeners.add(f); return () => this.listeners.delete(f); }
+  /** A GLUE Home that speaks in sessions and says what happens: no need to ask it again and again. */
+  tells(home: string) { return this.sessions.has(home); }
+  tellsFor(t: Track) { const h = this.homeFor(t); return !!h && this.tells(h); }
+  private sessions = new Set<string>();
+  /** The account's other GLUE Homes this tab keeps a session with (ADR 0133): open from the start, not at the first
+      request; kept alive by a heartbeat; opened again when one drops (paced after a failure, ADR 0132). This
+      computer's own GLUE Home is reached over the local link instead. */
+  tend() {
+    const local = localHome.link?.home;
+    const want = account.signedIn && lib.store ? account.devices.filter(d => d.kind === 'home' && account.online.has(d.id) && d.id !== local).map(d => d.id) : [];
+    for (const home of [...this.links.keys()]) if (!want.includes(home)) { this.closeLink(home); this.sessions.delete(home); }
+    for (const home of want) {
+      const open = this.links.get(home);
+      if (!open) { void this.link(home).then(k => { if (k.session) this.sessions.add(home); }).catch(() => this.sessions.delete(home)); continue; }
+      void open.then(k => {
+        if (!k.session) return;
+        this.sessions.add(home);
+        // The heartbeat: two missed and the session is closed (ask's time-outs), then opened again next time.
+        void this.ask(home, { t: 'ping' }, { firstWait: 10_000 }).catch(() => {});
+      }).catch(() => this.sessions.delete(home));
+    }
+  }
+  /** A channel for sending songs on the session (ADR 0133); null when that GLUE Home is older (its own connection). */
+  async filesChannel(home: string): Promise<RTCDataChannel | null> {
+    const k = await this.link(home, true);
+    return k.session ? k.ch.open('files') : null;
+  }
+  private closeLink(home: string) { const l = this.links.get(home); this.links.delete(home); this.sessions.delete(home); void l?.then(k => { k.ch.close(); for (const w of k.waiting.values()) w.gone(); }); }
 
   /** One request to a GLUE Home: its answer's `data`, and the bytes that came with it. Several run at
       once; each gives up if its answer doesn't come. `upload`: bytes sent after the request. */
@@ -348,6 +387,17 @@ class RemoteFiles {
 }
 
 export const remoteFiles = new RemoteFiles();
+// Sessions with the account's other GLUE Homes (ADR 0133): looked after every 15 s (the heartbeat), and soon after
+// the page opens.
+if (typeof window !== 'undefined') { window.setInterval(() => remoteFiles.tend(), 15_000); window.setTimeout(() => remoteFiles.tend(), 2_000); }
+// A GLUE Home says songs were analysed there (ADR 0133): their rows' spectrograms and waveforms come at once, instead
+// of being asked for again in a while.
+thumbs.told = waves.told = t => remoteFiles.tellsFor(t);
+remoteFiles.onEvent((_home, e) => {
+  if (e.kind !== 'made' || !lib.store) return;
+  const ids = new Set(e.tracks);
+  for (const t of lib.store.tracks.values()) if (t.remote?.id && t.remote.collection === e.collection && ids.has(t.remote.id)) { thumbs.fresh(t.id); waves.fresh(t.id); }
+});
 type RangeReq = { profile?: string; collection?: string; track?: string; incoming?: string };
 
 /** The streaming service worker (public/glue-stream-sw.js), registered the first time a song streams;

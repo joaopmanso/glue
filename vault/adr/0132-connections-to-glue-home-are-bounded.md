@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; "at most 20 being set up at once" superseded by 0133 (sessions: at most "Most at once")
 date: 2026-10-01
 ---
 # 0132. Connections to GLUE Home are bounded: abandoned set-ups let go, failures said, reconnects paced

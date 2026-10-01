@@ -10,7 +10,8 @@ export const MAX_FILE = 4 * 1024 ** 3;       // 4 GB per song is plenty
 
 /** Handshake messages, carried as the room's opaque `data`. */
 export type Handshake =
-  | { app: 'glue-send'; t: 'offer'; id: string; sdp: string }
+  /** `tab` and `name` (ADR 0133): which session this is (a browser tab of a device), and who, for GLUE Home's list. */
+  | { app: 'glue-send'; t: 'offer'; id: string; sdp: string; tab?: string; name?: string }
   | { app: 'glue-send'; t: 'answer'; id: string; sdp: string }
   | { app: 'glue-send'; t: 'ice'; id: string; candidate: RTCIceCandidateInit | null }
   | { app: 'glue-send'; t: 'bye'; id: string; reason?: string };
@@ -53,8 +54,16 @@ export type StreamReq =
   // computer takes the results in (it delegates the analysis); `now`: analyse these first; `taken`: taken in.
   | { t: 'analysis'; n: number; profile: string; collection: string; take?: boolean; pause?: boolean; now?: string[]; names?: Record<string, string>; taken?: string[] }
   | { t: 'local'; n: number }                                                           // the local link (data: { port, token }), for the website on the same computer (ADR 0048)
-  | { t: 'cache'; n: number; keys: string[] };                                          // files of GLUE Home's cache (data: [key, size][])
+  | { t: 'cache'; n: number; keys: string[] }                                           // files of GLUE Home's cache (data: [key, size][])
+  | { t: 'ping'; n: number };                                                           // a session's heartbeat (ADR 0133, GLUE Home 0.41): answered at once
 export type StreamReply =
+  /** Sent first by GLUE Home 0.41 and later on a session's channel (ADR 0133): it answers pings, takes songs on the
+      session's own 'files' channel, and says what happened (`event`). */
+  | { t: 'session'; version: string; max: number }
+  /** What happened on GLUE Home, said to every session at once (ADR 0133): no asking again in a loop. */
+  /** These songs were analysed there: their mini spectrogram, waveform, full analysis and cover are ready. */
+  | { t: 'event'; kind: 'made'; profile: string; collection: string; tracks: string[] }
+  | { t: 'event'; kind: 'incoming' }
   | { t: 'meta'; n: number; size: number; name?: string; type?: string; data?: unknown }
   | { t: 'eof'; n: number; type?: string }
   | { t: 'error'; n: number; error: string };

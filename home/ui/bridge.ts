@@ -36,6 +36,7 @@ export interface HomeConfig {
   localToken?: string;          // what the website on this computer shows the local link (ADR 0048)
   duplicates?: string | null;   // where duplicates the website puts aside go (ADR 0070)
   reminders?: boolean;          // notify of events that need music (ADR 0074; on unless false)
+  maxSessions?: number;         // devices connected at once (ADR 0133; 5 unless set)
   /** The computer GLUE Home is on (ADR 0108): the account device its shared parts go under; learned from GLUE
       Cloud (its companion) or its music folders. None yet: nothing per computer is written. */
   computer?: string | null;
@@ -61,7 +62,9 @@ export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online
   /** The last look at the events (ADR 0074): when, how many need music, which were just notified. */
   reminders?: { at: number; coming: number; sent: string[] };
   /** What other devices asked since GLUE Home started, by kind (ADR 0083). */
-  served?: Record<string, Activity> }
+  served?: Record<string, Activity>;
+  /** The devices connected now (ADR 0133): one session per browser tab, at most `max`. */
+  sessions?: { list: { key: string; name: string; since: number; last: number; calls: number; open: boolean }[]; max: number } }
 /** How many, the time spent (ms), the bytes. */
 export interface Activity { calls: number; ms: number; bytes: number }
 
@@ -127,6 +130,9 @@ export const bridge = {
   onAskStatus: (f: () => void) => listen('status-request', () => f()),
   /** The settings' "Check now" for reminders. */
   remindNow: () => emitTo('service', 'remind-now'),
+  /** End a device's session (ADR 0133); it's refused for an hour. */
+  disconnect: (key: string) => emitTo('service', 'disconnect', key),
+  onDisconnect: (f: (key: string) => void) => listen<string>('disconnect', e => f(e.payload)),
   onRemindNow: (f: () => void) => listen('remind-now', () => f()),
   /** A browser on this computer asked to join it (ADR 0091): its request's body. */
   onAttach: (f: (body: string) => void) => listen<string>('attach', e => f(e.payload)),

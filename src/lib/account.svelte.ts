@@ -16,7 +16,7 @@ export { passwordKey } from '../core/password';
 /** role 'browse': a sign-in only to browse (a session), not a device that holds music (ADR 0091). */
 export interface CloudDevice { id: string; kind: 'browser' | 'home'; name: string; platform: string | null; createdAt: number; lastSeen: number | null; companionOf?: string | null; role?: 'device' | 'browse' }
 /** This tab's connection to the signaling room (the browsers of one computer share its device, ADR 0091). */
-const tabConn = (() => { try { let c = sessionStorage.getItem('mco.conn'); if (!c) { c = crypto.randomUUID(); sessionStorage.setItem('mco.conn', c); } return c; } catch { return crypto.randomUUID(); } })();
+export const tabConn = (() => { try { let c = sessionStorage.getItem('mco.conn'); if (!c) { c = crypto.randomUUID(); sessionStorage.setItem('mco.conn', c); } return c; } catch { return crypto.randomUUID(); } })();
 interface Session { access: string; refresh: string; deviceId: string }
 
 type GoogleId = { accounts: { id: { initialize(o: Record<string, unknown>): void; renderButton(el: HTMLElement, o: Record<string, unknown>): void; disableAutoSelect(): void } } };

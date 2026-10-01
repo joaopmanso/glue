@@ -94,6 +94,14 @@ class Thumbs {
   /** Another computer's songs: from its GLUE Home, a screenful at a time (ADR 0046). The answer has each song
       it reached: its bytes, or null (none there yet); a song missing from it couldn't be asked (ADR 0131). */
   remote: ((ts: Track[]) => Promise<Map<string, Uint8Array | null>>) | null = null;
+  /** Its GLUE Home says when a song's parts are made (a session, ADR 0133): "none there yet" waits for that. */
+  told: ((t: Track) => boolean) | null = null;
+  /** Made there just now (ADR 0133): what was "none yet" is asked for at once, if its row is on screen. */
+  fresh(id: string) {
+    if (!this.notYet.delete(id) && this.cache.get(id) !== null) return;
+    this.cache.delete(id); this.retries.done(id);
+    if (this.screen.has(id)) this.request(id); else this.version++;
+  }
   /** This computer's song, analysed by GLUE Home (ADR 0110): its copy in GLUE Home's cache, when this browser has
       none (it was analysed while no tab listened, or in another browser). */
   fromHome: ((id: string) => Promise<Uint8Array | null>) | null = null;
@@ -118,7 +126,8 @@ class Thumbs {
           // Not made there yet (GLUE Home makes it now): none for now, asked again in a while, or when it's back.
           this.notYet.add(t.id);
           this.remember(t.id, null);
-          this.retries.later(t.id, 'notYet', onScreen, () => { this.notYet.delete(t.id); this.cache.delete(t.id); this.request(t.id); });
+          // Its GLUE Home will say when it's made (`fresh`); otherwise asked again in a while.
+          if (!this.told?.(t)) this.retries.later(t.id, 'notYet', onScreen, () => { this.notYet.delete(t.id); this.cache.delete(t.id); this.request(t.id); });
         }
       });
     }, 120);
