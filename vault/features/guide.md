@@ -12,8 +12,12 @@ adrs: [0126]
   - seen once per person, across the browser, the GLUE folder and the account;
   - an offer instead of a tour for people from before him;
   - "Take the tour again" in "Who's using GLUE?", and his corner button with the tours.
-- **Batch 2, next:** the help centre (an article per feature, search, "Show me", `#/help`), a tour per feature,
-  first-visit tips with a quiet setting.
+- **Batch 2 (shipped 2026-10-01):**
+  - the help centre: 18 articles in `src/help/*.md`, searchable, in Gluey's panel and at `#/help` (also "Help" in
+    the top bar, the phone's More, and GLUE Home's window);
+  - a tour per feature ("Show me");
+  - a tip the first time Duplicates, No file linked, Lower quality, Browse, the Calendar or Prepare opens (once per
+    person), off with "Gluey's tips".
 - **Batch 3:** the new homepage with fresh media.
 
 ## What it does
@@ -29,6 +33,9 @@ The first time someone uses GLUE, Gluey, the glue stick, walks them through the 
 He never does it again on another device. His button (bottom right) runs any tour again.
 
 ## How it works
+- `src/help/*.md` (front matter: title, summary, keywords, tour, order) → `src/lib/help.ts` (bundled with
+  `import.meta.glob`) → `src/core/guide/markdown.ts` (an escaping renderer and search) → `HelpBody.svelte`
+  (Gluey's panel and `HelpPage.svelte` at `#/help`). Tips: `src/core/guide/tips.ts`, `guide.showTip`.
 - `src/core/guide/tours.ts` (the tours as data), `src/core/guide/state.ts` (what's seen, merged as a union).
 - `src/lib/guide.svelte.ts`: runs tours, syncs "seen" with the GLUE folder (`HomeStore.setGuide`) and the account
   (`account.addGuide`, `PATCH /v1/me/guide`).
@@ -43,4 +50,7 @@ He never does it again on another device. His button (bottom right) runs any tou
   - again from the panel and "Who's using GLUE?";
   - the offer for an old library;
   - the phone's tour;
-  - an account that saw it elsewhere shows none.
+  - an account that saw it elsewhere shows none;
+  - every feature tour run from its article, each stop on its target;
+  - tips once, and none when off;
+  - `#/help` before any setup, links between articles.

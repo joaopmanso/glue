@@ -444,7 +444,7 @@
     {#if sidebar.open('library')}
     <ul>
       {#each [['all', 'All tracks', counts.all], ['recent', 'Recently added', null], ['attention', 'Lower quality', counts.attention], ['pending', 'Not analysed yet', counts.pending], ['failed', 'Couldn’t analyse', counts.failed], ['unlinked', 'No file linked', counts.unlinked], ['dupes', 'Duplicates', dupes.groups.length]].filter(([k, , n]) => !sidebar.hidden.has(k as LibView) && (k !== 'failed' || !!n)) as [k, label, n] (k)}
-        <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} class:menued={menued('v:' + k)} data-view={k} title={k === 'attention' ? 'For information: songs whose quality is lower than a lossless file of their format (lossy, transcoded, upsampled, padded to 24-bit, or doubtful). Nothing to do.' : undefined} onclick={() => view.select({ kind: k } as ViewSel)}
+        <li><button type="button" class="item name" class:sel={isSel({ kind: k } as ViewSel)} class:menued={menued('v:' + k)} data-view={k} data-guide={'view-' + k} title={k === 'attention' ? 'For information: songs whose quality is lower than a lossless file of their format (lossy, transcoded, upsampled, padded to 24-bit, or doubtful). Nothing to do.' : undefined} onclick={() => view.select({ kind: k } as ViewSel)}
           oncontextmenu={e => onMenu(e, 'v:' + k, () => libMenu(k as ViewSel['kind'], String(label)), String(label))}>{label}<span class="n">{n ?? ''}</span></button></li>
         {#if k === 'all'}
           <!-- Browse by a field (the user's list, 2026-09-28): its values, then one value's songs. -->
@@ -467,7 +467,7 @@
       {@render secHead('playlists', 'Playlists')}
       <span class="add">
         <button type="button" id="new-playlist" title="New playlist (or drop tracks here)" class:hot={drag.active && drag.target?.type === 'new'} data-drop="new" onclick={() => newList('playlist')}>+ Playlist</button>
-        <button type="button" id="new-auto" title="Generate a playlist from your collection" onclick={() => auto.show(null)}>+ Auto</button>
+        <button type="button" id="new-auto" data-guide="builder" title="Generate a playlist from your collection" onclick={() => auto.show(null)}>+ Auto</button>
         <button type="button" id="new-folder" title="New folder" onclick={() => newList('folder')}>+ Folder</button>
         {@render maxBtn('playlists')}
       </span>
@@ -482,7 +482,7 @@
     {/if}
   </section>
 
-  <section class="tags-sec" class:max={sidebar.focus === 'tags'}>
+  <section class="tags-sec" class:max={sidebar.focus === 'tags'} data-guide="tags">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="head" class:menued={menued('sec:tags')} oncontextmenu={e => onMenu(e, 'sec:tags', () => secMenu('tags'), 'Section')}>
       {@render secHead('tags', 'Tags' + (tags.length ? ' · ' + tags.length : ''))}
@@ -557,7 +557,7 @@
     {/if}
   </section>
 
-  <section class:max={sidebar.focus === 'dj'}>
+  <section class:max={sidebar.focus === 'dj'} data-guide="dj-libs">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="head" class:menued={menued('sec:dj')} oncontextmenu={e => onMenu(e, 'sec:dj', () => secMenu('dj'), 'Section')}>
       {@render secHead('dj', 'DJ libraries')}

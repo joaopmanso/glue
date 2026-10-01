@@ -76,7 +76,7 @@ test('Gluey’s first tour: on the first login, once; again from “Who’s usin
   // Again, from his button…
   await page.click('#gluey-btn');
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/panel.png` });
-  await page.locator('#gluey-panel [data-tour="welcome"]').click();
+  await page.click('#gluey-first');
   await expect(bubble).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(bubble).toHaveCount(0);
@@ -170,4 +170,101 @@ test('seen on another device: a new browser signed in to the account doesn’t s
   await expect(page.locator('#gluey-offer')).toHaveCount(0);
   // What the account knows is kept in this GLUE folder too (every browser on this computer).
   await expect.poll(async () => (await index(page)).guide?.seen ?? [], { timeout: 10_000 }).toContain('welcome');
+});
+
+/** A new library with one song (the first tour then skipped, as seen). */
+async function libraryWithASong(page: Page) {
+  await page.goto('./#/analyze');
+  const mp3 = readFileSync(fixture('mp3-128k.mp3')).toString('base64');
+  await page.evaluate(async b => {
+    const d = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('Music', { create: true })).getDirectoryHandle('Sets', { create: true });
+    const w = await (await d.getFileHandle('one.mp3', { create: true })).createWritable(); await w.write(Uint8Array.from(atob(b), c => c.charCodeAt(0))); await w.close();
+    localStorage.setItem('mco.guide', JSON.stringify({ seen: ['welcome', 'welcome-phone'], tips: [] }));
+  }, mp3);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-folder');
+  await expect(page.locator('.tr')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
+}
+
+test('the help centre: every feature’s tour runs from its article, each stop on its part of GLUE (ADR 0126)', async ({ page }) => {
+  test.setTimeout(240_000);
+  await libraryWithASong(page);
+  const bubble = page.locator('#gluey-bubble');
+  await page.click('#gluey-btn');
+  const articles = await page.locator('#help-list [data-article]').evaluateAll(as => as.map(a => a.getAttribute('data-article')!));
+  await page.click('#gluey-btn');   // closed
+  let tours = 0;
+  for (const id of articles) {
+    if (!(await page.locator('#gluey-btn').count())) { await page.goto('./#/'); await expect(page.locator('#gluey-btn')).toBeVisible({ timeout: 20_000 }); }
+    await page.click('#gluey-btn');
+    await page.fill('#help-search', '');
+    await page.locator(`#help-list [data-article="${id}"]`).click();
+    await expect(page.locator('#help-article')).toHaveAttribute('data-article', id);
+    if (process.env.SHOTS && id === 'duplicates') await page.screenshot({ path: `${process.env.SHOTS}/help-panel.png` });
+    if (!(await page.locator('#help-show').count())) { await page.click('#gluey-btn'); continue; }
+    await page.click('#help-show');
+    await expect(bubble, id).toBeVisible({ timeout: 10_000 });
+    tours++;
+    // Each stop, until the tour ends (a stop being looked for shows no bubble for a moment).
+    const touring = () => page.locator('#gluey-btn[data-touring]').count();
+    for (let i = 0; i < 12; i++) {
+      await expect.poll(async () => await bubble.isVisible() || !(await touring()), { timeout: 8_000 }).toBe(true);
+      if (!await touring()) break;
+      const t = await bubble.getAttribute('data-target');
+      if (t) await expect(page.locator(`[data-guide="${t}"]`).first(), id + ' → ' + t).toBeVisible();
+      await page.click('#gluey-next');
+    }
+    expect(await touring(), id).toBe(0);
+  }
+  expect(tours).toBeGreaterThanOrEqual(13);
+});
+
+test('Gluey’s tips: once per person the first time a part of GLUE opens; none when they’re off (ADR 0126)', async ({ page }) => {
+  test.setTimeout(150_000);
+  await libraryWithASong(page);
+  const tip = page.locator('#gluey-tip');
+  await page.locator('.lside [data-view="dupes"]').click();
+  await expect(tip).toHaveAttribute('data-tip', 'duplicates');
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/tip.png` });
+  await page.click('#gluey-tip-ok');
+  await expect(tip).toHaveCount(0);
+  await page.locator('.lside [data-view="all"]').click();
+  await page.locator('.lside [data-view="dupes"]').click();
+  await page.waitForTimeout(800);
+  await expect(tip).toHaveCount(0);
+  // "Show me" from a tip runs its tour.
+  await page.locator('.lside [data-view="attention"]').click();
+  await expect(tip).toHaveAttribute('data-tip', 'quality');
+  await page.click('#gluey-tip-show');
+  await expect(page.locator('#gluey-bubble')).toBeVisible();
+  await page.keyboard.press('Escape');
+  // Off: no tip for a part never opened.
+  await page.locator('.lside [data-view="all"]').click();
+  await page.click('#gluey-btn');
+  await page.locator('#gluey-tips').uncheck();
+  await page.click('#gluey-btn');
+  await page.locator('.lside [data-view="unlinked"]').click();
+  await page.waitForTimeout(800);
+  await expect(tip).toHaveCount(0);
+  await expect.poll(async () => (await index(page)).guide as unknown as { tips: string[]; quiet?: boolean }, { timeout: 10_000 }).toMatchObject({ tips: expect.arrayContaining(['duplicates', 'quality']), quiet: true });
+});
+
+test('#/help works before anything is set up (ADR 0126)', async ({ page }) => {
+  await page.goto('./#/help');
+  await expect(page.locator('#help-page')).toBeVisible();
+  await page.fill('#help-search', 'engine dj');
+  await expect(page.locator('#help-list [data-article="dj-libraries"]')).toBeVisible();
+  await page.locator('#help-list [data-article="dj-libraries"]').click();
+  await expect(page).toHaveURL(/#\/help\/dj-libraries$/);
+  await expect(page.locator('#help-article h1')).toHaveText('DJ libraries');
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/help-page.png` });
+  await expect(page.locator('#help-show')).toBeDisabled();
+  await page.locator('#help-article a[href="#/help/no-file"]').click();
+  await expect(page.locator('#help-article h1')).toHaveText('No file linked');
+  await page.click('#help-back');
+  await expect(page.locator('#help-list')).toBeVisible();
 });

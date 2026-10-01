@@ -155,7 +155,7 @@
 <div class="lib">
   <NeedsMusic />
   <div class="colbar">
-    <select aria-label="Collection" id="collection-pick" value={lib.store?.meta.id} onchange={e => { const v = e.currentTarget.value; if (v === '__new') { e.currentTarget.value = lib.store?.meta.id ?? ''; newCollection(); } else if (v.startsWith('__join:')) { e.currentTarget.value = lib.store?.meta.id ?? ''; void shared.join(v.slice(7)); } else void lib.openCollection(v); }}>
+    <select aria-label="Collection" id="collection-pick" data-guide="collections" value={lib.store?.meta.id} onchange={e => { const v = e.currentTarget.value; if (v === '__new') { e.currentTarget.value = lib.store?.meta.id ?? ''; newCollection(); } else if (v.startsWith('__join:')) { e.currentTarget.value = lib.store?.meta.id ?? ''; void shared.join(v.slice(7)); } else void lib.openCollection(v); }}>
       {#each lib.profile?.collections ?? [] as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
       <!-- The account's collections this computer doesn't have yet (ADR 0101). -->
       {#each shared.missing() as c (c.id)}<option value={'__join:' + c.id}>Add “{c.name}” (your account{c.stats?.tracks ? ', ' + c.stats.tracks.toLocaleString() + ' songs' : ''})</option>{/each}
@@ -173,7 +173,7 @@
     </button>
     <h2>{#if view.sel.kind === 'facet'}{@const by = view.sel.by}<button type="button" class="crumb" id="browse-back" title="Back to the list" onclick={() => view.select({ kind: 'browse', by })}>{facetInfo(by).name} ›</button>{/if}{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}{#if view.sel.kind !== 'browse'}<small>{count} track{count === 1 ? '' : 's'}</small>{/if}</h2>
     {#if view.sel.kind !== 'browse'}
-    <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks">
+    <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks" data-guide="search">
     <FilterMenu />
     {/if}
     {#if incoming.busy}<span class="cloudload" id="incoming-loading" role="status"><span class="spin"></span>{incoming.busy}</span>{/if}
@@ -282,7 +282,7 @@
           <button type="button" class="mini opt2" id="remove-tracks" disabled={!sel.length} onclick={() => { if (confirm('Remove ' + (sel.length === 1 ? 'this track' : 'these ' + sel.length + ' tracks') + ' from the collection and all its playlists? Files on disk aren’t touched; tracks in a music folder come back on the next scan.' + removeNote())) { void lib.removeTracks(withCopies(sel)); view.selected = new Set(); } }}>Remove from collection</button>
           <button type="button" class="mini more" id="sel-more" disabled={!sel.length} title="Everything you can do with the selected songs (also on right-click)" aria-haspopup="menu" onclick={e => selMenu(e.currentTarget)}>⋯</button>
         </div>
-        {#if dock.available}<button type="button" class="mini dockbtn" id="drag-dock" data-drop="dock" class:hot={drag.active && drag.target?.type === 'dock'} title="Show GLUE Home's drag dock. Songs and playlists go in by dragging them onto it (or onto this button), or with “+ Dock”; then drag them from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}
+        {#if dock.available}<button type="button" class="mini dockbtn" id="drag-dock" data-guide="drag-dock" data-drop="dock" class:hot={drag.active && drag.target?.type === 'dock'} title="Show GLUE Home's drag dock. Songs and playlists go in by dragging them onto it (or onto this button), or with “+ Dock”; then drag them from it into Engine DJ, Rekordbox or a folder" onclick={() => dock.show()}>Drag dock</button>{/if}
       </div>
       {/if}
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}

@@ -41,11 +41,11 @@
       <button type="button" class="mini" aria-label="Next month" id="cal-next" onclick={() => step(1)}>›</button>
       <button type="button" class="mini" onclick={() => { year = now.getFullYear(); month = now.getMonth(); }}>Today</button>
     </div>
-    <button type="button" class="btn" id="new-event" disabled={lib.readOnly} onclick={() => (adding = today)}>+ New event</button>
+    <button type="button" class="btn" id="new-event" data-guide="new-event" disabled={lib.readOnly} onclick={() => (adding = today)}>+ New event</button>
   </header>
 
   <div class="body">
-    <div class="month" role="grid" aria-label={title}>
+    <div class="month" role="grid" aria-label={title} data-guide="calendar">
       <div class="wk hd" role="row">{#each WEEKDAYS as w (w)}<span role="columnheader">{w}</span>{/each}</div>
       {#each weeks as week (dayKey(week[0]))}
         <div class="wk" role="row">

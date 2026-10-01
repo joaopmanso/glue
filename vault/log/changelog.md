@@ -5,6 +5,17 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · Gluey's help centre and a tour per feature (GLUE Home 0.40.1)
+- **Help** ([ADR 0126](../adr/0126-gluey-tours-and-help.md)):
+  - 18 articles, one per feature, searchable;
+  - in Gluey's panel (bottom right of the library) and as a page, `#/help` ("Help" in the top bar; the phone's
+    More; a "Help" link in GLUE Home's window);
+  - it works before anything is set up.
+- **A tour per feature,** run with "Show me": the library, adding music, DJ libraries, quality, a song's page,
+  Prepare, playlists, duplicates, No file linked, the calendar, GLUE Home, devices, analyse a file, themes.
+- **Tips:** the first time Duplicates, No file linked, Lower quality, Browse, the Calendar or Prepare opens, Gluey
+  says one line, with "Show me". Once per person; "Gluey's tips" in his panel turns them off.
+
 ## 2026-10-01 · Gluey, and his first tour (GLUE Cloud migration 0011)
 - **Gluey, the glue stick, shows new people around** ([ADR 0126](../adr/0126-gluey-tours-and-help.md)):
   - a one-minute tour on their first login (the library views, adding music, the analysis, a song's page,

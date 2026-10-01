@@ -179,7 +179,7 @@
     </div>
 
     <div class="deckwrap">
-      <canvas class="deck" id="prep-deck" bind:this={deck} onpointerdown={deckDown} onpointermove={deckMove} onpointerup={deckUp} onwheel={wheel}></canvas>
+      <canvas class="deck" id="prep-deck" data-guide="prep-deck" bind:this={deck} onpointerdown={deckDown} onpointermove={deckMove} onpointerup={deckUp} onwheel={wheel}></canvas>
       {#if prepare.status === 'loading'}<p class="over-msg"><span class="spin"></span>Drawing the waveform…</p>
       {:else if prepare.status === 'error'}<p class="over-msg err">Couldn’t read the track: {prepare.error}</p>{/if}
       <div class="dtools">
@@ -191,7 +191,7 @@
     </div>
     <canvas class="overview" id="prep-overview" bind:this={over} onclick={overClick}></canvas>
 
-    <section class="grid" aria-label="Tempo and beat grid">
+    <section class="grid" aria-label="Tempo and beat grid" data-guide="prep-grid">
       <div class="grp">
         <span class="k">BPM</span>
         <input class="mono bpmin" id="prep-bpm-input" inputmode="decimal" bind:value={bpmText} onchange={() => { const v = +bpmText.replace(',', '.'); if (v) prepare.setBpm(cur(), v); }}>
@@ -223,7 +223,7 @@
         {:else}<span class="note">From the analysis</span>{/if}
       </div>
     </section>
-    <section class="cues" aria-label="Cue points and loops" id="prep-cues">
+    <section class="cues" aria-label="Cue points and loops" id="prep-cues" data-guide="prep-cues">
       <div class="pads">
         {#each LETTERS.split('') as L, i (L)}
           {@const c = hotCue(cues, i)}

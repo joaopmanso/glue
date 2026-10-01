@@ -83,7 +83,9 @@ After working:
   touches it; when the version in `home/src-tauri/tauri.conf.json` (also `Cargo.toml`, `Cargo.lock`) has no release
   yet, that build publishes it (tag `home-v<version>`, the release the website links to). Don't push tags. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts`.
 - Routes: `#/` library, `#/track/<id>` track page, `#/events` calendar (`#/events/<id>` an event),
-  `#/analyze` analyze a file, `#/admin`.
+  `#/analyze` analyze a file, `#/help` help (`#/help/<article>`), `#/admin`.
+- Gluey (ADR 0126): when a feature changes, update its help article (`src/help/*.md`) and its tour
+  (`src/core/guide/tours.ts`, pointing at `data-guide` attributes; `tests/guide.test.ts` checks they exist).
 - GLUE Home updates are signed: private key = GitHub secret `TAURI_SIGNING_PRIVATE_KEY` (copy in
   `%USERPROFILE%\.glue-secrets\glue-home-updater.key`), public key in `tauri.conf.json`. Never print it.
 - E2E library tests use a temporary persistent browser profile and fake the folder pickers with OPFS

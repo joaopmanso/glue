@@ -18,7 +18,7 @@
     <h2>Is your hi-res <em>actually</em> hi-res?</h2>
     <p class="lede">GLUE shows what’s really inside a track (where the spectrum stops, how many bits carry signal, which tools touched it) and tells you whether it’s genuine, upsampled, or a lossy rip in disguise.</p>
   </div>
-  <button type="button" class="dropzone" id="dropzone" onclick={() => document.getElementById('file-input')?.click()}>
+  <button type="button" class="dropzone" id="dropzone" data-guide="analyze-drop" onclick={() => document.getElementById('file-input')?.click()}>
     <canvas id="splash-art" aria-hidden="true" bind:this={art}></canvas>
     <span class="dz-center">
       <svg class="dz-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 6v24M14 20l10 10 10-10"/><path d="M6 30v8a4 4 0 0 0 4 4h28a4 4 0 0 0 4-4v-8"/></svg>

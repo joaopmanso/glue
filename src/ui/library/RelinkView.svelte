@@ -66,10 +66,10 @@
       GLUE looks for each one in your library by <b>title, artist, length and file name</b>. Linking one moves its playlist places, rating, notes and cues
       to the song in your library, and the DJ library’s record stays with that song from then on.
     </p>
-    <button type="button" class="mini" id="relink-list" onclick={() => (relink.asList = true)}>Show them as a list</button>
+    <button type="button" class="mini" id="relink-list" data-guide="relink-list" onclick={() => (relink.asList = true)}>Show them as a list</button>
   </div>
   {#if all.length}
-    <div class="bulk" id="relink-bulk">
+    <div class="bulk" id="relink-bulk" data-guide="relink-bulk">
       <span>{matched.length.toLocaleString()} with a match{unmatched.length ? ' · ' + unmatched.length.toLocaleString() + ' without' : ''}{pickedShown.length ? ' · ' + pickedShown.length + ' ticked' : ''}</span>
       <label class="atleast">Certainty at least
         <select id="relink-sure" value={String(atLeast)} onchange={e => (atLeast = Number(e.currentTarget.value))}>
@@ -88,7 +88,7 @@
       {@const m = matchOf(o)}
       {@const t = m ? lib.store?.tracks.get(m.id) : null}
       {#if m && t}
-        <li data-orphan={o.t.id}>
+        <li data-orphan={o.t.id} data-guide="relink-row">
           <input type="checkbox" class="pick" aria-label="Choose this song" checked={picked.has(o.t.id)} onchange={e => pick(o.t.id, e.currentTarget.checked)}>
           <div class="who">
             <b>{o.t.title || o.t.fileName}</b><span>{o.t.artist}</span>

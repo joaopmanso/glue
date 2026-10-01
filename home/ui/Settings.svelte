@@ -184,6 +184,7 @@
       {#each PAGES.filter(x => x.id !== 'received' || status?.receiving || status?.received.length) as pg (pg.id)}
         <button type="button" class:on={page === pg.id} data-page={pg.id} onclick={() => go(pg.id)}>{pg.name}</button>
       {/each}
+      <button type="button" class="helplink" id="home-help" title="How GLUE Home works (the GLUE website's help)" onclick={() => openUrl(WEBSITE + '#/help/glue-home')}>Help</button>
       <p class="ver">GLUE Home {current}</p>
     </nav>
     <main bind:this={pane} onscroll={spy}>
@@ -392,6 +393,7 @@
   button:hover:not(:disabled) { border-color: var(--accent); }
   button:disabled { opacity: .45; cursor: default; }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; flex: none; }
+  .helplink { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 4px 10px; text-align: left; font-size: 12.5px; }
   button.link { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; justify-self: start; font-size: 12.5px; }
   button.mini { padding: 2px 10px; font-size: 12px; flex: none; }
   form { display: grid; gap: 8px; }

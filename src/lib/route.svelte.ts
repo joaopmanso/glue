@@ -2,7 +2,7 @@
    (#/events/<id> an event, ADR 0074) · #/analyze analyse a single file · #/admin admin panel. */
 import { readPref, writePref } from './prefs';
 export type TrackTab = 'details' | 'prepare';
-export type Route = { name: 'library' } | { name: 'track'; id: string; tab: TrackTab } | { name: 'events' } | { name: 'event'; id: string } | { name: 'analyze' } | { name: 'admin' };
+export type Route = { name: 'library' } | { name: 'track'; id: string; tab: TrackTab } | { name: 'events' } | { name: 'event'; id: string } | { name: 'analyze' } | { name: 'admin' } | { name: 'help'; id: string | null };
 
 function parse(h: string): Route {
   const m = /^#\/track\/([\w-]+)(\/prepare)?/.exec(h);
@@ -11,6 +11,8 @@ function parse(h: string): Route {
   if (ev) return ev[1] ? { name: 'event', id: ev[1] } : { name: 'events' };
   if (h.startsWith('#/analyze')) return { name: 'analyze' };
   if (h.startsWith('#/admin')) return { name: 'admin' };
+  const help = /^#\/help(?:\/([\w-]+))?/.exec(h);
+  if (help) return { name: 'help', id: help[1] ?? null };
   return { name: 'library' };
 }
 

@@ -227,7 +227,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - tours as data (`src/core/guide/tours.ts`), pointing at `data-guide` parts of the UI;
   - `src/lib/guide.svelte.ts` runs them; `src/ui/guide/` draws them;
   - the first tour shows once per person: "seen" is the union of the browser's, the GLUE folder's (`mco.json`
-    `guide`) and the account's.
+    `guide`) and the account's;
+  - help articles are `src/help/*.md` (one per feature; Gluey's panel and `#/help`); tips the first time some
+    views open (`src/core/guide/tips.ts`). A feature's change updates its article and its tour.
 
 ## 9. Known issues and next
 - On a phone's first load, the library shows a few songs (8), then the whole collection.

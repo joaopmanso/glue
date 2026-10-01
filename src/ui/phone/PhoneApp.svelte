@@ -153,6 +153,7 @@
     {:else if phone.tab === 'more'}
       <ul class="menu" id="phone-more">
         <li><button type="button" class="ent" onclick={() => router.go('#/events')}>Calendar</button></li>
+        <li><button type="button" class="ent" id="phone-help" onclick={() => router.go('#/help')}>Help</button></li>
         <li><button type="button" class="ent" onclick={() => (view.statsFor = { title: 'This collection', sel: { kind: 'all' } })}>Stats</button></li>
         <li><button type="button" class="ent" onclick={() => router.go('#/analyze')}>Analyze a file</button></li>
         <li><button type="button" class="ent" id="phone-theme" onclick={() => themes.toggleMode()}>{themes.resolved === 'dark' ? 'Light mode' : 'Dark mode'}</button></li>

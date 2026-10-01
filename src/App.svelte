@@ -25,6 +25,7 @@
   import JoinBox from './ui/library/JoinBox.svelte';
   import PhoneApp from './ui/phone/PhoneApp.svelte';
   import GuideLayer from './ui/guide/GuideLayer.svelte';
+  import HelpPage from './ui/guide/HelpPage.svelte';
   import ActionSheet from './ui/phone/ActionSheet.svelte';
   import AskSheet from './ui/phone/AskSheet.svelte';
   import { phone } from './lib/phone.svelte';
@@ -154,13 +155,14 @@
         <a href="#/" class:on={route.name === 'library' || route.name === 'track'}>Library</a>
         <a href="#/events" id="calendar-tab" class:on={route.name === 'events' || route.name === 'event'}>Calendar{#if inLibrary && needing}<i class="badge" title={needing + ' event' + (needing === 1 ? '' : 's') + ' coming with no music yet'}>{needing}</i>{/if}</a>
         <a href="#/analyze" class:on={route.name === 'analyze'}>Analyze a file</a>
+        <a href="#/help" id="help-tab" class:on={route.name === 'help'}>Help</a>
         {#if account.isAdmin}<a href="#/admin" id="admin-tab" class:on={route.name === 'admin'}>Admin</a>{/if}
       </nav>
     </div>
     <div class="open">
       {#if route.name === 'analyze'}
         <small>or drop a file anywhere · nothing leaves your computer</small>
-        <button type="button" class="btn" onclick={() => document.getElementById('file-input')?.click()}>
+        <button type="button" class="btn" data-guide="analyze-open" onclick={() => document.getElementById('file-input')?.click()}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 5v7h12V5M8 1.5v8M5 4.5l3-3 3 3"/></svg>
           Open audio file
         </button>
@@ -168,12 +170,12 @@
         {@const who = lib.alias ?? lib.profile}
         <small id="saving" class:hidden={!(lib.saving || lib.unsaved)} aria-hidden={!(lib.saving || lib.unsaved)}>Saving…</small>
         <small title={'Your library is stored in ' + lib.homeName}>📂 {lib.homeName}</small>
-        <button type="button" class="who" title="Switch profile" onclick={() => lib.switchProfile()}>
+        <button type="button" class="who" data-guide="profile" title="Switch profile" onclick={() => lib.switchProfile()}>
           <span class="dot" style:background={who.color}>{who.name.slice(0, 1).toUpperCase()}</span>{who.name}
         </button>
       {/if}
       <AccountButton />
-      <button type="button" class="modebtn" id="mode-toggle" title={themes.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={themes.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} onclick={() => themes.toggleMode()}>
+      <button type="button" class="modebtn" id="mode-toggle" data-guide="mode" title={themes.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={themes.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} onclick={() => themes.toggleMode()}>
         {#if themes.resolved === 'dark'}
           <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="currentColor"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
         {:else}
@@ -206,6 +208,8 @@
     <footer>Decoding uses your browser’s audio engine (WAV and AIFF are read directly). Chrome and Firefox can’t decode ALAC or DSD; Safari handles ALAC.</footer>
   {:else if route.name === 'admin'}
     <AdminView />
+  {:else if route.name === 'help'}
+    <HelpPage id={route.id} />
   {:else if !inLibrary || lib.onboarding === 'music'}
     <Welcome />
   {:else if phoneLib}

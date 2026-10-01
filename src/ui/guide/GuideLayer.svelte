@@ -8,7 +8,10 @@
   import { account } from '../../lib/account.svelte';
   import { phone } from '../../lib/phone.svelte';
   import { router } from '../../lib/route.svelte';
-  import { TOURS, type TourStep } from '../../core/guide/tours';
+  import { tourById, type TourStep } from '../../core/guide/tours';
+  import { TIPS } from '../../core/guide/tips';
+  import HelpBody from './HelpBody.svelte';
+  import { view } from '../../lib/view.svelte';
 
   const inLibrary = $derived(lib.phase === 'library' && !!lib.store && lib.onboarding !== 'music');
   // The first tour, once per person, when the library is on screen and the account has said what it knows.
@@ -25,6 +28,8 @@
   const run = $derived(guide.running);
   const step = $derived<TourStep | null>(run ? run.tour.steps[run.step] ?? null : null);
   let rect = $state<DOMRect | null>(null), dir = 1, bubble = $state<HTMLElement>();
+  /** Still looking for the stop's target: no bubble yet (an optional stop may be left out). */
+  let looking = $state(false);
   let size = $state({ w: 1280, h: 800 });
 
   const find = (name: string) => [...document.querySelectorAll<HTMLElement>(`[data-guide="${name}"]`)].find(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }) ?? null;
@@ -37,13 +42,13 @@
     const measure = () => { size = { w: innerWidth, h: innerHeight }; rect = el ? el.getBoundingClientRect() : null; };
     const look = () => {
       if (stop) return;
-      if (!s.target) { el = null; measure(); return; }
+      if (!s.target) { el = null; measure(); looking = false; return; }
       el = find(s.target);
-      if (el) { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); measure(); return; }
-      if (++tries < 25) { setTimeout(look, 120); return; }
-      if (s.optional) guide.skipMissing(dir < 0); else { el = null; measure(); }
+      if (el) { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); measure(); looking = false; return; }
+      if (++tries < (s.optional ? 10 : 25)) { setTimeout(look, 120); return; }
+      if (s.optional) guide.skipMissing(dir < 0); else { el = null; measure(); looking = false; }
     };
-    rect = null; look();
+    rect = null; looking = true; look();
     const id = setInterval(() => { if (el) measure(); }, 250);
     addEventListener('resize', measure); addEventListener('scroll', measure, true);
     void tick().then(() => bubble?.querySelector<HTMLElement>('[data-guide-next]')?.focus());
@@ -70,16 +75,43 @@
     else if (e.key === 'ArrowRight') { e.preventDefault(); dir = 1; guide.next(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); dir = -1; guide.back(); }
   }
-  const tours = $derived(TOURS.filter(t => !!t.phone === phone.active));
+  let article = $state<string | null>(null);
+  // Opened again: the list, not the last article.
+  $effect(() => { if (!guide.panel) article = null; });
+
+  // A tip the first time some parts of GLUE are opened (once per person; not while a tour runs; off when quiet).
+  const tipKey = $derived.by(() => {
+    if (!inLibrary || phone.active) return null;
+    const r = router.current;
+    if (r.name === 'events') return 'calendar';
+    if (r.name === 'track') return r.tab === 'prepare' ? 'prepare' : null;
+    if (r.name !== 'library') return null;
+    const k = view.sel.kind;
+    return k === 'dupes' ? 'duplicates' : k === 'unlinked' ? 'no-file' : k === 'attention' ? 'quality' : k === 'browse' ? 'browse' : null;
+  });
+  $effect(() => {
+    const k = tipKey;
+    if (!k || run || guide.offer) { if (guide.tip && guide.tip !== k) guide.tip = null; return; }
+    untrack(() => guide.showTip(k));
+  });
+  const tip = $derived(guide.tip ? TIPS[guide.tip] : null);
 </script>
 
 <svelte:window onkeydown={key} />
 
 {#if inLibrary}
-  <button type="button" class="corner" class:phone={phone.active} data-guide="help" id="gluey-btn" title="Gluey: help and tours" aria-label="Gluey: help and tours" aria-expanded={guide.panel} onclick={() => (guide.panel = !guide.panel)}>
+  <button type="button" class="corner" class:phone={phone.active} data-guide="help" id="gluey-btn" data-touring={run ? run.tour.id : undefined} title="Gluey: help and tours" aria-label="Gluey: help and tours" aria-expanded={guide.panel} onclick={() => { guide.tip = null; guide.panel = !guide.panel; }}>
     <Gluey size={34} pose={guide.offer ? 'wave' : 'point'} />
   </button>
   {#if run}<!-- the tour speaks -->
+  {:else if tip && guide.tip}
+    <div class="offer tip" class:phone={phone.active} id="gluey-tip" data-tip={guide.tip} role="status">
+      <div class="ohead"><Gluey size={40} pose="think" /><p>{tip.text}</p></div>
+      <div class="acts">
+        <button type="button" class="link" id="gluey-tip-ok" onclick={() => (guide.tip = null)}>Got it</button>
+        {#if tip.tour && tourById(tip.tour)}<button type="button" class="gb" id="gluey-tip-show" onclick={() => { const t = tip.tour!; guide.tip = null; guide.start(t); }}>Show me</button>{/if}
+      </div>
+    </div>
   {:else if guide.offer}
     <div class="offer" class:phone={phone.active} id="gluey-offer" role="dialog" aria-label="Gluey">
       <div class="ohead"><Gluey size={40} pose="wave" /><p><b>New: I’m Gluey.</b> I can show you around GLUE in a minute.</p></div>
@@ -87,15 +119,17 @@
     </div>
   {:else if guide.panel}
     <div class="panel" class:phone={phone.active} id="gluey-panel" role="dialog" aria-label="Gluey: help and tours">
-      <header><Gluey size={40} pose="wave" /><div><b>Hi, I’m Gluey.</b><span>Pick a tour and I’ll show you around.</span></div><button type="button" class="x" aria-label="Close" onclick={() => (guide.panel = false)}>×</button></header>
-      <ul>
-        {#each tours as t (t.id)}<li><button type="button" class="tour" data-tour={t.id} onclick={() => guide.start(t.id)}><b>{t.title}</b><span>{t.summary}</span></button></li>{/each}
-      </ul>
+      <header><Gluey size={40} pose="wave" /><div><b>Hi, I’m Gluey.</b><span>What would you like to know?</span></div><a class="full" href="#/help" title="Help as a page" onclick={() => (guide.panel = false)}>⤢</a><button type="button" class="x" aria-label="Close" onclick={() => (guide.panel = false)}>×</button></header>
+      <div class="hb"><HelpBody bind:open={article} /></div>
+      <footer>
+        <label><input type="checkbox" id="gluey-tips" checked={!guide.state.quiet} onchange={e => guide.mark({ quiet: !e.currentTarget.checked, quietAt: Date.now() })}> Gluey’s tips</label>
+        <button type="button" class="link" id="gluey-first" onclick={() => guide.start(phone.active ? 'welcome-phone' : 'welcome')}>The first tour again</button>
+      </footer>
     </div>
   {/if}
 {/if}
 
-{#if run && step}
+{#if run && step && !looking}
   <div class="layer" role="presentation">
     <svg class="scrim" width={size.w} height={size.h} aria-hidden="true">
       <defs><mask id="gluey-hole"><rect width="100%" height="100%" fill="#fff" />{#if rect && step.target}<rect x={rect.left - PAD} y={rect.top - PAD} width={rect.width + PAD * 2} height={rect.height + PAD * 2} rx="10" fill="#000" />{/if}</mask></defs>
@@ -131,10 +165,12 @@
   .panel header div { display: grid; flex: 1; }
   .panel header span { color: var(--muted); font-size: 12.5px; }
   .x { background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; align-self: flex-start; }
-  .panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-  .tour { width: 100%; text-align: left; display: grid; gap: 2px; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer; color: var(--ink); }
-  .tour:hover { border-color: var(--accent); }
-  .tour span { color: var(--muted); font-size: 12px; }
+  .panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: min(620px, calc(100vh - 200px)); }
+  .hb { min-height: 0; overflow-y: auto; display: grid; }
+  .panel footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; font-size: 12.5px; }
+  .panel footer label { display: flex; gap: 6px; align-items: center; }
+  .full { color: var(--muted); text-decoration: none; font-size: 15px; align-self: flex-start; }
+  .full:hover { color: var(--accent); }
   .layer { position: fixed; inset: 0; z-index: 90; }
   .scrim { position: absolute; inset: 0; }
   .dim { fill: rgb(0 0 0 / .55); }

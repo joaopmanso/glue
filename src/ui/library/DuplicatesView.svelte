@@ -124,7 +124,7 @@
 </script>
 
 {#snippet group(g: DupGroup)}
-  <section class="grp" data-kind={g.kind}>
+  <section class="grp" data-kind={g.kind} data-guide="dupes-group">
     <header>
       {#if g.kind === 'same'}
         {#if canClean}<input type="checkbox" class="gpick" aria-label="Choose this group" checked={picked.has(g.key)} onchange={e => pick(g, e.currentTarget.checked)}>{/if}
@@ -185,7 +185,7 @@
   </div>
   <!-- The main folder (ADR 0121), optional: among duplicates, its copy is kept (a lossless one elsewhere still wins). -->
   {#if folders.length > 1}
-    <div class="mainpick" id="dupes-main">
+    <div class="mainpick" id="dupes-main" data-guide="dupes-main">
       <span><b>Main folder</b> (optional): when a song is in it and in another folder, the copy in it is the one kept and shown. A lossless copy elsewhere still beats a lossy one in it. Also from a folder's right-click menu.</span>
       <select id="main-folder" aria-label="Main folder" value={mainRoot} disabled={lib.readOnly} onchange={e => dupes.setMainRoot(e.currentTarget.value || null)}>
         <option value="">None</option>
@@ -198,7 +198,7 @@
   {/if}
   {#if pending}<p class="note">{pending} track{pending === 1 ? '' : 's'} still being analysed; duplicates among them appear when they’re done.</p>{/if}
   {#if dupes.groups.length}
-    <div class="filters" id="dupes-filters">
+    <div class="filters" id="dupes-filters" data-guide="dupes-filters">
       {#each HOW as [h, label] (h)}<button type="button" class="chip" class:on={how === h} data-how={h} onclick={() => (how = h)}>{label} <small>{countOf(h)}</small></button>{/each}
       <label class="atleast">Certainty at least
         <select id="dupes-sure" value={String(atLeast)} onchange={e => (atLeast = Number(e.currentTarget.value))}>
@@ -208,7 +208,7 @@
     </div>
   {/if}
   {#if canClean && same.length}
-    <div class="bulk" id="dupes-bulk">
+    <div class="bulk" id="dupes-bulk" data-guide="dupes-bulk">
       <span>{pickedGroups.length ? pickedGroups.length + ' group' + (pickedGroups.length === 1 ? '' : 's') + ' ticked' : 'Tick groups to clean several up at once'}</span>
       <button type="button" class="mini" id="tick-all" onclick={() => (picked = new Set(same.map(g => g.key)))}>Tick all {same.length} shown</button>
       {#if pickedGroups.length}

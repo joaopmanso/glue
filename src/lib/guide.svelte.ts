@@ -9,6 +9,7 @@ import { phone } from './phone.svelte';
 import { readPref, writePref } from './prefs';
 import { emptyGuide, guideAdds, mergeGuide, type GuideState } from '../core/guide/state';
 import { tourById, type Go, type Tour } from '../core/guide/tours';
+import { TIPS } from '../core/guide/tips';
 
 /** Libraries and accounts from before Gluey (2026-10-01) meet him with an offer, not a tour that starts by itself. */
 const GLUEY_SINCE = Date.parse('2026-10-01T00:00:00Z');
@@ -25,6 +26,14 @@ class Guide {
   offer = $state(false);
   /** Gluey's panel (the tours; the help centre). */
   panel = $state(false);
+  /** The tip showing (a part of GLUE opened for the first time). */
+  tip = $state<string | null>(null);
+  /** A part of GLUE opened: its tip, the first time ever (once per person, ADR 0126), unless the tips are off. */
+  showTip(key: string) {
+    if (!this.automatic || this.state.quiet || this.state.tips.includes(key) || this.running || this.offer || this.panel) return;
+    this.tip = key;
+    this.mark({ tips: [key] });
+  }
   /** Tests turn the automatic first tour off (e2e/launch.ts); tours still run when asked. */
   private get automatic() { return typeof window === 'undefined' || !(window as unknown as { __glueNoGuide?: boolean }).__glueNoGuide; }
 
@@ -67,7 +76,10 @@ class Guide {
   start(id: string) {
     const tour = tourById(id);
     if (!tour) return;
-    this.panel = false; this.offer = false;
+    this.panel = false; this.offer = false; this.tip = null;
+    // Its part of GLUE was just shown: no tip for it afterwards.
+    const tips = Object.entries(TIPS).filter(([, t]) => t.tour === id).map(([k]) => k);
+    if (tips.length) this.mark({ tips });
     this.running = { tour, step: 0 };
     this.go(tour.steps[0]?.go);
   }
@@ -99,7 +111,7 @@ class Guide {
     else if ('song' in g) {
       const s = lib.store;
       const first = s ? [...s.tracks.values()].find(t => t.status === 'linked' && !t.remote) : null;
-      if (first) router.go(trackHref(first.id));
+      if (first) router.go(trackHref(first.id, g.tab ?? 'details'));
     }
   }
 }
