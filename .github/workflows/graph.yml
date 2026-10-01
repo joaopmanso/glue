@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - name: graphify (in its own environment, first on the PATH: its graphify and its python)
+      - name: graphify, in its own environment first on the PATH (its graphify and its python)
         run: |
           python3 -m venv ~/graphify
           ~/graphify/bin/pip install --quiet "graphifyy[sql]==0.9.73"
