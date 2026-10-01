@@ -5,6 +5,23 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · The first screen's waveforms load without scrolling; shared helpers
+- **The user's report:** on the laptop, the first screen's waveforms often didn't load until scrolled away and
+  back ([ADR 0131](../adr/0131-rows-on-screen-ask-until-answered.md)).
+- **The causes:**
+  - an ask to the other computer that failed (its link still opening) was taken as "none", retried after 8 s, and
+    only for rows still on screen;
+  - covers marked a failed batch "tried" for the whole session.
+- **Now:**
+  - one helper, `src/lib/onScreen.ts`: rows on screen, and asking again;
+  - "couldn't ask" is asked again soon (1, 2, 4… 15 s) while the row is on screen;
+  - "none there yet" is asked again later, or at once when the row comes back;
+  - a row that scrolls away cancels its retry;
+  - the margin stays 12 rows each way.
+- **Found with the code map** (function names defined in several files), and folded:
+  - the " (2)" copy-name rule: `core/transfer.ts` `firstName`, used by TO BE SORTED and by the joining of copies;
+  - drag-out file names now use `transfer.ts`'s `safeName`, which also avoids Windows' reserved names.
+
 ## 2026-10-01 · A song on two computers is one song
 - **The user's report:** a song added on the laptop and sent to the desktop was two songs there, one per computer,
   shown as duplicates ([ADR 0130](../adr/0130-same-file-on-two-computers-is-one-song.md)).

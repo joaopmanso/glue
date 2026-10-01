@@ -162,7 +162,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - newest request first;
   - a row that scrolls away drops what it asked for (`hold`/`drop`), so a jump down the list loads the new rows
     at once;
-  - the table draws 12 rows beyond each edge.
+  - the table draws 12 rows beyond each edge;
+  - from another computer, asked until answered (`src/lib/onScreen.ts`, ADR 0131): a song the ask couldn't reach
+    is asked again soon while its row is on screen; "none there yet" later, or when its row is back.
   - A page opens Home mode when it has the link, whatever the browser; on the start page or a browser-storage
     library it switches over when GLUE Home appears.
 - **Releases:**

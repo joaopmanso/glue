@@ -10,6 +10,7 @@ import { fileAt, writeBlob } from '../store/fsx';
 import type { Track } from '../store/types';
 import type { Cover } from '../workers/cover';
 import type { CoverReply, CoverRequest } from '../workers/cover.worker';
+import { OnScreen, Retries } from './onScreen';
 
 export type CoverSize = 64 | 320;
 const MAX_URLS = 600, AT_ONCE = 3;
@@ -56,12 +57,13 @@ class Covers {
   }
   /** The rows on screen: one that scrolls away drops what it asked for (its tag read, its place in the next batch
       from another computer's GLUE Home), and may ask again when it's back (2026-09-30). */
-  private held = new Map<string, number>();
-  hold(t: Track, size: CoverSize) { const k = t.id + '-' + size; this.held.set(k, (this.held.get(k) ?? 0) + 1); }
+  private screen = new OnScreen();
+  private retries = new Retries();
+  hold(t: Track, size: CoverSize) { this.screen.hold(t.id + '-' + size); }
   drop(t: Track, size: CoverSize) {
-    const k = t.id + '-' + size, n = (this.held.get(k) ?? 1) - 1;
-    if (n > 0) { this.held.set(k, n); return; }
-    this.held.delete(k);
+    const k = t.id + '-' + size;
+    if (!this.screen.drop(k)) return;
+    this.retries.cancel(k);
     const w = this.want.indexOf(t.id); if (w >= 0) { this.want.splice(w, 1); this.tried.delete(t.id); }
     if (this.homeWant.delete(k)) this.homeTried.delete(k);
   }
@@ -79,7 +81,7 @@ class Covers {
     if (cid === this.cid) return;
     this.cid = cid;
     for (const u of this.urls.values()) if (u) URL.revokeObjectURL(u);
-    this.urls.clear(); this.want = []; this.tried.clear(); this.found.clear(); this.homeWant.clear(); this.homeTried.clear(); this.web.clear(); this.webWant.clear();
+    this.urls.clear(); this.want = []; this.tried.clear(); this.found.clear(); this.homeWant.clear(); this.homeTried.clear(); this.web.clear(); this.webWant.clear(); this.retries.clear();
   }
   private remember(k: string, u: string | null) {
     const old = this.urls.get(k);
@@ -108,13 +110,25 @@ class Covers {
   private async askHomes() {
     const cid = this.cid, s = lib.store, want = [...this.homeWant.values()];
     this.homeWant.clear();
+    // A cover its GLUE Home couldn't be asked about (the link still opening, a time-out): asked again soon while its
+    // row is on screen, not marked tried for good (ADR 0131).
+    const onScreen = (k: string) => this.cid === cid && this.screen.has(k);
+    const unreached = (ts: Track[], size: CoverSize) => { for (const t of ts) {
+      const k = t.id + '-' + size;
+      this.homeTried.delete(k);
+      this.retries.later(k, 'unreached', onScreen, () => this.fromHome(t, size));
+    } };
     for (const size of [64, 320] as const) {
       const ts = want.filter(w => w.size === size).map(w => w.t);
       for (let i = 0; i < ts.length; i += 60) {
-        const got = await lib.remoteArt?.(ts.slice(i, i + 60), size).catch(() => null);
-        if (!got || this.cid !== cid || lib.store !== s) return;
+        const batch = ts.slice(i, i + 60);
+        const got = await lib.remoteArt?.(batch, size).catch(() => null);
+        if (this.cid !== cid || lib.store !== s) return;
+        if (!got) { unreached(ts.slice(i), size); break; }
+        unreached(batch.filter(t => !got.has(t.id)), size);
         const dir = await platform.cacheDir();
         for (const [id, { hash, bytes }] of got) {
+          this.retries.done(id + '-' + size);
           this.found.set(id, hash);
           // None in its tags: looked up on public services now (the cell is still waiting, ADR 0086).
           if (hash === '') { const t = s?.tracks.get(id); if (t) this.fromWeb(t, size); }

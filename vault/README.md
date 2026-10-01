@@ -208,5 +208,6 @@ Planned (GLUE):
 | [0128](adr/0128-code-map-built-on-github.md) | The code map is built on GitHub for every push (branch `graphify`) and used by fixed rules: affected/explain/path, never query | accepted |
 | [0129](adr/0129-code-map-docs-every-session.md) | The code map's docs are refreshed in every session that changes them (scripts/graph_docs.py, no skill); its view is on the site at /graph/ | accepted |
 | [0130](adr/0130-same-file-on-two-computers-is-one-song.md) | The same file on two computers is one song with a copy on each: a scan joins it to the other computer's song, pairs made before are joined | accepted |
+| [0131](adr/0131-rows-on-screen-ask-until-answered.md) | What rows on screen need from another computer is asked for until it's answered (onScreen.ts: OnScreen, Retries) | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

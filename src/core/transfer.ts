@@ -95,6 +95,8 @@ export function nextName(name: string, taken: (n: string) => boolean): string {
   const dot = name.lastIndexOf('.'), base = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : '';
   for (let i = 2; ; i++) { const n = base + ' (' + i + ')' + ext; if (!taken(n)) return n; }
 }
+/** The name `nextName` started from: "Song (2).mp3" → "Song.mp3" (a song saved where its name was taken). */
+export const firstName = (name: string) => name.replace(/ \(\d+\)(\.[^.]*)$/, '$1');
 
 /** The kind of an ICE candidate: named for people: 'local' (this network), 'public' (seen from outside), 'relay'. */
 export function candidateType(c: string | undefined | null): string | null {

@@ -16,7 +16,7 @@ import { localHome } from './localHome.svelte';
 import { nameFields } from '../core/library/tags';
 import { INCOMING_ROOT, SCHEMA, type AnalysisSummary, type List, type Track, type TrackFormat } from '../store/types';
 import { homeMode, onHomeDown } from '../platform';
-import type { IncomingFile } from '../core/transfer';
+import { firstName, type IncomingFile } from '../core/transfer';
 
 export const TO_BE_SORTED = 'tobesorted';
 const EVERY = 30_000;
@@ -24,7 +24,7 @@ const EVERY = 30_000;
 const EVERY_HERE = 5_000;
 function fnv(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0).toString(36); }
 /** "Song (2).mp3" was sent as "Song.mp3" (the name was taken there). */
-const plain = (n: string) => n.toLowerCase().replace(/ \(\d+\)(\.[^.]*)$/, '$1');
+const plain = (n: string) => firstName(n).toLowerCase();
 
 class Incoming {
   /** Per GLUE Home: what's in its incoming folder. */

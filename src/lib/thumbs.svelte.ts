@@ -11,6 +11,7 @@ import { writeBlob } from '../store/fsx';
 import { shardOf, type Track } from '../store/types';
 import { makeThumb, makeWaveThumb, THUMB_H, THUMB_W, WAVE_BYTES } from '../core/library/thumb';
 import type { AnalysisResult } from '../core/types';
+import { OnScreen, Retries } from './onScreen';
 
 const MAX_CACHED = 800, READERS = 6;
 
@@ -43,12 +44,18 @@ class Thumbs {
   }
   /** The rows on screen (plus the table's overscan): a jump down the list drops what the rows it left asked for, so
       the new ones load at once (the user, 2026-09-30: every jump got slower). */
-  private held = new Map<string, number>();
-  hold(id: string) { this.held.set(id, (this.held.get(id) ?? 0) + 1); }
+  private screen = new OnScreen();
+  private retries = new Retries();
+  /** Another computer's songs it had none for yet: asked again when they come back on screen. */
+  private notYet = new Set<string>();
+  hold(id: string) {
+    if (!this.screen.hold(id) || !this.notYet.delete(id)) return;
+    this.cache.delete(id);
+    this.request(id);
+  }
   drop(id: string) {
-    const n = (this.held.get(id) ?? 1) - 1;
-    if (n > 0) { this.held.set(id, n); return; }
-    this.held.delete(id);
+    if (!this.screen.drop(id)) return;
+    this.retries.cancel(id);
     const q = this.queue.indexOf(id); if (q >= 0) this.queue.splice(q, 1);
     const d = this.derive.indexOf(id); if (d >= 0) this.derive.splice(d, 1);
     const w = this.wantRemote.findIndex(t => t.id === id); if (w >= 0) this.wantRemote.splice(w, 1);
@@ -70,7 +77,7 @@ class Thumbs {
 
   private checkCollection() {
     const cid = lib.store?.meta.id ?? '';
-    if (cid !== this.cid) { this.cid = cid; this.cache.clear(); this.queue = []; this.derive = []; }
+    if (cid !== this.cid) { this.cid = cid; this.cache.clear(); this.queue = []; this.derive = []; this.notYet.clear(); this.retries.clear(); }
   }
   private remember(id: string, v: Uint8Array | null) {
     this.cache.set(id, v);
@@ -84,36 +91,42 @@ class Thumbs {
       void this.read(id).finally(() => { this.reading--; this.pump(); });
     }
   }
-  /** Another computer's songs: from its GLUE Home, a screenful at a time (ADR 0046). */
-  remote: ((ts: Track[]) => Promise<Map<string, Uint8Array>>) | null = null;
+  /** Another computer's songs: from its GLUE Home, a screenful at a time (ADR 0046). The answer has each song
+      it reached: its bytes, or null (none there yet); a song missing from it couldn't be asked (ADR 0131). */
+  remote: ((ts: Track[]) => Promise<Map<string, Uint8Array | null>>) | null = null;
   /** This computer's song, analysed by GLUE Home (ADR 0110): its copy in GLUE Home's cache, when this browser has
       none (it was analysed while no tab listened, or in another browser). */
   fromHome: ((id: string) => Promise<Uint8Array | null>) | null = null;
   private wantRemote: Track[] = [];
   private remoteTimer = 0;
-  private tries = new Map<string, number>();
   private fromRemote(t: Track) {
     this.wantRemote.push(t);
     clearTimeout(this.remoteTimer);
     this.remoteTimer = window.setTimeout(() => {
       const batch = this.wantRemote.splice(0), cid = this.cid;
-      void (this.remote?.(batch) ?? Promise.resolve(new Map<string, Uint8Array>())).then(got => {
+      const onScreen = (id: string) => this.cid === cid && this.screen.has(id);
+      void (this.remote?.(batch) ?? Promise.resolve(new Map<string, Uint8Array | null>())).catch(() => new Map<string, Uint8Array | null>()).then(got => {
         if (this.cid !== cid) return;
         for (const t of batch) {
           const b = got.get(t.id);
-          if (b && b.length === this.size) { this.remember(t.id, b); continue; }
-          // Not made there yet (GLUE Home makes it now): ask again in a while, a few times.
+          if (b && b.length === this.size) { this.retries.done(t.id); this.remember(t.id, b); continue; }
+          if (b === undefined) {
+            // Couldn't ask (the link still opening): left unknown, asked again soon while on screen.
+            this.retries.later(t.id, 'unreached', onScreen, () => this.request(t.id));
+            continue;
+          }
+          // Not made there yet (GLUE Home makes it now): none for now, asked again in a while, or when it's back.
+          this.notYet.add(t.id);
           this.remember(t.id, null);
-          const n = (this.tries.get(t.id) ?? 0) + 1;
-          this.tries.set(t.id, n);
-          if (n < 10) setTimeout(() => { if (this.cid === cid && this.held.has(t.id)) { this.cache.delete(t.id); this.request(t.id); } }, Math.min(60_000, 8_000 * n));
+          this.retries.later(t.id, 'notYet', onScreen, () => { this.notYet.delete(t.id); this.cache.delete(t.id); this.request(t.id); });
         }
-      }).catch(() => { for (const t of batch) { this.remember(t.id, null); setTimeout(() => { if (this.cid === cid && this.held.has(t.id)) { this.cache.delete(t.id); this.request(t.id); } }, 15_000); } });
+      });
     }, 120);
   }
   private async read(id: string) {
     const rt = lib.store?.tracks.get(id);
-    if (rt?.remote) { if (lib.canRead(rt) && this.remoteOk) this.fromRemote(rt); else this.remember(id, null); return; }
+    // Another computer's: from its GLUE Home. Not reachable yet: left unknown, so the row asks once it is.
+    if (rt?.remote) { if (!this.remoteOk) this.remember(id, null); else if (lib.canRead(rt)) this.fromRemote(rt); return; }
     const dir = await cacheDir(), cid = this.cid;
     if (!dir || !cid) return;
     try {

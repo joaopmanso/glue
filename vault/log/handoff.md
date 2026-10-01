@@ -73,6 +73,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **The first screen's waveforms on the laptop** (ADR 0131, not hand-tested yet): open the collection fresh on
+  the laptop (desktop on). The first screen's Overviews and covers should fill in as soon as the desktop answers,
+  without scrolling.
 - **A song on two computers is one song** (ADR 0130, not hand-tested yet):
   - **the reported song:** open the collection on the desktop. The song sent from the laptop should be one row
     showing both computers, no longer in Duplicates;
@@ -100,6 +103,17 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     analysed by GLUE Home. "Odessa" (added on its own before the fix) can be removed and dropped again.
 
 ## Next
+- **From the code map** (function names defined in several files, 2026-10-01; the loaders and copy names are done):
+  - **"the same name"** is judged five ways, with different rules: `duplicates.ts` and `relink.ts` `plain`,
+    `dupes.svelte.ts` `norm`, `shared/match.ts` `norm`, `coverSearch.ts` `norm`. So Duplicates, No file linked and
+    joining a collection can disagree. Make one in `core/library`; it changes matching, so test against the user's
+    collection;
+  - **`library.svelte.ts`** (1,542 lines; `Library` is the graph's top hub, 147 edges): split by concern (scanning
+    and music folders, imports, the analysis queue, Home mode) behind the same `lib` API;
+  - **smaller:** `getWorker` in `analysis.ts` and `parseWorker.ts`; `iceServers` in `home/ui/ice.ts` and
+    `src/lib/ice.ts`; `sha256`/`hex` in the cloud, the sync engine and the cover worker.
+  - **performance, measure before changing:** `?perf` on the laptop's first load (the store's open time, the
+    rows' cost).
 - **Gluey:** when a feature changes, update its article in `src/help/` and its tour in `src/core/guide/tours.ts`;
   recapture the homepage's media after visible UI changes (`vault/features/homepage.md`).
 - **E2E speed and flakiness:** the full suite takes about 6 min on the desktop. When it slows to 12+ min with random

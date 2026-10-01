@@ -6,6 +6,7 @@ import { baseName, blankTrack, normPath } from '../core/interop/types';
 import { resolveEngine } from '../core/interop/engine';
 import { matchTracks, type FileEntry } from '../core/library/match';
 import { fillInfo } from '../core/library/tags';
+import { firstName } from '../core/transfer';
 import type { CollectionStore } from './collection';
 import { type List, type Source, type SourceList, type SourceTrack, type Track, SCHEMA, newId } from './types';
 import { syncLinkedLists, type LinkReport } from './linked';
@@ -220,7 +221,7 @@ export interface ScanEntry { relPath: string; size: number; mtime: number; fileN
 /** A folder was scanned: link unlinked tracks to its files, add the rest as new tracks, flag vanished ones. */
 /** The same file on two computers: its size, and its name ("Song (2).mp3" is "Song.mp3" put where that name was
     taken, as a song sent to a GLUE Home's incoming folder can be). */
-const fileKeyOf = (name: string, size: number | null) => name.toLowerCase().replace(/ \(\d+\)(\.[^.]*)$/, '$1') + '|' + size;
+const fileKeyOf = (name: string, size: number | null) => firstName(name).toLowerCase() + '|' + size;
 /** Shared: the songs only other computers have, by file. */
 function theirsByFile(store: CollectionStore) {
   const by = new Map<string, Track[]>();

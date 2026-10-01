@@ -242,15 +242,17 @@ class RemoteFiles {
     return out;
   }
 
-  /** Mini spectrograms of songs on one computer (those its GLUE Home has; the rest come later). */
-  async thumbs(ts: Track[], kind: 'thumb' | 'wave' = 'thumb'): Promise<Map<string, Uint8Array>> {
-    const out = new Map<string, Uint8Array>(), file = kind === 'wave' ? 'wave.bin' : 'thumb.bin';
+  /** Mini spectrograms (or waveforms) of songs on other computers: each song its GLUE Home was asked about, with its
+      bytes or null (none there yet). A song missing from the answer couldn't be asked: no GLUE Home online for it,
+      the link not open yet, a time-out (ADR 0131). */
+  async thumbs(ts: Track[], kind: 'thumb' | 'wave' = 'thumb'): Promise<Map<string, Uint8Array | null>> {
+    const out = new Map<string, Uint8Array | null>(), file = kind === 'wave' ? 'wave.bin' : 'thumb.bin';
     // Songs in an incoming folder: made when they arrived.
     const waiting = new Map<string, Track[]>();
     for (const t of ts) if (t.remote?.incoming && t.remote.home) (waiting.get(t.remote.home) ?? waiting.set(t.remote.home, []).get(t.remote.home)!).push(t);
     for (const [home, list] of waiting) {
       const got = await this.cacheFiles(home, list.map(t => incomingKey(t.remote!.incoming!, file)));
-      for (const t of list) { const b = got.get(incomingKey(t.remote!.incoming!, file)); if (b) out.set(t.id, b); }
+      for (const t of list) out.set(t.id, got.get(incomingKey(t.remote!.incoming!, file)) ?? null);
     }
     ts = ts.filter(t => !t.remote?.incoming);
     const groups = new Map<string, Track[]>();
@@ -267,7 +269,7 @@ class RemoteFiles {
       let at = 0;
       for (const [id, size] of a.data as [string, number][]) {
         const t = list.find(x => x.remote!.id === id);
-        if (t && size) out.set(t.id, a.bytes.slice(at, at + size));
+        if (t) out.set(t.id, size ? a.bytes.slice(at, at + size) : null);
         at += size;
       }
     }

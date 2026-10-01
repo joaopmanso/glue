@@ -1,10 +1,18 @@
 ---
 status: in-progress
 milestone: M7
-updated: 2026-09-27
-adrs: [0057, 0058]
+updated: 2026-10-01
+adrs: [0057, 0058, 0131]
 ---
 # Performance
+
+## Now
+- `?perf` shows the numbers on screen (below). Budgets are checked by `e2e/perf.spec.ts` (ADR 0058).
+- **Rows load what's on screen** (the table draws 12 rows beyond each edge): Overviews, waveforms and covers, newest
+  request first. A row that scrolls away drops its requests.
+- **From another computer, asked until answered** (ADR 0131): `src/lib/onScreen.ts` (`OnScreen`, `Retries`), shared
+  by thumbnails, waveforms and covers.
+- The sections below are the history.
 
 ## What it does
 GLUE stays quick with big collections (the vision: 50,000 tracks feel instant to browse, search and

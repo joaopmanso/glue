@@ -3,14 +3,15 @@
    ready inside `dragstart`, so a track's file is opened as soon as the pointer is over its handle. */
 import { lib } from './library.svelte';
 import type { List, Track } from '../store/types';
+// DownloadURL is "mime:name:url"; a colon in the name would break it. The same file-name rule as songs sent to a
+// GLUE Home (it also avoids Windows' reserved names).
+import { safeName } from '../core/transfer';
 
 /** Only Chromium implements DownloadURL. */
 export const canDragOut = () => !!(navigator as Navigator & { userAgentData?: { brands?: { brand: string }[] } }).userAgentData?.brands?.some(b => /Chromium/.test(b.brand));
 
 const MIME: Record<string, string> = { mp3: 'audio/mpeg', wav: 'audio/wav', aif: 'audio/aiff', aiff: 'audio/aiff', flac: 'audio/flac', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', opus: 'audio/ogg', webm: 'audio/webm' };
 const mimeOf = (name: string) => MIME[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream';
-/** DownloadURL is "mime:name:url"; a colon in the name would break it. */
-const safeName = (n: string) => n.replace(/[:\\/*?"<>|]+/g, '_');
 
 const ready = new Map<string, string>();   // track id → blob URL of its file
 let forStore: unknown = null;
