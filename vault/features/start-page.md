@@ -16,6 +16,10 @@ synthetic 96 kHz / 24-bit track with a 16 kHz wall, and four cards explaining th
 - The header's tagline and Open button hide while the start page is up.
 - The analysis layout replaces the start page once a file or the example loads.
 
+## Now
+The visitor's start is the homepage (`homepage.md`, rewritten 2026-10-01), then the setup below it; Gluey's first
+tour follows the setup (ADR 0126). "Analyze a file" (`#/analyze`) is this page.
+
 ## Limits & open questions
 - GLUE: becomes the first-run flow (create/choose the GLUE folder, add music) plus "Analyze a file".
 - **The first question (2026-09-28, [ADR 0092](../adr/0092-first-question-how-glue-is-used.md)):** how GLUE is used here (just this computer, synced, with GLUE Home, from another device); the profile screen's "This computer" card shows and changes it.

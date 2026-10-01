@@ -20,6 +20,8 @@ const ff = (...a: string[]) => execFileSync('ffmpeg', ['-hide_banner', '-logleve
 async function shot(page: Page, name: string, clip?: { x: number; y: number; width: number; height: number }) {
   if (!want(name)) return;
   const png = join(OUT, name + '.png');
+  await page.evaluate(() => document.querySelectorAll('.toast button').forEach(b => (b as HTMLButtonElement).click())).catch(() => {});
+  await page.waitForTimeout(300);
   await page.screenshot({ path: png, clip });
   ff('-i', png, '-c:v', 'libwebp', '-quality', '84', '-compression_level', '6', join(OUT, name + '.webp'));
   rmSync(png);
@@ -82,6 +84,8 @@ try {
   const page = ctx.pages()[0] ?? await ctx.newPage();
   await page.addInitScript(() => {
     localStorage.setItem('mco.theme', 'stick'); localStorage.setItem('mco.mode', 'dark');
+    // Gluey (ADR 0126) stays in his corner: no first tour, no tips, in the pictures.
+    localStorage.setItem('mco.guide', JSON.stringify({ seen: ['welcome', 'welcome-phone'], tips: [], quiet: true, quietAt: 1 }));
     const w = window as unknown as { showDirectoryPicker: (o: { id?: string }) => Promise<FileSystemDirectoryHandle> };
     w.showDirectoryPicker = async o => (await navigator.storage.getDirectory()).getDirectoryHandle(o.id === 'mco-home' ? 'GLUE' : 'Music', { create: true });
   });
@@ -111,14 +115,31 @@ try {
   await page.waitForTimeout(4000);   // duplicates and thumbnails settle
   await page.evaluate(() => document.querySelectorAll('.toast button').forEach(b => (b as HTMLButtonElement).click()));
   const cdp = await ctx.newCDPSession(page);
-  const row = (t: string) => page.locator('.tr', { hasText: t });
+  const row = (t: string) => page.locator('.tr:not(.dim)', { hasText: t });   // (dim: the songs with no file)
+
+  // 0. No file linked: the removed duplicates the rekordbox library still lists, matched to the library's songs;
+  // then linked, so the rest of the pictures show a tidy library.
+  await page.locator('.lside .name', { hasText: 'No file linked' }).click();
+  await page.locator('#relink li[data-orphan]').first().waitFor({ timeout: 30_000 });
+  await page.waitForTimeout(800);
+  await shot(page, 'relink');
+  await page.click('#relink-tick-all');
+  await page.click('#relink-bulk-link');
+  await page.click('#relink-go');
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => document.querySelectorAll('.toast button').forEach(b => (b as HTMLButtonElement).click()));
+
+  // The library's playlists come into GLUE on demand (ADR 0063): all of them.
+  await page.locator('[data-dj-open]').first().click();
+  await page.locator('[data-dj-all]').first().click();
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelectorAll('.toast button').forEach(b => (b as HTMLButtonElement).click()));
 
   // 1. The library: overview spectrograms, quality, tags, ratings.
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
   await page.locator('.thead [data-col="artist"]').click();
   await page.mouse.move(W - 10, H - 10);
   await page.waitForTimeout(1500);
-  await shot(page, 'library');
 
   // 2. A playlist with its insights (tempo flow, keys, tags Venn).
   // The imported playlists live in a folder named after the app: open it, then the subfolder.
@@ -152,29 +173,11 @@ try {
   await page.waitForTimeout(1500);
   await shot(page, 'quality');
   await page.evaluate(() => window.scrollTo(0, 0));
-
-  // 5. Clip: play with the live 3D spectrum on.
-  await page.locator('.crumbs a').click();
-  await row('Red Meridian').dblclick();
-  await page.locator('#v-pill').filter({ hasText: /\w/ }).waitFor({ timeout: 60_000 });
-  if (!await page.locator('#live-toggle').isChecked()) await page.click('#live-toggle');
-  await page.click('#live-3d');
-  await page.locator('#spec-box').scrollIntoViewIfNeeded();
-  await page.evaluate(() => window.scrollBy(0, -80));
-  await page.waitForTimeout(600);
-  await clip(page, cdp, 'clip-live', 9, async () => {
-    const p = (await page.locator('#play-btn').boundingBox())!;
-    await page.mouse.move(p.x - 200, p.y + 120);
-    await page.mouse.move(p.x + p.width / 2, p.y + p.height / 2, { steps: 16 });
-    await page.mouse.click(p.x + p.width / 2, p.y + p.height / 2);
-    await page.mouse.move(p.x + 300, p.y + 420, { steps: 20 });
-  });
-  await page.click('#play-btn');
   await page.locator('.crumbs a').click();
 
   // 6. The playlist builder: from a track, generate, then another take.
-  await row('Tidewater').click();
-  await page.click('#auto-from');
+  await row('Tidewater').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="auto"]').click();
   await page.locator('#auto-dialog').waitFor();
   await page.waitForTimeout(500);
   await clip(page, cdp, 'clip-builder', 8, async () => {
@@ -188,7 +191,6 @@ try {
     await at('#auto-again');
     await page.waitForTimeout(1600);
   });
-  await shot(page, 'builder');
   await page.keyboard.press('Escape');
 
   // 7. Duplicates found by sound.
@@ -196,12 +198,43 @@ try {
   await page.waitForTimeout(1500);
   { const b = (await page.locator('.dv').boundingBox())!; await shot(page, 'duplicates', { x: b.x - 16, y: b.y - 60, width: Math.min(1000, b.width + 32), height: 560 }); }
 
-  // 8. The filter by quality (a menu open on the table).
+  // 10. Prepare: the deck, the beat grid and the imported cues.
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
-  await page.locator('.thead [data-col="quality"]').hover();
-  await page.click('[data-hf="quality"]');
-  await page.waitForTimeout(600);
-  { const p = (await page.locator('#head-filter').boundingBox())!; const x = Math.max(0, p.x + p.width - 900); await shot(page, 'filter', { x, y: 120, width: 900 + 30, height: 560 }); }
+  await row('Night Bus').dblclick();
+  await page.click('#tab-prepare');
+  await page.locator('#prep-deck').waitFor();
+  await page.waitForTimeout(2500);
+  await shot(page, 'prepare');
+  await page.locator('.crumbs a').click();
+
+  // 11. The calendar: a gig with its playlist.
+  await page.click('#calendar-tab');
+  await page.click('#new-event');
+  const day = new Date(Date.now() + 9 * 864e5).toISOString().slice(0, 10);
+  await page.fill('#ev-name', 'Rooftop Sessions'); await page.fill('#ev-date', day);
+  await page.fill('#ev-set-start', '22:00'); await page.fill('#ev-set-end', '00:00');
+  await page.fill('#ev-venue', 'Terraço'); await page.fill('#ev-city', 'Lisbon');
+  await page.click('#ev-save');
+  await page.click('#event-assign');
+  await page.locator('.cmenu .citem', { hasText: 'Warm-up' }).click();
+  await page.waitForTimeout(800);
+  await page.click('#calendar-tab');
+  await page.waitForTimeout(800);
+  await shot(page, 'calendar');
+
+  // 12. The phone: the same library, on a phone's screen.
+  await page.locator('.tabs a[href="#/"]').click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(1500);
+  await page.locator('#phone-library').waitFor({ timeout: 20_000 });
+  if (want('phone')) {
+    const png = join(OUT, 'phone.png');
+    await page.screenshot({ path: png });
+    ff('-i', png, '-c:v', 'libwebp', '-quality', '84', join(OUT, 'phone.webp'));
+    rmSync(png);
+    console.log('shot phone');
+  }
+  await page.setViewportSize({ width: W, height: H });
   console.log('done →', OUT, existsSync(OUT) ? readdirSync(OUT).join(', ') : '');
 } finally {
   await ctx.close();

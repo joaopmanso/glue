@@ -54,7 +54,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - Gluey, batch 1 of 3 (ADR 0126, `vault/features/guide.md`, the plan in `~/.claude/plans/warm-stargazing-raccoon.md`):
     the first tour once per person, the offer for people from before him, his corner button, "Take the tour again";
   - Gluey, batch 2 (GLUE Home 0.40.1): the help centre (18 articles, `#/help`), a tour per feature, first-visit
-    tips.
+    tips;
+  - batch 3: the new homepage, with media recaptured (`scripts/demo/`).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
@@ -79,8 +80,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     analysed by GLUE Home. "Odessa" (added on its own before the fix) can be removed and dropped again.
 
 ## Next
-- **Gluey, batch 3:** the new homepage (`Homepage.svelte` rewritten, `scripts/demo/capture.ts` new shots). When a
-  feature changes, update its article in `src/help/` and its tour in `src/core/guide/tours.ts`.
+- **Gluey:** when a feature changes, update its article in `src/help/` and its tour in `src/core/guide/tours.ts`;
+  recapture the homepage's media after visible UI changes (`vault/features/homepage.md`).
 - **E2E speed and flakiness:** the full suite takes about 6 min on the desktop. When it slows to 12+ min with random
   failures, or browsers stop starting, check free memory first: on 2026-10-01 Windows' Desktop Window Manager
   (dwm.exe) had leaked 41 GB (a graphics-driver leak; a restart fixed it). Never kill dwm or the user's Edge; ask.

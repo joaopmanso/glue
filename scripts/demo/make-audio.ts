@@ -168,10 +168,14 @@ function rekordboxXml(entries: { s: Spec; file: string; ms: number }[]): string 
     const key = NOTES[e.s.tonic] + (e.s.minor ? 'm' : '');
     return `<TRACK TrackID="${i + 1}" Name="${esc(e.s.title)}" Artist="${esc(e.s.artist)}" Album="${esc(e.s.album)}" Genre="${esc(e.s.genre)}" Label="${esc(e.s.label)}" Year="${e.s.year}" AverageBpm="${e.s.bpm.toFixed(2)}" Tonality="${key}" Rating="${[0, 51, 102, 153, 204, 255][e.s.rating]}" TotalTime="${Math.round(e.ms / 1000)}" Comments="${esc(e.s.tags.length ? '/* ' + e.s.tags.join(' / ') + ' */' : '')}" Location="file://localhost/C:/Users/dj/Music/Sets/${encodeURIComponent(e.file)}">${cues}${loop}</TRACK>`;
   });
+  // Removed duplicates the DJ library still lists (files that aren't there): "No file linked" finds them in the library.
+  const ghosts = entries.slice(0, 3).map((e, k) => `<TRACK TrackID="${entries.length + k + 1}" Name="${esc(e.s.title)}" Artist="${esc(e.s.artist)}" Album="${esc(e.s.album)}" TotalTime="${Math.round(e.ms / 1000)}" Location="file://localhost/C:/Users/dj/Music/Old%20Promos/${encodeURIComponent(e.s.artist + ' - ' + e.s.title + ' (1).mp3')}"></TRACK>`);
+  tracks.push(...ghosts);
+  const old = `<NODE Name="Old crate" Type="1" KeyType="0" Entries="${ghosts.length}">${ghosts.map((_, k) => `<TRACK Key="${entries.length + k + 1}"/>`).join('')}</NODE>`;
   const idx = (pred: (s: Spec) => boolean) => entries.map((e, i) => pred(e.s) ? `<TRACK Key="${i + 1}"/>` : '').join('');
   const pl = (name: string, pred: (s: Spec) => boolean) => `<NODE Name="${name}" Type="1" KeyType="0" Entries="${entries.filter(e => pred(e.s)).length}">${idx(pred)}</NODE>`;
-  return `<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><PRODUCT Name="rekordbox" Version="7.1.0"/><COLLECTION Entries="${entries.length}">${tracks.join('')}</COLLECTION>
-<PLAYLISTS><NODE Type="0" Name="ROOT" Count="3">${pl('Warm-up', s => s.tags.includes('Warm up'))}${pl('Peak time', s => s.tags.includes('Peak'))}
+  return `<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><PRODUCT Name="rekordbox" Version="7.1.0"/><COLLECTION Entries="${tracks.length}">${tracks.join('')}</COLLECTION>
+<PLAYLISTS><NODE Type="0" Name="ROOT" Count="4">${pl('Warm-up', s => s.tags.includes('Warm up'))}${pl('Peak time', s => s.tags.includes('Peak'))}${old}
 <NODE Name="Gigs 2026" Type="0" Count="2">${pl('Lisbon rooftop', s => s.bpm < 124)}${pl('Berlin basement', s => s.genre === 'Techno' || s.tags.includes('Dark'))}</NODE></NODE></PLAYLISTS></DJ_PLAYLISTS>`;
 }
 

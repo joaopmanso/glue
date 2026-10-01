@@ -5,6 +5,17 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · A new homepage
+- **The homepage, rewritten** ([homepage](../features/homepage.md), ADR 0126 batch 3):
+  - shorter and current, introduced by Gluey;
+  - "How it starts" in three steps, with what you need;
+  - four chapters: every DJ app; quality, duplicates and No file linked; Prepare, the builder and the calendar;
+    every device, the phone;
+  - "More in the help" links, and an ending with Gluey.
+- **Media recaptured** from the current app: No file linked, Prepare, the calendar and the phone are new. Unused
+  media is gone (1.9 MB, from 4.6). The demo library has "removed duplicates" for No file linked; the capture keeps
+  Gluey quiet and brings the DJ library's playlists in on demand.
+
 ## 2026-10-01 · Gluey's help centre and a tour per feature (GLUE Home 0.40.1)
 - **Help** ([ADR 0126](../adr/0126-gluey-tours-and-help.md)):
   - 18 articles, one per feature, searchable;

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: shipped
 milestone: GLUE Cloud
 updated: 2026-10-01
 adrs: [0126]
@@ -18,7 +18,7 @@ adrs: [0126]
   - a tour per feature ("Show me");
   - a tip the first time Duplicates, No file linked, Lower quality, Browse, the Calendar or Prepare opens (once per
     person), off with "Gluey's tips".
-- **Batch 3:** the new homepage with fresh media.
+- **Batch 3 (shipped 2026-10-01):** the new homepage, introduced by Gluey, with fresh media (`homepage.md`).
 
 ## What it does
 The first time someone uses GLUE, Gluey, the glue stick, walks them through the library in a minute:
