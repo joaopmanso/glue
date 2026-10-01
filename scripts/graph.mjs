@@ -2,17 +2,20 @@
 // .github/workflows/graph.yml.
 //   node scripts/graph.mjs fetch     the branch's graph into graphify-out/ (git only; graphify not needed)
 //   node scripts/graph.mjs publish   graphify-out/ onto the branch (one commit, replacing the last one)
+//     --lease   only if the branch is still what fetch got (CI: a refresh published meanwhile isn't overwritten)
 // Both work through a private index, so the repo's own index and working tree are never touched.
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 const BRANCH = 'graphify'
 const OUT = resolve('graphify-out')
 // What a session needs: the graph, its report, and what lets the next update skip unchanged files (the
-// manifest, the AST and semantic caches). Not the HTML view, backups, or this computer's paths.
-const KEEP = ['graph.json', 'GRAPH_REPORT.md', 'manifest.json', '.graphify_labels.json', 'cache']
+// manifest, the AST and semantic caches); and the HTML view, which the website's deploy puts at /glue/graph/
+// (ADR 0129). Not backups, or this computer's paths.
+const KEEP = ['graph.json', 'GRAPH_REPORT.md', 'graph.html', 'manifest.json', '.graphify_labels.json', 'cache']
+const FETCHED = join(OUT, '.graphify_branch')   // the commit fetch got
 
 const run = (args, env = {}) =>
   execFileSync('git', args, { encoding: 'utf8', env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'inherit'] }).trim()
@@ -29,6 +32,7 @@ try {
     mkdirSync(OUT, { recursive: true })
     inOut(['read-tree', `origin/${BRANCH}`])
     inOut(['checkout-index', '--all', '--force'])
+    writeFileSync(FETCHED, run(['rev-parse', `origin/${BRANCH}`]))
     console.log(`graphify-out/: ${run(['log', '-1', '--format=%s', `origin/${BRANCH}`])}`)
   } else if (cmd === 'publish') {
     if (!existsSync(join(OUT, 'graph.json'))) throw new Error('graphify-out/graph.json is missing: build the graph first')
@@ -36,7 +40,10 @@ try {
     const tree = inOut(['write-tree'])
     const at = run(['rev-parse', '--short', 'HEAD'])
     const commit = run(['commit-tree', tree, '-m', `The code map at ${at}`])
-    run(['push', '--force', '--quiet', 'origin', `${commit}:refs/heads/${BRANCH}`])
+    const lease = process.argv.includes('--lease')
+      ? [`--force-with-lease=refs/heads/${BRANCH}:${existsSync(FETCHED) ? readFileSync(FETCHED, 'utf8').trim() : ''}`]
+      : ['--force']
+    run(['push', ...lease, '--quiet', 'origin', `${commit}:refs/heads/${BRANCH}`])
     console.log(`Published the graph at ${at} to ${BRANCH}`)
   } else {
     console.error('usage: node scripts/graph.mjs fetch|publish')

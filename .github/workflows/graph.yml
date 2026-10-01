@@ -24,17 +24,22 @@ jobs:
       - uses: actions/checkout@v7
       - name: graphify
         run: pipx install "graphifyy[sql]==0.9.73"
-      - name: The last graph (its docs part and caches)
-        run: node scripts/graph.mjs fetch || echo "No graph published yet; this one has code only"
-      - name: Update the code part
+      - name: Update the code part on top of the last graph, and publish
         env:
           PYTHONHASHSEED: '0'   # the same communities for the same code
-        # --force: a graph with fewer nodes is right when code was deleted (graphify refuses it otherwise).
-        run: graphify update . --force
-      - name: Publish
-        env:
           GIT_AUTHOR_NAME: github-actions[bot]
           GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
           GIT_COMMITTER_NAME: github-actions[bot]
           GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
-        run: node scripts/graph.mjs publish
+        # --force: a graph with fewer nodes is right when code was deleted (graphify refuses it otherwise).
+        # link: ADR labels, and the code's "ADR 0124" comments tied to the ADRs again (graphify update drops them).
+        # --lease: when a session published a docs refresh meanwhile, start again on top of it (ADR 0129).
+        run: |
+          for attempt in 1 2 3; do
+            node scripts/graph.mjs fetch || echo "No graph published yet; this one has code only"
+            graphify update . --force
+            "$(head -1 "$(command -v graphify)" | sed 's/^#!//')" scripts/graph_docs.py link   # graphify's Python
+            node scripts/graph.mjs publish --lease && exit 0
+            echo "The graph was published meanwhile: again, on top of it"
+          done
+          exit 1

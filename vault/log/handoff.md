@@ -61,8 +61,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     session-start hook does that on a computer without one.
   - **The desktop:** uv (`~/.local/bin`, not on Claude Code's PATH: `export PATH="$HOME/.local/bin:$PATH"`),
     `graphifyy[sql]` 0.9.73 and the git hooks are installed.
-  - **The docs part** is from the first semantic pass (2026-10-01; ADR 0056 missing). Refresh it after a batch of
-    ADRs or articles: `/graphify . --update`, then `node scripts/graph.mjs publish`.
+  - **The docs part** is refreshed by every session that changes docs (ADR 0129, CLAUDE.md "After working");
+    `vault/log/` isn't in it.
+  - **Its view:** https://joaopmanso.github.io/glue/graph/ (and `graphify-out/graph.html` locally).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
@@ -77,8 +78,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   2. `uv tool install "graphifyy[sql]==0.9.73"`;
   3. optional, to rebuild locally after each commit: `graphify hook install`, then take out the
      `graphify-out/graph.json merge=graphify` line it adds to `.gitattributes`.
-- **Docs in CI** (optional, the user's call): with an Anthropic key (or Claude Code's token) as a secret, CI could
-  run the semantic pass itself; it bills per push.
+- **Browse the code map** at https://joaopmanso.github.io/glue/graph/ after this push's deploy.
 - Hand-test the evening's list:
   - after the collection opens, the Doechii 24/88.2 album should read "Genuine hi-res" (stored verdicts are judged
     again on open);

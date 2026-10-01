@@ -14,3 +14,4 @@ home/src-tauri/gen/
 
 # graphify's knowledge graph and caches: built per computer (graphify update ., the git hooks)
 graphify-out/
+__pycache__/

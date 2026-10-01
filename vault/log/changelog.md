@@ -5,6 +5,18 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · The code map's docs kept current; its view on the site
+- **Every session that changes docs refreshes them in the graph** before its commit
+  ([ADR 0129](../adr/0129-code-map-docs-every-session.md)):
+  - `scripts/graph_docs.py prepare` → one subagent per batch → `finish`, which merges, clusters and publishes;
+  - not through the 41 KB skill; only the changed docs are read.
+- **`vault/log/` is out of the graph:** it changes every session and is read directly.
+- **Code tied to its decisions:** the code's "ADR 0124" comments link to the ADRs (about 450 edges), and ADRs are
+  labelled by their titles (`graph_docs.py link`, also in CI).
+- **The graph's interactive view** is at https://joaopmanso.github.io/glue/graph/, copied from the branch `graphify` by
+  the site's deploy.
+- **graph.yml publishes with a lease,** so it never overwrites a docs refresh published while it ran.
+
 ## 2026-10-01 · The code map built on GitHub; the colleagues' rules
 - **Built for every push to `main`** ([ADR 0128](../adr/0128-code-map-built-on-github.md)):
   - `.github/workflows/graph.yml` updates the code part on top of the last graph and publishes it to the branch

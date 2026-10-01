@@ -206,5 +206,6 @@ Planned (GLUE):
 | [0126](adr/0126-gluey-tours-and-help.md) | Gluey: a first tour once per person, a tour per feature, and help; seen kept across the account and the GLUE folder | accepted |
 | [0127](adr/0127-graphify-code-map.md) | Coding sessions get a map of the code: a graphify knowledge graph of code and vault, built per computer | accepted |
 | [0128](adr/0128-code-map-built-on-github.md) | The code map is built on GitHub for every push (branch `graphify`) and used by fixed rules: affected/explain/path, never query | accepted |
+| [0129](adr/0129-code-map-docs-every-session.md) | The code map's docs are refreshed in every session that changes them (scripts/graph_docs.py, no skill); its view is on the site at /graph/ | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

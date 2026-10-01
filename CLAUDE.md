@@ -34,6 +34,10 @@ After working:
 - every new architectural decision gets a new ADR (`vault/adr/NNNN-slug.md`, from `_template.md`);
   never rewrite an accepted ADR, supersede it;
 - research findings go in `vault/research/` with sources; mark unverified claims **[UNVERIFIED]**.
+- when docs in the code map changed (ADRs, features, `SYSTEM.md`, product, research, help, README, CLAUDE.md),
+  refresh it before the commit (ADR 0129): `"$(cat graphify-out/.graphify_python)" scripts/graph_docs.py prepare`,
+  one subagent per batch it lists (model haiku: "Follow the instructions in <file>"), then
+  `… scripts/graph_docs.py finish` (it publishes). Not through the skill.
 
 ## Non-negotiables
 - No GLUE server that sees your music: the website works on its own, accounts are optional, and audio
@@ -110,9 +114,10 @@ one.
   thousands of tokens. A targeted grep beats it.
 - **Never load the `/graphify` skill to answer a question** (41 KB): it's for building the graph.
 - **Freshness:**
-  - CI publishes the graph for every push to `main` (branch `graphify`, `.github/workflows/graph.yml`);
-  - git hooks rebuild it locally after each commit where `graphify hook install` was run;
+  - CI publishes the graph for every push to `main` (branch `graphify`, `.github/workflows/graph.yml`); its
+    interactive view is at https://joaopmanso.github.io/glue/graph/;
+  - git hooks rebuild the code part locally after each commit where `graphify hook install` was run;
   - stale after uncommitted edits: `graphify update . --no-cluster`;
-  - docs change the graph only through a semantic pass: `/graphify . --update`, then `node scripts/graph.mjs publish`.
+  - docs: every session that changes them refreshes them (above, "After working"). `vault/log/` isn't in the graph.
 - **No graph on this computer?** A session-start hook fetches CI's (`node scripts/graph.mjs fetch`, git only). No `graphify`
   CLI? `uv tool install "graphifyy[sql]==0.9.73"` (or `pipx install`). If neither works, work as before.

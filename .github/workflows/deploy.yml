@@ -40,6 +40,15 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: cp visualisers.version dist/visualisers.txt
+      # The code map's interactive view (ADRs 0127-0129) at /glue/graph/: the latest graph.yml or a docs refresh
+      # published on the branch graphify. graph.yml is quicker than the checks above, so it's usually this push's.
+      - name: The code map's view
+        run: |
+          if git fetch --quiet origin graphify && git cat-file -e origin/graphify:graph.html; then
+            mkdir -p dist/graph && git show origin/graphify:graph.html > dist/graph/index.html
+          else
+            echo "No code map view published yet"
+          fi
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

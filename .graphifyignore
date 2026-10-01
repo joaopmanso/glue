@@ -12,7 +12,10 @@ home/src-tauri/icons/
 *.png
 *.svg
 *.ico
-# The old changelog entries (the current ones are in vault/log/changelog.md).
-vault/log/archive/
+# The log (changelog, handoff, archive): rewritten every session and read directly; a map gains little
+# from it, and refreshing it every session would cost the most (ADR 0129).
+vault/log/
+# The prompt scripts/graph_docs.py gives its subagents.
+scripts/graph-extract.md
 # graphify's own skill files
 .claude/

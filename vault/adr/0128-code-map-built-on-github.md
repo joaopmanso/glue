@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; the docs refresh "after a batch, through the skill" and "not the HTML view" superseded by 0129 (every session, scripts/graph_docs.py; the view on the site)
 date: 2026-10-01
 ---
 # 0128. Build the code map on GitHub for every push, and use it by fixed rules
