@@ -5,6 +5,20 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · Gluey can hide; "What's this?"; GLUE Home in the tours; the homepage's pictures full size
+- **Gluey's button can be hidden:** right-click him › Hide Gluey, or "Show Gluey's button" in "Who's using GLUE?".
+  Kept once per person like the rest (`guide.hide`, the newer choice wins). Hidden, there are no tips or offer;
+  Help stays at the top, and tours still run when asked.
+- **"What's this?"** at the end of the right-click menus runs Gluey's tour of that part: Library views (Duplicates,
+  No file linked, the quality views), sidebar sections, playlists, tags, music folders, DJ libraries, songs,
+  columns, filters, devices.
+- **GLUE Home in the tours:** the first tour has a GLUE Home stop. The GLUE Home and devices tours point at the
+  Devices panel (left, when signed in) and its "+ GLUE Home", which downloads the app and shows a code to type into
+  GLUE Home's window. A stop can name alternatives (`pair-home|devices`: the account button when not signed in).
+- **The homepage's pictures:** each chapter's pictures are full size, side by side to scroll through (arrows, dots,
+  a caption, swipe, ← →); the small ones were too small to read. Recaptured without Gluey, and the duplicates picture
+  is now the whole page.
+
 ## 2026-10-01 · A new homepage
 - **The homepage, rewritten** ([homepage](../features/homepage.md), ADR 0126 batch 3):
   - shorter and current, introduced by Gluey;

@@ -29,6 +29,7 @@
   import { allTags, tagColorOf } from '../../lib/tags.svelte';
   import { account } from '../../lib/account.svelte';
   import DevicesSection from './DevicesSection.svelte';
+  import { whatsThis } from '../../lib/guide.svelte';
   import AppIcon from '../AppIcon.svelte';
   import { cleanTag } from '../../core/library/tagging';
   const dragOut = canDragOut();
@@ -221,6 +222,7 @@
       k !== 'all' && { label: 'Hide “' + label + '”', attrs: { 'data-m': 'hide-view' }, title: 'Take it out of the sidebar; bring it back by right-clicking “Library”', run: () => hideView(k as LibView) },
       SEP,
       { label: 'Shown in Library', sub: libShown },
+      ...whatsThis(({ dupes: 'duplicates', unlinked: 'no-file', attention: 'quality', pending: 'quality', failed: 'quality' } as Record<string, string>)[k] ?? 'library'),
     ]);
   }
   /** A section's head: what its buttons do, and collapsing it. */
@@ -233,7 +235,8 @@
       : [{ label: 'Import a library file…', run: () => { if (homeMode()) void importWithHome(); else fileInput?.click(); } }, { label: 'Look for libraries in another folder…', run: () => void lib.addLibraryPlace('documents') }];
     return tidy([...own, SEP,
       { label: sidebar.open(k) ? 'Collapse' : 'Expand', run: () => sidebar.toggle(k) },
-      { label: sidebar.focus === k ? 'Show all sections again' : 'Give it the full height', run: () => sidebar.maximize(k) }]);
+      { label: sidebar.focus === k ? 'Show all sections again' : 'Give it the full height', run: () => sidebar.maximize(k) },
+      ...whatsThis(({ library: 'library', playlists: 'playlists', tags: 'playlists', music: 'adding-music', dj: 'dj-libraries' } as Record<string, string>)[k] ?? 'library')]);
   }
 
   /** A playlist's or folder's songs that can play here, in order. */
@@ -285,6 +288,7 @@
       !!src && !!src.tree?.some(x => x.externalId === ext) && { label: 'Show in ' + (APP_NAMES[src.app] ?? src.app) + '’s library', run: () => showInDj(src, ext) },
       SEP,
       { label: 'Delete…', danger: true, attrs: { 'data-m': 'delete' }, run: () => remove(l) },
+      ...whatsThis(l.event ? 'calendar' : 'playlists'),
     ]);
   }
   function tagMenu(t: { name: string; tracks: number }): MenuEntry[] {
@@ -300,6 +304,7 @@
       SEP,
       { label: 'Rename…', run: () => renameTag(t.name) },
       { label: 'Delete…', danger: true, run: () => deleteTag(t.name, t.tracks) },
+      ...whatsThis('playlists'),
     ]);
   }
   // What it takes with it, said first (ADR 0111): its songs leave the collection, with their ratings, notes, cues
@@ -329,6 +334,7 @@
         : { label: 'Make it the main folder', attrs: { 'data-m': 'main' }, title: 'Among duplicates, the copy in this folder is kept (a lossless copy elsewhere still beats a lossy one here)', run: () => dupes.setMainRoot(r.root.id) }),
       SEP,
       { label: 'Remove from collection…', danger: true, run: () => removeFolder(r) },
+      ...whatsThis('adding-music'),
     ]);
   }
   function removeSource(s: Source) { if (confirm('Remove the ' + (APP_NAMES[s.app] ?? s.app) + ' import and its playlists? Tracks with a linked file stay.')) lib.deleteSource(s.id); }
@@ -351,6 +357,7 @@
         : { label: 'Refresh', title: 'Read this library again', run: () => void refresh(s) },
       SEP,
       { label: 'Remove this import…', danger: true, run: () => removeSource(s) },
+      ...whatsThis('dj-libraries'),
     ]);
   }
   function djMenuOf(src: Source, l: SourceList): MenuEntry[] {
@@ -360,6 +367,7 @@
       { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: l.name, sel: { kind: 'dj', sourceId: src.id, id: l.externalId } }) },
       { label: whole ? 'Import again (brings back what’s missing)' : 'Import to GLUE', attrs: { 'data-dj-import': l.externalId }, run: () => importDj(src, l.externalId, l.name) },
       !!copy && { label: 'Open GLUE’s copy', run: () => view.select({ kind: 'list', id: copy!.id }) },
+      ...whatsThis('dj-libraries'),
     ]);
   }
 </script>

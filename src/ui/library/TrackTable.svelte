@@ -4,6 +4,7 @@
   import { bpmShown, fmtBpm } from '../../lib/bpm';
   import { view, qualityOf, devicesOf, manyDevices, valuesOf, NO_GENRE, NO_TAGS, type Row, type FilterGroup, type SortKey } from '../../lib/view.svelte';
   import { menu, SEP, tidy, type MenuEntry } from '../../lib/menu.svelte';
+  import { whatsThis } from '../../lib/guide.svelte';
   import { trackMenu } from '../../lib/trackMenu';
   import { deviceColor } from '../../lib/devices';
   import { tagsOf } from '../../core/library/tagging';
@@ -209,6 +210,7 @@
       !!columns.widths[k] && { label: 'Default width', run: () => columns.clearWidth(k) },
       !c.fixed && { label: 'Hide this column', attrs: { 'data-m': 'hide-col' }, run: () => columns.toggle(k) },
       { label: 'Columns', sub: columnsMenu },
+      ...whatsThis('library'),
     ]);
   }
   function onHeadContext(e: MouseEvent) {

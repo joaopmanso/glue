@@ -11,6 +11,7 @@
   import { tourById, type TourStep } from '../../core/guide/tours';
   import { TIPS } from '../../core/guide/tips';
   import HelpBody from './HelpBody.svelte';
+  import { menu } from '../../lib/menu.svelte';
   import { view } from '../../lib/view.svelte';
 
   const inLibrary = $derived(lib.phase === 'library' && !!lib.store && lib.onboarding !== 'music');
@@ -32,7 +33,15 @@
   let looking = $state(false);
   let size = $state({ w: 1280, h: 800 });
 
-  const find = (name: string) => [...document.querySelectorAll<HTMLElement>(`[data-guide="${name}"]`)].find(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }) ?? null;
+  // A target can name alternatives, the first on the page wins ("pair-home|devices": the Devices panel's button when
+  // signed in, else the account button).
+  const find = (names: string) => {
+    for (const name of names.split('|')) {
+      const el = [...document.querySelectorAll<HTMLElement>(`[data-guide="${name}"]`)].find(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+      if (el) return el;
+    }
+    return null;
+  };
 
   // Each stop: its target looked for a moment (the page it opened is drawing), brought into view, and followed.
   $effect(() => {
@@ -99,8 +108,14 @@
 
 <svelte:window onkeydown={key} />
 
-{#if inLibrary}
-  <button type="button" class="corner" class:phone={phone.active} data-guide="help" id="gluey-btn" data-touring={run ? run.tour.id : undefined} title="Gluey: help and tours" aria-label="Gluey: help and tours" aria-expanded={guide.panel} onclick={() => { guide.tip = null; guide.panel = !guide.panel; }}>
+{#if inLibrary && (!guide.hidden || run)}
+  <button type="button" class="corner" class:phone={phone.active} data-guide="help" id="gluey-btn" data-touring={run ? run.tour.id : undefined} title="Gluey: help and tours" aria-label="Gluey: help and tours" aria-expanded={guide.panel} onclick={() => { guide.tip = null; guide.panel = !guide.panel; }}
+    oncontextmenu={e => menu.context(e, () => [
+      { label: 'Help and tours', attrs: { 'data-m': 'gluey-panel' }, run: () => { guide.tip = null; guide.panel = true; } },
+      { label: guide.state.quiet ? 'Gluey’s tips on' : 'Gluey’s tips off', run: () => guide.mark({ quiet: !guide.state.quiet, quietAt: Date.now() }) },
+      { sep: true },
+      { label: 'Hide Gluey', attrs: { 'data-m': 'hide-gluey' }, title: 'Bring him back in “Who’s using GLUE?” (Help stays at the top)', run: () => { guide.setHidden(true); lib.notice = 'Gluey is hidden. Bring him back in “Who’s using GLUE?”; Help is at the top.'; } },
+    ], 'Gluey')}>
     <Gluey size={34} pose={guide.offer ? 'wave' : 'point'} />
   </button>
   {#if run}<!-- the tour speaks -->

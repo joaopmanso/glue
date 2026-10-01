@@ -1,6 +1,7 @@
 /* What right-clicking songs offers (ADR 0067), in the table, the duplicates and the mini player: for one
    song or all the selected ones. The selection bar keeps the most used of these as buttons. */
 import { lib } from './library.svelte';
+import { whatsThis } from './guide.svelte';
 import { removeNote, view, withCopies, type FilterGroup } from './view.svelte';
 import { homeAnalysis } from './homeAnalysis.svelte';
 import { router, trackHref } from './route.svelte';
@@ -192,5 +193,6 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
         void lib.removeTracks(withCopies(ids)); view.selected = new Set();
       },
     },
+    ...whatsThis(view.sel.kind === 'dupes' ? 'duplicates' : view.sel.kind === 'unlinked' ? 'no-file' : 'song-page'),
   ]);
 }

@@ -11,6 +11,9 @@ export interface GuideState {
   /** Gluey's tips turned off (true) or on (false), and when (the newer choice wins). */
   quiet?: boolean;
   quietAt?: number;
+  /** Gluey's button hidden (true) or shown (false), and when (the newer choice wins). */
+  hide?: boolean;
+  hideAt?: number;
 }
 
 export const emptyGuide = (): GuideState => ({ seen: [], tips: [] });
@@ -23,6 +26,7 @@ export function cleanGuide(v: unknown): GuideState {
   const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   const g: GuideState = { seen: ids(o.seen), tips: ids(o.tips) };
   if (typeof o.quiet === 'boolean' && typeof o.quietAt === 'number' && Number.isFinite(o.quietAt)) { g.quiet = o.quiet; g.quietAt = o.quietAt; }
+  if (typeof o.hide === 'boolean' && typeof o.hideAt === 'number' && Number.isFinite(o.hideAt)) { g.hide = o.hide; g.hideAt = o.hideAt; }
   return g;
 }
 
@@ -35,11 +39,12 @@ export function mergeGuide(...all: (Partial<GuideState> | null | undefined)[]): 
     out.seen = [...new Set([...out.seen, ...g.seen])];
     out.tips = [...new Set([...out.tips, ...g.tips])];
     if (g.quietAt != null && (out.quietAt == null || g.quietAt > out.quietAt)) { out.quiet = g.quiet; out.quietAt = g.quietAt; }
+    if (g.hideAt != null && (out.hideAt == null || g.hideAt > out.hideAt)) { out.hide = g.hide; out.hideAt = g.hideAt; }
   }
   return out;
 }
 
 /** Whether `b` holds anything `a` doesn't (then `a`'s store is written). */
 export function guideAdds(a: GuideState, b: GuideState): boolean {
-  return b.seen.some(x => !a.seen.includes(x)) || b.tips.some(x => !a.tips.includes(x)) || (b.quietAt ?? 0) > (a.quietAt ?? 0);
+  return b.seen.some(x => !a.seen.includes(x)) || b.tips.some(x => !a.tips.includes(x)) || (b.quietAt ?? 0) > (a.quietAt ?? 0) || (b.hideAt ?? 0) > (a.hideAt ?? 0);
 }

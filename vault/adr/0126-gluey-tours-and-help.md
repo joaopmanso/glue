@@ -45,6 +45,11 @@ Their choices:
 - **Next (later batches):** the help centre (Markdown articles per feature, search, "Show me", `#/help`), a tour per
   feature, tips the first time a feature's view opens (kept in `guide.tips`, off with `quiet`), and the new homepage.
 
+## Later (2026-10-01, the user)
+- Gluey's button can be hidden (`guide.hide`, merged like `quiet`): right-click him, or "Who's using GLUE?".
+- "What's this?" in right-click menus runs the tour of that part.
+- A stop's target may name alternatives (`a|b`, the first on the page).
+
 ## Consequences
 - A new user is shown around once, whichever device they start on.
 - A renamed UI part fails a unit test until its tour is updated.

@@ -1,5 +1,6 @@
 /* Right-click on a filter (ADR 0067): a group in the Filter menu or a column's ▾, a value in it, or a
    "Showing only" chip; each can be hidden from the Filter menu, and brought back. */
+import { whatsThis } from './guide.svelte';
 import { view, FILTER_GROUPS, type FilterGroup } from './view.svelte';
 import { SEP, tidy, type MenuEntry } from './menu.svelte';
 
@@ -17,6 +18,7 @@ export function filterMenu(g: FilterGroup, value?: string | null): MenuEntry[] {
     SEP,
     !view.hiddenFilters.includes(g) && { label: 'Hide the ' + t + ' filter', attrs: { 'data-m': 'hide-filter' }, title: 'Take it out of the Filter menu (its column’s ▾ keeps it); bring it back from “Filters shown”', run: () => view.hideFilter(g) },
     { label: 'Filters shown', sub: shownFilters },
+    ...whatsThis('library'),
   ]);
 }
 

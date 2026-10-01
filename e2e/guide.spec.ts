@@ -28,6 +28,8 @@ test.beforeEach(async ({ page }) => {
 });
 test.afterEach(() => expect(errors).toEqual([]));
 
+/** A stop's target: the first of its alternatives ("pair-home|devices") on the page. */
+const target = (page: Page, t: string) => page.locator(t.split('|').map(x => `[data-guide="${x}"]`).join(', ')).first();
 /** The GLUE folder's index (mco.json) as it is on "disk". */
 const index = (page: Page) => page.evaluate(async () => {
   try {
@@ -60,12 +62,12 @@ test('Gluey’s first tour: on the first login, once; again from “Who’s usin
   for (let i = 0; i < 12 && await bubble.isVisible(); i++) {
     const t = await bubble.getAttribute('data-target');
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/tour-${i}.png` });
-    if (t) { targets.push(t); await expect(page.locator(`[data-guide="${t}"]`).first()).toBeVisible(); }
+    if (t) { targets.push(t); await expect(target(page, t)).toBeVisible(); }
     await page.click('#gluey-next');
     await page.waitForTimeout(250);
   }
   await expect(bubble).toHaveCount(0);
-  expect(targets).toEqual(['library-views', 'add-music', 'analysis', 'track-tabs', 'playlists', 'devices', 'help']);
+  expect(targets).toEqual(['library-views', 'add-music', 'analysis', 'track-tabs', 'playlists', 'devices', 'pair-home|devices', 'help']);
   // Kept in the GLUE folder (every browser using it), and not shown again.
   await expect.poll(async () => (await index(page)).guide?.seen ?? [], { timeout: 10_000 }).toContain('welcome');
   await page.reload();
@@ -128,7 +130,7 @@ test('on a phone, Gluey’s first tour is the phone’s (ADR 0126)', async ({ pa
   const targets: string[] = [];
   for (let i = 0; i < 6 && await bubble.isVisible(); i++) {
     const t = await bubble.getAttribute('data-target');
-    if (t) { targets.push(t); await expect(page.locator(`[data-guide="${t}"]`).first()).toBeVisible(); }
+    if (t) { targets.push(t); await expect(target(page, t)).toBeVisible(); }
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/phone-${i}.png` });
     await page.click('#gluey-next');
     await page.waitForTimeout(250);
@@ -215,7 +217,7 @@ test('the help centre: every feature’s tour runs from its article, each stop o
       await expect.poll(async () => await bubble.isVisible() || !(await touring()), { timeout: 8_000 }).toBe(true);
       if (!await touring()) break;
       const t = await bubble.getAttribute('data-target');
-      if (t) await expect(page.locator(`[data-guide="${t}"]`).first(), id + ' → ' + t).toBeVisible();
+      if (t) await expect(target(page, t), id + ' → ' + t).toBeVisible();
       await page.click('#gluey-next');
     }
     expect(await touring(), id).toBe(0);
@@ -267,4 +269,39 @@ test('#/help works before anything is set up (ADR 0126)', async ({ page }) => {
   await expect(page.locator('#help-article h1')).toHaveText('No file linked');
   await page.click('#help-back');
   await expect(page.locator('#help-list')).toBeVisible();
+});
+
+test('Gluey hidden from his right-click menu, back from “Who’s using GLUE?”; “What’s this?” in right-click menus runs that part’s tour (ADR 0126)', async ({ page }) => {
+  test.setTimeout(150_000);
+  await libraryWithASong(page);
+  // "What's this?" on a sidebar view: its tour.
+  await page.locator('.lside [data-view="dupes"]').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="whats-this"]').click();
+  await expect(page.locator('#gluey-bubble')).toBeVisible();
+  await expect(page.locator('#gluey-btn')).toHaveAttribute('data-touring', 'duplicates');
+  await page.keyboard.press('Escape');
+  // …and on a song: a song's page.
+  await page.locator('.lside [data-view="all"]').click();
+  await page.locator('.tr').first().click({ button: 'right' });
+  await expect(page.locator('.cmenu [data-m="whats-this"]')).toHaveAttribute('data-tour', 'song-page');
+  await page.keyboard.press('Escape');
+  // Hidden: no button, no tips; kept in the GLUE folder (every browser here).
+  await page.locator('#gluey-btn').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="hide-gluey"]').click();
+  await expect(page.locator('#gluey-btn')).toHaveCount(0);
+  await page.locator('.lside [data-view="unlinked"]').click();
+  await page.waitForTimeout(800);
+  await expect(page.locator('#gluey-tip')).toHaveCount(0);
+  await expect.poll(async () => (await index(page)).guide as unknown as { hide?: boolean }, { timeout: 10_000 }).toMatchObject({ hide: true });
+  // Tours still run when asked (the button shows while one does).
+  await page.locator('.lside [data-view="all"]').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="whats-this"]').click();
+  await expect(page.locator('#gluey-bubble')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#gluey-btn')).toHaveCount(0);
+  // Back, from "Who's using GLUE?".
+  await page.locator('.top .who').click();
+  await page.locator('#gluey-shown').check();
+  await page.click('#back-to-library');
+  await expect(page.locator('#gluey-btn')).toBeVisible({ timeout: 15_000 });
 });

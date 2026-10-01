@@ -10,6 +10,7 @@ import { readPref, writePref } from './prefs';
 import { emptyGuide, guideAdds, mergeGuide, type GuideState } from '../core/guide/state';
 import { tourById, type Go, type Tour } from '../core/guide/tours';
 import { TIPS } from '../core/guide/tips';
+import { SEP, type MenuEntry } from './menu.svelte';
 
 /** Libraries and accounts from before Gluey (2026-10-01) meet him with an offer, not a tour that starts by itself. */
 const GLUEY_SINCE = Date.parse('2026-10-01T00:00:00Z');
@@ -30,7 +31,7 @@ class Guide {
   tip = $state<string | null>(null);
   /** A part of GLUE opened: its tip, the first time ever (once per person, ADR 0126), unless the tips are off. */
   showTip(key: string) {
-    if (!this.automatic || this.state.quiet || this.state.tips.includes(key) || this.running || this.offer || this.panel) return;
+    if (!this.automatic || this.state.quiet || this.hidden || this.state.tips.includes(key) || this.running || this.offer || this.panel) return;
     this.tip = key;
     this.mark({ tips: [key] });
   }
@@ -38,6 +39,9 @@ class Guide {
   private get automatic() { return typeof window === 'undefined' || !(window as unknown as { __glueNoGuide?: boolean }).__glueNoGuide; }
 
   seen(id: string) { return this.state.seen.includes(id); }
+  /** Gluey's button hidden (in "Who's using GLUE?", or by right-clicking him): no button, no tips, no offer. */
+  get hidden() { return !!this.state.hide; }
+  setHidden(on: boolean) { this.panel = false; this.tip = null; this.offer = false; this.mark({ hide: on, hideAt: Date.now() }); }
 
   /** The three stores read again and merged; each that lacks something gets it. */
   async sync() {
@@ -63,7 +67,7 @@ class Guide {
     if (this.seen('welcome')) return;
     const created = Date.parse(lib.store?.meta.createdAt ?? '') || Date.now();
     const userSince = account.signedIn ? account.user?.createdAt ?? Date.now() : Date.now();
-    if (created < GLUEY_SINCE || userSince < GLUEY_SINCE) { this.offer = true; return; }
+    if (created < GLUEY_SINCE || userSince < GLUEY_SINCE) { if (!this.hidden) this.offer = true; return; }
     this.start(phone.active ? 'welcome-phone' : 'welcome');
   }
   /** The offer answered: the tour now, or never by itself. */
@@ -117,3 +121,10 @@ class Guide {
 }
 
 export const guide = new Guide();
+
+/** "What's this?" at the end of a right-click menu (ADR 0126): Gluey's tour of that part. Not on a phone (the tours
+    are the desktop's). */
+export function whatsThis(tour: string): MenuEntry[] {
+  if (phone.active || !tourById(tour)) return [];
+  return [SEP, { label: 'What’s this?', title: 'Gluey shows you around this part of GLUE', attrs: { 'data-m': 'whats-this', 'data-tour': tour }, run: () => guide.start(tour) }];
+}

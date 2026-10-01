@@ -10,6 +10,7 @@
   import { deviceColor } from '../../lib/devices';
   import { sendToHome, sendTargets, sendTracks } from '../../lib/sendToHome.svelte';
   import { menu, SEP, tidy, type MenuEntry } from '../../lib/menu.svelte';
+  import { whatsThis } from '../../lib/guide.svelte';
   import { companionOf } from '../../lib/remoteFiles.svelte';
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import { localHome } from '../../lib/localHome.svelte';
@@ -93,6 +94,7 @@
       d.kind === 'browser' && d.id !== account.thisDevice && { label: 'This browser is on the same computer', attrs: { 'data-m': 'same-computer' }, title: 'This browser and “' + d.name + '” become one device (this browser mustn’t have a library of its own)', run: () => void sameComputer(d) },
       !!h && h.id !== d.id && { label: 'Disconnect its GLUE Home…', danger: true, run: () => void remove(h!) },
       { label: d.id === account.thisDevice ? 'Remove (signs out)…' : 'Remove…', danger: true, run: () => void remove(d) },
+      ...whatsThis(h ? 'glue-home' : 'devices'),
     ]);
   }
   function openMenu(e: MouseEvent, d: CloudDevice) { menu.from(e.currentTarget as Element, () => deviceMenu(d), d.name); menuFor = d.id; }
@@ -118,10 +120,10 @@
 
 <svelte:window onkeydown={e => { if (e.key === 'Escape') pairing = null; }} />
 
-<section class="devs" id="devices">
+<section class="devs" id="devices" data-guide="devices-panel">
   <div class="head">
     <h3 class="label">Devices</h3>
-    <span class="add"><button type="button" id="pair-home" title="Install GLUE Home on this computer: its songs then play on your other computers" onclick={startPairing}>+ GLUE Home</button></span>
+    <span class="add"><button type="button" id="pair-home" data-guide="pair-home" title="Install GLUE Home on this computer: its songs then play on your other computers" onclick={startPairing}>+ GLUE Home</button></span>
   </div>
   <ul>
     {#each rows as d (d.id)}

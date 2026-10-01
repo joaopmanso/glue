@@ -85,7 +85,7 @@ try {
   await page.addInitScript(() => {
     localStorage.setItem('mco.theme', 'stick'); localStorage.setItem('mco.mode', 'dark');
     // Gluey (ADR 0126) stays in his corner: no first tour, no tips, in the pictures.
-    localStorage.setItem('mco.guide', JSON.stringify({ seen: ['welcome', 'welcome-phone'], tips: [], quiet: true, quietAt: 1 }));
+    localStorage.setItem('mco.guide', JSON.stringify({ seen: ['welcome', 'welcome-phone'], tips: [], quiet: true, quietAt: 1, hide: true, hideAt: 1 }));
     const w = window as unknown as { showDirectoryPicker: (o: { id?: string }) => Promise<FileSystemDirectoryHandle> };
     w.showDirectoryPicker = async o => (await navigator.storage.getDirectory()).getDirectoryHandle(o.id === 'mco-home' ? 'GLUE' : 'Music', { create: true });
   });
@@ -196,7 +196,7 @@ try {
   // 7. Duplicates found by sound.
   await page.locator('.lside .name', { hasText: 'Duplicates' }).click();
   await page.waitForTimeout(1500);
-  { const b = (await page.locator('.dv').boundingBox())!; await shot(page, 'duplicates', { x: b.x - 16, y: b.y - 60, width: Math.min(1000, b.width + 32), height: 560 }); }
+  await shot(page, 'duplicates');
 
   // 10. Prepare: the deck, the beat grid and the imported cues.
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();

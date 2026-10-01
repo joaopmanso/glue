@@ -50,8 +50,10 @@ export const TOURS: Tour[] = [
       { target: 'playlists', go: { route: '#/' }, title: 'Playlists', place: 'right', pose: 'point',
         body: 'Make playlists and folders here and drag songs onto them, or build one from a song. Your DJ libraries’ playlists can be brought in too.' },
       { target: 'devices', title: 'Every computer, and your phone', place: 'bottom', pose: 'point',
-        body: 'Sign in to use your library on your laptop and phone. GLUE Home, a small app for your computer, analyses with the browser closed and plays your songs on your other devices.' },
-      { target: 'help', title: 'I’m always here', place: 'top', pose: 'cheer',
+        body: 'Sign in here to use your library on your laptop and phone too. Your library’s data follows you; your music stays on your computers.' },
+      { target: 'pair-home|devices', title: 'GLUE Home', place: 'right', pose: 'point',
+        body: 'A small app for your computer (Windows or macOS): it analyses with the browser closed and plays your songs on your other devices. Signed in, the Devices panel on the left has “+ GLUE Home”: it downloads the app and shows a code; type the code into GLUE Home’s window to connect it.' },
+      { target: 'help', optional: true, title: 'I’m always here', place: 'top', pose: 'cheer',
         body: 'Click me any time for help, and for a tour of each feature: duplicates, songs with no file, Prepare, the calendar, GLUE Home and more. Have fun!' },
     ],
   },
@@ -143,7 +145,9 @@ export const TOURS: Tour[] = [
   {
     id: 'glue-home', title: 'GLUE Home', summary: 'The app for your computer, and what it adds.',
     steps: [
-      { target: 'devices', go: { route: '#/' }, title: 'GLUE Home', place: 'bottom', body: 'A small app for your computer: it analyses with the browser closed, and plays this computer’s songs on your laptop and phone. Get it under Devices › + GLUE Home.' },
+      { target: 'devices', go: { route: '#/' }, title: 'GLUE Home', place: 'bottom', body: 'A small app for your computer (Windows or macOS): it analyses with the browser closed, and plays this computer’s songs on your laptop and phone. You need to be signed in: here.' },
+      { target: 'devices-panel', optional: true, title: 'Your devices', place: 'right', body: 'The Devices panel on the left lists your computers and phones: which have GLUE Home, which are online. Click one to see only its songs; right-click for more.' },
+      { target: 'pair-home|devices', title: 'Connecting GLUE Home', place: 'right', pose: 'think', body: '“+ GLUE Home” (in the Devices panel, once signed in) downloads the app and shows a code. Open GLUE Home, type the code into its window, and it joins your account as this computer’s.' },
       { target: 'analysis', title: 'The engine', place: 'bottom', pose: 'think', body: 'With GLUE Home running, it does the analysis: this bar shows its queue. Stop in its window hands the library back to the browser.' },
       { target: 'drag-dock', optional: true, title: 'The drag dock', place: 'bottom', body: 'Carries songs and playlists into Engine DJ, rekordbox or a folder.' },
     ],
@@ -152,6 +156,7 @@ export const TOURS: Tour[] = [
     id: 'devices', title: 'Devices and accounts', summary: 'The same library on your laptop and phone.',
     steps: [
       { target: 'devices', go: { route: '#/' }, title: 'Your account', place: 'bottom', body: 'Sign in to use your library on your other devices. GLUE Cloud keeps its data in step, never your music.' },
+      { target: 'devices-panel', optional: true, title: 'The Devices panel', place: 'right', body: 'Your computers and phones: which have GLUE Home and are online. Click one to see its songs; “+ GLUE Home” connects this computer’s.' },
       { target: 'collections', title: 'Your collections', place: 'bottom', body: 'Your account’s collections: every device sees them, each computer with its own music folders.' },
       { target: 'profile', title: 'Who’s using GLUE?', place: 'bottom', body: 'Your profiles are your artist names, the same everywhere. Click here to switch, change the theme, or see how this computer uses GLUE.' },
     ],
@@ -185,4 +190,4 @@ export const TOURS: Tour[] = [
 
 export const tourById = (id: string) => TOURS.find(t => t.id === id) ?? null;
 /** Every \`data-guide\` name the tours use (a test checks each one is in the UI). */
-export const guideTargets = () => [...new Set(TOURS.flatMap(t => t.steps.map(s => s.target).filter((x): x is string => !!x)))];
+export const guideTargets = () => [...new Set(TOURS.flatMap(t => t.steps.flatMap(s => s.target ? s.target.split('|') : [])))];

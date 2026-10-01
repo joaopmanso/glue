@@ -26,6 +26,8 @@ current app. It's the first screen a visitor sees before any profile exists (`Ho
 - **03 Ready for the gig** (Prepare; the builder clip and the calendar beside it).
 - **04 Every device. Your music stays yours** (the phone), with the GLUE Cloud sign-in panel.
 - Each chapter has "More in the help →". The end is Gluey cheering, with "Get started" and "Help".
+- A chapter's pictures are all full size, side by side to scroll through (`Slides.svelte`: arrows, dots, a caption,
+  swipe, ← →), the next peeking in.
 
 ## Behaviour
 - Soft fields of colour drift behind the sections (fainter, multiplied, in light mode).
@@ -39,7 +41,7 @@ All media is generated, never from a real collection (about 1.9 MB):
    `scripts/demo/out/` (git-ignored). The XML includes three records of "removed duplicates" (files that aren't
    there), for No file linked. Needs ffmpeg.
 2. `npm run build && npx vite preview --port 5175 --strictPort`, then `node scripts/demo/capture.ts`
-   (`ONLY=relink,prepare` to redo some). It drives headless Edge through the app (Gluey kept quiet) and writes
+   (`ONLY=relink,prepare` to redo some). It drives headless Edge through the app (Gluey hidden and quiet) and writes
    `public/home/`: relink, insights, clip-library, quality, clip-builder, duplicates, prepare, calendar, phone.
 
 Recapture after visible UI changes, so the homepage doesn't show an old app.

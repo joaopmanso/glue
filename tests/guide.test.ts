@@ -11,6 +11,12 @@ describe('what Gluey has shown, once per person (ADR 0126)', () => {
     expect(guideAdds(mergeGuide({ seen: ['welcome'] }), g)).toBe(true);
     expect(guideAdds(g, mergeGuide({ seen: ['welcome'] }))).toBe(false);
   });
+  it('Gluey hidden or shown: the newer choice, on every device', () => {
+    const g = mergeGuide({ hide: true, hideAt: 5 }, { hide: false, hideAt: 3 }, { seen: ['welcome'] });
+    expect(g).toMatchObject({ hide: true, hideAt: 5, seen: ['welcome'] });
+    expect(guideAdds(mergeGuide({ hide: true, hideAt: 5 }), mergeGuide({ hide: false, hideAt: 9 }))).toBe(true);
+    expect(cleanGuide({ hide: 'yes', hideAt: 1 })).toEqual({ seen: [], tips: [] });
+  });
   it('anything else is dropped', () => {
     expect(cleanGuide({ seen: ['ok', 'Not OK', 5], tips: 'x', quiet: true, extra: 1 })).toEqual({ seen: ['ok'], tips: [] });
     expect(cleanGuide('nonsense')).toEqual({ seen: [], tips: [] });

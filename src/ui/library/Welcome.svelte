@@ -278,7 +278,8 @@
     {#if lib.lastProfile && aliases.some(a => a.id === lib.lastProfile)}
       <div class="card gluey" id="gluey-card">
         <Gluey size={46} pose="wave" />
-        <div><h3>Gluey’s tours</h3><p>A minute’s tour of GLUE, again. More tours, one per feature, are behind Gluey’s button in the library.</p></div>
+        <div><h3>Gluey’s tours</h3><p>A minute’s tour of GLUE, again. More tours, one per feature, are behind Gluey’s button in the library, and “What’s this?” in the right-click menus.</p>
+          <label class="gluey-show"><input type="checkbox" id="gluey-shown" checked={!guide.hidden} onchange={e => guide.setHidden(!e.currentTarget.checked)}> Show Gluey’s button in the library</label></div>
         <button type="button" class="btn-ghost" id="tour-again" onclick={() => { if (lib.backToLibrary()) setTimeout(() => guide.start('welcome'), 300); }}>Take the tour again</button>
       </div>
     {/if}
@@ -418,6 +419,7 @@
   .card.main { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
   .card.gluey { grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; }
   .card.gluey p { margin: 2px 0 0; }
+  .gluey-show { display: flex; gap: 6px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
   .card.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
   .card .btn, .card .btn-ghost { justify-self: start; }
   .where { font-family: var(--font-mono); font-size: 13px; color: var(--ink); }

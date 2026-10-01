@@ -19,6 +19,11 @@ adrs: [0126]
   - a tip the first time Duplicates, No file linked, Lower quality, Browse, the Calendar or Prepare opens (once per
     person), off with "Gluey's tips".
 - **Batch 3 (shipped 2026-10-01):** the new homepage, introduced by Gluey, with fresh media (`homepage.md`).
+- **After (2026-10-01):**
+  - Gluey's button can be hidden (right-click him, or "Who's using GLUE?"; `guide.hide`);
+  - "What's this?" in the right-click menus runs that part's tour (`whatsThis(tour)` in `lib/guide.svelte.ts`);
+  - GLUE Home in the first tour, and the Devices panel's "+ GLUE Home" (the code) in the GLUE Home tours;
+  - a stop's target can name alternatives (`a|b`).
 
 ## What it does
 The first time someone uses GLUE, Gluey, the glue stick, walks them through the library in a minute:

@@ -5,6 +5,7 @@
      prefers-reduced-motion. The setup form (#get-started) follows it. */
   import CloudPanel from './CloudPanel.svelte';
   import Gluey from '../guide/Gluey.svelte';
+  import Slides from './Slides.svelte';
   import { HOME_DOWNLOADS, homeOs } from '../../lib/homeApp';
 
   const media = (f: string) => import.meta.env.BASE_URL + 'home/' + f;
@@ -15,12 +16,6 @@
     if (!('IntersectionObserver' in window)) { el.classList.add('in'); return; }
     const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { el.classList.add('in'); io.disconnect(); } }, { rootMargin: '0px 0px -12% 0px' });
     io.observe(el);
-    return { destroy: () => io.disconnect() };
-  }
-  /** A muted clip that loads and plays only while on screen. */
-  function autoplay(v: HTMLVideoElement) {
-    const io = new IntersectionObserver(es => { for (const e of es) { if (e.isIntersecting) { v.preload = 'auto'; void v.play().catch(() => {}); } else v.pause(); } }, { threshold: 0.35 });
-    io.observe(v);
     return { destroy: () => io.disconnect() };
   }
   /** The hero frame tilts a little with the pointer and settles as the page scrolls. */
@@ -54,15 +49,15 @@
       n: '02', title: 'Know what you really have.', help: 'quality',
       body: 'Every file is listened to: is that “lossless” WAV really an MP3? Duplicates are found by how they sound, and each song shows as its best copy. Songs your DJ library lists but can’t find are matched to the ones you have.',
       points: ['Lossless, genuine hi-res, transcoded, upsampled, with the evidence', 'Duplicates by sound; keep the best copy, clean up the rest in bulk', '“No file linked” songs found in your library, with how sure GLUE is'],
-      main: { file: 'quality.webp', alt: 'A file’s verdict: a transcode, its spectrum stopping at 17.2 kHz' },
-      side: [{ file: 'duplicates.webp', alt: 'Duplicates found by sound, with the best copy' }, { file: 'relink.webp', alt: 'Songs with no file matched to the library’s, with a certainty' }],
+      main: { file: 'quality.webp', alt: 'A file’s verdict: a “lossless” WAV that was an MP3, its spectrum stopping at 17.2 kHz' },
+      side: [{ file: 'duplicates.webp', alt: 'Duplicates found by sound: the best copy is kept and used' }, { file: 'relink.webp', alt: 'No file linked: songs a DJ library lists, found in the library, with how sure GLUE is' }],
     },
     {
       n: '03', title: 'Ready for the gig.', help: 'prepare',
       body: 'Check the beat grid and set cues before a set, build a playlist that flows from one track, and keep your gigs with their music. With GLUE Home, the drag dock carries songs straight into Engine DJ or rekordbox.',
       points: ['Prepare: the grid, the metronome, cues and loops', 'A playlist that flows by tempo and key, from any song', 'A calendar of your gigs, with a reminder when one has no music yet'],
-      main: { file: 'prepare.webp', alt: 'Prepare: a song’s waveform with its beat grid and cues' },
-      side: [{ file: 'clip-builder.mp4', alt: 'Building a playlist from a track', video: true }, { file: 'calendar.webp', alt: 'The calendar with a gig and its playlist' }],
+      main: { file: 'prepare.webp', alt: 'Prepare: the beat grid, the metronome, cues and loops' },
+      side: [{ file: 'clip-builder.mp4', alt: 'A playlist built from one track, by tempo and key', video: true }, { file: 'calendar.webp', alt: 'The calendar: a gig with its playlist' }],
     },
   ];
 </script>
@@ -122,19 +117,8 @@
         <ul>{#each c.points as p (p)}<li>{p}</li>{/each}</ul>
         <a class="more" href={'#/help/' + c.help}>More in the help <span aria-hidden="true">→</span></a>
       </div>
-      <div class="pics">
-        <figure class="frame"><img class="media" src={media(c.main.file)} alt={c.main.alt} loading="lazy" decoding="async" width="2880" height="1800"></figure>
-        {#if c.side}
-          <div class="side">
-            {#each c.side as s (s.file)}
-              <figure class="frame small">
-                {#if s.video}<video class="media" muted loop playsinline preload="none" poster={media(s.file.replace('.mp4', '-poster.webp'))} use:autoplay aria-label={s.alt}><source src={media(s.file)} type="video/mp4"></video>
-                {:else}<img class="media" src={media(s.file)} alt={s.alt} loading="lazy" decoding="async">{/if}
-              </figure>
-            {/each}
-          </div>
-        {/if}
-      </div>
+      <!-- The chapter's pictures, all full size, to scroll through (2026-10-01: the small ones were too small to read). -->
+      <Slides slides={[c.main, ...(c.side ?? [])]} {media} />
     </section>
   {/each}
 
@@ -225,9 +209,6 @@
   .copy ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 9px; }
   .copy li { display: flex; gap: 10px; color: var(--ink-2); font-size: 14.5px; line-height: 1.45; }
   .copy li::before { content: ''; flex: none; width: 14px; height: 2px; margin-top: .7em; background: var(--accent); }
-  .pics { display: grid; gap: 16px; }
-  .side { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .frame.small .media { aspect-ratio: 16 / 10; }
   /* Devices */
   .devices-sec { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px clamp(28px, 5vw, 80px); align-items: center; }
   .phone { margin: 0; width: clamp(200px, 22vw, 290px); border-radius: 30px; overflow: hidden; border: 6px solid color-mix(in srgb, var(--ink) 14%, var(--surface)); box-shadow: 0 30px 70px -20px rgb(0 0 0 / .6); }
