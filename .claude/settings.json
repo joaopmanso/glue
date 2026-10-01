@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "g=$(command -v graphify || ls \"$HOME/.local/bin/graphify.exe\" \"$HOME/.local/bin/graphify\" 2>/dev/null | head -1); [ -n \"$g\" ] && exec \"$g\" hook-guard search; exit 0",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "g=$(command -v graphify || ls \"$HOME/.local/bin/graphify.exe\" \"$HOME/.local/bin/graphify\" 2>/dev/null | head -1); [ -n \"$g\" ] && exec \"$g\" hook-guard read; exit 0",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

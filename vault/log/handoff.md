@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 # Handoff: where things stand
 
@@ -21,7 +21,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - deleting cloud data needs the user's go-ahead;
   - the old `sync_*` D1 tables stay.
 
-## State (2026-09-30, end of day)
+## State (2026-10-01)
 - **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.40.1.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
@@ -56,6 +56,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - Gluey, batch 2 (GLUE Home 0.40.1): the help centre (18 articles, `#/help`), a tour per feature, first-visit
     tips;
   - batch 3: the new homepage, with media recaptured (`scripts/demo/`).
+- **graphify** (ADR 0127, CLAUDE.md "graphify"): a knowledge graph of the code and the vault for coding sessions.
+  - **On the desktop:** uv 0.12 (`~/.local/bin`, not on Claude Code's PATH: `export PATH="$HOME/.local/bin:$PATH"`),
+    graphifyy 0.9.73 and the git hooks are installed. The graph is in `graphify-out/` (git-ignored).
+  - **Not in the graph:** the `.sql` migrations (the `[sql]` extra); ADR 0056 (queued for the next update).
+  - **Docs added since** (ADR 0127 onward) reach the graph only with `/graphify . --update`.
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
@@ -65,6 +70,15 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **The laptop: set up graphify** (PowerShell, in the repo):
+  1. uv: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`;
+  2. `uv tool install "graphifyy[sql]"`;
+  3. the graph:
+     - copy the desktop's `graphify-out/` (without `.graphify_python`), then `graphify update .`;
+     - or, without copying, `graphify update .` builds the code part only, and `/graphify .` in Claude Code adds the
+       docs (about 570k tokens);
+  4. `graphify hook install`, then take out the `graphify-out/graph.json merge=graphify` line it adds to
+     `.gitattributes`, and `git config --unset merge.graphify.name` / `merge.graphify.driver`.
 - Hand-test the evening's list:
   - after the collection opens, the Doechii 24/88.2 album should read "Genuine hi-res" (stored verdicts are judged
     again on open);

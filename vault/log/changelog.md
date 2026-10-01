@@ -5,6 +5,19 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · A map of the code for coding sessions (graphify)
+- **graphify** ([ADR 0127](../adr/0127-graphify-code-map.md)), a developer tool, not part of GLUE:
+  - a knowledge graph of the code (tree-sitter) and the vault and help (one semantic pass): about 4,200 nodes,
+    10,600 edges, 185 named communities;
+  - sessions ask it before grepping (`graphify explain` / `path` / `query`), to read less to find things.
+- **How it's set up:**
+  - built per computer into `graphify-out/` (git-ignored);
+  - a git hook rebuilds the code part after each commit; docs reach it with `/graphify . --update`;
+  - `.graphifyignore` leaves out frozen, generated and binary files;
+  - in git: the skill in `.claude/skills/graphify/`, nudge hooks in `.claude/settings.json` (they do nothing
+    without graphify) and a "graphify" section in CLAUDE.md.
+- **The laptop isn't set up yet:** steps in the handoff.
+
 ## 2026-10-01 · Gluey can hide; "What's this?"; GLUE Home in the tours; the homepage's pictures full size
 - **Gluey's button can be hidden:** right-click him › Hide Gluey, or "Show Gluey's button" in "Who's using GLUE?".
   Kept once per person like the rest (`guide.hide`, the newer choice wins). Hidden, there are no tips or offer;

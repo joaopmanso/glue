@@ -93,3 +93,18 @@ After working:
 - `legacy/index.html`: original Speklone page, frozen; `tests/parity.test.ts` compares against it
   (ADR 0016). Change a parity expectation only on purpose, with a changelog note.
 - Push to `main` = checks, tests, build and deploy to https://joaopmanso.github.io/glue/.
+
+## graphify: the code map (ADR 0127)
+`graphify-out/graph.json` is a knowledge graph of the code (tree-sitter) and the vault and help (one semantic pass):
+files, symbols, imports and calls, ADRs and features, in named communities. It's built per computer and not in git.
+- **To find code,** ask the graph before grepping or reading files in bulk: `graphify explain "<file or symbol>"`
+  (what it imports, what uses it), `graphify path "<A>" "<B>"`, `graphify query "<question>" --budget 1500`.
+  Name a file or symbol rather than a broad question; broad ones return noise. Then read only the lines you need.
+- **The vault is still the source of truth** for how GLUE works and why (the rules above). The graph says where
+  things are and what they touch, not why.
+- **It stays current by itself:** a git hook rebuilds the code part after each commit (no tokens). New or changed
+  docs only reach it through `/graphify . --update` (a semantic pass, costs tokens): run it after a batch of ADRs
+  or help articles, not every session.
+- `graphify-out/GRAPH_REPORT.md` (hubs, communities) only for broad architecture review.
+- No `graphify` on this computer (the laptop, until set up: `vault/log/handoff.md`)? The hooks do nothing; work as
+  before.

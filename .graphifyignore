@@ -1,0 +1,18 @@
+# What graphify leaves out of GLUE's knowledge graph (on top of .gitignore).
+# Frozen, generated or binary: not worth a node.
+legacy/
+public/
+tests/fixtures/
+scripts/demo/out/
+package-lock.json
+home/src-tauri/Cargo.lock
+home/src-tauri/icons/
+*.webp
+*.mp4
+*.png
+*.svg
+*.ico
+# The old changelog entries (the current ones are in vault/log/changelog.md).
+vault/log/archive/
+# graphify's own skill files
+.claude/
