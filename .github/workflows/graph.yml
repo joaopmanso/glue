@@ -22,8 +22,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - name: graphify
-        run: pipx install "graphifyy[sql]==0.9.73"
+      - name: graphify (in its own environment, first on the PATH: its graphify and its python)
+        run: |
+          python3 -m venv ~/graphify
+          ~/graphify/bin/pip install --quiet "graphifyy[sql]==0.9.73"
+          echo "$HOME/graphify/bin" >> "$GITHUB_PATH"
       - name: Update the code part on top of the last graph, and publish
         env:
           PYTHONHASHSEED: '0'   # the same communities for the same code
@@ -38,7 +41,7 @@ jobs:
           for attempt in 1 2 3; do
             node scripts/graph.mjs fetch || echo "No graph published yet; this one has code only"
             graphify update . --force
-            "$(head -1 "$(command -v graphify)" | sed 's/^#!//')" scripts/graph_docs.py link   # graphify's Python
+            python scripts/graph_docs.py link
             node scripts/graph.mjs publish --lease && exit 0
             echo "The graph was published meanwhile: again, on top of it"
           done
