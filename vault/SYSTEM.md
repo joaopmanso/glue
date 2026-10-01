@@ -162,7 +162,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - It reads the GLUE folder through the link.
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease.
   - Overviews and details come from GLUE Home's `/cache` when the browser has none (ADR 0110).
-  - The analysis bar shows GLUE Home's own queue (its `status`: left + running).
+  - The analysis bar shows GLUE Home's own queue (its `status`: left + running), the same "left" its window shows
+    (ADR 0135). A network folder's songs take turns, 4 at a time each (`home/ui/lanes.ts`); new songs' tags are read
+    by GLUE Home, 200 a request (`/fs/read-tags`).
   - A folder dropped onto the library is found by GLUE Home (rpc `where`, a 5 s search, then its dialog asks; the page
     says which, ADR 0134) and becomes its folder (`home:<id>`); one
     inside a music folder isn't added (ADR 0122).

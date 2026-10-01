@@ -52,6 +52,10 @@ export class HomeDisk {
   dupes(mode: 'move' | 'trash', items: { root: string; path: string }[]) {
     return this.json<{ results: { ok: boolean; error?: string; to?: string }[] }>('/fs/dupes', {}, { method: 'POST', body: JSON.stringify({ mode, items }) });
   }
+  /** Many songs' info from their tags, read by GLUE Home (0.41.2, ADR 0135): an answer for each, null when unreadable. */
+  readTags(root: string, paths: string[]) {
+    return this.json<(Record<string, string> | null)[]>('/fs/read-tags', {}, { method: 'POST', body: JSON.stringify({ root, paths }) });
+  }
   /** Song info written into a music file (ADR 0071): its new size and date. */
   tags(root: string, path: string, tags: Record<string, string>) {
     return this.json<{ size: number; mtime: number }>('/fs/tags', {}, { method: 'POST', body: JSON.stringify({ root, path, tags }) });

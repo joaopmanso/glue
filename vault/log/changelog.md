@@ -5,6 +5,18 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · GLUE Home 0.41.2: analysing around a network folder
+- **The user's report:** the tab's and GLUE Home's "left" counts differed by 20–30; "Reading tags… 0/9807" sat
+  still; with 24 songs at a time the processor stayed under 60%
+  ([ADR 0135](../adr/0135-analysis-around-network-folders-and-tags-by-glue-home.md)).
+- **Measured on the desktop:** the NAS reads 12 MB/s (one file) to 24 MB/s (eight), and its songs average 59 MB.
+  The network is the limit for that folder, not the processor.
+- **One "left":** queued plus running, in both. GLUE Home's window says "Analysing 24 at a time · N left".
+- **A network folder's songs take turns,** 4 at a time each; the other places go to local songs.
+- **Tags:** GLUE Home reads only the tags of new songs, 200 a request, 8 files at a time (`/fs/read-tags`), instead
+  of the page reading 512 KB of each one at a time. The count moves as they come.
+- **Help:** GLUE Home › How fast it analyses.
+
 ## 2026-10-01 · GLUE Home 0.41.1: network folders
 - **The user's report:**
   - on Windows, dropping a network folder took about 10 s before GLUE Home's dialog, with nothing on screen;

@@ -56,7 +56,10 @@
   const count = $derived.by(() => { void lib.version; void view.search; return view.rows('camelot').length; });
   // Where GLUE Home analyses (ADR 0104), its own queue: what it has left, and what it's on now (it said "0 left" while
   // GLUE Home worked through 300 songs, 2026-09-30).
-  const pending = $derived.by(() => { void lib.version; const st = engineClient.active ? engineClient.state?.analysis : null; return st ? Math.max(lib.pendingCount(), st.left + st.running) : lib.pendingCount(); });
+  // GLUE Home analysing (ADR 0104, 0135): its own number while it has work, the same as its window says (queued and
+  // running; the user, 2026-10-01: the two always differed by about the songs running). Once it's done, what this tab
+  // hasn't taken in yet, so "All analysed" means the results are here too.
+  const pending = $derived.by(() => { void lib.version; const st = engineClient.active ? engineClient.state?.analysis : null; return (st ? st.left + st.running : 0) || lib.pendingCount(); });
   // Where songs can be added: the playlists as the sidebar shows them (ADR 0062), the user's own first,
   // then each import's (replaced when it's imported again). Folders are playlists too (ADR 0049).
   const targets = $derived.by(() => { void lib.version; return listTree(lib.store?.lists.values() ?? [], l => l.id === TO_BE_SORTED); });

@@ -197,6 +197,21 @@ pub fn handle(app: AppHandle, mut req: Request, path: &str, arg: &dyn Fn(&str) -
                 let (size, mtime) = crate::tags::write_tags(&target, &fields).map_err(|e| fail(500, e))?;
                 Ok(json(serde_json::json!({ "size": size, "mtime": mtime })))
             }
+            // Many songs' info from their tags (ADR 0135): {root, paths} in the body (500 at most); an answer for each,
+            // null when one can't be read. Only the tags are read, several files at a time.
+            "/fs/read-tags" => {
+                let mut body = String::new();
+                std::io::Read::read_to_string(req.as_reader(), &mut body).map_err(io_fail)?;
+                let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| fail(400, e.to_string()))?;
+                let root = fs::canonicalize(v.get("root").and_then(|x| x.as_str()).unwrap_or("")).map_err(|_| fail(404, "that folder isn't there"))?;
+                if !crate::dupes::music_roots(&app).contains(&root) {
+                    return Err(fail(403, "not a music folder GLUE Home knows"));
+                }
+                let rels: Vec<String> = v.get("paths").and_then(|x| x.as_array()).map(|a| a.iter().take(500).map(|x| x.as_str().unwrap_or("").to_string()).collect()).unwrap_or_default();
+                // A path that isn't plainly inside the folder reads as nothing (an empty path fails to open).
+                let paths: Vec<PathBuf> = rels.iter().map(|r| inside(&root, r).ok().filter(|p| check(&root, p).is_ok()).unwrap_or_default()).collect();
+                Ok(json(serde_json::Value::Array(crate::tags::read_many(&paths, 8).into_iter().map(|x| x.unwrap_or(serde_json::Value::Null)).collect())))
+            }
             // Duplicates put aside or recycled (ADR 0070): items in the body, a result for each.
             "/fs/dupes" => {
                 let mut body = String::new();

@@ -700,13 +700,21 @@ class Library {
         this.looseHandles.delete(t.id);
       }
       const { added, linked, missing } = applyScan(s, id, entries, { files: unsureFiles, folders: unreadable });
-      // Quick tags from the start of each new file; the background analysis fills in the rest.
+      // Quick tags, so rows show artist and title before the analysis fills in the rest. With GLUE Home it reads only the
+      // tags, 200 songs a request, several files at a time (ADR 0135); otherwise the start of each file here. The count
+      // moves as they come (it sat at 0 of 9,807 on a network folder, 2026-10-01).
       this.job = { text: 'Reading tags…', done: 0, total: added.length };
-      const batch: Track[] = [];
-      for (let i = 0; i < added.length; i++) {
-        const t = added[i], h = handles.get(t.relPath!);
-        if (h) batch.push(await quickTags(t, await fileHead(h, TAG_BYTES)));
-        if (batch.length >= 200 || i === added.length - 1) { s.putTracks(batch.splice(0)); this.job = { text: 'Reading tags…', done: i + 1, total: added.length }; }
+      for (let i = 0; i < added.length; i += 200) {
+        const part = added.slice(i, i + 200), out: Track[] = [];
+        const got = await platform.readTags(r.root, part.map(x => x.relPath!));
+        if (got) part.forEach((x, k) => out.push(withTags(x, got[k] ?? null)));
+        else for (const x of part) {
+          const h = handles.get(x.relPath!);
+          out.push(h ? await quickTags(x, await fileHead(h, TAG_BYTES)) : x);
+          this.job = { text: 'Reading tags…', done: i + out.length, total: added.length };
+        }
+        s.putTracks(out);
+        this.job = { text: 'Reading tags…', done: i + part.length, total: added.length };
       }
       const bits = [added.length + ' new track' + (added.length === 1 ? '' : 's')];
       if (linked) bits.push(linked + ' imported track' + (linked === 1 ? '' : 's') + ' linked');
@@ -1519,6 +1527,13 @@ class Library {
 
 /** Enough of a file's start for its tags (most files; the background analysis reads the rest). */
 const TAG_BYTES = 512 * 1024;
+/** A song with the info GLUE Home read from its tags (ADR 0135), its name for what's missing. */
+function withTags(t: Track, f: Record<string, string> | null): Track {
+  const out = { ...t };
+  if (f) fillInfo(out, f);
+  if (!out.title) { const n = nameFields(out.fileName); out.title = n.title; if (!out.artist) out.artist = n.artist; }
+  return out;
+}
 async function quickTags(t: Track, head: Uint8Array): Promise<Track> {
   const out = { ...t };
   try {

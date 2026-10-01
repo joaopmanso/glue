@@ -13,6 +13,7 @@ import { bridge, type HomeConfig } from './bridge';
 import { describe, here } from './library';
 import * as cache from './cache';
 import * as engine from './engine';
+import { isNetwork, pickNext } from './lanes';
 import { afterAnalysis, needsAnalysis } from '../../src/core/library/analysed';
 import { unknownComputer, type SharedCollection } from '../../src/core/shared/project';
 import { ANALYSIS_VERSION, type AnalysisSummary, type Collection, type Track } from '../../src/store/types';
@@ -32,7 +33,8 @@ export interface AnalysisState {
 }
 export const state: AnalysisState = { paused: false, running: 0, current: [], left: 0, done: 0, failed: 0, waiting: 0, by: 'idle', why: '', away: 0 };
 
-type Job = { p: string; c: string; id: string; name: string };
+/** `net`: its network folder (ADR 0135), if it's in one. */
+type Job = { p: string; c: string; id: string; name: string; net?: string };
 const PENDING = 's/pending.json';
 const key = (p: string, c: string) => p + '/' + c;
 
@@ -113,6 +115,9 @@ async function scan(cfg: HomeConfig): Promise<Job[]> {
     if (sh && unknownComputer(cfg.computer)) continue;
     const me = sh ? cfg.computer! : null;
     const h = here(meta, p.id, col.id, cfg.computer), waiting = pending.get(key(p.id, col.id));
+    // Where each of this computer's music folders is: a network folder's songs take turns (ADR 0135).
+    const roots = (sh ? sh.rootsBy?.[me ?? ''] : (meta as Collection).roots) ?? [];
+    const netOf = (rootId: string | null) => { if (!rootId) return undefined; const at = cfg.folders?.[rootId] ?? roots.find(r => r.id === rootId)?.absPath; return isNetwork(at) ? at! : undefined; };
     // The shards there are (listed, not guessed).
     for (const f of (await bridge.glueList(`profiles/${p.id}/collections/${col.id}/tracks`).catch(() => [] as string[])).filter(n => n.endsWith('.json'))) {
       let tracks: Record<string, Track> = {}, an: Record<string, unknown> = {};
@@ -126,7 +131,7 @@ async function scan(cfg: HomeConfig): Promise<Job[]> {
         // Analysed already (the result wasn't taken in yet, GLUE Home was restarted): waiting, not again.
         const r = await cache.result(p.id, col.id, t.id);
         if (r && r.size === t.size && r.mtime === t.mtime && r.summary.v >= ANALYSIS_VERSION) { add(p.id, col.id, t.id); continue; }
-        jobs.push({ p: p.id, c: col.id, id: t.id, name: t.title || t.fileName, added: t.addedAt });
+        jobs.push({ p: p.id, c: col.id, id: t.id, name: t.title || t.fileName, added: t.addedAt, net: netOf(t.rootId) });
       }
     }
   }
@@ -164,11 +169,15 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
       if (state.paused || !queue.length || c?.running === false) return null;
       // A tab here analysing by itself (it holds the lease and doesn't ask): the songs are its.
       if (await bridge.leaseHeld() && Date.now() > delegatedUntil) { state.by = 'tab-self'; return null; }
-      return queue.shift()!;
+      // In order, but a network folder's songs take turns, so the other places go to songs on this computer's drives
+      // (ADR 0135). None may start now: this place waits for one to finish.
+      const i = pickNext(queue, netRunning);
+      return i < 0 ? null : queue.splice(i, 1)[0];
     };
     // As many at a time as the settings say, changed while it runs too.
     let live = 0;
     const running: Promise<void>[] = [];
+    const netRunning = new Map<string, number>();
     const spawn = () => { while (live < cache.poolSize(cfg())) { live++; running.push(worker().finally(() => { live--; })); } };
     const worker = async () => {
       for (let j = await next(); j; j = live > cache.poolSize(cfg()) ? null : await next()) {
@@ -176,6 +185,7 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
         if (!c) return;
         const jk = j.p + '/' + j.c + '/' + j.id;
         active.add(jk);
+        if (j.net) netRunning.set(j.net, (netRunning.get(j.net) ?? 0) + 1);
         state.running++; state.current = [...state.current, j.name]; state.left = urgent.length + queue.length; changed();
         try { await cache.analyse(j.p, j.c, j.id, c); state.done++; }
         catch (e) {
@@ -184,6 +194,7 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
           else { state.failed++; const k = key(j.p, j.c) + '/' + j.id; tries.set(k, (tries.get(k) ?? 0) + 1); console.warn('GLUE Home: couldn’t analyse', j.name, e); }
         }
         active.delete(jk);
+        if (j.net) netRunning.set(j.net, (netRunning.get(j.net) ?? 1) - 1);
         state.running--; state.current = state.current.filter(n => n !== j!.name); changed();
         if (++sinceWrite >= 25) { sinceWrite = 0; await write(c).catch(e => console.warn('GLUE Home: couldn’t take the analyses in', e)); }
         spawn();

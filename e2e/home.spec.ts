@@ -205,7 +205,7 @@ test('GLUE Home’s window says what it’s doing: the analysis, a pause button,
   const base = { paused: false, running: 2, current: ['Genorale', 'Manyaro'], left: 118, done: 40, failed: 1, waiting: 3, by: 'home' };
   await status(base, [{ at: Date.now() - 60_000, text: 'Analysing 160 songs' }]);
   await page.click('nav [data-page="now"]');
-  await expect(page.locator('#an-state')).toHaveText('Analysing 2 songs · 118 to go');
+  await expect(page.locator('#an-state')).toHaveText('Analysing 2 at a time · 120 left');
   await expect(page.locator('#an-current li')).toHaveText(['Genorale', 'Manyaro']);
   await expect(page.locator('#sec-now')).toContainText('Analysed since GLUE Home started: 40 · 1 couldn’t be read · 3 waiting to go into the library');
   await expect(page.locator('#events')).toContainText('Analysing 160 songs');

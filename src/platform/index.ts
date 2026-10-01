@@ -288,6 +288,16 @@ export async function folderReachable(root: Root, dir?: Dir | null): Promise<boo
   if (!dir) return true;
   try { return !(await (dir as unknown as { values(): AsyncIterator<unknown> }).values().next()).done; } catch { return false; }
 }
+/** Many songs' info from their tags, read by GLUE Home (Home mode, ADR 0135): only the tags, several files at a time,
+    instead of the first 512 KB of each over the local link (a network folder of 9,807 songs sat at "Reading tags…
+    0/9807", 2026-10-01). Null: not here (no GLUE Home, or one before 0.41.2); the page reads them itself. */
+export async function readTags(root: Root, paths: string[]): Promise<(Record<string, string> | null)[] | null> {
+  if (!homeMode() || !disk) return null;
+  const at = await musicFolderPath(root);
+  if (!at) return null;
+  try { return await disk.readTags(at, paths); }
+  catch (e) { if ((e as Error).name === 'HomeDown') throw e; return null; }
+}
 /** Song info written into a music file by GLUE Home (Home mode only, ADR 0071): the file's new size and date. */
 export async function writeTags(root: Root, path: string, tags: Record<string, string>): Promise<{ size: number; mtime: number }> {
   if (!homeMode() || !disk) throw new Error('Writing into files needs GLUE Home on this computer.');

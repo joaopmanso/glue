@@ -232,7 +232,8 @@
         {#if status?.computer}<p class="fine" id="computer-state">{status.computer.id ? 'This computer’s songs are its own in shared collections (known from ' + status.computer.why + ').' : 'Which computer this is isn’t known yet' + (status.computer.why ? ' (' + status.computer.why + ')' : '') + ': shared collections are read, and nothing is written for this computer.'}</p>{/if}
         {#if an}
           <p id="an-state">
-            {#if an.running}Analysing {an.running} song{an.running === 1 ? '' : 's'}{an.left ? ' · ' + an.left.toLocaleString() + ' to go' : ''}
+            <!-- "left" is what isn't done: queued and running, the same number GLUE in the browser shows (2026-10-01). -->
+            {#if an.running}Analysing {an.running} at a time · {(an.left + an.running).toLocaleString()} left
             {:else if an.paused && an.left}Paused · {an.left.toLocaleString()} song{an.left === 1 ? '' : 's'} to analyse
             {:else if an.paused}Paused
             {:else if an.left}{an.left.toLocaleString()} song{an.left === 1 ? '' : 's'} to analyse{an.by === 'tab-self' ? ' (the GLUE tab here is analysing them)' : ''}

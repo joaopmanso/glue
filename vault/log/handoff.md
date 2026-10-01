@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-01)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.1.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.2.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -73,6 +73,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **Analysis on the desktop** (GLUE Home 0.41.2, ADR 0135):
+  - the tab's "left" and GLUE Home's window should match;
+  - a new big folder's "Reading tags…" should move in steps of 200;
+  - with the NAS folder and local folders both waiting, the processor should go well above 60%;
+  - the NAS folder alone is network-bound (about 1,500 hi-res songs an hour).
+  - Not tuned yet: the 4-per-network-folder cap.
 - **Network folders** (GLUE Home 0.41.1, ADR 0134):
   - **Windows:** drop a network folder. The page says "Looking for…", then "Choose … in GLUE Home's window" after
     about 5 s.
