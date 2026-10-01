@@ -75,9 +75,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     analysed by GLUE Home. "Odessa" (added on its own before the fix) can be removed and dropped again.
 
 ## Next
-- **Flaky e2e under load:** playback tests ("Play" not turning to "Pause") fail now and then in the full suite, never
-  on their own. By 2026-10-01 it is 1–3 tests a full run (also themes, the first question, batch A, the DJ-library dedupe,
-  a shared-collection test), each passing alone: worth a look at the load (two cores, the `heavy` project alongside). The user: "we can deal with the flakiness later".
+- **E2E speed and flakiness:** the full suite takes about 6 min on the desktop. When it slows to 12+ min with random
+  failures, or browsers stop starting, check free memory first: on 2026-10-01 Windows' Desktop Window Manager
+  (dwm.exe) had leaked 41 GB (a graphics-driver leak; a restart fixed it). Never kill dwm or the user's Edge; ask.
 - **The laptop's sync is slow** (the user: "takes quite some time but has no issues"). Measure it first: how many
   log entries and files a sync reads on the laptop, and where the time goes.
 - **Bug:** on a phone's first load the library shows 8 songs, then the whole collection (timing; low priority).

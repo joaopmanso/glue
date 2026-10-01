@@ -83,6 +83,8 @@ export function loadFonts(t: ThemeDef) {
 class Themes {
   theme = $state(readPref('theme', 'stick'));   // GLUE Stick is the default (2026-09-25); Classic stays
   mode = $state<Mode>((readPref('mode', 'dark') as Mode) || 'dark');
+  /** When this browser's look was chosen (ms): the newer of it and the GLUE folder's wins. */
+  at = Number(readPref('lookAt', '0')) || 0;
   systemDark = $state(true);
   /** Bumps when the look changes, so canvases redraw with the new colours. */
   version = $state(0);
@@ -99,14 +101,18 @@ class Themes {
     this.apply();
   }
   set(theme: string, mode: Mode = this.mode) {
-    this.theme = themeById(theme).id; this.mode = mode;
-    writePref('theme', this.theme); writePref('mode', mode);
+    this.adopt(theme, mode, Date.now());
+    this.onChange?.(this.theme, mode, this.at);
+  }
+  /** A look chosen elsewhere (the GLUE folder's, newer than this browser's): shown and kept here, not sent back. */
+  adopt(theme: string, mode: Mode, at: number) {
+    this.theme = themeById(theme).id; this.mode = mode; this.at = at;
+    writePref('theme', this.theme); writePref('mode', mode); writePref('lookAt', String(at));
     this.apply();
-    this.onChange?.(this.theme, mode);
   }
   toggleMode() { this.set(this.theme, this.resolved === 'dark' ? 'light' : 'dark'); }
   /** The GLUE folder remembers the choice too (so another browser opens with it). */
-  onChange: ((theme: string, mode: Mode) => void) | null = null;
+  onChange: ((theme: string, mode: Mode, at: number) => void) | null = null;
 
   private apply() {
     const t = themeById(this.theme), el = document.documentElement;

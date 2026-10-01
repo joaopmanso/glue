@@ -162,10 +162,14 @@ class Library {
     this.homeDir = dir; this.homeKind = kind; this.homeName = kind === 'private' ? 'browser storage' : dir.name;
     await this.takeLock();
     this.home = await HomeStore.open(dir);
-    // The GLUE folder's look wins over this browser's (another computer opens with the same theme).
+    // The newer look wins: the GLUE folder's (another computer chose it) or this browser's (chosen here, perhaps just
+    // before a reload, while the folder's copy was still being saved: the mode came back, 2026-10-01).
     const look = this.home.index.appearance;
-    if (look && (look.theme !== themes.theme || look.mode !== themes.mode)) themes.set(look.theme, look.mode);
-    themes.onChange = (theme, mode) => { if (!this.readOnly) void this.home?.setAppearance({ theme, mode }); };
+    if (look && (look.theme !== themes.theme || look.mode !== themes.mode)) {
+      if ((look.at ?? 0) >= themes.at) themes.adopt(look.theme, look.mode, look.at ?? 0);
+      else if (!this.readOnly) void this.home.setAppearance({ theme: themes.theme, mode: themes.mode, at: themes.at });
+    }
+    themes.onChange = (theme, mode, at) => { if (!this.readOnly) void this.home?.setAppearance({ theme, mode, at }); };
     if (this.pendingRestore) { const b = this.pendingRestore; this.pendingRestore = null; await this.applyBackup(b, true); return; }
     // Profiles are aliases now (ADR 0113): made from the profiles there were, once; nothing moves on disk.
     await this.home.ensureAliases(!this.readOnly);

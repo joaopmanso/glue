@@ -5,6 +5,15 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · The newer look wins
+- **A theme or dark/light chosen just before a reload stays.** The GLUE folder's look always won over the browser's
+  on opening, and the folder's copy is saved a moment after the choice: a reload in between brought the older look
+  back (CI's themes test failed on it). Each choice now carries its time (`appearance.at`, pref `lookAt`), and
+  the newer of the browser's and the folder's wins.
+- **The e2e suite's slowness and flakiness of 2026-09-30/10-01** (12–13 min, 1–3 random failures a run, then no
+  browser starting at all) was the desktop's Desktop Window Manager leaking memory (41 GB, 0.6 GB free). After a
+  restart: 90 passed in 5.9 min.
+
 ## 2026-10-01 · A dropped song is analysed with GLUE Home running (GLUE Home 0.40.0)
 - **A song dragged onto the library is found by GLUE Home**
   ([ADR 0125](../adr/0125-dropped-songs-placed-by-glue-home.md)). The browser never says where a dropped file is, so

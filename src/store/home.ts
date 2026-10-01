@@ -94,8 +94,8 @@ export class HomeStore {
   /** The profile folder that holds this GLUE folder's library. */
   async setContainer(pid: string) { if (this.index.container !== pid) { this.index.container = pid; this.index.lastProfile = pid; await this.saveIndex(); } }
 
-  async setAppearance(a: { theme: string; mode: 'dark' | 'light' | 'system' }) {
-    if (this.index.appearance?.theme === a.theme && this.index.appearance?.mode === a.mode) return;
+  async setAppearance(a: { theme: string; mode: 'dark' | 'light' | 'system'; at?: number }) {
+    if (this.index.appearance?.theme === a.theme && this.index.appearance?.mode === a.mode && (this.index.appearance?.at ?? 0) >= (a.at ?? 0)) return;
     this.index.appearance = a; await this.saveIndex();
   }
 
