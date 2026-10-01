@@ -145,10 +145,13 @@ def finish(publish):
     new = {'nodes': [], 'edges': [], 'hyperedges': []}
     failed = []
     for i in range(1, st['batches'] + 1):
+        f = OUT / f'.docs_{i:02d}.json'
         try:
-            d = json.loads((OUT / f'.docs_{i:02d}.json').read_text(encoding='utf-8'))
-        except (OSError, ValueError):
-            failed.append(i)
+            d = json.loads(f.read_text(encoding='utf-8'))
+        except (OSError, ValueError) as e:
+            failed.append(f'{i} ({type(e).__name__}: {str(e)[:120]})')
+            if f.exists():
+                f.replace(OUT / f'failed_docs_{i:02d}.json')   # kept to look at (not a .docs_ file: those are cleared)
             continue
         for n in d.get('nodes', []):
             n = {k: v for k, v in n.items() if k in NODE_KEYS}

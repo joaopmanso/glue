@@ -12,9 +12,20 @@ export interface Speed {
   /** A song's average time reading (this computer's drives, network folders) and analysing, ms. */
   localReadMs: number; netReadMs: number; analyseMs: number;
   songs: number; netSongs: number;
+  /** Songs a minute over the last ten minutes, in half-minute steps, oldest first (the window's little chart). */
+  history: number[];
 }
 
 export const WINDOW = 120_000;
+/** What the history keeps: ten minutes, in 20 steps. */
+export const HISTORY = 600_000, STEPS = 20;
+
+/** Songs a minute in each half minute of the last ten, oldest first. */
+export function historyOf(samples: readonly Sample[], now: number): number[] {
+  const step = HISTORY / STEPS, out = new Array<number>(STEPS).fill(0);
+  for (const x of samples) { const i = STEPS - 1 - Math.floor((now - x.at) / step); if (i >= 0 && i < STEPS) out[i] += 60_000 / step; }
+  return out;
+}
 
 export function speedOf(samples: readonly Sample[], now: number, windowMs = WINDOW): Speed | null {
   const s = samples.filter(x => now - x.at <= windowMs);
@@ -27,7 +38,7 @@ export function speedOf(samples: readonly Sample[], now: number, windowMs = WIND
   return {
     perMin: s.length / (span / 60_000), localMBs: mbs(local), netMBs: mbs(net),
     localReadMs: avg(local, x => x.readMs), netReadMs: avg(net, x => x.readMs), analyseMs: avg(s, x => x.analyseMs),
-    songs: s.length, netSongs: net.length,
+    songs: s.length, netSongs: net.length, history: historyOf(samples, now),
   };
 }
 

@@ -29,3 +29,15 @@ describe('how fast GLUE Home analyses', () => {
     expect(suggest(speedOf(s.slice(0, 3), 110_000), { atOnce: 4, cores: 16, netCap: 0 })).toBe('');   // too few to say
   });
 });
+
+describe('the ten-minute chart', () => {
+  it('counts songs a minute in each half minute, oldest first', async () => {
+    const { historyOf } = await import('../home/ui/speed');
+    const now = 1_000_000;
+    const h = historyOf([at(0, { at: now - 1000 }), at(0, { at: now - 2000 }), at(0, { at: now - 9.5 * 60_000 }), at(0, { at: now - 11 * 60_000 })], now);
+    expect(h).toHaveLength(20);
+    expect(h[19]).toBe(4);   // two songs in the last half minute: four a minute
+    expect(h[0]).toBe(2);    // one, nine and a half minutes ago
+    expect(h.reduce((a, x) => a + x, 0)).toBe(6);   // the one eleven minutes ago is out
+  });
+});

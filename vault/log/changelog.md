@@ -5,6 +5,15 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-01 · GLUE Home 0.41.4: the speed as a panel
+- **The user:** a meter rather than a line of text, like the website's admin stats (ADR 0136).
+- **GLUE Home's window, Activity › Speed:**
+  - tiles: songs a minute (with a chart of the last ten minutes), MB/s from this computer's drives, MB/s from
+    network folders;
+  - **Places in use:** the songs running now, reading (orange) or analysing (green), from `cache.steps`;
+  - **A song's time:** the same split, on average;
+  - the suggestion underneath.
+
 ## 2026-10-01 · GLUE Home 0.41.3: the analysis speed shown, the limits yours
 - **The user:** the network cap shouldn't come from their NAS; leave it selectable and show stats instead
   ([ADR 0136](../adr/0136-analysis-limits-are-the-users-with-speed-shown.md)).

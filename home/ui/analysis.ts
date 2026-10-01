@@ -33,6 +33,8 @@ export interface AnalysisState {
   away: number;
   /** How fast, over the last two minutes, and a suggestion from it (ADR 0136). */
   speed?: Speed | null; suggestion?: string;
+  /** The songs running now by step: reading their file, or analysing it (ADR 0136). */
+  steps?: { reading: number; analysing: number };
 }
 export const state: AnalysisState = { paused: false, running: 0, current: [], left: 0, done: 0, failed: 0, waiting: 0, by: 'idle', why: '', away: 0 };
 
@@ -56,6 +58,9 @@ export const on = hooks;
 
 const count = () => [...pending.values()].reduce((n, s) => n + s.size, 0);
 const changed = () => { state.waiting = count(); hooks.changed?.(); };
+// Each running song's step (reading, analysing), for the window's meter: said at most every half second.
+let stepTimer = 0;
+cache.steps.changed = () => { state.steps = { reading: cache.steps.reading, analysing: cache.steps.analysing }; if (!stepTimer) stepTimer = window.setTimeout(() => { stepTimer = 0; changed(); }, 500); };
 async function savePending() {
   const out: [string, string, string][] = [];
   for (const [k, ids] of pending) { const [p, c] = k.split('/'); for (const id of ids) out.push([p, c, id]); }
@@ -196,7 +201,7 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
           const r = await cache.analyse(j.p, j.c, j.id, c); state.done++;
           const now = Date.now();
           samples.push({ at: now, bytes: r.bytes, readMs: r.readMs, analyseMs: r.analyseMs, net: !!j.net });
-          while (samples.length && now - samples[0].at > 120_000) samples.shift();
+          while (samples.length && now - samples[0].at > 600_000) samples.shift();   // the chart's ten minutes
           state.speed = speedOf(samples, now);
           state.suggestion = suggest(state.speed, { atOnce: cache.poolSize(c), cores: navigator.hardwareConcurrency || 4, netCap: Math.round(c.networkAtOnce ?? 0) });
         }

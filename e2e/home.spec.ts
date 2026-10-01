@@ -229,10 +229,17 @@ test('GLUE Home’s window says what it’s doing: the analysis, a pause button,
   await page.selectOption('#net-workers', '4');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config') ?? '{}').networkAtOnce)).toBe(4);
   // How fast, and a suggestion from it.
-  const speed = { perMin: 42, localMBs: 85, netMBs: 22, localReadMs: 300, netReadMs: 5200, analyseMs: 900, songs: 84, netSongs: 30 };
-  await status({ ...base, speed, suggestion: 'Songs on network folders spend most of their time being read: fewer at once from each network folder (try 4) leaves places for songs on this computer’s drives.' }, []);
-  await expect(page.locator('#an-speed')).toHaveText('Speed: 42 songs a minute · reading 85 MB/s from this computer’s drives, 22 MB/s from network folders · a song takes 5.2 s to read and 900 ms to analyse');
+  const speed = { perMin: 42, localMBs: 85, netMBs: 22, localReadMs: 300, netReadMs: 5200, analyseMs: 900, songs: 84, netSongs: 30, history: [0, 0, 6, 12, 20, 26, 30, 34, 38, 40, 36, 42, 44, 40, 38, 42, 46, 44, 42, 40] };
+  await status({ ...base, speed, steps: { reading: 6, analysing: 2 }, suggestion: 'Songs on network folders spend most of their time being read: fewer at once from each network folder (try 4) leaves places for songs on this computer’s drives.' }, []);
+  const panel = page.locator('#an-speed');
+  await expect(panel.locator('[data-k="per-min"] b')).toHaveText('42');
+  await expect(panel.locator('[data-k="per-min"] .spark i')).toHaveCount(20);
+  await expect(panel.locator('[data-k="local"] b')).toHaveText('85 MB/s');
+  await expect(panel.locator('[data-k="net"] b')).toHaveText('22 MB/s');
+  await expect(panel.locator('[data-k="places"] .mv')).toHaveText('6 reading · 2 analysing · of 8');
+  await expect(panel.locator('[data-k="time"] .mv')).toHaveText('5.2 s reading · 900 ms analysing');
   await expect(page.locator('#an-suggest')).toContainText('try 4');
+  if (process.env.SHOTS) await page.locator('#sec-now').screenshot({ path: 'test-results/speed-panel.png' });
 });
 
 test('GLUE Home whose settings never said running or stopped goes online, and stays so as other settings are saved', async ({ page }) => {

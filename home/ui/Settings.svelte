@@ -112,6 +112,8 @@
   }
   // What GLUE Home is doing (ADR 0103): the analysis, and each new event as a toast for a few seconds.
   const an = $derived(status?.analysing);
+  /** Songs at a time now (as cache.poolSize): the places the meter counts. */
+  const poolNow = $derived(Math.max(1, Math.min(32, Math.round(cfg?.analysisWorkers || 0) || autoPool())));
   let toasts = $state<{ at: number; text: string }[]>([]);
   let seenEvents = 0;
   $effect(() => {
@@ -266,7 +268,30 @@
           <!-- How fast, over the last two minutes, and what might make it faster (ADR 0136). -->
           {#if an.speed}
             {@const sp = an.speed}
-            <p class="fine" id="an-speed">Speed: {Math.round(sp.perMin)} song{Math.round(sp.perMin) === 1 ? '' : 's'} a minute · reading {sp.songs > sp.netSongs ? rate(sp.localMBs) + ' from this computer’s drives' : ''}{sp.songs > sp.netSongs && sp.netSongs ? ', ' : ''}{sp.netSongs ? rate(sp.netMBs) + ' from network folders' : ''} · a song takes {sec(Math.max(sp.localReadMs, sp.netReadMs))} to read and {sec(sp.analyseMs)} to analyse</p>
+            {@const top = Math.max(1, ...sp.history)}
+            {@const read = Math.max(sp.localReadMs, sp.netReadMs)}
+            {@const st = an.steps ?? { reading: 0, analysing: 0 }}
+            <div class="speed" id="an-speed">
+              <h3>Speed <small>· the last two minutes</small></h3>
+              <div class="tiles">
+                <div class="tile" data-k="per-min">
+                  <b>{Math.round(sp.perMin)}</b><span>songs a minute</span>
+                  <span class="spark" aria-hidden="true" title="Songs a minute, the last ten minutes">{#each sp.history as h, i (i)}<i style:height={Math.max(4, (h / top) * 100) + '%'} class:none={!h}></i>{/each}</span>
+                </div>
+                <div class="tile" data-k="local"><b>{sp.songs > sp.netSongs ? rate(sp.localMBs) : '—'}</b><span>read from this computer’s drives</span></div>
+                <div class="tile" data-k="net"><b>{sp.netSongs ? rate(sp.netMBs) : '—'}</b><span>read from network folders</span></div>
+              </div>
+              <div class="meter" data-k="places" title="The songs being analysed now: reading their file, or analysing it. Mostly reading: the drive or network is the limit. Mostly analysing: the processor.">
+                <span class="ml">Places in use</span>
+                <span class="mbar" aria-hidden="true"><i class="rd" style:width={(st.reading / Math.max(1, poolNow)) * 100 + '%'}></i><i class="an" style:width={(st.analysing / Math.max(1, poolNow)) * 100 + '%'}></i></span>
+                <span class="mv"><em class="rd">{st.reading} reading</em> · <em class="an">{st.analysing} analysing</em> · of {poolNow}</span>
+              </div>
+              <div class="meter" data-k="time" title="A song's average time over the last two minutes: reading its file, then analysing it.">
+                <span class="ml">A song’s time</span>
+                <span class="mbar" aria-hidden="true"><i class="rd" style:width={(read / Math.max(1, read + sp.analyseMs)) * 100 + '%'}></i><i class="an" style:width={(sp.analyseMs / Math.max(1, read + sp.analyseMs)) * 100 + '%'}></i></span>
+                <span class="mv"><em class="rd">{sec(read)} reading</em> · <em class="an">{sec(sp.analyseMs)} analysing</em></span>
+              </div>
+            </div>
           {/if}
           {#if an.suggestion}<p class="fine tip" id="an-suggest">{an.suggestion}</p>{/if}
         {:else}<p class="fine">Starting…</p>{/if}
@@ -421,6 +446,26 @@
   h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
   p { margin: 0; }
   .fine { color: var(--muted); font-size: 12.5px; }
+  /* How fast it analyses (ADR 0136): tiles, a ten-minute chart, and two meters, like the website's admin stats. */
+  .speed { display: grid; gap: 8px; margin: 6px 0 4px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .tile { background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; min-width: 0; align-content: start; }
+  .speed h3 small { font-weight: 400; }
+  .tile b { font-size: 20px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 11.5px; color: var(--muted); }
+  .spark { display: flex; align-items: flex-end; gap: 2px; height: 22px; margin-top: 4px; }
+  .spark i { flex: 1; background: var(--accent); border-radius: 1px; opacity: .85; }
+  .spark i.none { background: var(--line-2); opacity: .5; }
+  .meter { display: grid; grid-template-columns: 110px minmax(80px, 1fr) auto; gap: 10px; align-items: center; font-size: 12.5px; }
+  .meter .ml { color: var(--ink-2); }
+  .mbar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; display: flex; }
+  .mbar i { height: 100%; }
+  .mbar i.rd, .mv em.rd::before { background: var(--warn); }
+  .mbar i.an, .mv em.an::before { background: var(--ok); }
+  .mv { color: var(--muted); white-space: nowrap; }
+  .mv em { font-style: normal; }
+  .mv em::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+  @media (max-width: 560px) { .tiles { grid-template-columns: 1fr; } .meter { grid-template-columns: 1fr; gap: 4px; } }
   .fine.tip { color: var(--text, inherit); border-left: 3px solid var(--accent, #7cc7ff); padding-left: 8px; }
   #activity { margin-top: 10px; }
   #activity summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }

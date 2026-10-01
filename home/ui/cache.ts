@@ -135,43 +135,54 @@ let pool: AnalysisPool | null = null;
 export async function analyse(p: string, c: string, id: string, cfg: HomeConfig, tell = true): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null; bytes: number; readMs: number; analyseMs: number }> {
   const f = await trackPath(p, c, id, cfg);
   const t0 = performance.now();
-  const size = await bridge.fileSize(f.path), parts: ArrayBuffer[] = [];
-  let got = 0;
-  for (let at = 0; at < size;) { const b = await bridge.fileRead(f.path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; got = at; }
-  // A network folder that dropped mid-file: tried again later, never decoded (and kept as failed) from a part.
-  if (got < size) throw new Error('GLUE Home read only part of ' + f.name + ' (' + got + ' of ' + size + ' bytes): its folder isn’t reachable right now');
-  const t1 = performance.now();
-  const want = poolSize(cfg);
-  if (pool && pool.size !== want) { const old = pool; pool = null; setTimeout(() => old.stop(), 150_000); }   // what runs there finishes
-  pool ??= new AnalysisPool(want);
-  // A song that never finishes (it won't decode) mustn't hold up the others: 2 minutes at most, then its
-  // worker ends (only its: every other song goes on).
-  let r: Awaited<ReturnType<AnalysisPool['analyze']>>;
+  step(null, 'reading');
+  let now: 'reading' | 'analysing' | null = 'reading';
   try {
-    r = await pool.analyze(new File(parts, f.name, { lastModified: f.mtime }), f.mtime, 120_000);
-  } catch (e) {
-    // Out of time or memory, or its worker stopped: tried again later (ADR 0109), never saved as the song's.
-    if (/analysis worker stopped/.test(String((e as Error)?.message)) || isTransient(String((e as Error)?.message))) throw e;
-    // Said once, like a GLUE tab says it: not tried again until the file changes.
-    const msg = String((e as Error)?.message || 'It couldn’t be decoded.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'It couldn’t be decoded.');
-    await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify({ summary: failed(msg, { size, mtime: f.mtime }), size, mtime: f.mtime, format: null, duration: null, fields: {} } satisfies Analysed)));
+    const size = await bridge.fileSize(f.path), parts: ArrayBuffer[] = [];
+    let got = 0;
+    for (let at = 0; at < size;) { const b = await bridge.fileRead(f.path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; got = at; }
+    // A network folder that dropped mid-file: tried again later, never decoded (and kept as failed) from a part.
+    if (got < size) throw new Error('GLUE Home read only part of ' + f.name + ' (' + got + ' of ' + size + ' bytes): its folder isn’t reachable right now');
+    const t1 = performance.now();
+    step('reading', 'analysing'); now = 'analysing';
+    const want = poolSize(cfg);
+    if (pool && pool.size !== want) { const old = pool; pool = null; setTimeout(() => old.stop(), 150_000); }   // what runs there finishes
+    pool ??= new AnalysisPool(want);
+    // A song that never finishes (it won't decode) mustn't hold up the others: 2 minutes at most, then its
+    // worker ends (only its: every other song goes on).
+    let r: Awaited<ReturnType<AnalysisPool['analyze']>>;
+    try {
+      r = await pool.analyze(new File(parts, f.name, { lastModified: f.mtime }), f.mtime, 120_000);
+    } catch (e) {
+      // Out of time or memory, or its worker stopped: tried again later (ADR 0109), never saved as the song's.
+      if (/analysis worker stopped/.test(String((e as Error)?.message)) || isTransient(String((e as Error)?.message))) throw e;
+      // Said once, like a GLUE tab says it: not tried again until the file changes.
+      const msg = String((e as Error)?.message || 'It couldn’t be decoded.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'It couldn’t be decoded.');
+      await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify({ summary: failed(msg, { size, mtime: f.mtime }), size, mtime: f.mtime, format: null, duration: null, fields: {} } satisfies Analysed)));
+      if (tell) onAnalysed.f?.(p, c, id);
+      throw e;
+    }
+    const t2 = performance.now();
+    step('analysing', null); now = null;
+    if (r.thumb) await putThumb(p, c, id, r.thumb);
+    if (r.wave) await putWave(p, c, id, r.wave);
+    if (r.details) await putDetails(p, c, id, r.details.header, r.details.bin);
+    if (r.art !== undefined) await keepCover(p, c, id, r.art);
+    if (r.fp) await bridge.cacheWrite(pKey(p, c, id), encodeFingerprint(r.fp));
+    await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify(analysed(r, size, f.mtime))));   // last: a result has all its parts
     if (tell) onAnalysed.f?.(p, c, id);
-    throw e;
-  }
-  const t2 = performance.now();
-  if (r.thumb) await putThumb(p, c, id, r.thumb);
-  if (r.wave) await putWave(p, c, id, r.wave);
-  if (r.details) await putDetails(p, c, id, r.details.header, r.details.bin);
-  if (r.art !== undefined) await keepCover(p, c, id, r.art);
-  if (r.fp) await bridge.cacheWrite(pKey(p, c, id), encodeFingerprint(r.fp));
-  await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify(analysed(r, size, f.mtime))));   // last: a result has all its parts
-  if (tell) onAnalysed.f?.(p, c, id);
-  onMade.f?.(p, c, id);
-  return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null, bytes: got, readMs: t1 - t0, analyseMs: t2 - t1 };
+    onMade.f?.(p, c, id);
+    return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null, bytes: got, readMs: t1 - t0, analyseMs: t2 - t1 };
+  } finally { if (now) step(now, null); }
 }
 
 /** A song's parts were made here (any reason): the devices with a session are told (ADR 0133). */
 export const onMade: { f: ((p: string, c: string, id: string) => void) | null } = { f: null };
+
+/** The songs being analysed now, by step (ADR 0136): reading the file, or analysing it. Mostly reading means the
+    drive or network is the limit; mostly analysing, the processor. GLUE Home's window shows it as a meter. */
+export const steps = { reading: 0, analysing: 0, changed: null as (() => void) | null };
+const step = (from: 'reading' | 'analysing' | null, to: 'reading' | 'analysing' | null) => { if (from) steps[from]--; if (to) steps[to]++; steps.changed?.(); };
 
 type Job = { p: string; c: string; id: string; done: ((ok: boolean) => void)[] };
 const urgent: Job[] = [];

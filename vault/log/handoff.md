@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-01)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.3.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.41.4.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -79,7 +79,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - with the NAS folder and local folders both waiting, the processor should go well above 60%;
   - the NAS folder alone is network-bound (about 1,500 hi-res songs an hour).
   - The network cap is the user's now (0.41.3, ADR 0136): "From each network folder at a time", with the speed and a
-    suggestion in GLUE Home's window. Ask what the speed line says with the NAS and local folders analysing.
+    suggestion in GLUE Home's window (0.41.4: a panel, Activity › Speed). Ask what it shows with the NAS and local folders
+    analysing.
 - **Network folders** (GLUE Home 0.41.1, ADR 0134):
   - **Windows:** drop a network folder. The page says "Looking for…", then "Choose … in GLUE Home's window" after
     about 5 s.
