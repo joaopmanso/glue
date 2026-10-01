@@ -73,12 +73,14 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
-- **The analysis starving GLUE Home** (ADR 0137, open): with 24 at a time (16 processors) and the network folder at 4,
-  the desktop's direct link and the iPhone's connection broke; stopping the analysis fixed them.
-  - 0.41.5 makes the link check patient and keeps this computer out of the remote sessions.
-  - The cause is to be measured with the analysis running (CPU per process, `/hello` times): the processor, or GLUE
-    Home's page carrying every song's bytes (4 MB `fileRead`s on its main thread). Then decide: keep processors
-    free while devices are connected, or read the files in the workers.
+- **The analysis starving GLUE Home** (ADR 0137): **settled by 0.41.5.** The user confirmed the desktop keeps its
+  direct link and the iPhone streams with 24 at a time and network folders at 4.
+  - **Measured during it:** GLUE Home's `/hello` answered in 2 to 4 ms. Its analysis process used about a quarter of
+    the machine (4 threads busy, the main thread about 11%). The network took 185 Mbit/s of a gigabit link.
+  - **So it was the page's impatient link check and its fallback session to its own GLUE Home,** not the processor
+    or the network.
+  - **The Speed panel:** 6 reading, 2 analysing; a song 31.8 s reading, 16.5 s analysing. The NAS is the limit
+    (two NAS folders at 4 each).
 - **Analysis on the desktop** (GLUE Home 0.41.2, ADR 0135):
   - the tab's "left" and GLUE Home's window should match;
   - a new big folder's "Reading tags…" should move in steps of 200;

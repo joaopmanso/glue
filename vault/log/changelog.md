@@ -13,8 +13,9 @@ Newest first. Each entry: date, milestone, what changed, links.
     other requests;
   - never opens a remote session to this computer's own GLUE Home.
 - **GLUE Home** lets its own computer's browser in always; "Most at once" counts other devices only.
-- **Still open:** why the analysis starves GLUE Home's answers and the phone's connection (the processor, or GLUE
-  Home's page carrying every song's bytes). To be measured with the analysis running.
+- **Measured after, with the analysis running (24 at a time, network at 4):** the desktop kept its link and the iPhone
+  streamed. GLUE Home answered in 2–4 ms, used about a quarter of the machine, and the network ran at 185 Mbit/s of
+  a gigabit link. The cause was the impatient link check and the fallback session, not the processor or the network.
 
 ## 2026-10-01 · GLUE Home 0.41.4: the speed as a panel
 - **The user:** a meter rather than a line of text, like the website's admin stats (ADR 0136).
