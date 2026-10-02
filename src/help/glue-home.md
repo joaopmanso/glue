@@ -1,7 +1,7 @@
 ---
 title: GLUE Home
 summary: The app for your computer: analysis with the browser closed, songs on your other devices, the drag dock.
-keywords: glue home, app, tray, session, connected, devices connected, most at once, disconnect, engine, background, stream, drag dock, incoming, stop, start, restart, download, windows, mac
+keywords: glue home, app, tray, playing, slow to start, hard disk, sleep, session, connected, devices connected, most at once, disconnect, engine, background, stream, drag dock, incoming, stop, start, restart, download, windows, mac
 tour: glue-home
 order: 12
 ---
@@ -21,6 +21,9 @@ Download it from GLUE (Devices › + GLUE Home), install, and connect it with th
 
 ## Devices connected
 Each of your other devices keeps a private connection with GLUE Home while GLUE is open on it (one per browser tab): its songs, waveforms and covers come through it, encrypted end to end, and GLUE Home tells it at once when something's ready. Its window lists the devices connected, with **Disconnect** (that tab is refused for an hour). **Most at once** (5 unless you change it) is how many it takes: when that many are connected, another device is told GLUE Home is full.
+
+## Playing comes first
+A song you play, on this computer or streamed to another device, goes ahead of the analysis: the analysis pauses its reads while the song loads, and songs have a connection of their own to GLUE Home. If the first song after a while still takes several seconds, a hard disk may be waking up: Windows turns hard disks off when they've been idle (20 minutes, unless changed in Power Options), and spinning up takes the drive a few seconds.
 
 ## How fast it analyses
 GLUE Home's window shows how fast it's going (Activity › Speed): songs a minute with a chart of the last ten minutes, how fast it reads your drives and network folders, and two meters. **Places in use** shows the songs being analysed now, reading their file (orange) or analysing it (green): mostly orange means the drive or network is the limit, mostly green the processor. **A song's time** shows the same, on average. When something stands out it suggests a change.

@@ -1142,7 +1142,7 @@ class Library {
     // whole download, ADR 0084).
     if (t.remote) { const u = await this.streamFor?.(t); if (u) return u; }
     else if (!t.fileKey && t.rootId && t.relPath && t.status === 'linked' && platform.homeMode() && playsNatively(typeOfName(t.fileName))) {
-      const r = this.rootState(t.rootId), link = r ? await platform.fileLink(r.root, t.relPath) : null;
+      const r = this.rootState(t.rootId), link = r ? await platform.fileLink(r.root, t.relPath, true) : null;
       if (link) return link;
     }
     return playable(await this.fileFor(t));

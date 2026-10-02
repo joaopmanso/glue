@@ -44,7 +44,8 @@ fn roots(app: &AppHandle) -> (Option<PathBuf>, PathBuf, Vec<(String, PathBuf)>) 
 /// library's folder (which is read only).
 fn regular(app: &AppHandle, dir: &Path) -> bool {
     let (glue, incoming, folders) = roots(app);
-    glue.into_iter().chain(std::iter::once(incoming)).chain(folders.into_iter().map(|f| f.1)).any(|r| fs::canonicalize(&r).map(|c| c == dir).unwrap_or(false))
+    let all: Vec<PathBuf> = glue.into_iter().chain(std::iter::once(incoming)).chain(folders.into_iter().map(|f| f.1)).collect();
+    crate::roots_for(all, &dir.to_string_lossy()).iter().any(|r| crate::resolved(r).is_some_and(|c| c == dir))
 }
 
 /// The root the website names, if it's one of GLUE Home's roots (compared once resolved).
@@ -54,12 +55,12 @@ fn root(app: &AppHandle, name: &str) -> Result<PathBuf, Fail> {
         std::io::ErrorKind::PermissionDenied => fail(403, format!("this computer doesn't let GLUE Home into {name} (on a Mac: System Settings › Privacy & Security › Files and Folders, or Full Disk Access)")),
         _ => fail(404, format!("{name} isn't reachable right now (a network folder not connected, a drive not plugged in, or the folder was moved or renamed)")),
     })?;
+    // The website names a root as GLUE Home's settings do (/fs/roots): that one folder is looked up, no other
+    // (ADR 0141). Any other spelling of one: the folders' remembered names.
     let (glue, incoming, folders) = roots(app);
-    let all = glue.into_iter().chain(std::iter::once(incoming)).chain(folders.into_iter().map(|f| f.1));
-    for r in all {
-        if fs::canonicalize(&r).map(|c| c == want).unwrap_or(false) {
-            return Ok(want);
-        }
+    let all: Vec<PathBuf> = glue.into_iter().chain(std::iter::once(incoming)).chain(folders.into_iter().map(|f| f.1)).collect();
+    if all.iter().any(|r| r.as_os_str() == name) || all.iter().any(|r| crate::resolved(r).is_some_and(|c| c == want)) {
+        return Ok(want);
     }
     // The DJ libraries GLUE Home found (ADR 0065): read only.
     if crate::libraries::is_library(app, &want) {

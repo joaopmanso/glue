@@ -13,6 +13,10 @@ use tauri::{AppHandle, Emitter};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 pub static PORT: AtomicU16 = AtomicU16::new(0);
+/// The songs' own port (ADR 0141): the same link, for the songs the website plays only. A browser opens at most 6
+/// connections to one address, and the page's other requests to GLUE Home share them: a song clicked mustn't wait
+/// for one (the first song after opening GLUE took 34 s, 2026-10-02). 0 until it listens.
+pub static PLAY_PORT: AtomicU16 = AtomicU16::new(0);
 // GLUE Home's own service page too (it applies edits through the same file API when no GLUE tab is
 // open, ADR 0087): Tauri's origin on Windows and on macOS, and the test server's.
 const ORIGINS: [&str; 7] = ["https://joaopmanso.github.io", "http://localhost:5174", "http://localhost:5175", "http://localhost:5173", "http://tauri.localhost", "tauri://localhost", "http://localhost:5176"];
@@ -84,11 +88,22 @@ pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
         let Some((server, port)) = (47400..47410).find_map(|p| Server::http(("127.0.0.1", p)).ok().map(|s| (s, p))) else { return };
         PORT.store(port, Ordering::Relaxed);
-        for req in server.incoming_requests() {
+        if let Ok(play) = Server::http(("127.0.0.1", 0)) {
+            if let Some(p) = play.server_addr().to_ip().map(|a| a.port()) {
+                PLAY_PORT.store(p, Ordering::Relaxed);
+            }
             let app = app.clone();
-            std::thread::spawn(move || handle(app, req));
+            std::thread::spawn(move || serve(app, play));
         }
+        serve(app, server);
     });
+}
+
+fn serve(app: AppHandle, server: Server) {
+    for req in server.incoming_requests() {
+        let app = app.clone();
+        std::thread::spawn(move || handle(app, req));
+    }
 }
 
 pub(crate) fn header(k: &str, v: &str) -> Header {
@@ -170,7 +185,7 @@ fn answer(app: AppHandle, req: Request) {
         return reply(req, 503, b"{\"error\":\"GLUE Home is stopped\"}".to_vec(), "application/json");
     }
     if path == "/hello" {
-        let body = serde_json::json!({ "app": "glue-home", "version": app.package_info().version.to_string(), "device": s("deviceId"), "wsPort": crate::ws::WS_PORT.load(Ordering::Relaxed) });
+        let body = serde_json::json!({ "app": "glue-home", "version": app.package_info().version.to_string(), "device": s("deviceId"), "wsPort": crate::ws::WS_PORT.load(Ordering::Relaxed), "playPort": PLAY_PORT.load(Ordering::Relaxed) });
         return reply(req, 200, body.to_string().into_bytes(), "application/json");
     }
     // A GLUE page in any browser on this computer takes the link (ADR 0115): being the GLUE website (its origin,
@@ -185,7 +200,7 @@ fn answer(app: AppHandle, req: Request) {
         if !origin.as_deref().map(site).unwrap_or(false) || token.is_empty() {
             return reply(req, 403, b"{\"error\":\"not allowed\"}".to_vec(), "application/json");
         }
-        let body = serde_json::json!({ "home": s("deviceId"), "port": PORT.load(Ordering::Relaxed), "wsPort": crate::ws::WS_PORT.load(Ordering::Relaxed), "token": token, "version": app.package_info().version.to_string() });
+        let body = serde_json::json!({ "home": s("deviceId"), "port": PORT.load(Ordering::Relaxed), "wsPort": crate::ws::WS_PORT.load(Ordering::Relaxed), "playPort": PLAY_PORT.load(Ordering::Relaxed), "token": token, "version": app.package_info().version.to_string() });
         return reply(req, 200, body.to_string().into_bytes(), "application/json");
     }
     // Everything else: the token GLUE Home gave the website (a header, or ?t= for <audio src>). The full one

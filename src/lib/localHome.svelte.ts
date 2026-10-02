@@ -7,13 +7,16 @@ import { readPref, writePref } from './prefs';
 import { setHomeLink } from '../platform';
 import { homeOs } from './homeApp';
 
-/** `wsPort`: its socket for the background loads (GLUE Home 0.42, ADR 0139). */
-export interface LocalLink { home: string; port: number; token: string; version: string; wsPort?: number }
+/** `wsPort`: its socket for the background loads (GLUE Home 0.42, ADR 0139). `playPort`: its port for the songs played
+    (GLUE Home 0.42.2, ADR 0141), their own 6 connections in the browser. */
+export interface LocalLink { home: string; port: number; token: string; version: string; wsPort?: number; playPort?: number }
+/** Its other ports, from an answer of GLUE Home ('/hello', '/connect'). */
+const ports = (h: { wsPort?: number; playPort?: number }) => ({ ...(h.wsPort ? { wsPort: h.wsPort } : {}), ...(h.playPort ? { playPort: h.playPort } : {}) });
 const PREF = 'localHome';
 
 /** Why the last try failed (shown in Devices). */
 let why = '';
-async function hello(port: number, ms = 1500): Promise<{ app: string; version: string; device: string; wsPort?: number } | null> {
+async function hello(port: number, ms = 1500): Promise<{ app: string; version: string; device: string; wsPort?: number; playPort?: number } | null> {
   try {
     const r = await fetch('http://127.0.0.1:' + port + '/hello', { signal: AbortSignal.timeout(ms) });
     if (!r.ok) { why = 'it answered ' + r.status; return null; }
@@ -31,7 +34,7 @@ async function connect(port: number, ms = 1500): Promise<LocalLink | null> {
     const r = await fetch('http://127.0.0.1:' + port + '/connect', { signal: AbortSignal.timeout(ms) });
     if (!r.ok) return null;
     const j = await r.json() as Partial<LocalLink>;
-    return typeof j.token === 'string' && j.token && typeof j.port === 'number' ? { home: j.home ?? '', port: j.port, token: j.token, version: j.version ?? '', ...(j.wsPort ? { wsPort: j.wsPort } : {}) } : null;
+    return typeof j.token === 'string' && j.token && typeof j.port === 'number' ? { home: j.home ?? '', port: j.port, token: j.token, version: j.version ?? '', ...ports(j) } : null;
   } catch { return null; }
 }
 
@@ -71,7 +74,9 @@ class LocalHome {
 
   /** The link to this GLUE Home, if it's the one on this computer and it answers. */
   for(home: string | null | undefined) { return home && this.link?.home === home ? this.link : null; }
-  url(path: string) { const l = this.link!; return 'http://127.0.0.1:' + l.port + path + (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(l.token); }
+  url(path: string, port = this.link!.port) { const l = this.link!; return 'http://127.0.0.1:' + port + path + (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(l.token); }
+  /** A song to play: on GLUE Home's port for songs when it has one (ADR 0141), so nothing else the page asks for holds it up. */
+  playUrl(path: string) { return this.url(path, this.link!.playPort || this.link!.port); }
   async get<T>(path: string): Promise<T> {
     const r = await fetch(this.url(path), { signal: AbortSignal.timeout(20_000) });
     if (!r.ok) throw new Error((await r.json().catch(() => ({})) as { error?: string }).error || 'GLUE Home said no (' + r.status + ')');
@@ -94,7 +99,7 @@ class LocalHome {
     if (await this.findHere(known.port)) return;
     // An older GLUE Home (no /connect): the link it gave this browser before, if it's still the one answering.
     const h = await hello(known.port);
-    if (h?.app === 'glue-home' && h.device === known.home) { this.setLink({ ...known, version: h.version, ...(h.wsPort ? { wsPort: h.wsPort } : {}) }); this.problem = ''; }
+    if (h?.app === 'glue-home' && h.device === known.home) { this.setLink({ ...known, version: h.version, ...ports(h) }); this.problem = ''; }
   }
   /** The GLUE Home on this computer, asked for its link directly (ADR 0115): any browser here gets it, so Edge
       shows what Chrome shows. Only when there's a reason (this browser met it before, or the account has a GLUE
@@ -125,7 +130,7 @@ class LocalHome {
       // Long enough for the browser's "access apps on this device" question to be answered.
       const h = await hello(a.port, 60_000);
       if (h?.app !== 'glue-home' || h.device !== home) { this.problem = h ? 'another GLUE Home answers on 127.0.0.1:' + a.port : why; return; }
-      this.setLink({ home, port: a.port, token: a.token, version: h.version, ...(h.wsPort ? { wsPort: h.wsPort } : {}) });
+      this.setLink({ home, port: a.port, token: a.token, version: h.version, ...ports(h) });
       this.problem = '';
       writePref(PREF, JSON.stringify({ home, port: a.port, token: a.token }));
     } catch (e) { this.problem = 'it didn’t answer (' + (e as Error).message + ')'; } finally { this.learning = false; }

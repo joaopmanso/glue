@@ -1,8 +1,8 @@
 ---
 status: in-progress
 milestone: M9
-updated: 2026-09-28
-adrs: [0068, 0067, 0076, 0080]
+updated: 2026-10-02
+adrs: [0068, 0067, 0076, 0080, 0140, 0141]
 ---
 # Player
 
@@ -21,6 +21,8 @@ spectrogram. Clicking the spectrogram seeks there and starts playing. Space play
   doesn't interrupt it: the page's source waits (`player.defer`), the page's bar shows "Still
   playing: …" with its own pause, and the page's track loads on its first play, seek or
   spectrogram click (2026-09-25). The library's now-playing follows whatever was loaded last.
+- In Home mode a song streams from GLUE Home's port for songs (`playPort`, ADR 0141): the browser's connections
+  there are the songs' only, and while a song loads, GLUE Home's analysis pauses its reads (ADR 0140).
 
 ## Limits & open questions
 - Fixed in M1: a quick pause/play inside one frame could start a second play loop (now exactly one

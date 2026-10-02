@@ -18,7 +18,8 @@ export class HomeDown extends Error {
 export class HomeDisk {
   /** Told when a request can't reach GLUE Home at all. */
   onDown: (() => void) | null = null;
-  constructor(private base: string, private token: string) {}
+  /** `playBase`: GLUE Home's port for songs played (0.42.2, ADR 0141), their own connections in the browser. */
+  constructor(private base: string, private token: string, private playBase = base) {}
 
   async call(path: string, params: Record<string, string>, init: RequestInit = {}): Promise<Response> {
     // The token in the address, not a header: requests stay "simple", with no CORS preflight each.
@@ -65,8 +66,8 @@ export class HomeDisk {
   lease() { return this.json<{ edits: number }>('/lease', {}, { method: 'POST', signal: AbortSignal.timeout(4_000) }); }
   /** This tab lets go of the lease (GLUE Home's engine writes now, ADR 0104). */
   release() { return this.json<{ edits: number }>('/lease', { release: '1' }, { method: 'POST', signal: AbortSignal.timeout(4_000) }); }
-  /** A file's URL on the local link (for <audio src>: plays and seeks with byte ranges). */
-  fileUrl(root: string, path: string) { return this.base + '/fs/file?' + new URLSearchParams({ root, path, t: this.token }); }
+  /** A file's URL on the local link (for <audio src>: plays and seeks with byte ranges); `play`: on the port for songs. */
+  fileUrl(root: string, path: string, play = false) { return (play ? this.playBase : this.base) + '/fs/file?' + new URLSearchParams({ root, path, t: this.token }); }
 }
 
 const join = (a: string, b: string) => a ? a + '/' + b : b;

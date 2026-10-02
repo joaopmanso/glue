@@ -236,7 +236,7 @@ class RemoteFiles {
     // doesn't play come whole.
     const aiff = type === 'audio/aiff' && !playsNatively(type) && playsNatively('audio/wav');
     if (!aiff && !playsNatively(type)) return null;
-    if (src.incoming && localHome.for(home)) return aiff ? null : localHome.url('/incoming/file?name=' + encodeURIComponent(src.incoming));
+    if (src.incoming && localHome.for(home)) return aiff ? null : localHome.playUrl('/incoming/file?name=' + encodeURIComponent(src.incoming));
     if (!(await streamsReady())) return null;
     const req: RangeReq = src.incoming ? { incoming: src.incoming } : { profile: r.profile!, collection: r.collection!, track: r.id! };
     // One small ask first: the file's size and type. A connection that went bad is made again once;

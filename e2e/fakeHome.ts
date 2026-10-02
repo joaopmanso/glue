@@ -10,6 +10,8 @@ export interface FakeHomeDirs { glue: string; incoming: string; folders: Record<
 export class FakeHome {
   /** One per parallel worker: tests that each run a stand-in can run at the same time. */
   readonly port = 47450 + (Number(process.env.TEST_PARALLEL_INDEX) || 0);
+  /** Its port for songs played (ADR 0141): the same link. */
+  readonly playPort = 47550 + (Number(process.env.TEST_PARALLEL_INDEX) || 0);
   readonly token = 'e2e-token';
   /** The read-only token (a GLUE tab when GLUE Home is the engine, ADR 0104): no writes. */
   readonly readToken = 'e2e-read';
@@ -24,6 +26,8 @@ export class FakeHome {
   calls: string[] = [];
   /** Files sent (/fs/file), by path in their root; " (part)" for a byte range. */
   reads: string[] = [];
+  /** The same, asked on the port for songs played. */
+  played: string[] = [];
   /** The drag dock's queue (ADR 0054), and whether it was shown. */
   dock: { root: string; path: string }[] = [];
   dockShown = false;
@@ -46,6 +50,7 @@ export class FakeHome {
   /** Stop pressed in GLUE Home (running: false): the local link answers the website 503 (local.rs), as if quit. */
   stopped = false;
   private server: Server | null = null;
+  private playServer: Server | null = null;
   constructor(readonly dirs: FakeHomeDirs) {}
 
   get pref() { return { home: this.device, port: this.port, token: this.token }; }
@@ -53,32 +58,34 @@ export class FakeHome {
   start() {
     return new Promise<void>(ok => {
       this.server = createServer((req, res) => this.handle(req.url ?? '/', req.method ?? 'GET', req.headers, req, res));
-      this.server.listen(this.port, '127.0.0.1', () => ok());
+      this.playServer = createServer((req, res) => this.handle(req.url ?? '/', req.method ?? 'GET', req.headers, req, res, true));
+      this.playServer.listen(this.playPort, '127.0.0.1', () => this.server!.listen(this.port, '127.0.0.1', () => ok()));
     });
   }
   stop() {
+    this.playServer?.closeAllConnections(); this.playServer?.close(); this.playServer = null;
     return new Promise<void>(ok => { if (!this.server) return ok(); this.server.closeAllConnections(); this.server.close(() => ok()); this.server = null; });
   }
 
   private roots() { return [this.dirs.glue, this.dirs.incoming, ...Object.values(this.dirs.folders), ...this.libraries.map(l => l.dir)].map(p => resolve(p)); }
 
-  private handle(url: string, method: string, headers: Record<string, string | string[] | undefined>, req: NodeJS.ReadableStream, res: import('node:http').ServerResponse) {
+  private handle(url: string, method: string, headers: Record<string, string | string[] | undefined>, req: NodeJS.ReadableStream, res: import('node:http').ServerResponse, play = false) {
     const u = new URL(url, 'http://127.0.0.1'), q = u.searchParams;
     if (this.stopped && method !== 'OPTIONS') {
       res.writeHead(503, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': String(headers.origin ?? '*'), 'Access-Control-Allow-Private-Network': 'true' });
       return res.end(JSON.stringify({ error: 'GLUE Home is stopped' }));
     }
     this.calls.push(u.pathname);
-    if (u.pathname === '/fs/file') this.reads.push((q.get('path') ?? '') + (headers.range ? ' (part)' : ''));
+    if (u.pathname === '/fs/file') (play ? this.played : this.reads).push((q.get('path') ?? '') + (headers.range ? ' (part)' : ''));
     const origin = String(headers.origin ?? '');
     const send = (code: number, body: unknown, type = 'application/json') => {
       res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': origin || '*', 'Access-Control-Allow-Private-Network': 'true', 'Access-Control-Expose-Headers': 'content-range, x-glue-mtime' });
       res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
     };
     if (method === 'OPTIONS') return send(204, '');
-    if (u.pathname === '/hello') return send(200, { app: 'glue-home', version: '0.5.0', device: this.device });
+    if (u.pathname === '/hello') return send(200, { app: 'glue-home', version: '0.5.0', device: this.device, playPort: this.playPort });
     // A GLUE page on this computer takes the link (ADR 0115).
-    if (u.pathname === '/connect') return /^http:\/\/localhost:517\d$/.test(origin) ? send(200, { home: this.device, port: this.port, token: this.token, version: '0.37.0' }) : send(403, { error: 'not allowed' });
+    if (u.pathname === '/connect') return /^http:\/\/localhost:517\d$/.test(origin) ? send(200, { home: this.device, port: this.port, playPort: this.playPort, token: this.token, version: '0.37.0' }) : send(403, { error: 'not allowed' });
     const reading = q.get('t') === this.readToken;
     if (q.get('t') !== this.token && !reading) return send(401, { error: 'not allowed' });
     if (reading && ['/fs/write', '/fs/mkdir', '/fs/remove', '/fs/tags', '/fs/dupes', '/incoming/move'].includes(u.pathname)) { this.refused.push(u.pathname); return send(403, { error: 'read only' }); }

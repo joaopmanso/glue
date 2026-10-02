@@ -407,6 +407,32 @@ async fn glue_list(app: AppHandle, rel: String) -> Result<Vec<String>, String> {
     Ok(dir.flatten().filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false)).map(|e| e.file_name().to_string_lossy().into_owned()).collect())
 }
 
+/// A folder of GLUE Home's settings as the disk names it (`canonicalize`), remembered (ADR 0141): every file read
+/// looked up every folder on every request, the NAS's among them, so a song on a local drive waited on the network,
+/// or woke a sleeping drive it doesn't live on. One that can't be reached is tried again after 30 s, a found one
+/// after 10 minutes (a drive letter mapped elsewhere).
+pub(crate) fn resolved(root: &std::path::Path) -> Option<PathBuf> {
+    static SEEN: Mutex<Option<HashMap<PathBuf, (Option<PathBuf>, std::time::Instant)>>> = Mutex::new(None);
+    let fresh = |(c, at): &(Option<PathBuf>, std::time::Instant)| at.elapsed().as_secs() < if c.is_some() { 600 } else { 30 };
+    if let Some(hit) = SEEN.lock().unwrap().as_ref().and_then(|m| m.get(root)).filter(|e| fresh(e)) {
+        return hit.0.clone();
+    }
+    // Looked up without the lock: a network folder that's slow to answer holds up no other request.
+    let c = fs::canonicalize(root).ok();
+    SEEN.lock().unwrap().get_or_insert_with(HashMap::new).insert(root.to_path_buf(), (c.clone(), std::time::Instant::now()));
+    c
+}
+
+/// The folders GLUE Home may use, the ones `path` is written under first (so a file is matched without looking
+/// up any other folder: a network folder, another drive).
+pub(crate) fn roots_for(roots: Vec<PathBuf>, path: &str) -> Vec<PathBuf> {
+    let low = path.replace('\\', "/").to_lowercase();
+    let under = |r: &PathBuf| low.starts_with(&r.to_string_lossy().replace('\\', "/").to_lowercase());
+    let (mut first, rest): (Vec<_>, Vec<_>) = roots.into_iter().partition(under);
+    first.extend(rest);
+    first
+}
+
 /// Files GLUE Home may read: in the GLUE folder, the music folders it located, the incoming folder.
 pub(crate) fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
     let c = get_config(app.clone());
@@ -415,11 +441,9 @@ pub(crate) fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
         roots.extend(m.values().filter_map(|v| v.as_str()).map(PathBuf::from));
     }
     let p = fs::canonicalize(path).map_err(|e| e.to_string())?;
-    for r in roots {
-        if let Ok(r) = fs::canonicalize(r) {
-            if p.starts_with(&r) {
-                return Ok(p);
-            }
+    for r in roots_for(roots, path) {
+        if resolved(&r).is_some_and(|r| p.starts_with(r)) {
+            return Ok(p);
         }
     }
     Err("not in a folder GLUE Home may read".into())
@@ -703,4 +727,30 @@ fn main() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A file is matched against the folder it's written under first: no other folder looked up (ADR 0141).
+    #[test]
+    fn the_folder_a_file_is_under_comes_first() {
+        let roots = vec![PathBuf::from(r"\nas\Archive"), PathBuf::from(r"F:\Music Collection"), PathBuf::from(r"F:\Music")];
+        let order = roots_for(roots, r"f:\music\Song.wav");
+        assert_eq!(order[0], PathBuf::from(r"F:\Music"));
+        assert_eq!(order.len(), 3);
+    }
+
+    // A folder's name on the disk is looked up once, then remembered: gone a moment later, it's still the one known.
+    #[test]
+    fn a_folder_is_looked_up_once() {
+        let dir = std::env::temp_dir().join(format!("glue-resolved-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let first = resolved(&dir);
+        assert!(first.is_some());
+        fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(resolved(&dir), first);
+        assert_eq!(resolved(&dir.join("never-there")), None);
+    }
 }

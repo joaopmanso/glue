@@ -5,6 +5,18 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.42.2: songs get their own port; a read looks up only its folder
+- **The user:** on 0.42.1, the first song after opening GLUE (a WAV on F:) took 34 s; the next ones started at once,
+  a NAS song in under 2 s ([ADR 0141](../adr/0141-songs-get-their-own-port-and-a-read-looks-up-only-its-folder.md)).
+- **Measured:** the same WAV through the local link played in 0.4 s from a browser of its own. F: is a hard disk
+  that Windows turns off after 20 minutes. Every file read resolved each of the 21 music folders until one matched,
+  the NAS's among them, and the songs shared the browser's 6 connections to GLUE Home with everything else.
+- **Now:**
+  - songs played go to a port of their own on GLUE Home (`playPort`), with 6 connections nothing else uses;
+  - a read resolves only its own folder, and each folder's name on disk is remembered;
+  - the e2e stand-in listens on both ports, and the Home-mode test checks songs go to the songs' port and covers
+    don't.
+
 ## 2026-10-02 · GLUE Home 0.42.1: a song played pauses the analysis's reads
 - **The user:** "much much better", but the first song played took about 30 s to start; would a socket help the
   stream? ([ADR 0140](../adr/0140-a-song-played-pauses-the-analysis-reads.md))

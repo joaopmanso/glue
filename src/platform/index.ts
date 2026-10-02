@@ -18,8 +18,8 @@ const older = (v: string, than: string) => { const a = v.split('.').map(Number),
 /** Called when a request finds GLUE Home gone (lib/localHome checks, and the library falls back). */
 export function onHomeDown(f: () => void) { downHook = f; if (disk) disk.onDown = f; }
 /** This computer's GLUE Home answers on the local link (or stopped answering: null). */
-export function setHomeLink(link: { port: number; token: string; version?: string } | null) {
-  disk = link ? new HomeDisk('http://127.0.0.1:' + link.port, link.token) : null;
+export function setHomeLink(link: { port: number; token: string; version?: string; playPort?: number } | null) {
+  disk = link ? new HomeDisk('http://127.0.0.1:' + link.port, link.token, link.playPort ? 'http://127.0.0.1:' + link.playPort : undefined) : null;
   homeVersion = link?.version ?? '';
   if (disk) disk.onDown = () => downHook?.();
   roots = null;
@@ -270,11 +270,12 @@ export async function cleanDuplicates(mode: 'move' | 'trash', items: { root: Roo
   try { return (await disk.dupes(mode, named)).results; }
   catch (e) { throw (e as Error).name === 'NotFoundError' ? new Error('Cleaning up duplicates needs GLUE Home 0.11 or later: it updates itself, or download it again.') : e; }
 }
-/** A music file's address on GLUE Home's local link (Home mode): read in parts, with byte ranges. */
-export async function fileLink(root: Root, path: string): Promise<string | null> {
+/** A music file's address on GLUE Home's local link (Home mode): read in parts, with byte ranges. `play`: a song to
+    play, on GLUE Home's port for songs (ADR 0141). */
+export async function fileLink(root: Root, path: string, play = false): Promise<string | null> {
   if (!homeMode() || !disk) return null;
   const at = await musicFolderPath(root);
-  return at ? disk.fileUrl(at, path) : null;
+  return at ? disk.fileUrl(at, path, play) : null;
 }
 /** A music folder that can be read now: a network folder may not be connected, or a drive not plugged in (an empty
     folder counts as not reachable: what's left where a network folder was mounted). */

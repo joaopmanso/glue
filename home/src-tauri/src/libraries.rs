@@ -92,7 +92,7 @@ pub(crate) fn find(app: &AppHandle) -> Vec<Found> {
 
 /// Is this (resolved) folder one of the libraries' folders?
 pub(crate) fn is_library(app: &AppHandle, dir: &Path) -> bool {
-    find(app).iter().any(|f| std::fs::canonicalize(&f.dir).map(|c| c == dir).unwrap_or(false))
+    find(app).iter().any(|f| crate::resolved(&f.dir).is_some_and(|c| c == dir))
 }
 
 pub(crate) fn json(app: &AppHandle) -> serde_json::Value {

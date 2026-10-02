@@ -616,14 +616,17 @@ test('song info is edited in GLUE, kept while GLUE Home is away, and written int
     expect(home.reads.filter(p => p === 'Sets/flac-cover.flac')).toEqual([]);
     expect(home.reads.filter(p => p === 'Sets/flac-cover.flac (part)').length).toBeGreaterThan(0);
 
-    // Played in Home mode, a song streams from the local link by byte range; it isn't read whole first (ADR 0076).
+    // Played in Home mode, a song streams from the local link by byte range; it isn't read whole first (ADR 0076). On
+    // GLUE Home's port for songs, and only songs go there: the covers above weren't (ADR 0141).
+    expect(home.played.filter(p => p.startsWith('Sets/flac-cover'))).toEqual([]);
+    home.played = [];
     home.reads = [];
     const mp3row = page.locator('.tr', { has: page.locator('.c-title[title="mp3-128k.mp3"]') });
     await mp3row.hover(); await mp3row.locator('.pbtn').click();
     await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
     await page.click('#lib-play');
-    expect(home.reads.filter(p => p === 'Sets/mp3-128k.mp3')).toEqual([]);
-    expect(home.reads.filter(p => p === 'Sets/mp3-128k.mp3 (part)').length).toBeGreaterThan(0);
+    expect(home.played.filter(p => p === 'Sets/mp3-128k.mp3')).toEqual([]);
+    expect(home.played.filter(p => p === 'Sets/mp3-128k.mp3 (part)').length).toBeGreaterThan(0);
   } finally { await home.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 

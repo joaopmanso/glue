@@ -169,6 +169,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     (here or streamed), GLUE Home starts no new analysis beyond 2, and the running ones' reads wait (ADR 0140,
     `local.rs` `Paced`); it reads a song whole from its own local link
     (`/home/file`), not 4 MB at a time through Tauri.
+  - **Songs played have their own port** (GLUE Home 0.42.2, ADR 0141: `local.rs` `PLAY_PORT`, `playPort` in `/hello`
+    and `/connect`; `localHome.playUrl`, `platform.fileLink(…, play)`): the browser's 6 connections there are the
+    songs' only. A file read resolves only its own folder (`main.rs` `resolved`, remembered), never the NAS or
+    another drive for a song elsewhere.
   - The analysis bar shows GLUE Home's own queue (its `status`: left + running), the same "left" its window shows
     (ADR 0135). A network folder's songs take turns, at most "From each network folder at a time" (the user's, no limit unless set, ADR 0136; `home/ui/lanes.ts`); its window shows the speed (tiles, a ten-minute chart, and meters of the songs running reading or analysing, `cache.steps`) and a suggestion (`home/ui/speed.ts`); new songs' tags are read
     by GLUE Home, 200 a request (`/fs/read-tags`).
