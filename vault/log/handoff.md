@@ -200,6 +200,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     the file (`decode_flac` already reads ranges) and keeping the samples f32;
   - **B6: done (0.49.0, ADR 0150).** Next, when the GLUE window comes: the queue and the library's answers in Rust,
     then the service page removed.
+  - **After the desktop's second check:** fix what its named fields show (suspected: the stored `d/` headers are older
+    than their results); the Deftones MP3 (a shifted decode: ask for the file if it's still there).
+  - **DSD verdicts:** tune a DSD rule on the user's 91 songs once they're analysed (ADR 0149: noise shaping reads as
+    hi-res).
+  - **TURN from Rust** is untested from outside the home network (ADR 0150): if the iPhone on mobile data can't
+    connect, look at webrtc-rs's TURN (UDP should work; `turns:` over TCP may not be used).
 - **The socket** is in (GLUE Home 0.42, ADR 0139). Covers still come over HTTP: the next to move onto it if they show
   in the numbers.
 - **From the code map** (function names defined in several files, 2026-10-01; the loaders and copy names are done):
