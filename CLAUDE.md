@@ -74,7 +74,8 @@ After working:
 - `src/core/` pure logic (no DOM): `audio/`, `formats/`, `stems/`, `interop/` (DJ-library parsers),
   `library/` (scan, tags, path matching, analysis summary) · `src/store/` JSON store (home, collection,
   merge of imports/scans, migrations) · `src/platform/` folder access + IndexedDB handles ·
-  `src/workers/` module workers · `src/lib/` state + orchestration (`library.svelte.ts` library,
+  `src/workers/` module workers · `src/lib/` state + orchestration (`library.svelte.ts` the library's state, its methods by concern in
+  `lib/library/*.ts`, ADR 0146;
   `pool.ts` background analysis, `app.svelte.ts` analyze-a-file, `player`, `stems`, `route`, `view`) ·
   `src/ui/` components (`ui/library/` for the library) + canvas renderers.
 - `cloud/`: the GLUE Cloud Worker (API, D1 migrations, signaling Durable Object). Tests in

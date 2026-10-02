@@ -257,7 +257,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 ## 8. The website's layout
 - **Routes:** `#/` library, `#/track/<id>`, `#/events` (and `#/events/<id>`), `#/analyze`, `#/admin`.
 - **State** (`src/lib/`):
-  - `library.svelte.ts` (the library: folders, profiles, collections, scanning, analysis queue);
+  - `library.svelte.ts` (the library's state, `lib`) and its methods by concern in `src/lib/library/` (ADR 0146):
+    `glueFolder`, `profiles`, `collections`, `folders`, `djLibraries`, `edits`, `files`, `analysis`; a new method goes
+    in its concern's part (`this: Library`), a new field in the class (the fields keep their order, ADR 0146);
   - `view.svelte.ts` and `sidebar.svelte.ts` (what's shown);
   - `shared.svelte.ts`, `profiles.svelte.ts`, `account.svelte.ts`, `anywhere.svelte.ts` (the account);
   - `engine.svelte.ts`, `localHome.svelte.ts` (GLUE Home);

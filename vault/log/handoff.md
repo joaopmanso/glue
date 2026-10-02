@@ -75,6 +75,14 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **Today's three batches (2026-10-02, the laptop's session):**
+  - **"Syncing…" on the laptop:** hover the chip after a long "Syncing…": its tooltip says where the time went
+    (saving, from and to GLUE Cloud, reading what it wrote, how many in a row). Fix the part it names.
+  - **Duplicates** (ADR 0145): new "probable" groups of one recording under release labels ("Album Version",
+    "Remastered 2009", "Mono"); mixed groups split ("When We Dance": the edit apart from the long mix). No file linked:
+    "INGOT_HM" and "Eazy Baba … PRE_MASTER" now have suggestions.
+  - **The library in parts** (ADR 0146): nothing should look different; anything odd in opening, scanning, playing or
+    analysing is a regression.
 - **GLUE Home 0.43.0** (ADR 0144): after it updates, the 7 songs (John Coltrane's *Blue Train* and two more, NAS "Music
   HR") should be analysed (it tries again after a restart, and GLUE decodes FLAC itself now). The tab's "7 analysing"
   should go. A song that still fails shows in "Couldn't analyse" with why.
@@ -158,11 +166,18 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The socket** is in (GLUE Home 0.42, ADR 0139). Covers still come over HTTP: the next to move onto it if they show
   in the numbers.
 - **From the code map** (function names defined in several files, 2026-10-01; the loaders and copy names are done):
-  - **`library.svelte.ts`** (1,542 lines; `Library` is the graph's top hub, 147 edges): split by concern (scanning
-    and music folders, imports, the analysis queue, Home mode) behind the same `lib` API;
-  - done 2026-10-02: one rule for names (ADR 0145), `sha256`, the ICE cache, the worker getters.
+  - done 2026-10-02: one rule for names (ADR 0145), the library in parts (ADR 0146), `sha256`, the ICE cache, the
+    worker getters.
   - **performance, measure before changing:** `?perf` on the laptop's first load (the store's open time, the
     rows' cost).
+- **Bug, found 2026-10-02 (ADR 0146):** a song of the shared collection can reach another computer without `copies`
+  (seen: an unlinked rekordbox record, imported on the desktop just before it shared the collection). There it has no
+  import path or DJ library of its own and isn't another computer's either, so the "no file" bar
+  (`core/library/removal.ts` `orphans`) offers to remove it. Find who writes the local form into a shared shard
+  (around `share` / `makeShared` and the first push), and make `toLocal` treat a song without copies as nobody's here.
+  Reproduce: `e2e/shared.spec.ts` "the desktop's DJ library", with the library's fields regrouped (1 run in 7).
+- **Flaky on the laptop:** `shared.spec.ts` "the account's collections" (1 in 3: the desktop's backup is read once,
+  without waiting; make it a poll).
 - **Gluey:** when a feature changes, update its article in `src/help/` and its tour in `src/core/guide/tours.ts`;
   recapture the homepage's media after visible UI changes (`vault/features/homepage.md`).
 - **E2E on the laptop** (2026-10-02): the full suite takes about 14 min; `library.spec.ts:2054` (the local link, TO BE

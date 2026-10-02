@@ -5,6 +5,20 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · The library in parts by concern
+- **`src/lib/library.svelte.ts`**, 1,567 lines and the code map's top hub, is now its state (about 200 lines) and eight
+  parts in `src/lib/library/` (130–240 lines each): `glueFolder`, `profiles`,
+  `collections`, `folders`, `djLibraries`, `edits`, `files`, `analysis`
+  ([ADR 0146](../adr/0146-the-library-in-parts-by-concern.md)). `lib` and its API are unchanged.
+- Done by a script over the TypeScript syntax tree (members moved whole, `this: Library` added, each part's own
+  imports); every method and field compared with the old one (none differs). Misplaced comments put back.
+- **Found on the way:** regrouping the fields made a sync race show in an e2e test about 1 run in 7, so they keep their
+  order. The race: a song of the shared collection reaching the laptop without `copies` (an unlinked rekordbox
+  record still in the local form) shows there as having no file, and the "no file" bar offers to remove it.
+  Not fixed yet (handoff).
+- **Not this change:** `shared.spec.ts` "the account's collections" fails about 1 run in 3 on the laptop before it too
+  (checks the desktop's backup once, without waiting).
+
 ## 2026-10-02 · One rule for the same name (GLUE Home 0.43.2)
 - **Five rules → one** ([ADR 0145](../adr/0145-one-rule-for-the-same-name.md), `src/core/library/names.ts`): Duplicates,
   No file linked, joining a collection and the cover look-up each judged names their own way (from the code map).
