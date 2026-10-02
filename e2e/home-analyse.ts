@@ -15,6 +15,8 @@ type Put = (rel: string, b: Uint8Array) => void;
 const keep = (put: Put, c: Cover) => { put(`a/${c.hash}-64.jpg`, c.small); put(`a/${c.hash}-320.jpg`, c.large); };
 
 let pool: AnalysisPool | null = null;
+/** What the native engine's results say made them (`engine`), as GLUE Home's would. */
+const ENGINE = 'glue-audio e2e';
 const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
 
 export async function analyseSong(a: { path: string; p: string; c: string; id: string; mtime: number }, bytes: number[], put: (rel: string, b: Uint8Array) => void) {
@@ -26,7 +28,7 @@ export async function analyseSong(a: { path: string; p: string; c: string; id: s
   catch (e) {
     const msg = String((e as Error)?.message || 'It couldn’t be decoded.');
     if (/took too long|worker stopped/.test(msg)) throw msg;
-    put(k('s', 'json'), enc({ summary: failed(msg, { size, mtime: a.mtime }), size, mtime: a.mtime, format: null, duration: null, fields: {} } satisfies Analysed));
+    put(k('s', 'json'), enc({ summary: { ...failed(msg, { size, mtime: a.mtime }), engine: ENGINE }, size, mtime: a.mtime, format: null, duration: null, fields: {} } satisfies Analysed));
     return { failed: msg, bytes: size, readMs: 0, analyseMs: performance.now() - t0 };
   }
   if (r.thumb) put(k('t', 'bin'), r.thumb);
@@ -37,7 +39,8 @@ export async function analyseSong(a: { path: string; p: string; c: string; id: s
     put(k('c', 'txt'), new TextEncoder().encode(r.art?.hash ?? ''));
   }
   if (r.fp) put(k('p', 'bin'), encodeFingerprint(r.fp));
-  put(k('s', 'json'), enc(analysed(r, size, a.mtime)));
+  const done = analysed(r, size, a.mtime);
+  put(k('s', 'json'), enc({ ...done, summary: { ...done.summary, engine: ENGINE } }));
   return { bytes: size, readMs: 0, analyseMs: performance.now() - t0, label: r.summary.label };
 }
 

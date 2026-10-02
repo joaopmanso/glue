@@ -626,7 +626,7 @@ test('song info is edited in GLUE, kept while GLUE Home is away, and written int
     await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
     await page.click('#lib-play');
     expect(home.played.filter(p => p === 'Sets/mp3-128k.mp3')).toEqual([]);
-    expect(home.played.filter(p => p === 'Sets/mp3-128k.mp3 (part)').length).toBeGreaterThan(0);
+    await expect.poll(() => home.played.filter(p => p === 'Sets/mp3-128k.mp3 (part)').length).toBeGreaterThan(0);
   } finally { await home.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 
@@ -866,7 +866,7 @@ test('GLUE Home is the library’s engine: the tab shows, GLUE Home analyses and
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 
-test('the screen takes GLUE Home’s analyses when it needs them: Overviews and a song page from its cache, never analysed in the tab; a stored time-out is tried again (ADR 0109, 0110)', async ({ page }) => {
+test('the screen takes GLUE Home’s analyses when it needs them: Overviews and a song page from its cache, never analysed in the tab; a stored time-out, and a song the JavaScript couldn’t decode, are tried again (ADR 0109, 0110, 0149)', async ({ page }) => {
   test.setTimeout(300_000);
   const tmp = mkdtempSync(join(tmpdir(), 'glue-home-cache-'));
   // The tab can't read the songs itself (no music folder for it): anything it shows is GLUE Home's.
@@ -881,8 +881,9 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
       'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
       'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
       [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
-      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1a: song('t1a', 'a.mp3', 65267), t1b: song('t1b', 'b.flac', 968141) } }),
-      [col + '/analysis/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1b: timedOut } }),
+      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1a: song('t1a', 'a.mp3', 65267), t1b: song('t1b', 'b.flac', 968141), t1d: song('t1d', 'd.mp3', 65267) } }),
+      // d.mp3 couldn't be decoded by the JavaScript analysis (no `engine`): the native engine tries it once (ADR 0149).
+      [col + '/analysis/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1b: timedOut, t1d: { ...timedOut, fileSize: 65267, error: 'It couldn’t be decoded.' } } }),
     };
     for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
     await fake.start();
@@ -891,7 +892,7 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
     await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'h' }) }));
     await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
     await home.addInitScript(TAURI_MOCK);
-    const disk = { 'C:\\Users\\dj\\Music\\a.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\b.flac': [...readFileSync(fixture('flac-96k-24.flac'))] };
+    const disk = { 'C:\\Users\\dj\\Music\\a.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\b.flac': [...readFileSync(fixture('flac-96k-24.flac'))], 'C:\\Users\\dj\\Music\\d.mp3': [...readFileSync(fixture('mp3-128k.mp3'))] };
     await home.addInitScript(({ glue, disk, port, token, dir }) => {
       const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk; w.__localPort = port; w.__lease = false;
       localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token }));
@@ -910,19 +911,19 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
 
     // With no GLUE tab open, GLUE Home analyses both: the time-out wasn't the file's fault, so it's tried again.
     const analysis = () => { try { return JSON.parse(readFileSync(join(fake.dirs.glue, col, 'analysis', 't1.json'), 'utf8')).items as Record<string, { error?: string; label: string }>; } catch { return {}; } };
-    await expect.poll(() => { const a = analysis(); return !!a.t1a?.label && !!a.t1b?.label && !a.t1b.error; }, { timeout: 120_000 }).toBe(true);
+    await expect.poll(() => { const a = analysis(); return !!a.t1a?.label && !!a.t1b?.label && !a.t1b.error && !!a.t1d?.label && !a.t1d.error; }, { timeout: 120_000 }).toBe(true);
 
     // The tab opens afterwards (Home mode): the Overviews come from GLUE Home's cache.
     await page.goto('./#/analyze');
     await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), fake.pref);
     await page.goto('./');
-    await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
+    await expect(page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
     await expect(page.locator('.lside [data-view="pending"]')).not.toContainText(/[1-9]/);
-    await expect(page.locator('.tr .wave canvas')).toHaveCount(2, { timeout: 30_000 });
+    await expect(page.locator('.tr .wave canvas')).toHaveCount(3, { timeout: 30_000 });
     expect(asked.some(k => k.includes('t/'))).toBe(true);
 
     // A song's page: its stored analysis, from GLUE Home's cache (the tab can't read the file to analyse it).
-    await page.locator('.tr', { hasText: 'Fixture MP3' }).locator('.c-title').dblclick();
+    await page.locator('.tr', { hasText: 'Fixture MP3' }).first().locator('.c-title').dblclick();
     await expect(page.locator('.src')).toHaveText('Stored analysis', { timeout: 30_000 });
     expect(asked.some(k => k.includes('d/'))).toBe(true);
 

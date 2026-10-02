@@ -112,6 +112,9 @@ export function setPaused(paused: boolean, cfg?: () => HomeConfig | null, quiet 
 
 /** Songs that failed this session (ran out of time or memory: tried again, ADR 0109), at most three times. */
 const tries = new Map<string, number>();
+/** A song the JavaScript analysis couldn't analyse (no `engine`: an ALAC M4A, a DSD file…): tried once more by the native
+    engine (ADR 0149), whose own failure says `engine` and isn't tried again. */
+const failedBefore = (a: AnalysisSummary | undefined) => !!a?.error && !a.engine;
 
 /** This computer's songs that need an analysis, oldest added first (a result already made is waiting). */
 async function scan(cfg: HomeConfig): Promise<Job[]> {
@@ -137,10 +140,10 @@ async function scan(cfg: HomeConfig): Promise<Job[]> {
         const t = h.track(raw);
         if ((!t.rootId || !t.relPath) && !t.fileKey?.startsWith('copy:') && !t.filePath) continue;
         const mine = (sh ? (an[t.id] as Record<string, AnalysisSummary> | undefined)?.[me ?? ''] : an[t.id]) as AnalysisSummary | undefined;
-        if (!needsAnalysis(t, mine, ANALYSIS_VERSION) || waiting?.has(t.id) || (tries.get(key(p.id, col.id) + '/' + t.id) ?? 0) >= 3) continue;
+        if (!(needsAnalysis(t, mine, ANALYSIS_VERSION) || failedBefore(mine)) || waiting?.has(t.id) || (tries.get(key(p.id, col.id) + '/' + t.id) ?? 0) >= 3) continue;
         // Analysed already (the result wasn't taken in yet, GLUE Home was restarted): waiting, not again.
         const r = await cache.result(p.id, col.id, t.id);
-        if (r && r.size === t.size && r.mtime === t.mtime && r.summary.v >= ANALYSIS_VERSION) { add(p.id, col.id, t.id); continue; }
+        if (r && r.size === t.size && r.mtime === t.mtime && r.summary.v >= ANALYSIS_VERSION && !failedBefore(r.summary)) { add(p.id, col.id, t.id); continue; }
         jobs.push({ p: p.id, c: col.id, id: t.id, name: t.title || t.fileName, added: t.addedAt, net: netOf(t.rootId) });
       }
     }

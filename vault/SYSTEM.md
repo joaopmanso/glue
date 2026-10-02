@@ -218,7 +218,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   (`src/store/types.ts`).
 - **The native engine** (`crates/glue-audio`, ADR 0147): the same analysis in Rust, a line-for-line port with
   JavaScript's numbers, for GLUE Home (0.44 linked it, 0.45 made every stored file and decoded lossy files, with a check
-  against the stored results in GLUE Home's window, 0.46 analyses with it, 0.47 has no audio JavaScript left). A deadline (`glue_audio::control`) stops a song past `timeFor`. In e2e tests the mock stands in with
+  against the stored results in GLUE Home's window, 0.46 analyses with it, 0.47 has no audio JavaScript left, 0.48
+  decodes DSD and retries the JavaScript's failures once, ADR 0149). DSD (DSF, DSDIFF) is analysed as its 88.2 kHz PCM
+  conversion (`formats/dsd.rs`), with a finding that says so. A deadline (`glue_audio::control`) stops a song past `timeFor`. In e2e tests the mock stands in with
   the website's pipeline (`e2e/home-analyse.ts`, built into `.e2e-home/`, never `home/dist`). Lossy goldens come from Edge (`e2e/golden.spec.ts`, `GOLDEN=1`). CLI: `glue-audio analyse | bench`. Held to the TypeScript's results by `tests/golden` (`tests/golden.test.ts` writes them and fails when
   they're stale; `crates/glue-audio/tests/golden.rs` compares). A native summary has `engine: "glue-audio <version>"`.
 - **`analysisState(t, a)`** (`src/core/library/analysed.ts`) returns done, failed, waiting, elsewhere (another

@@ -25,6 +25,7 @@ pub mod audio {
 }
 pub mod formats {
   pub mod clues;
+  pub mod dsd;
   pub mod flac;
   pub mod parse;
 }
@@ -91,8 +92,19 @@ fn ext_of(name: &str) -> String { name.rsplit_once('.').map(|(_, e)| e.to_ascii_
 /// time (ISO); `size`/`mtime`: the file's, as the collection knows them.
 pub fn analyse(bytes: &[u8], file_name: &str, size: f64, mtime: f64, at: String) -> Result<Analysis, Failure> {
   let mut info = file_info(bytes, file_name);
+  // DSD, which the website can't decode (ADR 0149): analysed as its 88.2 kHz PCM, as a converter would make it.
+  let dsd = if info.codec == "DSD" {
+    let d = formats::dsd::parse(bytes).map_err(Failure::Unsupported)?;
+    info.unsupported = None;
+    info.sample_rate = d.rate as f64; info.channels = d.channels as f64; info.duration = d.frames as f64 / d.rate as f64;
+    info.bits_label = Some("1-bit".into());
+    Some(d)
+  } else { None };
   if let Some(u) = &info.unsupported { return Err(Failure::Unsupported(u.clone())); }
-  let job = if let Some(pcm) = info.pcm.clone() {
+  let job = if let Some(d) = &dsd {
+    let (channels, sr) = formats::dsd::decode(bytes, d).map_err(Failure::Broken)?;
+    Job::Float { channels, sr, bits: 0.0 }
+  } else if let Some(pcm) = info.pcm.clone() {
     Job::Pcm { bytes, pcm, sr: info.sample_rate }
   } else {
     let bits = if info.lossless == Some(true) { info.bits } else { 0.0 };
@@ -110,10 +122,15 @@ pub fn analyse(bytes: &[u8], file_name: &str, size: f64, mtime: f64, at: String)
   let result = run_job(job, true).map_err(Failure::Broken)?;
   control::check().map_err(Failure::Broken)?;
   if info.sample_rate == 0.0 || info.sample_rate.is_nan() { info.sample_rate = result.sr; }
-  let verdict = classify(&info, &VerdictInput {
+  let mut verdict = classify(&info, &VerdictInput {
     sr: result.sr, stats: &result.stats, ltas: &result.ltas, bin_hz: result.bin_hz, container_bits: result.container_bits,
     spec: Some((&result.spec, result.cols, result.rows)),
   });
+  if let Some(d) = &dsd {
+    verdict.findings.push(types::Finding { sev: types::Severity::Info, title: "Analysed from DSD".into(), detail: format!(
+      "GLUE Home converted this {} file ({} MHz, 1-bit) to {} kHz PCM to analyse it, as a DSD converter would. Rising noise above about 25 kHz is DSD’s own noise shaping.",
+      formats::dsd::name(d.rate), js::num_str(d.rate as f64 / 1e6), js::num_str(result.sr / 1000.0)) });
+  }
   let mut summary = out::summary::summarize(&info, &result, &verdict, size, mtime, at);
   summary.fp = Some(result.fp.is_some());
   let details = out::files::details(&info, &result, size, mtime);

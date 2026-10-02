@@ -5,6 +5,18 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.48.0: DSD, and the songs the browser couldn't decode (ADR 0149)
+- **DSD files are analysed** ([ADR 0149](../adr/0149-dsd-analysed-as-its-pcm-conversion.md)):
+  - DSF and DSDIFF are converted to 88.2 kHz PCM (96 kHz for the 48 kHz family), the conversion GLUE has always
+    advised, and analysed like any other file;
+  - their info says the DSD rate, "1-bit", and a finding "Analysed from DSD";
+  - DST-compressed DSDIFF isn't decoded yet.
+  - Not calibrated on real DSD: DSD's noise shaping will make most read "Genuine hi-res".
+- **Songs the JavaScript analysis couldn't decode are tried once more natively**, a failure without `engine`: the 342
+  Apple Lossless M4As and the 91 DSF files on the desktop.
+- Tests: the fake GLUE Home's `/hello` said version 0.5.0 (its `/connect` 0.37.0), so when `/hello` came first the
+  page said "needs GLUE Home 0.12" for a folder that wasn't there (CI on 0.47); a played song is waited for.
+
 ## 2026-10-02 · GLUE Home 0.47.0: no audio JavaScript left in GLUE Home (ADR 0147)
 - **The rest of GLUE Home's audio work is native:**
   - songs arriving in the incoming folder are analysed by the engine (`analyse_incoming`);

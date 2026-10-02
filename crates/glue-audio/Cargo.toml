@@ -1,6 +1,6 @@
 [package]
 name = "glue-audio"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "GLUE's audio analysis, native (ADR 0147): a line-for-line port of src/core's TypeScript, same results"
 license = "UNLICENSED"

@@ -91,4 +91,5 @@ the UI stuttering.
   stored results; outcomes in `library/x/verify.jsonl` in GLUE Home's cache.
 - GLUE Home 0.46.0 analyses with it ([ADR 0148](../adr/0148-glue-home-analyses-songs-in-rust.md)): `analyse_song`
   reads, analyses and writes the cache in Rust; the queue stays in the service page. 0.47.0: incoming songs, covers and
-  waveforms from details too; no audio JavaScript in GLUE Home (`tests/homeBundle.test.ts`).
+  waveforms from details too; no audio JavaScript in GLUE Home (`tests/homeBundle.test.ts`). 0.48.0: DSD analysed as
+  its 88.2 kHz conversion, and the JavaScript's failures retried once natively (ADR 0149).
