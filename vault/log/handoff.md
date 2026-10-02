@@ -176,8 +176,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   (`core/library/removal.ts` `orphans`) offers to remove it. Find who writes the local form into a shared shard
   (around `share` / `makeShared` and the first push), and make `toLocal` treat a song without copies as nobody's here.
   Reproduce: `e2e/shared.spec.ts` "the desktop's DJ library", with the library's fields regrouped (1 run in 7).
-- **Flaky on the laptop:** `shared.spec.ts` "the account's collections" (1 in 3: the desktop's backup is read once,
-  without waiting; make it a poll).
+- **Flaky:** `shared.spec.ts` "the account's collections", from before 2026-10-02 (2 in 12 on `d403b25`, 4 in 12 on
+  `3353c03`; it failed CI on `3353c03`, retry included). Three ways: the desktop's backup read once without waiting,
+  0 songs for 30 s after switching collection, the account's box not shown. Make the first a poll, then look at the
+  other two (switching collections while a sync runs?).
 - **Gluey:** when a feature changes, update its article in `src/help/` and its tour in `src/core/guide/tours.ts`;
   recapture the homepage's media after visible UI changes (`vault/features/homepage.md`).
 - **E2E on the laptop** (2026-10-02): the full suite takes about 14 min; `library.spec.ts:2054` (the local link, TO BE
