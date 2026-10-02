@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M5
-updated: 2026-09-30
+updated: 2026-10-02
 adrs: [0013, 0025, 0117, 0120, 0121]
 ---
 # Duplicates
@@ -10,6 +10,10 @@ adrs: [0013, 0025, 0117, 0120, 0121]
 - **Finding them:** fingerprints ("same recording") and names ("probable": artist + title, lengths within 3 s), but
   only copies of the same version: the same version words (instrumental, live, remix, edit…), and lengths within
   10 s or 6 % (ADR 0117).
+- **The same name** (ADR 0145, `core/library/names.ts` `songName`): accents, "&" and "and", […] parts, featuring
+  credits and (…) parts that only name the release ("Album Version", "Remastered 2009", "Mono") don't count; other
+  (…) parts do ("Live at …", "BBC Session"). A name's songs are split into copies of one version within 3 s of each
+  other (`nameGroups`), so a remix and the original are never one group.
 - **Your say:** "Keep · not a duplicate" takes a copy out of its group for good; "Mark as duplicates" (song menu, 2+
   songs) makes your own group.
 - **Cleaning up:** with GLUE Home, the rest move to its duplicates folder or the Recycle Bin (ADR 0070).

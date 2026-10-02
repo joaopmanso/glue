@@ -23,7 +23,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-02)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.43.1.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.43.2.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -158,18 +158,15 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The socket** is in (GLUE Home 0.42, ADR 0139). Covers still come over HTTP: the next to move onto it if they show
   in the numbers.
 - **From the code map** (function names defined in several files, 2026-10-01; the loaders and copy names are done):
-  - **"the same name"** is judged five ways, with different rules: `duplicates.ts` and `relink.ts` `plain`,
-    `dupes.svelte.ts` `norm`, `shared/match.ts` `norm`, `coverSearch.ts` `norm`. So Duplicates, No file linked and
-    joining a collection can disagree. Make one in `core/library`; it changes matching, so test against the user's
-    collection;
   - **`library.svelte.ts`** (1,542 lines; `Library` is the graph's top hub, 147 edges): split by concern (scanning
     and music folders, imports, the analysis queue, Home mode) behind the same `lib` API;
-  - **smaller:** `getWorker` in `analysis.ts` and `parseWorker.ts`; `iceServers` in `home/ui/ice.ts` and
-    `src/lib/ice.ts`; `sha256`/`hex` in the cloud, the sync engine and the cover worker.
+  - done 2026-10-02: one rule for names (ADR 0145), `sha256`, the ICE cache, the worker getters.
   - **performance, measure before changing:** `?perf` on the laptop's first load (the store's open time, the
     rows' cost).
 - **Gluey:** when a feature changes, update its article in `src/help/` and its tour in `src/core/guide/tours.ts`;
   recapture the homepage's media after visible UI changes (`vault/features/homepage.md`).
+- **E2E on the laptop** (2026-10-02): the full suite takes about 14 min; `library.spec.ts:2054` (the local link, TO BE
+  SORTED) failed under full load in both runs, and `home.spec.ts:19` once; both pass alone and on CI.
 - **E2E speed and flakiness:** the full suite takes about 6 min on the desktop. When it slows to 12+ min with random
   failures, or browsers stop starting, check free memory first: on 2026-10-01 Windows' Desktop Window Manager
   (dwm.exe) had leaked 41 GB (a graphics-driver leak; a restart fixed it). Never kill dwm or the user's Edge; ask.

@@ -5,6 +5,29 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · One rule for the same name (GLUE Home 0.43.2)
+- **Five rules → one** ([ADR 0145](../adr/0145-one-rule-for-the-same-name.md), `src/core/library/names.ts`): Duplicates,
+  No file linked, joining a collection and the cover look-up each judged names their own way (from the code map).
+  - `songName` (Duplicates, No file linked): accents, "&" and "and", […] parts, featuring credits and (…) parts that
+    only name the release ("Album Version", "Remastered 2009", "Single Version / Mono", "1909-34") left out; other (…)
+    parts kept ("Live at Hyde Park", "BBC Session", "Remixed by …"). `fold` (joining): letters and digits of any
+    script. `bare` (covers): every bracket left out.
+  - Fixed on the way: "Feather" no longer loses its title to "feat."; a name in another script is no longer empty
+    (joining gave every such song the key `a||`); "Paul Simon, Art Garfunkel" and "& Art Garfunkel" stay one artist.
+- **Probable duplicates by name** (`nameGroups`, pure, in `duplicates.ts`): a name's songs are split into copies of
+  one version within 3 s of each other. Before, a song stayed in its name's group with any twin of its own length,
+  so "Revolution 909", its remix and its a cappella were one group.
+- **No file linked:** a song is compared through the rarest title word another song has; a word no other song had
+  ("INGOT_HM": "hm") left it with nothing to compare.
+- **Measured on the user's collection** (the laptop's copy, 18,663 songs, read only; before and after):
+  - probable groups 1,531 → 1,617 (3,757 → 4,023 songs): the new ones are almost all one recording under a release
+    label; groups that mixed versions or lengths ("When We Dance": the 258 s edit with the 360 s mix) are split;
+  - joining: two more pairs ("Frankie & Johnny" / "And", "Us & Them" / "And");
+  - No file linked: 2 suggestions (51 %, 58 %) for the 11 songs with no file, where there were none;
+  - the user's 13 ignored, 2 confirmed and 6 chosen-best groups: untouched.
+- The cover look-up's keys change for names with "&", "and" or another script: those albums are looked up once more.
+- Help: Duplicates says what counts as the same name. Tests: `tests/names.test.ts`.
+
 ## 2026-10-02 · Test browsers out of Alt+Tab; the sync's time shown; shared helpers (GLUE Home 0.43.1)
 - **Alt+Tab's ghosts** ("GLUE Home service" ×4, "GLUE Home", "GLUE · Global Library…", one untitled; choosing one did
   nothing) on the laptop, with no GLUE Home installed:

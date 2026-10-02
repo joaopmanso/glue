@@ -224,7 +224,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - A rule change bumps `VERDICT_VERSION`, and stored verdicts are judged again on open (`recheckVerdicts`).
   - The tab tries a failing song twice before saving it as failed, since a failed song leaves the library's lists.
 - **Duplicates** (`src/lib/dupes.svelte.ts`, `core/library/duplicates.ts`):
-  - how they're found: fingerprints ("same recording"), and artist + title with lengths within 3 s ("probable");
+  - how they're found: fingerprints ("same recording"), and artist + title with lengths within 3 s ("probable",
+    `nameGroups`: split into copies of one version);
+  - names are compared one way everywhere (ADR 0145, `core/library/names.ts`): `songName` for Duplicates and No file
+    linked (release labels and featuring credits left out, "(Live at …)" kept), `fold` for joining a collection, `bare`
+    for the cover look-up;
   - only copies of the same version count (`sameVersion`: the same version words, lengths within 10 s or 6 %,
     ADR 0117);
   - the user's say: "Keep · not a duplicate" on a copy (`meta.dupApart`), and "Mark as duplicates" on chosen

@@ -4,6 +4,7 @@
    candidate pair is then confirmed by bit error rate at the best alignment. */
 import { ber, FP_FRAME_SEC, type Fingerprint } from '../audio/fingerprint';
 import type { AnalysisSummary, Track } from '../../store/types';
+import { songName, versionOf } from './names';
 
 export const SAME_BER = 0.3;          // at or below: same recording (unrelated audio ≈ 0.5)
 export const MIN_OVERLAP_SEC = 20;    // at least this much sound in common
@@ -129,19 +130,6 @@ export function groupMatches(matches: Match[]): string[][] {
   return [...groups.values()].filter(g => g.length > 1);
 }
 
-/** Words that make another version of a song (the user, 2026-09-30: an instrumental and the vocal, a studio and a
-    live take, a 4- and a 7-minute version were grouped as duplicates). Read from the title's (…) and […] parts and
-    what follows " - ", so a name like "Clean Bandit" never counts; "live" also from the album ("Live at …"). */
-const MARK = /\b(instrumental|inst|a ?cappella|acappella|acapella|live|unplugged|remix|dub|vip|bootleg|acoustic|demo|extended|radio edit|radio version|edit|rework|flip|mashup|karaoke|reprise|clean version|clean)\b/g;
-const SAME_MARK: Record<string, string> = { inst: 'instrumental', 'a cappella': 'acapella', acappella: 'acapella', 'radio edit': 'edit', 'radio version': 'edit', 'clean version': 'clean' };
-export function versionOf(title: string, album = ''): string {
-  const t = (title || '').toLowerCase();
-  const parts = [...t.matchAll(/[([]([^)\]]*)[)\]]/g)].map(m => m[1]).join(' ') + ' ' + t.split(/\s[-–—]\s/).slice(1).join(' ');
-  const marks = new Set<string>();
-  for (const m of parts.matchAll(MARK)) { const w = m[1].replace(/\s+/g, ' '); marks.add(SAME_MARK[w] ?? w); }
-  if (/\blive\b/.test((album || '').toLowerCase())) marks.add('live');
-  return [...marks].sort().join(',');
-}
 /** Lengths close enough for one recording: 10 s apart at most, or 6 % on long songs (a rip trimmed of its
     silence, not a radio edit against its extended mix). Unknown lengths pass. */
 export function similarLength(a: number | null | undefined, b: number | null | undefined): boolean {
@@ -155,7 +143,34 @@ export const sameVersion = (a: Songish, b: Songish) => versionOf(a.title, a.albu
 export const pairKey = (a: string, b: string) => a < b ? a + '+' + b : b + '+' + a;
 
 type Copy = { title: string; album: string; artist: string; duration: number | null; fileName: string };
-const plain = (s: string) => (s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/\(([^)]*)\)|\[([^\]]*)\]/g, ' ').replace(/\bfeat\.?.*$|\bft\.?.*$/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+/** Copies "probably the same song" share this: artist and title (names.ts `songName`). */
+export const nameKey = (t: { artist?: string | null; title?: string | null }) => songName(t.artist) + '|' + songName(t.title);
+/** Songs probably of one recording by their names ("probable"): the same `nameKey`, then split into copies of the same
+    version within 3 s of each other (unknown lengths pass), so a title's remix, a cappella and original mix are
+    three groups, not one (each had a twin of its own length; measured on the user's collection, 2026-10-02).
+    `apart`: pairs the user kept apart. */
+export function nameGroups<T extends Songish & { artist: string }>(tracks: Iterable<T>, apart: (a: T, b: T) => boolean = () => false): T[][] {
+  const byKey = new Map<string, T[]>();
+  for (const t of tracks) {
+    if (!t.title) continue;
+    const k = nameKey(t);
+    if (k.length < 3) continue;
+    const g = byKey.get(k); if (g) g.push(t); else byKey.set(k, [t]);
+  }
+  const near = (t: T, u: T) => (t.duration == null || u.duration == null || Math.abs(t.duration - u.duration) <= 3) && sameVersion(t, u) && !apart(t, u);
+  const out: T[][] = [];
+  for (const g of byKey.values()) {
+    if (g.length < 2) continue;
+    const left = new Set(g);
+    for (const t of g) {
+      if (!left.delete(t)) continue;
+      const part = [t];
+      for (let i = 0; i < part.length; i++) for (const u of left) if (near(part[i], u)) { left.delete(u); part.push(u); }
+      if (part.length > 1) out.push(part);
+    }
+  }
+  return out;
+}
 const stem = (f: string) => (f || '').replace(/\.[^.]+$/, '');
 /** How sure GLUE is that a group's copies are one recording, 0–100 (the user, 2026-09-30: "choose all over 95 %"):
     - by the user's say-so (marked, or confirmed): 100;
@@ -166,7 +181,7 @@ export function certainty(kind: 'same' | 'probable', similarity: number | null, 
   if (said) return 100;
   const lens = copies.map(c => c.duration).filter((d): d is number => !!d), spread = lens.length > 1 ? Math.max(...lens) - Math.min(...lens) : 0;
   if (kind === 'probable') return spread <= 1 ? 60 : 50;
-  const names = new Set(copies.map(c => plain(c.artist) + '|' + plain(c.title || stem(c.fileName))));
+  const names = new Set(copies.map(c => songName(c.artist) + '|' + songName(c.title || stem(c.fileName))));
   let c = 60 + 40 * Math.max(0, Math.min(1, ((similarity ?? 0.4) - 0.4) / 0.55));
   if (names.size > 1) c -= 10;
   if (spread > 2) c -= 10;
@@ -181,7 +196,7 @@ export function concerns(copies: Copy[]): string[] {
   if (new Set(marks).size > 1) out.push('versions differ: ' + [...new Set(marks.map(m => m || 'none'))].join(' / '));
   const lens = copies.map(c => c.duration).filter((d): d is number => !!d);
   if (lens.length > 1 && Math.max(...lens) - Math.min(...lens) > 3) out.push('lengths differ by ' + Math.round(Math.max(...lens) - Math.min(...lens)) + ' s');
-  const artists = new Set(copies.map(c => plain(c.artist)).filter(Boolean));
+  const artists = new Set(copies.map(c => songName(c.artist)).filter(Boolean));
   if (artists.size > 1) out.push('other artists');
   return out;
 }

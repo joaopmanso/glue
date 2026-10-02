@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { certainty, concerns, copyScore, pairKey, sameVersion, similarLength, versionOf } from '../src/core/library/duplicates';
+import { certainty, concerns, copyScore, pairKey, sameVersion, similarLength } from '../src/core/library/duplicates';
+import { versionOf } from '../src/core/library/names';
 import type { AnalysisSummary, Track } from '../src/store/types';
 
 const song = (title: string, duration: number | null = 240, album = '') => ({ title, album, duration });

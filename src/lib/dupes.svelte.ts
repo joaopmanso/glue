@@ -13,7 +13,7 @@ import { fingerprintOf } from './analysis';
 import { jobOf } from './audioJob';
 import type { Fingerprint } from '../core/audio/fingerprint';
 import type { Match } from '../core/library/duplicates';
-import { certainty, concerns, copyScore, groupMatches, pairKey, sameVersion } from '../core/library/duplicates';
+import { certainty, concerns, copyScore, groupMatches, nameGroups, pairKey, sameVersion } from '../core/library/duplicates';
 export { copyScore };
 import { time, timeAsync } from '../core/perf';
 import type { DupReply, DupRequest } from '../workers/duplicates.worker';
@@ -24,8 +24,6 @@ import type { AnalysisSummary, Track } from '../store/types';
     concerns: what to look at before removing its copies (versions, lengths, artists). */
 export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null; confirmed?: boolean; byHand?: boolean; how: 'sound' | 'hand' | 'confirmed' | 'name'; sure: number; concerns: string[] }
 
-const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
-  .replace(/\((original|extended|radio|club)?\s*(mix|edit|version)\)|\[[^\]]*\]|\bfeat\.?.*$|\bft\.?.*$/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 export const groupKey = (ids: string[]) => [...ids].sort().join('+');
 /** The last result, kept per collection: the songs that had a fingerprint, and what matched. */
 interface Saved { v: 1; at: number; ids: string[]; matches: Match[] }
@@ -237,16 +235,7 @@ class Dupes {
       live.forEach(id => inGroup.add(id));
     }
     // Probable: same artist + title, similar length, not already matched by sound.
-    const byName = new Map<string, Track[]>();
-    for (const t of s.tracks.values()) {
-      if (inGroup.has(t.id) || !t.title) continue;
-      const k = norm(t.artist) + '|' + norm(t.title);
-      if (k.length < 3) continue;
-      const g = byName.get(k); if (g) g.push(t); else byName.set(k, [t]);
-    }
-    for (const g of byName.values()) {
-      if (g.length < 2) continue;
-      const near = g.filter(t => g.some(u => u !== t && (t.duration == null || u.duration == null || Math.abs(t.duration - u.duration) <= 3) && sameVersion(t, u) && !apart.has(pairKey(t.id, u.id))));
+    for (const near of nameGroups([...s.tracks.values()].filter(t => !inGroup.has(t.id)), (t, u) => apart.has(pairKey(t.id, u.id)))) {
       const ids = near.map(t => t.id);
       if (ids.length < 2 || ignored.has(groupKey(ids))) continue;
       const key = groupKey(ids);

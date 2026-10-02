@@ -10,7 +10,8 @@
      pointed at the shared ids.
    Nothing of another computer's is changed. */
 import type { AnalysisSummary, Collection, List, Source, Track } from '../../store/types';
-import { norm, trackKey } from './match';
+import { trackKey } from './match';
+import { fold } from '../library/names';
 import { uniqTags } from '../library/tagging';
 import { COPY_FIELDS, collectionShared, toShared, type Copy, type Here, type SharedCollection, type SharedTrack } from './project';
 
@@ -23,7 +24,7 @@ const SKIP = new Set<string>([...COPY_FIELDS, 'id', 'onDevices', 'remote', 'copi
 
 function listPath(all: List[], l: List): string {
   const names: string[] = [];
-  for (let x: List | undefined = l, guard = 0; x && guard < 20; x = all.find(y => y.id === x!.parentId), guard++) names.unshift(norm(x.name));
+  for (let x: List | undefined = l, guard = 0; x && guard < 20; x = all.find(y => y.id === x!.parentId), guard++) names.unshift(fold(x.name));
   return l.kind + ':' + names.join('/');
 }
 function freeId(id: string, taken: { has(id: string): boolean }, salt: string) {

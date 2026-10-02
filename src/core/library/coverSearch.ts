@@ -2,19 +2,14 @@
    iTunes, then MusicBrainz's Cover Art Archive. Pure: the addresses to ask, and the pick from each
    answer. A pick needs the same artist and the same album (or the same song, when there's no album),
    so a search that finds something else gives no cover rather than a wrong one. */
+import { bare } from './names';
 
 export interface CoverQuery { artist: string; album: string; title: string }
 export type Service = 'deezer' | 'itunes' | 'musicbrainz';
 export const SERVICES: Service[] = ['deezer', 'itunes', 'musicbrainz'];
 
-/** Lower case, no accents, no "(…)"/"[…]" parts, no "feat." tail, only letters and digits. */
-export function norm(s: string): string {
-  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
-    .replace(/[([][^)\]]*[)\]]/g, ' ')
-    .replace(/\s(feat\.?|ft\.?|featuring|with)\s.*$/, ' ')
-    .replace(/^the\s+/, '')
-    .replace(/[^a-z0-9]+/g, '');
-}
+/** The shared name (names.ts `bare`), also without a "with …" tail or a leading "the", and no spaces. */
+export const norm = (s: string) => bare(s).replace(/ with .*$/, '').replace(/^the /, '').replace(/ /g, '');
 /** The same name, give or take extra words on one side ("Album" vs "Album Deluxe Edition"). */
 export function same(a: string, b: string): boolean {
   const x = norm(a), y = norm(b);
@@ -23,7 +18,7 @@ export function same(a: string, b: string): boolean {
 }
 /** One of the artists matches ("A & B" finds "A"). */
 function sameArtist(want: string, got: string): boolean {
-  const parts = (s: string) => s.split(/\s*(?:,|&|\band\b|\bx\b|\bvs\.?)\s*/i).filter(Boolean);
+  const parts = (s: string) => s.split(/\s*(?:,|&|\band\b|\bx\b|\bvs\b\.?)\s*/i).filter(Boolean);
   return same(want, got) || parts(want).some(w => parts(got).some(g => same(w, g)));
 }
 

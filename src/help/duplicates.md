@@ -7,6 +7,8 @@ order: 9
 ---
 GLUE finds the same recording under any name, tag or format by how it **sounds**: a WAV and its MP3, two rips, a re-download.
 
+Songs with the same artist and title and about the same length show too, as **probable**. Words that only name the release don't make another song ("Album Version", "Remastered 2009", "Mono", "feat. …"); words that name another recording do ("Live at …", "BBC Session", "Remixed by …").
+
 ## One copy, everywhere
 Each song shows as its **best copy** everywhere else, and every playlist uses it. The best copy is the better-judged one, lossless before lossy, then the one in your **main folder** (optional), then the higher resolution. **Make it the best** picks another.
 
