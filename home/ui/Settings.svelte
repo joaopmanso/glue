@@ -300,7 +300,7 @@
         {:else}<p class="fine">Starting…</p>{/if}
         <!-- The native engine checked against this computer's analyses (ADR 0147): nothing is saved. -->
         <h3>Native engine check</h3>
-        <p class="fine">GLUE Home is moving its analysis from the service page to its own native engine. This analyses songs it already analysed again, natively, saves nothing, and compares the two. Each song’s outcome goes in GLUE Home’s cache folder, <code>library/x/verify.jsonl</code>.</p>
+        <p class="fine">GLUE Home analyses with its own native engine (since 0.46). This checks it against what the service page made before: it analyses those songs again, natively, saves nothing, and compares. Each song’s outcome goes in <code>verify.jsonl</code>, in <code>%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\x</code> (on a Mac, <code>~/Library/Caches/io.github.joaopmanso.gluehome/library/x</code>).</p>
         <div class="row">
           <label>Songs <select id="vf-n" bind:value={verifyN}>{#each [100, 1000, 5000, 100000] as n (n)}<option value={n}>{n === 100000 ? 'All' : n.toLocaleString()}</option>{/each}</select></label>
           {#if vf?.running}<button type="button" id="vf-stop" onclick={() => bridge.verify(0)}>Stop</button>
@@ -309,6 +309,7 @@
         {#if vf && (vf.running || vf.done)}
           {@const k = vf.counts}
           <p id="vf-state">{vf.running ? 'Checking' : 'Checked'} {vf.done.toLocaleString()} of {vf.total.toLocaleString()} · <b>{(k.same ?? 0).toLocaleString()}</b> the same · {(k.close ?? 0).toLocaleString()} close (lossy) · <b>{(k.differs ?? 0).toLocaleString()}</b> differ · {(k.failed ?? 0).toLocaleString()} failed natively · {(k.fixed ?? 0).toLocaleString()} only native could · {(k.skipped ?? 0).toLocaleString()} skipped{vf.timed ? ' · ' + sec(vf.ms / vf.timed) + ' a song natively' : ''}</p>
+          {#if Object.keys(vf.skips ?? {}).length}<p class="fine" id="vf-skips">Skipped: {Object.entries(vf.skips).sort((a, b) => b[1] - a[1]).map(([why, n]) => why + ' (' + n.toLocaleString() + ')').join(' · ')}</p>{/if}
           {#if vf.odd.length}<ul class="events" id="vf-odd">{#each vf.odd as o, i (i)}<li><span>{o.name}: {o.why}</span><small>{o.kind}</small></li>{/each}</ul>{/if}
         {/if}
         {#if status?.events?.length}

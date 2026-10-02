@@ -1,6 +1,9 @@
 //! The native analysis engine in GLUE Home (crates/glue-audio, ADR 0147, 0148). `analyse_song`: GLUE Home's queue
 //! (home/ui/analysis.ts) hands it a song; it reads the file, analyses it and writes every cache file, in Rust.
 //! `verify_song` analyses a song natively, saves nothing, and compares with what the service page made of it before.
+//! The rest of GLUE Home's audio work is here too (ADR 0147's batch 4): songs arriving in the incoming folder
+//! (`analyse_incoming`), covers (`cover_hash`, `cover_from_image`) and waveforms from kept details
+//! (`wave_from_details`); the service page has no audio code of its own.
 use serde_json::{json, Value};
 use std::fs;
 use std::io::{Read, Write};
@@ -64,6 +67,91 @@ pub async fn analyse_song(app: AppHandle, path: String, p: String, c: String, id
   }).await?
 }
 
+/// A song that arrived in the incoming folder (ADR 0048), analysed at once so it's ready when the website shows it in
+/// TO BE SORTED: `i/<name>.thumb.bin`, `.wave.bin`, `.details.bin` + `.json`, and `.summary.json` last (the summary
+/// with the file's format and length). Already analysed: nothing to do.
+#[tauri::command]
+pub async fn analyse_incoming(app: AppHandle, name: String, path: String) -> Result<(), String> {
+  if name.is_empty() || name.contains(['/', '\\']) || name.starts_with('.') { return Err("bad name".into()); }
+  if crate::cache_path(&app, &format!("i/{name}.summary.json")).is_ok_and(|p| p.is_file()) { return Ok(()); }
+  let file = crate::allowed(&app, &path)?;
+  on_own_thread("glue-incoming", move || -> Result<(), String> {
+    let k = |what: &str| format!("i/{name}.{what}");
+    let bytes = read_song(&file, &name)?;
+    glue_audio::control::set_deadline(Some(Instant::now() + time_for(bytes.len() as u64)));
+    let r = glue_audio::analyse(&bytes, &name, bytes.len() as f64, 0.0, now_iso());
+    glue_audio::control::set_deadline(None);
+    let a = r.map_err(|e| e.to_string())?;
+    let put = |rel: String, data: &[u8]| crate::cache_put(&app, &rel, data);
+    if !a.thumb.is_empty() { put(k("thumb.bin"), &a.thumb)?; }
+    if !a.wave.is_empty() { put(k("wave.bin"), &a.wave)?; }
+    put(k("details.bin"), &glue_audio::out::files::zlib(&a.details.1))?;
+    put(k("details.json"), &serde_json::to_vec(&a.details.0).unwrap_or_default())?;
+    let mut s = serde_json::to_value(&a.summary).unwrap_or(Value::Null);
+    s["format"] = if a.info.container.is_empty() { Value::Null } else { serde_json::to_value(glue_audio::out::files::format_of(&a.info)).unwrap_or(Value::Null) };
+    s["duration"] = json!(a.info.duration);
+    put(k("summary.json"), &serde_json::to_vec(&s).unwrap_or_default())
+  }).await?
+}
+
+/// A cover's two JPEGs kept (`a/<hash>-64.jpg`, `-320.jpg`), an album's songs sharing them.
+fn keep_cover(app: &AppHandle, c: &glue_audio::out::cover::Cover) -> Result<(), String> {
+  crate::cache_put(app, &format!("a/{}-64.jpg", c.hash), &c.small)?;
+  crate::cache_put(app, &format!("a/{}-320.jpg", c.hash), &c.large)
+}
+
+/// A song's cover hash ('' for none), read from its tags (only them: the file isn't read whole), its JPEGs kept and the
+/// hash remembered for the song (`c/…txt`, ADR 0082).
+#[tauri::command]
+pub async fn cover_hash(app: AppHandle, path: String, p: String, c: String, id: String) -> Result<String, String> {
+  if [&p, &c, &id].iter().any(|s| s.is_empty() || s.contains(['/', '\\', '.'])) { return Err("bad song".into()); }
+  let file = crate::allowed(&app, &path)?;
+  on_own_thread("glue-cover", move || -> Result<String, String> {
+    let f = fs::File::open(&file).map_err(|e| e.to_string())?;
+    let cover = glue_audio::out::cover::picture_from(std::io::BufReader::new(f)).and_then(|pic| glue_audio::out::cover::from_image(&pic).ok());
+    if let Some(cv) = &cover { keep_cover(&app, cv)?; }
+    let hash = cover.map(|c| c.hash).unwrap_or_default();
+    crate::cache_put(&app, &key("c", &p, &c, &id, "txt"), hash.as_bytes())?;
+    Ok(hash)
+  }).await?
+}
+
+/// A cover found by a cover service (ADR 0086, the picture as the request's body), made into its JPEGs and kept: its hash.
+#[tauri::command]
+pub async fn cover_from_image(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
+  let tauri::ipc::InvokeBody::Raw(data) = request.body() else { return Err("expected bytes".into()) };
+  let data = data.clone();
+  on_own_thread("glue-cover", move || -> Result<String, String> {
+    let cv = glue_audio::out::cover::from_image(&data)?;
+    keep_cover(&app, &cv)?;
+    Ok(cv.hash)
+  }).await?
+}
+
+/// A song's waveform made from its kept details (no need to read the song again), kept, and answered; empty when its
+/// details aren't kept (or are of another version).
+#[tauri::command]
+pub async fn wave_from_details(app: AppHandle, p: String, c: String, id: String) -> Result<tauri::ipc::Response, String> {
+  if [&p, &c, &id].iter().any(|s| s.is_empty() || s.contains(['/', '\\', '.'])) { return Err("bad song".into()); }
+  let w = on_own_thread("glue-wave", move || -> Result<Vec<u8>, String> {
+    let read = |ext: &str| crate::cache_path(&app, &key("d", &p, &c, &id, ext)).ok().and_then(|f| fs::read(f).ok());
+    let (Some(h), Some(bin)) = (read("json"), read("bin")) else { return Ok(vec![]) };
+    let w = wave_of(&h, &bin);
+    if !w.is_empty() { crate::cache_put(&app, &key("w", &p, &c, &id, "bin"), &w)?; }
+    Ok(w)
+  }).await??;
+  Ok(tauri::ipc::Response::new(w))
+}
+
+/// The waveform of a kept analysis (`d/…json` + `.bin`): empty for one of another version or that can't be read.
+fn wave_of(header: &[u8], bin: &[u8]) -> Vec<u8> {
+  let Ok(h) = serde_json::from_slice::<Value>(header) else { return vec![] };
+  if h["v"].as_f64() != Some(glue_audio::out::files::DETAILS_VERSION) { return vec![]; }
+  let Ok(raw) = glue_audio::out::files::unzlib(bin) else { return vec![] };
+  let Some((spec, _, cols, rows)) = glue_audio::out::files::decode_details(&h, &raw) else { return vec![] };
+  glue_audio::out::files::wave(&spec, cols, rows, h["res"]["sr"].as_f64().unwrap_or(0.0))
+}
+
 /// A song's bytes analysed, and its cache files written through `put` (`k`: a part's cache key).
 fn analyse_into(bytes: Vec<u8>, name: &str, mtime: f64, k: &dyn Fn(&str, &str) -> String, put: &dyn Fn(String, &[u8]) -> Result<(), String>) -> Result<Value, String> {
     let t0 = Instant::now();
@@ -107,6 +195,25 @@ fn same(a: &Value, b: &Value) -> bool {
     (Value::Object(x), Value::Object(y)) => x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| same(v, w))),
     (Value::Array(x), Value::Array(y)) => x.len() == y.len() && x.iter().zip(y).all(|(v, w)| same(v, w)),
     _ => a == b,
+  }
+}
+
+/// Where two JSON values differ (`d.info.tags.ARTIST: "a" vs "b"`), at most `max` places, values cut short.
+fn where_differ(a: &Value, b: &Value, path: &str, out: &mut Vec<String>, max: usize) {
+  if out.len() >= max { return; }
+  match (a, b) {
+    (Value::Number(x), Value::Number(y)) if x.as_f64() == y.as_f64() => {}
+    (Value::Object(x), Value::Object(y)) => {
+      for k in x.keys().chain(y.keys().filter(|k| !x.contains_key(*k))) {
+        where_differ(x.get(k).unwrap_or(&Value::Null), y.get(k).unwrap_or(&Value::Null), &format!("{path}.{k}"), out, max);
+      }
+    }
+    (Value::Array(x), Value::Array(y)) if x.len() == y.len() => for (i, (v, w)) in x.iter().zip(y).enumerate() { where_differ(v, w, &format!("{path}[{i}]"), out, max); },
+    _ if a == b => {}
+    _ => {
+      let short = |v: &Value| { let s = v.to_string(); if s.chars().count() > 60 { s.chars().take(60).collect::<String>() + "…" } else { s } };
+      out.push(format!("{path}: {} natively, {} stored", short(a), short(b)));
+    }
   }
 }
 
@@ -168,12 +275,15 @@ pub fn verify(bytes: &[u8], name: &str, size: f64, mtime: f64, read: &dyn Fn(&st
   }
   if let (Some(h), Some(bin)) = (read(&keys("d", "json")), read(&keys("d", "bin"))) {
     let h: Value = serde_json::from_slice(&h).unwrap_or(Value::Null);
-    if !same(&h, &a.details.0) { diffs.push("d: the header differs".into()); }
+    if !same(&h, &a.details.0) { let max = diffs.len() + 4; where_differ(&a.details.0, &h, "d", &mut diffs, max); }
     match glue_audio::out::files::unzlib(&bin) {
       Ok(raw) => { let (n, max) = bytes_off(&a.details.1, &raw); if n == 0 {} else if lossy { close.push(format!("d: {n} bytes ±{max}")); } else { diffs.push(format!("d: {n} bytes differ")); } }
       Err(_) => diffs.push("d: the stored block can't be read".into()),
     }
   }
+  // The tag fields (`s.fields`): what the library shows of the song's tags.
+  let mine = a.analysed(size, mtime);
+  if !same(&mine["fields"], &stored["fields"]) { let max = diffs.len() + 3; where_differ(&mine["fields"], &stored["fields"], "s.fields", &mut diffs, max); }
   if let Some(g) = read(&keys("p", "bin")) {
     let ber = bit_errors(&a.fingerprint, &g);
     if ber == 0.0 {} else if ber <= if lossy { 0.02 } else { 0.001 } { close.push(format!("p: {:.2}% bits", ber * 100.0)); } else { diffs.push(format!("p: {:.2}% of bits differ", ber * 100.0)); }
@@ -257,6 +367,20 @@ mod tests {
     assert!(s["summary"]["error"].is_string());
   }
 
+  /// A waveform made again from kept details; none from details of another version.
+  #[test]
+  fn a_wave_from_details_is_the_analysis_wave() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+    let bytes = std::fs::read(root.join("flac-96k-24.flac")).unwrap();
+    let a = glue_audio::analyse(&bytes, "x.flac", bytes.len() as f64, 0.0, String::new()).unwrap();
+    let w = super::wave_of(&serde_json::to_vec(&a.details.0).unwrap(), &glue_audio::out::files::zlib(&a.details.1));
+    assert_eq!(w.len(), glue_audio::out::files::WAVE_BYTES);
+    // From the stored (quantised) spectrum, as the website makes it (crates/glue-audio/tests/golden.rs holds it to the
+    // website's byte for byte): not the analysis's own.
+    assert!(w.iter().any(|&b| b > 0));
+    assert!(super::wave_of(b"{\"v\":1}", &[]).is_empty());
+  }
+
   /// A song's stored files made from its own native analysis compare as the same; a changed byte doesn't.
   #[test]
   fn verify_compares_with_the_stored_files() {
@@ -278,6 +402,14 @@ mod tests {
     let keys = |d: &str, e: &str| format!("{d}.{e}");
     let run = |files: &HashMap<String, Vec<u8>>| super::verify(&bytes, "x.flac", size, mtime, &|k| files.get(k).cloned(), &keys);
     assert_eq!(run(&files)["kind"], "same", "{}", run(&files));
+    // A header field that differs is named, with both values.
+    let mut h = a.details.0.clone();
+    h["info"]["fileName"] = serde_json::json!("old.flac");
+    files.insert("d.json".into(), serde_json::to_vec(&h).unwrap());
+    let r = run(&files);
+    assert_eq!(r["kind"], "differs");
+    assert_eq!(r["diffs"][0], "d.info.fileName: \"x.flac\" natively, \"old.flac\" stored", "{r}");
+    files.insert("d.json".into(), serde_json::to_vec(&a.details.0).unwrap());
     files.get_mut("t.bin").unwrap()[10] ^= 0x40;
     assert_eq!(run(&files)["kind"], "differs");
     files.remove("s.json");

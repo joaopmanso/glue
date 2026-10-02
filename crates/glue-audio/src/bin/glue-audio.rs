@@ -1,5 +1,6 @@
 //! The engine from the command line (ADR 0147):
 //!   glue-audio analyse <file>…     each file's summary, as JSON lines
+//!   glue-audio header <file>…      each file's details header (d/…json), its date taken as 5
 //!   glue-audio bench <folder> [n]  analyses up to n songs under the folder (all by default), one at a time, and says
 //!                                  how fast: songs a minute, MB/s, the slowest
 use std::path::{Path, PathBuf};
@@ -33,6 +34,12 @@ fn main() {
       let (r, _, ms) = one(Path::new(f));
       let line = match r { Ok(a) => serde_json::json!({ "file": f, "ms": ms, "summary": a.summary, "info": a.info }), Err(e) => serde_json::json!({ "file": f, "ms": ms, "error": e }) };
       println!("{line}");
+    },
+    // The details header (`d/…json`) as GLUE Home stores it, the file's date taken as 5 (to compare with the website's).
+    Some("header") => for f in &args[1..] {
+      let b = std::fs::read(f).unwrap_or_default();
+      let name = Path::new(f).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+      match glue_audio::analyse(&b, &name, b.len() as f64, 5.0, String::new()) { Ok(a) => println!("{}", serde_json::json!({ "file": f, "header": a.details.0 })), Err(e) => println!("{}", serde_json::json!({ "file": f, "error": e.to_string() })) }
     },
     Some("bench") if args.len() > 1 => {
       let mut all = vec![];

@@ -656,7 +656,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_song])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_song, analysis::analyse_incoming, analysis::cover_hash, analysis::cover_from_image, analysis::wave_from_details])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

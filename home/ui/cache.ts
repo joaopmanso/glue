@@ -5,17 +5,14 @@
    (ADR 0147, 0148): in the background, and at once when another computer asks. */
 import { autoPool, bridge, type HomeConfig } from './bridge';
 import { shared, describe, here, trackPath } from './library';
-import { AnalysisPool } from '../../src/lib/pool';
 import { shardOf, type Collection, type Track } from '../../src/store/types';
 import type { SharedCollection } from '../../src/core/shared/project';
-import { DETAILS_VERSION, decodeDetails, type DetailsHeader } from '../../src/store/details';
-import { makeWaveThumb, WAVE_BYTES } from '../../src/core/library/thumb';
+import { DETAILS_VERSION, type DetailsHeader } from '../../src/store/details';
+import { WAVE_BYTES } from '../../src/core/library/thumb';
 import { incomingKey } from '../../src/core/transfer';
-import { coverOf, type Cover } from '../../src/workers/cover';
 import type { Analysed } from '../../src/core/library/analysed';
 import { failed } from '../../src/core/library/summary';
 import { gaveUp } from '../../src/core/library/analysed';
-import { encodeFingerprint } from '../../src/store/fingerprints';
 
 const tKey = (p: string, c: string, id: string) => `t/${p}/${c}/${shardOf(id)}/${id}.bin`;
 const wKey = (p: string, c: string, id: string) => `w/${p}/${c}/${shardOf(id)}/${id}.bin`;
@@ -57,15 +54,10 @@ export async function details(p: string, c: string, id: string): Promise<{ heade
 export async function putThumb(p: string, c: string, id: string, b: Uint8Array) { await bridge.cacheWrite(tKey(p, c, id), b); }
 export async function wave(p: string, c: string, id: string) { const b = await read(wKey(p, c, id)); return b && b.length === WAVE_BYTES ? b : null; }
 export async function putWave(p: string, c: string, id: string, b: Uint8Array) { if (b.length === WAVE_BYTES) await bridge.cacheWrite(wKey(p, c, id), b); }
-/** A waveform made from the full analysis kept here (no need to read the song again), or null. */
+/** A waveform made from the full analysis kept here (no need to read the song again), kept, or null. Made by GLUE
+    Home's engine (ADR 0147). */
 export async function waveFromDetails(p: string, c: string, id: string): Promise<Uint8Array | null> {
-  const d = await details(p, c, id);
-  if (!d) return null;
-  try {
-    const w = makeWaveThumb((await decodeDetails(d.header, d.bin)).res);
-    await putWave(p, c, id, w);
-    return w;
-  } catch { return null; }
+  try { const w = new Uint8Array(await bridge.waveFromDetails(p, c, id)); return w.length === WAVE_BYTES ? w : null; } catch { return null; }
 }
 export async function putDetails(p: string, c: string, id: string, header: DetailsHeader, bin: Uint8Array) {
   await bridge.cacheWrite(dKey(p, c, id, 'bin'), bin);
@@ -96,40 +88,27 @@ export async function artKept(): Promise<string[]> {
   const files = new Set(await bridge.cacheList('a').catch(() => [] as string[]));
   return [...files].filter(f => f.endsWith('-64.jpg') && files.has(f.slice(0, -7) + '-320.jpg')).map(f => f.slice(0, -7));
 }
-async function keepCover(p: string, c: string, id: string, cover: Cover | null) {
-  if (cover) { await putArt(cover.hash, 64, cover.small); await putArt(cover.hash, 320, cover.large); }
-  await bridge.cacheWrite(cKey(p, c, id), new TextEncoder().encode(cover?.hash ?? ''));
-}
-/** A song's cover hash ('' none): known, or read from its tags now (only the bytes the tags need). */
+/** A song's cover hash ('' none): known, or read from its tags now by GLUE Home's engine (only the tags; it keeps the
+    cover and the hash). */
 export async function coverHash(p: string, c: string, id: string, cfg: HomeConfig): Promise<string> {
   const known = await read(cKey(p, c, id));
   if (known) return new TextDecoder().decode(known);
   const f = await trackPath(p, c, id, cfg);
-  const size = await bridge.fileSize(f.path);
-  const cover = await coverOf({ size, read: async (s, e) => new Uint8Array(await bridge.fileRead(f.path, s, e - s)) });
-  await keepCover(p, c, id, cover);
-  return cover?.hash ?? '';
+  return bridge.coverHash(f.path, p, c, id);
 }
 
 // ---- songs arriving in the incoming folder: analysed at once (ADR 0048) -------------------------------
 /** Analyse a song that just arrived (or one there without an analysis yet), so it's ready when the
-    website shows it in TO BE SORTED: its summary, mini spectrogram and full analysis. */
-export async function analyseIncoming(name: string, path: string, size: number) {
+    website shows it in TO BE SORTED: its summary, mini spectrogram and full analysis, made and kept by GLUE Home's
+    engine (`i/<name>.…`). */
+export async function analyseIncoming(name: string, path: string) {
   if (await read(incomingKey(name, 'summary.json'))) return;
-  const parts: ArrayBuffer[] = [];
-  for (let at = 0; at < size;) { const b = await bridge.fileRead(path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; }
-  pool ??= new AnalysisPool(1);
-  const r = await pool.analyze(new File(parts, name), 0);
-  if (r.thumb) await bridge.cacheWrite(incomingKey(name, 'thumb.bin'), r.thumb);
-  if (r.wave) await bridge.cacheWrite(incomingKey(name, 'wave.bin'), r.wave);
-  if (r.details) { await bridge.cacheWrite(incomingKey(name, 'details.bin'), r.details.bin); await bridge.cacheWrite(incomingKey(name, 'details.json'), new TextEncoder().encode(JSON.stringify(r.details.header))); }
-  await bridge.cacheWrite(incomingKey(name, 'summary.json'), new TextEncoder().encode(JSON.stringify({ ...r.summary, format: r.info.container ? { container: r.info.container, codec: r.info.codec, lossless: r.info.lossless, sampleRate: r.info.sampleRate, bits: r.info.bits, bitrate: Math.round(r.info.bitrate || 0), channels: r.info.channels } : null, duration: r.duration })));
+  await bridge.analyseIncoming(name, path);
 }
 export async function incomingSummary(name: string) { const b = await read(incomingKey(name, 'summary.json')); return b ? JSON.parse(new TextDecoder().decode(b)) : null; }
 export async function cacheFile(key: string) { return read(key); }
 
 // ---- analysing here --------------------------------------------------------------------------------
-let pool: AnalysisPool | null = null;
 
 /** A song given up on (ADR 0144), saved as failed: tried again when asked, or when its file changes. */
 export async function giveUp(p: string, c: string, id: string, cfg: HomeConfig, why: string) {

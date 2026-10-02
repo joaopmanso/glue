@@ -73,6 +73,10 @@ fn check_files(name: &str, a: &Analysis, size: f64) {
   if raw.len() as u64 != g["details"]["rawLength"].as_u64().unwrap() { diffs.push(format!("details: {} bytes vs {}", raw.len(), g["details"]["rawLength"])); }
   else if sha != g["details"]["rawSha256"].as_str().unwrap() { diffs.push("details: the block differs".into()); }
   assert_eq!(files::unzlib(&files::zlib(raw)).unwrap(), *raw);
+  // A waveform made again from the kept details (GLUE Home's `wave_from_details`): the website's from the same block.
+  let (spec, _, cols, rows) = files::decode_details(&a.details.0, raw).expect("the details decode");
+  let w = files::wave(&spec, cols, rows, a.details.0["res"]["sr"].as_f64().unwrap());
+  if g["waveFromDetails"].as_str() != Some(b64(&w).as_str()) { diffs.push("the waveform from the details differs".into()); }
   for (k, mine) in [("thumb", &a.thumb), ("wave", &a.wave), ("fingerprint", &a.fingerprint)] {
     if g[k].as_str().map(|s| s.to_string()) != Some(b64(mine)) { diffs.push(format!("{k} differs")); }
   }

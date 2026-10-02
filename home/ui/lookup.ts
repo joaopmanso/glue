@@ -6,7 +6,6 @@
    album or title go out. */
 import { bridge } from './bridge';
 import { lookupKey, pick, searchUrl, SERVICES, type CoverQuery, type Service } from '../../src/core/library/coverSearch';
-import { coverFromImage } from '../../src/workers/cover';
 import * as cache from './cache';
 import { sha256 } from '../../src/core/hash';
 
@@ -73,11 +72,9 @@ async function find(q: CoverQuery): Promise<string> {
       const found = pick(s, q, JSON.parse(new TextDecoder().decode(await ask(s, url))));
       if (!found) continue;
       const img = await ask(s, found);   // the Cover Art Archive answers 404 when a release has no front
-      const c = await coverFromImage(img);
-      await cache.putArt(c.hash, 64, c.small);
-      await cache.putArt(c.hash, 320, c.large);
+      const hash = await bridge.coverFromImage(img);   // made and kept by GLUE Home's engine
       counts.found++;
-      return c.hash;
+      return hash;
     } catch { /* this service didn't have it (or didn't answer): the next one */ }
   }
   return '';

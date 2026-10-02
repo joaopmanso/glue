@@ -52,6 +52,10 @@ jobs:
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: npm run home:ui
+      # GLUE Home has no audio JavaScript (ADR 0147): its engine is Rust, so its pages ship no analysis worker.
+      - name: No worker in GLUE Home's pages
+        shell: bash
+        run: if ls home/dist/assets | grep -i worker; then echo "GLUE Home's pages have a worker (ADR 0147)"; exit 1; fi
       # The Rust build cache: the dependencies (~400 crates) are compiled once, not on every run. Only
       # main's builds save it and read it (a new version's release is one of them).
       - uses: Swatinem/rust-cache@v2

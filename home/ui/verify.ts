@@ -15,10 +15,12 @@ export interface VerifyState {
   counts: Partial<Record<Checked['kind'] | 'missing', number>>;
   /** The native analyses' time (ms), and the songs it's over. */
   ms: number; timed: number;
+  /** Why songs were skipped, and how many each. */
+  skips: Record<string, number>;
   /** The latest that differ or failed, newest first. */
   odd: { name: string; kind: string; why: string }[];
 }
-export const state: VerifyState = { running: false, done: 0, total: 0, counts: {}, ms: 0, timed: 0, odd: [] };
+export const state: VerifyState = { running: false, done: 0, total: 0, counts: {}, ms: 0, timed: 0, skips: {}, odd: [] };
 let stopped = false;
 export function stop() { stopped = true; }
 
@@ -26,7 +28,7 @@ export function stop() { stopped = true; }
 export async function run(cfg: () => HomeConfig | null, n: number, report: () => void) {
   const c0 = cfg();
   if (!c0?.glue || state.running) return;
-  Object.assign(state, { running: true, done: 0, total: 0, counts: {}, ms: 0, timed: 0, odd: [] });
+  Object.assign(state, { running: true, done: 0, total: 0, counts: {}, ms: 0, timed: 0, skips: {}, odd: [] });
   stopped = false;
   report();
   try {
@@ -50,6 +52,7 @@ export async function run(cfg: () => HomeConfig | null, n: number, report: () =>
         r = await invoke<Checked>('verify_song', { path: f.path, p: j.p, c: j.c, id: j.id });
       } catch (e) { r = { kind: 'skipped', why: String((e as Error)?.message ?? e) }; state.counts.missing = (state.counts.missing ?? 0) + 1; }
       state.counts[r.kind] = (state.counts[r.kind] ?? 0) + 1;
+      if (r.kind === 'skipped') { const why = /isn’t reachable|couldn’t find|isn’t in/.test(r.why ?? '') ? 'its file isn’t reachable' : r.why ?? '?'; state.skips[why] = (state.skips[why] ?? 0) + 1; }
       if (r.ms && r.kind !== 'skipped') { state.ms += r.ms; state.timed++; }
       if (r.kind === 'differs' || r.kind === 'failed') { state.odd.unshift({ name: r.name ?? j.id, kind: r.kind, why: r.diffs?.join('; ') || r.why || '' }); state.odd.length = Math.min(state.odd.length, 20); }
       state.done++;

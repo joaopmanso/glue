@@ -23,7 +23,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-02)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.46.0 (analyses natively, ADR 0147, 0148).
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.47.0 (analyses natively, no audio JavaScript, ADR
+  0147, 0148).
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -75,6 +76,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **The native engine check, first run (2026-10-02, desktop, 1,000 songs):** 111 the same, 0 close, 299 differ, 0 failed
+  natively, 14 only native could, 576 skipped, 2.7 s a song. Nearly every "differ" was "d: the header differs" (the
+  check didn't say which field); one MP3 (Deftones, "Nosebleed demo") really differs (17% of fingerprint bits: a
+  shifted decode?). **Next:** after 0.47 arrives, run it again (100 songs is enough): it names the fields now; send
+  the "differ" lines and the "Skipped:" line. If it's the MP3's trim, ask for that file.
 - **The native engine check (GLUE Home 0.45.0, ADR 0147), on the desktop:** after it updates, GLUE Home's window ›
   Activity › Native engine check › 1,000 › Check. It analyses those songs again natively (nothing is saved) and gives
   a tally; the ones that differ are listed. Send the tally, and `x/verify.jsonl` (in GLUE Home's cache folder,
@@ -85,6 +91,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   and analysed again once fixed.
 - **GLUE Home 0.46.0** (ADR 0148): analysis should look the same in GLUE Home's window (the Speed panel, songs at a
   time, Pause), faster per song; the 342 ALAC M4As only when they're analysed again (B5).
+- **GLUE Home 0.47.0:** send a song to the desktop (TO BE SORTED should show its analysis), and covers should still
+  appear (from tags, and looked up for songs without).
 - **Today's three batches (2026-10-02, the laptop's session):**
   - **"Syncing…" on the laptop:** hover the chip after a long "Syncing…": its tooltip says where the time went
     (saving, from and to GLUE Cloud, reading what it wrote, how many in a row). Fix the part it names.
@@ -176,7 +184,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The native engine (ADR 0147), batches after 0.44:**
   - **B2: done (0.45.0).** Gate: the desktop's check (Waiting on the user).
   - **B3: done (0.46.0, ADR 0148).**
-  - **B4:** no audio JavaScript left in GLUE Home (incoming songs, cover hashes, covers native; a guard test);
+  - **B4: done (0.47.0).**
   - **B5:** DSD (91 songs), re-check of songs failed under an older engine (the 342 ALAC M4As);
   - **B6:** streaming and sessions to other devices native (WebRTC data channels in Rust).
 - **The socket** is in (GLUE Home 0.42, ADR 0139). Covers still come over HTTP: the next to move onto it if they show

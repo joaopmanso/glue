@@ -15,6 +15,9 @@ export const TAURI_MOCK = `(() => {
   window.__tauriEvent = (event, payload) => deliver({ event, payload, target: undefined });
   const cfg = () => JSON.parse(localStorage.getItem('home-config') || 'null');
   // A file on "disk": window.__disk, or a song received into the incoming folder (C:\\In\\<name>, or where it was saved).
+  // GLUE Home's native engine, stood in for by the website's own code (e2e/home-analyse.ts, built into .e2e-home).
+  const engine = () => import('/__e2e/home-analyse.js');
+  const put = (rel, bytes) => { cache[rel] = Array.from(bytes); };
   const disk = p => (window.__disk ?? {})[p] ?? files.find(f => f.done && !f.moved && (p === 'C:\\\\In\\\\' + f.name || p.endsWith('GLUE Incoming\\\\' + f.name)))?.chunks.flat();
   // Tauri's notification plugin puts its own Notification in the page (ADR 0074): here it records them.
   window.__notes = [];
@@ -68,7 +71,11 @@ export const TAURI_MOCK = `(() => {
         // window.__find: folder name → where the drive search finds it.
         case 'find_folder': return (window.__find ?? {})[args.name] ?? null;
         // window.__findFile: song name → where the search finds it.
-        case 'analyse_song': { const b = disk(args.path); if (!b) throw 'not found'; window.__analysed = [...(window.__analysed ?? []), args.id]; send('analysis-step', args.p + '/' + args.c + '/' + args.id, 'service'); const m = await import('/__e2e/home-analyse.js'); return m.analyseSong(args, b, (rel, bytes) => { cache[rel] = Array.from(bytes); }); }
+        case 'analyse_song': { const b = disk(args.path); if (!b) throw 'not found'; window.__analysed = [...(window.__analysed ?? []), args.id]; send('analysis-step', args.p + '/' + args.c + '/' + args.id, 'service'); return (await engine()).analyseSong(args, b, put); }
+        case 'analyse_incoming': { const b = disk(args.path); if (!b) throw 'not found'; return (await engine()).analyseIncoming(args.name, b, put); }
+        case 'cover_hash': { const b = disk(args.path); if (!b) throw 'not found'; return (await engine()).coverHash(args, b, put); }
+        case 'cover_from_image': return (await engine()).coverFromImage(Array.from(args), put);
+        case 'wave_from_details': return (await engine()).waveFromDetails(args, rel => cache[rel] ? new Uint8Array(cache[rel]) : null, put);
         case 'verify_song': window.__verified = [...(window.__verified ?? []), args.id]; return (window.__verifyAnswer ?? {})[args.id] ?? { kind: 'same', ms: 1000, name: args.id };
         case 'find_file': return (window.__findFile ?? {})[args.name] ?? null;
         case 'glue_list': return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));

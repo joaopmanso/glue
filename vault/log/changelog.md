@@ -5,6 +5,25 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.47.0: no audio JavaScript left in GLUE Home (ADR 0147)
+- **The rest of GLUE Home's audio work is native:**
+  - songs arriving in the incoming folder are analysed by the engine (`analyse_incoming`);
+  - a song's cover is read from its tags in Rust, only the tags (`cover_hash`; before, mediabunny read them over the
+    bridge);
+  - a cover found by a cover service is made into its JPEGs in Rust (`cover_from_image`);
+  - a waveform is made from kept details in Rust (`wave_from_details`, byte for byte the website's: in the goldens).
+- **GLUE Home's pages are 237 KB now**, with no analysis worker, decoder or mediabunny.
+  `tests/homeBundle.test.ts` fails if `home/ui` reaches any of them again, and the GLUE Home build fails on a worker
+  in its pages.
+- `/home/file` (the local link's song reads for the old WebView analysis) is gone.
+- **The native engine check says more** (the desktop's first run, 1,000 songs: 111 the same, 299 differ, 14 only
+  native could, 576 skipped, 2.7 s a song): a header that differs names its fields and both values (it said only
+  "d: the header differs", on nearly every lossless song), the tag fields (`s.fields`) are compared too, the skipped
+  are counted by why, and the window says where `verify.jsonl` is. Two real AIFFs give byte-identical headers natively
+  and in JavaScript (`glue-audio header`), so the stored headers are suspected of being older than their results
+  (a header follows a tag write's new size and date, not its tags).
+- `glue-audio header <file>`: a file's details header, to compare with the website's.
+
 ## 2026-10-02 · GLUE Home 0.46.0: GLUE Home analyses natively (ADR 0148)
 - **GLUE Home's analysis runs in Rust now** ([ADR 0148](../adr/0148-glue-home-analyses-songs-in-rust.md)): its queue
   hands each song to `analyse_song`, which reads the file from disk (giving way to songs being played), analyses it

@@ -12,8 +12,11 @@ pub const SMALL: u32 = 64;
 pub const LARGE: u32 = 320;
 
 /// The picture `coverOf` picks: the front cover, else any but the back, else the first; at least 64 bytes.
-pub fn picture(bytes: &[u8]) -> Option<Vec<u8>> {
-  let file = lofty::probe::Probe::new(Cursor::new(bytes)).guess_file_type().ok()?.options(lofty::config::ParseOptions::new().read_properties(false)).read().ok()?;
+pub fn picture(bytes: &[u8]) -> Option<Vec<u8>> { picture_from(Cursor::new(bytes)) }
+
+/// The same from a file read in place (only its tags: GLUE Home's covers for songs it hasn't analysed).
+pub fn picture_from<R: std::io::Read + std::io::Seek>(r: R) -> Option<Vec<u8>> {
+  let file = lofty::probe::Probe::new(r).guess_file_type().ok()?.options(lofty::config::ParseOptions::new().read_properties(false)).read().ok()?;
   let mut pics: Vec<(PictureType, Vec<u8>)> = Vec::new();
   for tag in file.tags() { for p in tag.pictures() { pics.push((p.pic_type(), p.data().to_vec())); } }
   let pick = pics.iter().position(|p| p.0 == PictureType::CoverFront).or_else(|| pics.iter().position(|p| p.0 != PictureType::CoverBack)).or(if pics.is_empty() { None } else { Some(0) })?;

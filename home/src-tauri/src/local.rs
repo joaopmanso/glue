@@ -286,16 +286,6 @@ fn answer(app: AppHandle, req: Request) {
         "/dock/show" if req.method() == &Method::Post => { crate::dock::show(&app); reply(req, 200, b"{}".to_vec(), "application/json") }
         "/dock" if req.method() == &Method::Get => reply(req, 200, crate::dock::current().to_string().into_bytes(), "application/json"),
         "/dock/clear" if req.method() == &Method::Post => { crate::dock::clear(&app); reply(req, 200, b"{}".to_vec(), "application/json") }
-        // A song read whole for GLUE Home's own analysis (ADR 0138): any file GLUE Home may read (as its file_read), in one
-        // request from one open file, for its own windows with the full token only. Through Tauri's messages, 4 MB at a
-        // time, it came at about 10 MB/s in all from a NAS that gives 47 to 74 (2026-10-01).
-        "/home/file" if full && matches!(origin.as_deref(), Some("http://tauri.localhost") | Some("tauri://localhost")) => {
-            match crate::allowed(&app, &arg("path")) {
-                Ok(p) if p.is_file() => send_file(req, &p, "application/octet-stream", cors, Pri::Analysis),
-                Ok(_) => reply(req, 404, b"{\"error\":\"not a file\"}".to_vec(), "application/json"),
-                Err(e) => reply(req, 403, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json"),
-            }
-        }
         // The website's files, through GLUE Home (ADR 0051). A song file read: the analysis lets it go first (ADR 0138).
         p if p.starts_with("/fs/") => { if p == "/fs/file" { FOREGROUND_AT.store(now_ms(), Ordering::Relaxed); } crate::disk::handle(app.clone(), req, p, &arg, cors) }
         "/incoming" => {

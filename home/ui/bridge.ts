@@ -109,6 +109,14 @@ export const bridge = {
   cacheList: (rel: string) => invoke<string[]>('cache_list', { rel }),
   /** A song analysed by GLUE Home's own engine into this cache (ADR 0148); `failed`: it couldn't be, saved as such. */
   analyseSong: (path: string, p: string, c: string, id: string, mtime: number) => invoke<{ bytes: number; readMs: number; analyseMs: number; failed?: string; label?: string }>('analyse_song', { path, p, c, id, mtime }),
+  /** A song that arrived in the incoming folder, analysed by the engine into `i/<name>.…` (ADR 0048). */
+  analyseIncoming: (name: string, path: string) => invoke<void>('analyse_incoming', { name, path }),
+  /** A song's cover from its tags ('' for none), kept with the song's hash (ADR 0082). */
+  coverHash: (path: string, p: string, c: string, id: string) => invoke<string>('cover_hash', { path, p, c, id }),
+  /** A picture (a cover service's) made into the cover's JPEGs and kept: its hash (ADR 0086). */
+  coverFromImage: (bytes: Uint8Array) => invoke<string>('cover_from_image', bytes),
+  /** A song's waveform made from its kept details (empty: none kept). */
+  waveFromDetails: (p: string, c: string, id: string) => invoke<ArrayBuffer>('wave_from_details', { p, c, id }),
   /** The engine read a song's file (`p/c/id`): analysing it now. */
   onAnalysisStep: (f: (key: string) => void) => listen<string>('analysis-step', e => f(e.payload)),
   /** What GLUE Home's own side was asked since it started: the local link, the service page's file reads (ADR 0083). */

@@ -165,6 +165,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     with Disconnect (`home/ui/sessions.ts`). It says `{t:'session'}` first, then tells every session what happened:
     `made` (songs analysed: rows and song pages show them at once) and `incoming` (TO BE SORTED changed);
     covers for songs whose tags have none, looked up on public services (`lookup.ts`, ADR 0086).
+  - **No audio JavaScript** (ADR 0147, 0.47): songs arriving in the incoming folder (`analyse_incoming`), covers from
+    tags (`cover_hash`, only the tags read) and from cover services (`cover_from_image`), and waveforms from kept
+    details (`wave_from_details`) are the Rust engine's, like the analysis. `tests/homeBundle.test.ts` fails when
+    `home/ui` reaches the website's analysis, decoders, workers or audio packages; CI fails on a worker in
+    `home/dist`.
   - finding music folders on disk (`library.ts` `locate`, `folderOf`): one drive search per folder, and what's
     found is kept in its settings (ADR 0122).
 - **The tab in Home mode** (`src/platform/homeDisk.ts`, `src/lib/engine.svelte.ts`, `localHome.svelte.ts`):
@@ -213,8 +218,7 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   (`src/store/types.ts`).
 - **The native engine** (`crates/glue-audio`, ADR 0147): the same analysis in Rust, a line-for-line port with
   JavaScript's numbers, for GLUE Home (0.44 linked it, 0.45 made every stored file and decoded lossy files, with a check
-  against the stored results in GLUE Home's window, 0.46 analyses with it; incoming songs still use the JavaScript
-  pool until B4). A deadline (`glue_audio::control`) stops a song past `timeFor`. In e2e tests the mock stands in with
+  against the stored results in GLUE Home's window, 0.46 analyses with it, 0.47 has no audio JavaScript left). A deadline (`glue_audio::control`) stops a song past `timeFor`. In e2e tests the mock stands in with
   the website's pipeline (`e2e/home-analyse.ts`, built into `.e2e-home/`, never `home/dist`). Lossy goldens come from Edge (`e2e/golden.spec.ts`, `GOLDEN=1`). CLI: `glue-audio analyse | bench`. Held to the TypeScript's results by `tests/golden` (`tests/golden.test.ts` writes them and fails when
   they're stale; `crates/glue-audio/tests/golden.rs` compares). A native summary has `engine: "glue-audio <version>"`.
 - **`analysisState(t, a)`** (`src/core/library/analysed.ts`) returns done, failed, waiting, elsewhere (another

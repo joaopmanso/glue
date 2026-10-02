@@ -214,7 +214,7 @@ function receive(dc: RTCDataChannel, from: string) {
         const path = await bridge.end(f.id, true);
         // Analysed at once, so it's ready in TO BE SORTED (ADR 0048).
         // TO BE SORTED changed: said once it's analysed, so devices show it with its waveform (ADR 0133).
-        void cache.analyseIncoming(f.name, path, f.size).catch(e => console.warn('GLUE Home: couldn’t analyse', f.name, e)).finally(() => tell({ t: 'event', kind: 'incoming' }));
+        void cache.analyseIncoming(f.name, path).catch(e => console.warn('GLUE Home: couldn’t analyse', f.name, e)).finally(() => tell({ t: 'event', kind: 'incoming' }));
         const r: Received = { name: f.name, path, from: fromName(), at: Date.now(), size: f.size };
         if (cfg) cfg = await bridge.patchConfig(cur => ({ received: [r, ...(cur.received ?? [])].slice(0, 30) })).catch(() => cfg) ?? cfg;
         reply({ t: 'saved', n: f.n, name: f.name });
@@ -568,7 +568,7 @@ async function boot() {
     await bridge.rpcReply(m.id, JSON.stringify(out)).catch(() => {});
   })());
   // Songs already waiting without an analysis (arrived while it was off, or before this version).
-  void (async () => { for (const f of await bridge.incomingList().catch(() => [])) await cache.analyseIncoming(f.name, f.path, f.size).catch(() => {}); })();
+  void (async () => { for (const f of await bridge.incomingList().catch(() => [])) await cache.analyseIncoming(f.name, f.path).catch(() => {}); })();
   // The website's GLUE folder, when it's in a usual place and none was chosen.
   if (cfg && !cfg.glue) { const g = await bridge.findGlue().catch(() => null); if (g) cfg = await bridge.patchConfig(cur => cur.glue ? null : { glue: g }).catch(() => cfg) ?? cfg; }
   start();

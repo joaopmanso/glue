@@ -14,7 +14,7 @@ import { runJob } from '../src/core/audio/analyze';
 import { classify } from '../src/core/audio/verdict';
 import { summarize } from '../src/core/library/summary';
 import type { AnalysisJob, AnalysisResult, FileInfo } from '../src/core/types';
-import { encodeDetails } from '../src/store/details';
+import { decodeDetails, encodeDetails } from '../src/store/details';
 import { makeThumb, makeWaveThumb } from '../src/core/library/thumb';
 import { encodeFingerprint } from '../src/store/fingerprints';
 import { analysed } from '../src/core/library/analysed';
@@ -64,7 +64,7 @@ async function golden(info: FileInfo, out: AnalysisResult, size: number, art?: s
   return {
     'files.json': {
       details: { header: d.header, rawSha256: createHash('sha256').update(raw).digest('hex'), rawLength: raw.length },
-      thumb: b64(makeThumb(out)), wave: b64(makeWaveThumb(out)), fingerprint: out.fp ? b64(encodeFingerprint(out.fp)) : null,
+      thumb: b64(makeThumb(out)), wave: b64(makeWaveThumb(out)), waveFromDetails: b64(makeWaveThumb((await decodeDetails(d.header, d.bin)).res)), fingerprint: out.fp ? b64(encodeFingerprint(out.fp)) : null,
       analysed: (() => { const a = analysed({ summary: { ...s, fp: !!out.fp }, info: plain, duration: out.duration, art: art === undefined ? undefined : art ? { hash: art } : null }, size, MTIME); const { at: _x, ...sum } = a.summary; return { ...a, summary: sum }; })(),
     },
     'info.json': plain,
