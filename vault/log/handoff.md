@@ -73,8 +73,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
-- **GLUE Home 0.42.2** (ADR 0141): open GLUE from GLUE Home's button and play a song on F: first. It should start in a
-  second or two, like the songs after it.
+- **Waveforms after jumps** (ADR 0142, website only): drag the scroll bar about 5,000 songs down and again, 3 or 4
+  times. Every row on screen should get its waveform as soon as the others, no block left empty.
+- **GLUE Home 0.42.2** (ADR 0141): **confirmed** by the user, 2026-10-02: "the playing is great, it's very fast".
   - **If it's still slow:** has F: been idle for 20 minutes or more? It's a hard disk that Windows turns off then
     (power plan "Turn off hard disk after": 20 min), and spinning up is the drive's time, not GLUE's.
   - **Measured:** the WAV (`F:\Music\X (PREVIEW MASTER ONLY).wav`, 52 MB) played through the local link in 0.4 s

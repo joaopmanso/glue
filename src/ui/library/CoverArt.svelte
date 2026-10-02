@@ -7,7 +7,9 @@
   let { t, size = 64, px = 26, zoom = false }: { t: Track; size?: CoverSize; px?: number; zoom?: boolean } = $props();
   const src = $derived.by(() => { void covers.version; return covers.get(t, size); });
   $effect(() => { if (src === undefined) covers.request(t, size); });
-  $effect(() => { const tr = t, sz = size; covers.hold(tr, sz); return () => covers.drop(tr, sz); });
+  // On screen, by the song's id: a new copy of its track (its cover found, the engine's feed) isn't leaving (ADR 0142).
+  const id = $derived(t.id);
+  $effect(() => { const k = id, sz = size; covers.hold(k, sz); return () => covers.drop(k, sz); });
 
   // Hovered: the large one beside it, kept inside the window.
   let at = $state<{ x: number; y: number } | null>(null);

@@ -5,6 +5,15 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · Waveforms: a row on screen always gets its own
+- **The user:** after a few jumps down the list with the scroll bar, a block of 5 or 6 rows had no waveform for
+  10–15 s; the song's page and back loaded them at once
+  ([ADR 0142](../adr/0142-a-row-on-screen-always-gets-what-it-asked-for.md)).
+- **The cause:** a song's track changing on screen (its cover found, the engine's feed) made its cell "leave and come
+  back", which cancelled the waveform it was waiting for, and nothing asked again.
+- **Now:** rows are held by the song's id, and what a cancel took is asked again when the row is back. Covers too.
+  Two unit tests replay it.
+
 ## 2026-10-02 · GLUE Home 0.42.2: songs get their own port; a read looks up only its folder
 - **The user:** on 0.42.1, the first song after opening GLUE (a WAV on F:) took 34 s; the next ones started at once,
   a NAS song in under 2 s ([ADR 0141](../adr/0141-songs-get-their-own-port-and-a-read-looks-up-only-its-folder.md)).

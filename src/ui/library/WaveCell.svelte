@@ -22,8 +22,10 @@
   const data = $derived.by(() => { void thumbs.version; void waves.version; return wave ? waves.get(t.id) : thumbs.get(t.id); });
   const here = $derived(t.status === 'linked' && (!t.remote || lib.canRead(t)));
   $effect(() => { if (data === undefined && t.status === 'linked' && (!t.remote || here)) (wave ? waves : thumbs).request(t.id); });
-  // On screen: a row that scrolls away drops what it asked for.
-  $effect(() => { const id = t.id, which = wave ? waves : thumbs; which.hold(id); return () => which.drop(id); });
+  // On screen: a row that scrolls away drops what it asked for. By the song's id: a new copy of its track (its cover
+  // found, the engine's feed) isn't leaving, and dropped the waveform it waited for (ADR 0142).
+  const id = $derived(t.id);
+  $effect(() => { const k = id, which = wave ? waves : thumbs; which.hold(k); return () => which.drop(k); });
 
   // Draw through the spectrogram palette (the same one as the track page), or as the Prepare page's
   // waveform, mirrored, in its colour scheme.

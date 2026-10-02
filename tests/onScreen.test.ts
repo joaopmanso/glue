@@ -3,7 +3,7 @@ import { OnScreen, Retries } from '../src/lib/onScreen';
 
 // The rows on screen and asking again (ADR 0131). The user, 2026-10-01: on the laptop, the first screen's
 // waveforms often didn't load until the rows were scrolled away and back.
-const state = vi.hoisted(() => ({ readable: true, tracks: new Map<string, unknown>() }));
+const state = vi.hoisted(() => ({ readable: true, tracks: new Map<string, unknown>(), dir: null as unknown }));
 vi.mock('../src/lib/library.svelte', () => ({
   lib: {
     store: { meta: { id: 'c1' }, tracks: state.tracks, analysis: new Map() },
@@ -11,7 +11,7 @@ vi.mock('../src/lib/library.svelte', () => ({
     trackDetails: async () => null,
   },
 }));
-vi.mock('../src/platform', () => ({ cacheDir: async () => null }));
+vi.mock('../src/platform', () => ({ cacheDir: async () => state.dir }));
 vi.stubGlobal('window', globalThis);
 const { waves } = await import('../src/lib/thumbs.svelte');
 const { WAVE_BYTES } = await import('../src/core/library/thumb');
@@ -104,5 +104,44 @@ describe('waveforms of another computer’s songs (ADR 0131)', () => {
     await vi.advanceTimersByTimeAsync(150);
     expect(waves.get('c')).toEqual(bytes);
     waves.drop('c');
+  });
+});
+
+describe('this computer’s songs, from GLUE Home’s cache (ADR 0142)', () => {
+  // The browser's own cache has none: every read goes to GLUE Home.
+  const noneHere = { getDirectoryHandle: async () => { throw new Error('not there'); } };
+  beforeEach(() => { vi.useFakeTimers(); state.dir = noneHere; state.tracks.clear(); });
+  afterEach(() => { vi.useRealTimers(); state.dir = null; });
+  const localSong = (id: string) => ({ id, status: 'linked' });
+  /** GLUE Home answers each after 100 ms, or at once with nothing when the row cancels it. */
+  const slow = vi.fn((id: string, signal?: AbortSignal) => new Promise<Uint8Array | null>(done => {
+    const t = setTimeout(() => done(bytes), 100);
+    signal?.addEventListener('abort', () => { clearTimeout(t); done(null); }, { once: true });
+  }));
+
+  // The user, 2026-10-02: after jumps down the list, a block of 5 or 6 rows in the middle got no waveform for 10–15 s;
+  // the song's page and back loaded them at once. A row's song changed (its cover found, the engine's feed) while it
+  // waited behind the 6 reads in flight: the cell said it left and came back, and what it had asked for was dropped.
+  it('a row whose song changes while it waits still gets its waveform', async () => {
+    waves.fromHome = slow;
+    const ids = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'd'];
+    for (const id of ids) { state.tracks.set(id, localSong(id)); waves.request(id); waves.hold(id); }
+    await vi.advanceTimersByTimeAsync(0);
+    // 'd' waits behind the six. Its song changes: the cell's effects run again, in their order.
+    waves.request('d'); waves.drop('d'); waves.hold('d');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(waves.get('d')).toEqual(bytes);
+    for (const id of ids) waves.drop(id);
+  });
+
+  it('a row that comes back while its cancelled read is still ending asks again', async () => {
+    waves.fromHome = slow;
+    state.tracks.set('e', localSong('e'));
+    waves.request('e'); waves.hold('e');
+    await vi.advanceTimersByTimeAsync(10);
+    waves.drop('e'); waves.hold('e');                       // away and back in the same moment
+    await vi.advanceTimersByTimeAsync(500);
+    expect(waves.get('e')).toEqual(bytes);
+    waves.drop('e');
   });
 });

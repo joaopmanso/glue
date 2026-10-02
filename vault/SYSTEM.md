@@ -185,7 +185,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **Overviews and covers load for the rows on screen** (`thumbs`, `waves`, `covers`):
   - newest request first;
   - a row that scrolls away drops what it asked for (`hold`/`drop`), so a jump down the list loads the new rows
-    at once;
+    at once; rows are held by the song's id, and what a cancel took is asked again when the row is back (`lost`,
+    ADR 0142);
   - the table draws 12 rows beyond each edge, and keeps the song at the top of its window where it is when the list
     changes by itself (ADR 0139);
   - from another computer, asked until answered (`src/lib/onScreen.ts`, ADR 0131): a song the ask couldn't reach

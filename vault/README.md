@@ -219,5 +219,6 @@ Planned (GLUE):
 | [0139](adr/0139-a-socket-for-background-loads-and-a-list-that-stays-put.md) | A socket for the background loads from GLUE Home (numbered, cancellable), and a list that stays put while it changes by itself | accepted |
 | [0140](adr/0140-a-song-played-pauses-the-analysis-reads.md) | A song played pauses the analysis's reads, not only its new songs: the drive or NAS serves it first | accepted |
 | [0141](adr/0141-songs-get-their-own-port-and-a-read-looks-up-only-its-folder.md) | Songs played get their own port on GLUE Home, and a file read looks up only its own folder (not the NAS, not another drive) | accepted |
+| [0142](adr/0142-a-row-on-screen-always-gets-what-it-asked-for.md) | A row on screen always gets what it asked for: held by its song's id, and asked again when a cancel took it | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

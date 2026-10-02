@@ -38,7 +38,8 @@ class Thumbs {
   }
   request(id: string) {
     this.checkCollection();
-    if (this.cache.has(id) || this.queue.includes(id)) return;
+    const r = this.reads.get(id);
+    if (this.cache.has(id) || this.queue.includes(id) || (r && !r.signal.aborted)) return;
     this.queue.push(id);
     this.pump();
   }
@@ -48,18 +49,24 @@ class Thumbs {
   private retries = new Retries();
   /** Another computer's songs it had none for yet: asked again when they come back on screen. */
   private notYet = new Set<string>();
+  /** Asked for, then dropped when the row left: asked again when it's back (ADR 0142). */
+  private lost = new Set<string>();
   hold(id: string) {
-    if (!this.screen.hold(id) || !this.notYet.delete(id)) return;
-    this.cache.delete(id);
-    this.request(id);
+    if (!this.screen.hold(id)) return;
+    const again = this.notYet.delete(id), lost = this.lost.delete(id);
+    if (again) this.cache.delete(id);
+    if (again || lost) this.request(id);
   }
   drop(id: string) {
     if (!this.screen.drop(id)) return;
     this.retries.cancel(id);
-    this.reads.get(id)?.abort();
-    const q = this.queue.indexOf(id); if (q >= 0) this.queue.splice(q, 1);
-    const d = this.derive.indexOf(id); if (d >= 0) this.derive.splice(d, 1);
-    const w = this.wantRemote.findIndex(t => t.id === id); if (w >= 0) this.wantRemote.splice(w, 1);
+    const r = this.reads.get(id);
+    let lost = !!r && !r.signal.aborted;
+    r?.abort();
+    const q = this.queue.indexOf(id); if (q >= 0) { this.queue.splice(q, 1); lost = true; }
+    const d = this.derive.indexOf(id); if (d >= 0) { this.derive.splice(d, 1); lost = true; }
+    const w = this.wantRemote.findIndex(t => t.id === id); if (w >= 0) { this.wantRemote.splice(w, 1); lost = true; }
+    if (lost) this.lost.add(id);
   }
   /** A fresh analysis made one: keep it and store it. */
   async put(id: string, data: Uint8Array) {
@@ -78,7 +85,7 @@ class Thumbs {
 
   private checkCollection() {
     const cid = lib.store?.meta.id ?? '';
-    if (cid !== this.cid) { this.cid = cid; this.cache.clear(); this.queue = []; this.derive = []; this.notYet.clear(); this.retries.clear(); }
+    if (cid !== this.cid) { this.cid = cid; this.cache.clear(); this.queue = []; this.derive = []; this.notYet.clear(); this.lost.clear(); this.retries.clear(); }
   }
   private remember(id: string, v: Uint8Array | null) {
     this.cache.set(id, v);
@@ -87,9 +94,11 @@ class Thumbs {
   }
   private pump() {
     while (this.reading < READERS && this.queue.length) {
-      const id = this.queue.pop()!;
+      // Known from its start, so a row that leaves cancels it at any step, and a row back asks again (ADR 0142).
+      const id = this.queue.pop()!, ctl = new AbortController();
       this.reading++;
-      void this.read(id).finally(() => { this.reading--; this.pump(); });
+      this.reads.set(id, ctl);
+      void this.read(id, ctl.signal).finally(() => { if (this.reads.get(id) === ctl) this.reads.delete(id); this.reading--; this.pump(); });
     }
   }
   /** Another computer's songs: from its GLUE Home, a screenful at a time (ADR 0046). The answer has each song
@@ -106,7 +115,7 @@ class Thumbs {
   /** This computer's song, analysed by GLUE Home (ADR 0110): its copy in GLUE Home's cache, when this browser has
       none (it was analysed while no tab listened, or in another browser). */
   fromHome: ((id: string, signal?: AbortSignal) => Promise<Uint8Array | null>) | null = null;
-  /** What's being read from GLUE Home now, by song: a row that scrolls away cancels it (ADR 0139). */
+  /** What's being read now, by song: a row that scrolls away cancels it (ADR 0139, 0142). */
   private reads = new Map<string, AbortController>();
   private wantRemote: Track[] = [];
   private remoteTimer = 0;
@@ -135,7 +144,7 @@ class Thumbs {
       });
     }, 120);
   }
-  private async read(id: string) {
+  private async read(id: string, signal: AbortSignal) {
     const rt = lib.store?.tracks.get(id);
     // Another computer's: from its GLUE Home. Not reachable yet: left unknown, so the row asks once it is.
     if (rt?.remote) { if (!this.remoteOk) this.remember(id, null); else if (lib.canRead(rt)) this.fromRemote(rt); return; }
@@ -148,13 +157,11 @@ class Thumbs {
       const b = new Uint8Array(await (await (await d.getFileHandle(name)).getFile()).arrayBuffer());
       if (this.cid === cid && b.length === this.size) { this.remember(id, b); return; }
     } catch { /* not stored yet */ }
-    if (this.cid !== cid) return;
-    const ctl = new AbortController();
-    this.reads.set(id, ctl);
-    const home = await this.fromHome?.(id, ctl.signal).catch(() => null).finally(() => { if (this.reads.get(id) === ctl) this.reads.delete(id); });
+    if (this.cid !== cid || signal.aborted) return;
+    const home = await this.fromHome?.(id, signal).catch(() => null);
     if (this.cid !== cid) return;
     // Scrolled away meanwhile: nothing kept, so the row asks again when it's back.
-    if (ctl.signal.aborted) return;
+    if (signal.aborted) return;
     if (home && home.length === this.size) { await this.put(id, home); return; }
     // Analysed before thumbnails existed: make it from the stored analysis, one at a time.
     const a = lib.store?.analysis.get(id);

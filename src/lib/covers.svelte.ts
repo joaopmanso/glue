@@ -59,12 +59,13 @@ class Covers {
       from another computer's GLUE Home), and may ask again when it's back (2026-09-30). */
   private screen = new OnScreen();
   private retries = new Retries();
-  hold(t: Track, size: CoverSize) { this.screen.hold(t.id + '-' + size); }
-  drop(t: Track, size: CoverSize) {
-    const k = t.id + '-' + size;
+  /** By the song's id: its track changing (a cover found, the engine's feed) isn't leaving the screen (ADR 0142). */
+  hold(id: string, size: CoverSize) { this.screen.hold(id + '-' + size); }
+  drop(id: string, size: CoverSize) {
+    const k = id + '-' + size;
     if (!this.screen.drop(k)) return;
     this.retries.cancel(k);
-    const w = this.want.indexOf(t.id); if (w >= 0) { this.want.splice(w, 1); this.tried.delete(t.id); }
+    const w = this.want.indexOf(id); if (w >= 0) { this.want.splice(w, 1); this.tried.delete(id); }
     if (this.homeWant.delete(k)) this.homeTried.delete(k);
   }
   /** A fresh analysis found one: stored before the track names it. */
