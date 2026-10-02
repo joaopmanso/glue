@@ -5,6 +5,25 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.45.0: the native engine complete, and a check against the real collection (ADR 0147)
+- **Every output in Rust now** (`crates/glue-audio`): the details (`d/`), the mini spectrogram (`t/`), the waveform
+  (`w/`), the fingerprint file (`p/`), the cover (`a/`, `c/`: the picture `coverOf` picks, its hash, EXIF orientation,
+  the centre square at 320 and 64 px), the tag fields and the `Analysed` record (`s/`).
+- **Lossy files decoded natively** (Symphonia: MP3, AAC-LC, ALAC, Vorbis), trimmed as the browser trims: an MP3 by its
+  LAME tag, an Ogg stream by its exact length, an MP4 by its edit list (the priming an AAC skips). Before the edit list
+  an M4A came out 32 ms long, with a BPM off by a hair.
+- **The same as the website, shown:** lossless files byte for byte (every stored file, on 5 fixtures and the demo).
+  Lossy files against Edge's own analysis of them (`e2e/golden.spec.ts`, `GOLDEN=1`, into `tests/golden/<file>`): the
+  thumbnails, waveforms and fingerprints identical too, BPM, key and verdict the same. ALAC gives what FLAC gives for
+  the same audio. Test files: `tests/fixtures/lossy` (`scripts/lossy-fixtures.mjs`, 4.3 MB).
+- **`glue-audio analyse | bench`**, a command line for the engine (`cargo run --release --bin glue-audio`): 16 test
+  files in 2 s on the laptop.
+- **GLUE Home 0.45.0, Activity › Native engine check:** analyses a random sample of the songs GLUE Home analysed
+  again, natively, saves nothing, and compares (`verify_song`): the same, close (a lossy file within ADR 0147's
+  limits), differ, failed natively, or only native could (the ALAC M4As). Each song's outcome goes in GLUE Home's
+  cache, `library/x/verify.jsonl`. The service page still analyses.
+- Not native yet: Opus (none in the collection) and HE-AAC (B5), DSD (B5).
+
 ## 2026-10-02 · GLUE Home 0.44.0: the native analysis engine, first part (ADR 0147)
 - **`crates/glue-audio`**: GLUE's analysis in Rust, for GLUE Home ([ADR 0147](../adr/0147-glue-home-analyses-natively.md);
   the user: no JavaScript for audio in the desktop app). This first part covers lossless files: the container parser

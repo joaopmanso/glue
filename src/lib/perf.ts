@@ -74,6 +74,8 @@ class Perf {
       dropBefore: (title: string, k: number) => import('./perfStorm').then(m => m.dropBefore(title, k)),
       /** A file decoded by the worker and by the page, compared (ADR 0060). */
       decodeCheck: (url: string) => import('./decodeCheck').then(m => m.decodeCheck(url)),
+      /** A file analysed as GLUE Home's analysis does it, every output (the native engine's reference, ADR 0147). */
+      golden: (url: string) => import('./golden').then(m => m.golden(url)),
     };
   }
 

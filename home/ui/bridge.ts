@@ -58,6 +58,8 @@ export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online
   computer?: { id: string | null; why: string };
   /** The library engine (ADR 0104): its revision, and the jobs under way. */
   engine?: import('./engine').EngineStatus;
+  /** The native engine checked against this computer's analyses (ADR 0147). */
+  verify?: import('./verify').VerifyState;
   /** What GLUE Home did lately, newest first (the settings window shows each new one as a toast). */
   events?: { at: number; text: string }[];
   /** The last look at the events (ADR 0074): when, how many need music, which were just notified. */
@@ -139,6 +141,9 @@ export const bridge = {
   disconnect: (key: string) => emitTo('service', 'disconnect', key),
   onDisconnect: (f: (key: string) => void) => listen<string>('disconnect', e => f(e.payload)),
   onRemindNow: (f: () => void) => listen('remind-now', () => f()),
+  /** The settings' check of the native engine (ADR 0147): `n` songs, 0 to stop. */
+  verify: (n: number) => emitTo('service', 'verify', n),
+  onVerify: (f: (n: number) => void) => listen<number>('verify', e => f(e.payload)),
   /** A browser on this computer asked to join it (ADR 0091): its request's body. */
   onAttach: (f: (body: string) => void) => listen<string>('attach', e => f(e.payload)),
 };

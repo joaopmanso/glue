@@ -15,6 +15,7 @@ import { describe, locate, locateAll, newlyFound, trackPath, folderOf, found } f
 import { findUpdate, install, version } from './updates';
 import { admit, maxOf, sessionKey } from './sessions';
 import * as engine from './engine';
+import * as verify from './verify';
 import { checkReminders } from './reminders';
 import { whoAmI } from './identity';
 import * as ice from './ice';
@@ -71,7 +72,7 @@ let servedTimer = 0;
 const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), events: events.slice(), reminders, served: structuredClone(served), sessions: { list: [...sessions.values()].map(s => ({ key: s.key, name: s.name, since: s.since, last: s.last, calls: s.calls, open: s.pc.connectionState === 'connected' })), max: maxSessions() }, computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
+  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), verify: structuredClone(verify.state), events: events.slice(), reminders, served: structuredClone(served), sessions: { list: [...sessions.values()].map(s => ({ key: s.key, name: s.name, since: s.since, last: s.last, calls: s.calls, open: s.pc.connectionState === 'connected' })), max: maxSessions() }, computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -602,6 +603,7 @@ async function boot() {
     if (r) { reminders = { at: Date.now(), coming: r.coming, sent: r.sent }; report(state, text); }
   };
   await bridge.onRemindNow(() => void remind(true));
+  await bridge.onVerify(n => { if (n > 0) void verify.run(() => cfg, n, () => report(state, text)); else verify.stop(); });
   await bridge.onDisconnect(key => { const name = sessions.get(key)?.name ?? 'a device'; refused.set(key, Date.now() + 3600e3); endSession(key); event('Disconnected ' + name + ' (refused for an hour)'); });
   // A browser on this computer joins it (ADR 0091): GLUE Home, which it reached on 127.0.0.1, vouches for it.
   await bridge.onAttach(body => void (async () => {

@@ -1,0 +1,33 @@
+{
+ "v": 3,
+ "grade": "bad",
+ "label": "Fake bitrate",
+ "headline": "Upconverted from a lower-quality file",
+ "fc": 16699,
+ "wall": true,
+ "full": false,
+ "effBits": null,
+ "declaredBits": 0,
+ "origin": "Re-encode of 128–160 kbps mp3",
+ "bpm": 119.98,
+ "key": {
+  "tonic": 8,
+  "mode": "major",
+  "margin": 0.098,
+  "tuning": -5
+ },
+ "findings": [
+  {
+   "sev": "bad",
+   "title": "Cutoff too low for 192 kbps"
+  },
+  {
+   "sev": "info",
+   "title": "Lossy by design"
+  }
+ ],
+ "fileSize": 289062,
+ "fileMtime": 1700000000000,
+ "vv": 8,
+ "fp": true
+}

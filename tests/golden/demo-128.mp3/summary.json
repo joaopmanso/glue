@@ -1,0 +1,33 @@
+{
+ "v": 3,
+ "grade": "warn",
+ "label": "Lossy · not hi-res",
+ "headline": "Lossy MP3, not hi-res",
+ "fc": 16699,
+ "wall": true,
+ "full": false,
+ "effBits": null,
+ "declaredBits": 0,
+ "origin": "MP3 encode",
+ "bpm": 119.78,
+ "key": {
+  "tonic": 1,
+  "mode": "minor",
+  "margin": 0.219,
+  "tuning": -4
+ },
+ "findings": [
+  {
+   "sev": "ok",
+   "title": "Bandwidth fits the format"
+  },
+  {
+   "sev": "info",
+   "title": "Lossy by design"
+  }
+ ],
+ "fileSize": 193140,
+ "fileMtime": 1700000000000,
+ "vv": 8,
+ "fp": true
+}

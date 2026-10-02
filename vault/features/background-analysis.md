@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-30
-adrs: [0006, 0009, 0019, 0024, 0103, 0109, 0110]
+updated: 2026-10-02
+adrs: [0006, 0009, 0019, 0024, 0103, 0109, 0110, 0147]
 ---
 # Background analysis
 
@@ -84,3 +84,8 @@ the UI stuttering.
 - Now an edit that adds songs new to the collection (`engine.edit` → `added`) makes GLUE Home look again at
   once (`analysis.added`), and during a run the new songs join its queue (those running or queued aren't
   queued twice). Ratings and other edits don't cause a look (it reads every file of the collection).
+
+## GLUE Home's native engine (2026-10-02, [ADR 0147](../adr/0147-glue-home-analyses-natively.md))
+- `crates/glue-audio`: the same analysis in Rust, every stored file (0.44 lossless, 0.45 the rest and lossy decoders).
+- GLUE Home 0.45.0, Activity › Native engine check: re-analyses a sample natively, saves nothing, compares with the
+  stored results; outcomes in `library/x/verify.jsonl` in GLUE Home's cache. The service page still analyses until B3.

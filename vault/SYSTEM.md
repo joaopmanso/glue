@@ -212,8 +212,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   fingerprint, a mini spectrogram and a waveform. Versions: `ANALYSIS_VERSION` 3, `VERDICT_VERSION` 8
   (`src/store/types.ts`).
 - **The native engine** (`crates/glue-audio`, ADR 0147): the same analysis in Rust, a line-for-line port with
-  JavaScript's numbers, for GLUE Home (moving over in batches: 0.44 links it and tests it; the service page still
-  analyses). Held to the TypeScript's results by `tests/golden` (`tests/golden.test.ts` writes them and fails when
+  JavaScript's numbers, for GLUE Home (moving over in batches: 0.44 links it and tests it, 0.45 makes every stored
+  file and decodes lossy files, with a check against the stored results in GLUE Home's window; the service page still
+  analyses). Lossy goldens come from Edge (`e2e/golden.spec.ts`, `GOLDEN=1`). CLI: `glue-audio analyse | bench`. Held to the TypeScript's results by `tests/golden` (`tests/golden.test.ts` writes them and fails when
   they're stale; `crates/glue-audio/tests/golden.rs` compares). A native summary has `engine: "glue-audio <version>"`.
 - **`analysisState(t, a)`** (`src/core/library/analysed.ts`) returns done, failed, waiting, elsewhere (another
   computer's song) or nofile. The sidebar, Stats, the analysis bar and both queues use it.

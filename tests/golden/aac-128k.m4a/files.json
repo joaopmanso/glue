@@ -1,0 +1,139 @@
+{
+ "details": {
+  "header": {
+   "v": 2,
+   "fileSize": 65854,
+   "fileMtime": 1700000000000,
+   "info": {
+    "container": "MPEG-4 (M4A)",
+    "codec": "AAC-LC",
+    "lossless": false,
+    "sampleRate": 44100,
+    "bits": 0,
+    "channels": 2,
+    "duration": 4.023219954648526,
+    "bitrate": 127.891,
+    "bitrateMode": "",
+    "encoder": "Lavf63.1.101",
+    "vendor": "",
+    "tags": {
+     "©nam": "Fixture AAC",
+     "©too": "Lavf63.1.101"
+    },
+    "notes": [],
+    "brand": "M4A",
+    "compatBrands": [
+     "M4A",
+     "isom",
+     "iso2"
+    ],
+    "fileName": "aac-128k.m4a",
+    "fileSize": 65854,
+    "clues": [
+     {
+      "kind": "ffmpeg",
+      "label": "FFmpeg muxer (libavformat)",
+      "match": "Lavf63.1.101"
+     },
+     {
+      "kind": "ffmpeg",
+      "label": "FFmpeg encoder (libavcodec)",
+      "match": "Lavc63.1.101"
+     }
+    ]
+   },
+   "res": {
+    "music": {
+     "bpm": null,
+     "bpmConf": 0,
+     "key": null
+    },
+    "cols": 337,
+    "rows": 512,
+    "N": 4096,
+    "binHz": 10.7666015625,
+    "stats": {
+     "peak": 0.17422392964363098,
+     "rms": 0.04007232509575485,
+     "clipRuns": 0,
+     "wasted": null,
+     "assessed": false,
+     "nonInt": 0,
+     "floatFmt": false,
+     "on16": 0,
+     "on24": 0,
+     "lrIdentical": false,
+     "lrCorr": 0.9725690798881933,
+     "silent": false
+    },
+    "sr": 44100,
+    "duration": 4,
+    "channels": 2,
+    "containerBits": 0
+   },
+   "ltasLen": 2049,
+   "specLen": 172544
+  },
+  "rawSha256": "9bb71afcf665c093e597dc668f237f2a27cd92de6135cc4e9d189eda81bf1c4d",
+  "rawLength": 180740
+ },
+ "thumb": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAU1JTV1RQWFpaWltdVVFPU1ldW1pXVlZST1JSVFhbV1NVWFhaWltWVFJOUVNYW1NaWVVRUVVXVlVWVVJUUlJSVFlYX11YWmFgW1RXV1VUWVZRVVpZWFZYVVdWVlpYWFhUV1VVVlNYX2BeXFdZXF1bWFtdXF9cXV1gXV1dXlNXW1thX1xWWV1WWlZbW1lbX1xcWFpbWl9fWllbW15aV1ZYW1taXldVVFVXXV1bWVhWWFpaVmBhXVlaW1leXV1cWllcV1VZWldZXV9fX15bWFlYXVpVW1hUVllbV1lVW1pZXF1dXV5bWV1cV1dXXV5cW1tbV1dWWVpeXl5XVVpdYVxVWV1aXFxYVl1eXldTWVxbW1peWV1bWV1lYl9hYl1ZWFxcVVNWWVhZVVZYWlpbXFlbWlhZWVlaWVZbW11ZXF5ZW2NhX1paW1tfYGBbXF9gXVhcYF9gWVtaXl5dXmBbYWFjXVZeXWBhW1lUWFpeXlxgX1xcW1tZWllSVVpbY19aXV5dWWBgVFdaW1pcW1xgXl5fZWZkX1xcXVxcW1ldYWNgVl5fXGFgWVtXWltdWlpcYF1fXVxaV1NWW1xaWFxZW15eWltZWl1bWlhaXFxZWVtXWl1cXFpiYV1dWF9jZV9dXl5aXGBbXltjYl1eXlhfYlxdXl5dXVtaWVtbX19aWlhYWmZlYF9hX11fX15gYVxfYmBhXmFdXVxcXFpdXl5gX11gWl1dWVpdYGFfXmBgW1xcXlxdX11XWWNjXWJgXmFhX19dYWBfYmBeYGFaZGJhX2BgXV9eYF9aYF9cXmFhYGFgYl1fX11nZWRjXl9eYF5dW2JeXV5fYmVjYV9bXV9kZVpdYFxcXFtfXmJhX2BjZGZgXVpdWl1iYV5eXFxcXV5hYGJlZWJfX19eXmBeYmJfX15iYWBcWF9kYV9lYl9bXmJfX2JgX19gY19dW2JiYmBeYF9eXV9gYWBfYV9fYGFdXmBhY2NoZl9bXGJfXmBdWl1hY2FgYmJgYWJkXl9fXV5eXGBdW1xfZWVjYmFjYGRoZGVjXmFjZGNlaGNjYWZhZGZiXmBcYWJiZGZmY19lY2JeXF9gXl9iZWdkYGFjYmZnY2JhaGZgY2VnZGBjZmRlZWJkYWBgYGFhXF1fYmhmY2ViZGRkY2BiYGJkXmFiY2BfYFlZXmBjX1xfXl5eX19gXmNhW15eXl9gYWJiYmJiW11mZWNmY2BgYmFlZGRlZWJgX2BlYmFeX2BfX2ZlY2FgX2FjZGRoZWRiY2VhYmNjYmNoZmJjZGVgZWloZWViY2hmY2dmZGNnY2VoZ2RgZmdnZmhnY2RkY2dlYGVkZ2RjZmNgZGJlY2NiZWdkY2dkYWNhYmBhY2FfZmRlYmJkYmBjY2BfZmRiZmRhZGBiY2ZhZmZmZGFeYmZjZGZiYF5gYmZoZ2NiY2ViY2JgZGRjY19cXl5eYWNgYF1dZWNhYl9jaGllYWBiYWRmY15iZGRnaGVhYGVkYGRlaWlqYmNjYWJkZ2VpamNhY2RiZWRjYmVgZGZmZGJiYmRlYmJlZWVkZGhqaGlqaGRlZGZkZWRlYmpoaGlmaGZmaWNjYWJjZGZkZGVkZmRkZGVkY2BgYmNgXWBgZmZoZmhjZmViZmhlZWFmZmJjZGZnamlpamNlZWdnY2VmZWRmZmViZGNlZWZmaWRiaWReYGhnY2RoaGFpa2pmYWZmY2dmYWNkYmdpaGpqYmpnYWJmYmBiYmNjZWhlaGtkYWNkZ2dlYmVmZWVnaWhqaWZmaGRlZmpraWhnZWJiYGZoZW1uaW5qaGhpbWppZ2ZkZGdqamNmaWZmZWtrZWhnaWloZmpobWppZmlmamhoamplZGVnaGZlZ29wb2lqaGxpaGhrZ25ta2poaGhoaWlnaGRnaWloaGpqaGdlY2tra2ttZmVqaGxoaGZpaWxwbGdlZWlqbmxjZGhoa2pmZWVlaGplY2dramtnaGdlZWhpa2ZkZmpqZGhnZ2dnaWZraWhoaWxqamhrbm5saWdpamxoYmhnaGhsaGdnamtwcW9qZmNpaWhpZmtrbm5uaGxra2pnaGhwb2ppa2pra25paGpqaWhsbm1obGxsbG5qZmdsbWxqamlvbWZoaWttbmpwb25qaWZsbW9pa2tsaGtsbm5uaWptbm1ta2xtaGRvcGtpaGxsbGtsa2lma2lvb2xrbGpnampqa21xbGxramlobW1nZmhtbGxvamloa3Fubm9paG1ta2pqamtpaGdtbGlsbW9wcG9nampra2tta2lpaWxqa21zcm1ta2xra29wamttbGxsb29tbm1xb21sbm9wdHNybGppa2tsbHN0dHFwcXNvcm9ubXBvdXRzbWtrbXFzc3ZzbW1wcm90dHNxcG1vbHBtcG5ub3F0cW1ubXN2dXBvdHZxdHJubmtrb3N2cHV1cXBvamtubGtvc25xbXBycGlpbGxqanFzb29tcG9qbG9udHZvcW9tb29tbGprbW9sbHFxbm1zcm9xb3Bvc3Vzb25qcG5xbG9sa2txb21wb25ta2ttbG5wbWxrdXR0dXJucmxxb29wbHRycXBsc3hwdnNzeHp4c3V3d3V2dW90c3l3cm9udXVxcXV0cXV0dXZydHZwcXZxcXJyd3d1eHNzc3RwcXJ0dHRxcHN1d3ZxcnV1cnVxdXRxc3Jzd3t7dXNyc3x7cXV2cG5xcHN5d3Z6cm9vcXZ0dHN2c3R1dXd2dXRzdHJ1cnR3cnRzdHJwb3Jzc3Z4dXZ0bm50eHl3eHd5cnFzdnJsb3FycXV1cm9vcXFzdHl0c3Z1d3pzcXF3d3R0cnJzcnNzd3l1eHd/f3l3fn10d3h7e3Z0e31+fnx1dHZ4fXl4dnp8fXh1d3p6fHl6fXp3d3Z8enp6e3V6eXZ4e35+d3Z+enl0eniAf3pye3x5dX9+e3x8dnp2d3t7dX98foF/gYB+eXx5d3l4d3l3fnx6d3p4eHJ6e3l4dnZ4dnd6eX18fnx/f3lzcnR3d3Z4d3V3fX9/enp3dnh9eXp9enJyeX96dXp5en18enp+e3d6eHp9d3RzeHd2eXh2dHR4dXd6d3h5homNhYOHhYuEfn6AhIeDf3yBiImAgYKCg4KDfnZ8fYaGhYWGgn9+goaDhIWEgoaIhoaDhYiIhH+AfoSHgHt9h4uGgYKAf4ODgoKBgoOAg4SFiYeEhYeHhoKEhYSLh4GGhoJ+hIyIg4qGgoOFh4B/foN8fIaIgn6Eh4GDh4aEg4SEf4CAgoiIhoSHhIN/hIWHiouDiImCgH5/iIuCfYKEgYB9iYqGg3+Ag4OAgoCEiouFhoKFhX+DhYmEfn2HiIWAnJiToqWjlKWosq+XmaunlZWVprW0raOlm5CQmaOvqpianaSjko+asbKsl52prqmQoqyuop+cm6SxsrCcl5ihs7e2sq+noamtoKCjm5idtr67rqijnKespKqooKy0rqGPlZyhoZyenqmppqCjrKqcnJ6op6KflpaYk5KVlJSsr6+pnZSfn42HoqqjmKmvp6CturacmJaYlZOVmJ2oraWNkpWVkJSlq6ujp6+uo6ennI+XnKWmpZmssbCfn56epKix",
+ "wave": "qOnv1Zjw7NGe+uzXvenz3sna+eC/7friuvL14Ozr9PXt5fP03Orz7djt8Ouy4/DXlebwzY/t8M6f5+zQtN7v1bvX7da53uzXtert2qju7Naj6u/ToOzw057r89Om5vHTnuTvz6Hg8M+q4vDTmdruyo/T8MSHzvHAg93xxJXw79Gq9PDarff03abv9NfC6fXhsubv15Tl7cue4e/Oqe3v15zx89Wa4vfPnuD20JXw9NKS9ezRj+jnyoPf68OC7+3Kpu7t1cPm7d6u6enVsu7p2bby89+n7fHWqN/v0dLX8eLV3e/koejt0ZTs78+w6e/YtN/r1bTZ6tK42+rVw/Dp4bT/7eKp6PHVpdr30M7k9eX/6+//6Ojx8qrk8dSS6vDOp+3v1sju8uXa6/LsyuLs4Kj069iW7/PSj+f0zajm9NWa6PLQfPLuyqrt7dfP5+7kxefv4L/q7t6n6u7Upu3w1p7o9tOf5vXSp+ju1Lvs7t2q9PPblezwz47o7suU4+/LkdzvyJ/a8Mym3vDQt+Hv2Kzv7NjP5vHl7uDw887u7OaY6+7QqOTx08jp6+Gr7uXVnvDq07Do7NeY3ezJmdvqyZHc6caY3OjIseDo1Krk69KJ6u3KsuTt1sjk6t+s4OvSnuHrzZ/f6MyU3+THnOLmy7b1696u8+TYo/Di0rbr69q88vThuOny3LTe7tWr2OzPodjxzHzl8saA5+7Hl+XtzaLm8NKl5vLTm+fy0KXi8dKZ3vPMo+Py0ZTs8M+C9fHOhPTvzp7o8dG/6PXfvPby4rb07N7P7vLo1N325sTX+d295fvfwvD55LLw9d2R3fLJeNnywIvg98qg6fbTv+f039Tf8uXN1+zereDv06P19Nmk9vTZlu/x0aXl89PE4/bgx9754Lvi9tzP7PTot/Xx4Jv29Nam7/nZpuv/2bHs/t3L6frmx/T155b49NaU8vXTruz22q/m+Nif7PXUjPLy0J3y9NWS6/HObeTuwXDl8cOH+PHQofzx2uPp+PH85vb9",
+ "fingerprint": "TgAAAN1rLylUq0odUqlUFXKNVbYihTWmMqU6y1ajulHtcrLUqXr2tLkqRba6Kc3yJ1WJ04VXk+mVUJKtlShWLV2sbG1ppiVNa6QkTeuUmGbS1dgmVlRbqlZqQ5stS0fbromUay7qtGpL4rDKSTe5xNK1LbTWjHW1tQx3Ulkbs1JYU6qqktIqr7bWWKml1lHJpdqnWaWKr1Baas1UWmXElBJ1Zpd6tSiqKrVtyq2pTZWNa52VnWu31RRrskx00rIa5ZJaWuyYbVraYDXV2mY5KYpOKiuiG8osYhvWxGsz1USJllUbmZprqtjKIqrYiaS1zKmlVaQ1DdYlU5lGEXqTclOukjFMpG45TIVuqaZFRaqya9XqsrrSSuPaylTluFpV1y1qhVAlJUVYK2VaOJuxWjpRoaqXVK2pzeQtpf38+/v7/P38+/z9/f39/f7+/v79/Pz8/P39/f7+/v7+/v3+/v79/Pv8/f79/fz8/f39/f///v39/f3+/v7+/fz8/P39/v39/f7+/////g==",
+ "analysed": {
+  "summary": {
+   "v": 3,
+   "at": "2026-10-02T18:16:51.789Z",
+   "grade": "warn",
+   "label": "Lossy · not hi-res",
+   "headline": "Lossy AAC-LC, not hi-res",
+   "fc": 17776,
+   "wall": true,
+   "full": false,
+   "effBits": null,
+   "declaredBits": 0,
+   "origin": "AAC-LC encode",
+   "bpm": null,
+   "key": null,
+   "findings": [
+    {
+     "sev": "ok",
+     "title": "Bandwidth fits the format"
+    },
+    {
+     "sev": "info",
+     "title": "Lossy by design"
+    }
+   ],
+   "fileSize": 65854,
+   "fileMtime": 1700000000000,
+   "vv": 8,
+   "fp": true
+  },
+  "size": 65854,
+  "mtime": 1700000000000,
+  "format": {
+   "container": "MPEG-4 (M4A)",
+   "codec": "AAC-LC",
+   "lossless": false,
+   "sampleRate": 44100,
+   "bits": 0,
+   "bitrate": 128,
+   "channels": 2
+  },
+  "duration": 4.023219954648526,
+  "fields": {
+   "title": "Fixture AAC",
+   "artist": "",
+   "album": "",
+   "genre": "",
+   "label": "",
+   "comment": "",
+   "grouping": "",
+   "year": "",
+   "bpm": "",
+   "key": ""
+  },
+  "art": ""
+ }
+}

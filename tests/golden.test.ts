@@ -14,6 +14,13 @@ import { runJob } from '../src/core/audio/analyze';
 import { classify } from '../src/core/audio/verdict';
 import { summarize } from '../src/core/library/summary';
 import type { AnalysisJob, AnalysisResult, FileInfo } from '../src/core/types';
+import { encodeDetails } from '../src/store/details';
+import { makeThumb, makeWaveThumb } from '../src/core/library/thumb';
+import { encodeFingerprint } from '../src/store/fingerprints';
+import { analysed } from '../src/core/library/analysed';
+import { ALL_FORMATS, BufferSource, Input } from 'mediabunny';
+import { createHash } from 'node:crypto';
+import { inflateSync } from 'node:zlib';
 
 const FIX = join(__dirname, 'fixtures'), OUT = join(__dirname, 'golden');
 const FILES = ['wav-44k-24.wav', 'aiff-44k-24.aiff', 'flac-96k-24.flac', 'flac-192k-24.flac', 'flac-cover.flac'];
@@ -32,8 +39,19 @@ async function jobOf(name: string): Promise<{ job: AnalysisJob; info: FileInfo }
   return { job: { type: 'float', channels: d.channels, sr: d.sampleRate, bits: info.lossless ? info.bits : 0 }, info };
 }
 
-/** What's compared: the file info, the summary, the verdict and the numbers behind it. */
-function golden(info: FileInfo, out: AnalysisResult, size: number) {
+/** The cover's hash as coverOf names it (src/workers/cover.ts): sha256 of the picture it picks, 24 hex digits; '' none. */
+async function coverHash(u8: Uint8Array): Promise<string | undefined> {
+  const input = new Input({ source: new BufferSource(u8), formats: ALL_FORMATS });
+  try {
+    const images = (await input.getMetadataTags()).images ?? [];
+    const img = images.find(i => i.kind === 'coverFront') ?? images.find(i => i.kind !== 'coverBack') ?? images[0];
+    return img && img.data.length >= 64 ? createHash('sha256').update(img.data).digest('hex').slice(0, 24) : '';
+  } catch { return undefined; }   // the worker's coverOf(…).catch(() => undefined): not looked for
+  finally { input.dispose(); }
+}
+
+/** What's compared: the file info, the summary, the verdict and the numbers behind it; and the stored files. */
+async function golden(info: FileInfo, out: AnalysisResult, size: number, art?: string) {
   if (!info.sampleRate) info.sampleRate = out.sr;
   const v = classify(info, out), s = summarize(info, out, v, { size, mtime: MTIME });
   const { pcm: _p, ...plain } = info;
@@ -41,7 +59,14 @@ function golden(info: FileInfo, out: AnalysisResult, size: number) {
   const { sm: _s, ...cut } = v.cut;
   const colSums: number[] = [];
   for (let c = 0; c < out.cols; c++) { let t = 0; for (let r = 0; r < out.rows; r++) t += out.spec[c * out.rows + r]; colSums.push(t); }
+  const d = await encodeDetails(info, out, { size, mtime: MTIME }), raw = inflateSync(Buffer.from(d.bin));
+  const b64 = (u: Uint8Array) => Buffer.from(u).toString('base64');
   return {
+    'files.json': {
+      details: { header: d.header, rawSha256: createHash('sha256').update(raw).digest('hex'), rawLength: raw.length },
+      thumb: b64(makeThumb(out)), wave: b64(makeWaveThumb(out)), fingerprint: out.fp ? b64(encodeFingerprint(out.fp)) : null,
+      analysed: (() => { const a = analysed({ summary: { ...s, fp: !!out.fp }, info: plain, duration: out.duration, art: art === undefined ? undefined : art ? { hash: art } : null }, size, MTIME); const { at: _x, ...sum } = a.summary; return { ...a, summary: sum }; })(),
+    },
     'info.json': plain,
     'summary.json': summary,
     'verdict.json': { ...v, cut },
@@ -56,10 +81,11 @@ async function all(): Promise<Record<string, Record<string, unknown>>> {
   const r: Record<string, Record<string, unknown>> = {};
   for (const name of FILES) {
     const { job, info } = await jobOf(name);
-    r[name] = golden(info, runJob(job, () => {}), info.fileSize!);
+    const art = await coverHash(new Uint8Array(readFileSync(join(FIX, name))));
+    r[name] = await golden(info, runJob(job, () => {}, { fingerprint: true }), info.fileSize!, art);
   }
   const demo = runJob({ type: 'demo' }, () => {});
-  r['demo'] = golden({ ...blankInfo(), container: 'Example', codec: 'PCM', lossless: true, sampleRate: 96000, bits: 24, channels: 2, example: true }, demo, 0);
+  r['demo'] = await golden({ ...blankInfo(), container: 'Example', codec: 'PCM', lossless: true, sampleRate: 96000, bits: 24, channels: 2, example: true }, demo, 0);
   return r;
 }
 

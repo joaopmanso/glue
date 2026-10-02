@@ -1,0 +1,139 @@
+{
+ "details": {
+  "header": {
+   "v": 2,
+   "fileSize": 65267,
+   "fileMtime": 1700000000000,
+   "info": {
+    "container": "MPEG audio",
+    "codec": "MP3",
+    "lossless": false,
+    "sampleRate": 44100,
+    "bits": 0,
+    "channels": 2,
+    "duration": 4.048979591836734,
+    "bitrate": 128.8225806451613,
+    "bitrateMode": "CBR",
+    "encoder": "Lavc63.1.",
+    "vendor": "",
+    "tags": {
+     "TIT2": "Fixture MP3",
+     "TSSE": "Lavf63.1.101"
+    },
+    "notes": [],
+    "channelMode": "Stereo",
+    "lameMethod": "",
+    "fileName": "mp3-128k.mp3",
+    "fileSize": 65267,
+    "clues": [
+     {
+      "kind": "mp3",
+      "label": "LAME MP3 encoder",
+      "match": "LAME3.100"
+     },
+     {
+      "kind": "ffmpeg",
+      "label": "FFmpeg muxer (libavformat)",
+      "match": "Lavf63.1.101"
+     }
+    ]
+   },
+   "res": {
+    "music": {
+     "bpm": null,
+     "bpmConf": 0,
+     "key": null
+    },
+    "cols": 337,
+    "rows": 512,
+    "N": 4096,
+    "binHz": 10.7666015625,
+    "stats": {
+     "peak": 0.14639748632907867,
+     "rms": 0.037744611296135495,
+     "clipRuns": 0,
+     "wasted": null,
+     "assessed": false,
+     "nonInt": 0,
+     "floatFmt": false,
+     "on16": 0,
+     "on24": 0,
+     "lrIdentical": true,
+     "lrCorr": 1,
+     "silent": false
+    },
+    "sr": 44100,
+    "duration": 4,
+    "channels": 2,
+    "containerBits": 0
+   },
+   "ltasLen": 2049,
+   "specLen": 172544
+  },
+  "rawSha256": "5a9f659de4a2360d1bacda84ae15f80e290f213e46d7c8a2b0d77091d31d4010",
+  "rawLength": 180740
+ },
+ "thumb": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXVtXWlpeW1lZX1xZW1hYWFlaWllVWFZXWVlcW1RZY2NZW11dWFZaWldaWFxbWlZcYF1dXVlaWldXXF1ZXWBhWVZVW1xbVVpZV1dWV15fXVxbWFpcXV9dWVhZWlZbWltbWWBhXlpaWVlcWVhbWVlcXF1bVVdbWFVUVldbXl1cXV5dWVhcWFdTV1laWFlYWldZW1heXVlWVldbWV1eXVpYXFxZXFpdXVlaW15cYGBfXllaWlhZWFRZWVtZV1haWFVWXFtgX1xfXFlYX11dXF9bW1xbWl1dWlpcXFtbXl1hYGFfW1lcWltbXVdeYV9cXV9cXl5dXVxdX15bXVtaX2FgW1pfYl5aWVpdXVpaXF1dXFxaW1xcW1xdXF9dWl1eXVpdXVtaXFxbW19gXmBgW1paXFtbXFxaXVtgX11cXV5gYWBeXV1fX1lbYFtcWlxeWlpbW11ZWV1cX11gYV9eXF1eXlxeXFtdW1tYWlxdXlpbX11aXV1dX1tZX2JbWltaW1xcYV5dXFxdYGBhXWFfXltfYl9fXF5fX15dWVteX19bXF9eY2ZhW15bX15eXl1cXVxdYF9fYFxaXWFgW1pfXF1eXl1bX2JkZ2NdW1xdX2ViY2BeXVxiYF5nZWBhYGBiX15dYGBgX19gXFpfXF1eWllbYWNhXV5eXmFiX2FhYWBbXmBiXF5gX19fXl5fYF9eXV5cXF9bWl1dX2BhYGJcX19cW19dXl9eYV9bYF9eXWBcYF1eXFtbWVxgX1xdWlpdXWJfX2RjYl9eX11dXl1dXF9gYWJhX15bYmNgW15eYF5gYF5dX2BeXl5dZGFfX19fX19bXF5hXl9eYmFgX15eYF9fY2FeYV5dX2BZXFxeYF9gZGNeYmRhZmhkYWFeYWBgX15gX15dX2BdXGBhYGBeXWBgX1xdXWFfYlxeXV1dXl5gXWBfYFteX2JdYGBfYWNkZmJjXl5fXmJlZWFhZGRgXl5hXl1fXlxfXmFeYWFdWmNgYV1fXVteYF9dXF5dYlxeX2NgXWNiX19gYl5cX2FkX19hYV9iYF1cYWZoZWBhY2JlY2ViYGFhYGNhYGBjZGJgXmBgZWNgX2NhYmJiYWJjYV1eYWdkY2BjYGVkYWFiYV9fYGBgXV5hY2NfYV1eX2NgYF9fYV9hYWFjZWNdXV9cXmJhXmFkYmVnZWJiX2RhYmFiYV9gYF9gYF5fY11dXmFgYWBiYV9eXGBjYl9gY19eXl1jY2FdYWVmXWNlZGRgYmJhYGBfYGBiYWFkYWFgX11fYWRjY2BhY11lZGZkZGBkYmNlY2NiZGJiZWNlZGNgXmBkZGdjYWJgYGJgYGJiXl9fZGNkYWJjZmhjY2RkZGNkZmVnZGJhY2VjYmVnZmVlZ2VlaWhjZmVgXl9hZGVjY2dnYWBfZGFlZWBjY2hlY2RlYmFjZGVoYWRkZGRjZmZlZWJhYWJhZGRpY19hY2FgYGBiY2FjZmRlZGBjaGlpZ2JgYWVoYWNiYmJmZ2hjYmVlYmJhZWViYmRlY2NlY2ViZGVkZWNlY2poY2ZmZWRjZ2RnZ2dlY2ZnZWVjZmZoaGZnY2dmZWZkZGNkYWVpZmhnZ2hkZWRoZGJlZGFgZWdlZGNkZGVlZWZsbmVjYWNmaGVoamhkY2RmZmZjZmNhZWVoaWZnZWpoY2NlYWNmZGdrZ2NjZmdhY2NlZGRkZmhjYWNhYGNmZ2dmYmNlZGVkamllZ2toZWNlZmZkZWhiZGJkY2lnZmRlZ2VmY2RsaWloZmdmZGRjZWFqaWVlZ2RjYmNjY2VmZWNkZmtrZ2drbGpmbWtoZ2VkZGVmaGxpbGpsbWllZmJlZGVjaGdnZ2ZmZmNmY2NiZGVlaWlpampnaWtrbGhpaGVrbGZnaWRoaGZraGdnZGhnZmdpY2NpamVmamloZ2ZqamtqZGppaWVnZ2psaWloaWloZ2ZqamhmaGZpaGtoaGlnZ2pqaGhqbWhpZ2dlZ2xraWlpZ2ZnZ2tqZWRlZWhmZWlnZmtraWhpZ21uamtrZmhiY2JnZmdnZGVpZ2tsZ2dnaWhpbm1qbGpobW5qaGlqbGxrbGhoZm1ucWtqbGpscHFwbmtqa25naGprbGtvcG9tbWtqa2ZqbGlpaW1raGlqaWpsa2lpbG5ra2trbGxqbGtjZ2poZmtoa2ptaGtsbGlpZmtsbWlmamppaG9samdpbm1qbm9oZGhqa2Roa2poa21uaWdlaWlrbGhnZmhtcXBxa2lpamhqaWtvcHFwcm1pZ2lsampsam1pbG1tamxraWxsaGpramlnamtraWlpamxramptbWtzc21sc29qcnFta25wcm9vaWlqam5xbG1vbm1vb2lmamhtaWtqbm5sbmxscHNydHBybm5rb21sb25ua25ubG5vcXBybm5xaWtvbmlscHNvb25ub3Bub21tb3Bya3Jxb3FvcG1uaWx0b2ttbWpqbG5ubm5qb29vZmdoamtua3BzcG5yb3F0cmtvbm9qbWpubm5vbmtqbWxtbGxqbnFua2xtam9xbXJyb21sb29pamlram5sbW1qbG1qbWxsb21xa3R2cXFvdXR2d3l2c3F1cXN5dnZ0c29tam5ycW11eHVvbnR0dHJ0c2xzcnVzdXJxbG51e3R3d3Ryc3N0cnBwbm5tdHRydHR0c3JxcXN1dXZ0cm90cnV0cXFxb3BwcnBzdG9rbHBzcXBzdXB1cnBzeHR3d3J1dnJxdHh0cnJ5eXdvb3N2dXF0dXNybnFyc3J4dXRybnZ2dnV4dm9xc3FrbXJycXV0cnZzdHFxb3BvbHN3dXNsb29ycnFvcW5xcW5xdnd+fn5+fXh2ent2d3t9eXNzdXl5e3l6fnt5enV8fXV3dnl3d31/enp6d3d2dnt9eHR4d3V4eHx6eXl7dnd5dXZ3eXF4eXl1dXV7eHd2dXR8end4e3l+e3x8fnZ4dXd2eH19enp7d3Z5eXp5gH56fH57d3R2e3x8eHdzdn17d3d3d3d4foB5fH97d3Z4dHV3dnZ1d3Z2d3JzeHh3d3h6dXt+e3h4eXx4c3V3eHl5d3V0foB4e318eHd6dnh4fHx8foSGiH5/hYKHi4iFh4qCgYCAgYCEhX2DiIqIf4F/fYB5fYF+gX6AfXh3fYKAg4GCg397gH9/gISDgoWHgoKIhX1+hoeDf4CChoKJi4R+gIOEhYN6f35/fnt9gYSAgIB/f4SEf3+CfICHgnl9e3+DiYaEhYWCgoB/f4mPkIZ8eHx+hoaEhYOCg4KDgYGBhIKCf4KEgoGBe3mAfn9+fIWKiol/goGCfIKGhH55f4GAfn1+iIaDhISAhIiGfXp8g4WEnp+cjIeOnKKZnqCenKevqpmfpZ+jtbWon5ydnpafo5yKn6upoJ6gnqClrK+tsLGno52RmaSnp6CZiIeLjYaJlKOjn5ykp6ell5idmpGSnJ2XkZuenZGbs7evo5Wbl5CZqKafn6SknZyclIqOjI2Plqa0sKqfpKKfpKqppqCem5inrq2qp7O3uK6rtbeqnp6ksbKkj5SamZSYmo6JkpaUkZ2qqJ6YnaChm5iam56dnJuko5GOkJCYnbS8uq6tsKym",
+ "wave": "4+L87fHi+PK77/Lgi/Xw1KDp89W55fTctvD038H09uXK9fXovf3z5+L/8PT/9vb/7/L599359vHB7vXik9/4z6Lk9NSz5PDYouD208Tj++HC6Priuej837Xe99i04ffZpO722ZPs9NOc8PTXkef50obi/s6n4//Yut//3avY/9WUzPrIm831yb7T9te54PTasufx2aLi8NKI4fPLrdT20bjC+tDAxP7VvdH92MPq9eG27/PerObz17bc9Ne15PLZx+X04c7Y9t+22vfXqOf317ne89nD2vHaxt/z3sfp9uKX4vfQiOb5z4P2+NWQ/Pfal+T10Yrk986Q6PbRnOL505rZ+M6f3fXQr9r41bHa+daV5PTQh+b1zZ3m/NW65v3f1t/35f3l9vj+8/X9x/306svn8+PW6PHnuuvx3bfr89215/bcs+703cnq9ePL1fTctdrz1q3i8dWQ6vTRg+330Zzh9dGz2PfVvdn22cTi9t/U5ffn1+T158je+N/P3Pviv9/43LHs9tzD6/Phx9ny3OXf9ev77PT55ejz7tbr+urg7/3wu+X43bvh9tvJ3PPer+Hy1qPl9dXB5vfg2uj56uPp9u7Z4vDmw+Tw3r3h9NuY5vnTsuj3293i9unV3/Tkod3x0K3t89vJ+vXq6/X19uHu+PDt6Pvz9en599Tl+Oax4vnZvfD04s398+zQ+fftvPT347fm9dyy4ffYw+L13rzg9duG5vbOjer50q7p+tvC6/vjr+/53a3t+Nyx6vjcuuH225Ll9tCj7PbYuuP23MPh+N/b3vjny9n437/T+tnT1fnh19P54q7L+9CX0fvLktL1yJ/h8dGl6/HWrObz17nl9dzC4/ff0eH55d/q+e3G7fnkt+L32q/r+NyU7vnWld36z7vR+tfb1/nlz+P65bro/N+/5Pfe39nx5ubV8Ofr3fPtsur23KDq9da77/LgyOry48Xu9eO67vbgxPT35sP3++im6vXYtODx18jY9t3T1fnh1t345bjp9N3B6Pfh",
+ "fingerprint": "TgAAANWIQrbUKUJLdGZTTSoWtU0rtT1VKaUlrW6tJKtGSKO7llKpqrxaq+o5mVrOWdVaXMFHqVWlLilVNapRSyXqVFPl4qp2y7WKplWVxq4VndaquZHXmMtjs9XCazNFRk82Yy6eTjI6mswqO5rMKKXKFPnFZjDT1WQ701Vti5BYqYmMOtlpbapRZk2q0iZFNuuK13RuidZxNnWSa5ZVq4qMXCqaTdbCtVVW1mXRNjdlUzYtQ2tnLdEq6S3RuGlUzby40uyOstIuRtaUMktXMRZpSzFWOSuTNDmq1p0qqkzJRpdoyVa0OEqVRLEqtUmlqdFJr7VYc6pVWFJqVLRSZmantnZDqqexUyqnsXVJlrU32ZSTptmTyhlJS+pZTEnuySbNlJmkrVCytapT4tYqR8RSpoeEWpWFnKuXmf/+/fv6+vr7+/r6+vr6+vr7+vr7+/z7+vr6+/v7/Pz8/Pz8+/r6+vv7/Pz8+/v6+vr7+/z8/f38/Pz8+/r5+Pj4+Pr7+/v6+vv7+/z8+w==",
+ "analysed": {
+  "summary": {
+   "v": 3,
+   "at": "2026-10-02T18:16:51.087Z",
+   "grade": "warn",
+   "label": "Caution",
+   "headline": "Left and right are identical",
+   "fc": 17313,
+   "wall": true,
+   "full": false,
+   "effBits": null,
+   "declaredBits": 0,
+   "origin": "MP3 encode",
+   "bpm": null,
+   "key": null,
+   "findings": [
+    {
+     "sev": "warn",
+     "title": "Left and right are identical"
+    },
+    {
+     "sev": "ok",
+     "title": "Bandwidth fits the format"
+    },
+    {
+     "sev": "info",
+     "title": "Lossy by design"
+    }
+   ],
+   "fileSize": 65267,
+   "fileMtime": 1700000000000,
+   "vv": 8,
+   "fp": true
+  },
+  "size": 65267,
+  "mtime": 1700000000000,
+  "format": {
+   "container": "MPEG audio",
+   "codec": "MP3",
+   "lossless": false,
+   "sampleRate": 44100,
+   "bits": 0,
+   "bitrate": 129,
+   "channels": 2
+  },
+  "duration": 4.048979591836734,
+  "fields": {
+   "title": "Fixture MP3",
+   "artist": "",
+   "album": "",
+   "genre": "",
+   "label": "",
+   "comment": "",
+   "grouping": "",
+   "year": "",
+   "bpm": "",
+   "key": ""
+  },
+  "art": ""
+ }
+}

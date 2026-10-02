@@ -1,0 +1,149 @@
+{
+ "details": {
+  "header": {
+   "v": 2,
+   "fileSize": 482786,
+   "fileMtime": 1700000000000,
+   "info": {
+    "container": "MPEG audio",
+    "codec": "MP3",
+    "lossless": false,
+    "sampleRate": 44100,
+    "bits": 0,
+    "channels": 2,
+    "duration": 12.042448979591837,
+    "bitrate": 320.6935737527115,
+    "bitrateMode": "CBR",
+    "encoder": "Lavc63.1.",
+    "vendor": "",
+    "tags": {
+     "TSSE": "Lavf63.1.101"
+    },
+    "notes": [],
+    "channelMode": "Stereo",
+    "lameMethod": "",
+    "fileName": "demo-320.mp3",
+    "fileSize": 482786,
+    "clues": [
+     {
+      "kind": "mp3",
+      "label": "LAME MP3 encoder",
+      "match": "LAME3.100"
+     },
+     {
+      "kind": "ffmpeg",
+      "label": "FFmpeg muxer (libavformat)",
+      "match": "Lavf63.1.101"
+     }
+    ]
+   },
+   "res": {
+    "music": {
+     "bpm": 119.9428249858925,
+     "bpmConf": 0.7202252878575266,
+     "key": {
+      "tonic": 1,
+      "mode": "minor",
+      "r": 0.585137142662974,
+      "margin": 0.1449396825420729,
+      "runnerUp": {
+       "tonic": 4,
+       "mode": "major"
+      },
+      "tuning": -5.112404104508391
+     }
+    },
+    "cols": 1026,
+    "rows": 512,
+    "N": 4096,
+    "binHz": 10.7666015625,
+    "stats": {
+     "peak": 0.8906282186508179,
+     "rms": 0.1003731556020888,
+     "clipRuns": 0,
+     "wasted": null,
+     "assessed": false,
+     "nonInt": 0,
+     "floatFmt": false,
+     "on16": 0,
+     "on24": 0,
+     "lrIdentical": false,
+     "lrCorr": 0.0045826843148876265,
+     "silent": false
+    },
+    "sr": 44100,
+    "duration": 12,
+    "channels": 2,
+    "containerBits": 0
+   },
+   "ltasLen": 2049,
+   "specLen": 525312
+  },
+  "rawSha256": "faaf91ce3536ef8fea09f80728a337fc7b2b80d273d75d5a8aa3510bfe7bbf6d",
+  "rawLength": 533508
+ },
+ "thumb": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUFhZVFZYVFhQVFhWWFdVWVxYV1pbVVRbWlxdWVheXltVU1NVVVhQUFVSV1lVVlRVUVFNUE5OTlRYUU1TU09KTlJPTUpST0lQUlBMTE1HQ0tKR0ZJRUlHR0hGSUlMTEVIQ0pKS1BQRkpPSktNR0tPTk5PTk9QTU1PT1VVUkxTUVFRUFRXVVZYWVpYWFVZW1hSVVVRWllWXF9YV1dRV1tVV1ZXVVFRU1JOV1hRUlNTT05OTE1NS0hKUkxKS0lQUElNWFlbVlpaW1xaXFliV1lcXl5dXmJfXVpbYWBdXWFaX11cXllZW1pXWVtbVVhXV1RVWFZVUlNXU1lWVVdUU1NVWFNPVFROUFNRUFBOT05LTEpLTk1MTE1NSkpKT01RT1BSTUtRU1JRTk9RUE1RU1NUU1JSVldWV1ZWVVVTV1ZVVV1gXV9eYV9hW15bXV1iX11eX1pbWF5aWlteXlljZFtcW11aXFVXVVZVV1dbW1JVV1RTV1FZWk9OTVJXTUtQTlRSXF1dW1tcXV1eXFtbXF1cXl1gXV5iX2JeXF5mYmVoXl9hXlxeYV1eW1pfXV5hWVtgXlhcWVtZV1tbUlNWVFZSWVhRVU1RU1BUU09OUFFOTUtYTE1PTU5UT1JQT09QU01SUExNT1FTVVhWVFNbV1NVUlJXWFhWVFpaWFdXW15cVFtiY19fX19fXWBdXWBfYVteY2FfXlxiYV9cXGBcXFteXltZWVhcV1VVWlRZWlpUVVVXVFRTVlJVUFFQUFJRU05SZFpaYF5XWltlYWBfXmJcXmBkYWJhYmNkYWFfaWdkYmNhZGNjZV9ZXWJfXltdX19iXV5aW1hdXl1YWVdYWlxYVFdTUVRWU1dTVllRUVJQU1FQUVBPWE9RWFlQUVJTVFZXWlNUUVNTXl5XVFVUWFdWWlpcWVZgXVpdXF5dWVtbX15nYmFiX2ZkYV9jY2FdYF9eX2FhX2ZhaV9fZGdgX15fXV5cX15YXVxYX2BhXlpaWFdbVldWVltZU1VTV1RUUlJSY1xeZ2RiYWhmY2RkZGhmZWhkX2RnZ2hmZmRmamtqZGxkZWhgX2NhYmRgYWRfXltdXl9eXl5fXF5dW15eW1taWVlXV1RWUlRZWVZYXl9SWVlVVk9XWlVTWFpXVFdaVlVUVFNTWFpaVlVZWFVaXV1bWVxZXWFcX2BgW2BiXltdYmBoX2VnaGhkYmxtaGhgZmhjZGJkZGRjZWRiY2pmYGZkZF5eYFtlX2JiZFxgY15aXFlcWFlYWlhVWGBaWlhZVlJWYmljYmNmZmhhaWtvbmtrY2xvbWxnZ2ZqZmNqaGZtbGVpamZoZWdqZGNlaWlnZGlgYmJjZF9kZWZgYmFiYGVeX1dcXlpaWlxdXFleW19aWlheW2BgVVRVV19dWllcXl1ZV1hdXV5dXFpbXl5gYGFiXF5cZWJgY11eZGVfZWFgZmtoaWdramxqZWduam5nZ2loaGpoZ2trbGpqamhmZGVmZmVhYF9mYWBgYF9eZV9gXmNfWlhaX1xZXFxcWllYX1taZGRmZmxra2Rmampvb2lobGppbGpua3RycmxvaWdvb2pqZ21raG5taGRmaG5sbGtqaGpkZGJiYGRmZGZqZWRmZGNnZV9bXmFhX1hcWF5dWV1bWltbXFpbX11WXFxgYF1bXVteX19cWVxeX2VnYVpkZ2dmY2FlZGRjYmVjZGdmZWlycGxsbm9tbW1vd29waW9xaGtsbm5sbWttbm5xaG1uZmRqZGhlaWZmYmBmZWFnZWRiYmBhYmJfXltdWlxiYVtdbXFocW90c25xcXFvc3V0c3VxbHBsd291d29xdnBwdnJub3NzcnVsbm9wbW1wbnBta2dmZXBsbGlsZ2poYmVmaGVnaWRpY2hlYmBgX2VlZGFhY2JfYF9fYWNlYWBmZGVlY15hZ2diZmVpaGhwa2VkZ2doaGhta2RpbWtwbHBmaGlncHBtcXF1dnBxcXR7dndzcHJxcG9wbm5sc25uaWxucWlpam5naWhobXJoaWFlZ2doamViYmdnYmRnZGViY2dhcHNzdnFzcXNzenx1dXR3eXh1dXJ+dXt4dnN6en94c3Z0eHdzdHZ2dHdxeXJvcnRvbnVqb3BrbG1tbWlscXFrbGpoamZsa2doaWhgZ2ZeZGZlY2RmZ2VkZGJiZmltaGhqamdmZWhiaWtsaWtranFtbG5xcHBybW5tb3NwdXVwbm55enNxc3R1eXh1gXx1dHV/fnd7c3h3dXpzc3J2eXR6eXZucHF6dnFtampsbWtvcGhpcXBpZ2tpaWpscXBnZ2hrdnh2d3J5e3l5d3t4enh5d3uAg315e3uEe4GDgnp+fXp+gYSFg3V1gH17fnV6eXiCfnZ4end0cXJwd3l6dXV3c21ubGxraW1tbGhpbGprcGpvcGxqaWhqZWtldG5vaW1scWl2b21rcGlvcXJwcHR2dHd8e3Z0d3d1eXp7d3d2dnN+fH2Cdnx9g4GCgXx8gH9+e35+f36Ce32AfoF7c3p3en14gH53dnV0c3N1eHdzdnFtdHF+cnB1c29ubG51b3BygoOFfYaJiYWCiIWBjYiEjIOHh4SDgoiFjYiIhJCLg4aCh36Eg3yAhIqHiXx9hYODgnqAfoSCg4OCeIGAent+eXV5fn14eHZ8fH96dXh8dXVzc3t5eHl8e3Nwd3h4eXh8cnV0eXRye3x3eHh7e4Z9e357eICBfH98f3x6e31+fYKJh3+HgoWHgYuAgoqIkYeJjoWKhI2HhoCFhICGjoOEf4WJg4OBfoOEhHh+f357eXp8enx9dXR8c3V5d3d3cnJ6jI+OjJKioY+Pl56Qj5mRmpiRlp2al5aamJyPlZOcoZGLlY+PiYqOko+Vk4+Kj5GNj4eHiI+Pi4iNjIWLhYmJh4iJgn6Ig4SDgoeDfoGAgX+ChIN9g4aBfX1/f358h3x+gYCAf3yDfn+Ag4OHhIaMiImJiI+JiJGPjYmLjI+Lh4yRoZuPk5ucmpmgmZKPj5KSn5alo5CZmJqVk46NjJudl5KPjJCOhpCLh4uMhYaCiouHiYyMgoiLi4WFhoWHgIN+pKKopquppKyfrJ6epq6pqqKopamlsaenrq2kqautq6qcn6KfoqikoJ2eoJ6on52dmZ+em6KgoZydnpWjpJefoZuSlZKOk5GUkpWPkZKVkY+Nj4yNk4yQkpSPkZCXjI+Oj4+LkZaQlZCTlpOVl5edl6GbmKKcn5udn5ignZ+noKKqqKOltK2qq62xsaOrpqWko6iqpKSur6qxpKurqaKmrKagnaGcn5mWmJedn52RlJWYoZWZkpiXoImOkJiZl5GUrKussqu0trSwtbKqsLSxxbiur7KysK3AvrK0r7eosrm5qrCzrKqsucGyraiqq7S7vLanrK6rqrG2q6qwtaOlrLexn6Csqqu0uaimn6Sil7jKtKakpZqev8mympyeoaKpvamhpaajrrDBsqurorOwr7G1q6mptq2yvLSzrLe1sbW+tLS0rrWyr8W4srKnsKyrwrOrrKyurbO5uKmura+urLy2samjp6iowL2rqKarp6TFwaOmqaCkpLSynJ+dqaGb",
+ "wave": "g7HInWjDypNxxMiZgsHVonTTz6GR1d6zirrXpp3O3bqTteWrgs3qqGvB6pV4weOdisjoq5Hr5LyG0+es0tf05qjK9MGS2fG3jsn7r4na8bGIxvCqeuvysF3T/ZfC1/rasvz42Z306seUx/uyd9f2ppnb9bxp7vipgOv0s53n88OqwfHAd8zyoXq275qey+u6hNLuq33G7qJ30OWiudnk0snF6dqe0+G9hL/lpGbC5pNxy96chcDfpJ6z2rOVttmtta7YxIyw0qR0tMuUdKnNkXi605l7scqYabHIjHCqxY6escSyi528nHSUvIl3pb6Rj6O7oWSVtn5dm697bp2wh6KTra1+iqaNXISkckqNoGpmhKB5ZoSZeG1/nn2KhqGWqoObsW6Lk4FneY11VHmRaF59lnBQgY9oQ3qRXnd+lIT/c5f/eHKLgV98jHBcco9sXH2Obkd9imFNfo5mgXuSi+B8m+KGcouOSnmNYUV2jl1Ph5lqV3WQaV57kHBsfJh7xoOey3t0k4Vad5draYShe2qMqn9jgJx1e4WgiX+EnozCh6rIi5SmmniVqYtnkq9/ZJ6xgYuhsJ6Eqq+bgZe4k5urw66TpbulgaC7lnm1w5hsrNGNhrDFn22mxIuStMqpu7fTy4Ogz5iVwc+wdMXOm4rA2aiIzNSrecTQnqnA1b/h2PnzoPDzyIPX7KyUzvK0gPP0tp3d8cB8//e6ffn8uNDz/eyN+fXAg/j/unTM9KBr4P2kfuT1r4TX7612zPih2N/87aTS8MF+5fewdNH1onnR8KR3++i1e+TsrZrU6rq75+3ZhtPxrXPP7p9/3Ousfsjlo3TN359+0t+mcd3opLzC4M+stcy+i7fLpXm/ypxgutSMaaXMiHCoyo1qo76HtpzCwaCawq5kqL+FYJy4fmWgv4Nli7l7YZK0e2+UtYXEmLHMr5KtuGKHp3ddlqV5aIKkeleKpXFdnZt7YZKXent3n4aDd56MVXeYaFaJlm9NiKJqaIOcek2BmGdQfpZn",
+ "fingerprint": "+gAAAGLm3Elj5apmKiWoJqotraa2qrWO1JrTSVWZU1llWSdpKWtN6aujUK6OllbWxtKuFupcrhJS7L4SUqnV8TmpUeEhHVWtLFUtLU5YKy3bQktJ0abJyrCmvYpRq6yU1dhq1d1VUse8lTNfqqU1UyapTXElK61SJSOplrUU8476UlMpW9JKKnufSqoqbSgqom1UKaZq1M3SGrXFUxqp1XkbqRQpG22sNpd1w5aaNNO22rITMWaqKil3imopMVvnIrlV7HKZdMzallXcTUeT1W1vm9PGaqsz2qpqOpu2arqZltSypNiVlGwJlU1sCW1JSSltbi1yamal9lq2sfdasxblSrFKqYqpyqoTqZIac/GWVnvVV5WoTVWFpEwtaaXCqWilqsyyTCrUkkwb0qpUVypvdUNpZamqaUWIqqiUTK2qkhSVrqZUVdRmXFPUZmpTlWZr05naylIa3ppKSsa4SFfBvK62YZSmtjnUtGq8VrFJLUORXS0rsdVBK6q1U+ZqopLVTSO+3dVlvp2WfDarsuhiozLqaTNlqukT7YvRQ+ub1Wnqmp2tyhSlrFZUprQWV3pTFfJa3aUyXd2mM10kz1vRYk3IsmJZzaIjO5VuKau1TT2rNy3cySKi3EzGoqTUzFGj1MtdW9VLWlNTKipTqjoh0+s7sZIpt7GyKGaRsipmk7QnVquMLRariO2vqKqWrWiykmVo0ppWXcraUl9V1VAfNVUVJ7ZdLaem6CyXCqqMklmq3hBVG9JoVlii6tbKIueWpnJtkaVVTak1XVupV1kai2KbrtEiu63UKi/t9mptqWrKbflqycRSTpXGll4VOqd5hz6rccbUSPPMsVCmXKPSjCdOpgyjVKZUuVWnVZkx24laqhirxqpYWtSKTFbUhUlWUYXpTlNU6UwLVjU5zlUUOcbVpDVSmaa1aYslNanLRTS3RlVSXjZb0l40attO1WrZqVRaSbkklUQxq5VEdKuVsnbb17IWxKq0GqSq1hk0KsoxMmDPoFpFru1KpS7tyy0zbU0teVVVHWlVRd1IlUXdTDfE0skrvFIzKbxad9mKHHbxyrk0s3qrvKkzq6mst5mLTqXWQlqtRlUKrWLV5VpqWGVbPcptRZmmKHOatUgzmrXZMxqt1XNXy8V1RUtETWlTUk21lBpOtJQa1raHVZKWxtWw1kykqdZsrKlUbSqtUCvi7+gK42vustFgqiKVVK5qKxanTiuWlZwqkZiYWplaiVqZZvfcTFVTrVlJU6Vx6bKlZOk0syTnRFOtFk1bqRpty1lZq6lUjbIk3LQyJKz2EiyjVhO6k2aNs9MmrbJitqvXKrGqR6rZckvx8/X29vX08/P09vf4+fn5+fn6+vj39vf4+fn6+/z7+Pb19ff6+/v6+Pf4+fj39/n6+/r6+fj4+Pf29PPz8/T08/Pz8vHw8O/t6+vr6+np6Ojo5+fm5eTk4+Li4+Pk4+Hf3+Dh4N7e3t7f4N/e3+Df39/e3t3e3+Dg3+Dh4eDf3uDi4+Pj4+Tk5ujp6uvs7e7u7Ozs7e/x8vHw8PLz8vHz9fb29fT09vn8/f37+vn8/v/+/f39+/n4+Pn5+fn4+Pn6+vv9/Pr39vb29vb29vf4+Pf08/P09PTy8O/v7u3t7e3s7Oro5+fn5+bl5ubm5+np5uLg4OHk5ebk",
+ "analysed": {
+  "summary": {
+   "v": 3,
+   "at": "2026-10-02T18:16:49.474Z",
+   "grade": "bad",
+   "label": "Fake bitrate",
+   "headline": "Upconverted from a lower-quality file",
+   "fc": 16699,
+   "wall": true,
+   "full": false,
+   "effBits": null,
+   "declaredBits": 0,
+   "origin": "Re-encode of 128–160 kbps mp3",
+   "bpm": 119.94,
+   "key": {
+    "tonic": 1,
+    "mode": "minor",
+    "margin": 0.145,
+    "tuning": -5
+   },
+   "findings": [
+    {
+     "sev": "bad",
+     "title": "Cutoff too low for 321 kbps"
+    },
+    {
+     "sev": "info",
+     "title": "Lossy by design"
+    }
+   ],
+   "fileSize": 482786,
+   "fileMtime": 1700000000000,
+   "vv": 8,
+   "fp": true
+  },
+  "size": 482786,
+  "mtime": 1700000000000,
+  "format": {
+   "container": "MPEG audio",
+   "codec": "MP3",
+   "lossless": false,
+   "sampleRate": 44100,
+   "bits": 0,
+   "bitrate": 321,
+   "channels": 2
+  },
+  "duration": 12.042448979591837,
+  "fields": {
+   "title": "",
+   "artist": "",
+   "album": "",
+   "genre": "",
+   "label": "",
+   "comment": "",
+   "grouping": "",
+   "year": "",
+   "bpm": "",
+   "key": ""
+  },
+  "art": ""
+ }
+}

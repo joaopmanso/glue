@@ -68,6 +68,7 @@ export const TAURI_MOCK = `(() => {
         // window.__find: folder name → where the drive search finds it.
         case 'find_folder': return (window.__find ?? {})[args.name] ?? null;
         // window.__findFile: song name → where the search finds it.
+        case 'verify_song': window.__verified = [...(window.__verified ?? []), args.id]; return (window.__verifyAnswer ?? {})[args.id] ?? { kind: 'same', ms: 1000, name: args.id };
         case 'find_file': return (window.__findFile ?? {})[args.name] ?? null;
         case 'glue_list': return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
         case 'plugin:notification|is_permission_granted': return true;

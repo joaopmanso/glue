@@ -1,0 +1,40 @@
+{
+ "container": "MPEG audio",
+ "codec": "MP3",
+ "lossless": false,
+ "sampleRate": 44100,
+ "bits": 0,
+ "channels": 1,
+ "duration": 3.030204081632653,
+ "bitrate": 129.10021551724137,
+ "bitrateMode": "CBR",
+ "encoder": "Lavc63.1.",
+ "vendor": "",
+ "tags": {
+  "TIT2": "Covered",
+  "TPE1": "GLUE Tests",
+  "TSSE": "Lavf63.1.102"
+ },
+ "notes": [],
+ "channelMode": "Mono",
+ "lameMethod": "",
+ "fileName": "mp3-cover.mp3",
+ "fileSize": 60259,
+ "clues": [
+  {
+   "kind": "mp3",
+   "label": "LAME MP3 encoder",
+   "match": "LAME3.100"
+  },
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg muxer (libavformat)",
+   "match": "Lavf63.1.102"
+  },
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg encoder (libavcodec)",
+   "match": "Lavc63.1.102"
+  }
+ ]
+}

@@ -1,0 +1,37 @@
+{
+ "container": "MPEG-4 (M4A)",
+ "codec": "AAC-LC",
+ "lossless": false,
+ "sampleRate": 48000,
+ "bits": 0,
+ "channels": 2,
+ "duration": 12.021333333333333,
+ "bitrate": 256.235,
+ "bitrateMode": "",
+ "encoder": "Lavf63.1.101",
+ "vendor": "",
+ "tags": {
+  "©too": "Lavf63.1.101"
+ },
+ "notes": [],
+ "brand": "M4A",
+ "compatBrands": [
+  "M4A",
+  "isom",
+  "iso2"
+ ],
+ "fileName": "demo-256.m4a",
+ "fileSize": 388099,
+ "clues": [
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg muxer (libavformat)",
+   "match": "Lavf63.1.101"
+  },
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg encoder (libavcodec)",
+   "match": "Lavc63.1.101"
+  }
+ ]
+}

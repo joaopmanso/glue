@@ -168,6 +168,9 @@
   const secs = (ms: number) => ms >= 60_000 ? (ms / 60_000).toFixed(1) + ' min' : ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
   /** The speed's numbers (ADR 0136): a read rate, and a time per song. */
   const rate = (mbs: number) => (mbs >= 10 ? Math.round(mbs) : mbs.toFixed(1)) + ' MB/s';
+  // The native engine check (ADR 0147).
+  let verifyN = $state(1000);
+  const vf = $derived(status?.verify);
   const sec = (ms: number) => ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
   function copyActivity() {
     const text = 'GLUE Home ' + current + ', running ' + Math.round((own?.seconds ?? 0) / 60) + ' min\n' + activity.map(r => [r.what, r.calls, secs(r.ms), mb(r.bytes)].join('\t')).join('\n');
@@ -295,6 +298,19 @@
           {/if}
           {#if an.suggestion}<p class="fine tip" id="an-suggest">{an.suggestion}</p>{/if}
         {:else}<p class="fine">Starting…</p>{/if}
+        <!-- The native engine checked against this computer's analyses (ADR 0147): nothing is saved. -->
+        <h3>Native engine check</h3>
+        <p class="fine">GLUE Home is moving its analysis from the service page to its own native engine. This analyses songs it already analysed again, natively, saves nothing, and compares the two. Each song’s outcome goes in GLUE Home’s cache folder, <code>library/x/verify.jsonl</code>.</p>
+        <div class="row">
+          <label>Songs <select id="vf-n" bind:value={verifyN}>{#each [100, 1000, 5000, 100000] as n (n)}<option value={n}>{n === 100000 ? 'All' : n.toLocaleString()}</option>{/each}</select></label>
+          {#if vf?.running}<button type="button" id="vf-stop" onclick={() => bridge.verify(0)}>Stop</button>
+          {:else}<button type="button" id="vf-start" disabled={!paired} onclick={() => bridge.verify(verifyN)}>Check</button>{/if}
+        </div>
+        {#if vf && (vf.running || vf.done)}
+          {@const k = vf.counts}
+          <p id="vf-state">{vf.running ? 'Checking' : 'Checked'} {vf.done.toLocaleString()} of {vf.total.toLocaleString()} · <b>{(k.same ?? 0).toLocaleString()}</b> the same · {(k.close ?? 0).toLocaleString()} close (lossy) · <b>{(k.differs ?? 0).toLocaleString()}</b> differ · {(k.failed ?? 0).toLocaleString()} failed natively · {(k.fixed ?? 0).toLocaleString()} only native could · {(k.skipped ?? 0).toLocaleString()} skipped{vf.timed ? ' · ' + sec(vf.ms / vf.timed) + ' a song natively' : ''}</p>
+          {#if vf.odd.length}<ul class="events" id="vf-odd">{#each vf.odd as o, i (i)}<li><span>{o.name}: {o.why}</span><small>{o.kind}</small></li>{/each}</ul>{/if}
+        {/if}
         {#if status?.events?.length}
           <h3>Lately</h3>
           <ul class="events" id="events">{#each status.events.slice(0, 12) as e (e.at + e.text)}<li><span>{e.text}</span><small>{ago(e.at)}</small></li>{/each}</ul>

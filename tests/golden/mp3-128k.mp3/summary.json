@@ -1,0 +1,32 @@
+{
+ "v": 3,
+ "grade": "warn",
+ "label": "Caution",
+ "headline": "Left and right are identical",
+ "fc": 17313,
+ "wall": true,
+ "full": false,
+ "effBits": null,
+ "declaredBits": 0,
+ "origin": "MP3 encode",
+ "bpm": null,
+ "key": null,
+ "findings": [
+  {
+   "sev": "warn",
+   "title": "Left and right are identical"
+  },
+  {
+   "sev": "ok",
+   "title": "Bandwidth fits the format"
+  },
+  {
+   "sev": "info",
+   "title": "Lossy by design"
+  }
+ ],
+ "fileSize": 65267,
+ "fileMtime": 1700000000000,
+ "vv": 8,
+ "fp": true
+}

@@ -1,0 +1,33 @@
+{
+ "v": 3,
+ "grade": "warn",
+ "label": "Lossy · not hi-res",
+ "headline": "Lossy Vorbis, not hi-res",
+ "fc": 19031,
+ "wall": false,
+ "full": false,
+ "effBits": null,
+ "declaredBits": 0,
+ "origin": "Vorbis encode",
+ "bpm": 119.84,
+ "key": {
+  "tonic": 9,
+  "mode": "minor",
+  "margin": 0.181,
+  "tuning": 5
+ },
+ "findings": [
+  {
+   "sev": "ok",
+   "title": "Bandwidth fits the format"
+  },
+  {
+   "sev": "info",
+   "title": "Lossy by design"
+  }
+ ],
+ "fileSize": 255048,
+ "fileMtime": 1700000000000,
+ "vv": 8,
+ "fp": true
+}

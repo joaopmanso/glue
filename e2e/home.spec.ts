@@ -242,6 +242,37 @@ test('GLUE Home’s window says what it’s doing: the analysis, a pause button,
   if (process.env.SHOTS) await page.locator('#sec-now').screenshot({ path: 'test-results/speed-panel.png' });
 });
 
+test('GLUE Home checks its native engine against the songs it analysed: a sample, the tally, the ones that differ (ADR 0147)', async ({ page }) => {
+  const ctx = page.context();
+  await ctx.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'a' }) }));
+  await ctx.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { ws.send(JSON.stringify({ type: 'presence', online: ['h1'] })); ws.onMessage(() => {}); });
+  await ctx.addInitScript(TAURI_MOCK);
+  const lib = { ...LIBRARY, 'profiles/p1/collections/c1/tracks/ab.json': JSON.stringify({ schemaVersion: 1, items: {
+    ab01: { id: 'ab01', rootId: 'r1', relPath: 'Sets/a.mp3', importPath: null, fileName: 'a.mp3' },
+    ab02: { id: 'ab02', rootId: 'r1', relPath: 'Sets/b.flac', importPath: null, fileName: 'b.flac' },
+    ab03: { id: 'ab03', rootId: 'r1', relPath: 'Sets/c.flac', importPath: null, fileName: 'c.flac' } } }) };
+  await ctx.addInitScript(({ glue, lib }) => {
+    const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = lib;
+    w.__disk = { 'C:\\Music\\Sets\\a.mp3': [1], 'C:\\Music\\Sets\\b.flac': [1], 'C:\\Music\\Sets\\c.flac': [1] };
+    // Analysed here: a.mp3 and b.flac (c.flac not yet).
+    const cache = w.__cache as Record<string, number[]>;
+    for (const id of ['ab01', 'ab02']) cache[`s/p1/c1/ab/${id}.json`] = [123, 125];
+    w.__verifyAnswer = { ab02: { kind: 'differs', name: 'b.flac', ms: 3000, diffs: ['label: "Hi-res" vs "Upsampled"'] } };
+    if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't1', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, askedAutostart: true, running: true, analysisPaused: true, glue, folders: { r1: 'C:\\Music' } }));
+  }, { glue: GLUE, lib });
+  await page.goto(HOME + 'index.html');
+  const service = await ctx.newPage();
+  await service.goto(HOME + 'service.html');
+  await page.click('nav [data-page="now"]');
+  await page.selectOption('#vf-n', '100');
+  await page.click('#vf-start');
+  await expect(page.locator('#vf-state')).toContainText('Checked 2 of 2 · 1 the same · 0 close (lossy) · 1 differ', { timeout: 15_000 });
+  await expect(page.locator('#vf-state')).toContainText('2.0 s a song natively');
+  await expect(page.locator('#vf-odd')).toContainText('b.flac: label: "Hi-res" vs "Upsampled"');
+  expect((await service.evaluate(() => (window as unknown as { __verified: string[] }).__verified)).sort()).toEqual(['ab01', 'ab02']);
+  await expect(page.locator('#vf-start')).toBeVisible();
+});
+
 test('GLUE Home whose settings never said running or stopped goes online, and stays so as other settings are saved', async ({ page }) => {
   const ctx = page.context();
   let connects = 0;

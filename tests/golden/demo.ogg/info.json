@@ -1,0 +1,37 @@
+{
+ "container": "Ogg",
+ "codec": "Vorbis",
+ "lossless": false,
+ "sampleRate": 48000,
+ "bits": 0,
+ "channels": 2,
+ "duration": 12,
+ "bitrate": 170.032,
+ "bitrateMode": "",
+ "encoder": "",
+ "vendor": "Lavf63.1.101",
+ "tags": {
+  "ENCODER": "Lavc63.1.101 libvorbis"
+ },
+ "notes": [],
+ "nominalBitrate": 192,
+ "fileName": "demo.ogg",
+ "fileSize": 255048,
+ "clues": [
+  {
+   "kind": "lossy",
+   "label": "libVorbis encoder",
+   "match": "libvorbis"
+  },
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg muxer (libavformat)",
+   "match": "Lavf63.1.101"
+  },
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg encoder (libavcodec)",
+   "match": "Lavc63.1.101"
+  }
+ ]
+}

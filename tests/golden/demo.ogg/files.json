@@ -1,0 +1,153 @@
+{
+ "details": {
+  "header": {
+   "v": 2,
+   "fileSize": 255048,
+   "fileMtime": 1700000000000,
+   "info": {
+    "container": "Ogg",
+    "codec": "Vorbis",
+    "lossless": false,
+    "sampleRate": 48000,
+    "bits": 0,
+    "channels": 2,
+    "duration": 12,
+    "bitrate": 0,
+    "bitrateMode": "",
+    "encoder": "",
+    "vendor": "Lavf63.1.101",
+    "tags": {
+     "ENCODER": "Lavc63.1.101 libvorbis"
+    },
+    "notes": [],
+    "nominalBitrate": 192,
+    "fileName": "demo.ogg",
+    "fileSize": 255048,
+    "clues": [
+     {
+      "kind": "lossy",
+      "label": "libVorbis encoder",
+      "match": "libvorbis"
+     },
+     {
+      "kind": "ffmpeg",
+      "label": "FFmpeg muxer (libavformat)",
+      "match": "Lavf63.1.101"
+     },
+     {
+      "kind": "ffmpeg",
+      "label": "FFmpeg encoder (libavcodec)",
+      "match": "Lavc63.1.101"
+     }
+    ]
+   },
+   "res": {
+    "music": {
+     "bpm": 119.83829236747098,
+     "bpmConf": 0.7780801585887915,
+     "key": {
+      "tonic": 9,
+      "mode": "minor",
+      "r": 0.5988813382912681,
+      "margin": 0.18096937793002893,
+      "runnerUp": {
+       "tonic": 4,
+       "mode": "major"
+      },
+      "tuning": 4.54847503510787
+     }
+    },
+    "cols": 1118,
+    "rows": 512,
+    "N": 4096,
+    "binHz": 11.71875,
+    "stats": {
+     "peak": 0.8704227805137634,
+     "rms": 0.09970096692770802,
+     "clipRuns": 0,
+     "wasted": null,
+     "assessed": false,
+     "nonInt": 0,
+     "floatFmt": false,
+     "on16": 0,
+     "on24": 0,
+     "lrIdentical": false,
+     "lrCorr": 0.00528947290219209,
+     "silent": false
+    },
+    "sr": 48000,
+    "duration": 12,
+    "channels": 2,
+    "containerBits": 0
+   },
+   "ltasLen": 2049,
+   "specLen": 572416
+  },
+  "rawSha256": "30949812e5a810e76142aa8d74a71dcee43509c21c9eeb25c7e1adbb7ba12e6c",
+  "rawLength": 580612
+ },
+ "thumb": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUFhbVlhXV1lZV1pYWFZWWVtbXV5eX1dbXVtdXFddX11ZW11WVVdXWFhZW1xXU1VUV1NPUFJVUlRXUVFVVFBPT1JOU1JSTEpQUFJNTUxISkpMSUdHT01LSEpHTEtNSUdJTEhKUVFRTkpPTU9NUk5PUE1OUFZQVVVPVVZWVFJTVFhgWVlcXF1ZV15YWldcWFpZWlpZWFZXXV1cXFhVW1pYWltVWVNVU1FVWFdUT1JUU05SUE9PUE5PU0xLS0tRU0lPXFxZW1xcXl5dXFpeXl5bXFxdXF1iXFxaXF5aYWVpXlxfXVtXXFtXWlpbWFlaW1tVWVVdW1VZWFpWVVZWUlRUVVVUT01PUlNVU0tMT1BQTUtQS05NT01MTk9PTk1QUUtRT05SUFFTUlNTU1NUUlZVVFFTVldXV1VVVVRRUVVUVFphYV1fXV5fXV5YX2JiXl1gYmFcYF9aXF1eXlpiXlhcXFxZWVleV1VTU1RcWVlUVlFTVlJYVVBSTlNTUVFPUVVQWVleXFxaWV5lZVpcW15eX11hYV1iYGRlY19nYWFfZGRfZWJcY1xfXV5fXmBiWF1gYFtXWVhUU1VVVFNWWVVTV1pUU1NVUFhVVUxOT1BOUE9YUlNPTk9TVVhQUE5RUVRUUE5RUVVRTlZVU1RZWFRSVVtYV1lZWFpdW1xdW19fWltmY1xcYGdmYGBjY15hY11eX19gYGBjZV5YZmdiYF1bYF1bWFlaV1VZXFRUV1pRVFdaWFFTVFNTUlRTUVFST05UYVxdZ2NeV2BgYl9dX2VjYmRhXGBkZ2ViZWBna2VrZV9iYWhlZGBeYGFiYGBhXlpgXWBeX1tfX1taWVhZWlxbVlpTU1VTVVRbWVdRUlVQU1RSUk5aWVFTWFdSVVJUUlVTWlVTWFlYW1tbVlVaXV1VWV5fW1tiWF5eWVxbXV5aXl1pYmNjZmheXmZrYWdeZmJiZGFlZWZiX2FhZWVlYWVjXF5hYF1cXWJhW1xgXl1WWFZdVllXU1taV2BZXFlYUlNUYWhkZGRjZGlnZmlqamppZmlpbWZnZ2hqZmRjaWplZWtnZmRmZGZlYmNlZGZmY2ZgYV9cX2BiYl1hX1xgYF1aXVpaVldYV1RbW1lYXmFWVVVVW1JZV1RUV1pWWlxbVFVbVldYWVlVV1xcXl5dXFtjXV1eX15gXV9eY2RhYFtaZWtmZ2NqbW5pZGtvaW1oY2llZWVlZm1saGlnaGhnZmVhZmVgX15mY2BhYWBeYGFcXmZdV1lXWV1XW1lbWFlZXltaYGRmZ2tmamdka2Zub2xqaWlpbG5sbXNvcm1taWZwcWdrbGhraGhuZmJlamppaGtpZGljZGBkZGdnZmZoYWVcYlljZGBbXVxgXlZfWmJaV15bW11cWlhcW15cWVhhXlxZW1tcYGBfXFhhWltnX2BjY2FmZmNjYmRiY2NhZF5iZWhycGpnanBubWxteGxwaGxwaG5sb25tbGtmbW5yaG5sZ2VfZWNjaGJjY2NkZGBlZmRhZGFfYmJeW1xcW1tgXWBeZWdlbXFyc2xqcXFscXV1cnZxbHBtamt3b3BtdGpvcXFwb2xqamttcG9wbm5sbXFsbWZmZHFpbGVnZWlnZGRpaWRnZmBfYGZkY2JhX11gYF1gYlxeXlxeXWVkYF5dXmViX19eZWVgYFxmZmViYmBlZWZmZ2loZGZlaGtobG9nZWdmcXBub211dnFucnF0b3FzbW9ycW1wbGpudG1saWxrb2Zsa21laWplanBlZmBkaGZkY2NgYGFgZWFlYGdkY2Vjb3BscWxxbnJzcXN0cW5ucHR0d3B1d3p2d3N0c3Ryd3R1eHdycnRwcXNycXFwb3NvbnBrbmxsbWxrbGZrZ2xnbGliamRnZ2VnZGRfYmZmZWllYmJgZWhmZGJiYmVsZWNmZ2RpZGlhZmRoa2pubGRoaW5rbW1xa2xrbmtwdnVxbm54d3Bwb3R1dHB2dnR5d3Zzcnd1cnRzc3Nvc3NzdHFucnFvbm1wbG5tbGtqamxwZmRqamhoZmdkYWdnZWRlZWJidnJ1d3Z6d3V2ent1d3d2dnp7g3R9eHqDeYOFe4B6fHt+hIKEgnZ0gYB7fXVyeHeBf3V5enV3cnJxeHt6dHF0c29ubG5ramxra2pqaWdocWdpaGZqaGZqZmtnaWhna21rb2l1Z2Rrbmhra3BxcnNtdnV4eXN0d3l2dHV6d3V2dG97e3uEdXh+gH98g3h7eHh/fHN9fn6CfHt5eoB7dnh6eHp4gX95dHNzcXR0c3ZycXFtdXN9bnByb29tb3F1bnJyfIKAf4CAf4WChoR/gomFgYOFhoKCf4OCi4SHg3+IhIaDgn2Dg3yBgYqHiXd/gHyCgnt/foOFgoCAeoGBent4dHR6gHx1cnV5foB8dnZ7c3R0c3l6dnB9e3NwdnN5d3h9cHd1eXVveXt0eHp4fYZ9fHd6eX+Ce396fXp3en5/fH2JhX6GgoWCg4qCgoWIgYWDhoWKhIuFhX2Cg4CEgYKDgIKIfH2BfoOEe3Z9f357d3p+eXp2cnZ7cnF1eHZ1c3V6g4WMi4yMjIuEio+MkIyOkoiLiYqSk4yJjoqPjo+NlZGOl5CRjoyOlY2Vlo+LkJCRjoiIi42QjIeNjYaMiouJiYqJf318hIOBen56fIN9d3l/hIJ+gYJ/fnl/fHt9ent/gYGBf3t8fn5/goOIhoaKiImIhpCFg5GQhYqLjYqHioyRkoyNjZGUjoyPj5SMkJGQj5eVj5GQk4WOlY6OkIyUjZGPjJOQh5GMh4uKhYeGiYmIio6MhIiNioiEgoeIgYGAmp2pqq2soqifpp+ipKifm5+mnqujp5+ir66bp6ivrqOcoKCioZ6koZ2eoJ+om52emqCgnJ6bnZyclZOXmJmRlpyVlpORkpGVkZKPkJWWkZCKkY2OlJGRkpSQk5CaiI+PkZCJk5mKlJOTlZaXl5iemqKXmKWfn5Cdn5GinKKooJ+ppaKms6qqr66usKClp6SkpamlpKSrn6qfp6ano6Kcpp+hm6KfoZqYmJeemJyTlpWakJOUkZmYkI2NjZmbl5CNsK2os6y1t7SxtbOrsLSwx7ivr7KztK7AwbO1sLepsry7q7C1rayvusG0raisrLW8vripr62tqrS3ramwtaOmqrm0oKGuq6u5u6enoKajlrLNtaempJmevMuxmJ6goqSpwKqhpaWkr7XDs6unpLWwsLKzq6qqtK6zvrOzrbm0sLbAtbG3s7a0rce6s7Ossayuw7SurayusrW7u6uwr7Gvr7y5saqkqaqqwr2sp6irp6XIv6WpqqGipbSxnaGeq6Kc",
+ "wave": "lKLEpnC7yJV9tcSalrnRroPLzKea1Nu6ob/XuKLJ1ryfu+G2lL/lsHLD6Zt7yd+hkMbhr6Hi4sON0OSw39Du8KvF78KZ2u68k8P2sJbT6reLwO6pltXwuGjR+ZzG1/ndxu3046br6sqZwvq1icz0raLN8L535/Osi+3xuqzh7sy7vu3OgM/sqHu07puv0OTIk9HrtYu76qd/zuCmxN/i3djL6eio1tzFiMPhqGvF45d9yNujiMDbp6m22LyaudexvLDUypK6yqx7ucebeKzFlH60zZuErMaddq3Dk32iw5Ssq8C8kpm5on2TuJB7mruQkZW4n2qZs4NukaqDbJCtgaaXrLKGjaWUXoagdFOPoHBghpx1bYOWfnmCmYeaiaCkrIWYs2uKj351e4uBW3SNbGF9lnNahIxwS3aNYWt9kXr/c5P/eXSJg2R9inVkc4xyYYGOdEx/iWVSf4xpgnqPjOR9meZ/dImISnmLYk51jGNWjZdxXHKNbGR8jXRxfpV/1Ieb2IR3ko5ceZVuZoKdeGmOo35pgZp6gYOdjoaDnJLXianbkJSknoGUppJula+Fap+thY6jraCKrK2gipm3m6KrwLOWobinhKC5mH+9wp9vsc2QlLXCq3KgwYyTrcioxrTM1IqdzJ2nxcu+fczNo5bF07KM0c+vfMbKobi+0Mru0/T9qevuzYbW6a6hz+6+nObwwqfY68WQ//TEhfT7utfs+vCn9u/Pl+//w4XK76l9zv6mid7us5La7LeB1POq3N338LHQ7MqW1/O5fdDvpn/R66iK8OO6is7qraDQ5L3Py+rhkNDqsn/E6KOP2uq1kbrhq4LP2qiLzNmths3iqsW33tSwtcXBmrbHsH3Bxp9ouNCPcKjHjXOmw490p7qPxZ2+zqKbvq9qqbyKZZu0gW6cuohvjLKCZ5Swf3SVsonalq7gqoaqsmaLpXtljaJ7YoKidleOo3NmnJiBaoaWfYZ3n494e5iEV3eYaliHlHBUjKFwaoqYfVl+lG5WeZBp",
+ "fingerprint": "+gAAAGLmzElj5apmKiWqJqotraa2qrWu1JrTSVUZU1ltWSdJKWtF6YujUK6GllYWxhKuFuperhJS7L5SUqlV8VGpVfEhHVftLlUtLU5RKyXbQktp0aaN6rCmvYpRyyyU1dpq1N1VUse9lTNbqqU1UyYrTXFkK61WJSOl1rVU84r6UlMpW5JKKnufyqoqbagqom1MKaZq1M3SGrXVUxqp1XkbqTwpG22sNhd1y5aYNNO22LIzMWaqOilninIpMVvnKjl15nKZVMxallXcTUeTVW1vm9PGaqsz2qpqOpu2brqZ1tSwpNiVlGwJlU1sCW1JSSltai1yamKl9lqysedKsxblSrFKqaupyqqTqZKaU/OWFnvUF5WoTVWFpkwtaafCrWinosyyTitUkkw50qpUVmpvdVJpZamraUWIq6iUTL2qklSVrqZUV9RmbFPUZmpTlWZr05naylNa3ppKSsaYSEfBtK62UZSmtjnUNGq8RjFJLVORXS0rsdVBK6q1U+5sopLVTSK+3dVlvpyWfTarsulrozKqaTMlrukTrYvRS6ub1W3qmpWtylylrFZEprRWVnrTVbJa2a0yX1ymc10kx1vRYl3IsmJZzaIjK5VuKau1TTyrNi3cySKi3ETEouTUzFHj1Mtd09VLWhPTKipTSjoh20s7sdIot7GyKGaRsipGk7QrFquMLRariI2qqKqWrWiylmVp0lpWXcvaUl9V1VAbNdUVp7YdLaeuqCyXiqqMklmq2hBVm9JodFmi6kZKIueWJ3JtkaVVTYm1XVupt1kauWKbqtEiq+3WKi/ttmptqWrabflq2cRSTpXGll61Oqd5pj6rYcbUSLNMtVCmTKfSjCZOphyjVKZUuVWnVbkxm6lqqhir7qpYStSKTFJUhUlWUYXpTlNU6UwrXzUxjlUUMcbVpLVakaalaYulNanLVTSTRlVSVjZb0k40attO1GrZqVRaaakklUwxq5VEdquVsnZblbZGxKq0DqSq1hk0KsqxOmTPolpFrq1KpS7tSy0zbUUtcVFVHWlVRd1IlUXdTDfk0skpvFKhibhaN8mKHHb12rs0sXqrvKkyq6mut5mLTqWWQlKt5tXSrWLV5VpoWGVbPUptVZmjKHOatRgzmrXZMxqt1TNVi9V1ZUtHTXlTSk31lBpOtpQa1raH1ZKWxtWw1kykqdZsrKlUbSqNUCvi7+xq82vsslVgqqIVVq5qKxanTiuWlZgrkZiYUplanVjZdvXcTHVTrFhJU61x6bKlZOk0syT3VFOtNk3bqRpty1lZr6hUjbIknLQyJKz2cmyjVlOyk0aNstMmjbJqto+TKrGqR6rZYm/x8vX29vTz8/P09vf4+fn5+Pj5+fj39vf4+fn5+/v6+Pb19ff6+/v5+Pf4+Pj29vj6+vr6+fj4+Pj29PPz8/T08/Pz8vHw7+7s6+rr6uno6Ojn5+fm5eTj4+Li4+Pk4+He3uDg397e3d3f39/e39/f3t7e3t7e3+Dg3+Dh4eDf3uDi4+Pi4+Pk5ufo6uvs7e7t7Ovs7O7w8vHw7/Hy8vHz9fb29fT09fn8/fz7+vn8/v/+/f39+/n39/j5+fn4+Pn5+vv9/Pr39vb29vb29vf4+Pf08vLz9PTy8O/v7u3t7ezs7Oro5+fn5+bl5ubm5+np5uLf4OHj5ebk",
+ "analysed": {
+  "summary": {
+   "v": 3,
+   "at": "2026-10-02T18:16:50.694Z",
+   "grade": "warn",
+   "label": "Lossy · not hi-res",
+   "headline": "Lossy Vorbis, not hi-res",
+   "fc": 19031,
+   "wall": false,
+   "full": false,
+   "effBits": null,
+   "declaredBits": 0,
+   "origin": "Vorbis encode",
+   "bpm": 119.84,
+   "key": {
+    "tonic": 9,
+    "mode": "minor",
+    "margin": 0.181,
+    "tuning": 5
+   },
+   "findings": [
+    {
+     "sev": "ok",
+     "title": "Bandwidth fits the format"
+    },
+    {
+     "sev": "info",
+     "title": "Lossy by design"
+    }
+   ],
+   "fileSize": 255048,
+   "fileMtime": 1700000000000,
+   "vv": 8,
+   "fp": true
+  },
+  "size": 255048,
+  "mtime": 1700000000000,
+  "format": {
+   "container": "Ogg",
+   "codec": "Vorbis",
+   "lossless": false,
+   "sampleRate": 48000,
+   "bits": 0,
+   "bitrate": 170,
+   "channels": 2
+  },
+  "duration": 12,
+  "fields": {
+   "title": "",
+   "artist": "",
+   "album": "",
+   "genre": "",
+   "label": "",
+   "comment": "",
+   "grouping": "",
+   "year": "",
+   "bpm": "",
+   "key": ""
+  },
+  "art": ""
+ }
+}

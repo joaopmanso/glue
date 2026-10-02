@@ -1,0 +1,33 @@
+{
+ "container": "MPEG audio",
+ "codec": "MP3",
+ "lossless": false,
+ "sampleRate": 44100,
+ "bits": 0,
+ "channels": 2,
+ "duration": 12.042448979591837,
+ "bitrate": 320.6935737527115,
+ "bitrateMode": "CBR",
+ "encoder": "Lavc63.1.",
+ "vendor": "",
+ "tags": {
+  "TSSE": "Lavf63.1.101"
+ },
+ "notes": [],
+ "channelMode": "Stereo",
+ "lameMethod": "",
+ "fileName": "demo-320.mp3",
+ "fileSize": 482786,
+ "clues": [
+  {
+   "kind": "mp3",
+   "label": "LAME MP3 encoder",
+   "match": "LAME3.100"
+  },
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg muxer (libavformat)",
+   "match": "Lavf63.1.101"
+  }
+ ]
+}

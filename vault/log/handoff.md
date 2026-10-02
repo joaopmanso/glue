@@ -23,7 +23,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-02)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.43.2.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.45.0 (the native engine, ADR 0147: linked and
+  checkable, not analysing yet).
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -75,6 +76,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **The native engine check (GLUE Home 0.45.0, ADR 0147), on the desktop:** after it updates, GLUE Home's window ›
+  Activity › Native engine check › 1,000 › Check. It analyses those songs again natively (nothing is saved) and gives
+  a tally; the ones that differ are listed. Send the tally, and `x/verify.jsonl` (in GLUE Home's cache folder,
+  `%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\x\`) if anything differs or failed. This is the gate for B3 (GLUE Home
+  analysing natively). Also its "a song natively" time against the Speed panel's.
 - **Today's three batches (2026-10-02, the laptop's session):**
   - **"Syncing…" on the laptop:** hover the chip after a long "Syncing…": its tooltip says where the time went
     (saving, from and to GLUE Cloud, reading what it wrote, how many in a row). Fix the part it names.
@@ -164,11 +170,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 
 ## Next
 - **The native engine (ADR 0147), batches after 0.44:**
-  - **B2:** details (`d/`), mini spectrogram (`t/`), waveform (`w/`), fingerprint file (`p/`), cover (`a/`, `c/`), tags
-    and `Analysed` (`s/`); lossy decoders (Symphonia: MP3, AAC-LC, ALAC, Vorbis) with the browser's trims
-    (`mp3Gapless`, `keepRange`); goldens for lossy files from Edge (`e2e/golden.spec.ts`, the browser decodes them);
-    a CLI (`analyse`, `bench`); `verify_song` in GLUE Home: re-analyse in dry-run and compare with the stored result.
-    **Gate:** a verify report from the desktop (a sample of ~1,000 songs across formats), and a speed comparison.
+  - **B2: done (0.45.0).** Gate: the desktop's check (Waiting on the user).
   - **B3:** `home/ui/cache.ts` `analyse()` calls the native `analyse_song` (reads, decodes, analyses, writes the cache);
   - **B4:** no audio JavaScript left in GLUE Home (incoming songs, cover hashes, covers native; a guard test);
   - **B5:** DSD (91 songs), re-check of songs failed under an older engine (the 342 ALAC M4As);
