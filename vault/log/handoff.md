@@ -76,6 +76,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **The three songs (2026-10-02):** checked against Edge (changelog 0.49.3): Hello and Donna Lee now match, and Deftones
+  is decoded better natively. Delete them from the laptop's Downloads when done (the user's music).
 - **The native engine check, third run (0.49.0, 2026-10-02):** 8 real differences in ~390 (changelog 0.49.2). **Next run
   on 0.49.2:** do the 5 FLACs that differ have `storedAt` before 0.43.0 (2026-10-02, GLUE's own FLAC decoder) and
   `decoder: "flac"`? Then the stored ones are the browser's decode, and the fix is to analyse them again (GLUE Home

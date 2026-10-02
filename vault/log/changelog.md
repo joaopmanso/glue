@@ -5,6 +5,26 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.49.3: the three songs from the desktop, checked against Edge
+The user copied the three songs that differed to the laptop. Each was analysed natively and by the website's own code
+in Edge (the same `golden` hook as the lossy goldens):
+- **"05 - Hello.flac"** (an ID3v2 tag before the stream): with 0.49.1 it's byte-identical to Edge (the thumbnails,
+  the waveform, the fingerprint, 13,046,478 samples). Its stored result was older than the fix.
+- **"1-01 Donna Lee.mp3"** (a VBR MP3 with 7 frames whose side information claims more bits than the frame has):
+  - Symphonia refuses those frames ("invalid main_data offset"), and the engine skipped them, which shifted the rest
+    of the song (BPM 112.59 against 112.55).
+  - **Fixed:** such a frame is silence for as long as it lasts, so the song keeps its time.
+  - Now the same length as Edge's (6,786,696 samples), the same BPM, 0.13% of fingerprint bits different (around
+    those 7 frames, which FFmpeg partly decodes).
+  - Test: `a_damaged_mp3_frame_keeps_the_time` (it fails without the fix).
+- **"Deftones - Nosebleed demo.mp3"** (two recordings joined at 43.02 s, with one stray 32 kHz mono frame at the
+  join):
+  - natively 9,357 frames, exactly the file's count;
+  - Edge decodes one frame more at its start (likely a false frame inside its 919 KB tag), so its fingerprint is
+    a third of a step off throughout;
+  - the native decode is the right one here, and the verdict ("Fake bitrate") is the same.
+- `glue-audio analyse` prints the thumbnails and the fingerprint (base64), to compare with the website's.
+
 ## 2026-10-02 · GLUE Home 0.49.2: the check says when the stored result was made
 - **The third check (made by 0.49.0, so still exact):** 277 differ, of which 276 are only a key's tuning in its
   16th digit, which 0.49.1 counts as the same.

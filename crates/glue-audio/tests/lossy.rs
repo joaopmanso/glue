@@ -41,3 +41,26 @@ fn a_deadline_stops_the_analysis() {
     assert!(matches!(&r, Err(glue_audio::Failure::Broken(m)) if m.contains("took too long")), "{name}");
   }
 }
+
+/// An MP3 frame that says more than it holds (its side information claims more bits than the frame has: what
+/// Symphonia calls "invalid main_data offset"; FFmpeg decodes what it can) keeps the song's length and time: that
+/// frame is silence. Skipping it shifted the rest of the song (the desktop's check, 2026-10-02: "1-01 Donna Lee.mp3",
+/// 7 such frames).
+#[test]
+fn a_damaged_mp3_frame_keeps_the_time() {
+  let good = fixture("demo-noxing.mp3");   // no LAME tag: its length is what's decoded
+  let (mut o, mut n) = (good.windows(2).position(|w| w[0] == 0xff && w[1] & 0xe0 == 0xe0).unwrap(), 0);
+  let br = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+  while n < 200 { let (bi, pad) = ((good[o + 2] >> 4) as usize, ((good[o + 2] >> 1) & 1) as usize); o += 144_000 * br[bi] / 44_100 + pad; n += 1; }
+  assert_eq!((good[o], good[o + 1] & 0xe1), (0xff, 0xe1), "a frame header, no CRC");
+  // Three of its four part2_3_lengths (12 bits each, at bits 20, 79 and 138 of the side information: 59 bits a granule
+  // and channel, after main_data_begin, the private bits and scfsi) at their largest: the last channel's data starts
+  // past all the data there is.
+  let mut bad = good.clone();
+  for at in [20usize, 79, 138] { for k in 0..12 { let bit = at + k; bad[o + 4 + bit / 8] |= 0x80 >> (bit % 8); } }
+  let (a, b) = (analyse(&good, "a.mp3", good.len() as f64, 0.0, String::new()).unwrap(), analyse(&bad, "b.mp3", bad.len() as f64, 0.0, String::new()).unwrap());
+  assert_eq!(a.result.duration, b.result.duration);
+  // And the rest in its place: the waveform as the undamaged file's.
+  let off = a.wave.iter().zip(&b.wave).filter(|(x, y)| x != y).count();
+  assert!(off < 20, "{off} waveform bytes moved");
+}

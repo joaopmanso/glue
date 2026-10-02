@@ -124,7 +124,10 @@ pub fn decode(bytes: &[u8], info: &FileInfo, ext: &str) -> Result<Decoded, Strin
         }
         push(&buf, &mut out);
       }
-      Err(SymErr::DecodeError(_)) => continue,   // a damaged packet: skipped, as decoders do
+      // A damaged packet (an MP3 joined or cut mid-stream: "invalid main_data offset"): silence for as long as it
+      // lasts, as the browser's decoder keeps its time; skipping it shifted the rest of the song (the desktop's check,
+      // 2026-10-02: Donna Lee, Deftones).
+      Err(SymErr::DecodeError(_)) => { if p.dur() > 0 && out.iter().any(|c| !c.is_empty()) { for c in out.iter_mut() { c.resize(c.len() + p.dur() as usize, 0.0); } } }
       Err(e) => return Err(format!("It couldn’t be decoded ({e})."))
     }
   }

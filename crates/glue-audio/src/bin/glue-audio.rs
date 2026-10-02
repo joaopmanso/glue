@@ -27,12 +27,24 @@ fn one(p: &Path) -> (Result<glue_audio::Analysis, String>, u64, u128) {
   (r, bytes.len() as u64, t0.elapsed().as_millis())
 }
 
+/// Base64, as the website's goldens store the files (to compare with them).
+fn b64(b: &[u8]) -> String {
+  const A: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let mut s = String::new();
+  for c in b.chunks(3) {
+    let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+    for i in 0..4 { s.push(if i <= c.len() { A[(n >> (18 - 6 * i) & 63) as usize] as char } else { '=' }); }
+  }
+  s
+}
+
 fn main() {
   let args: Vec<String> = std::env::args().skip(1).collect();
   match args.first().map(String::as_str) {
     Some("analyse") => for f in &args[1..] {
       let (r, _, ms) = one(Path::new(f));
-      let line = match r { Ok(a) => serde_json::json!({ "file": f, "ms": ms, "decoder": a.decoder, "flacError": a.flac_error, "frames": a.result.duration * a.result.sr, "summary": a.summary, "info": a.info }), Err(e) => serde_json::json!({ "file": f, "ms": ms, "error": e }) };
+      let line = match r { Ok(a) => serde_json::json!({ "file": f, "ms": ms, "decoder": a.decoder, "flacError": a.flac_error, "frames": a.result.duration * a.result.sr, "summary": a.summary, "info": a.info,
+        "thumb": b64(&a.thumb), "wave": b64(&a.wave), "fingerprint": b64(&a.fingerprint) }), Err(e) => serde_json::json!({ "file": f, "ms": ms, "error": e }) };
       println!("{line}");
     },
     // The details header (`d/…json`) as GLUE Home stores it, the file's date taken as 5 (to compare with the website's).
