@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { EDGE_ARGS } from './e2e/launch';
 
 // By default runs against the production build under /glue/, the way GitHub Pages serves it.
 // BASE_URL=https://joaopmanso.github.io/glue/ runs the same tests against the live site.
@@ -30,6 +31,8 @@ export default defineConfig({
   use: {
     baseURL: live || 'http://localhost:5174/glue/',
     channel: process.env.PW_CHANNEL || 'msedge',
+    // Kept out of Windows' Alt+Tab and activity history (e2e/launch.ts).
+    launchOptions: { args: EDGE_ARGS },
     viewport: { width: 1920, height: 960 },
   },
   webServer: live ? undefined : [{

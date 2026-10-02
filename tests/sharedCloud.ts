@@ -7,7 +7,8 @@ import * as profiles from '../cloud/src/profiles';
 import { SyncError } from '../cloud/src/limits';
 import type { Env } from '../cloud/src/api';
 import type { Access } from '../cloud/src/crypto';
-import { applyChange, packText, sha256, unpackText, type FileChange, type SharedCloud } from '../src/store/shared/engine';
+import { applyChange, packText, unpackText, type FileChange, type SharedCloud } from '../src/store/shared/engine';
+import { sha256 } from '../src/core/hash';
 
 export class SharedCloudServer {
   readonly env: Env;

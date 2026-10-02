@@ -8,11 +8,11 @@ import { bridge } from './bridge';
 import { lookupKey, pick, searchUrl, SERVICES, type CoverQuery, type Service } from '../../src/core/library/coverSearch';
 import { coverFromImage } from '../../src/workers/cover';
 import * as cache from './cache';
+import { sha256 } from '../../src/core/hash';
 
 const RETRY_AFTER = 30 * 86_400_000;
 const GAP: Record<Service, number> = { deezer: 250, itunes: 400, musicbrainz: 1100 };
-const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
-async function fKey(key: string) { return 'f/' + hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key))).slice(0, 32) + '.txt'; }
+async function fKey(key: string) { return 'f/' + (await sha256(key)).slice(0, 32) + '.txt'; }
 
 /** What's known for this song's album: a cover hash, '' nothing (for now), 'x' refused, or undefined
     (not looked up yet, or long enough ago to look again). */

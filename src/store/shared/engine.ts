@@ -17,6 +17,7 @@
    shows them as this computer sees them (core/shared/project). */
 import { type Dir, listNames, readText, removePath, writeText } from '../fsx';
 import { merge3, setAt, type Clash } from '../../core/shared/merge3';
+import { sha256 } from '../../core/hash';
 
 export interface LogEntry { rev: number; by?: string | null; at?: number; data: string }
 export interface SharedCloud {
@@ -34,7 +35,7 @@ export interface SharedCloud {
   checkpoint(at: number, body: string, done: boolean): Promise<unknown>;
 }
 export interface Place { root: Dir; pid: string; cid: string; me: string; cloud: SharedCloud }
-export interface SyncResult { changed: string[]; clashes: Clash[]; pushed: number }
+export interface SyncResult { changed: string[]; clashes: Clash[]; pushed: number; ms: { pull: number; push: number } }
 /** How one file changed: its songs (a shard: the other keys, and each song changed, null gone), its whole
     text, or deleted. */
 export type FileChange = { o: Record<string, unknown>; i: Record<string, unknown> } | { t: string } | { d: 1 };
@@ -45,8 +46,6 @@ const DIRS = ['tracks', 'analysis', 'lists', 'sources', 'dupes'];
     and the snapshot's files per checkpoint call. */
 const MAX_ENTRY_JSON = 6_000_000, MAX_PACKED = 1_700_000, MAX_BODY = 1_500_000, MAX_FILES = 150;
 
-const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
-export const sha256 = async (text: string) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
 async function pipe(b: Uint8Array, t: CompressionStream | DecompressionStream) { return new Uint8Array(await new Response(new Blob([b.slice()]).stream().pipeThrough(t)).arrayBuffer()); }
 const toB64 = (b: Uint8Array) => { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 const fromB64 = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -305,9 +304,11 @@ async function checkpoint(p: Place, s: State) {
 /** `changed`: filled with the local files that changed as they're written, so a caller reloads them even when the
     sync fails partway (ADR 0143). */
 export async function syncShared(p: Place, changedHere?: Iterable<string>, changed: string[] = []): Promise<SyncResult> {
+  const t0 = performance.now();
   const a = await pull(p, undefined, changed);
+  const t1 = performance.now();
   const b = await push(p, a.state, changedHere ? [...changedHere, ...a.state.merged] : undefined, changed);
-  return { changed: [...new Set(changed)], clashes: [...a.clashes, ...b.clashes], pushed: b.pushed };
+  return { changed: [...new Set(changed)], clashes: [...a.clashes, ...b.clashes], pushed: b.pushed, ms: { pull: t1 - t0, push: performance.now() - t1 } };
 }
 
 /** The clashes waiting for an answer (kept with the sync state). */

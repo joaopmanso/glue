@@ -1,9 +1,32 @@
 ---
-updated: 2026-09-30
+updated: 2026-10-02
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-10-02 · Test browsers out of Alt+Tab; the sync's time shown; shared helpers (GLUE Home 0.43.1)
+- **Alt+Tab's ghosts** ("GLUE Home service" ×4, "GLUE Home", "GLUE · Global Library…", one untitled; choosing one did
+  nothing) on the laptop, with no GLUE Home installed:
+  - **What they are:** Edge's tabs, handed to Windows' Alt+Tab (WindowTabManager, Edge's `msWindowTabManagerPublic`),
+    from the e2e test browsers. They show the page's icon and no preview. No window or process behind them was left
+    (checked with EnumWindows and the process list); Explorer kept them, and it had run since 2026-09-24.
+  - **Not reproduced with today's Edge** (154.0.4258.48, installed 2026-10-01, after the laptop's last test run):
+    test browsers closed, killed, with persistent profiles or short-lived contexts left nothing.
+  - **Now:** every test browser runs without Edge's Windows integration: `msWindowTabManagerPublic` and
+    `msWindowsUserActivities` off (`e2e/launch.ts` `EDGE_ARGS`: the config, `launch`, the perf test, the homepage
+    capture). Edge keeps only the last `--disable-features`, so Playwright's own list is read from it and carried
+    along (checked on `edge://version`: its 15 and the 2).
+  - **The ones there now** go when Explorer restarts (Task Manager › Windows Explorer › Restart, or signing out).
+- **"Syncing…" for a while on the laptop**, though the sync looks quick (the analyses come through the session
+  first): where the time goes, measured before changing anything. The chip's tooltip says what the last sync took
+  (saving first, from GLUE Cloud, to it, reading the files it wrote, the rest; "every file" every 30 minutes; how many
+  ran back to back, which shows as one long "Syncing…"); a sync over 2 s also says it in the console. `syncShared` returns `ms` (pull, push).
+- **Helpers in one place** (from the code map, 2026-10-01):
+  - `sha256` (`src/core/hash.ts`) for the sync engine, GLUE Home's look-ups, the cover worker and GLUE Cloud;
+  - the ICE servers' cache (`src/core/ice.ts` `iceCache`) for the website and GLUE Home, each asking with its own
+    credential. The website's asked again for every connection when an answer had no `ttl`;
+  - `getWorker` renamed `analysisWorker` and `interopWorker` (three files had one; stems' stays a method).
 
 ## 2026-10-02 · GLUE Home 0.43.0: FLAC decoded by GLUE; the laptop's missing songs; the console's errors
 - **7 songs "analysing" for ever** ([ADR 0144](../adr/0144-flac-decoded-by-glue-and-a-song-given-up-on-says-so.md)):

@@ -164,7 +164,7 @@
       {#each shared.missing() as c (c.id)}<option value={'__join:' + c.id}>Add “{c.name}” (your account{c.stats?.tracks ? ', ' + c.stats.tracks.toLocaleString() + ' songs' : ''})</option>{/each}
       <option value="__new">+ New collection…</option>
     </select>
-    {#if lib.store?.shared}<span class="shared" id="shared-chip" class:busy={shared.status.busy} title={shared.status.error ? 'Not synced: ' + shared.status.error : shared.status.at ? 'The same on all your devices · synced ' + new Date(shared.status.at).toLocaleTimeString() : 'The same on all your devices'}>{shared.status.busy ? 'Syncing…' : shared.status.error ? 'Not synced' : 'Synced'}</span>
+    {#if lib.store?.shared}<span class="shared" id="shared-chip" class:busy={shared.status.busy} title={shared.status.error ? 'Not synced: ' + shared.status.error : shared.status.at ? 'The same on all your devices · synced ' + new Date(shared.status.at).toLocaleTimeString() + (shared.status.took ? ' (' + shared.status.took + ')' : '') : 'The same on all your devices'}>{shared.status.busy ? 'Syncing…' : shared.status.error ? 'Not synced' : 'Synced'}</span>
 {/if}
     <button type="button" class="mini" title="Rename collection" onclick={renameCollection}>✎</button>
     <button type="button" class="mini" id="stats-btn" title="Stats of this collection" aria-label="Stats of this collection" onclick={() => (view.statsFor = { title: lib.profile?.collections.find(c => c.id === lib.store?.meta.id)?.name ?? 'This collection', sel: { kind: 'all' } })}><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 12.5V7.5M5.3 12.5V3M8.7 12.5V5.5M12 12.5V1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>

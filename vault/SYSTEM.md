@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-30
+updated: 2026-10-02
 ---
 # GLUE: how it works now
 
@@ -118,6 +118,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     - GLUE Home syncs where it runs (`home/ui/sharedSync.ts`); otherwise the tab does (`src/lib/shared.svelte.ts`).
     - the files a sync wrote are told as it writes them (`syncShared(…, changed)`), and read again into the open
       collection even when the sync fails partway or the collection was opened again (ADR 0143).
+    - the chip ("Synced") says in its tooltip where the last sync's time went: saving first, from GLUE Cloud, to it,
+      reading the files it wrote, the rest (`shared.status.took`; the console too when over 2 s).
   - **The account's list of collections** (`GET /v1/shared`):
     - each computer's numbers (`stats.by`: songs, last change), sent after a sync only by a computer with songs
       or music folders;
@@ -153,7 +155,7 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     any rate, read a part at a time; the browser's decoders for the other formats, and when it can't.
   - shared sync, song info written into files (`writeUnwritten`), backups, duplicates moved or recycled
     (ADR 0070), DJ libraries followed live (ADR 0065), reminders, updates.
-  - streaming to other devices over WebRTC, signaled through GLUE Cloud (`ice.ts`; the site's `remoteFiles.svelte.ts`).
+  - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     Bounded (ADR 0132): a connection not open within 30 s is let go, and an offer it can't take is answered
     "bye". The website says "bye" when it gives up, and waits 5 to 60 s before connecting again for background asks.
   - **Sessions** (ADR 0133, 0.41): each device's tab keeps one with each of the account's other GLUE Homes,
@@ -269,7 +271,6 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     views open (`src/core/guide/tips.ts`). A feature's change updates its article and its tour.
 
 ## 9. Known issues and next
-- On a phone's first load, the library shows a few songs (8), then the whole collection.
 - Under full-suite load, a few e2e tests are timing-sensitive (a play button late, "Marked fine" against a
   finishing analysis, a playback check). They pass on their own.
 - Next:

@@ -4,11 +4,11 @@
    read: a file source reads the parts it needs, a URL (GLUE Home's local link) asks for those bytes.
    Used in workers, and by GLUE Home's service page (ADR 0082). */
 import { ALL_FORMATS, BlobSource, CustomSource, Input, UrlSource } from 'mediabunny';
+import { sha256 } from '../core/hash';
 
 export interface Cover { hash: string; small: Uint8Array; large: Uint8Array }
 export const COVER_SMALL = 64, COVER_LARGE = 320;
 
-const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 
 /** A file read a piece at a time by someone else (GLUE Home reads through its own disk, ADR 0082). */
 export interface Reader { size: number; read: (start: number, end: number) => Promise<Uint8Array> }
@@ -27,7 +27,7 @@ export async function coverOf(src: Blob | string | Reader): Promise<Cover | null
 
 /** A cover from a picture (a song's tags, a cover service, a file the user chose, ADR 0086). */
 export async function coverFromImage(data: Uint8Array, mime?: string): Promise<Cover> {
-  const hash = hex(await crypto.subtle.digest('SHA-256', data.slice())).slice(0, 24);
+  const hash = (await sha256(data.slice())).slice(0, 24);
   const bmp = await createImageBitmap(new Blob([data.slice()], { type: mime || 'image/jpeg' }));
   try {
     // Square, from the middle; the small one from the large one (smoother than in one step).

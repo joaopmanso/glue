@@ -7,6 +7,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, mkdirSync, writeFileSyn
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { EDGE_ARGS } from '../../e2e/launch.ts';
 
 const BASE = process.env.BASE ?? 'http://localhost:5175/glue/';
 const DEMO = join(import.meta.dirname, 'out'), OUT = join(import.meta.dirname, '..', '..', 'public', 'home');
@@ -79,7 +80,7 @@ async function clip(page: Page, cdp: CDPSession, name: string, seconds: number, 
 }
 
 const profile = mkdtempSync(join(tmpdir(), 'glue-capture-'));
-const ctx = await chromium.launchPersistentContext(profile, { channel: 'msedge', viewport: { width: W, height: H }, deviceScaleFactor: 2, args: ['--autoplay-policy=no-user-gesture-required'] });
+const ctx = await chromium.launchPersistentContext(profile, { channel: 'msedge', viewport: { width: W, height: H }, deviceScaleFactor: 2, args: ['--autoplay-policy=no-user-gesture-required', ...EDGE_ARGS] });
 try {
   const page = ctx.pages()[0] ?? await ctx.newPage();
   await page.addInitScript(() => {

@@ -5,7 +5,7 @@ import type { InteropReply } from '../workers/interop.worker';
 let worker: Worker | null = null, nextId = 1;
 const waiting = new Map<number, { resolve: (r: Awaited<ReturnType<typeof parseLibraryFiles>>) => void; reject: (e: Error) => void }>();
 
-function getWorker(): Worker | null {
+function interopWorker(): Worker | null {
   if (worker) return worker;
   try {
     worker = new Worker(new URL('../workers/interop.worker.ts', import.meta.url), { type: 'module' });
@@ -27,7 +27,7 @@ function getWorker(): Worker | null {
 }
 
 export function parseInWorker(files: File[]): ReturnType<typeof parseLibraryFiles> {
-  const w = getWorker();
+  const w = interopWorker();
   if (!w) return parseLibraryFiles(files);
   const id = nextId++;
   return new Promise((resolve, reject) => { waiting.set(id, { resolve, reject }); w.postMessage({ id, files }); });

@@ -20,12 +20,6 @@ const parse = <T>(s: string): T => JSON.parse(new TextDecoder().decode(unb64url(
 export function randomToken(bytes = 32): string { return b64url(crypto.getRandomValues(new Uint8Array(bytes))); }
 export function randomId(): string { return b64url(crypto.getRandomValues(new Uint8Array(12))); }
 
-/** Stored instead of any secret: a leaked database holds no usable tokens or pairing codes. */
-export async function sha256(s: string): Promise<string> {
-  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)));
-  return [...d].map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 // ---- GLUE's own short-lived access tokens: HS256 JWTs signed with SESSION_KEY ----------------------
 export interface Access { sub: string; dev: string; exp: number; iat: number }
 const hmacKey = (secret: string) => crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);

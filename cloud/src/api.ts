@@ -7,7 +7,9 @@ import * as profiles from './profiles';
 import * as admin from './admin';
 import { turnServers, type TurnEnv } from './turn';
 import type { UsageEnv } from './usage';
-import { normCode, pairingCode, randomId, randomToken, sha256, signAccess, verifyAccess, verifyGoogle, type Access, type JwkSet } from './crypto';
+import { normCode, pairingCode, randomId, randomToken, signAccess, verifyAccess, verifyGoogle, type Access, type JwkSet } from './crypto';
+// Stored instead of any secret (tokens, pairing codes): a leaked database holds none that work.
+import { sha256 } from '../../src/core/hash';
 
 /** The parts of Cloudflare D1 we use (tests pass a node:sqlite shim with the same shape). */
 export interface Stmt { bind(...v: unknown[]): Stmt; first<T = Record<string, unknown>>(): Promise<T | null>; all<T = Record<string, unknown>>(): Promise<{ results: T[] }>; run(): Promise<{ meta: { changes: number } }> }

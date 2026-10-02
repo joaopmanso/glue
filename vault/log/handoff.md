@@ -16,13 +16,14 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **Real fixes, not patches.** The user hand-tests on two computers, the desktop JMansoPC (Rust, runs GLUE Home)
   and the laptop.
 - **The user's data** is read only:
-  - the GLUE folder `C:\Users\joaop\OneDrive\Documents\MCO`, GLUE Home's config and cache, the music;
+  - the GLUE folders (the desktop's `C:\Users\joaop\OneDrive\Documents\MCO`, the laptop's
+    `C:\Users\joao.manso\OneDrive - InnoWave\Documents\MCO`), GLUE Home's config and cache, the music;
   - don't restart or touch the running GLUE Home;
   - deleting cloud data needs the user's go-ahead;
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-02)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.43.0.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.43.1.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -59,8 +60,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **graphify** (ADRs 0127, 0128, CLAUDE.md "graphify"): a code map for coding sessions.
   - **CI** publishes it for every push to `main` (branch `graphify`); `node scripts/graph.mjs fetch` gets it, and a
     session-start hook does that on a computer without one.
-  - **The desktop:** uv (`~/.local/bin`, not on Claude Code's PATH: `export PATH="$HOME/.local/bin:$PATH"`),
-    `graphifyy[sql]` 0.9.73 and the git hooks are installed.
+  - **Both computers:** uv (`~/.local/bin`, not on Claude Code's PATH: `export PATH="$HOME/.local/bin:$PATH"`),
+    `graphifyy[sql]` 0.9.73 and the git hooks are installed (the laptop since 2026-10-02: there, Windows PowerShell 5
+    can't run uv's installer, PowerShell 7 can; `graphify-out/.graphify_python` written by hand).
   - **The docs part** is refreshed by every session that changes docs (ADR 0129, CLAUDE.md "After working");
     `vault/log/` isn't in it.
   - **Its view:** https://joaopmanso.github.io/glue/graph/ (and `graphify-out/graph.html` locally).
@@ -78,11 +80,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   should go. A song that still fails shows in "Couldn't analyse" with why.
 - **The laptop** (ADR 0143, website): the desktop's network-folder songs should show without choosing the profile
   again; Chrome's console should have `/hello` errors once on opening, not every 15 s.
-- **Alt+Tab: about 8 entries "GLUE · Global Library…" or "GLUE Home"** on the laptop (browser closed, no GLUE Home
-  installed) and on the desktop; choosing one does nothing. Not found yet: on the desktop, GLUE Home's own windows
-  (main, service, dock) are hidden, and only Chrome's GLUE window was a visible one (checked with EnumWindows,
-  2026-10-02). Ask the user to press Alt+Tab on the desktop and say what shows, then list the windows again then.
-  Suspect Windows (10.0.26300, an Insider build) showing browser tabs or recent windows in Alt+Tab.
+- **Alt+Tab's ghosts** (laptop: "GLUE Home service" ×4, "GLUE Home", "GLUE · Global Library…", one untitled):
+  Edge's tabs from the e2e test browsers, handed to Windows' Alt+Tab (`msWindowTabManagerPublic`), kept by Explorer
+  (running since 2026-09-24). Not reproduced with Edge 154.0.4258.48; test browsers now run with it off (`EDGE_ARGS`).
+  - **The user:** restart Explorer (Task Manager › Windows Explorer › Restart) on the laptop and the desktop; the
+    ghosts should go and not come back after test runs.
 - **Waveforms after jumps** (ADR 0142, website only): drag the scroll bar about 5,000 songs down and again, 3 or 4
   times. Every row on screen should get its waveform as soon as the others, no block left empty.
 - **GLUE Home 0.42.2** (ADR 0141): **confirmed** by the user, 2026-10-02: "the playing is great, it's very fast".
@@ -137,11 +139,6 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **older pairs:** the first open may also join older pairs (the same file in both computers' music folders).
     With more than 10, a backup is made first (`backups/pre-join-copies-…zip`). The console says how many joined;
   - **a new send:** send another song from the laptop; on the desktop it should go straight onto the laptop's song.
-- **The laptop: graphify's CLI** (to read the graph that CI publishes and the session-start hook fetches):
-  1. uv: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`;
-  2. `uv tool install "graphifyy[sql]==0.9.73"`;
-  3. optional, to rebuild locally after each commit: `graphify hook install`, then take out the
-     `graphify-out/graph.json merge=graphify` line it adds to `.gitattributes`.
 - **Browse the code map** at https://joaopmanso.github.io/glue/graph/ after this push's deploy.
 - Hand-test the evening's list:
   - after the collection opens, the Doechii 24/88.2 album should read "Genuine hi-res" (stored verdicts are judged
@@ -176,8 +173,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **E2E speed and flakiness:** the full suite takes about 6 min on the desktop. When it slows to 12+ min with random
   failures, or browsers stop starting, check free memory first: on 2026-10-01 Windows' Desktop Window Manager
   (dwm.exe) had leaked 41 GB (a graphics-driver leak; a restart fixed it). Never kill dwm or the user's Edge; ask.
-- **The laptop's sync is slow** (the user: "takes quite some time but has no issues"). Measure it first: how many
-  log entries and files a sync reads on the laptop, and where the time goes.
-- **Bug:** on a phone's first load the library shows 8 songs, then the whole collection (timing; low priority).
+- **"Syncing…" lingers on the laptop** though the sync looks quick (2026-10-02). The chip's tooltip now says where
+  the last sync's time went: ask the user for it after a long "Syncing…", then fix that part. Suspects: re-reading
+  the pulled files (`reloadFiles`: one at a time, each scanning all 13k songs), the full look every 30 minutes (every
+  file read twice), the GLUE folder being in OneDrive (`OneDrive - InnoWave\Documents\MCO`).
 - Events naming a profile (alias).
 - M4 step 3: the rekordbox XML export with cues and grid (`vault/features/prepare.md`, `exports.md`).

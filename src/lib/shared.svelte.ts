@@ -16,7 +16,7 @@ import { moveCaches } from '../store/shared/caches';
 import { cacheDir, homeMode } from '../platform';
 import { localHome } from './localHome.svelte';
 import { engineClient } from './engine.svelte';
-import { resolveClash, syncShared, waitingClashes, type Place, type SharedCloud } from '../store/shared/engine';
+import { resolveClash, syncShared, waitingClashes, type Place, type SharedCloud, type SyncResult } from '../store/shared/engine';
 import { mergeBoth, type Clash } from '../core/shared/merge3';
 import { countsOf, holdsMusic as aComputer, sendCounts } from '../core/shared/counts';
 import { forgetDeleted } from '../store/shared/forget';
@@ -47,7 +47,8 @@ function cloudFor(cid: string): SharedCloud {
 class Shared {
   /** The account's shared collections. */
   list = $state<SharedInfo[]>([]);
-  status = $state<{ busy: boolean; at: number | null; error: string }>({ busy: false, at: null, error: '' });
+  /** `took`: where the last sync's time went (the chip's tooltip; the console when it was slow). */
+  status = $state<{ busy: boolean; at: number | null; error: string; took?: string }>({ busy: false, at: null, error: '' });
   /** Changes that clashed with another device's (the cloud's were kept): for the prompt (phase 3). */
   clashes = $state<Clash[]>([]);
   private running: Promise<void> | null = null;
@@ -149,8 +150,11 @@ class Shared {
     const p = this.place(), s = lib.store;
     if (!p || !s) return;
     this.status = { ...this.status, busy: true, error: '' };
+    const t0 = performance.now(), row = t0 - this.ended < 2000 ? ++this.row : (this.row = 1);
+    let t1 = t0, t2 = t0, t3 = t0, ms: SyncResult['ms'] | undefined;
     try {
       await lib.flush();
+      t1 = performance.now();
       // Only the files this tab's store wrote since the last sync are looked at (every one now and then, ADR 0107).
       const full = Date.now() - this.lookedAt > 30 * 60e3, hint = full ? undefined : [...this.written];
       if (full) this.lookedAt = Date.now();
@@ -160,19 +164,26 @@ class Shared {
       // collection was opened again (2026-10-02, ADR 0143).
       const got: string[] = [];
       try {
-        try { await syncShared(p, hint, got); } catch (e) { if (hint) for (const x of hint) this.written.add(x); else this.lookedAt = 0; throw e; }
-      } finally { await this.takeIn(s.meta.id, got); }
+        try { ms = (await syncShared(p, hint, got)).ms; } catch (e) { if (hint) for (const x of hint) this.written.add(x); else this.lookedAt = 0; throw e; }
+      } finally { t2 = performance.now(); await this.takeIn(s.meta.id, got); t3 = performance.now(); }
       const now = lib.store;
       if (!now || now.meta.id !== s.meta.id) return;
       // Clashes wait for an answer (the box, ADR 0095), kept with the sync state until then.
       this.clashes = await waitingClashes(p);
       this.sendCounts(now);
-      this.status = { busy: false, at: Date.now(), error: '' };
+      const sec = (x: number) => (x / 1000).toFixed(1) + ' s', all = performance.now() - t0;
+      const took = sec(all) + ': saving ' + sec(t1 - t0) + ' · from GLUE Cloud ' + sec(ms?.pull ?? 0) + ' · to it ' + sec(ms?.push ?? 0)
+        + ' · reading ' + new Set(got).size + ' files ' + sec(t3 - t2) + ' · the rest ' + sec(all - (t3 - t0)) + (full ? ' (every file)' : '') + (row > 1 ? ' · ' + row + ' syncs in a row' : '');
+      if (all > 2000) console.info('GLUE: the sync took ' + took);
+      this.status = { busy: false, at: Date.now(), error: '', took };
     } catch (e) {
       this.status = { ...this.status, busy: false, error: (e as Error).message };
       if (GONE.test((e as Error).message)) void this.refreshList();   // deleted on another device: forgotten here
-    }
+    } finally { this.ended = performance.now(); }
   }
+  /** Syncs one after the other (within 2 s): "Syncing…" all along, though each was quick. */
+  private ended = -1e9;
+  private row = 0;
 
   /** Files a sync wrote, read again by the open collection if it's that one (ADR 0143). */
   private async takeIn(cid: string, files: string[]) {

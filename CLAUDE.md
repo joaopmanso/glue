@@ -67,7 +67,8 @@ After working:
   (uses the installed Edge) · `STEMS=1 npx playwright test e2e/stems.spec.ts` (slow).
 - E2E: two projects in `playwright.config.ts`. `heavy` holds the multi-browser and GLUE Home tests (by
   file, or tagged `@heavy`), two at a time; `e2e` holds the rest, fully parallel. Browsers come from
-  `e2e/launch.ts` (no GPU process, pages see two cores). `FFMPEG` is ffmpeg's path: don't set it to 1,
+  `e2e/launch.ts` (no GPU process, pages see two cores; any other launch takes its `EDGE_ARGS`: Edge's tabs kept out of
+  Windows' Alt+Tab). `FFMPEG` is ffmpeg's path: don't set it to 1,
   or the ffmpeg tests skip themselves. Per-test times land in `test-results/durations.json`. While
   working, `npx playwright test --only-changed`; the full suite before each deploy.
 - `src/core/` pure logic (no DOM): `audio/`, `formats/`, `stems/`, `interop/` (DJ-library parsers),

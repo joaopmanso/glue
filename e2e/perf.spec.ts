@@ -12,12 +12,13 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { synthetic } from '../tests/synthetic';
 import { seedFolder } from './seed';
+import { EDGE_ARGS } from './launch';
 
 // A real (temporary) browser profile, as in library.spec.ts.
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'mco-perf-'));
-    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1920, height: 960 } });
+    const ctx = await chromium.launchPersistentContext(dir, { channel: process.env.PW_CHANNEL || 'msedge', baseURL, viewport: { width: 1920, height: 960 }, args: EDGE_ARGS });
     try { await use(ctx.pages()[0] ?? await ctx.newPage()); }
     finally { await ctx.close(); rmSync(dir, { recursive: true, force: true }); }
   },

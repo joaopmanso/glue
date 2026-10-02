@@ -17,7 +17,7 @@ export class NeedsPageDecode extends Error {
   constructor(readonly info: FileInfo) { super('This file is decoded on the page.'); }
 }
 
-function getWorker(): Worker | null {
+function analysisWorker(): Worker | null {
   if (worker || broken) return worker;
   try {
     worker = new Worker(new URL('../workers/analysis.worker.ts', import.meta.url), { type: 'module' });
@@ -46,7 +46,7 @@ export function transferOf(job: WorkerJob): Transferable[] {
 }
 
 function send<T>(msg: Record<string, unknown>, transfer: Transferable[], progress: ProgressFn = () => {}): Promise<T> {
-  const w = getWorker();
+  const w = analysisWorker();
   if (!w) return Promise.reject(new Error('The analysis worker isn’t available.'));
   const id = nextId++;
   return new Promise<T>((resolve, reject) => {
@@ -57,7 +57,7 @@ function send<T>(msg: Record<string, unknown>, transfer: Transferable[], progres
 
 /** Run one analysis job in the worker (or on the main thread if workers are unavailable). */
 export function analyze(job: WorkerJob, progress: ProgressFn): Promise<AnalysisResult> {
-  if (!getWorker()) {
+  if (!analysisWorker()) {
     if (job.type === 'file') return Promise.reject(new NeedsPageDecode(job.info ?? blankInfo()));
     return new Promise((res, rej) => setTimeout(() => { try { res(runJob(job, progress)); } catch (e) { rej(e); } }, 30));
   }
