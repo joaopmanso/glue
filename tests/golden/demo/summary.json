@@ -1,0 +1,32 @@
+{
+ "v": 3,
+ "grade": "bad",
+ "label": "Transcoded",
+ "headline": "Lossy audio in an Example wrapper",
+ "fc": 16137,
+ "wall": true,
+ "full": false,
+ "effBits": 16,
+ "declaredBits": 24,
+ "origin": "128 kbps MP3/AAC",
+ "bpm": 119.82,
+ "key": {
+  "tonic": 4,
+  "mode": "major",
+  "margin": 0.09,
+  "tuning": 3
+ },
+ "findings": [
+  {
+   "sev": "bad",
+   "title": "Brick-wall cutoff at 16.1 kHz"
+  },
+  {
+   "sev": "bad",
+   "title": "Only 16 of 24 bits used"
+  }
+ ],
+ "fileSize": 0,
+ "fileMtime": 1700000000000,
+ "vv": 8
+}

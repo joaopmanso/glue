@@ -1,0 +1,31 @@
+{
+ "v": 3,
+ "grade": "ok",
+ "label": "Genuine hi-res",
+ "headline": "Real hi-res: content to 46.6 kHz",
+ "fc": 10957,
+ "wall": false,
+ "full": false,
+ "effBits": 24,
+ "declaredBits": 24,
+ "origin": "Hi-res master",
+ "bpm": null,
+ "key": null,
+ "findings": [
+  {
+   "sev": "warn",
+   "title": "Left and right are identical"
+  },
+  {
+   "sev": "ok",
+   "title": "Content reaches 46.6 kHz"
+  },
+  {
+   "sev": "ok",
+   "title": "All 24 bits in use"
+  }
+ ],
+ "fileSize": 968141,
+ "fileMtime": 1700000000000,
+ "vv": 8
+}

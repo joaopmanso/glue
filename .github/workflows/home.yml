@@ -8,7 +8,7 @@ name: GLUE Home
 on:
   push:
     branches: [main]
-    paths: ['home/**', 'src/core/**', 'src/store/types.ts', 'src/ui/GlueStick.svelte', '.github/workflows/home.yml', 'package.json', 'package-lock.json']
+    paths: ['home/**', 'crates/**', 'tests/golden/**', 'tests/fixtures/**', 'src/core/**', 'src/store/types.ts', 'src/ui/GlueStick.svelte', '.github/workflows/home.yml', 'package.json', 'package-lock.json']
   workflow_dispatch:
 
 permissions:
@@ -56,12 +56,19 @@ jobs:
       # main's builds save it and read it (a new version's release is one of them).
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: home/src-tauri -> target
+          workspaces: |
+            home/src-tauri -> target
+            crates/glue-audio -> target
           shared-key: home-${{ matrix.os }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # GLUE Home's Rust tests, on each system: some rules differ (a ':' in a file name is fine on macOS, ADR 0134).
       - name: Rust tests
         run: cargo test --manifest-path home/src-tauri/Cargo.toml
+      # The native analysis engine (ADR 0147): its own tests, held to the website's results (tests/golden), and clippy.
+      - name: Engine tests
+        run: |
+          cargo test --manifest-path crates/glue-audio/Cargo.toml
+          cargo clippy --manifest-path crates/glue-audio/Cargo.toml --all-targets -- -D warnings
       - name: Build
         working-directory: home
         env:

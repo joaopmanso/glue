@@ -1,0 +1,32 @@
+{
+ "container": "FLAC",
+ "codec": "FLAC",
+ "lossless": true,
+ "sampleRate": 44100,
+ "bits": 16,
+ "channels": 1,
+ "duration": 3,
+ "bitrate": 0,
+ "bitrateMode": "",
+ "encoder": "",
+ "vendor": "Lavf63.1.102",
+ "tags": {
+  "TITLE": "Covered FLAC",
+  "ENCODER": "Lavf63.1.102"
+ },
+ "notes": [],
+ "fileName": "flac-cover.flac",
+ "fileSize": 65907,
+ "clues": [
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg muxer (libavformat)",
+   "match": "Lavf63.1.102"
+  },
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg encoder (libavcodec)",
+   "match": "Lavc63.1.102"
+  }
+ ]
+}

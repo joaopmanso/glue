@@ -1,0 +1,18 @@
+{
+ "container": "AIFF",
+ "codec": "PCM",
+ "lossless": true,
+ "sampleRate": 44100,
+ "bits": 24,
+ "channels": 2,
+ "duration": 4,
+ "bitrate": 2116.8,
+ "bitrateMode": "",
+ "encoder": "",
+ "vendor": "",
+ "tags": {},
+ "notes": [],
+ "fileName": "aiff-44k-24.aiff",
+ "fileSize": 1058454,
+ "clues": []
+}

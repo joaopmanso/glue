@@ -1,0 +1,45 @@
+{
+ "grade": "warn",
+ "label": "Caution",
+ "headline": "Band-limited to about 5.0 kHz",
+ "sub": "The top end fades out gradually rather than stopping at a wall. That is typical of older recordings or dark masters, and is not a clear lossy fingerprint.",
+ "findings": [
+  {
+   "sev": "warn",
+   "title": "Band-limited to about 5.0 kHz",
+   "detail": "The top end fades out gradually rather than stopping at a wall. That is typical of older recordings or dark masters, and is not a clear lossy fingerprint."
+  },
+  {
+   "sev": "warn",
+   "title": "Left and right are identical",
+   "detail": "This is mono presented as stereo."
+  },
+  {
+   "sev": "ok",
+   "title": "All 24 bits in use",
+   "detail": "The low-order bits carry signal. A 16-bit master that had gain or dither applied after conversion would also pass this test, so read it alongside the spectrum."
+  }
+ ],
+ "cut": {
+  "fc": 5049.5361328125,
+  "wall": false,
+  "drop": 0,
+  "full": false,
+  "fade": 5049.5361328125,
+  "globalFloor": -65.55013275146484,
+  "ref": -60.174949645996094,
+  "rising": false,
+  "imaging": null,
+  "reach": 1033.59375
+ },
+ "depth": {
+  "eff": 24,
+  "declared": 24
+ },
+ "bwTone": "warn",
+ "origin": "Band-limited source",
+ "expected": {
+  "hz": 22050,
+  "why": "Nyquist limit"
+ }
+}

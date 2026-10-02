@@ -1,0 +1,39 @@
+{
+ "grade": "bad",
+ "label": "Transcoded",
+ "headline": "Lossy audio in an Example wrapper",
+ "sub": "The spectrum stops dead at 16.1 kHz, the signature of 128 kbps MP3/AAC, later upsampled to 96 kHz. Converting to lossless can’t restore what the encoder removed.",
+ "findings": [
+  {
+   "sev": "bad",
+   "title": "Brick-wall cutoff at 16.1 kHz",
+   "detail": "A lossless 96 kHz file can carry content up to 48.0 kHz. Here it drops 62 dB within about a kilohertz at 16.1 kHz, which is what a lossy encoder’s lowpass filter leaves behind. Most likely source: 128 kbps AAC or MP3, the classic cutoff of YouTube’s AAC stream (format 140), SoundCloud MP3s and older Fraunhofer encoders."
+  },
+  {
+   "sev": "bad",
+   "title": "Only 16 of 24 bits used",
+   "detail": "The lowest 8 bits are zero in every sample: this is 16-bit audio padded out to 24 bits. The padding carries nothing."
+  }
+ ],
+ "cut": {
+  "fc": 16136.71875,
+  "wall": true,
+  "drop": 61.5135532323865,
+  "full": false,
+  "fade": 16148.4375,
+  "globalFloor": -130.8391876220703,
+  "ref": -62.39005661010742,
+  "rising": false,
+  "imaging": null
+ },
+ "depth": {
+  "eff": 16,
+  "declared": 24
+ },
+ "bwTone": "bad",
+ "origin": "128 kbps MP3/AAC",
+ "expected": {
+  "hz": 48000,
+  "why": "Nyquist limit"
+ }
+}

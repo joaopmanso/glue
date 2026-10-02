@@ -1,0 +1,16 @@
+{
+ "container": "Example",
+ "codec": "PCM",
+ "lossless": true,
+ "sampleRate": 96000,
+ "bits": 24,
+ "channels": 2,
+ "duration": 0,
+ "bitrate": 0,
+ "bitrateMode": "",
+ "encoder": "",
+ "vendor": "",
+ "tags": {},
+ "notes": [],
+ "example": true
+}

@@ -408,7 +408,7 @@ export function classify(info: FileInfo, res: VerdictInput): Verdict {
   // Channels and level
   if (st.lrIdentical) add('warn', 'Left and right are identical', 'This is mono presented as stereo.');
   else if (st.lrCorr != null && st.lrCorr > 0.999) add('info', 'Near-mono', 'The two channels are almost identical (correlation ' + st.lrCorr.toFixed(4) + ').');
-  if (st.clipRuns > 20) add('info', st.clipRuns.toLocaleString() + ' clipped passages', 'Runs of full-scale samples: a loud, clipped master. That is a mastering choice, not a sign of a bad source.');
+  if (st.clipRuns > 20) add('info', st.clipRuns.toLocaleString('en-US') + ' clipped passages', 'Runs of full-scale samples: a loud, clipped master. That is a mastering choice, not a sign of a bad source.');
 
   return finishVerdict(head, F, cut, info, res, depth, bwTone, origin);
 }

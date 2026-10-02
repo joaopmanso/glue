@@ -1,6 +1,6 @@
 [package]
 name = "glue-home"
-version = "0.43.2"
+version = "0.44.0"
 description = "GLUE Home: your main computer, reachable from the GLUE website"
 authors = ["joaopmanso"]
 edition = "2021"
@@ -26,10 +26,18 @@ lofty = "0.25"
 ureq = "2"
 # The website's socket for its background loads (ADR 0139).
 tungstenite = { version = "0.26", default-features = false, features = ["handshake"] }
+# The native analysis engine (ADR 0147).
+glue-audio = { path = "../../crates/glue-audio" }
 
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = "s"
-panic = "abort"
+# A panic in the analysis of one broken file is caught and the song saved as failed (ADR 0147); with "abort" it ended
+# GLUE Home, and the same file again at the next start.
+panic = "unwind"
 strip = true
+
+# The audio maths at full speed; the rest of the app stays small.
+[profile.release.package.glue-audio]
+opt-level = 3

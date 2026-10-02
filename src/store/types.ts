@@ -109,6 +109,7 @@ export interface AnalysisSummary {
   error?: string;
   fp?: boolean;                           // an acoustic fingerprint is stored for this analysis
   vv?: number;                            // the VERDICT_VERSION the verdict came from (absent = 1)
+  engine?: string;                        // what made it: "glue-audio <version>" for GLUE Home's native engine (ADR 0147), absent for JavaScript
 }
 
 export interface List {

@@ -5,6 +5,26 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.44.0: the native analysis engine, first part (ADR 0147)
+- **`crates/glue-audio`**: GLUE's analysis in Rust, for GLUE Home ([ADR 0147](../adr/0147-glue-home-analyses-natively.md);
+  the user: no JavaScript for audio in the desktop app). This first part covers lossless files: the container parser
+  and clues, GLUE's FLAC decoder, WAV/AIFF samples, the stats, the spectrum, tempo and key, the verdict (every finding's
+  wording), the summary, the fingerprint and the demo.
+- **The same results as the website**, shown: `tests/golden` holds what the TypeScript makes on the lossless fixtures and
+  the demo (BPM 119.82, E major, "Transcoded"); the Rust engine matches all of it (text identical, numbers within
+  1e-6). The golden test fails when the JavaScript analysis changes without regenerating them.
+- **JavaScript's maths, measured:** `libm` is within 2 ulp of V8's `Math` on every input grid the analysis uses
+  (`scripts/jsmath.mjs`, `tests/jsmath.rs`); `toFixed`, `Math.round`, number-to-string, `ToInt32` and `trim` are
+  JavaScript's own.
+- **GLUE Home 0.44.0** links the engine and tests it (not used yet); `panic = "unwind"`, so a crash on one broken file
+  can't end GLUE Home once it analyses natively; the engine at full optimisation. CI runs its tests and clippy on
+  Windows and macOS.
+- The clipped-passages count is always written 12,345 (`toLocaleString('en-US')`), not in the computer's locale.
+- **Found on the way** (the user's collection): 342 M4A files fail today ("It couldn't be decoded": Apple Lossless the
+  WebView can't decode), and 91 DSF; the native engine is to analyse both. No Opus or HE-AAC in the collection.
+- **The laptop builds GLUE Home now:** Visual Studio's C++ workload, and Rust in `C:\Work\rust` (the work laptop's
+  policy blocks programs under `%USERPROFILE%\.cargo`).
+
 ## 2026-10-02 · The library in parts by concern
 - **`src/lib/library.svelte.ts`**, 1,567 lines and the code map's top hub, is now its state (about 200 lines) and eight
   parts in `src/lib/library/` (130–240 lines each): `glueFolder`, `profiles`,

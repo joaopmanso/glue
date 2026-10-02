@@ -1,0 +1,44 @@
+{
+ "grade": "ok",
+ "label": "Genuine hi-res",
+ "headline": "Real hi-res: content to 93.1 kHz",
+ "sub": "The spectrum extends well past what a CD or 48 kHz master can hold.",
+ "findings": [
+  {
+   "sev": "ok",
+   "title": "Content reaches 93.1 kHz",
+   "detail": "Energy continues well past 24 kHz, beyond anything a CD (22.05 kHz) or 48 kHz master can hold."
+  },
+  {
+   "sev": "ok",
+   "title": "All 24 bits in use",
+   "detail": "The low-order bits carry signal. A 16-bit master that had gain or dither applied after conversion would also pass this test, so read it alongside the spectrum."
+  },
+  {
+   "sev": "info",
+   "title": "Near-mono",
+   "detail": "The two channels are almost identical (correlation 0.9996)."
+  }
+ ],
+ "cut": {
+  "fc": 22675.78125,
+  "wall": false,
+  "drop": 0,
+  "full": false,
+  "fade": 22675.78125,
+  "globalFloor": -81.36843872070312,
+  "ref": -69.73385620117188,
+  "rising": false,
+  "imaging": null
+ },
+ "depth": {
+  "eff": 24,
+  "declared": 24
+ },
+ "bwTone": "ok",
+ "origin": "Hi-res master",
+ "expected": {
+  "hz": 96000,
+  "why": "Nyquist limit"
+ }
+}

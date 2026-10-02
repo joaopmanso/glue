@@ -1,0 +1,26 @@
+{
+ "container": "FLAC",
+ "codec": "FLAC",
+ "lossless": true,
+ "sampleRate": 192000,
+ "bits": 24,
+ "channels": 2,
+ "duration": 0.5,
+ "bitrate": 0,
+ "bitrateMode": "",
+ "encoder": "",
+ "vendor": "Lavf63.1.102",
+ "tags": {
+  "ENCODER": "Lavf63.1.102"
+ },
+ "notes": [],
+ "fileName": "flac-192k-24.flac",
+ "fileSize": 424053,
+ "clues": [
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg muxer (libavformat)",
+   "match": "Lavf63.1.102"
+  }
+ ]
+}

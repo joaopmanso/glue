@@ -1,0 +1,26 @@
+{
+ "container": "WAV",
+ "codec": "PCM",
+ "lossless": true,
+ "sampleRate": 44100,
+ "bits": 24,
+ "channels": 2,
+ "duration": 4,
+ "bitrate": 2116.8,
+ "bitrateMode": "",
+ "encoder": "",
+ "vendor": "",
+ "tags": {
+  "Software": "Lavf63.1.101"
+ },
+ "notes": [],
+ "fileName": "wav-44k-24.wav",
+ "fileSize": 1058502,
+ "clues": [
+  {
+   "kind": "ffmpeg",
+   "label": "FFmpeg muxer (libavformat)",
+   "match": "Lavf63.1.101"
+  }
+ ]
+}

@@ -163,6 +163,16 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     analysed by GLUE Home. "Odessa" (added on its own before the fix) can be removed and dropped again.
 
 ## Next
+- **The native engine (ADR 0147), batches after 0.44:**
+  - **B2:** details (`d/`), mini spectrogram (`t/`), waveform (`w/`), fingerprint file (`p/`), cover (`a/`, `c/`), tags
+    and `Analysed` (`s/`); lossy decoders (Symphonia: MP3, AAC-LC, ALAC, Vorbis) with the browser's trims
+    (`mp3Gapless`, `keepRange`); goldens for lossy files from Edge (`e2e/golden.spec.ts`, the browser decodes them);
+    a CLI (`analyse`, `bench`); `verify_song` in GLUE Home: re-analyse in dry-run and compare with the stored result.
+    **Gate:** a verify report from the desktop (a sample of ~1,000 songs across formats), and a speed comparison.
+  - **B3:** `home/ui/cache.ts` `analyse()` calls the native `analyse_song` (reads, decodes, analyses, writes the cache);
+  - **B4:** no audio JavaScript left in GLUE Home (incoming songs, cover hashes, covers native; a guard test);
+  - **B5:** DSD (91 songs), re-check of songs failed under an older engine (the 342 ALAC M4As);
+  - **B6:** streaming and sessions to other devices native (WebRTC data channels in Rust).
 - **The socket** is in (GLUE Home 0.42, ADR 0139). Covers still come over HTTP: the next to move onto it if they show
   in the numbers.
 - **From the code map** (function names defined in several files, 2026-10-01; the loaders and copy names are done):

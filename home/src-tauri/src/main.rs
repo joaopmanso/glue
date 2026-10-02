@@ -23,6 +23,7 @@ mod local;
 mod ws;
 mod activity;
 mod web;
+mod analysis;
 
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
 const LIBRARY_URL: &str = "https://joaopmanso.github.io/glue/?open=home#/";

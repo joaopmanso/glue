@@ -224,5 +224,6 @@ Planned (GLUE):
 | [0144](adr/0144-flac-decoded-by-glue-and-a-song-given-up-on-says-so.md) | FLAC decoded by GLUE itself; a big song gets the time it needs; a song given up on says so | accepted |
 | [0145](adr/0145-one-rule-for-the-same-name.md) | One rule for the same name (`core/library/names.ts`): Duplicates, No file linked, joining, covers | accepted |
 | [0146](adr/0146-the-library-in-parts-by-concern.md) | The library's methods in parts by concern (`src/lib/library/`), behind the same `lib` | accepted |
+| [0147](adr/0147-glue-home-analyses-natively.md) | GLUE Home analyses natively, in Rust (`crates/glue-audio`), held to the website's results | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

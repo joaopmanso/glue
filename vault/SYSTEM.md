@@ -209,8 +209,12 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 ## 6. Analysis
 - **Where it runs:** in a worker pool (`src/lib/pool.ts`, `src/workers/`), in GLUE Home where it runs, otherwise
   in the tab. It makes the summary (verdict and tier, bandwidth, bit depth, BPM, key), the full details, a
-  fingerprint, a mini spectrogram and a waveform. Versions: `ANALYSIS_VERSION` 3, `VERDICT_VERSION` 5
+  fingerprint, a mini spectrogram and a waveform. Versions: `ANALYSIS_VERSION` 3, `VERDICT_VERSION` 8
   (`src/store/types.ts`).
+- **The native engine** (`crates/glue-audio`, ADR 0147): the same analysis in Rust, a line-for-line port with
+  JavaScript's numbers, for GLUE Home (moving over in batches: 0.44 links it and tests it; the service page still
+  analyses). Held to the TypeScript's results by `tests/golden` (`tests/golden.test.ts` writes them and fails when
+  they're stale; `crates/glue-audio/tests/golden.rs` compares). A native summary has `engine: "glue-audio <version>"`.
 - **`analysisState(t, a)`** (`src/core/library/analysed.ts`) returns done, failed, waiting, elsewhere (another
   computer's song) or nofile. The sidebar, Stats, the analysis bar and both queues use it.
 - **Quality verdicts:** `src/core/audio/verdict.ts` (Speklone's forensics); `tests/parity.test.ts` checks them
