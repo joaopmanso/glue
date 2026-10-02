@@ -188,10 +188,14 @@ fn analyse_into(bytes: Vec<u8>, name: &str, mtime: f64, k: &dyn Fn(&str, &str) -
 /// The cache files of a song (cache.ts's keys).
 fn key(dir: &str, p: &str, c: &str, id: &str, ext: &str) -> String { format!("{dir}/{p}/{c}/{}/{id}.{ext}", &id[..id.len().min(2)]) }
 
-/// Equal as JSON, numbers by value, keys in any order.
+/// Numbers that are the same but for the last digits (the goldens' rule: within 1e-9 of their size): the maths
+/// libraries round differently there (the desktop's check, 2026-10-02: a key's tuning off in its 16th digit).
+fn near(x: f64, y: f64) -> bool { x == y || (x - y).abs() <= 1e-9 * x.abs().max(y.abs()).max(1.0) }
+
+/// Equal as JSON, numbers by value (within `near`), keys in any order.
 fn same(a: &Value, b: &Value) -> bool {
   match (a, b) {
-    (Value::Number(x), Value::Number(y)) => x.as_f64() == y.as_f64(),
+    (Value::Number(x), Value::Number(y)) => near(x.as_f64().unwrap_or(f64::NAN), y.as_f64().unwrap_or(f64::NAN)),
     (Value::Object(x), Value::Object(y)) => x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| same(v, w))),
     (Value::Array(x), Value::Array(y)) => x.len() == y.len() && x.iter().zip(y).all(|(v, w)| same(v, w)),
     _ => a == b,
@@ -202,7 +206,7 @@ fn same(a: &Value, b: &Value) -> bool {
 fn where_differ(a: &Value, b: &Value, path: &str, out: &mut Vec<String>, max: usize) {
   if out.len() >= max { return; }
   match (a, b) {
-    (Value::Number(x), Value::Number(y)) if x.as_f64() == y.as_f64() => {}
+    (Value::Number(x), Value::Number(y)) if near(x.as_f64().unwrap_or(f64::NAN), y.as_f64().unwrap_or(f64::NAN)) => {}
     (Value::Object(x), Value::Object(y)) => {
       for k in x.keys().chain(y.keys().filter(|k| !x.contains_key(*k))) {
         where_differ(x.get(k).unwrap_or(&Value::Null), y.get(k).unwrap_or(&Value::Null), &format!("{path}.{k}"), out, max);
@@ -292,7 +296,7 @@ pub fn verify(bytes: &[u8], name: &str, size: f64, mtime: f64, read: &dyn Fn(&st
     if String::from_utf8_lossy(&c) != mine { diffs.push(format!("cover {mine} vs {}", String::from_utf8_lossy(&c))); }
   }
   let kind = if !diffs.is_empty() { "differs" } else if !close.is_empty() { "close" } else { "same" };
-  json!({ "kind": kind, "lossy": lossy, "codec": a.info.codec, "label": ns["label"], "diffs": diffs, "close": close, "ms": ms, "storedMs": ss["ms"] })
+  json!({ "kind": kind, "lossy": lossy, "codec": a.info.codec, "decoder": a.decoder, "flacError": a.flac_error, "label": ns["label"], "diffs": diffs, "close": close, "ms": ms })
 }
 
 /// Check one song of a shared collection natively (dry run: nothing is saved); the outcome is added to

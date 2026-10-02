@@ -76,6 +76,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **The native engine check, second run (0.48):** see the changelog (0.49.1). **Asked of the user:** copy "1-01 Donna
+  Lee.mp3" and "Deftones - Nosebleed demo.mp3" to the laptop (Downloads) to find the MP3 difference. After 0.49.1, a
+  third run should show almost all "the same" (FLACs with an ID3v2 tag before the stream are now GLUE's own decoder's).
 - **The native engine check, first run (2026-10-02, desktop, 1,000 songs):** 111 the same, 0 close, 299 differ, 0 failed
   natively, 14 only native could, 576 skipped, 2.7 s a song. Nearly every "differ" was "d: the header differs" (the
   check didn't say which field); one MP3 (Deftones, "Nosebleed demo") really differs (17% of fingerprint bits: a

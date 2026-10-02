@@ -94,9 +94,11 @@ fn check_files(name: &str, a: &Analysis, size: f64) {
 
 #[test]
 fn lossless_fixtures_match_javascript() {
-  for name in ["wav-44k-24.wav", "aiff-44k-24.aiff", "flac-96k-24.flac", "flac-192k-24.flac", "flac-cover.flac"] {
+  for name in ["wav-44k-24.wav", "aiff-44k-24.aiff", "flac-96k-24.flac", "flac-192k-24.flac", "flac-cover.flac", "flac-id3.flac"] {
     let bytes = std::fs::read(root().join("tests/fixtures").join(name)).unwrap();
     let a = analyse(&bytes, name, bytes.len() as f64, 1_700_000_000_000.0, String::new()).unwrap_or_else(|e| panic!("{name}: {e}"));
+    // Each FLAC through GLUE's own decoder: a fallback to Symphonia lost a last frame (2026-10-02).
+    assert_eq!((a.decoder, a.flac_error.as_deref()), (if name.ends_with(".flac") { "flac" } else { "pcm" }, None), "{name}");
     check(name, serde_json::to_value(&a.info).unwrap(), serde_json::to_value(&a.summary).unwrap(), serde_json::to_value(&a.verdict).unwrap(), result_json(&a.result));
     check_files(name, &a, bytes.len() as f64);
   }

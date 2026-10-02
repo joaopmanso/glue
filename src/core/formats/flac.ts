@@ -51,10 +51,13 @@ class Bits {
 const BLOCK = [0, 192, 576, 1152, 2304, 4608, 0, 0, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768];
 const SIZE = [0, 8, 12, 0, 16, 20, 24, 32];
 
-/** The stream's header (STREAMINFO), and where the first frame starts. */
+/** The stream's header (STREAMINFO), and where the first frame starts. An ID3v2 tag before it (some taggers put one
+    there) is skipped: it sent such files to another decoder, which lost their last frame when a tag also followed
+    (the desktop's native engine check, 2026-10-02). */
 export function flacHeader(head: Uint8Array): { info: FlacInfo; start: number } | null {
-  if (head.length < 42 || head[0] !== 0x66 || head[1] !== 0x4c || head[2] !== 0x61 || head[3] !== 0x43) return null;
-  let at = 4, info: FlacInfo | null = null;
+  const id3 = head.length >= 10 && head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33 ? 10 + ((head[6] & 0x7f) << 21 | (head[7] & 0x7f) << 14 | (head[8] & 0x7f) << 7 | (head[9] & 0x7f)) + (head[5] & 0x10 ? 10 : 0) : 0;
+  if (head.length < id3 + 42 || head[id3] !== 0x66 || head[id3 + 1] !== 0x4c || head[id3 + 2] !== 0x61 || head[id3 + 3] !== 0x43) return null;
+  let at = id3 + 4, info: FlacInfo | null = null;
   for (;;) {
     if (at + 4 > head.length) return null;
     const last = head[at] & 0x80, type = head[at] & 0x7f, len = (head[at + 1] << 16) | (head[at + 2] << 8) | head[at + 3];

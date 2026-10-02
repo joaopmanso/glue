@@ -54,6 +54,10 @@ pub struct Analysis {
   pub fingerprint: Vec<u8>,
   /// The cover: None when it couldn't be read (not looked for), Some(None) for none.
   pub cover: Option<Option<out::cover::Cover>>,
+  /// What decoded it: "pcm", "flac" (GLUE's own), "symphonia" or "dsd"; and why GLUE's FLAC decoder gave a FLAC to
+  /// Symphonia, if it did (for the native engine check).
+  pub decoder: &'static str,
+  pub flac_error: Option<String>,
 }
 
 impl Analysis {
@@ -101,7 +105,9 @@ pub fn analyse(bytes: &[u8], file_name: &str, size: f64, mtime: f64, at: String)
     Some(d)
   } else { None };
   if let Some(u) = &info.unsupported { return Err(Failure::Unsupported(u.clone())); }
+  let (mut decoder, mut flac_error) = ("pcm", None);
   let job = if let Some(d) = &dsd {
+    decoder = "dsd";
     let (channels, sr) = formats::dsd::decode(bytes, d).map_err(Failure::Broken)?;
     Job::Float { channels, sr, bits: 0.0 }
   } else if let Some(pcm) = info.pcm.clone() {
@@ -110,11 +116,15 @@ pub fn analyse(bytes: &[u8], file_name: &str, size: f64, mtime: f64, at: String)
     let bits = if info.lossless == Some(true) { info.bits } else { 0.0 };
     // FLAC, GLUE's own decoder (ADR 0144); anything else, or a FLAC it can't read, through Symphonia.
     let flac = if info.container == "FLAC" {
-      formats::flac::decode_flac(bytes.len(), &mut |a, b| Ok(bytes[a.min(bytes.len())..b.min(bytes.len())].to_vec())).ok().filter(|d| d.channels.first().is_some_and(|c| !c.is_empty()))
+      match formats::flac::decode_flac(bytes.len(), &mut |a, b| Ok(bytes[a.min(bytes.len())..b.min(bytes.len())].to_vec())) {
+        Ok(d) if d.channels.first().is_some_and(|c| !c.is_empty()) => Some(d),
+        Ok(_) => { flac_error = Some("no samples".to_string()); None }
+        Err(e) => { flac_error = Some(e); None }
+      }
     } else { None };
     let (channels, sr) = match flac {
-      Some(d) => (d.channels, d.sample_rate as f64),
-      None => { control::check().map_err(Failure::Broken)?; let d = decode::decode(bytes, &info, &ext_of(file_name)).map_err(Failure::Broken)?; (d.channels, d.sr) }
+      Some(d) => { decoder = "flac"; (d.channels, d.sample_rate as f64) }
+      None => { decoder = "symphonia"; control::check().map_err(Failure::Broken)?; let d = decode::decode(bytes, &info, &ext_of(file_name)).map_err(Failure::Broken)?; (d.channels, d.sr) }
     };
     if info.channels == 0.0 || info.channels.is_nan() { info.channels = channels.len() as f64; }
     Job::Float { channels, sr, bits }
@@ -142,7 +152,7 @@ pub fn analyse(bytes: &[u8], file_name: &str, size: f64, mtime: f64, at: String)
   if info.channels == 0.0 || info.channels.is_nan() { info.channels = result.channels as f64; }
   if info.duration == 0.0 || info.duration.is_nan() { info.duration = result.duration; }
   if (info.bitrate == 0.0 || info.bitrate.is_nan()) && info.duration != 0.0 && !info.duration.is_nan() && info.lossless == Some(false) { info.bitrate = bytes.len() as f64 * 8.0 / info.duration / 1000.0; }
-  Ok(Analysis { info, result, verdict, summary, details, thumb, wave, fingerprint, cover })
+  Ok(Analysis { info, result, verdict, summary, details, thumb, wave, fingerprint, cover, decoder, flac_error })
 }
 
 /// The built-in example (analyze.ts `synthDemo`), analysed: the parity canary.

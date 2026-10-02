@@ -32,7 +32,7 @@ fn main() {
   match args.first().map(String::as_str) {
     Some("analyse") => for f in &args[1..] {
       let (r, _, ms) = one(Path::new(f));
-      let line = match r { Ok(a) => serde_json::json!({ "file": f, "ms": ms, "summary": a.summary, "info": a.info }), Err(e) => serde_json::json!({ "file": f, "ms": ms, "error": e }) };
+      let line = match r { Ok(a) => serde_json::json!({ "file": f, "ms": ms, "decoder": a.decoder, "flacError": a.flac_error, "frames": a.result.duration * a.result.sr, "summary": a.summary, "info": a.info }), Err(e) => serde_json::json!({ "file": f, "ms": ms, "error": e }) };
       println!("{line}");
     },
     // The details header (`d/…json`) as GLUE Home stores it, the file's date taken as 5 (to compare with the website's).

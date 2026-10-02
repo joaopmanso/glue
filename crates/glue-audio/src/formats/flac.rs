@@ -45,8 +45,12 @@ const SIZE: [u32; 8] = [0, 8, 12, 0, 16, 20, 24, 32];
 
 /// `flacHeader`: STREAMINFO, and where the first frame starts.
 pub fn flac_header(head: &[u8]) -> Option<(FlacInfo, usize)> {
-  if head.len() < 42 || &head[..4] != b"fLaC" { return None; }
-  let mut at = 4usize;
+  // An ID3v2 tag before it is skipped (flac.ts `flacHeader`).
+  let id3 = if head.len() >= 10 && &head[..3] == b"ID3" {
+    10 + (((head[6] & 0x7f) as usize) << 21 | ((head[7] & 0x7f) as usize) << 14 | ((head[8] & 0x7f) as usize) << 7 | (head[9] & 0x7f) as usize) + if head[5] & 0x10 != 0 { 10 } else { 0 }
+  } else { 0 };
+  if head.len() < id3 + 42 || &head[id3..id3 + 4] != b"fLaC" { return None; }
+  let mut at = id3 + 4;
   let mut info = None;
   loop {
     if at + 4 > head.len() { return None; }

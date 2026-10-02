@@ -5,6 +5,22 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.49.1: what the desktop's second check found
+- **The second check (0.48, 1,000 songs):** 118 the same, 274 differ, 355 skipped, 2.8 s a song. With the fields
+  named:
+  - **265 differed only in a key's tuning, in its 15th or 16th digit:** the maths libraries round differently there.
+    The check now compares numbers as the goldens do (within 1e-9).
+  - **4 FLACs were shorter natively** (by 30–55 ms, a whole number of 4,096-sample blocks): an ID3v2 tag before the
+    stream sent them past GLUE's FLAC decoder to Symphonia, which loses the last frame when a tag also follows
+    (reproduced). The website had used the browser's decoder for them, at full length.
+    - GLUE's FLAC decoder (TypeScript and Rust) now skips an ID3v2 tag before the stream.
+    - New golden `tests/fixtures/flac-id3.flac`. The goldens now also check that each FLAC goes through GLUE's own
+      decoder.
+  - **2 MP3s decode differently** (Donna Lee, and Deftones in the first run: 17–33% of fingerprint bits): not
+    reproduced without the files.
+- Each check line now says which decoder made it (`decoder`, `flacError`); the engine is 0.2.1.
+- `glue-audio analyse` prints the decoder and the frame count.
+
 ## 2026-10-02 · GLUE Home 0.49.0: streaming to other devices is native (ADR 0150)
 - **GLUE Home's connections to the phone, the laptop and other tabs are Rust's** (`crates/glue-rtc`, webrtc-rs 0.21,
   [ADR 0150](../adr/0150-glue-homes-connections-in-rust.md)):

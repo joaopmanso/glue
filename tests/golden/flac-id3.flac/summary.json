@@ -1,0 +1,23 @@
+{
+ "v": 3,
+ "grade": "warn",
+ "label": "Caution",
+ "headline": "Band-limited to about 1.2 kHz",
+ "fc": 1184,
+ "wall": false,
+ "full": false,
+ "effBits": 16,
+ "declaredBits": 16,
+ "origin": "Band-limited source",
+ "bpm": null,
+ "key": null,
+ "findings": [
+  {
+   "sev": "warn",
+   "title": "Band-limited to about 1.2 kHz"
+  }
+ ],
+ "fileSize": 66336,
+ "fileMtime": 1700000000000,
+ "vv": 8
+}
