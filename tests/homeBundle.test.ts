@@ -41,6 +41,10 @@ describe('GLUE Home has no audio JavaScript (ADR 0147)', () => {
     expect(files.length).toBeGreaterThan(20);
     expect(files.filter(([f]) => FORBIDDEN.some(r => r.test(f))).map(([f, by]) => `${f} (from ${by})`)).toEqual([]);
   });
+  it('makes no WebRTC connection of its own: GLUE Home\'s connections are Rust\'s (ADR 0150)', () => {
+    const ui = files.filter(([f]) => f.startsWith('home/ui/')).map(([f]) => f);
+    expect(ui.filter(f => /new\s+RTCPeerConnection|createDataChannel|ondatachannel/.test(readFileSync(join(ROOT, f), 'utf8')))).toEqual([]);
+  });
   it('imports no audio package and starts no worker', () => {
     expect(FORBIDDEN_PACKAGES.filter(p => packages.has(p)).map(p => `${p} (from ${packages.get(p)})`)).toEqual([]);
     expect(workers).toEqual([]);

@@ -18,6 +18,19 @@ export const TAURI_MOCK = `(() => {
   // GLUE Home's native engine, stood in for by the website's own code (e2e/home-analyse.ts, built into .e2e-home).
   const engine = () => import('/__e2e/home-analyse.js');
   const put = (rel, bytes) => { cache[rel] = Array.from(bytes); };
+  // A song starts arriving in the incoming folder: under a name that isn't taken.
+  const begin = name => { const taken = n => files.some(f => f.name === n); let n = name, i = 2; while (taken(n)) n = name.replace(/(\\.[^.]*)?$/, ' (' + i++ + ')$1'); files.push({ name: n, chunks: [], done: false }); return [files.length, n]; };
+  // GLUE Home's own connections (ADR 0150), stood in for by the browser's (e2e/home-rtc.ts, built into .e2e-home).
+  let rtcP = null;
+  const rtcE = () => rtcP ??= import('/__e2e/home-rtc.js').then(m => m.rtc({
+    emit: (name, payload) => send(name, payload, 'service'),
+    cacheGet: k => cache[k] ? new Uint8Array(cache[k]) : null,
+    cachePut: (k, b) => { cache[k] = Array.from(b); },
+    song: p => disk(p),
+    incomingBegin: name => begin(name),
+    incomingWrite: (id, b) => files[id - 1].chunks.push(Array.from(b)),
+    incomingEnd: (id, ok) => { const f = files[id - 1]; f.done = ok; return ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; },
+  }));
   const disk = p => (window.__disk ?? {})[p] ?? files.find(f => f.done && !f.moved && (p === 'C:\\\\In\\\\' + f.name || p.endsWith('GLUE Incoming\\\\' + f.name)))?.chunks.flat();
   // Tauri's notification plugin puts its own Notification in the page (ADR 0074): here it records them.
   window.__notes = [];
@@ -39,7 +52,7 @@ export const TAURI_MOCK = `(() => {
         case 'default_incoming': return 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming';
         case 'default_duplicates': return 'C:\\\\Users\\\\dj\\\\GLUE duplicates';
         case 'device_name': return 'Studio PC';
-        case 'incoming_begin': { const taken = n => files.some(f => f.name === n); let n = args.name, i = 2; while (taken(n)) n = args.name.replace(/(\\.[^.]*)?$/, ' (' + i++ + ')$1'); files.push({ name: n, chunks: [], done: false }); return [files.length, n]; }
+        case 'incoming_begin': return begin(args.name);
         case 'incoming_write': files[Number(opts.headers['x-id']) - 1].chunks.push(Array.from(args)); return;
         case 'incoming_end': { const f = files[args.id - 1]; f.done = args.ok; return args.ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; }
         case 'set_status': case 'show_settings': return;
@@ -76,6 +89,13 @@ export const TAURI_MOCK = `(() => {
         case 'cover_hash': { const b = disk(args.path); if (!b) throw 'not found'; return (await engine()).coverHash(args, b, put); }
         case 'cover_from_image': return (await engine()).coverFromImage(Array.from(args), put);
         case 'wave_from_details': return (await engine()).waveFromDetails(args, rel => cache[rel] ? new Uint8Array(cache[rel]) : null, put);
+        case 'rtc_answer': return (await rtcE()).answer(args.id, args.sdp, args.servers, args.hello);
+        case 'rtc_ice': return (await rtcE()).ice(args.id, args.candidate);
+        case 'rtc_close': return (await rtcE()).close(args.id);
+        case 'rtc_reply': { const h = JSON.parse(opts.headers['x-reply']); return (await rtcE()).reply(h.conn, h.chan, h.n, h.data, new Uint8Array(args), h.extra); }
+        case 'rtc_send_file': return (await rtcE()).sendFile(args.conn, args.chan, args.n, args.song);
+        case 'rtc_error': return (await rtcE()).error(args.conn, args.chan, args.n, args.error);
+        case 'rtc_tell': return (await rtcE()).tell(args.msg);
         case 'verify_song': window.__verified = [...(window.__verified ?? []), args.id]; return (window.__verifyAnswer ?? {})[args.id] ?? { kind: 'same', ms: 1000, name: args.id };
         case 'find_file': return (window.__findFile ?? {})[args.name] ?? null;
         case 'glue_list': return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));

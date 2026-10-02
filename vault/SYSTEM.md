@@ -158,6 +158,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     Bounded (ADR 0132): a connection not open within 30 s is let go, and an offer it can't take is answered
     "bye". The website says "bye" when it gives up, and waits 5 to 60 s before connecting again for background asks.
+  - **GLUE Home's connections are Rust's** (ADR 0150, 0.49, `crates/glue-rtc`, `home/src-tauri/src/rtc.rs`): the peer
+    connections, their channels, pings, uploads, cache files, songs sent in and every song byte sent out; the service
+    page keeps the signaling, the sessions' rules and the library's answers (`rtc-request` → `rtc_reply`,
+    `rtc_send_file`, `rtc_error`). Messages up to 256 KB. Tests: `crates/glue-rtc/tests`, `scripts/rtc-probe.mjs`
+    (Edge), `e2e/home-rtc.ts` (the e2e stand-in).
   - **Sessions** (ADR 0133, 0.41): each device's tab keeps one with each of the account's other GLUE Homes,
     opened at sign-in (`remoteFiles.tend`), kept alive by a `ping` every 15 s; requests, playing and songs sent all go
     through it. Never to this computer's own GLUE Home (ADR 0137: 127.0.0.1 only). GLUE Home keeps one per tab, at most

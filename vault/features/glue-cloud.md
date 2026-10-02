@@ -1,15 +1,16 @@
 ---
 status: in-progress
 milestone: M6
-updated: 2026-10-01
-adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112, 0115, 0130, 0132, 0133]
+updated: 2026-10-02
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112, 0115, 0130, 0132, 0133, 0150]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
 ## Now
 The current model is in [SYSTEM.md](../SYSTEM.md): §4 (the account's collections: shared form, one id per
 computer, sync, the collections' list), §5 (GLUE Home: the local link, the engine, Home mode, any browser on the
-computer), §7 (accounts, devices and sessions, signaling). What follows is this feature's history, oldest first
+computer), §7 (accounts, devices and sessions, signaling). Since GLUE Home 0.49 its connections to other devices are
+Rust's ([ADR 0150](../adr/0150-glue-homes-connections-in-rust.md)). What follows is this feature's history, oldest first
 per section: read only the part you're changing.
 
 ## What it does

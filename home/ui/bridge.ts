@@ -117,6 +117,19 @@ export const bridge = {
   coverFromImage: (bytes: Uint8Array) => invoke<string>('cover_from_image', bytes),
   /** A song's waveform made from its kept details (empty: none kept). */
   waveFromDetails: (p: string, c: string, id: string) => invoke<ArrayBuffer>('wave_from_details', { p, c, id }),
+  // GLUE Home's own connections to other devices (ADR 0150): the signaling stays here, the rest is Rust's.
+  /** An offer: the answer's SDP. `hello`: said on each channel as it opens. */
+  rtcAnswer: (id: string, sdp: string, servers: RTCIceServer[], hello: { version: string; max: number; name: string }) => invoke<string>('rtc_answer', { id, sdp, servers, hello }),
+  rtcIce: (id: string, candidate: RTCIceCandidateInit | null) => invoke<void>('rtc_ice', { id, candidate }),
+  rtcClose: (id: string) => invoke<void>('rtc_close', { id }),
+  /** An answer to a request: its data, and its bytes. */
+  rtcReply: (conn: string, chan: number, n: number, data: unknown, bytes: Uint8Array, extra: { name?: string; type?: string } = {}) => invoke<void>('rtc_reply', bytes, { headers: { 'x-reply': JSON.stringify({ conn, chan, n, data: data ?? null, extra }) } }),
+  /** A song's file (`range`: a part of it, [start, length]) read from disk and sent: the bytes sent. */
+  rtcSendFile: (conn: string, chan: number, n: number, song: { path: string; range: [number, number] | null; name: string; type: string }) => invoke<number>('rtc_send_file', { conn, chan, n, song }),
+  rtcError: (conn: string, chan: number, n: number, error: string) => invoke<void>('rtc_error', { conn, chan, n, error }),
+  /** Said on every session. */
+  rtcTell: (msg: unknown) => invoke<void>('rtc_tell', { msg }),
+  onRtc: <T>(name: 'rtc-ice' | 'rtc-state' | 'rtc-request' | 'rtc-receiving' | 'rtc-received' | 'rtc-served' | 'rtc-activity', f: (payload: T) => void) => listen<T>(name, e => f(e.payload)),
   /** The engine read a song's file (`p/c/id`): analysing it now. */
   onAnalysisStep: (f: (key: string) => void) => listen<string>('analysis-step', e => f(e.payload)),
   /** What GLUE Home's own side was asked since it started: the local link, the service page's file reads (ADR 0083). */

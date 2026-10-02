@@ -5,6 +5,22 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.49.0: streaming to other devices is native (ADR 0150)
+- **GLUE Home's connections to the phone, the laptop and other tabs are Rust's** (`crates/glue-rtc`, webrtc-rs 0.21,
+  [ADR 0150](../adr/0150-glue-homes-connections-in-rust.md)):
+  - a song's bytes are read from disk and sent in Rust, as are songs sent to this computer;
+  - pings, uploads and cache files are answered there too;
+  - no song byte crosses JavaScript in GLUE Home any more.
+  - The website and the phone don't change: the same messages.
+- **Measured on the laptop:** to Edge 21–29 MB/s, from Edge 30 MB/s; browser to browser it was 8.4 MB/s.
+- **Found on the way:** webrtc-rs takes messages up to 64 KB unless told otherwise, and the website's frames are 64 KB
+  plus their request number: the connections allow 256 KB, as browsers do.
+- **Tests:**
+  - the protocol between two peers (`crates/glue-rtc/tests`);
+  - against Edge (`scripts/rtc-probe.mjs`, in CI on Windows);
+  - the e2e tests through a stand-in with the same commands and events (`e2e/home-rtc.ts`);
+  - a guard that GLUE Home's pages make no WebRTC connection of their own.
+
 ## 2026-10-02 · GLUE Home 0.48.0: DSD, and the songs the browser couldn't decode (ADR 0149)
 - **DSD files are analysed** ([ADR 0149](../adr/0149-dsd-analysed-as-its-pcm-conversion.md)):
   - DSF and DSDIFF are converted to 88.2 kHz PCM (96 kHz for the 48 kHz family), the conversion GLUE has always

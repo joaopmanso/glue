@@ -24,6 +24,7 @@ mod ws;
 mod activity;
 mod web;
 mod analysis;
+mod rtc;
 
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
 const LIBRARY_URL: &str = "https://joaopmanso.github.io/glue/?open=home#/";
@@ -150,12 +151,12 @@ pub(crate) fn incoming_dir(app: &AppHandle) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(default_incoming(app.clone())))
 }
 
-/// A song starts: a `.part` file in the incoming folder, under a name that isn't taken.
-#[tauri::command]
-fn incoming_begin(app: AppHandle, t: State<'_, Transfers>, name: String) -> Result<(u32, String), String> {
-    let dir = incoming_dir(&app);
+/// A song starts: a `.part` file in the incoming folder, under a name that isn't taken (the file, its `.part` path, its
+/// final path, its final name).
+pub(crate) fn incoming_part(app: &AppHandle, name: &str) -> Result<(File, PathBuf, PathBuf, String), String> {
+    let dir = incoming_dir(app);
     fs::create_dir_all(&dir).map_err(|e| format!("can't use the incoming folder {}: {e}", dir.display()))?;
-    let clean = safe_name(&name);
+    let clean = safe_name(name);
     let (mut fin, mut i) = (clean.clone(), 2);
     while dir.join(&fin).exists() || dir.join(format!("{fin}.part")).exists() {
         fin = with_number(&clean, i);
@@ -163,9 +164,15 @@ fn incoming_begin(app: AppHandle, t: State<'_, Transfers>, name: String) -> Resu
     }
     let part = dir.join(format!("{fin}.part"));
     let f = File::create(&part).map_err(|e| e.to_string())?;
+    Ok((f, part, dir.join(&fin), fin))
+}
+
+#[tauri::command]
+fn incoming_begin(app: AppHandle, t: State<'_, Transfers>, name: String) -> Result<(u32, String), String> {
+    let (f, part, path, fin) = incoming_part(&app, &name)?;
     let mut next = t.next.lock().unwrap();
     *next += 1;
-    t.open.lock().unwrap().insert(*next, (f, part, dir.join(&fin)));
+    t.open.lock().unwrap().insert(*next, (f, part, path));
     Ok((*next, fin))
 }
 
@@ -656,7 +663,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_song, analysis::analyse_incoming, analysis::cover_hash, analysis::cover_from_image, analysis::wave_from_details])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_song, analysis::analyse_incoming, analysis::cover_hash, analysis::cover_from_image, analysis::wave_from_details, rtc::rtc_answer, rtc::rtc_ice, rtc::rtc_close, rtc::rtc_reply, rtc::rtc_send_file, rtc::rtc_error, rtc::rtc_tell])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]
@@ -701,6 +708,8 @@ fn main() {
                 })
                 .build(app)?;
             app.manage(Tray { status, start, stop });
+            // The connections to the account's other devices (ADR 0150).
+            app.manage(rtc::new(app.handle()));
             // The website on this computer talks to GLUE Home directly (ADR 0048).
             activity::start();
             local::start(app.handle().clone());

@@ -1,4 +1,4 @@
-// The tests' stand-in for GLUE Home's native analysis (e2e/home-analyse.ts), built next to GLUE Home's pages for the
+// The tests' stand-ins for GLUE Home's native analysis and connections (e2e/home-analyse.ts, home-rtc.ts), built next to GLUE Home's pages for the
 // e2e server (playwright.config.ts: `.e2e-home/`, never home/dist): same origin, so its analysis workers can start.
 import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,6 @@ export default defineConfig({
     outDir: here('../.e2e-home/__e2e'),
     emptyOutDir: true,
     target: 'es2022',
-    rollupOptions: { input: here('./home-analyse.ts'), preserveEntrySignatures: 'strict', output: { entryFileNames: 'home-analyse.js' } },
+    rollupOptions: { input: { 'home-analyse': here('./home-analyse.ts'), 'home-rtc': here('./home-rtc.ts') }, preserveEntrySignatures: 'strict', output: { entryFileNames: '[name].js' } },
   },
 });

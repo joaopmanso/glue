@@ -94,6 +94,9 @@ After working:
   JavaScript's numbers (`src/js.rs`). `cargo test --manifest-path crates/glue-audio/Cargo.toml` compares it with the
   TypeScript's results in `tests/golden` (regenerate with `GOLDEN=1 npx vitest run tests/golden.test.ts` after changing
   the JavaScript analysis, then port the change). `scripts/jsmath.mjs` checks the maths against V8.
+- `crates/glue-rtc`: GLUE Home's connections to other devices (ADR 0150), webrtc-rs speaking the website's protocol
+  (src/core/transfer.ts). `cargo test --manifest-path crates/glue-rtc/Cargo.toml`; against Edge:
+  `cargo build --release --example probe --manifest-path crates/glue-rtc/Cargo.toml && node scripts/rtc-probe.mjs`.
 - Routes: `#/` library, `#/track/<id>` track page, `#/events` calendar (`#/events/<id>` an event),
   `#/analyze` analyze a file, `#/help` help (`#/help/<article>`), `#/admin`.
 - Gluey (ADR 0126): when a feature changes, update its help article (`src/help/*.md`) and its tour

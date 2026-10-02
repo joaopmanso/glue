@@ -23,8 +23,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-02)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.48.0 (analyses natively, no audio JavaScript, DSD,
-  ADR 0147–0149).
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.49.0 (analyses and streams natively, DSD, ADR
+  0147–0150).
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -91,6 +91,13 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   and analysed again once fixed.
 - **GLUE Home 0.46.0** (ADR 0148): analysis should look the same in GLUE Home's window (the Speed panel, songs at a
   time, Pause), faster per song; the 342 ALAC M4As only when they're analysed again (B5).
+- **GLUE Home 0.49.0: streaming native** (ADR 0150), the hand test that matters most:
+  - the laptop and the iPhone at home (Wi-Fi): songs play from the desktop, waveforms and covers appear, Devices
+    connected lists them;
+  - **the iPhone on mobile data** (relayed through TURN: only provable from outside);
+  - send a song from the laptop to the desktop (TO BE SORTED, analysed);
+  - Disconnect in the settings.
+  - If something breaks: GLUE Home's log has "rtc" lines.
 - **GLUE Home 0.48.0** (ADR 0149): the 342 ALAC M4As and 91 DSF files should be analysed (the queue's "left" goes up
   by about 433 once, then down). Look at a few DSD songs' verdicts: they'll mostly read "Genuine hi-res" (DSD's noise
   shaping), even one made from a CD master; which ones look wrong is what a DSD rule would be tuned on.
@@ -191,7 +198,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **B5: done (0.48.0, ADR 0149)** but streaming decode from disk: a song is still read whole into memory (a
     543 MB FLAC needs about 1.5 GB while it's analysed). Left for when it shows: decoding FLAC/WAV/AIFF straight from
     the file (`decode_flac` already reads ranges) and keeping the samples f32;
-  - **B6:** streaming and sessions to other devices native (WebRTC data channels in Rust).
+  - **B6: done (0.49.0, ADR 0150).** Next, when the GLUE window comes: the queue and the library's answers in Rust,
+    then the service page removed.
 - **The socket** is in (GLUE Home 0.42, ADR 0139). Covers still come over HTTP: the next to move onto it if they show
   in the numbers.
 - **From the code map** (function names defined in several files, 2026-10-01; the loaders and copy names are done):

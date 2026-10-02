@@ -3,8 +3,7 @@
    Restart come from the tray and the settings window. */
 import { API, bridge, type HomeConfig, type Received, type Status } from './bridge';
 import { access, stayOnline } from './cloud';
-import { CHUNK, HIGH_WATER, ICE_SERVERS, MAX_FILE, PENDING, frame, unframe, isHandshake, type Ctrl, type Handshake, type HomeFolder, type StreamReply, type StreamReq } from '../../src/core/transfer';
-import type { DetailsHeader } from '../../src/store/details';
+import { ICE_SERVERS, PENDING, isHandshake, type Handshake, type HomeFolder, type StreamReply, type StreamReq } from '../../src/core/transfer';
 import * as cache from './cache';
 import * as lookup from './lookup';
 import { backupDaily } from './backups';
@@ -27,12 +26,13 @@ let receiving: Status['receiving'] = null;
 let serving = 0;   // songs being sent to another computer right now
 let library: Status['library'] = undefined;
 let reminders: Status['reminders'] = undefined;
-const peers = new Map<string, RTCPeerConnection>();   // handshake id → connection
+/** The connections, by handshake id (GLUE Home's own, in Rust: ADR 0150): who they're with. */
+const conns = new Map<string, { from: string; key: string }>();
 /** A connection not open by then is let go (ADR 0132). */
 const SETUP_MS = 30_000;
 /** Sessions (ADR 0133): one per device's tab, at most `maxSessions` (the settings; 5 unless changed). A device whose
     tab connects again replaces its own; a new one when full is refused, with why. */
-interface Session { key: string; from: string; name: string; since: number; last: number; calls: number; pc: RTCPeerConnection; chan?: RTCDataChannel }
+interface Session { key: string; from: string; name: string; since: number; last: number; calls: number; id: string; open: boolean }
 const sessions = new Map<string, Session>();
 /** Disconnected in the settings: refused for an hour (its tab would only connect again). */
 const refused = new Map<string, number>();
@@ -40,7 +40,7 @@ const maxSessions = () => maxOf(cfg?.maxSessions);
 let myVersion = '';
 void version().then(v => (myVersion = v)).catch(() => {});
 /** What happened here, said to every session at once (ADR 0133): devices stop asking again and again. */
-function tell(e: StreamReply) { const s = JSON.stringify(e); for (const x of sessions.values()) if (x.chan?.readyState === 'open') try { x.chan.send(s); } catch { /* closing */ } }
+function tell(e: StreamReply) { if (sessions.size) void bridge.rtcTell(e).catch(() => {}); }
 /** Songs analysed here, said together half a second later (a batch analyses many). */
 const made = new Map<string, Set<string>>();
 let madeTimer = 0;
@@ -54,7 +54,7 @@ cache.onMade.f = (p, c, id) => {
     made.clear();
   }, 500);
 };
-function endSession(key: string) { const s = sessions.get(key); if (!s) return; sessions.delete(key); s.pc.close(); servedSoon(); }
+function endSession(key: string) { const s = sessions.get(key); if (!s) return; sessions.delete(key); conns.delete(s.id); void bridge.rtcClose(s.id).catch(() => {}); servedSoon(); }
 const early = new Map<string, (RTCIceCandidateInit | null)[]>();   // candidates that came before their connection
 const located = new Map<string, { path: string; name: string; until: number }>();   // songs being streamed: where they are
 const lookingUp = new Map<string, ReturnType<typeof trackPath>>();   // a song being looked for now: its lookup, shared
@@ -72,7 +72,7 @@ let servedTimer = 0;
 const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), verify: structuredClone(verify.state), events: events.slice(), reminders, served: structuredClone(served), sessions: { list: [...sessions.values()].map(s => ({ key: s.key, name: s.name, since: s.since, last: s.last, calls: s.calls, open: s.pc.connectionState === 'connected' })), max: maxSessions() }, computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
+  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), verify: structuredClone(verify.state), events: events.slice(), reminders, served: structuredClone(served), sessions: { list: [...sessions.values()].map(s => ({ key: s.key, name: s.name, since: s.since, last: s.last, calls: s.calls, open: s.open })), max: maxSessions() }, computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -96,8 +96,8 @@ function start() {
 }
 function stop(say = true) {
   room?.stop(); room = null;
-  for (const pc of peers.values()) pc.close();
-  peers.clear(); sessions.clear();
+  for (const id of conns.keys()) void bridge.rtcClose(id).catch(() => {});
+  conns.clear(); sessions.clear();
   if (say) report(cfg?.deviceId ? 'stopped' : 'unpaired', cfg?.deviceId ? 'Stopped' : 'Not connected to a GLUE account');
 }
 /** Removed from the account on the website: forget the credential. */
@@ -130,40 +130,37 @@ async function onSignal(from: string, data: unknown) {
         event(name + ' couldn’t connect: ' + others + ' devices are connected already (the most at once is ' + maxSessions() + ')');
         return;
       }
-      // The relay's credentials (ADR 0081), asked for once a day: the other side's first candidates
-      // may come meanwhile, so they wait for the connection.
+      // The relay's credentials (ADR 0081), asked for once a day: the other side's first candidates may come
+      // meanwhile (and while the connection is set up), so they wait for it.
+      early.set(data.id, []);
       let servers = ice.iceNow();
-      if (!servers && cfg?.deviceId && cfg.token) { early.set(data.id, []); servers = await ice.iceServers(apiOf(cfg), cfg.deviceId, cfg.token); }
-      const pc = new RTCPeerConnection({ iceServers: servers ?? ICE_SERVERS });
-      peers.set(data.id, pc);
-      const session: Session = { key, from, name, since: Date.now(), last: Date.now(), calls: 0, pc };
+      if (!servers && cfg?.deviceId && cfg.token) servers = await ice.iceServers(apiOf(cfg), cfg.deviceId, cfg.token);
+      const session: Session = { key, from, name, since: Date.now(), last: Date.now(), calls: 0, id: data.id, open: false };
       sessions.set(key, session);
+      conns.set(data.id, { from, key });
       servedSoon();
-      const waiting = early.get(data.id) ?? [];
-      early.delete(data.id);
-      const end = () => { clearTimeout(setup); clearTimeout(gone); if (peers.get(data.id) === pc) peers.delete(data.id); if (sessions.get(key)?.pc === pc) { sessions.delete(key); servedSoon(); } pc.close(); };
       // Not open in time (the other side gave up, or its candidates never came): let it go.
-      const setup = window.setTimeout(() => { if (pc.connectionState !== 'connected') end(); }, SETUP_MS);
-      pc.onicecandidate = e => say({ app: 'glue-send', t: 'ice', id: data.id, candidate: e.candidate?.toJSON() ?? null });
+      const setup = window.setTimeout(() => { if (!session.open) endSession(key); }, SETUP_MS);
       // "disconnected" often passes (a phone moving between Wi-Fi and mobile data): only give up if it stays.
       let gone = 0;
-      pc.onconnectionstatechange = () => {
+      states.set(data.id, st => {
         clearTimeout(gone);
-        if (pc.connectionState === 'connected') { clearTimeout(setup); servedSoon(); }   // the settings show it open
-        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') end();
-        else if (pc.connectionState === 'disconnected') gone = window.setTimeout(end, 15_000);
-      };
-      pc.ondatachannel = ev => ev.channel.label === 'stream' ? serve(ev.channel, session) : receive(ev.channel, from);
-      await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
-      for (const c of waiting) await pc.addIceCandidate(c ?? undefined).catch(() => {});
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      say({ app: 'glue-send', t: 'answer', id: data.id, sdp: answer.sdp ?? '' });
+        if (st === 'connected') { clearTimeout(setup); session.open = true; servedSoon(); }   // the settings show it open
+        if (st === 'failed' || st === 'closed') { clearTimeout(setup); if (sessions.get(key) === session) endSession(key); states.delete(data.id); }
+        else if (st === 'disconnected') gone = window.setTimeout(() => { if (sessions.get(key) === session) endSession(key); }, 15_000);
+      });
+      // GLUE Home's own connection (ADR 0150): every channel and byte in Rust; said on each channel as it opens.
+      const sdp = await bridge.rtcAnswer(data.id, data.sdp, servers ?? ICE_SERVERS, { version: myVersion, max: maxSessions(), name: cfg?.name ?? 'GLUE Home' });
+      for (const c of early.get(data.id) ?? []) await bridge.rtcIce(data.id, c).catch(() => {});
+      early.delete(data.id);
+      say({ app: 'glue-send', t: 'answer', id: data.id, sdp });
     } catch (e) {
       // Said, not left unanswered: the other side shows why at once instead of waiting for its time-out.
-      const broken = peers.get(data.id);
-      broken?.close(); peers.delete(data.id); early.delete(data.id);
-      for (const [k, s] of sessions) if (s.pc === broken) sessions.delete(k);
+      void bridge.rtcClose(data.id).catch(() => {});
+      early.delete(data.id);
+      const c = conns.get(data.id);
+      conns.delete(data.id);
+      if (c && sessions.get(c.key)?.id === data.id) sessions.delete(c.key);
       const why = (e as Error).message || String(e);
       say({ app: 'glue-send', t: 'bye', id: data.id, reason: 'GLUE Home couldn’t take the connection: ' + why });
       event('A connection couldn’t be set up: ' + why);
@@ -171,119 +168,42 @@ async function onSignal(from: string, data: unknown) {
   } else if (data.t === 'ice') {
     const wait = early.get(data.id);
     if (wait) wait.push(data.candidate ?? null);
-    else await peers.get(data.id)?.addIceCandidate(data.candidate ?? undefined).catch(() => {});
+    else if (conns.has(data.id)) await bridge.rtcIce(data.id, data.candidate ?? null).catch(() => {});
   }
-  else if (data.t === 'bye') { peers.get(data.id)?.close(); peers.delete(data.id); early.delete(data.id); }
+  else if (data.t === 'bye') { const c = conns.get(data.id); early.delete(data.id); if (c && sessions.get(c.key)?.id === data.id) endSession(c.key); else { conns.delete(data.id); void bridge.rtcClose(data.id).catch(() => {}); } }
+}
+/** Each connection's state changes (from GLUE Home's own connections), by handshake id. */
+const states = new Map<string, (state: string) => void>();
+
+/** A song arrived from another device (written by GLUE Home's own connection, ADR 0150): analysed at once, so it's
+    ready in TO BE SORTED (ADR 0048), and remembered in the settings' list. */
+async function received(f: { name: string; path: string; size: number }) {
+  // TO BE SORTED changed: said once it's analysed, so devices show it with its waveform (ADR 0133).
+  void cache.analyseIncoming(f.name, f.path).catch(e => console.warn('GLUE Home: couldn’t analyse', f.name, e)).finally(() => tell({ t: 'event', kind: 'incoming' }));
+  const r: Received = { name: f.name, path: f.path, from: 'another device', at: Date.now(), size: f.size };
+  if (cfg) cfg = await bridge.patchConfig(cur => ({ received: [r, ...(cur.received ?? [])].slice(0, 30) })).catch(() => cfg) ?? cfg;
+  event('Received ' + f.name + ' from ' + r.from);
+  report(state, text);
 }
 
-function receive(dc: RTCDataChannel, from: string) {
-  dc.binaryType = 'arraybuffer';
-  const reply = (c: Ctrl) => { if (dc.readyState === 'open') dc.send(JSON.stringify(c)); };
-  let cur: { n: number; id: number; name: string; size: number; got: number; error: string } | null = null;
-  // One step at a time, in order: a file starts, its bytes are written, it ends.
-  let chain: Promise<void> = Promise.resolve();
-  const fromName = () => 'another device';
-  dc.onopen = () => reply({ t: 'ready', name: cfg?.name ?? 'GLUE Home' });
-  // On a session (ADR 0133) the channel can come already open: no `open` event then.
-  if (dc.readyState === 'open') reply({ t: 'ready', name: cfg?.name ?? 'GLUE Home' });
-  dc.onmessage = e => { chain = chain.then(() => step(e.data)).catch(err => { if (cur) cur.error = (err as Error).message || String(err); }); };
-  dc.onclose = () => { chain = chain.then(async () => { if (cur) { await bridge.end(cur.id, false).catch(() => {}); cur = null; receiving = null; report(state, text); } }); };
-
-  async function step(d: string | ArrayBuffer) {
-    if (typeof d !== 'string') {
-      if (!cur || cur.error) return;
-      cur.got += d.byteLength;
-      if (cur.got > cur.size) { cur.error = 'more bytes than announced'; return; }
-      await bridge.write(cur.id, new Uint8Array(d));
-      if (receiving) receiving = { ...receiving, got: cur.got };
-      return;
-    }
-    const c = JSON.parse(d) as Ctrl;
-    if (c.t === 'file') {
-      if (c.size > MAX_FILE) { reply({ t: 'failed', n: c.n, error: 'too large' }); return; }
-      const [id, name] = await bridge.begin(c.name);
-      cur = { n: c.n, id, name, size: c.size, got: 0, error: '' };
-      receiving = { name, got: 0, size: c.size };
-      report(state, text);
-    } else if (c.t === 'end' && cur && cur.n === c.n) {
-      const f = cur; cur = null; receiving = null;
-      if (f.error || f.got !== f.size) {
-        await bridge.end(f.id, false).catch(() => {});
-        reply({ t: 'failed', n: f.n, error: f.error || 'incomplete' });
-      } else {
-        const path = await bridge.end(f.id, true);
-        // Analysed at once, so it's ready in TO BE SORTED (ADR 0048).
-        // TO BE SORTED changed: said once it's analysed, so devices show it with its waveform (ADR 0133).
-        void cache.analyseIncoming(f.name, path).catch(e => console.warn('GLUE Home: couldn’t analyse', f.name, e)).finally(() => tell({ t: 'event', kind: 'incoming' }));
-        const r: Received = { name: f.name, path, from: fromName(), at: Date.now(), size: f.size };
-        if (cfg) cfg = await bridge.patchConfig(cur => ({ received: [r, ...(cur.received ?? [])].slice(0, 30) })).catch(() => cfg) ?? cfg;
-        reply({ t: 'saved', n: f.n, name: f.name });
-        event('Received ' + f.name + ' from ' + r.from);
-      }
-      report(state, text);
-    }
-  }
-  void from;
-}
-
-// ---- playing this computer's songs on another (ADR 0045) -----------------------------------------
+// ---- playing this computer's songs on another, and the library's other answers (ADR 0045, 0150) ------------
 const TYPES: Record<string, string> = { mp3: 'audio/mpeg', flac: 'audio/flac', wav: 'audio/wav', aif: 'audio/aiff', aiff: 'audio/aiff', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', opus: 'audio/ogg', alac: 'audio/mp4' };
-function serve(dc: RTCDataChannel, session?: Session) {
-  dc.binaryType = 'arraybuffer';
-  dc.bufferedAmountLowThreshold = HIGH_WATER / 4;
-  const send = (c: StreamReply) => { if (dc.readyState === 'open') dc.send(JSON.stringify(c)); };
-  const drained = () => new Promise<void>(res => { if (dc.bufferedAmount <= HIGH_WATER) return res(); const f = () => { dc.removeEventListener('bufferedamountlow', f); res(); }; dc.addEventListener('bufferedamountlow', f); });
-  /** An answer: `data`, then bytes (all at once, or read from a file in 1 MB steps), then the end. */
-  const answer = async (n: number, data: unknown, bytes: Uint8Array | { path: string; size: number } | null, extra: { name?: string; type?: string } = {}) => {
-    const size = bytes ? ('path' in bytes ? bytes.size : bytes.length) : 0;
-    const w = whatOf.get(n); if (w) served[w].bytes += size;
-    send({ t: 'meta', n, size, data, ...extra });
-    // Each binary message carries its request's number, so answers can go out at the same time (ADR 0047).
-    const push = async (block: Uint8Array) => { for (let i = 0; i < block.length; i += CHUNK) { await drained(); if (dc.readyState !== 'open') return; dc.send(frame(n, block.subarray(i, Math.min(block.length, i + CHUNK)))); } };
-    if (bytes && 'path' in bytes) for (let at = 0; at < bytes.size;) { const b = new Uint8Array(await bridge.fileRead(bytes.path, at, 1024 * 1024, true)); if (!b.length) break; await push(b); at += b.length; }
-    else if (bytes) await push(bytes);
-    send({ t: 'eof', n, type: extra.type });
+/** A request from another device that's the library's to answer (ADR 0150: pings, uploads and cache files are GLUE
+    Home's own connections'; a song's bytes are read and sent by them too, from the path said here). Requests run at
+    the same time: a slow one (an analysis) doesn't hold up the others. Each counted (ADR 0083). */
+function onRequest({ conn, chan, n, req: c }: { conn: string; chan: number; n: number; req: StreamReq }) {
+  const t0 = performance.now(), row = served[c.t] ??= { calls: 0, ms: 0, bytes: 0 };
+  /** An answer: `data`, then bytes, or a song's file (sent from disk by GLUE Home's own connection). */
+  const answer = async (data: unknown, bytes: Uint8Array | { path: string } | null, extra: { name?: string; type?: string } = {}) => {
+    if (bytes && 'path' in bytes) { row.bytes += await bridge.rtcSendFile(conn, chan, n, { path: bytes.path, range: null, name: extra.name ?? '', type: extra.type ?? '' }); return; }
+    row.bytes += bytes?.length ?? 0;
+    await bridge.rtcReply(conn, chan, n, data, bytes ?? new Uint8Array(0), extra);
   };
   const need = () => { if (!cfg?.glue) throw new Error('GLUE Home doesn’t know this computer’s GLUE folder: choose it in its settings.'); return cfg; };
   const typeOf = (name: string) => TYPES[name.split('.').pop()?.toLowerCase() ?? ''] ?? '';
-  // What the website on this computer hands over ('put'): its bytes arrive after the request, by number.
-  const uploads = new Map<number, { req: Extract<StreamReq, { t: 'put' }>; parts: Uint8Array[]; got: number }>();
-  // Requests run at the same time: a slow one (an analysis) doesn't hold up the others.
-  // Each counted (ADR 0083): what other devices ask, how often, the time it takes.
-  const whatOf = new Map<number, string>();
-  const step = (f: () => Promise<void>, n: number, what: string) => {
-    const t0 = performance.now(), row = served[what] ??= { calls: 0, ms: 0, bytes: 0 };
-    whatOf.set(n, what);
-    void (async () => { serving++; try { await f(); } catch (err) { send({ t: 'error', n, error: (err as Error).message || String(err) }); } finally { serving--; row.calls++; row.ms += performance.now() - t0; whatOf.delete(n); servedSoon(); } })();
-  };
-  // A session (ADR 0133): said first, so the website knows it may ping, send songs on it, and hear what happens.
-  if (session && !session.chan) session.chan = dc;   // what happens here is said on its first channel
-  const hello = () => send({ t: 'session', version: myVersion, max: maxSessions() });
-  if (dc.readyState === 'open') hello(); else dc.addEventListener('open', hello, { once: true });
-  dc.onmessage = e => {
-    if (session) session.last = Date.now();
-    if (typeof e.data !== 'string') { const f = unframe(e.data as ArrayBuffer), u = uploads.get(f.n); if (u) { u.parts.push(f.data.slice()); u.got += f.data.length; } return; }
-    const c = JSON.parse(e.data) as StreamReq;
-    // The heartbeat: answered at once, not counted as something asked.
-    if (c.t === 'ping') { send({ t: 'meta', n: c.n, size: 0, data: 'pong' }); send({ t: 'eof', n: c.n }); return; }
-    if (session) session.calls++;
-    if (c.t === 'put') { uploads.set(c.n, { req: c, parts: [], got: 0 }); return; }
-    if (c.t === 'end') {
-      const u = uploads.get(c.n); uploads.delete(c.n);
-      if (!u) return;
-      step(async () => {
-        const bytes = new Uint8Array(u.got); let at = 0;
-        for (const p of u.parts) { bytes.set(p, at); at += p.length; }
-        const r = u.req;
-        if (r.kind === 'thumb') await cache.putThumb(r.profile, r.collection, r.track, bytes);
-        else if (r.kind === 'wave') await cache.putWave(r.profile, r.collection, r.track, bytes);
-        else if (r.kind === 'art') { if (r.hash && (r.px === 64 || r.px === 320)) await cache.putArt(r.hash, r.px, bytes); }
-        else await cache.putDetails(r.profile, r.collection, r.track, r.header as DetailsHeader, bytes);
-        await answer(r.n, null, null);
-      }, c.n, 'put ' + u.req.kind);
-      return;
-    }
-    step(async () => {
+  void (async () => {
+    serving++;
+    try {
       // Asked with a folder that isn't this collection's (a computer's entry that named the wrong one, ADR 0108):
       // the folder that has it.
       const pc = c as { profile?: string; collection?: string };
@@ -295,7 +215,7 @@ function serve(dc: RTCDataChannel, session?: Session) {
         const f = await trackPath(c.profile, c.collection, c.track, need());
         // A music folder found by name: remember it (and GLUE Home may read it from now on).
         if (f.folder) await keepFound(f.folder.id, f.folder.path, seen);
-        await answer(c.n, null, { path: f.path, size: await bridge.fileSize(f.path) }, { name: f.name, type: typeOf(f.name) });
+        await answer(null, { path: f.path }, { name: f.name, type: typeOf(f.name) });
       } else if (c.t === 'range') {
         // Part of a song (streaming, ADR 0076): a collection's song, or one in the incoming folder.
         let path: string, name: string;
@@ -316,12 +236,8 @@ function serve(dc: RTCDataChannel, session?: Session) {
             if (located.size > 200) located.delete(located.keys().next().value!);
           }
         }
-        const total = await bridge.fileSize(path), start = Math.max(0, Math.min(c.start, total)), len = Math.max(0, Math.min(c.len, 8 * 1024 * 1024, total - start));
-        const parts: Uint8Array[] = [];
-        for (let at = 0; at < len;) { const b = new Uint8Array(await bridge.fileRead(path, start + at, Math.min(1024 * 1024, len - at), true)); if (!b.length) break; parts.push(b); at += b.length; }
-        const bytes = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
-        for (const p of parts) { bytes.set(p, at); at += p.length; }
-        await answer(c.n, { total, type: typeOf(name) }, bytes, { name });
+        // Read from disk and sent by GLUE Home's own connection (ADR 0150): at most 8 MB from `start`.
+        row.bytes += await bridge.rtcSendFile(conn, chan, n, { path, range: [Math.max(0, c.start), Math.max(0, c.len)], name, type: typeOf(name) });
       } else if (c.t === 'thumbs') {
         need();
         const found: [string, number][] = [], parts: Uint8Array[] = [];
@@ -333,7 +249,7 @@ function serve(dc: RTCDataChannel, session?: Session) {
         }
         const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
         for (const p of parts) { all.set(p, at); at += p.length; }
-        await answer(c.n, found, all);
+        await answer(found, all);
       } else if (c.t === 'details') {
         need();
         let d = await cache.details(c.profile, c.collection, c.track);
@@ -345,9 +261,9 @@ function serve(dc: RTCDataChannel, session?: Session) {
           if (r) d = await cache.details(c.profile, c.collection, c.track);
         }
         if (!d) throw new Error('GLUE Home couldn’t analyse that song.');
-        await answer(c.n, d.header, d.bin);
+        await answer(d.header, d.bin);
       } else if (c.t === 'have') {
-        await answer(c.n, { ...await cache.kept(c.profile, c.collection), art: await cache.artKept() }, null);
+        await answer({ ...await cache.kept(c.profile, c.collection), art: await cache.artKept() }, null);
       } else if (c.t === 'art') {
         // Songs' covers (ADR 0082): kept, or read from the song's tags now (and kept for next time).
         const conf = need(), px = c.px === 320 ? 320 : 64;
@@ -360,7 +276,7 @@ function serve(dc: RTCDataChannel, session?: Session) {
         }
         const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
         for (const p of parts) { all.set(p, at); at += p.length; }
-        await answer(c.n, found, all);
+        await answer(found, all);
       } else if (c.t === 'find-art') {
         // Covers from public services (ADR 0086): known, or looked up now (the device asks again).
         const px = c.px === 320 ? 320 : 64;
@@ -376,17 +292,17 @@ function serve(dc: RTCDataChannel, session?: Session) {
         }
         const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
         for (const p of parts) { all.set(p, at); at += p.length; }
-        await answer(c.n, found, all);
+        await answer(found, all);
       } else if (c.t === 'incoming') {
         // With the analysis made when each song arrived.
         const list = await Promise.all((await bridge.incomingList()).map(async f => ({ name: f.name, size: f.size, mtime: f.mtime, summary: await cache.incomingSummary(f.name) })));
-        await answer(c.n, list, null);
+        await answer(list, null);
       } else if (c.t === 'cache') {
         const found: [string, number][] = [], parts: Uint8Array[] = [];
         for (const key of c.keys.slice(0, 200)) { const b = await cache.cacheFile(key); found.push([key, b?.length ?? 0]); if (b) parts.push(b); }
         const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
         for (const p of parts) { all.set(p, at); at += p.length; }
-        await answer(c.n, found, all);
+        await answer(found, all);
       } else if (c.t === 'analysis') {
         // The analysis of this computer's songs (ADR 0103): asked about, paused, songs asked for now; the tab on
         // this computer takes the results in (and says which).
@@ -396,28 +312,29 @@ function serve(dc: RTCDataChannel, session?: Session) {
         if (c.now?.length) analysis.now(c.profile, c.collection, c.now, c.names ?? {}, () => cfg);
         if (c.taken?.length) await analysis.taken(c.profile, c.collection, c.taken);
         void analysis.run(() => cfg);
-        await answer(c.n, { state: analysis.state, waiting: analysis.waitingIn(c.profile, c.collection).slice(0, 200) }, null);
+        await answer({ state: analysis.state, waiting: analysis.waitingIn(c.profile, c.collection).slice(0, 200) }, null);
       } else if (c.t === 'local') {
         // The website on this computer: how to reach GLUE Home without GLUE Cloud (ADR 0048).
         // The read-only token too: a GLUE tab here reads, and asks the engine for every change (ADR 0104).
-        await answer(c.n, { port: await bridge.localPort(), token: cfg?.localToken ?? null, readToken: cfg?.readToken ?? null }, null);
+        await answer({ port: await bridge.localPort(), token: cfg?.localToken ?? null, readToken: cfg?.readToken ?? null }, null);
       } else if (c.t === 'get-incoming') {
         const f = (await bridge.incomingList()).find(x => x.name === c.name);
         if (!f) throw new Error('That song isn’t in the incoming folder any more.');
-        await answer(c.n, null, { path: f.path, size: f.size }, { name: f.name, type: typeOf(f.name) });
+        await answer(null, { path: f.path }, { name: f.name, type: typeOf(f.name) });
       } else if (c.t === 'folders') {
         const lib = await describe(), out: HomeFolder[] = [];
         for (const p of lib?.profiles ?? []) for (const col of p.collections) for (const r of col.roots) if (cfg?.folders?.[r.id] && !out.some(x => x.id === r.id)) out.push({ id: r.id, name: r.name, collection: p.name + ' · ' + col.name });
-        await answer(c.n, out, null);
+        await answer(out, null);
       } else if (c.t === 'move-incoming') {
         const to = cfg?.folders?.[c.folder];
         if (!to) throw new Error('GLUE Home doesn’t know that music folder.');
-        await answer(c.n, await bridge.incomingMove(c.name, to), null);
+        await answer(await bridge.incomingMove(c.name, to), null);
         tell({ t: 'event', kind: 'incoming' });
         report(state, text);
       }
-    }, c.n, c.t);
-  };
+    } catch (err) { await bridge.rtcError(conn, chan, n, (err as Error).message || String(err)).catch(() => {}); }
+    finally { serving--; row.calls++; row.ms += performance.now() - t0; servedSoon(); }
+  })();
 }
 
 /** Find the shared collections' music folders by themselves (at start, and when the settings change);
@@ -603,6 +520,14 @@ async function boot() {
     if (r) { reminders = { at: Date.now(), coming: r.coming, sent: r.sent }; report(state, text); }
   };
   await bridge.onRemindNow(() => void remind(true));
+  // GLUE Home's own connections (ADR 0150): what they found, asked and did.
+  await bridge.onRtc<{ id: string; candidate: RTCIceCandidateInit | null }>('rtc-ice', ({ id, candidate }) => { const c = conns.get(id); if (c) room?.send(c.from, { app: 'glue-send', t: 'ice', id, candidate }); });
+  await bridge.onRtc<{ id: string; state: string }>('rtc-state', ({ id, state }) => states.get(id)?.(state));
+  await bridge.onRtc<{ conn: string; chan: number; n: number; req: StreamReq }>('rtc-request', onRequest);
+  await bridge.onRtc<Status['receiving']>('rtc-receiving', r => { receiving = r; report(state, text); });
+  await bridge.onRtc<{ name: string; path: string; size: number }>('rtc-received', f => void received(f));
+  await bridge.onRtc<{ what: string; ms: number; bytes: number }>('rtc-served', w => { const row = served[w.what] ??= { calls: 0, ms: 0, bytes: 0 }; row.calls++; row.ms += w.ms; row.bytes += w.bytes; servedSoon(); });
+  await bridge.onRtc<{ id: string; calls: number; last: number }>('rtc-activity', a => { const c = conns.get(a.id), s = c && sessions.get(c.key); if (s && s.id === a.id) { s.calls = a.calls; s.last = a.last; servedSoon(); } });
   await bridge.onVerify(n => { if (n > 0) void verify.run(() => cfg, n, () => report(state, text)); else verify.stop(); });
   await bridge.onDisconnect(key => { const name = sessions.get(key)?.name ?? 'a device'; refused.set(key, Date.now() + 3600e3); endSession(key); event('Disconnected ' + name + ' (refused for an hour)'); });
   // A browser on this computer joins it (ADR 0091): GLUE Home, which it reached on 127.0.0.1, vouches for it.
