@@ -76,6 +76,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **The native engine check, third run (0.49.0, 2026-10-02):** 8 real differences in ~390 (changelog 0.49.2). **Next run
+  on 0.49.2:** do the 5 FLACs that differ have `storedAt` before 0.43.0 (2026-10-02, GLUE's own FLAC decoder) and
+  `decoder: "flac"`? Then the stored ones are the browser's decode, and the fix is to analyse them again (GLUE Home
+  could re-check FLACs analysed before 0.43). Still asked: the two MP3s, and one of the FLACs ("05 - Hello.flac").
 - **The native engine check, second run (0.48):** see the changelog (0.49.1). **Asked of the user:** copy "1-01 Donna
   Lee.mp3" and "Deftones - Nosebleed demo.mp3" to the laptop (Downloads) to find the MP3 difference. After 0.49.1, a
   third run should show almost all "the same" (FLACs with an ID3v2 tag before the stream are now GLUE's own decoder's).

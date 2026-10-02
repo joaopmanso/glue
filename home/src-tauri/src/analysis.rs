@@ -296,7 +296,9 @@ pub fn verify(bytes: &[u8], name: &str, size: f64, mtime: f64, read: &dyn Fn(&st
     if String::from_utf8_lossy(&c) != mine { diffs.push(format!("cover {mine} vs {}", String::from_utf8_lossy(&c))); }
   }
   let kind = if !diffs.is_empty() { "differs" } else if !close.is_empty() { "close" } else { "same" };
-  json!({ "kind": kind, "lossy": lossy, "codec": a.info.codec, "decoder": a.decoder, "flacError": a.flac_error, "label": ns["label"], "diffs": diffs, "close": close, "ms": ms })
+  json!({ "kind": kind, "lossy": lossy, "codec": a.info.codec, "decoder": a.decoder, "flacError": a.flac_error, "label": ns["label"], "diffs": diffs, "close": close, "ms": ms,
+    // When the stored result was made, and by what: a difference only in older ones is the older decoder's.
+    "storedAt": ss["at"], "storedEngine": ss["engine"] })
 }
 
 /// Check one song of a shared collection natively (dry run: nothing is saved); the outcome is added to

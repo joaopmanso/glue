@@ -5,6 +5,19 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.49.2: the check says when the stored result was made
+- **The third check (made by 0.49.0, so still exact):** 277 differ, of which 276 are only a key's tuning in its
+  16th digit, which 0.49.1 counts as the same.
+- **8 songs really differ, out of about 390 compared:**
+  - Doin' Time (Wyclef Jean): the ID3v2 FLAC, fixed in 0.49.1;
+  - an AAC within 4e-10 (the same in 0.49.1);
+  - The Four Horsemen (310 MB): only the key's strength;
+  - 5 FLACs with the same length and rate whose loudness differs by about 0.01% and whose fingerprints differ by
+    10–100%.
+  - **Suspected:** the stored results of those 5 were decoded by the browser (WebCodecs, before GLUE decoded FLAC
+    itself in 0.43), not by GLUE's decoder.
+- Each check line now carries `storedAt` and `storedEngine`, to tell a stored result's decoder by its date.
+
 ## 2026-10-02 · GLUE Home 0.49.1: what the desktop's second check found
 - **The second check (0.48, 1,000 songs):** 118 the same, 274 differ, 355 skipped, 2.8 s a song. With the fields
   named:
