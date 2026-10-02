@@ -317,7 +317,7 @@ test('the account’s collections (ADR 0112): one box with each computer’s num
     });
     await expect.poll(() => backups(lap.page), { timeout: 30_000 }).toEqual([expect.stringMatching(new RegExp('^pre-deleted-\\d{4}-\\d{2}-\\d{2}-' + main + '\\.zip$'))]);
     await expect(lap.page.locator('.tr')).toHaveCount(0, { timeout: 30_000 });
-    expect(await backups(desk.page)).toHaveLength(1);
+    await expect.poll(() => backups(desk.page).then(b => b.length), { timeout: 30_000 }).toBe(1);   // the desktop makes its backup when the deletion reaches it
   } finally { await desk.done(); await lap.done(); }
 });
 

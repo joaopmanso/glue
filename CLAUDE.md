@@ -89,7 +89,7 @@ After working:
   `export RUSTUP_HOME=/c/Work/rust/rustup CARGO_HOME=/c/Work/rust/cargo PATH="/c/Work/rust/cargo/bin:$PATH"`.
   `.github/workflows/home.yml` builds Windows + macOS on every push to `main` that
   touches it; when the version in `home/src-tauri/tauri.conf.json` (also `Cargo.toml`, `Cargo.lock`) has no release
-  yet, that build publishes it (tag `home-v<version>`, the release the website links to). Don't push tags. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts`.
+  yet, that build publishes it (tag `home-v<version>`, the release the website links to). Don't push tags. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts` (its native analysis stood in for by `e2e/home-analyse.ts`, served from `.e2e-home/`, ADR 0148).
 - `crates/glue-audio`: the native analysis engine (ADR 0147), a line-for-line Rust port of `src/core`'s analysis with
   JavaScript's numbers (`src/js.rs`). `cargo test --manifest-path crates/glue-audio/Cargo.toml` compares it with the
   TypeScript's results in `tests/golden` (regenerate with `GOLDEN=1 npx vitest run tests/golden.test.ts` after changing

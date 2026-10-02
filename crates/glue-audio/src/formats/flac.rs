@@ -70,6 +70,7 @@ pub fn flac_header(head: &[u8]) -> Option<(FlacInfo, usize)> {
 
 /// `decodeFlac`: the samples of a FLAC file of `size` bytes, read with `read(start, end)` (end exclusive).
 pub fn decode_flac(size: usize, read: &mut dyn FnMut(usize, usize) -> Result<Vec<u8>, String>) -> Result<FlacPcm, String> {
+  crate::control::check()?;
   let mut head = read(0, size.min(1 << 16))?;
   let mut h = flac_header(&head);
   let mut want: usize = 1 << 20;
@@ -94,6 +95,7 @@ pub fn decode_flac(size: usize, read: &mut dyn FnMut(usize, usize) -> Result<Vec
     Ok(got)
   };
   loop {
+    crate::control::check()?;
     // The next frame's sync code, then a whole frame's worth ahead of it in the window. Anything before it is skipped:
     // a tag at the end, a damaged part, or the 17 MB of zeros after the metadata of the user's Blue Train FLACs.
     loop {

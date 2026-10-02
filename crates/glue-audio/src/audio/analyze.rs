@@ -428,8 +428,11 @@ pub fn run_job(job: Job, fingerprint: bool) -> Result<AnalysisResult, String> {
     Job::Demo => unreachable!(),
   }
   drop(job);
+  crate::control::check()?;
   let s = compute_spectrum(&mono, sr, 1600, 1024);
+  crate::control::check()?;
   let music = analyze_music(&mono, sr);
+  crate::control::check()?;
   let fp = if fingerprint { Some(crate::audio::fingerprint::fingerprint(&mono, sr)) } else { None };
   Ok(AnalysisResult {
     fp, music, spec: s.spec, cols: s.cols, rows: s.rows, ltas: s.ltas, n: s.n, bin_hz: s.bin_hz, stats, sr, duration: len as f64 / sr,

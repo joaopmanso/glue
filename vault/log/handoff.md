@@ -23,8 +23,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-02)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.45.0 (the native engine, ADR 0147: linked and
-  checkable, not analysing yet).
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.46.0 (analyses natively, ADR 0147, 0148).
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -80,7 +79,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   Activity › Native engine check › 1,000 › Check. It analyses those songs again natively (nothing is saved) and gives
   a tally; the ones that differ are listed. Send the tally, and `x/verify.jsonl` (in GLUE Home's cache folder,
   `%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\x\`) if anything differs or failed. This is the gate for B3 (GLUE Home
-  analysing natively). Also its "a song natively" time against the Speed panel's.
+  analysing natively, shipped in 0.46 without waiting, as the user asked: "go on until all batches are done"). Run it
+  soon after 0.46 arrives, before the queue has analysed much natively (the check skips native results). Also its "a
+  song natively" time against the Speed panel's. If songs differ: their results say `engine`, so they can be found
+  and analysed again once fixed.
+- **GLUE Home 0.46.0** (ADR 0148): analysis should look the same in GLUE Home's window (the Speed panel, songs at a
+  time, Pause), faster per song; the 342 ALAC M4As only when they're analysed again (B5).
 - **Today's three batches (2026-10-02, the laptop's session):**
   - **"Syncing…" on the laptop:** hover the chip after a long "Syncing…": its tooltip says where the time went
     (saving, from and to GLUE Cloud, reading what it wrote, how many in a row). Fix the part it names.
@@ -171,7 +175,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 ## Next
 - **The native engine (ADR 0147), batches after 0.44:**
   - **B2: done (0.45.0).** Gate: the desktop's check (Waiting on the user).
-  - **B3:** `home/ui/cache.ts` `analyse()` calls the native `analyse_song` (reads, decodes, analyses, writes the cache);
+  - **B3: done (0.46.0, ADR 0148).**
   - **B4:** no audio JavaScript left in GLUE Home (incoming songs, cover hashes, covers native; a guard test);
   - **B5:** DSD (91 songs), re-check of songs failed under an older engine (the 342 ALAC M4As);
   - **B6:** streaming and sessions to other devices native (WebRTC data channels in Rust).
@@ -190,7 +194,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   Reproduce: `e2e/shared.spec.ts` "the desktop's DJ library", with the library's fields regrouped (1 run in 7).
 - **Flaky:** `shared.spec.ts` "the account's collections", from before 2026-10-02 (2 in 12 on `d403b25`, 4 in 12 on
   `3353c03`; it failed CI on `3353c03`, retry included). Three ways: the desktop's backup read once without waiting,
-  0 songs for 30 s after switching collection, the account's box not shown. Make the first a poll, then look at the
+  0 songs for 30 s after switching collection, the account's box not shown. The first is a poll now (2026-10-02); look at the
   other two (switching collections while a sync runs?).
 - **Gluey:** when a feature changes, update its article in `src/help/` and its tour in `src/core/guide/tours.ts`;
   recapture the homepage's media after visible UI changes (`vault/features/homepage.md`).

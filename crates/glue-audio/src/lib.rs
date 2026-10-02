@@ -12,6 +12,7 @@
 #![allow(clippy::needless_range_loop, clippy::result_unit_err, clippy::type_complexity, clippy::suspicious_else_formatting,
   clippy::if_same_then_else, clippy::manual_clamp, clippy::collapsible_match, clippy::manual_is_multiple_of,
   clippy::unnecessary_unwrap, clippy::manual_unwrap_or, clippy::unnecessary_map_or, clippy::manual_unwrap_or_default, clippy::neg_cmp_op_on_partial_ord)]
+pub mod control;
 pub mod decode;
 pub mod fft;
 pub mod js;
@@ -101,12 +102,13 @@ pub fn analyse(bytes: &[u8], file_name: &str, size: f64, mtime: f64, at: String)
     } else { None };
     let (channels, sr) = match flac {
       Some(d) => (d.channels, d.sample_rate as f64),
-      None => { let d = decode::decode(bytes, &info, &ext_of(file_name)).map_err(Failure::Broken)?; (d.channels, d.sr) }
+      None => { control::check().map_err(Failure::Broken)?; let d = decode::decode(bytes, &info, &ext_of(file_name)).map_err(Failure::Broken)?; (d.channels, d.sr) }
     };
     if info.channels == 0.0 || info.channels.is_nan() { info.channels = channels.len() as f64; }
     Job::Float { channels, sr, bits }
   };
   let result = run_job(job, true).map_err(Failure::Broken)?;
+  control::check().map_err(Failure::Broken)?;
   if info.sample_rate == 0.0 || info.sample_rate.is_nan() { info.sample_rate = result.sr; }
   let verdict = classify(&info, &VerdictInput {
     sr: result.sr, stats: &result.stats, ltas: &result.ltas, bin_hz: result.bin_hz, container_bits: result.container_bits,

@@ -175,8 +175,7 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     socket (GLUE Home 0.42, `ws.rs`, `src/platform/homeSocket.ts`: numbered, cancellable), else through a gate (3 at a
     time, `src/lib/gate.ts`), leaving the browser's other connections for playing; while a song plays
     (here or streamed), GLUE Home starts no new analysis beyond 2, and the running ones' reads wait (ADR 0140,
-    `local.rs` `Paced`); it reads a song whole from its own local link
-    (`/home/file`), not 4 MB at a time through Tauri.
+    `local.rs` `Paced`); its engine reads a song whole from disk, in Rust (ADR 0148).
   - **Songs played have their own port** (GLUE Home 0.42.2, ADR 0141: `local.rs` `PLAY_PORT`, `playPort` in `/hello`
     and `/connect`; `localHome.playUrl`, `platform.fileLink(…, play)`): the browser's 6 connections there are the
     songs' only. A file read resolves only its own folder (`main.rs` `resolved`, remembered), never the NAS or
@@ -207,14 +206,16 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     the build: one build per change); GLUE Home updates itself within a few hours.
 
 ## 6. Analysis
-- **Where it runs:** in a worker pool (`src/lib/pool.ts`, `src/workers/`), in GLUE Home where it runs, otherwise
-  in the tab. It makes the summary (verdict and tier, bandwidth, bit depth, BPM, key), the full details, a
+- **Where it runs:** in GLUE Home where it runs, natively (ADR 0148: its queue hands each song to `analyse_song`, which
+  reads, analyses and writes the cache in Rust); otherwise in the tab, in a worker pool (`src/lib/pool.ts`,
+  `src/workers/`). It makes the summary (verdict and tier, bandwidth, bit depth, BPM, key), the full details, a
   fingerprint, a mini spectrogram and a waveform. Versions: `ANALYSIS_VERSION` 3, `VERDICT_VERSION` 8
   (`src/store/types.ts`).
 - **The native engine** (`crates/glue-audio`, ADR 0147): the same analysis in Rust, a line-for-line port with
-  JavaScript's numbers, for GLUE Home (moving over in batches: 0.44 links it and tests it, 0.45 makes every stored
-  file and decodes lossy files, with a check against the stored results in GLUE Home's window; the service page still
-  analyses). Lossy goldens come from Edge (`e2e/golden.spec.ts`, `GOLDEN=1`). CLI: `glue-audio analyse | bench`. Held to the TypeScript's results by `tests/golden` (`tests/golden.test.ts` writes them and fails when
+  JavaScript's numbers, for GLUE Home (0.44 linked it, 0.45 made every stored file and decoded lossy files, with a check
+  against the stored results in GLUE Home's window, 0.46 analyses with it; incoming songs still use the JavaScript
+  pool until B4). A deadline (`glue_audio::control`) stops a song past `timeFor`. In e2e tests the mock stands in with
+  the website's pipeline (`e2e/home-analyse.ts`, built into `.e2e-home/`, never `home/dist`). Lossy goldens come from Edge (`e2e/golden.spec.ts`, `GOLDEN=1`). CLI: `glue-audio analyse | bench`. Held to the TypeScript's results by `tests/golden` (`tests/golden.test.ts` writes them and fails when
   they're stale; `crates/glue-audio/tests/golden.rs` compares). A native summary has `engine: "glue-audio <version>"`.
 - **`analysisState(t, a)`** (`src/core/library/analysed.ts`) returns done, failed, waiting, elsewhere (another
   computer's song) or nofile. The sidebar, Stats, the analysis bar and both queues use it.

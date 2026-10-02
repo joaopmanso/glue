@@ -106,6 +106,7 @@ pub fn decode(bytes: &[u8], info: &FileInfo, ext: &str) -> Result<Decoded, Strin
   let mut sr = track.codec_params.sample_rate.unwrap_or(0) as f64;
   let mut out: Vec<Vec<f32>> = vec![Vec::new(); nch.max(1)];
   loop {
+    crate::control::check()?;
     let p = match format.next_packet() {
       Ok(p) => p,
       Err(SymErr::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,

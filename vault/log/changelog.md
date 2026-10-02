@@ -5,6 +5,18 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.46.0: GLUE Home analyses natively (ADR 0148)
+- **GLUE Home's analysis runs in Rust now** ([ADR 0148](../adr/0148-glue-home-analyses-songs-in-rust.md)): its queue
+  hands each song to `analyse_song`, which reads the file from disk (giving way to songs being played), analyses it
+  with `crates/glue-audio` on a thread of its own and writes every cache file, the result last. No more reading over
+  the local link into the WebView, no browser decoders, no workers for the library.
+- The same failures, in the same words: a network folder dropping mid-file, out of time (2 minutes or a second a MB,
+  now a deadline inside the engine), a crash on one file: tried again; a song that can't be analysed: saved as
+  "Couldn't analyse" with why. The Speed panel's reading/analysing meter is told by the engine.
+- Results say `engine: "glue-audio 0.1.0"`; the native engine check (0.45) skips them.
+- Tests: the mock stands in with the website's pipeline (`e2e/home-analyse.ts`), built for the e2e server into
+  `.e2e-home/`, never into `home/dist`.
+
 ## 2026-10-02 · GLUE Home 0.45.0: the native engine complete, and a check against the real collection (ADR 0147)
 - **Every output in Rust now** (`crates/glue-audio`): the details (`d/`), the mini spectrogram (`t/`), the waveform
   (`w/`), the fingerprint file (`p/`), the cover (`a/`, `c/`: the picture `coverOf` picks, its hash, EXIF orientation,

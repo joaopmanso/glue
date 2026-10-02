@@ -88,4 +88,6 @@ the UI stuttering.
 ## GLUE Home's native engine (2026-10-02, [ADR 0147](../adr/0147-glue-home-analyses-natively.md))
 - `crates/glue-audio`: the same analysis in Rust, every stored file (0.44 lossless, 0.45 the rest and lossy decoders).
 - GLUE Home 0.45.0, Activity › Native engine check: re-analyses a sample natively, saves nothing, compares with the
-  stored results; outcomes in `library/x/verify.jsonl` in GLUE Home's cache. The service page still analyses until B3.
+  stored results; outcomes in `library/x/verify.jsonl` in GLUE Home's cache.
+- GLUE Home 0.46.0 analyses with it ([ADR 0148](../adr/0148-glue-home-analyses-songs-in-rust.md)): `analyse_song`
+  reads, analyses and writes the cache in Rust; the queue stays in the service page.

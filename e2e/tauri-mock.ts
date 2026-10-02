@@ -68,6 +68,7 @@ export const TAURI_MOCK = `(() => {
         // window.__find: folder name → where the drive search finds it.
         case 'find_folder': return (window.__find ?? {})[args.name] ?? null;
         // window.__findFile: song name → where the search finds it.
+        case 'analyse_song': { const b = disk(args.path); if (!b) throw 'not found'; window.__analysed = [...(window.__analysed ?? []), args.id]; send('analysis-step', args.p + '/' + args.c + '/' + args.id, 'service'); const m = await import('/__e2e/home-analyse.js'); return m.analyseSong(args, b, (rel, bytes) => { cache[rel] = Array.from(bytes); }); }
         case 'verify_song': window.__verified = [...(window.__verified ?? []), args.id]; return (window.__verifyAnswer ?? {})[args.id] ?? { kind: 'same', ms: 1000, name: args.id };
         case 'find_file': return (window.__findFile ?? {})[args.name] ?? null;
         case 'glue_list': return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));

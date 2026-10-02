@@ -1,8 +1,8 @@
 /* GLUE Home's own cache of the shared songs' mini spectrograms and full analyses (ADR 0046), in the
    app's cache folder: `t/<profile>/<collection>/<shard>/<id>.bin`, the waveforms in `w/…/<id>.bin`
    (ADR 0085) and `d/…/<id>.json` + `.bin`.
-   Filled by the website on this computer (it hands over what it analysed), and by GLUE Home itself
-   with the website's own analysis code: in the background, and at once when another computer asks. */
+   Filled by the website on this computer (it hands over what it analysed), and by GLUE Home's own native engine
+   (ADR 0147, 0148): in the background, and at once when another computer asks. */
 import { autoPool, bridge, type HomeConfig } from './bridge';
 import { shared, describe, here, trackPath } from './library';
 import { AnalysisPool } from '../../src/lib/pool';
@@ -12,7 +12,7 @@ import { DETAILS_VERSION, decodeDetails, type DetailsHeader } from '../../src/st
 import { makeWaveThumb, WAVE_BYTES } from '../../src/core/library/thumb';
 import { incomingKey } from '../../src/core/transfer';
 import { coverOf, type Cover } from '../../src/workers/cover';
-import { analysed, type Analysed, isTransient } from '../../src/core/library/analysed';
+import type { Analysed } from '../../src/core/library/analysed';
 import { failed } from '../../src/core/library/summary';
 import { gaveUp } from '../../src/core/library/analysed';
 import { encodeFingerprint } from '../../src/store/fingerprints';
@@ -131,24 +131,6 @@ export async function cacheFile(key: string) { return read(key); }
 // ---- analysing here --------------------------------------------------------------------------------
 let pool: AnalysisPool | null = null;
 
-/** A song's bytes, read whole (ADR 0138): from GLUE Home's own local link in one request, one open file, the bytes a Blob
-    (never through this page's JavaScript a piece at a time). Through Tauri 4 MB at a time it came at about 10 MB/s in
-    all from a NAS that gives 47 to 74 (2026-10-01). Through Tauri still when the local link isn't there (a GLUE Home
-    window in a test), or answers no. */
-let localPort: Promise<number> | null = null;
-async function readWhole(path: string, size: number, cfg: HomeConfig): Promise<Blob> {
-  const port = await (localPort ??= bridge.localPort().catch(() => 0));
-  if (port && cfg.localToken) {
-    const r = await fetch('http://127.0.0.1:' + port + '/home/file?path=' + encodeURIComponent(path), { headers: { 'x-glue-token': cfg.localToken } }).catch(() => null);
-    // Cut off midway (a network folder dropping): through Tauri, which says how much it read ("isn't reachable").
-    const b = r?.ok ? await r.blob().catch(() => null) : null;
-    if (b) return b;
-  }
-  const parts: ArrayBuffer[] = [];
-  for (let at = 0; at < size;) { const b = await bridge.fileRead(path, at, 4 * 1024 * 1024); if (!b.byteLength) break; parts.push(b); at += b.byteLength; }
-  return new Blob(parts);
-}
-
 /** A song given up on (ADR 0144), saved as failed: tried again when asked, or when its file changes. */
 export async function giveUp(p: string, c: string, id: string, cfg: HomeConfig, why: string) {
   const f = await trackPath(p, c, id, cfg), size = await bridge.fileSize(f.path);
@@ -156,53 +138,30 @@ export async function giveUp(p: string, c: string, id: string, cfg: HomeConfig, 
   onAnalysed.f?.(p, c, id);
 }
 
-/** How long a song's analysis may take (ADR 0144): 2 minutes, or a second a MB. */
-export const timeFor = (size: number) => Math.max(120_000, Math.round(size / 1e6) * 1000);
+/** The step each song being analysed here is at: told by GLUE Home's engine when its file is read. */
+const reading = new Map<string, () => void>();
+let listening: Promise<unknown> | null = null;
 
-/** Read a song of this computer's library (whole, readWhole) and analyse it like the website does. */
-/** `tell`: the result is for the library (false: only this cache's, filled in the background; the library has it). */
-export async function analyse(p: string, c: string, id: string, cfg: HomeConfig, tell = true): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null; bytes: number; readMs: number; analyseMs: number }> {
+/** A song of this computer's library, analysed by GLUE Home's own engine (ADR 0147, 0148): read, decoded and analysed
+    natively, its files (`t`, `w`, `d`, `c`, `a`, `p`, then `s`) written to this cache. Throws when it couldn't be:
+    a passing failure (unreadable now, out of time; `isTransient`) isn't saved, a lasting one is saved as failed.
+    `tell`: the result is for the library (false: only this cache's, filled in the background; the library has it). */
+export async function analyse(p: string, c: string, id: string, cfg: HomeConfig, tell = true): Promise<{ bytes: number; readMs: number; analyseMs: number }> {
   const f = await trackPath(p, c, id, cfg);
-  const t0 = performance.now();
+  listening ??= bridge.onAnalysisStep(k => reading.get(k)?.());
+  await listening;
+  const k = p + '/' + c + '/' + id;
   step(null, 'reading');
   let now: 'reading' | 'analysing' | null = 'reading';
+  reading.set(k, () => { if (now === 'reading') { step('reading', 'analysing'); now = 'analysing'; } });
   try {
-    const size = await bridge.fileSize(f.path);
-    const whole = await readWhole(f.path, size, cfg), got = whole.size;
-    // A network folder that dropped mid-file: tried again later, never decoded (and kept as failed) from a part.
-    if (got < size) throw new Error('GLUE Home read only part of ' + f.name + ' (' + got + ' of ' + size + ' bytes): its folder isn’t reachable right now');
-    const t1 = performance.now();
-    step('reading', 'analysing'); now = 'analysing';
-    const want = poolSize(cfg);
-    if (pool && pool.size !== want) { const old = pool; pool = null; setTimeout(() => old.stop(), 150_000); }   // what runs there finishes
-    pool ??= new AnalysisPool(want);
-    // A song that never finishes (it won't decode) mustn't hold up the others: then its worker ends (only its: every
-    // other song goes on). 2 minutes, or a second a MB for a big file (ADR 0144): a 10-minute 24-bit/192 kHz FLAC of
-    // 543 MB took 75 s on its own, and longer beside the others.
-    let r: Awaited<ReturnType<AnalysisPool['analyze']>>;
-    try {
-      r = await pool.analyze(new File([whole], f.name, { lastModified: f.mtime }), f.mtime, timeFor(size));
-    } catch (e) {
-      // Out of time or memory, or its worker stopped: tried again later (ADR 0109), never saved as the song's.
-      if (/analysis worker stopped/.test(String((e as Error)?.message)) || isTransient(String((e as Error)?.message))) throw e;
-      // Said once, like a GLUE tab says it: not tried again until the file changes.
-      const msg = String((e as Error)?.message || 'It couldn’t be decoded.').replace(/^(EncodingError: )?(Unable to decode.*|decode failed)$/i, 'It couldn’t be decoded.');
-      await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify({ summary: failed(msg, { size, mtime: f.mtime }), size, mtime: f.mtime, format: null, duration: null, fields: {} } satisfies Analysed)));
-      if (tell) onAnalysed.f?.(p, c, id);
-      throw e;
-    }
-    const t2 = performance.now();
-    step('analysing', null); now = null;
-    if (r.thumb) await putThumb(p, c, id, r.thumb);
-    if (r.wave) await putWave(p, c, id, r.wave);
-    if (r.details) await putDetails(p, c, id, r.details.header, r.details.bin);
-    if (r.art !== undefined) await keepCover(p, c, id, r.art);
-    if (r.fp) await bridge.cacheWrite(pKey(p, c, id), encodeFingerprint(r.fp));
-    await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify(analysed(r, size, f.mtime))));   // last: a result has all its parts
+    const r = await bridge.analyseSong(f.path, p, c, id, f.mtime).catch(e => { throw e instanceof Error ? e : new Error(String(e)); });
+    // Said once, like a GLUE tab says it: not tried again until the file changes.
+    if (r.failed) { if (tell) onAnalysed.f?.(p, c, id); throw new Error(r.failed); }
     if (tell) onAnalysed.f?.(p, c, id);
     onMade.f?.(p, c, id);
-    return { thumb: r.thumb, header: r.details?.header ?? null, bin: r.details?.bin ?? null, bytes: got, readMs: t1 - t0, analyseMs: t2 - t1 };
-  } finally { if (now) step(now, null); }
+    return { bytes: r.bytes, readMs: r.readMs, analyseMs: r.analyseMs };
+  } finally { reading.delete(k); if (now) step(now, null); }
 }
 
 /** When another device last streamed a song from here (ADR 0138): the analysis eases off, as for this computer's page. */

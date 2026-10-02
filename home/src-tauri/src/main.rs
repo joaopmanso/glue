@@ -508,16 +508,19 @@ async fn cache_write(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result
     let tauri::ipc::InvokeBody::Raw(data) = request.body() else {
         return Err("expected bytes".into());
     };
-    let r = (|| {
-        let p = cache_path(&app, &rel)?;
-        if let Some(d) = p.parent() {
-            fs::create_dir_all(d).map_err(|e| e.to_string())?;
-        }
-        let tmp = p.with_extension("tmp");
-        fs::write(&tmp, data).map_err(|e| e.to_string())?;
-        fs::rename(&tmp, &p).map_err(|e| e.to_string())
-    })();
+    let r = cache_put(&app, &rel, data);
     count("bridge cache_write", t0, r, |_| data.len() as u64)
+}
+
+/// Write a cache file whole (a temporary file, then renamed: a reader never sees half of it).
+pub(crate) fn cache_put(app: &AppHandle, rel: &str, data: &[u8]) -> Result<(), String> {
+    let p = cache_path(app, rel)?;
+    if let Some(d) = p.parent() {
+        fs::create_dir_all(d).map_err(|e| e.to_string())?;
+    }
+    let tmp = p.with_extension("tmp");
+    fs::write(&tmp, data).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &p).map_err(|e| e.to_string())
 }
 
 /// The names of the files in a cache folder.
@@ -653,7 +656,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_song])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

@@ -107,6 +107,10 @@ export const bridge = {
   cacheRead: (rel: string) => invoke<ArrayBuffer>('cache_read', { rel }),
   cacheWrite: (rel: string, bytes: Uint8Array) => invoke<void>('cache_write', bytes, { headers: { 'x-rel': rel } }),
   cacheList: (rel: string) => invoke<string[]>('cache_list', { rel }),
+  /** A song analysed by GLUE Home's own engine into this cache (ADR 0148); `failed`: it couldn't be, saved as such. */
+  analyseSong: (path: string, p: string, c: string, id: string, mtime: number) => invoke<{ bytes: number; readMs: number; analyseMs: number; failed?: string; label?: string }>('analyse_song', { path, p, c, id, mtime }),
+  /** The engine read a song's file (`p/c/id`): analysing it now. */
+  onAnalysisStep: (f: (key: string) => void) => listen<string>('analysis-step', e => f(e.payload)),
   /** What GLUE Home's own side was asked since it started: the local link, the service page's file reads (ADR 0083). */
   activity: () => invoke<{ seconds: number; counts: Record<string, Activity> }>('activity_now'),
   incomingList: () => invoke<{ name: string; size: number; mtime: number; path: string }[]>('incoming_list'),

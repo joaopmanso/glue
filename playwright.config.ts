@@ -41,8 +41,9 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120_000,
   }, {
-    // GLUE Home's settings and service pages (home/ui), for e2e/home.spec.ts.
-    command: 'npm run home:ui && npm run home:preview',
+    // GLUE Home's settings and service pages (home/ui), for e2e/home.spec.ts, with the stand-in for its native analysis
+    // (e2e/home-analyse.ts), in .e2e-home: home/dist, which GLUE Home ships, never has it.
+    command: 'npx vite build --config home/vite.config.ts --outDir ../../.e2e-home && npx vite build --config e2e/home-analyse.config.ts && npx vite preview --config home/vite.config.ts --outDir ../../.e2e-home',
     url: 'http://localhost:5176/index.html',
     reuseExistingServer: false,
     timeout: 120_000,

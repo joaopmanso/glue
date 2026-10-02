@@ -1599,7 +1599,7 @@ dependencies = [
 
 [[package]]
 name = "glue-home"
-version = "0.45.0"
+version = "0.46.0"
 dependencies = [
  "glue-audio",
  "lofty",

@@ -29,3 +29,15 @@ fn lossy_files_decode() {
     assert!(a.result.duration > 11.0, "{name}: {} s", a.result.duration);
   }
 }
+
+/// Past its deadline an analysis stops with the website's passing failure ("took too long"), on every decoder's path.
+#[test]
+fn a_deadline_stops_the_analysis() {
+  for name in ["demo-alac.flac", "demo-320.mp3"] {
+    let b = fixture(name);
+    glue_audio::control::set_deadline(Some(std::time::Instant::now()));
+    let r = analyse(&b, name, b.len() as f64, 0.0, String::new());
+    glue_audio::control::set_deadline(None);
+    assert!(matches!(&r, Err(glue_audio::Failure::Broken(m)) if m.contains("took too long")), "{name}");
+  }
+}
