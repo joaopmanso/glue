@@ -5,6 +5,21 @@ updated: 2026-09-30
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-02 · GLUE Home 0.43.0: FLAC decoded by GLUE; the laptop's missing songs; the console's errors
+- **7 songs "analysing" for ever** ([ADR 0144](../adr/0144-flac-decoded-by-glue-and-a-song-given-up-on-says-so.md)):
+  John Coltrane's *Blue Train* (24-bit/192 kHz FLACs, up to 543 MB) and two more failed 3 times each in GLUE Home,
+  which then stopped trying without saving anything. Edge's decoder stalled on them, the page decoder refused them,
+  ffmpeg gave nothing: 17 MB of zeros sit before their first frame.
+  - GLUE decodes FLAC itself now: the fixtures match ffmpeg, the two big files match their own MD5; *Blue Train*
+    decodes in 27 s and is analysed in 75 s.
+  - A song gets 2 minutes or a second a MB; one given up on is saved as "Couldn't analyse", with why.
+- **The laptop without the desktop's network-folder songs** until the collection was opened again
+  ([ADR 0143](../adr/0143-a-sync-takes-in-what-it-wrote-and-looking-for-glue-home-needs-a-reason.md)): a sync that
+  failed after pulling, or a collection opened again meanwhile, left the pulled files unread. Now what a sync writes is
+  read in whatever happens; GLUE Home's engine too.
+- **Dozens of `127.0.0.1:4740x/hello` errors in the laptop's console:** it looked for a GLUE Home on itself every
+  15 s. Now only when one of the account's may be there; otherwise once.
+
 ## 2026-10-02 · Waveforms: a row on screen always gets its own
 - **The user:** after a few jumps down the list with the scroll bar, a block of 5 or 6 rows had no waveform for
   10–15 s; the song's page and back loaded them at once

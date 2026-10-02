@@ -76,15 +76,18 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
       const place = { root: glue, pid: p.id, cid: c.id, me, cloud: cloudFor(api, token, c.id) };
       // Only the files written here since the last sync are looked at (every one now and then, ADR 0107).
       let hint = engine.takeWritten(p.id, c.id);
-      let res: Awaited<ReturnType<typeof syncShared>>;
-      try { res = await syncShared(place, hint); } catch (e) {
+      // What came in, into the engine's store (and a GLUE tab's feed), as it's written: also when the sync fails partway,
+      // having written some (ADR 0143).
+      const got: string[] = [];
+      try { await syncShared(place, hint, got); } catch (e) {
         engine.writtenAgain(p.id, c.id, hint);
         // Deleted from the account on another device (ADR 0112): a backup, then forgotten here.
         if ((e as { status?: number }).status === 410) { await forget(glue, p.id, c.id, meta.name ?? c.id); continue; }
+        if (got.length) await engine.reload(cfg, p.id, c.id, [...new Set(got)]).catch(() => {});
         throw e;
       }
+      const res = { changed: [...new Set(got)] };
       changed += res.changed.length;
-      // What came in, into the engine's store (and a GLUE tab's feed).
       await engine.reload(cfg, p.id, c.id, res.changed);
       // Song info edited elsewhere, into this computer's files; their new size and date go back up.
       const s = await engine.store(cfg, p.id, c.id);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analysisState, isTransient, needsAnalysis } from '../src/core/library/analysed';
+import { analysisState, gaveUp, isTransient, needsAnalysis } from '../src/core/library/analysed';
 import { failed } from '../src/core/library/summary';
 import { stats, type StatTrack } from '../src/core/library/stats';
 import { ANALYSIS_VERSION, type AnalysisSummary } from '../src/store/types';
@@ -34,5 +34,20 @@ describe('one meaning of "not analysed" (ADR 0109)', () => {
     ] as StatTrack[]);
     expect(s.grades.none).toBe(4);
     expect(s.ungraded).toEqual({ waiting: 1, failed: 1, nofile: 1, elsewhere: 1 });
+  });
+});
+
+// The user, 2026-10-02: GLUE Home stopped trying 7 songs (3 tries each, out of time) without saying so, and every GLUE
+// went on counting them as analysing. Given up on, a song is "Couldn't analyse", with why (ADR 0144).
+describe('a song GLUE Home gave up on', () => {
+  it('is failed, not waiting, whatever the reason, and says why', () => {
+    for (const [why, says] of [['the analysis took too long', 'didn’t finish in time'], ['Array buffer allocation failed', 'enough memory'],
+      ['out of memory', 'enough memory'], ['the analysis worker stopped', 'analysis stopped'], ['NotReadableError', 'couldn’t be read']]) {
+      const msg = gaveUp(why);
+      expect(isTransient(why)).toBe(true);
+      expect(isTransient(msg)).toBe(false);
+      expect(msg).toContain(says);
+      expect(analysisState(t, failed(msg, { size: 10, mtime: 1 }), ANALYSIS_VERSION)).toBe('failed');
+    }
   });
 });

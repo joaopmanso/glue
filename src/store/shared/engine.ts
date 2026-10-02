@@ -191,10 +191,11 @@ async function fromSnapshot(p: Place, s: State, floor: number, changed: string[]
   s.cursor = floor;
 }
 
-/** Take in what changed in the cloud. `changed`: the local files that changed (the store reloads them). */
-export async function pull(p: Place, st?: State): Promise<{ state: State; changed: string[]; clashes: Clash[] }> {
+/** Take in what changed in the cloud. `changed`: the local files that changed (the store reloads them), told as each
+    is written: a sync that fails later has still written them, and moved its cursor past them (ADR 0143). */
+export async function pull(p: Place, st?: State, changed: string[] = []): Promise<{ state: State; changed: string[]; clashes: Clash[] }> {
   const s = st ?? await State.load(p);
-  const changed: string[] = [], clashes: Clash[] = [];
+  const clashes: Clash[] = [];
   for (let more = true, resets = 0; more;) {
     const r = await p.cloud.log(s.cursor);
     if (!r || typeof r.seq !== 'number' || !Array.isArray(r.entries)) throw new Error('GLUE Cloud answered strangely');
@@ -231,10 +232,10 @@ const entryOf = (batch: Todo[]) => packText(JSON.stringify({ v: 1, f: Object.fro
 /** Send what changed here, as entries of the log (`only`: just these files may have; else all are looked
     at). On a stale revision: pulled, merged and sent again (a few times at most). Then the log folded into
     the snapshot, if GLUE Cloud asks. */
-export async function push(p: Place, st?: State, only?: Iterable<string>): Promise<{ state: State; pushed: number; changed: string[]; clashes: Clash[] }> {
+export async function push(p: Place, st?: State, only?: Iterable<string>, changed: string[] = []): Promise<{ state: State; pushed: number; changed: string[]; clashes: Clash[] }> {
   let s = st ?? await State.load(p);
   let pushed = 0, compact = false;
-  const changed: string[] = [], clashes: Clash[] = [];
+  const clashes: Clash[] = [];
   const hinted = only ? new Set([...only].filter(x => SYNCED.test(x))) : null;
   for (let round = 0; round < 5; round++) {
     // One file at a time: read, compared, and only what changed kept.
@@ -272,8 +273,8 @@ export async function push(p: Place, st?: State, only?: Iterable<string>): Promi
       await s.save();
     }
     if (!stale) break;
-    const pl = await pull(p, s);
-    s = pl.state; changed.push(...pl.changed); clashes.push(...pl.clashes);
+    const pl = await pull(p, s, changed);
+    s = pl.state; clashes.push(...pl.clashes);
     // What the merge wrote here goes up too.
     if (hinted) for (const x of s.merged) hinted.add(x);
   }
@@ -301,10 +302,12 @@ async function checkpoint(p: Place, s: State) {
 
 /** Both ways: take in the cloud's changes, then send this side's. `changed`: the only files that may have
     changed here since the last sync (the store says what it wrote); without, every file is looked at. */
-export async function syncShared(p: Place, changedHere?: Iterable<string>): Promise<SyncResult> {
-  const a = await pull(p);
-  const b = await push(p, a.state, changedHere ? [...changedHere, ...a.state.merged] : undefined);
-  return { changed: [...new Set([...a.changed, ...b.changed])], clashes: [...a.clashes, ...b.clashes], pushed: b.pushed };
+/** `changed`: filled with the local files that changed as they're written, so a caller reloads them even when the
+    sync fails partway (ADR 0143). */
+export async function syncShared(p: Place, changedHere?: Iterable<string>, changed: string[] = []): Promise<SyncResult> {
+  const a = await pull(p, undefined, changed);
+  const b = await push(p, a.state, changedHere ? [...changedHere, ...a.state.merged] : undefined, changed);
+  return { changed: [...new Set(changed)], clashes: [...a.clashes, ...b.clashes], pushed: b.pushed };
 }
 
 /** The clashes waiting for an answer (kept with the sync state). */

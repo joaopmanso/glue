@@ -22,7 +22,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - the old `sync_*` D1 tables stay.
 
 ## State (2026-10-02)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.42.2.
+- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.43.0.
 - **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
   - one id per computer;
   - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
@@ -73,6 +73,16 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **GLUE Home 0.43.0** (ADR 0144): after it updates, the 7 songs (John Coltrane's *Blue Train* and two more, NAS "Music
+  HR") should be analysed (it tries again after a restart, and GLUE decodes FLAC itself now). The tab's "7 analysing"
+  should go. A song that still fails shows in "Couldn't analyse" with why.
+- **The laptop** (ADR 0143, website): the desktop's network-folder songs should show without choosing the profile
+  again; Chrome's console should have `/hello` errors once on opening, not every 15 s.
+- **Alt+Tab: about 8 entries "GLUE · Global Library…" or "GLUE Home"** on the laptop (browser closed, no GLUE Home
+  installed) and on the desktop; choosing one does nothing. Not found yet: on the desktop, GLUE Home's own windows
+  (main, service, dock) are hidden, and only Chrome's GLUE window was a visible one (checked with EnumWindows,
+  2026-10-02). Ask the user to press Alt+Tab on the desktop and say what shows, then list the windows again then.
+  Suspect Windows (10.0.26300, an Insider build) showing browser tabs or recent windows in Alt+Tab.
 - **Waveforms after jumps** (ADR 0142, website only): drag the scroll bar about 5,000 songs down and again, 3 or 4
   times. Every row on screen should get its waveform as soon as the others, no block left empty.
 - **GLUE Home 0.42.2** (ADR 0141): **confirmed** by the user, 2026-10-02: "the playing is great, it's very fast".

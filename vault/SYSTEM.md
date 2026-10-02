@@ -116,6 +116,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     - `merge3` merges per field; for per-computer parts, a computer's own side wins;
     - clashes wait in a box (ADR 0095).
     - GLUE Home syncs where it runs (`home/ui/sharedSync.ts`); otherwise the tab does (`src/lib/shared.svelte.ts`).
+    - the files a sync wrote are told as it writes them (`syncShared(…, changed)`), and read again into the open
+      collection even when the sync fails partway or the collection was opened again (ADR 0143).
   - **The account's list of collections** (`GET /v1/shared`):
     - each computer's numbers (`stats.by`: songs, last change), sent after a sync only by a computer with songs
       or music folders;
@@ -132,7 +134,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **Local link** (`home/src-tauri/src/local.rs`), `http://127.0.0.1:47400–47409`:
   - `/hello` (who it is);
   - `/connect`: hands the link's token to the live website's origin, so any browser on the computer gets it
-    (ADR 0115);
+    (ADR 0115). The website looks for it (ten ports) every 15 s only while one of the account's GLUE Homes may be on
+    this computer; otherwise once, and when which are online changes (ADR 0143);
   - `/fs/*` (GLUE Home's disk: `roots`, `list`, `file` with byte ranges, `write`, `mkdir`, `remove`, `stat`,
     `tags`, `dupes`, `pick`);
   - `/cache` (its analyses), `/rpc` (the engine), `/lease`, `/attach`, `/incoming`, `/dock`, `/folders`.
@@ -144,7 +147,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     `edit`), saves them, and feeds changes back (`wait`). It repairs parts written under another id (ADR 0108).
   - **analysis** (`analysis.ts`, `cache.ts`): a pool of workers, several songs at a time (settings). Songs added
     from a tab are looked for at once. Passing failures (time-outs, memory) are retried, never stored
-    (ADR 0109). Results go into the collection while no pre-engine tab holds the lease.
+    (ADR 0109); after the third try the song is saved as failed, with why (ADR 0144). A song has 2 minutes, or a
+    second a MB (`cache.timeFor`). Results go into the collection while no pre-engine tab holds the lease.
+  - **FLAC is decoded by GLUE** (`src/core/formats/flac.ts`, ADR 0144), in every analysis worker (`decode.ts`): exact,
+    any rate, read a part at a time; the browser's decoders for the other formats, and when it can't.
   - shared sync, song info written into files (`writeUnwritten`), backups, duplicates moved or recycled
     (ADR 0070), DJ libraries followed live (ADR 0065), reminders, updates.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (`ice.ts`; the site's `remoteFiles.svelte.ts`).

@@ -24,6 +24,10 @@ export function afterAnalysis(cur: Track, a: Analysed): Track {
 /** A failure that says nothing about the song: out of time or memory, or its file couldn't be read just then (a
     network folder that dropped, 2026-10-01). Tried again, never kept as the song's. */
 export const isTransient = (msg: string | null | undefined) => !!msg && /took too long|allocation failed|out of memory|worker stopped|could not be read|isn’t reachable|NotReadableError|read only part of/i.test(msg);
+/** Why GLUE Home gave up on a song after its last try, in words that don't say "try again" (`isTransient`): saved as
+    the song's, so it shows as "Couldn't analyse" with the reason, not as waiting for ever (ADR 0144). */
+export const gaveUp = (why: string) => 'GLUE Home gave up after 3 tries: ' + (/took too long/i.test(why) ? 'it didn’t finish in time'
+  : /allocation failed|out of memory/i.test(why) ? 'there wasn’t enough memory for it' : /worker stopped/i.test(why) ? 'its analysis stopped' : 'it couldn’t be read') + '. Analyse it again to retry.';
 
 /** Where a song's analysis stands, one meaning everywhere (the sidebar, the list, Stats, GLUE Home, ADR 0109):
     - done: analysed, this file as it is;

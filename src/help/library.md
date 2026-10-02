@@ -12,7 +12,7 @@ The **Library** section of the sidebar picks songs out:
 - **All tracks** and **Recently added**.
 - **Browse**: by artist, album, genre, label or year.
 - **Lower quality**: songs below a lossless file of their format (lossy, transcoded, upsampled…). For information: nothing to do. See [Quality](#/help/quality).
-- **Not analysed yet** and **Couldn't analyse**.
+- **Not analysed yet** and **Couldn't analyse**. A song that couldn't be analysed says why on its page; one GLUE Home gave up on after three tries (it ran out of time or memory) is tried again when you analyse it again.
 - **No file linked**: songs a DJ library lists whose file isn't found. See [No file linked](#/help/no-file).
 - **Duplicates**: see [Duplicates](#/help/duplicates).
 

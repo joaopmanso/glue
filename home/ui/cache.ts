@@ -14,6 +14,7 @@ import { incomingKey } from '../../src/core/transfer';
 import { coverOf, type Cover } from '../../src/workers/cover';
 import { analysed, type Analysed, isTransient } from '../../src/core/library/analysed';
 import { failed } from '../../src/core/library/summary';
+import { gaveUp } from '../../src/core/library/analysed';
 import { encodeFingerprint } from '../../src/store/fingerprints';
 
 const tKey = (p: string, c: string, id: string) => `t/${p}/${c}/${shardOf(id)}/${id}.bin`;
@@ -148,6 +149,16 @@ async function readWhole(path: string, size: number, cfg: HomeConfig): Promise<B
   return new Blob(parts);
 }
 
+/** A song given up on (ADR 0144), saved as failed: tried again when asked, or when its file changes. */
+export async function giveUp(p: string, c: string, id: string, cfg: HomeConfig, why: string) {
+  const f = await trackPath(p, c, id, cfg), size = await bridge.fileSize(f.path);
+  await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify({ summary: failed(gaveUp(why), { size, mtime: f.mtime }), size, mtime: f.mtime, format: null, duration: null, fields: {} } satisfies Analysed)));
+  onAnalysed.f?.(p, c, id);
+}
+
+/** How long a song's analysis may take (ADR 0144): 2 minutes, or a second a MB. */
+export const timeFor = (size: number) => Math.max(120_000, Math.round(size / 1e6) * 1000);
+
 /** Read a song of this computer's library (whole, readWhole) and analyse it like the website does. */
 /** `tell`: the result is for the library (false: only this cache's, filled in the background; the library has it). */
 export async function analyse(p: string, c: string, id: string, cfg: HomeConfig, tell = true): Promise<{ thumb: Uint8Array | null; header: DetailsHeader | null; bin: Uint8Array | null; bytes: number; readMs: number; analyseMs: number }> {
@@ -165,11 +176,12 @@ export async function analyse(p: string, c: string, id: string, cfg: HomeConfig,
     const want = poolSize(cfg);
     if (pool && pool.size !== want) { const old = pool; pool = null; setTimeout(() => old.stop(), 150_000); }   // what runs there finishes
     pool ??= new AnalysisPool(want);
-    // A song that never finishes (it won't decode) mustn't hold up the others: 2 minutes at most, then its
-    // worker ends (only its: every other song goes on).
+    // A song that never finishes (it won't decode) mustn't hold up the others: then its worker ends (only its: every
+    // other song goes on). 2 minutes, or a second a MB for a big file (ADR 0144): a 10-minute 24-bit/192 kHz FLAC of
+    // 543 MB took 75 s on its own, and longer beside the others.
     let r: Awaited<ReturnType<AnalysisPool['analyze']>>;
     try {
-      r = await pool.analyze(new File([whole], f.name, { lastModified: f.mtime }), f.mtime, 120_000);
+      r = await pool.analyze(new File([whole], f.name, { lastModified: f.mtime }), f.mtime, timeFor(size));
     } catch (e) {
       // Out of time or memory, or its worker stopped: tried again later (ADR 0109), never saved as the song's.
       if (/analysis worker stopped/.test(String((e as Error)?.message)) || isTransient(String((e as Error)?.message))) throw e;

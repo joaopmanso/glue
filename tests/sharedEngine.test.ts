@@ -48,6 +48,26 @@ describe('syncing a shared collection (ADR 0094)', () => {
       expect((await d.read<{ items: string[] }>('lists/l1.json'))!.items).toEqual(['zz9', 'aa1', 'aa2']);
     }
   });
+  // The user, 2026-10-02: the laptop lacked the desktop's 9,807 new songs until the collection was opened again. A sync
+  // that fails after its pull has written the files, and moved its cursor past them: the next one reports none.
+  it('a sync that fails partway still says which files it wrote (ADR 0143)', async () => {
+    const server = new SharedCloudServer();
+    const desk = await device('desk', server), lap = await device('lap', server);
+    await desk.write('tracks/aa.json', trackShard({ aa1: song('aa1') }));
+    await syncShared(desk.p); await syncShared(lap.p);
+    await desk.write('tracks/bb.json', trackShard({ bb1: song('bb1'), bb2: song('bb2') }));
+    await syncShared(desk.p);
+    // The laptop has a change of its own; sending it fails (the network, GLUE Cloud).
+    await lap.write('lists/l9.json', { id: 'l9', name: 'Mine', items: [] });
+    const failing = { ...lap.p, cloud: { ...lap.p.cloud, append: async () => { throw new Error('offline'); } } };
+    const got: string[] = [];
+    await expect(syncShared(failing, undefined, got)).rejects.toThrow('offline');
+    expect(got).toContain('tracks/bb.json');
+    expect((await lap.read<{ items: Record<string, unknown> }>('tracks/bb.json'))!.items.bb2).toBeTruthy();
+    // Why it matters: the next sync has nothing new to say about it.
+    expect((await syncShared(lap.p)).changed).not.toContain('tracks/bb.json');
+  });
+
   it('the same thing changed differently on both: the cloud’s kept, the clash reported and remembered', async () => {
     const server = new SharedCloudServer();
     const desk = await device('desk', server), lap = await device('lap', server);

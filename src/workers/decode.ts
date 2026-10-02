@@ -7,8 +7,17 @@ import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
 import { mp3Gapless } from '../core/formats/parse';
 import { keepRange } from '../core/audio/trim';
 import type { FileInfo } from '../core/types';
+import { decodeFlac } from '../core/formats/flac';
 
 export async function decodeHere(file: Blob, info: FileInfo, head: Uint8Array): Promise<{ channels: Float32Array[]; sr: number } | null> {
+  // FLAC, decoded by GLUE (ADR 0144): exact, at any rate, and read a part at a time. WebCodecs stalled in Edge's GPU
+  // process on 24-bit/192 kHz FLACs and the page decoder refused them (2026-10-02).
+  if (info.container === 'FLAC') {
+    try {
+      const pcm = await decodeFlac(file.size, async (s, e) => new Uint8Array(await file.slice(s, e).arrayBuffer()));
+      if (pcm.channels[0]?.length) return { channels: pcm.channels, sr: pcm.sampleRate };
+    } catch (e) { console.warn('GLUE’s FLAC decoder couldn’t read it; the browser decodes it', e); }
+  }
   if (typeof AudioDecoder === 'undefined') return null;
   const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
   try {

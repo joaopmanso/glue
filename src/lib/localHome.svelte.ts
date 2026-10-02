@@ -38,10 +38,15 @@ async function connect(port: number, ms = 1500): Promise<LocalLink | null> {
   } catch { return null; }
 }
 
-/** Any GLUE Home running on this computer, found by asking each of its ports (ADR 0091). */
-export async function discover(): Promise<{ port: number; device: string } | null> {
-  const found = await Promise.all(Array.from({ length: 10 }, (_, i) => 47400 + i).map(async port => { const h = await hello(port, 2000); return h?.app === 'glue-home' && h.device ? { port, device: h.device } : null; }));
-  return found.find(Boolean) ?? null;
+/** Any GLUE Home running on this computer, found by asking each of its ports (ADR 0091). Each port that doesn't answer
+    is an error in the browser's console, which no page can hide: looks within 10 s of each other share one (ADR 0143). */
+let looked: { at: number; found: Promise<{ port: number; device: string } | null> } | null = null;
+export function discover(): Promise<{ port: number; device: string } | null> {
+  if (looked && Date.now() - looked.at < 10_000) return looked.found;
+  const found = Promise.all(Array.from({ length: 10 }, (_, i) => 47400 + i).map(async port => { const h = await hello(port, 2000); return h?.app === 'glue-home' && h.device ? { port, device: h.device } : null; }))
+    .then(all => all.find(Boolean) ?? null);
+  looked = { at: Date.now(), found };
+  return found;
 }
 
 class LocalHome {
@@ -114,10 +119,19 @@ class LocalHome {
     return true;
   }
   private lookedHere = 0;
-  /** Signed in to an account with a GLUE Home, and none linked here yet: look on this computer (every 15 s at most). */
+  private lookedFor: string | null = null;
+  /** Signed in to an account with a GLUE Home, and none linked here yet: look on this computer. Every 15 s at most while
+      one may be here: this browser's computer's, or one not placed on a computer yet (just installed). The others run
+      on other computers: looked for once, and again when which of them are online changes (a second browser on that
+      computer joins it, ADR 0091). Looking on every 15 s put 10 errors in the laptop's console each time (the user,
+      2026-10-02, ADR 0143). */
   lookIfAccountHasOne() {
-    if (this.link || Date.now() - this.lookedHere < 15_000 || !account.devices.some(d => d.kind === 'home')) return;
-    this.lookedHere = Date.now();
+    const homes = account.devices.filter(d => d.kind === 'home');
+    if (this.link || !homes.length || Date.now() - this.lookedHere < 15_000) return;
+    const maybeHere = homes.some(h => !h.companionOf || h.companionOf === account.thisDevice);
+    const online = homes.filter(h => account.online.has(h.id)).map(h => h.id).sort().join();
+    if (!maybeHere && this.lookedFor === online) return;
+    this.lookedHere = Date.now(); this.lookedFor = online;
     void this.findHere();
   }
   /** The first time (and after GLUE Home connected again): ask it over the account's channel. */
@@ -152,4 +166,4 @@ export const localHome = new LocalHome();
 /** The socket for the background loads from this computer's GLUE Home (ADR 0139); none before GLUE Home 0.42. */
 export const homeSocket = new HomeSocket(() => { const l = localHome.link; return l?.wsPort ? 'ws://127.0.0.1:' + l.wsPort + '/?t=' + encodeURIComponent(l.token) : null; });
 // Signed in to an account with a GLUE Home: this browser may be on its computer (Edge next to Chrome, ADR 0115).
-if (typeof window !== 'undefined') $effect.root(() => { $effect(() => { void account.devices; if (account.signedIn) localHome.lookIfAccountHasOne(); }); });
+if (typeof window !== 'undefined') $effect.root(() => { $effect(() => { void account.devices; void account.online; if (account.signedIn) localHome.lookIfAccountHasOne(); }); });

@@ -155,19 +155,32 @@ class Shared {
       const full = Date.now() - this.lookedAt > 30 * 60e3, hint = full ? undefined : [...this.written];
       if (full) this.lookedAt = Date.now();
       this.written.clear();
-      let r: Awaited<ReturnType<typeof syncShared>>;
-      try { r = await syncShared(p, hint); } catch (e) { if (hint) for (const x of hint) this.written.add(x); else this.lookedAt = 0; throw e; }
-      if (lib.store !== s) return;
-      if (r.changed.length) await s.reloadFiles(r.changed.filter(f => !f.startsWith('dupes/')));
-      if (r.changed.some(f => f.startsWith('dupes/'))) void dupes.loadOthers();   // another computer's duplicates (ADR 0098)
+      // What the sync wrote here, as it writes it: into the open collection even when the sync fails partway or the
+      // collection was opened again meanwhile. Both left the laptop without the desktop's 9,807 new songs until the
+      // collection was opened again (2026-10-02, ADR 0143).
+      const got: string[] = [];
+      try {
+        try { await syncShared(p, hint, got); } catch (e) { if (hint) for (const x of hint) this.written.add(x); else this.lookedAt = 0; throw e; }
+      } finally { await this.takeIn(s.meta.id, got); }
+      const now = lib.store;
+      if (!now || now.meta.id !== s.meta.id) return;
       // Clashes wait for an answer (the box, ADR 0095), kept with the sync state until then.
       this.clashes = await waitingClashes(p);
-      this.sendCounts(s);
+      this.sendCounts(now);
       this.status = { busy: false, at: Date.now(), error: '' };
     } catch (e) {
       this.status = { ...this.status, busy: false, error: (e as Error).message };
       if (GONE.test((e as Error).message)) void this.refreshList();   // deleted on another device: forgotten here
     }
+  }
+
+  /** Files a sync wrote, read again by the open collection if it's that one (ADR 0143). */
+  private async takeIn(cid: string, files: string[]) {
+    const s = lib.store, all = [...new Set(files)];
+    if (!s || s.meta.id !== cid || !all.length) return;
+    const mine = all.filter(f => !f.startsWith('dupes/'));
+    if (mine.length) await s.reloadFiles(mine);
+    if (mine.length < all.length) void dupes.loadOthers();   // another computer's duplicates (ADR 0098)
   }
 
   /** Settle clashes (ADR 0095): this device's value, the other's (already in place), or both joined. */

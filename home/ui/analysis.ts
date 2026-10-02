@@ -211,7 +211,13 @@ export async function run(cfg: () => HomeConfig | null): Promise<void> {
         catch (e) {
           // Its folder isn't reachable (a network folder not connected): left for a later look, not a failure.
           if ((e as Error).name === 'FolderAway' || /isn’t reachable/.test(String((e as Error)?.message))) state.away++;
-          else { state.failed++; const k = key(j.p, j.c) + '/' + j.id; tries.set(k, (tries.get(k) ?? 0) + 1); console.warn('GLUE Home: couldn’t analyse', j.name, e); }
+          else {
+            state.failed++; const k = key(j.p, j.c) + '/' + j.id, n = (tries.get(k) ?? 0) + 1;
+            tries.set(k, n); console.warn('GLUE Home: couldn’t analyse', j.name, e);
+            // The last try: saved as failed, with why, so it isn't "waiting" for ever in every GLUE (ADR 0144). The tab
+            // counted 7 songs as analysing long after GLUE Home had stopped trying them (2026-10-02).
+            if (n >= 3) await cache.giveUp(j.p, j.c, j.id, c, String((e as Error)?.message ?? e)).catch(x => console.warn('GLUE Home: couldn’t save that it gave up on', j.name, x));
+          }
         }
         active.delete(jk);
         if (j.net) netRunning.set(j.net, (netRunning.get(j.net) ?? 1) - 1);
