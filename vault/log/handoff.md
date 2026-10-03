@@ -76,37 +76,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
-- **The three songs (2026-10-02):** checked against Edge (changelog 0.49.3): Hello and Donna Lee now match, and Deftones
-  is decoded better natively. Delete them from the laptop's Downloads when done (the user's music).
-- **The native engine check, third run (0.49.0, 2026-10-02):** 8 real differences in ~390 (changelog 0.49.2). **Next run
-  on 0.49.2:** do the 5 FLACs that differ have `storedAt` before 0.43.0 (2026-10-02, GLUE's own FLAC decoder) and
-  `decoder: "flac"`? Then the stored ones are the browser's decode, and the fix is to analyse them again (GLUE Home
-  could re-check FLACs analysed before 0.43). Still asked: the two MP3s, and one of the FLACs ("05 - Hello.flac").
-- **The native engine check, second run (0.48):** see the changelog (0.49.1). **Asked of the user:** copy "1-01 Donna
-  Lee.mp3" and "Deftones - Nosebleed demo.mp3" to the laptop (Downloads) to find the MP3 difference. After 0.49.1, a
-  third run should show almost all "the same" (FLACs with an ID3v2 tag before the stream are now GLUE's own decoder's).
-- **The native engine check, first run (2026-10-02, desktop, 1,000 songs):** 111 the same, 0 close, 299 differ, 0 failed
-  natively, 14 only native could, 576 skipped, 2.7 s a song. Nearly every "differ" was "d: the header differs" (the
-  check didn't say which field); one MP3 (Deftones, "Nosebleed demo") really differs (17% of fingerprint bits: a
-  shifted decode?). **Next:** after 0.47 arrives, run it again (100 songs is enough): it names the fields now; send
-  the "differ" lines and the "Skipped:" line. If it's the MP3's trim, ask for that file.
-- **The native engine check (GLUE Home 0.45.0, ADR 0147), on the desktop:** after it updates, GLUE Home's window ›
-  Activity › Native engine check › 1,000 › Check. It analyses those songs again natively (nothing is saved) and gives
-  a tally; the ones that differ are listed. Send the tally, and `x/verify.jsonl` (in GLUE Home's cache folder,
-  `%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\x\`) if anything differs or failed. This is the gate for B3 (GLUE Home
-  analysing natively, shipped in 0.46 without waiting, as the user asked: "go on until all batches are done"). Run it
-  soon after 0.46 arrives, before the queue has analysed much natively (the check skips native results). Also its "a
-  song natively" time against the Speed panel's. If songs differ: their results say `engine`, so they can be found
-  and analysed again once fixed.
-- **GLUE Home 0.46.0** (ADR 0148): analysis should look the same in GLUE Home's window (the Speed panel, songs at a
-  time, Pause), faster per song; the 342 ALAC M4As only when they're analysed again (B5).
-- **GLUE Home 0.49.0: streaming native** (ADR 0150), the hand test that matters most:
-  - the laptop and the iPhone at home (Wi-Fi): songs play from the desktop, waveforms and covers appear, Devices
-    connected lists them;
-  - **the iPhone on mobile data** (relayed through TURN: only provable from outside);
-  - send a song from the laptop to the desktop (TO BE SORTED, analysed);
-  - Disconnect in the settings.
-  - If something breaks: GLUE Home's log has "rtc" lines.
+- **The native engine and native streaming: confirmed by the user, 2026-10-03** (GLUE Home 0.49.3, ADR 0147–0150):
+  - "analysing over 100 songs per minute";
+  - the check "looks great";
+  - the phone streams and uploads songs.
+  - Still to see: the iPhone on mobile data (the relay), if not tried yet.
+  - The three test songs in the laptop's Downloads are the user's: delete them when done.
 - **GLUE Home 0.48.0** (ADR 0149): the 342 ALAC M4As and 91 DSF files should be analysed (the queue's "left" goes up
   by about 433 once, then down). Look at a few DSD songs' verdicts: they'll mostly read "Genuine hi-res" (DSD's noise
   shaping), even one made from a CD master; which ones look wrong is what a DSD rule would be tuned on.
