@@ -81,7 +81,8 @@ export const TAURI_MOCK = `(() => {
         case 'plugin:event|emit': if (args.event === 'status') window.__status = args.payload; return send(args.event, args.payload);
         case 'plugin:event|emit_to': return send(args.event, args.payload, typeof args.target === 'string' ? args.target : args.target?.label);
         case 'get_config': return cfg();
-        case 'set_config': localStorage.setItem('home-config', JSON.stringify(args.config)); send('config', args.config); void settings(); return;
+        // The engine has them first (GLUE Home's reads the file itself), then the windows are told.
+        case 'set_config': localStorage.setItem('home-config', JSON.stringify(args.config)); await settings(); send('config', args.config); return;
         case 'engine_cmd': return toEngine(args.cmd);
         case 'default_incoming': return 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming';
         case 'default_duplicates': return 'C:\\\\Users\\\\dj\\\\GLUE duplicates';
