@@ -1,0 +1,16 @@
+[package]
+name = "glue-engine"
+version = "0.1.0"
+edition = "2021"
+description = "GLUE Home's library engine (ADR 0153): the collections' stores, edits, the feed of changes and jobs, in Rust"
+license = "MIT"
+publish = false
+
+[dependencies]
+glue-store = { path = "../glue-store" }
+indexmap = "2"
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+
+[[bin]]
+name = "glue-engine-test"
+path = "src/bin/test.rs"

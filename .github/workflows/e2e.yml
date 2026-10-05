@@ -38,6 +38,12 @@ jobs:
       - run: npm ci
       # ffmpeg for the tests that make rips (FFMPEG is its path).
       - run: choco install ffmpeg -y --no-progress
+      # GLUE Home's library engine runs under the tests (ADR 0153): e2e/engine-build.ts builds it, with its
+      # dependencies cached.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/glue-engine -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: npx playwright test
       - uses: actions/upload-artifact@v5
         if: failure()

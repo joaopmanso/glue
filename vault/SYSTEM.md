@@ -140,13 +140,18 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     this computer; otherwise once, and when which are online changes (ADR 0143);
   - `/fs/*` (GLUE Home's disk: `roots`, `list`, `file` with byte ranges, `write`, `mkdir`, `remove`, `stat`,
     `tags`, `dupes`, `pick`);
-  - `/cache` (its analyses), `/rpc` (the engine), `/lease`, `/attach`, `/incoming`, `/dock`, `/folders`.
+  - `/cache` (its analyses), `/rpc` (the engine, answered in Rust; the analysis queue's requests go on to the
+    service page), `/lease`, `/attach`, `/incoming`, `/dock`, `/folders`.
   - Every route but `/hello` and `/connect` needs the token (full, or read-only).
   - Stopped (Stop in the tray or settings, `running: false`), it answers only GLUE Home's own windows: the website
     carries on in the browser as if GLUE Home were quit, and nothing runs in GLUE Home (ADR 0122).
 - **Service page** (`home/ui/service.ts`), hidden, which does the work:
-  - **engine** (`engine.ts`): one `CollectionStore` per collection. It applies the tab's edits (ops over `/rpc`
-    `edit`), saves them, and feeds changes back (`wait`). It repairs parts written under another id (ADR 0108).
+  - **engine, in Rust since 0.52** (ADR 0153, `crates/glue-engine`, `home/src-tauri/src/engine.rs`): one store per
+    collection (`crates/glue-store`, ADR 0152), written straight to disk. It applies the tab's edits (ops over `/rpc`
+    `edit`), saves them, and feeds changes back (`wait`); its jobs (removing songs) carry on after a restart. It
+    repairs parts written under another id (ADR 0108), after a backup it makes itself. The service page's analysis and
+    shared sync use the same stores through `engine_cmd` (`home/ui/engine.ts` is a thin wrapper), and hear its
+    events (`engine-event`, `-edited`, `-added`, `-changed`).
   - **analysis** (`analysis.ts`, `cache.ts`): a pool of workers, several songs at a time (settings). Songs added
     from a tab are looked for at once. Passing failures (time-outs, memory) are retried, never stored
     (ADR 0109); after the third try the song is saved as failed, with why (ADR 0144). A song has 2 minutes, or a
@@ -158,6 +163,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     Bounded (ADR 0132): a connection not open within 30 s is let go, and an offer it can't take is answered
     "bye". The website says "bye" when it gives up, and waits 5 to 60 s before connecting again for background asks.
+  - **The library store in Rust** (ADR 0152, `crates/glue-store`): `CollectionStore`, the shared projections and the
+    repair, ported line for line with JavaScript's JSON rules, held byte for byte to the TypeScript by
+    `tests/golden/store` (recorded by `tests/store.golden.test.ts`, replayed by `crates/glue-store/tests/golden.rs`).
+    The engine's since 0.52 (ADR 0153). Its backups are read by the website's `readBackup`
+    (`tests/golden/store/backup.zip`).
   - **The GLUE window** (ADR 0151, 0.50, `home/src-tauri/src/window.rs`): the tray and "Open GLUE library" open the
     live site in GLUE Home's own window (`?app=window`, `inWindow()`); only the site stays in it (other links go to
     the browser, Google's sign-in is its popup, downloads go to Downloads). The settings' "Open the library in" can

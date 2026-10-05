@@ -1,9 +1,34 @@
 ---
-updated: 2026-10-02
+updated: 2026-10-05
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-10-05 · GLUE Home 0.52.0: the library engine in Rust (ADR 0152, 0153)
+- **The engine answers in Rust** ([ADR 0153](../adr/0153-the-library-engine-in-rust.md), `crates/glue-engine`): a GLUE
+  tab's edits, the feed of changes, the jobs (removing songs) and the repair of a shared collection are Rust's, writing
+  the GLUE folder straight to disk; the backup before a repair is made in Rust too (and read by the website's
+  `readBackup`). The service page's analysis and shared sync use the same stores through `engine_cmd`; its JavaScript
+  engine is gone.
+- **The e2e tests run the real engine:** `glue-engine-test` under `e2e/fakeHome.ts`, built by Playwright's global
+  setup (`e2e/engine-build.ts`); the e2e workflow caches its build. Found doing it: a job run with nothing to do told
+  the service page it had changed (every 10 s); now only when something ran.
+- **`crates/glue-store`:** the website's `CollectionStore` (loading, every kind of change, the bin, removing a song
+  from a shared collection, a sync's reload, the stand-in repair, saving), ported to Rust
+  ([ADR 0152](../adr/0152-the-library-store-in-rust.md)), with `absorbTracks`, the counts and `writeUnwritten`.
+- **The same files, byte for byte:** 7 scenarios run through the TypeScript store (`tests/store.golden.test.ts`)
+  and replayed in Rust:
+  - plain;
+  - shared, from this computer and from a folder that may only read;
+  - the repair;
+  - damaged files;
+  - a sync;
+  - a new computer joining.
+
+  Every file after every save matches.
+- JavaScript's rules kept: object key order (number-like keys first), `String(x)` for numbers (the engine's own
+  number printing fixed too: 12345678901234567000, not its exact digits), `??`, Map order, `localeCompare`.
 
 ## 2026-10-03 · GLUE Home 0.50.0: GLUE in its own window (ADR 0151)
 - **The library opens in GLUE Home's own window** ([ADR 0151](../adr/0151-the-glue-window.md); the user: "I want a

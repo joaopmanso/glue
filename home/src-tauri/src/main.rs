@@ -25,6 +25,7 @@ mod activity;
 mod web;
 mod analysis;
 mod rtc;
+mod engine;
 mod window;
 
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
@@ -670,7 +671,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_song, analysis::analyse_incoming, analysis::cover_hash, analysis::cover_from_image, analysis::wave_from_details, rtc::rtc_answer, rtc::rtc_ice, rtc::rtc_close, rtc::rtc_reply, rtc::rtc_send_file, rtc::rtc_error, rtc::rtc_tell])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_song, analysis::analyse_incoming, analysis::cover_hash, analysis::cover_from_image, analysis::wave_from_details, rtc::rtc_answer, rtc::rtc_ice, rtc::rtc_close, rtc::rtc_reply, rtc::rtc_send_file, rtc::rtc_error, rtc::rtc_tell, engine::engine_cmd])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]
@@ -721,6 +722,8 @@ fn main() {
             activity::start();
             local::start(app.handle().clone());
             ws::start(app.handle().clone());
+            // The library's engine (ADR 0153): its jobs carried on, the analysis state kept for `status`.
+            engine::start(app.handle());
             // Started with the computer: stay in the tray. Opened by hand (or the first time): settings.
             // `--library`: the library itself (ADR 0151).
             if std::env::args().any(|a| a == "--library") {
@@ -758,6 +761,20 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    /// The store GLUE Home will be the engine with (ADR 0152): a collection on disk read, changed and written.
+    #[test]
+    fn the_rust_store_reads_and_writes_a_collection() {
+        use glue_store::{dir::{Dir, FsDir}, store::{LoadOpts, Store}};
+        let d = std::env::temp_dir().join(format!("glue-store-{}", std::process::id()));
+        let root = FsDir { root: d.clone() };
+        root.write("profiles/p/collections/c/collection.json", r#"{"schemaVersion":1,"id":"c","name":"C","createdAt":"","roots":[]}"#).unwrap();
+        let mut s = Store::load(root, "p", "c", LoadOpts::default(), Box::new(|| (0, String::new()))).unwrap();
+        s.apply(&serde_json::json!({ "m": "tracks", "ts": [{ "id": "ab1", "title": "T" }] }));
+        assert_eq!(s.flush().unwrap(), vec!["tracks/ab.json".to_string()]);
+        assert_eq!(std::fs::read_to_string(d.join("profiles/p/collections/c/tracks/ab.json")).unwrap(), r#"{"schemaVersion":1,"items":{"ab1":{"id":"ab1","title":"T"}}}"#);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
     use super::*;
 
     // A file is matched against the folder it's written under first: no other folder looked up (ADR 0141).

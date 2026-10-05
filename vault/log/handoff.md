@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-02
+updated: 2026-10-05
 ---
 # Handoff: where things stand
 
@@ -76,6 +76,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **GLUE Home 0.52.0, the library engine in Rust** (ADR 0152, 0153): nothing should look different. Edits in the
+  window or a tab (a rating, a playlist, removing songs), the analysis's results arriving and a shared collection's
+  sync now go through Rust; anything odd there is a regression. The first time it opens the shared collection on a
+  computer whose parts were written under another id, it makes `backups/pre-repair-…zip` first (as before).
 - **GLUE Home 0.50.0, the GLUE window** (ADR 0151). Hand test:
   - the tray icon opens GLUE in its own window, and the library comes from GLUE Home;
   - drop a folder or a song on it;
@@ -190,8 +194,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     543 MB FLAC needs about 1.5 GB while it's analysed). Left for when it shows: decoding FLAC/WAV/AIFF straight from
     the file (`decode_flac` already reads ranges) and keeping the samples f32;
   - **The next phase** (plan `i-have-activated-plan-composed-turing.md`): W1 the GLUE window (0.50, done), then the
-    engine in Rust: E1 the store (`crates/glue-store`, goldens), E2 the engine and `/rpc` (`crates/glue-engine`, e2e
-    against it), E3 the analysis queue, E4 the cloud side (signaling, sessions, shared sync), E5 the rest and the
+    engine in Rust: E1 the store (`crates/glue-store`, goldens) and E2 the engine and `/rpc` (`crates/glue-engine`, the e2e
+    tests against it): done, 0.52 (ADR 0152, 0153). Then E3 the analysis queue, E4 the cloud side (signaling, sessions, shared sync), E5 the rest and the
     service page removed.
   - **B6: done (0.49.0, ADR 0150).** Next, when the GLUE window comes: the queue and the library's answers in Rust,
     then the service page removed.

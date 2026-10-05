@@ -1,6 +1,11 @@
 /* A stand-in for GLUE Home's local link (home/src-tauri/src/local.rs + disk.rs, ADR 0048, 0051), over
    real folders in a temp dir, for e2e tests of Home mode. It can be stopped and started again, like
-   quitting GLUE Home from the tray. Port 47450, away from a real GLUE Home (47400–47409). */
+   quitting GLUE Home from the tray. Port 47450, away from a real GLUE Home (47400–47409).
+   The library engine is the real one (ADR 0153): crates/glue-engine's test binary, over the same folders
+   (e2e/engine-build.ts builds it). /rpc goes to it first, as local.rs sends it, then to `rpc` (the service page);
+   the Tauri stand-in's `engine_cmd` reaches it through /engine, and what it says through /engine/notes. */
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { createServer, type Server } from 'node:http';
 import { createReadStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve, sep } from 'node:path';
@@ -15,7 +20,7 @@ export class FakeHome {
   readonly token = 'e2e-token';
   /** The read-only token (a GLUE tab when GLUE Home is the engine, ADR 0104): no writes. */
   readonly readToken = 'e2e-read';
-  /** Where /rpc goes (the test wires it to GLUE Home's service page); unset: 503. */
+  /** Where /rpc goes when it isn't the engine's (the analysis queue's: the test wires it to GLUE Home's service page); unset: 503. */
   rpc: ((body: string, read: boolean) => Promise<string>) | null = null;
   /** GLUE Home's own cache (the test wires it to the service page's), for /cache?key=. */
   cache: ((key: string) => Promise<number[] | null>) | null = null;
@@ -49,13 +54,23 @@ export class FakeHome {
   tagsFail: { code: number; error: string } | null = null;
   /** Stop pressed in GLUE Home (running: false): the local link answers the website 503 (local.rs), as if quit. */
   stopped = false;
+  /** What the engine said (its notes, as GLUE Home's events), for the service page to fetch. */
+  notes: { n: number; note: string; [k: string]: unknown }[] = [];
+  private engine: ChildProcessWithoutNullStreams | null = null;
+  private asked = new Map<number, (r: { ok?: unknown; err?: string }) => void>();
+  private nextAsk = 1;
+  private leaseTimer: ReturnType<typeof setInterval> | null = null;
   private server: Server | null = null;
   private playServer: Server | null = null;
-  constructor(readonly dirs: FakeHomeDirs) {}
+  /** `engine`: the tab's /rpc goes to the engine first, as GLUE Home 0.52 does (ADR 0153); without it, a GLUE Home
+      from before its engine (the tests of Home mode as GLUE Home's disk). The service page's `engine_cmd` reaches it
+      either way. */
+  constructor(readonly dirs: FakeHomeDirs, readonly opts: { engine?: boolean } = {}) {}
 
   get pref() { return { home: this.device, port: this.port, token: this.token }; }
 
   start() {
+    this.startEngine();
     return new Promise<void>(ok => {
       this.server = createServer((req, res) => this.handle(req.url ?? '/', req.method ?? 'GET', req.headers, req, res));
       this.playServer = createServer((req, res) => this.handle(req.url ?? '/', req.method ?? 'GET', req.headers, req, res, true));
@@ -63,8 +78,44 @@ export class FakeHome {
     });
   }
   stop() {
+    this.stopEngine();
     this.playServer?.closeAllConnections(); this.playServer?.close(); this.playServer = null;
     return new Promise<void>(ok => { if (!this.server) return ok(); this.server.closeAllConnections(); this.server.close(() => ok()); this.server = null; });
+  }
+
+  /** The engine, as GLUE Home runs it: its cache next to the GLUE folder (kept across a restart, like jobs.json). */
+  private startEngine() {
+    const bin = resolve('crates/glue-engine/target/debug/glue-engine-test' + (process.platform === 'win32' ? '.exe' : ''));
+    if (!existsSync(bin)) throw new Error('No ' + bin + ': cargo build --manifest-path crates/glue-engine/Cargo.toml --bin glue-engine-test');
+    const cache = resolve(this.dirs.glue, '..', '.home-cache');
+    mkdirSync(cache, { recursive: true }); mkdirSync(this.dirs.glue, { recursive: true });
+    const e = this.engine = spawn(bin, [resolve(this.dirs.glue), cache]);
+    e.stderr.on('data', d => process.stderr.write(d));
+    createInterface({ input: e.stdout }).on('line', line => {
+      let m: { ask?: number; ok?: unknown; err?: string; note?: string; [k: string]: unknown };
+      try { m = JSON.parse(line); } catch { return; }
+      if (m.ask !== undefined) { this.asked.get(m.ask)?.(m); this.asked.delete(m.ask); return; }
+      if (m.note === 'tags') { this.tagWrites.push({ path: m.path as string, tags: m.tags as Record<string, string> }); return; }
+      if (m.note && m.note !== 'bye') this.notes.push({ ...m, n: this.notes.length + 1, note: m.note });
+    });
+    e.on('exit', () => { for (const f of this.asked.values()) f({ err: 'GLUE Home’s engine stopped' }); this.asked.clear(); });
+    // The lease (local.rs's `leased()`): a tab renewed it in the last 15 s.
+    let held: boolean | null = null;
+    this.leaseTimer = setInterval(() => { const h = Date.now() - this.leasedAt < 15_000; if (h !== held) { held = h; this.tell({ lease: h }); } }, 250);
+  }
+  private stopEngine() {
+    if (this.leaseTimer) clearInterval(this.leaseTimer);
+    this.leaseTimer = null;
+    this.engine?.stdin.end(); this.engine?.kill(); this.engine = null;
+  }
+  /** What GLUE Home's settings say, as the engine reads them (this computer, Stop, the music folders). */
+  tell(set: Record<string, unknown>) { this.engine?.stdin.write(JSON.stringify({ set }) + '\n'); }
+  /** A request to the engine: a tab's (`rpc`) or the service page's command. */
+  ask(m: Record<string, unknown>) {
+    if (!this.engine) return Promise.resolve({ err: 'GLUE Home’s engine isn’t running' });
+    this.tell({ folders: this.dirs.folders, incoming: this.dirs.incoming, running: !this.stopped });
+    const id = this.nextAsk++;
+    return new Promise<{ ok?: unknown; err?: string }>(ok => { this.asked.set(id, ok); this.engine!.stdin.write(JSON.stringify({ ...m, ask: id }) + '\n'); });
   }
 
   private roots() { return [this.dirs.glue, this.dirs.incoming, ...Object.values(this.dirs.folders), ...this.libraries.map(l => l.dir)].map(p => resolve(p)); }
@@ -99,12 +150,31 @@ export class FakeHome {
     if (u.pathname === '/rpc' && method === 'POST') {
       const chunks: Buffer[] = [];
       req.on('data', c => chunks.push(c));
-      req.on('end', () => {
+      req.on('end', async () => {
+        const body = Buffer.concat(chunks).toString();
+        // The engine's own requests, answered in Rust (ADR 0153); the analysis queue's go on to the service page.
+        let b: unknown = null;
+        try { b = JSON.parse(body); } catch { /* not JSON: the service page says so */ }
+        const r = b && this.opts.engine ? await this.ask({ rpc: b }) : { ok: null };
+        if (r.err !== undefined) return send(200, { error: r.err });
+        if (r.ok !== null) return send(200, r.ok);
         if (!this.rpc) return send(503, { error: 'GLUE Home’s service isn’t running' });
-        void this.rpc(Buffer.concat(chunks).toString(), reading).then(a => { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': String(headers.origin ?? '*') }); res.end(a); }, e => send(500, { error: String(e) }));
+        void this.rpc(body, reading).then(a => { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': String(headers.origin ?? '*') }); res.end(a); }, e => send(500, { error: String(e) }));
       });
       return;
     }
+    // GLUE Home's service page and its engine (Tauri's `engine_cmd` and events, stood in for over the local link).
+    if (u.pathname === '/engine' && method === 'POST') {
+      const chunks: Buffer[] = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', async () => {
+        const m = JSON.parse(Buffer.concat(chunks).toString() || '{}') as Record<string, unknown>;
+        if (m.set) { this.tell(m.set as Record<string, unknown>); return send(200, { ok: true }); }
+        send(200, await this.ask(m));
+      });
+      return;
+    }
+    if (u.pathname === '/engine/notes') { const since = Number(q.get('since')) || 0; return send(200, this.notes.filter(n => n.n > since)); }
     if (u.pathname === '/lease' && method === 'POST') { this.leasedAt = q.get('release') === '1' ? 0 : Date.now(); return send(200, { edits: this.edits }); }
     if (u.pathname === '/fs/roots') return send(200, { glue: this.dirs.glue, incoming: this.dirs.incoming, folders: this.dirs.folders, libraries: this.libraries, sep });
     if (u.pathname === '/fs/pickfile') {

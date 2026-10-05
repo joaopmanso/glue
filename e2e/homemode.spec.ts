@@ -770,7 +770,7 @@ test('GLUE Home is the library’s engine: the tab shows, GLUE Home analyses and
   test.setTimeout(360_000);
   const tmp = mkdtempSync(join(tmpdir(), 'glue-home-engine-'));
   // The tab can't read the songs itself (no music folder for it): only GLUE Home can.
-  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} });
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} }, { engine: true });
   try {
     mkdirSync(fake.dirs.incoming, { recursive: true });
     const col = 'profiles/p1/collections/c1';
@@ -870,7 +870,7 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
   test.setTimeout(300_000);
   const tmp = mkdtempSync(join(tmpdir(), 'glue-home-cache-'));
   // The tab can't read the songs itself (no music folder for it): anything it shows is GLUE Home's.
-  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} });
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} }, { engine: true });
   try {
     mkdirSync(fake.dirs.incoming, { recursive: true });
     const col = 'profiles/p1/collections/c1';
@@ -932,7 +932,8 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
     await home.evaluate(b => { (window as unknown as { __disk: Record<string, number[]> }).__disk['C:\\Users\\dj\\Music\\c.mp3'] = b; }, [...readFileSync(fixture('mp3-128k.mp3'))]);
     // GLUE Home's own reads of its GLUE folder (Rust, stood in): the real folder now, as the edit writes it.
     await home.exposeFunction('__glueDisk', (rel: string) => { try { return readFileSync(join(fake.dirs.glue, rel), 'utf8'); } catch { return null; } });
-    await fake.rpc(JSON.stringify({ op: 'edit', p: 'p1', c: 'c1', ops: [{ m: 'tracks', ts: [song('t1c', 'c.mp3', 65267)] }] }), false);
+    // The tab's edit, to GLUE Home's engine (ADR 0153), as the local link sends it.
+    await fake.ask({ rpc: { op: 'edit', p: 'p1', c: 'c1', ops: [{ m: 'tracks', ts: [song('t1c', 'c.mp3', 65267)] }] } });
     await expect.poll(() => !!analysis().t1c?.label, { timeout: 30_000 }).toBe(true);
     await home.close();
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }

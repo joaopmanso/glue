@@ -14,6 +14,29 @@ export const TAURI_MOCK = `(() => {
   // Tests deliver Rust's events (e.g. the local link's /attach, ADR 0091) with this.
   window.__tauriEvent = (event, payload) => deliver({ event, payload, target: undefined });
   const cfg = () => JSON.parse(localStorage.getItem('home-config') || 'null');
+  // GLUE Home's library engine (ADR 0153): the real one, run by the test's FakeHome (e2e/fakeHome.ts), reached over its
+  // local link (/engine); what it says comes back as GLUE Home's events. No FakeHome: no engine.
+  const toEngine = async m => {
+    const r = await fetch('http://127.0.0.1:' + (window.__localPort ?? 47400) + '/engine?t=' + encodeURIComponent(cfg()?.localToken ?? ''), { method: 'POST', body: JSON.stringify(m) });
+    if (!r.ok) throw 'GLUE Home’s engine isn’t there';
+    const a = await r.json();
+    if (a.err !== undefined) throw a.err;
+    return a.ok;
+  };
+  const settings = () => { const c = cfg(); return toEngine({ set: { computer: c?.computer ?? null, running: c?.running !== false } }).catch(() => {}); };
+  let notesFrom = 0, notesOn = false;
+  const NOTE = { event: n => ['engine-event', n.text], edited: n => ['engine-edited', { p: n.p, c: n.c, paths: n.paths }], added: () => ['engine-added', null], changed: () => ['engine-changed', null] };
+  const followEngine = async () => {
+    if (notesOn) return; notesOn = true;
+    await settings();
+    for (;;) {
+      try {
+        const r = await fetch('http://127.0.0.1:' + (window.__localPort ?? 47400) + '/engine/notes?since=' + notesFrom + '&t=' + encodeURIComponent(cfg()?.localToken ?? ''));
+        for (const n of r.ok ? await r.json() : []) { notesFrom = n.n; const [event, payload] = NOTE[n.note]?.(n) ?? []; if (event) deliver({ event, payload, target: 'service' }); }
+        await new Promise(ok => setTimeout(ok, 250));
+      } catch { await new Promise(ok => setTimeout(ok, 2000)); }
+    }
+  };
   // A file on "disk": window.__disk, or a song received into the incoming folder (C:\\In\\<name>, or where it was saved).
   // GLUE Home's native engine, stood in for by the website's own code (e2e/home-analyse.ts, built into .e2e-home).
   const engine = () => import('/__e2e/home-analyse.js');
@@ -43,12 +66,13 @@ export const TAURI_MOCK = `(() => {
     async invoke(cmd, args, opts) {
       log.push(cmd);
       switch (cmd) {
-        case 'plugin:event|listen': listeners.push({ event: args.event, id: args.handler }); return listeners.length;
+        case 'plugin:event|listen': listeners.push({ event: args.event, id: args.handler }); if (args.event === 'engine-changed') void followEngine(); return listeners.length;
         case 'plugin:event|unlisten': return;
-        case 'plugin:event|emit': if (args.event === 'status') window.__status = args.payload; return send(args.event, args.payload);
+        case 'plugin:event|emit': if (args.event === 'status') { window.__status = args.payload; if (args.payload?.analysing) void toEngine({ set: { analysis: args.payload.analysing } }).catch(() => {}); } return send(args.event, args.payload);
         case 'plugin:event|emit_to': return send(args.event, args.payload, typeof args.target === 'string' ? args.target : args.target?.label);
         case 'get_config': return cfg();
-        case 'set_config': localStorage.setItem('home-config', JSON.stringify(args.config)); send('config', args.config); return;
+        case 'set_config': localStorage.setItem('home-config', JSON.stringify(args.config)); send('config', args.config); void settings(); return;
+        case 'engine_cmd': return toEngine(args.cmd);
         case 'default_incoming': return 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming';
         case 'default_duplicates': return 'C:\\\\Users\\\\dj\\\\GLUE duplicates';
         case 'device_name': return 'Studio PC';

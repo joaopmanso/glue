@@ -1,0 +1,23 @@
+[
+ {
+  "damaged": [
+   "tracks/cd.json"
+  ]
+ },
+ {
+  "files": {
+   "profiles/p1/collections/c1/analysis/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab02\":{\"v\":3,\"at\":\"2026-09-01T00:00:00.000Z\",\"grade\":\"ok\",\"label\":\"Lossless\",\"headline\":\"Fine\",\"fc\":21000.5,\"wall\":false,\"full\":true,\"effBits\":16,\"declaredBits\":16,\"origin\":\"\",\"bpm\":null,\"key\":null,\"findings\":[],\"fileSize\":1000,\"fileMtime\":5}}}",
+   "profiles/p1/collections/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"My collection\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"roots\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"2026-01-01T00:00:00.000Z\"}]}",
+   "profiles/p1/collections/c1/events.json": "{\"schemaVersion\":1,\"items\":{\"e1\":{\"id\":\"e1\",\"name\":\"Gig\",\"date\":\"2026-10-10\"}}}",
+   "profiles/p1/collections/c1/lists/l1.json": "{\"id\":\"l1\",\"kind\":\"folder\",\"name\":\"Sets\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[],\"origin\":null}",
+   "profiles/p1/collections/c1/lists/l2.json": "{\"schemaVersion\":1,\"id\":\"l2\",\"kind\":\"playlist\",\"name\":\"Warm up\",\"parentId\":\"l1\",\"position\":0,\"notes\":\"é \\\"quoted\\\" \\\\ ✓\",\"items\":[\"ab02\",\"1234\"],\"origin\":null,\"color\":null}",
+   "profiles/p1/collections/c1/lists/l3.json": "{\"schemaVersion\":1,\"id\":\"l3\",\"kind\":\"playlist\",\"name\":\"Peak\",\"parentId\":null,\"position\":1,\"notes\":\"\",\"items\":[\"ab02\"],\"origin\":null}",
+   "profiles/p1/collections/c1/lists/l9.json": "   ",
+   "profiles/p1/collections/c1/sources/s1.json": "{\"schemaVersion\":1,\"id\":\"s1\",\"kind\":\"rekordbox\",\"name\":\"rekordbox\",\"path\":\"C:\\\\x\\\\rekordbox.xml\",\"addedAt\":\"2026-01-01T00:00:00.000Z\"}",
+   "profiles/p1/collections/c1/tracks/12.json": "{\"items\":{\"1234\":{\"id\":\"1234\",\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/1234.flac\",\"importPath\":null,\"fileName\":\"1234.flac\",\"size\":1000,\"mtime\":5,\"title\":\"Song 1234\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-08T10:00:00.000Z\",\"sources\":[]},\"12x\":{\"id\":\"12x\",\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/12x.flac\",\"importPath\":null,\"fileName\":\"12x.flac\",\"size\":1000,\"mtime\":5,\"title\":\"Song 12x\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-0NaNT10:00:00.000Z\",\"sources\":[]}}}",
+   "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab02\":{\"id\":\"ab02\",\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"fileName\":\"ab02.flac\",\"size\":1000,\"mtime\":5,\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-06T10:00:00.000Z\",\"sources\":[]}}}",
+   "profiles/p1/collections/c1/tracks/cd.damaged": "{\"schemaVersion\":1,\"items\":{\"cd09\":",
+   "profiles/p1/collections/c1/tracks/cd.json": "{\"schemaVersion\":1,\"items\":{\"cd09\":"
+  }
+ }
+]

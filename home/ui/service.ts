@@ -372,35 +372,19 @@ async function findFolders() {
 // ---- wiring ---------------------------------------------------------------------------------------
 /** A request to the library engine (ADR 0104), from a GLUE tab on this computer. */
 type Rpc =
-  | { op: 'hello' } | { op: 'wait'; since: number } | { op: 'status' } | { op: 'open'; p: string; c: string }
-  | { op: 'edit'; p: string; c: string; ops: import('../../src/store/collection').StoreOp[] }
   | { op: 'analyse'; p: string; c: string; ids: string[]; names?: Record<string, string> }
   | { op: 'pause'; on: boolean }
-  | { op: 'restamp'; p: string; c: string; id: string; was: { size: number | null; mtime: number | null }; now: { size: number; mtime: number } }
-  | { op: 'job'; kind: 'remove-tracks'; p: string; c: string; ids: string[] }
   | { op: 'where'; id: string; name: string; sample: string }
   | { op: 'whereFile'; name: string; size: number; roots: string[] };
 async function rpc(b: Rpc): Promise<unknown> {
   const c = cfg;
   if (!c) throw new Error('GLUE Home isn’t set up yet');
   switch (b.op) {
-    // `computer`: which computer this is (ADR 0108), for a GLUE tab here to see the library as.
-    case 'hello': return { engine: 1, version: await version().catch(() => ''), rev: engine.status().rev, computer: c.computer ?? null };
-    case 'wait': return engine.wait(Number(b.since) || 0);
-    case 'open': engine.drop(b.p, b.c); return { ok: true };
-    case 'status': return { ...engine.status(), analysis: analysis.state };
-    case 'edit': {
-      const r = await engine.edit(c, b.p, b.c, b.ops);
-      if (r.added) analysis.added(() => cfg);   // songs new to it (a scan): looked for now
-      return r;
-    }
-    // A GLUE tab here wrote a song's tags (ADR 0110): what's kept of it follows the file.
-    case 'restamp': await cache.restamp(b.p, b.c, b.id, b.was, b.now); return { ok: true };
+    // hello, wait, open, status, edit, restamp, job: the engine's, answered in Rust (ADR 0153).
     case 'analyse': analysis.now(b.p, b.c, b.ids, b.names ?? {}, () => cfg); return { ok: true };
     case 'pause':
       if (!!c.analysisPaused !== !!b.on) { cfg = await bridge.patchConfig(() => ({ analysisPaused: !!b.on })).catch(() => cfg) ?? cfg; analysis.setPaused(!!b.on, () => cfg); }
       return { paused: !!b.on };
-    case 'job': await engine.addJob(() => cfg, { kind: b.kind, p: b.p, c: b.c, ids: b.ids }); return { queued: true };
     // A song dropped onto a GLUE tab here (ADR 0125): where it is, and the collection's music folder it's in, if one.
     case 'whereFile': {
       const folders = Object.entries(c.folders ?? {}).filter(([id]) => b.roots.includes(id));
@@ -548,14 +532,14 @@ async function boot() {
   const moves = () => void (cfg?.running === false ? Promise.resolve() : followMoves(cfg)).catch(e => console.warn('GLUE Home: the cache didn’t follow a moved collection', e));
   setTimeout(moves, 30_000);
   setInterval(moves, 3600e3);
-  // The engine's jobs (ADR 0104): carried on after a restart; a GLUE tab from before the engine (it holds the
-  // lease and writes by itself): nothing the engine keeps may go stale meanwhile.
+  // The engine (ADR 0104, 0153: in Rust, its jobs carried on there): what it says, here.
   engine.on.event = event;
   engine.on.changed = servedSoon;
   // What the tab changed goes up to GLUE Cloud within seconds (a burst makes one push, ADR 0106).
   engine.on.edited = () => sharedSoon(2000);
-  setTimeout(() => void engine.runJobs(() => cfg), 10_000);
-  setInterval(() => { if (cfg?.running !== false) void bridge.leaseHeld().then(held => { if (held) engine.forget(); else void engine.runJobs(() => cfg); }).catch(() => {}); }, 10_000);
+  // Songs new to a collection (a scan): looked for now.
+  engine.on.added = () => analysis.added(() => cfg);
+  await engine.listenToEngine();
   // This computer's songs analysed for the library (ADR 0103): soon after starting, then every minute.
   analysis.setPaused(!!cfg?.analysisPaused, undefined, true);
   analysis.on.changed = servedSoon;

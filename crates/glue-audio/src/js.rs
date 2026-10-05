@@ -62,7 +62,7 @@ pub fn num_str(x: f64) -> String {
   if x.is_nan() { return "NaN".into(); }
   if x.is_infinite() { return if x > 0.0 { "Infinity".into() } else { "-Infinity".into() }; }
   if x == 0.0 { return "0".into(); }
-  if x.fract() == 0.0 && x.abs() < 1e21 { return format!("{}", x as i128); }
+  // Rust prints a double with its shortest digits, as JavaScript does (12345678901234567000, 0.1, 5).
   let a = x.abs();
   if (1e-6..1e21).contains(&a) { return format!("{x}"); }
   // Exponent form (rare here): shortest digits, as JavaScript writes them (1e-7, 1.5e+21).

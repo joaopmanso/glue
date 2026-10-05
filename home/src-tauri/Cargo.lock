@@ -1847,11 +1847,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "glue-engine"
+version = "0.1.0"
+dependencies = [
+ "glue-store",
+ "indexmap 2.14.2",
+ "serde_json",
+]
+
+[[package]]
 name = "glue-home"
-version = "0.50.0"
+version = "0.52.0"
 dependencies = [
  "glue-audio",
+ "glue-engine",
  "glue-rtc",
+ "glue-store",
  "lofty",
  "serde_json",
  "tauri",
@@ -1882,6 +1893,15 @@ dependencies = [
  "serde_json",
  "tokio",
  "webrtc",
+]
+
+[[package]]
+name = "glue-store"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "indexmap 2.14.2",
+ "serde_json",
 ]
 
 [[package]]

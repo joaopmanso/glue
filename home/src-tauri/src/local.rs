@@ -235,6 +235,10 @@ fn answer(app: AppHandle, req: Request) {
             if !read_ok {
                 return reply(req, 400, b"{\"error\":\"bad request\"}".to_vec(), "application/json");
             }
+            // The engine's own requests, answered in Rust (ADR 0153); the analysis queue's go on to the service page.
+            if let Some(answer) = crate::engine::rpc(&app, &body) {
+                return reply(req, 200, answer.into_bytes(), "application/json");
+            }
             let id = RPC_NEXT.fetch_add(1, Ordering::Relaxed) + 1;
             let (tx, rx) = mpsc::channel();
             if let Ok(mut m) = rpc_waiting().lock() {

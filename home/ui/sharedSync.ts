@@ -9,12 +9,9 @@ import { access } from './cloud';
 import { describe } from './library';
 import { HomeDisk } from '../../src/platform/homeDisk';
 import * as engine from './engine';
-import * as cache from './cache';
-import { writeUnwritten } from '../../src/store/writeInfo';
 import { syncShared, type SharedCloud } from '../../src/store/shared/engine';
 import { unknownComputer, type SharedCollection } from '../../src/core/shared/project';
-import { INCOMING_ROOT } from '../../src/store/types';
-import { countsOf, holdsMusic, sendCounts } from '../../src/core/shared/counts';
+import { sendCounts } from '../../src/core/shared/counts';
 import { forgetDeleted } from '../../src/store/shared/forget';
 import { HomeStore } from '../../src/store/home';
 
@@ -69,13 +66,13 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
       const me = cfg.computer!;
       roots ??= await disk.roots();
       if (!roots.glue) return changed;
-      const glue = disk.dir(roots.glue), r = roots;
+      const glue = disk.dir(roots.glue);
       if (await bridge.leaseHeld()) return changed;   // a tab opened meanwhile: it's the writer now
       // The engine's store first: anything written under another id is put right before this syncs (ADR 0108).
-      await engine.store(cfg, p.id, c.id);
+      await engine.ensure(p.id, c.id);
       const place = { root: glue, pid: p.id, cid: c.id, me, cloud: cloudFor(api, token, c.id) };
       // Only the files written here since the last sync are looked at (every one now and then, ADR 0107).
-      let hint = engine.takeWritten(p.id, c.id);
+      let hint = await engine.takeWritten(p.id, c.id);
       // What came in, into the engine's store (and a GLUE tab's feed), as it's written: also when the sync fails partway,
       // having written some (ADR 0143).
       const got: string[] = [];
@@ -83,31 +80,22 @@ async function once(cfg: HomeConfig | null, api: string): Promise<number> {
         engine.writtenAgain(p.id, c.id, hint);
         // Deleted from the account on another device (ADR 0112): a backup, then forgotten here.
         if ((e as { status?: number }).status === 410) { await forget(glue, p.id, c.id, meta.name ?? c.id); continue; }
-        if (got.length) await engine.reload(cfg, p.id, c.id, [...new Set(got)]).catch(() => {});
+        if (got.length) await engine.reload(p.id, c.id, [...new Set(got)]).catch(() => {});
         throw e;
       }
       const res = { changed: [...new Set(got)] };
       changed += res.changed.length;
-      await engine.reload(cfg, p.id, c.id, res.changed);
-      // Song info edited elsewhere, into this computer's files; their new size and date go back up.
-      const s = await engine.store(cfg, p.id, c.id);
-      // This computer's numbers, for the account's list (ADR 0112), when they changed.
-      const n = countsOf(s.tracks.values());
-      if (holdsMusic(n, s.meta.roots.length) && sendCounts(counted, c.id, n)) await fetch(api + '/v1/shared/' + encodeURIComponent(c.id) + '/stats', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await token() }, body: JSON.stringify(n) })
+      await engine.reload(p.id, c.id, res.changed);
+      // This computer's numbers, for the account's list (ADR 0112), when they changed (counted by the engine).
+      const k = await engine.counts(p.id, c.id), n = { tracks: k.tracks, songs: k.songs };
+      if (k.holds && sendCounts(counted, c.id, n)) await fetch(api + '/v1/shared/' + encodeURIComponent(c.id) + '/stats', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await token() }, body: JSON.stringify(n) })
         .then(r => { if (!r.ok) counted.delete(c.id); }, () => counted.delete(c.id));
-      if (![...s.tracks.values()].some(t => t.unwritten && !t.remote)) continue;
+      // Song info edited elsewhere, into this computer's files (the engine writes them, ADR 0153); their new size and
+      // date go back up.
+      if (!k.unwritten) continue;
       if (await bridge.leaseHeld()) return changed;
-      await writeUnwritten(s, (tr, tags) => {
-        const at = tr.rootId === INCOMING_ROOT ? r.incoming : r.folders[tr.rootId ?? ''];
-        if (!at || !tr.relPath) throw new Error('GLUE Home doesn’t know this song’s music folder');
-        return disk.tags(at, tr.relPath, tags);
-      }, {
-        stop: () => false, restamp: (tr, was, now) => cache.restamp(p.id, c.id, tr.id, was, now),
-        // A music folder that isn't reachable (a network folder not connected): its songs wait for it.
-        reachable: async tr => { const at = tr.rootId === INCOMING_ROOT ? r.incoming : r.folders[tr.rootId ?? '']; if (!at) return true; try { return (await disk.json<unknown[]>('/fs/list', { root: at, path: '' })).length > 0; } catch { return false; } },
-      });
-      await s.flush();
-      hint = engine.takeWritten(p.id, c.id);
+      await engine.writeUnwritten(p.id, c.id);
+      hint = await engine.takeWritten(p.id, c.id);
       try { await syncShared(place, hint); } catch (e) { engine.writtenAgain(p.id, c.id, hint); throw e; }
     }
     sharedDone.synced += changed; sharedDone.at = Date.now(); sharedDone.error = '';

@@ -1,0 +1,13 @@
+[package]
+name = "glue-store"
+version = "0.1.0"
+edition = "2021"
+description = "GLUE's library store in Rust (ADR 0152): a collection's JSON files read, changed and written as the website does"
+license = "MIT"
+publish = false
+
+[dependencies]
+indexmap = "2"
+# Backups' zips (src/core/zip.ts writes deflate-raw entries).
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

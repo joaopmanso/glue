@@ -9,6 +9,7 @@
    - A tab in Home mode that doesn't ask (it can't reach GLUE Home over the channel) analyses by itself:
      GLUE Home leaves the songs to it while it holds the lease.
    - Paused: nothing new starts (what runs finishes); asked-for songs still are analysed. */
+import type { StoreOp } from '../../src/store/collection';
 import { bridge, type HomeConfig } from './bridge';
 import { describe, here } from './library';
 import * as cache from './cache';
@@ -265,22 +266,21 @@ async function writeAll(cfg: HomeConfig): Promise<number> {
     let meta: SharedCollection | Collection | null = null;
     try { meta = JSON.parse(await bridge.glueRead(`profiles/${p}/collections/${c}/collection.json`)); } catch { pending.delete(k); continue; }
     if (!meta) { pending.delete(k); continue; }
-    // The engine's store (ADR 0104): the one everything here writes, never a copy that goes stale.
-    const s = await engine.store(cfg, p, c);
-    const done: string[] = [];
+    // The engine's store (ADR 0104, 0153: in Rust): the one everything here writes, never a copy that goes stale.
+    const ops: StoreOp[] = [], done: string[] = [];
     for (const id of ids) {
-      const a = await cache.result(p, c, id), cur = s.tracks.get(id);
+      const a = await cache.result(p, c, id);
       done.push(id);
-      if (!a || !cur || cur.remote) continue;
+      if (!a) continue;
+      const { track: cur, analysis: had } = await engine.song(p, c, id);
+      if (!cur || cur.remote) continue;
       // The library has this already (the same file, as new an analysis): nothing to write, or to sync.
-      const had = s.analysis.get(id);
       if (had && !had.error && had.v >= a.summary.v && had.fileSize === a.size && had.fileMtime === a.mtime) continue;
-      s.putAnalysis(id, a.summary);
-      s.putTrack(afterAnalysis(cur, a));
+      ops.push({ m: 'analysis', id, a: a.summary }, { m: 'tracks', ts: [afterAnalysis(cur, a)] });
       n++;
     }
     if (await bridge.leaseHeld()) return 0;   // a tab opened meanwhile: it’s the writer now (these wait)
-    await s.flush();
+    if (ops.length) await engine.apply(p, c, ops);
     engine.changed(p, c, [], done);   // a GLUE tab takes their mini spectrograms and details from the cache
     for (const id of done) ids.delete(id);
   }

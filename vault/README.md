@@ -229,5 +229,7 @@ Planned (GLUE):
 | [0149](adr/0149-dsd-analysed-as-its-pcm-conversion.md) | GLUE Home analyses DSD as its 88.2 kHz PCM conversion, and retries the JavaScript's failures once | accepted |
 | [0150](adr/0150-glue-homes-connections-in-rust.md) | GLUE Home's connections to other devices are Rust's (`crates/glue-rtc`, webrtc-rs) | accepted |
 | [0151](adr/0151-the-glue-window.md) | GLUE opens in GLUE Home's own window, showing the live site | accepted |
+| [0152](adr/0152-the-library-store-in-rust.md) | The library store in Rust (`crates/glue-store`), held to the website's byte for byte | accepted |
+| [0153](adr/0153-the-library-engine-in-rust.md) | GLUE Home's library engine in Rust (`crates/glue-engine`), tested end to end against the real one | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

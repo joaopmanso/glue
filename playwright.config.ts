@@ -13,6 +13,8 @@ const live = process.env.BASE_URL;
 const HEAVY = /(computers|shared|phone|homemode|home|identity)\.spec\.ts|@heavy/;
 export default defineConfig({
   testDir: 'e2e',
+  // GLUE Home's library engine, built for the tests that run it (e2e/fakeHome.ts, ADR 0153).
+  globalSetup: './e2e/engine-build.ts',
   timeout: 120_000,
   fullyParallel: true,
   // On CI's smaller machine a heavy test sometimes misses a timeout under load: tried once more (reported

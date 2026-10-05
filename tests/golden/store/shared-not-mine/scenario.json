@@ -1,0 +1,95 @@
+{
+ "files": {
+  "profiles/p1/collections/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"2026-01-01T00:00:00.000Z\"}],\"lap\":[{\"id\":\"r9\",\"name\":\"Laptop music\",\"absPath\":null,\"handleKey\":\"h9\",\"addedAt\":\"2026-01-02T00:00:00.000Z\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+  "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-05T10:00:00.000Z\",\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"a.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]},\"lap\":{\"status\":\"linked\",\"rootId\":\"r9\",\"relPath\":\"Sets/a.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}},\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-06T10:00:00.000Z\",\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"b.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}},\"ab03\":{\"id\":\"ab03\",\"fileName\":\"ab03.flac\",\"title\":\"Song ab03\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-07T10:00:00.000Z\",\"copies\":{\"lap\":{\"status\":\"missing\",\"rootId\":\"r9\",\"relPath\":\"c.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}},\"ab04\":{\"id\":\"ab04\",\"fileName\":\"ab04.flac\",\"title\":\"Song ab04\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-08T10:00:00.000Z\",\"copies\":{\"lap\":{\"status\":\"linked\",\"rootId\":\"r9\",\"relPath\":\"d.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[],\"fileKey\":\"file:abc\"},\"zed\":{\"status\":\"linked\",\"rootId\":\"rz\",\"relPath\":\"d.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}",
+  "profiles/p1/collections/c1/analysis/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"desk\":{\"v\":3,\"at\":\"2026-09-01T00:00:00.000Z\",\"grade\":\"ok\",\"label\":\"Lossless\",\"headline\":\"Fine\",\"fc\":21000.5,\"wall\":false,\"full\":true,\"effBits\":16,\"declaredBits\":16,\"origin\":\"\",\"bpm\":124.5,\"key\":{\"tonic\":3,\"mode\":\"minor\",\"margin\":0.12,\"tuning\":-1.2921495033191304},\"findings\":[],\"fileSize\":1000,\"fileMtime\":5},\"lap\":{\"v\":3,\"at\":\"2026-09-01T00:00:00.000Z\",\"grade\":\"ok\",\"label\":\"Lossless\",\"headline\":\"Fine\",\"fc\":21000.5,\"wall\":false,\"full\":true,\"effBits\":16,\"declaredBits\":16,\"origin\":\"\",\"bpm\":125,\"key\":{\"tonic\":3,\"mode\":\"minor\",\"margin\":0.12,\"tuning\":-1.2921495033191304},\"findings\":[],\"fileSize\":1000,\"fileMtime\":5}},\"ab03\":{\"lap\":{\"v\":3,\"at\":\"2026-09-02T00:00:00.000Z\",\"grade\":\"ok\",\"label\":\"Lossless\",\"headline\":\"Fine\",\"fc\":21000.5,\"wall\":false,\"full\":true,\"effBits\":16,\"declaredBits\":16,\"origin\":\"\",\"bpm\":124.5,\"key\":{\"tonic\":3,\"mode\":\"minor\",\"margin\":0.12,\"tuning\":-1.2921495033191304},\"findings\":[],\"fileSize\":1000,\"fileMtime\":5}}}}",
+  "profiles/p1/collections/c1/lists/l2.json": "{\"schemaVersion\":1,\"id\":\"l2\",\"kind\":\"playlist\",\"name\":\"Both\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[\"ab01\",\"ab02\",\"ab03\"],\"origin\":null}"
+ },
+ "steps": [
+  {
+   "load": {
+    "pid": "p1",
+    "cid": "c1",
+    "me": "lap"
+   }
+  },
+  {
+   "op": {
+    "m": "tracks",
+    "ts": [
+     {
+      "id": "ab03",
+      "status": "linked",
+      "rootId": "r9",
+      "relPath": "c.flac",
+      "importPath": null,
+      "fileName": "ab03.flac",
+      "size": 1000,
+      "mtime": 5,
+      "title": "Edited from the wrong folder",
+      "artist": "Artist",
+      "album": "Album",
+      "genre": "House",
+      "label": "",
+      "comment": "",
+      "year": "2020",
+      "duration": 300,
+      "format": null,
+      "addedAt": "2026-01-07T10:00:00.000Z",
+      "sources": []
+     }
+    ]
+   }
+  },
+  {
+   "op": {
+    "m": "analysis",
+    "id": "ab03",
+    "a": {
+     "v": 3,
+     "at": "2026-09-01T00:00:00.000Z",
+     "grade": "ok",
+     "label": "Lossless",
+     "headline": "Fine",
+     "fc": 21000.5,
+     "wall": false,
+     "full": true,
+     "effBits": 16,
+     "declaredBits": 16,
+     "origin": "",
+     "bpm": 1,
+     "key": {
+      "tonic": 3,
+      "mode": "minor",
+      "margin": 0.12,
+      "tuning": -1.2921495033191304
+     },
+     "findings": [],
+     "fileSize": 1000,
+     "fileMtime": 5
+    }
+   }
+  },
+  {
+   "op": {
+    "m": "removeTrack",
+    "id": "ab01"
+   }
+  },
+  {
+   "op": {
+    "m": "meta",
+    "meta": {
+     "schemaVersion": 1,
+     "id": "c1",
+     "name": "Shared",
+     "createdAt": "2026-01-01T00:00:00.000Z",
+     "roots": []
+    }
+   }
+  },
+  {
+   "flush": true
+  }
+ ]
+}
