@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
-struct Seen { events: Vec<String>, edited: Vec<Vec<String>>, lease: bool, config: Value, tags: Vec<(String, String, Obj)>, made: Vec<String>, analysis: Value }
+struct Seen { events: Vec<String>, edited: Vec<Vec<String>>, lease: bool, config: Value, tags: Vec<(String, String, Obj)>, made: Vec<String>, analysis: Value, cloud: Vec<String>, gone: bool }
 #[derive(Clone, Default)]
 struct H(Arc<Mutex<Seen>>);
 impl Host for H {
@@ -16,6 +16,13 @@ impl Host for H {
   fn incoming_dir(&self) -> PathBuf { std::env::temp_dir().join("glue-engine-incoming") }
   fn made(&self, _p: &str, _c: &str, id: &str) { self.0.lock().unwrap().made.push(id.into()); }
   fn analysis_changed(&self, s: &Value) { self.0.lock().unwrap().analysis = s.clone(); }
+  /// GLUE Cloud: every call written down; the collection deleted from the account (410) when `gone`.
+  fn cloud(&self, method: &str, path: &str, _t: Option<&str>, _b: Option<&str>) -> Result<String, glue_engine::sync::CloudError> {
+    let mut g = self.0.lock().unwrap();
+    g.cloud.push(format!("{method} {path}"));
+    if g.gone { return Err(glue_engine::sync::CloudError { status: 410, message: "GLUE Cloud: 410".into() }); }
+    Ok(r#"{"seq":0,"more":false,"entries":[]}"#.into())
+  }
   fn event(&self, t: &str) { self.0.lock().unwrap().events.push(t.into()); }
   fn edited(&self, _p: &str, _c: &str, paths: &[String]) { self.0.lock().unwrap().edited.push(paths.to_vec()); }
   fn write_tags(&self, root: &str, rel: &str, tags: &Obj) -> Result<(f64, f64), String> { self.0.lock().unwrap().tags.push((root.into(), rel.into(), tags.clone())); Ok((2000.0, 99.0)) }
@@ -156,4 +163,30 @@ fn the_queue_analyses_a_song_and_puts_it_into_the_library() {
   e.analysis_added();
   std::thread::sleep(std::time::Duration::from_millis(500));
   assert_eq!(h.0.lock().unwrap().made.len(), 1);
+}
+
+#[test]
+fn a_collection_deleted_from_the_account_is_backed_up_and_put_away() {
+  let (glue, cache) = (temp("gone"), temp("gone-cache"));
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Shared" }, { "id": "c2", "name": "Mine" }], "lastCollection": "c1" }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Shared", "shared": true, "rootsBy": { "desk": [] }, "members": { "desk": { "profile": "p1", "name": "Desktop" } } }));
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "deviceId": "hdesk", "token": "t", "glue": glue.to_string_lossy(), "computer": "desk" });
+  h.0.lock().unwrap().gone = true;
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  assert_eq!(command(&e, &json!({ "cmd": "syncShared" })).unwrap(), json!(0));
+  assert_eq!(h.0.lock().unwrap().cloud, vec!["GET /v1/shared/c1/log?since=0".to_string()]);
+  let prof = read(&glue, "profiles/p1/profile.json");
+  assert_eq!(prof["collections"], json!([{ "id": "c2", "name": "Mine" }]));
+  assert_eq!(prof["lastCollection"], "c2");
+  assert!(glue.join("backups/pre-deleted-2026-10-05-c1.zip").exists());
+  assert!(glue.join(format!("{C}/collection.json")).exists(), "its files stay");
+  assert_eq!(h.0.lock().unwrap().events, vec!["“Shared” was deleted from your account: backed up and put away".to_string()]);
+  // In the account again: a sync asks GLUE Cloud what changed (this stand-in answers nothing more).
+  h.0.lock().unwrap().gone = false;
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Shared" }], "lastCollection": "c1" }));
+  h.0.lock().unwrap().cloud.clear();
+  let _ = command(&e, &json!({ "cmd": "syncShared" }));
+  assert_eq!(h.0.lock().unwrap().cloud[0], "GET /v1/shared/c1/log?since=0");
 }

@@ -22,6 +22,8 @@ export class FakeHome {
   readonly readToken = 'e2e-read';
   /** Where /rpc goes when it isn't the engine's (the analysis queue's: the test wires it to GLUE Home's service page); unset: 503. */
   rpc: ((body: string, read: boolean) => Promise<string>) | null = null;
+  /** GLUE Cloud as the engine calls it (ADR 0155; the test wires its stand-in): the answer's status and text. */
+  cloud: ((method: string, path: string, body: string | null) => Promise<{ status: number; body: string }>) | null = null;
   /** GLUE Home's own cache (the test wires it to the service page's), for /cache?key=. */
   cache: ((key: string) => Promise<number[] | null>) | null = null;
   /** Keys asked of /cache (GLUE Home's analyses, by a tab). */
@@ -111,8 +113,15 @@ export class FakeHome {
     const e = this.engine = spawn(bin, [resolve(this.dirs.glue), cache]);
     e.stderr.on('data', d => process.stderr.write(d));
     createInterface({ input: e.stdout }).on('line', line => {
-      let m: { ask?: number; ok?: unknown; err?: string; note?: string; [k: string]: unknown };
+      let m: { ask?: number; ok?: unknown; err?: string; note?: string; call?: number; cloud?: { method: string; path: string; body: string | null }; [k: string]: unknown };
       try { m = JSON.parse(line); } catch { return; }
+      if (m.call !== undefined && m.cloud) {
+        const n = m.call, c = m.cloud;
+        void (this.cloud ? this.cloud(c.method, c.path, c.body) : Promise.resolve({ status: 503, body: 'no GLUE Cloud' }))
+          .catch(e => ({ status: 500, body: String(e) }))
+          .then(r => this.engine?.stdin.write(JSON.stringify({ reply: n, status: r.status, body: r.body }) + '\n'));
+        return;
+      }
       if (m.ask !== undefined) { this.asked.get(m.ask)?.(m); this.asked.delete(m.ask); return; }
       if (m.note === 'tags') { this.tagWrites.push({ path: m.path as string, tags: m.tags as Record<string, string> }); return; }
       if (m.note && m.note !== 'bye') this.notes.push({ ...m, n: this.notes.length + 1, note: m.note });

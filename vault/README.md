@@ -232,5 +232,6 @@ Planned (GLUE):
 | [0152](adr/0152-the-library-store-in-rust.md) | The library store in Rust (`crates/glue-store`), held to the website's byte for byte | accepted |
 | [0153](adr/0153-the-library-engine-in-rust.md) | GLUE Home's library engine in Rust (`crates/glue-engine`), tested end to end against the real one | accepted |
 | [0154](adr/0154-the-analysis-queue-in-rust.md) | The analysis queue in GLUE Home's engine, in Rust (and where songs are) | accepted |
+| [0155](adr/0155-the-shared-sync-in-rust.md) | GLUE Home syncs the shared collections in Rust, held to the website's sync | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

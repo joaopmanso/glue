@@ -5,6 +5,7 @@
 //! events: `engine-event` (Activity), `engine-edited` (the sync sends it up), `engine-changed` (the status),
 //! `engine-analysis` (the queue's state), `engine-made` (a song's parts made: the sessions are told).
 use glue_engine::library::Known;
+use glue_engine::sync::CloudError;
 use glue_engine::{Engine, Host};
 use glue_store::json::Obj;
 use serde_json::{json, Value};
@@ -15,6 +16,30 @@ use tauri::{AppHandle, Emitter, Manager};
 pub struct App { app: AppHandle }
 
 fn cfg(app: &AppHandle) -> Option<Value> { crate::get_config_impl(app.clone()) }
+
+/// GLUE Cloud (home/ui/bridge.ts `API`).
+const API: &str = "https://glue-api.joaopmanso.workers.dev";
+/// This GLUE Home's access token, when it was asked for, and for which credential.
+static TOKEN: Mutex<Option<(String, std::time::Instant, String)>> = Mutex::new(None);
+/// An access token (cloud.ts `access`): kept 40 minutes.
+fn access(api: &str, c: &Value) -> Result<String, CloudError> {
+  let (Some(device), Some(token)) = (c["deviceId"].as_str(), c["token"].as_str()) else { return Err(CloudError::new("GLUE Home isn’t connected to an account")) };
+  let who = format!("{api}|{device}|{token}");
+  if let Some((t, at, w)) = TOKEN.lock().unwrap().as_ref() { if *w == who && at.elapsed().as_secs() < 40 * 60 { return Ok(t.clone()); } }
+  let r = ureq::post(&format!("{api}/v1/auth/device")).timeout(std::time::Duration::from_secs(30)).set("Content-Type", "application/json").send_string(&json!({ "deviceId": device, "token": token }).to_string());
+  let parse = |r: ureq::Response| r.into_string().ok().and_then(|t| serde_json::from_str::<Value>(&t).ok());
+  let v: Value = match r {
+    Ok(r) => parse(r).ok_or_else(|| CloudError::new("GLUE Cloud answered strangely"))?,
+    Err(ureq::Error::Status(code, r)) => {
+      let why = parse(r).and_then(|j| j["error"].as_str().map(String::from)).unwrap_or_else(|| format!("GLUE Cloud said no ({code})"));
+      return Err(CloudError { status: code, message: why });
+    }
+    Err(e) => return Err(CloudError::new(e.to_string())),
+  };
+  let t = v["access"].as_str().ok_or_else(|| CloudError::new("GLUE Cloud answered strangely"))?.to_string();
+  *TOKEN.lock().unwrap() = Some((t.clone(), std::time::Instant::now(), who));
+  Ok(t)
+}
 
 impl Host for App {
   fn lease_held(&self) -> bool { crate::local::leased() }
@@ -53,6 +78,24 @@ impl Host for App {
   fn changed(&self) { let _ = self.app.emit_to("service", "engine-changed", ()); }
   fn analysis_changed(&self, state: &Value) { let _ = self.app.emit_to("service", "engine-analysis", state); }
   fn made(&self, p: &str, c: &str, id: &str) { let _ = self.app.emit_to("service", "engine-made", json!({ "p": p, "c": c, "id": id })); }
+  /// GLUE Cloud (the settings' `api`, or GLUE's), with this GLUE Home's access token: asked for with its credential
+  /// (`/v1/auth/device`) and kept 40 minutes, as the service page did.
+  fn cloud(&self, method: &str, path: &str, content_type: Option<&str>, body: Option<&str>) -> Result<String, CloudError> {
+    let c = self.config();
+    let api = c["api"].as_str().filter(|a| !a.is_empty()).unwrap_or(API).trim_end_matches('/').to_string();
+    let token = access(&api, &c)?;
+    let req = ureq::request(method, &format!("{api}{path}")).set("Authorization", &format!("Bearer {token}")).timeout(std::time::Duration::from_secs(60));
+    let r = match (content_type, body) {
+      (Some(t), Some(b)) => req.set("Content-Type", t).send_string(b),
+      (None, Some(b)) => req.send_string(b),
+      _ => req.call(),
+    };
+    match r {
+      Ok(r) => r.into_string().map_err(|e| CloudError::new(e.to_string())),
+      Err(ureq::Error::Status(code, _)) => { if code == 401 { *TOKEN.lock().unwrap() = None; } Err(CloudError { status: code, message: format!("GLUE Cloud: {code}") }) }
+      Err(e) => Err(CloudError::new(e.to_string())),
+    }
+  }
   /// Into the song's file (ADR 0071), in the music folder it's in (or the incoming folder), as `/fs/tags` writes.
   fn write_tags(&self, root_id: &str, rel_path: &str, tags: &Obj) -> Result<(f64, f64), String> {
     let root = folder(&self.app, root_id).ok_or("GLUE Home doesn’t know this song’s music folder")?;

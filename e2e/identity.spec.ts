@@ -70,6 +70,8 @@ test('GLUE Home learns its computer from its music folders, vouches for it, and 
     const cloudFiles: Record<string, string> = {};
     for (const [rel, text] of Object.entries(files)) if (rel.startsWith(col + '/')) cloudFiles[rel.slice(col.length + 1)] = text;
     await server.seed('bf92', 'My collection', cloudFiles, 'lap', 1);
+    // GLUE Home's engine syncs (ADR 0155): its calls to GLUE Cloud, answered by the stand-in, as this computer.
+    fake.cloud = async (method, path, body) => (await server.answer(method, new URL('https://glue-api.joaopmanso.workers.dev' + path), body, 'mmJiL')) ?? { status: 404, body: '{}' };
     const agreed: Record<string, { rev: number; hash: string; text: string }> = {};
     const { createHash } = await import('node:crypto');
     for (const [p, text] of Object.entries(cloudFiles)) agreed[p] = { rev: 1, hash: createHash('sha256').update(text).digest('hex'), text };

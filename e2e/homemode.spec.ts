@@ -662,6 +662,8 @@ test('a shared collection with no GLUE tab open: GLUE Home takes in another devi
     const theirs = shardText(song('From the laptop', ['title']));
     const server = new SharedCloudServer();
     await server.seed('c1', 'Main', { 'collection.json': { text: metaText, rev: 1 }, 'tracks/t1.json': { text: theirs, rev: 2 } }, 'lap', 2);
+    // GLUE Home's engine syncs (ADR 0155): its calls to GLUE Cloud, answered by the stand-in.
+    fake.cloud = async (method, path, body) => (await server.answer(method, new URL('https://glue-api.joaopmanso.workers.dev' + path), body, 'hdesk')) ?? { status: 404, body: '{}' };
     const home = await page.context().newPage();
     await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
       const req = r.request(), u = new URL(req.url()), p = u.pathname;
@@ -738,6 +740,8 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
     // Analysed by GLUE Home, into the collection's files (no GLUE tab holds the lease).
     const analysis = () => { try { return JSON.parse(readFileSync(join(fake.dirs.glue, col, 'analysis', 't1.json'), 'utf8')).items as Record<string, { v: number; fileSize: number; fileMtime: number }>; } catch { return {}; } };
     await expect.poll(() => Object.keys(analysis()).sort(), { timeout: 120_000 }).toEqual(['t1a', 't1b', 't1c', 't1d', 't1f']);
+    // (One save writes the analyses, then the songs: both are there.)
+    await expect.poll(() => { try { return !!JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items.t1b.format; } catch { return false; } }, { timeout: 20_000 }).toBe(true);
     expect(analysis().t1a).toMatchObject({ v: 3, fileSize: 65267, fileMtime: 1000 });
     const tracks = JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items;
     expect(tracks.t1b.format).toMatchObject({ lossless: true, sampleRate: 96000 });
@@ -752,7 +756,8 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
     // What it did, for its settings window: the analysis state and the events.
     const status = () => home.evaluate(() => (window as unknown as { __status?: { analysing?: { done: number; left: number; waiting: number }; events?: { text: string }[] } }).__status);
     await expect.poll(async () => (await status())?.analysing?.done, { timeout: 20_000 }).toBe(5);
-    expect((await status())?.analysing).toMatchObject({ left: 0, waiting: 0, failed: 0, away: 1 });
+    // (The results go into the library just after the last song: waiting for them.)
+    await expect.poll(async () => (await status())?.analysing, { timeout: 20_000 }).toMatchObject({ left: 0, waiting: 0, failed: 0, away: 1 });
     const texts = ((await status())?.events ?? []).map(e => e.text);
     expect(texts).toContain('Analysing 6 songs');
     expect(texts.some(t => t.startsWith('Put 5 analyses into the library'))).toBe(true);
@@ -792,10 +797,11 @@ test('GLUE Home is the library’s engine: the tab shows, GLUE Home analyses and
     await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
     await home.addInitScript(TAURI_MOCK);
     // The songs, in this computer's Music folder (the engine reads them, ADR 0154).
+    // Paused until the tab is open, so it hears of each song analysed (its details copied to it).
     copyFileSync(fixture('mp3-128k.mp3'), join(tmp, 'Music', 'a.mp3')); copyFileSync(fixture('flac-96k-24.flac'), join(tmp, 'Music', 'b.flac'));
     await home.addInitScript(({ glue, port, token, dir }) => {
       const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__localPort = port; w.__lease = false;
-      localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token }));
+      localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token, analysisPaused: true }));
     }, { glue: files, port: fake.port, token: fake.token, dir: fake.dirs.glue });
     await home.goto('http://localhost:5176/service.html');
     fake.cache = key => home.evaluate(k => (window as unknown as { __cache: Record<string, number[]> }).__cache[k] ?? null, key);
@@ -809,6 +815,7 @@ test('GLUE Home is the library’s engine: the tab shows, GLUE Home analyses and
     await page.goto('./');
     await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
     await expect(page.locator('#analysis-by')).toBeVisible({ timeout: 30_000 });
+    await fake.ask({ cmd: 'setPaused', on: false });
 
     // GLUE Home analyses (the tab can't), writes it, and the tab shows it: analysed, with their details.
     await expect(page.locator('.an')).toContainText('All analysed', { timeout: 120_000 });

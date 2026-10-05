@@ -5,6 +5,18 @@ updated: 2026-10-05
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-05 · GLUE Home 0.54.0: the shared sync in Rust (ADR 0155)
+- **GLUE Home syncs the shared collections itself, in Rust** ([ADR 0155](../adr/0155-the-shared-sync-in-rust.md)):
+  `crates/glue-engine/src/sync.rs` (the website's sync, line for line) and `shared.rs` (GLUE Home's loop: this
+  computer's numbers, edited song info into the files, a collection deleted from the account put away). GLUE Cloud is
+  called from Rust with GLUE Home's token. `home/ui/sharedSync.ts` is gone.
+- **The same calls and the same files as the website's:** `tests/sync.golden.test.ts` records the website's sync
+  against GLUE Cloud's real code (a first sync, a push, a merge with a clash, a stale push, a checkpoint, a deletion),
+  and `crates/glue-engine/tests/sync_golden.rs` replays it in Rust.
+- E4 is in two parts: E4a here, E4b next (signaling, sessions, the answers to other devices, identity, ICE).
+- Tests: CI's settings test raced the test engine's settings (now handed to it before GLUE Home's pages hear of them);
+  two analysis tests waited on the wrong thing under load.
+
 ## 2026-10-05 · GLUE Home 0.53.1: the GLUE window opens from the settings and the tray
 - **A white window and GLUE Home frozen** (the user's first try of the window, on 0.53): the GLUE window was built
   inside the settings' "Open GLUE library" command (and the tray's click). On Windows a webview built there deadlocks

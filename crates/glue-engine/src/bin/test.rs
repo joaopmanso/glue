@@ -11,6 +11,8 @@
 //!                                           service page (`config`: a change to the settings; `search`: a drive search)
 //!        {"note": "tags", "path": relPath, "tags": {...}}     song info written into a file (the file is only touched,
 //!                                                            its date 5 s on, as e2e/fakeHome.ts's /fs/tags does)
+//!        {"call": n, "cloud": {"method", "path", "type", "body"}}  a call to GLUE Cloud (the test's stands in), answered
+//!   in:  {"reply": n, "status": 200, "body": "..."}
 //! Every 2 s, as GLUE Home every 10 s: the jobs carried on, or the stores let go while a tab holds the lease. The
 //! analysis looks for songs a second after the settings first arrive, then every 10 s (GLUE Home: 20 s, every minute).
 //! Songs are analysed for real (crates/glue-audio).
@@ -19,11 +21,12 @@ use glue_engine::{Engine, Host};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 
 #[derive(Default)]
 struct State { lease: bool, stopped: bool, config: Option<Value>, folders: serde_json::Map<String, Value>, incoming: Option<PathBuf>, known: Option<Known> }
-struct H { st: Arc<Mutex<State>>, out: Arc<Mutex<std::io::Stdout>>, glue: String }
+type Replies = Arc<Mutex<(u64, std::collections::HashMap<u64, mpsc::Sender<(u16, String)>>)>>;
+struct H { st: Arc<Mutex<State>>, out: Arc<Mutex<std::io::Stdout>>, glue: String, replies: Replies }
 impl H {
   fn say(&self, v: Value) { let mut o = self.out.lock().unwrap(); let _ = writeln!(o, "{v}"); let _ = o.flush(); }
   fn folder(&self, root_id: &str) -> Option<PathBuf> {
@@ -54,7 +57,7 @@ impl Host for H {
     self.say(json!({ "note": "config", "patch": patch }));
     Some(self.config())
   }
-  fn version(&self) -> String { "0.53.0".into() }
+  fn version(&self) -> String { "0.54.0".into() }
   fn known_folders(&self) -> Known { self.st.lock().unwrap().known.clone().unwrap_or(Known { sep: std::path::MAIN_SEPARATOR, ..Default::default() }) }
   fn incoming_dir(&self) -> PathBuf { self.st.lock().unwrap().incoming.clone().unwrap_or_else(|| PathBuf::from(&self.glue).join("..").join("Incoming")) }
   fn find_folder(&self, name: &str, sample: &str, secs: u64) -> Option<String> {
@@ -66,6 +69,13 @@ impl Host for H {
   fn changed(&self) { self.say(json!({ "note": "changed" })) }
   fn analysis_changed(&self, state: &Value) { self.say(json!({ "note": "analysis", "state": state })) }
   fn made(&self, p: &str, c: &str, id: &str) { self.say(json!({ "note": "made", "p": p, "c": c, "id": id })) }
+  fn cloud(&self, method: &str, path: &str, content_type: Option<&str>, body: Option<&str>) -> Result<String, glue_engine::sync::CloudError> {
+    let (tx, rx) = mpsc::channel();
+    let n = { let mut r = self.replies.lock().unwrap(); r.0 += 1; let n = r.0; r.1.insert(n, tx); n };
+    self.say(json!({ "call": n, "cloud": { "method": method, "path": path, "type": content_type, "body": body } }));
+    let (status, text) = rx.recv_timeout(std::time::Duration::from_secs(60)).map_err(|_| glue_engine::sync::CloudError::new("GLUE Cloud didn’t answer"))?;
+    if (200..300).contains(&status) { Ok(text) } else { Err(glue_engine::sync::CloudError { status, message: format!("GLUE Cloud: {status}") }) }
+  }
   fn write_tags(&self, root_id: &str, rel_path: &str, tags: &glue_store::json::Obj) -> Result<(f64, f64), String> {
     let root = self.folder(root_id).ok_or("GLUE Home doesn’t know this song’s music folder")?;
     let file = rel_path.split('/').fold(root, |p, x| p.join(x));
@@ -85,7 +95,8 @@ impl Host for H {
 fn main() {
   let args: Vec<String> = std::env::args().skip(1).collect();
   let (st, out) = (Arc::new(Mutex::new(State::default())), Arc::new(Mutex::new(std::io::stdout())));
-  let engine = Engine::new(args[0].clone().into(), args[1].clone().into(), H { st: st.clone(), out: out.clone(), glue: args[0].clone() });
+  let replies: Replies = Default::default();
+  let engine = Engine::new(args[0].clone().into(), args[1].clone().into(), H { st: st.clone(), out: out.clone(), glue: args[0].clone(), replies: replies.clone() });
   let (e2, st2) = (engine.clone(), st.clone());
   std::thread::spawn(move || loop {
     std::thread::sleep(std::time::Duration::from_secs(2));
@@ -94,6 +105,10 @@ fn main() {
   let say = |v: Value| { let mut o = out.lock().unwrap(); let _ = writeln!(o, "{v}"); let _ = o.flush(); };
   for line in std::io::stdin().lock().lines().map_while(Result::ok) {
     let Ok(m) = serde_json::from_str::<Value>(&line) else { continue };
+    if let Some(n) = m["reply"].as_u64() {
+      if let Some(tx) = replies.lock().unwrap().1.remove(&n) { let _ = tx.send((m["status"].as_u64().unwrap_or(0) as u16, m["body"].as_str().unwrap_or("").to_string())); }
+      continue;
+    }
     if let Some(s) = m.get("set") {
       let first = {
         let mut g = st.lock().unwrap();

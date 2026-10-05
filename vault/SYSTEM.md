@@ -109,7 +109,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - **A computer's id** is its account device: the browser device that GLUE Home is the companion of. GLUE Home
     learns it (`home/ui/identity.ts`, `GET /v1/computer`); the tab gets it from GLUE Home's `hello`. Nothing is
     ever written under an unknown or stand-in id.
-  - **Sync** (`src/store/shared/engine.ts`, ADRs 0106, 0107):
+  - **Sync** (`src/store/shared/engine.ts`, ADRs 0106, 0107; GLUE Home's is its Rust port, `crates/glue-engine/src/sync.rs`,
+    held to it by `tests/golden/sync`, ADR 0155):
     - GLUE Cloud keeps a snapshot (`shared_files`) and a log (`shared_log`); a push is one log entry on the
       latest revision, otherwise the device pulls, merges and pushes again;
     - only files marked changed are looked at, and every file every 30 minutes;
@@ -161,7 +162,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     device at once (`cache.soon`) and fills the background thumbnails, through `engine_cmd` (until E4).
   - **FLAC is decoded by GLUE** (`src/core/formats/flac.ts`, ADR 0144; an ID3v2 tag before the stream is skipped), in every analysis worker (`decode.ts`): exact,
     any rate, read a part at a time; the browser's decoders for the other formats, and when it can't.
-  - shared sync, song info written into files (`writeUnwritten`), backups, duplicates moved or recycled
+  - shared sync (in the engine since 0.54, ADR 0155: `shared.rs` with `sync.rs`, GLUE Cloud called from Rust with this
+    GLUE Home's token; the service page only says when), song info written into files (`writeUnwritten`), backups,
+    duplicates moved or recycled
     (ADR 0070), DJ libraries followed live (ADR 0065), reminders, updates.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     Bounded (ADR 0132): a connection not open within 30 s is let go, and an offer it can't take is answered

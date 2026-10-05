@@ -100,7 +100,9 @@ After working:
 - `crates/glue-engine`: GLUE Home's library engine (ADR 0153, 0154): the local link's `/rpc`, the stores, jobs, repair
   and the analysis queue; `home/src-tauri/src/engine.rs` hosts it in GLUE Home, its binary `glue-engine-test` in the e2e
   tests (`e2e/fakeHome.ts` runs it; Playwright's global setup `e2e/engine-build.ts` builds it, so the e2e tests need
-  cargo). It reads real files: an e2e test's GLUE Home songs and GLUE folder go on disk (`e2e/homeDisk.ts`).
+  cargo). It reads real files: an e2e test's GLUE Home songs and GLUE folder go on disk (`e2e/homeDisk.ts`). Its shared
+  sync (ADR 0155) is held to `src/store/shared/engine.ts` by `tests/golden/sync` (regenerate with
+  `GOLDEN=1 npx vitest run tests/sync.golden.test.ts` after changing the sync, then port the change).
 - `crates/glue-rtc`: GLUE Home's connections to other devices (ADR 0150), webrtc-rs speaking the website's protocol
   (src/core/transfer.ts). `cargo test --manifest-path crates/glue-rtc/Cargo.toml`; against Edge:
   `cargo build --release --example probe --manifest-path crates/glue-rtc/Cargo.toml && node scripts/rtc-probe.mjs`.

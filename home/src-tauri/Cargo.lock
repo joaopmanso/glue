@@ -1850,15 +1850,18 @@ dependencies = [
 name = "glue-engine"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "flate2",
  "glue-audio",
  "glue-store",
  "indexmap 2.14.2",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
 name = "glue-home"
-version = "0.53.1"
+version = "0.54.0"
 dependencies = [
  "glue-audio",
  "glue-engine",

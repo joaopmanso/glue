@@ -7,12 +7,15 @@
 //! - jobs that go on without the tab (removing songs), kept in GLUE Home's cache and carried on after a restart;
 //! - what was written since the last shared sync (ADR 0107);
 //! - the analysis queue (`queue.rs`, ADR 0154): this computer's songs analysed natively (`analyse.rs`) and taken into
-//!   the library; where songs and music folders are on this computer (`library.rs`).
+//!   the library; where songs and music folders are on this computer (`library.rs`);
+//! - the shared collections synced with GLUE Cloud (`sync.rs`, `shared.rs`, ADR 0155).
 //!
 //! No Tauri: the app is a `Host`. `glue-engine-test` serves it to the e2e tests.
 pub mod analyse;
 pub mod library;
 pub mod queue;
+pub mod shared;
+pub mod sync;
 
 use glue_store::dir::{read_json, Dir, FsDir};
 use glue_store::json::{stringify, Obj};
@@ -65,6 +68,9 @@ pub trait Host: Send + Sync + 'static {
   fn analysis_changed(&self, _state: &Value) {}
   /// A song's parts were made here (any reason): the devices with a session are told (ADR 0133).
   fn made(&self, _p: &str, _c: &str, _id: &str) {}
+  /// A call to GLUE Cloud (`path` under its address, as this GLUE Home, with its credential): the answer's text, or
+  /// why not (its HTTP status, 0 for none).
+  fn cloud(&self, _method: &str, _path: &str, _content_type: Option<&str>, _body: Option<&str>) -> Result<String, sync::CloudError> { Err(sync::CloudError::new("GLUE Home isn’t connected to GLUE Cloud")) }
   /// Something for GLUE Home's Activity list.
   fn event(&self, _text: &str) {}
   /// A tab's edit (or a repair, or a job) was saved: the shared sync sends it up soon.
@@ -129,6 +135,9 @@ pub struct Engine<H: Host> {
   /// The drive searches for music folders, by folder: one at a time, what it found, when (library.rs).
   pub(crate) searches: Mutex<HashMap<String, Arc<Search>>>,
   pub(crate) me: Mutex<Weak<Self>>,
+  /// One sync of the shared collections at a time (shared.rs); this computer's numbers last sent, by collection.
+  pub(crate) syncing: Mutex<()>,
+  pub(crate) counted: Mutex<HashMap<String, (String, i64)>>,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -137,7 +146,7 @@ fn text(v: &Value, k: &str) -> String { get(v, k).and_then(|x| x.as_str()).unwra
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue, cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()) });
+    let e = Arc::new(Engine { glue, cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }
@@ -434,8 +443,8 @@ impl<H: Host> Engine<H> {
   }
 }
 
-/// What GLUE Home's service page asks of the engine while the shared sync and the answers to other devices are still
-/// its own (until the plan's E4): one dispatcher for GLUE Home's commands and the test binary, so both do the same.
+/// What GLUE Home's service page asks of the engine while the answers to other devices are still its own (until the
+/// plan's E4b): one dispatcher for GLUE Home's commands and the test binary, so both do the same.
 pub fn command<H: Host>(e: &Arc<Engine<H>>, m: &Value) -> Result<Value, String> {
   let (p, c) = (text(m, "p"), text(m, "c"));
   let paths = |k: &str| -> Vec<String> { m[k].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default() };
@@ -474,6 +483,8 @@ pub fn command<H: Host>(e: &Arc<Engine<H>>, m: &Value) -> Result<Value, String> 
     "setPaused" => { e.set_paused(m["on"].as_bool().unwrap_or(false), false); Ok(json!(true)) }
     "played" => { e.played(); Ok(json!(true)) }
     "analysisState" => Ok(e.analysis_json()),
+    // The shared collections synced with GLUE Cloud now (shared.rs): the files that changed here.
+    "syncShared" => e.sync_shared_here().map(|n| json!(n)).map_err(|x| x.message),
     x => Err(format!("unknown command {x}")),
   }
 }

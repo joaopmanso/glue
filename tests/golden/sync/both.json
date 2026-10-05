@@ -1,0 +1,223 @@
+{
+ "me": "desk",
+ "pid": "p1",
+ "cid": "c1",
+ "files": {},
+ "runs": [
+  {
+   "hint": null,
+   "calls": [
+    {
+     "call": "log",
+     "args": [
+      0
+     ],
+     "answer": {
+      "reset": true,
+      "floor": 3,
+      "seq": 3,
+      "more": true,
+      "entries": []
+     }
+    },
+    {
+     "call": "changes",
+     "args": [
+      0
+     ],
+     "answer": {
+      "seq": 3,
+      "more": false,
+      "files": [
+       {
+        "path": "collection.json",
+        "rev": 1,
+        "hash": "8dd0fbe483c3dadad34be0b3b2c4bd7859dd7e659e838d068cb2eed7fb640882",
+        "size": 283,
+        "deleted": false,
+        "by": "desk",
+        "at": 1700000000000
+       },
+       {
+        "path": "tracks/ab.json",
+        "rev": 2,
+        "hash": "20bbc9e6fe4e18f21276786208705db24c486654faaf42a169e868f1174a7158",
+        "size": 762,
+        "deleted": false,
+        "by": "desk",
+        "at": 1700000000000
+       },
+       {
+        "path": "lists/l1.json",
+        "rev": 3,
+        "hash": "b9b8b9d7ad00da0525bcc3014526e9100dd9230bb5dc400289d59a9f6df6d36d",
+        "size": 142,
+        "deleted": false,
+        "by": "desk",
+        "at": 1700000000000
+       }
+      ]
+     }
+    },
+    {
+     "call": "bundle",
+     "args": [
+      [
+       "collection.json",
+       "tracks/ab.json",
+       "lists/l1.json"
+      ]
+     ],
+     "answer": "collection.json\t1\t8dd0fbe483c3dadad34be0b3b2c4bd7859dd7e659e838d068cb2eed7fb640882\tH4sIAAAAAAAACl3Nu2oDMRCF4Xc59ThoXQQynUO6JBBISBHjYryaoMXaldBoC7Po3YMvYBM45cf5F1gfdJRvLTakCdwRBg9G34EwyahgfAYp6kHoi0pVv6lgrN36ceW6leu+nOPzHpxzPyDYxXMtsxJKStWej+AFXu0A3i6XRLlLvM829CDI3j6kBvA0x0gIMvmor3oEI5y4eH/to+0aYdRxr8Vu5wtySb9DPJ3mu8CL2qGmjEaIkv+5p5t7k3xmrf0BCabIPBsBAAA=\ntracks/ab.json\t2\t20bbc9e6fe4e18f21276786208705db24c486654faaf42a169e868f1174a7158\tH4sIAAAAAAAACuWQP2vDMBDFv0p5s5LKDu2gLVu7lEJLh4YMZ/viiEhWkM6UNvi7l4szBEqnjgXB6f5x7/1OKO2eI71xLj4NcJWBF44F7gRqbKXRd3BzYrDzgZ8o8qWy3AVqYSBegtZe0tDfXEYpiy8Ch/X8MaDQjBEOMOh5yLrwkMbCMAjUcJhbbYqRB5mTT6YMh9rWFgbdmEnOOlfWGuxSjiRwwxiCAXUdd2uZp+8XtlrY6rWyzupbWmvfVSj1BW6DD8oRWz129Hx223E5aCxCMhY4BD8cuINBTkkelUFWW5nDM8lezbKU22sKPh5Tlrk7ayr+i+Eqq2qjeOV2Z1DSmFu9utlO02SUZH0Nuv4Buv4NdP2fQNd/Am2gnoYebjVN0zc7B4hA+gIAAA==\nlists/l1.json\t3\tb9b8b9d7ad00da0525bcc3014526e9100dd9230bb5dc400289d59a9f6df6d36d\tH4sIAAAAAAAACiXMMQ7CMAxG4augf/aQMvoGXAAGxOBSCywSJ4rTAaHeHRW2t7zvg7g/tchZe1h18ESwBYw8gfAy37tleWeLAYJLUTAu0sthbSA06erjtIB9zZnQatj4SYngdWiAAYINLQG+Qua00zKnI26E2u1h/r+3L27416eOAAAA"
+    },
+    {
+     "call": "log",
+     "args": [
+      3
+     ],
+     "answer": {
+      "seq": 3,
+      "more": false,
+      "entries": []
+     }
+    }
+   ],
+   "changed": [
+    "collection.json",
+    "tracks/ab.json",
+    "lists/l1.json"
+   ],
+   "clashes": [],
+   "pushed": 0,
+   "after": {
+    "cloud/shared/c1.json": "{\"v\":2,\"cursor\":3}",
+    "cloud/shared/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "cloud/shared/c1/lists/l1.json": "{\"schemaVersion\":1,\"id\":\"l1\",\"kind\":\"playlist\",\"name\":\"Warm up\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[\"ab01\",\"ab02\"],\"origin\":null}",
+    "cloud/shared/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}},\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":3}}}",
+    "profiles/p1/collections/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "profiles/p1/collections/c1/lists/l1.json": "{\"schemaVersion\":1,\"id\":\"l1\",\"kind\":\"playlist\",\"name\":\"Warm up\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[\"ab01\",\"ab02\"],\"origin\":null}",
+    "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}},\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":3}}}"
+   }
+  },
+  {
+   "hint": [
+    "tracks/ab.json",
+    "lists/l2.json"
+   ],
+   "edit": {
+    "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\",\"vocal\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":5},\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":3},\"cd03\":{\"id\":\"cd03\",\"fileName\":\"cd03.flac\",\"title\":\"Song cd03\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/cd03.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}",
+    "profiles/p1/collections/c1/lists/l2.json": "{\"schemaVersion\":1,\"id\":\"l2\",\"kind\":\"playlist\",\"name\":\"Peak\",\"parentId\":null,\"position\":1,\"notes\":\"é \\\"q\\\" \\\\ ✓\",\"items\":[\"cd03\"],\"origin\":null}"
+   },
+   "calls": [
+    {
+     "call": "log",
+     "args": [
+      3
+     ],
+     "answer": {
+      "seq": 3,
+      "more": false,
+      "entries": []
+     }
+    },
+    {
+     "call": "append",
+     "args": [
+      3,
+      [
+       "tracks/ab.json",
+       "lists/l2.json"
+      ],
+      "{\"v\":1,\"f\":{\"tracks/ab.json\":{\"o\":{\"schemaVersion\":1},\"i\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\",\"vocal\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":5},\"cd03\":{\"id\":\"cd03\",\"fileName\":\"cd03.flac\",\"title\":\"Song cd03\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/cd03.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}},\"lists/l2.json\":{\"t\":\"{\\\"schemaVersion\\\":1,\\\"id\\\":\\\"l2\\\",\\\"kind\\\":\\\"playlist\\\",\\\"name\\\":\\\"Peak\\\",\\\"parentId\\\":null,\\\"position\\\":1,\\\"notes\\\":\\\"é \\\\\\\"q\\\\\\\" \\\\\\\\ ✓\\\",\\\"items\\\":[\\\"cd03\\\"],\\\"origin\\\":null}\"}}}"
+     ],
+     "answer": {
+      "rev": 4,
+      "compact": false
+     }
+    }
+   ],
+   "changed": [],
+   "clashes": [],
+   "pushed": 2,
+   "after": {
+    "cloud/shared/c1.json": "{\"v\":2,\"cursor\":4}",
+    "cloud/shared/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "cloud/shared/c1/lists/l1.json": "{\"schemaVersion\":1,\"id\":\"l1\",\"kind\":\"playlist\",\"name\":\"Warm up\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[\"ab01\",\"ab02\"],\"origin\":null}",
+    "cloud/shared/c1/lists/l2.json": "{\"schemaVersion\":1,\"id\":\"l2\",\"kind\":\"playlist\",\"name\":\"Peak\",\"parentId\":null,\"position\":1,\"notes\":\"é \\\"q\\\" \\\\ ✓\",\"items\":[\"cd03\"],\"origin\":null}",
+    "cloud/shared/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\",\"vocal\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":5},\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":3},\"cd03\":{\"id\":\"cd03\",\"fileName\":\"cd03.flac\",\"title\":\"Song cd03\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/cd03.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}",
+    "profiles/p1/collections/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "profiles/p1/collections/c1/lists/l1.json": "{\"schemaVersion\":1,\"id\":\"l1\",\"kind\":\"playlist\",\"name\":\"Warm up\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[\"ab01\",\"ab02\"],\"origin\":null}",
+    "profiles/p1/collections/c1/lists/l2.json": "{\"schemaVersion\":1,\"id\":\"l2\",\"kind\":\"playlist\",\"name\":\"Peak\",\"parentId\":null,\"position\":1,\"notes\":\"é \\\"q\\\" \\\\ ✓\",\"items\":[\"cd03\"],\"origin\":null}",
+    "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\",\"vocal\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":5},\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":3},\"cd03\":{\"id\":\"cd03\",\"fileName\":\"cd03.flac\",\"title\":\"Song cd03\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/cd03.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}"
+   }
+  },
+  {
+   "hint": null,
+   "edit": {
+    "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Desktop title\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\",\"vocal\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":5},\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":3},\"cd03\":{\"id\":\"cd03\",\"fileName\":\"cd03.flac\",\"title\":\"Song cd03\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/cd03.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}",
+    "profiles/p1/collections/c1/lists/l1.json": "{\"schemaVersion\":1,\"id\":\"l1\",\"kind\":\"playlist\",\"name\":\"Warm up\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[\"ab01\",\"ab02\",\"cd03\"],\"origin\":null}"
+   },
+   "calls": [
+    {
+     "call": "log",
+     "args": [
+      4
+     ],
+     "answer": {
+      "seq": 5,
+      "more": false,
+      "entries": [
+       {
+        "rev": 5,
+        "by": "lap",
+        "at": 1700000000000,
+        "data": "H4sIAAAAAAAACtWTTWvcMBCG/8rynpWN7JAedMutgRICKS10tYdZW+uoqw8jjVPSxf+9jL3085pLwdh+X82MZh6YM15gGoUjzBlcqDvVazpsv9acxMnyqt2zi/TJlerFbWYFLz4ddCNf38OsQuHog3ug6C7O9hiogwJ7DuJ9oJHzuFmlAhX2lWFwt/4oUDhMEQZQGFwqkvM+T1WCAx1cWI+6HKNLvIpXRwUGrW41FPqpEC993mitcMwlEsOkKQQF6nvX3/Ea/e5KN1e6+dhoo+XZaq2/SK80VJgdvlGJUHjJHQXs5dLRuyoD966eFjBMPFUYBJ9OrodCyZnvBUcRGMWFR+JnGDw5Fq6/gPg45sLr6dpb9d8dTKOl68heEN4q1DyVTm7d7edZQWZLA8ztrIRv+zv+9h/87d/4n3IaNpfQ/4H96Oj0VujbN0J/M4sKvnK9Ds3PTZHBzvbPXbGyWha+tzAWobFQFiefVj0GepUyi5sousX9TCVupnExRyou8b2EL41ajLl6Xitrycrs6pK2xHt2UeTOLstnsVcWufjBp0uJGfM8/wAfhUeU9AMAAA=="
+       }
+      ]
+     }
+    },
+    {
+     "call": "append",
+     "args": [
+      5,
+      [
+       "tracks/ab.json",
+       "lists/l1.json"
+      ],
+      "{\"v\":1,\"f\":{\"tracks/ab.json\":{\"o\":{\"schemaVersion\":1},\"i\":{\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"peak\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":3}}},\"lists/l1.json\":{\"t\":\"{\\\"schemaVersion\\\":1,\\\"id\\\":\\\"l1\\\",\\\"kind\\\":\\\"playlist\\\",\\\"name\\\":\\\"Warm up\\\",\\\"parentId\\\":null,\\\"position\\\":0,\\\"notes\\\":\\\"\\\",\\\"items\\\":[\\\"ab01\\\",\\\"cd03\\\"],\\\"origin\\\":null}\"}}}"
+     ],
+     "answer": {
+      "rev": 6,
+      "compact": false
+     }
+    }
+   ],
+   "changed": [
+    "tracks/ab.json",
+    "lists/l1.json"
+   ],
+   "clashes": [
+    {
+     "file": "tracks/ab.json",
+     "at": "items.ab01.title",
+     "local": "Desktop title",
+     "remote": "Laptop title",
+     "by": "lap",
+     "when": 1700000000000
+    }
+   ],
+   "pushed": 2,
+   "after": {
+    "cloud/shared/c1.json": "{\"v\":2,\"cursor\":6,\"clashes\":[{\"file\":\"tracks/ab.json\",\"at\":\"items.ab01.title\",\"local\":\"Desktop title\",\"remote\":\"Laptop title\",\"by\":\"lap\",\"when\":1700000000000}]}",
+    "cloud/shared/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "cloud/shared/c1/lists/l1.json": "{\"schemaVersion\":1,\"id\":\"l1\",\"kind\":\"playlist\",\"name\":\"Warm up\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[\"ab01\",\"cd03\"],\"origin\":null}",
+    "cloud/shared/c1/lists/l2.json": "{\"schemaVersion\":1,\"id\":\"l2\",\"kind\":\"playlist\",\"name\":\"Peak\",\"parentId\":null,\"position\":1,\"notes\":\"é \\\"q\\\" \\\\ ✓\",\"items\":[\"cd03\"],\"origin\":null}",
+    "cloud/shared/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Laptop title\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\",\"vocal\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":5},\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"peak\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":3},\"cd03\":{\"id\":\"cd03\",\"fileName\":\"cd03.flac\",\"title\":\"Song cd03\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/cd03.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}",
+    "profiles/p1/collections/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "profiles/p1/collections/c1/lists/l1.json": "{\"schemaVersion\":1,\"id\":\"l1\",\"kind\":\"playlist\",\"name\":\"Warm up\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[\"ab01\",\"cd03\"],\"origin\":null}",
+    "profiles/p1/collections/c1/lists/l2.json": "{\"schemaVersion\":1,\"id\":\"l2\",\"kind\":\"playlist\",\"name\":\"Peak\",\"parentId\":null,\"position\":1,\"notes\":\"é \\\"q\\\" \\\\ ✓\",\"items\":[\"cd03\"],\"origin\":null}",
+    "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Laptop title\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\",\"vocal\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":5},\"ab02\":{\"id\":\"ab02\",\"fileName\":\"ab02.flac\",\"title\":\"Song ab02\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"peak\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab02.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}},\"rating\":3},\"cd03\":{\"id\":\"cd03\",\"fileName\":\"cd03.flac\",\"title\":\"Song cd03\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/cd03.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}"
+   }
+  }
+ ]
+}

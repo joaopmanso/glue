@@ -6,10 +6,12 @@
 //! - `dir`: a GLUE folder (on disk, or in memory for the tests);
 //! - `project`: src/core/shared/project.ts; `repair`: src/core/shared/repair.ts;
 //! - `store`: src/store/collection.ts (+ src/store/migrations.ts, merge.ts `absorbTracks`, writeInfo.ts, counts);
-//! - `backup`: src/store/backup.ts and src/core/zip.ts (a profile's backup zip).
+//! - `backup`: src/store/backup.ts and src/core/zip.ts (a profile's backup zip);
+//! - `merge3`: src/core/shared/merge3.ts (a shared collection's three-way merge).
 pub mod backup;
 pub mod dir;
 pub mod json;
+pub mod merge3;
 pub mod project;
 pub mod repair;
 pub mod store;

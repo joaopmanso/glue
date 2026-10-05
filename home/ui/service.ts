@@ -7,7 +7,6 @@ import { ICE_SERVERS, PENDING, isHandshake, type Handshake, type HomeFolder, typ
 import * as cache from './cache';
 import * as lookup from './lookup';
 import { backupDaily } from './backups';
-import { syncSharedHere } from './sharedSync';
 import { followMoves } from './moves';
 import { newlyFound } from './library';
 import { findUpdate, install, version } from './updates';
@@ -337,7 +336,7 @@ let sharedTimer: ReturnType<typeof setTimeout> | undefined;
 /** Sync the shared collections in a moment (several nudges at once make one). */
 function sharedSoon(ms = 1500) {
   clearTimeout(sharedTimer);
-  sharedTimer = setTimeout(() => { if (cfg?.running !== false && cfg) void syncSharedHere(cfg, apiOf(cfg)).then(n => { if (n) event('Took in ' + n + ' change' + (n === 1 ? '' : 's') + ' from your other devices'); }).catch(e => console.warn('GLUE Home: couldn’t sync the shared collections', e)); }, ms);
+  sharedTimer = setTimeout(() => { if (cfg?.running !== false && cfg) void engine.syncShared().then(n => { if (n) event('Took in ' + n + ' change' + (n === 1 ? '' : 's') + ' from your other devices'); }).catch(e => console.warn('GLUE Home: couldn’t sync the shared collections', e)); }, ms);
 }
 
 async function findFolders() {

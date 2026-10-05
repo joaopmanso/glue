@@ -76,6 +76,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **GLUE Home 0.54.0: the shared sync in Rust** (ADR 0155): the laptop and the desktop's changes should still meet as
+  before (a rating on one shows on the other); the desktop's numbers in the account's list; a collection deleted on one
+  computer put away on the other with a backup.
 - **GLUE Home 0.53.1: the GLUE window from the settings or the tray** (it was white and froze GLUE Home on 0.53.0,
   and since 0.50). Open it both ways; the 0.50 window checklist below still stands.
 - **GLUE Home 0.53.0, the library engine and the analysis queue in Rust** (ADR 0152–0154; 0.52 wasn't published):
@@ -198,9 +201,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     the file (`decode_flac` already reads ranges) and keeping the samples f32;
   - **The next phase** (plan `i-have-activated-plan-composed-turing.md`): W1 the GLUE window (0.50, done), then the
     engine in Rust: E1 the store (`crates/glue-store`, goldens) and E2 the engine and `/rpc` (`crates/glue-engine`, the e2e
-    tests against it), E3 the analysis queue (`queue.rs`, `library.rs`): done, 0.53 (ADR 0152–0154). Then E4 the cloud
-    side (signaling, sessions and the answers to other devices with `cache.soon`/`background`, shared sync, ADR 0155),
-    E5 the rest and the service page removed.
+    tests against it), E3 the analysis queue (`queue.rs`, `library.rs`): done, 0.53 (ADR 0152–0154). E4a the shared sync
+    (ADR 0155): done, 0.54. Then E4b (signaling, sessions and the answers to other devices with
+    `cache.soon`/`background`, identity, ICE), E5 the rest and the service page removed.
   - **B6: done (0.49.0, ADR 0150).** Next, when the GLUE window comes: the queue and the library's answers in Rust,
     then the service page removed.
   - **After the desktop's second check:** fix what its named fields show (suspected: the stored `d/` headers are older
@@ -222,6 +225,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   (`core/library/removal.ts` `orphans`) offers to remove it. Find who writes the local form into a shared shard
   (around `share` / `makeShared` and the first push), and make `toLocal` treat a song without copies as nobody's here.
   Reproduce: `e2e/shared.spec.ts` "the desktop's DJ library", with the library's fields regrouped (1 run in 7).
+- **The nightly e2e run fails since 2026-10-03:** `stems.spec.ts` (stem separation) runs out of its 14 minutes on CI's
+  machine (and `library.spec.ts` "No file linked" failed once on 2026-10-04). Not from the native-engine work; look at
+  the stems test's time on CI (`STEMS=1`).
 - **Flaky:** `shared.spec.ts` "the account's collections", from before 2026-10-02 (2 in 12 on `d403b25`, 4 in 12 on
   `3353c03`; it failed CI on `3353c03`, retry included). Three ways: the desktop's backup read once without waiting,
   0 songs for 30 s after switching collection, the account's box not shown. The first is a poll now (2026-10-02); look at the

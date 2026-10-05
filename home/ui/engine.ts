@@ -70,22 +70,10 @@ export async function listenToEngine() {
   void cmd<AnalysisState>({ cmd: 'analysisState' }).then(s => { queue = s; on.analysis?.(); }).catch(() => {});
 }
 
-/** A collection's store loaded (a shared one as this computer, put right once, ADR 0108). */
-export const ensure = (p: string, c: string) => cmd<boolean>({ cmd: 'ensure', p, c });
-/** Files a sync wrote, read again into the store (and in a GLUE tab's feed). */
-export const reload = (p: string, c: string, paths: string[]) => paths.length ? cmd<boolean>({ cmd: 'reload', p, c, paths }) : Promise.resolve(true);
-/** A tab saved this collection itself just now: read it again. */
-export const drop = (p: string, c: string) => cmd<boolean>({ cmd: 'drop', p, c }).catch(() => false);
 /** A GLUE tab from before the engine holds the lease: nothing kept goes stale. */
 export const forget = () => void cmd<boolean>({ cmd: 'forget' }).catch(() => {});
-/** The files written since the last sync; undefined: look at every file this time (ADR 0107). */
-export const takeWritten = (p: string, c: string) => cmd<string[] | null>({ cmd: 'takeWritten', p, c }).then(x => x ?? undefined);
-/** A sync that failed: what it was to look at is looked at next time. */
-export const writtenAgain = (p: string, c: string, paths: string[] | undefined) => void cmd<boolean>({ cmd: 'writtenAgain', p, c, paths: paths ?? null }).catch(() => {});
-/** This computer's numbers in a shared collection (ADR 0112), and whether songs wait for their info to be written. */
-export const counts = (p: string, c: string) => cmd<{ tracks: number; songs: number; holds: boolean; unwritten: boolean }>({ cmd: 'counts', p, c });
-/** Edited song info into this computer's files (ADR 0071), the cache following their new size and date. */
-export const writeUnwritten = (p: string, c: string) => cmd<{ written: number; failed: number; why: string; away: string[] }>({ cmd: 'writeUnwritten', p, c });
+/** The shared collections synced with GLUE Cloud now (ADR 0097, 0155: in Rust): the files that changed here. */
+export const syncShared = () => cmd<number>({ cmd: 'syncShared' }).catch(e => { throw new Error(String(e)); });
 
 // ---- the library as GLUE Home sees it (crates/glue-engine/src/library.rs) ------------------------------------------
 export const describe = () => cmd<LibraryInfo | null>({ cmd: 'describe' }).catch(() => null);

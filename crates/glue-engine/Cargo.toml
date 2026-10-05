@@ -10,6 +10,10 @@ publish = false
 glue-audio = { path = "../glue-audio" }
 glue-store = { path = "../glue-store" }
 indexmap = "2"
+# The shared sync (ADR 0155): packed texts, and the snapshot's hashes.
+base64 = "0.22"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+sha2 = "0.10"
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 
 [[bin]]
