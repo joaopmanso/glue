@@ -76,6 +76,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **GLUE Home 0.53.1: the GLUE window from the settings or the tray** (it was white and froze GLUE Home on 0.53.0,
+  and since 0.50). Open it both ways; the 0.50 window checklist below still stands.
 - **GLUE Home 0.53.0, the library engine and the analysis queue in Rust** (ADR 0152–0154; 0.52 wasn't published):
   nothing should look different. Edits in the window or a tab (a rating, a playlist, removing songs), the analysis
   (its speed, Stop, Analyse now, a folder found by itself, a network folder waiting) and a shared collection's sync now

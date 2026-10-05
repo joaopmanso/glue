@@ -493,12 +493,17 @@ fn open_library(app: AppHandle) {
 }
 
 /// The library: in the GLUE window (ADR 0151), or in the browser when the settings say so (`libraryIn: "browser"`) or
-/// the window can't open.
+/// the window can't open. Made on a thread of its own: on Windows a webview built inside a command (the settings'
+/// "Open GLUE library") or an event handler deadlocks with WebView2, leaving a white window and GLUE Home frozen
+/// (the user's first try of the window, 2026-10-05).
 fn open_glue(app: &AppHandle) {
-    let browser = get_config_impl(app.clone()).and_then(|c| c.get("libraryIn").and_then(|v| v.as_str()).map(|s| s == "browser")).unwrap_or(false);
-    if browser || window::open(app).is_err() {
-        let _ = app.opener().open_url(LIBRARY_URL, None::<&str>);
-    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let browser = get_config_impl(app.clone()).and_then(|c| c.get("libraryIn").and_then(|v| v.as_str()).map(|s| s == "browser")).unwrap_or(false);
+        if browser || window::open(&app).is_err() {
+            let _ = app.opener().open_url(LIBRARY_URL, None::<&str>);
+        }
+    });
 }
 
 fn open_settings(app: &AppHandle) {

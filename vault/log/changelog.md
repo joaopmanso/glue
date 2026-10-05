@@ -5,6 +5,13 @@ updated: 2026-10-05
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-05 · GLUE Home 0.53.1: the GLUE window opens from the settings and the tray
+- **A white window and GLUE Home frozen** (the user's first try of the window, on 0.53): the GLUE window was built
+  inside the settings' "Open GLUE library" command (and the tray's click). On Windows a webview built there deadlocks
+  with WebView2. It's built on a thread of its own now. Reproduced and checked on the laptop (a test copy, a throwaway
+  library): white before, the site after. It had been so since 0.50; the earlier test opened the window at launch,
+  which wasn't affected.
+
 ## 2026-10-05 · GLUE Home 0.53.0: the analysis queue in Rust (ADR 0154)
 - **GLUE Home's analysis queue is the engine's** ([ADR 0154](../adr/0154-the-analysis-queue-in-rust.md)): which song
   is next, network folders taking turns, retries and giving up, the speed and its suggestion, putting the results into
