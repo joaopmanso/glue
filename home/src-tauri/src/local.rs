@@ -5,9 +5,7 @@
 // /hello carries the token GLUE Home gave that website.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
-use std::sync::{mpsc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicU16, Ordering};
 
 use tauri::{AppHandle, Emitter};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
@@ -62,18 +60,6 @@ impl<R: Read> Read for Paced<R> {
     }
 }
 /// Requests to the library engine in the service page (ADR 0104): each waits here for its answer.
-static RPC_NEXT: AtomicU64 = AtomicU64::new(0);
-fn rpc_waiting() -> &'static Mutex<HashMap<u64, mpsc::Sender<String>>> {
-    static WAITING: OnceLock<Mutex<HashMap<u64, mpsc::Sender<String>>>> = OnceLock::new();
-    WAITING.get_or_init(|| Mutex::new(HashMap::new()))
-}
-/// The service page's answer to request `id` (the rpc_reply command).
-pub fn rpc_done(id: u64, body: String) {
-    let tx = rpc_waiting().lock().ok().and_then(|mut m| m.remove(&id));
-    if let Some(tx) = tx {
-        let _ = tx.send(body);
-    }
-}
 /// The routes that change files: not for a read-only token (ADR 0104).
 const WRITES: [&str; 6] = ["/fs/write", "/fs/mkdir", "/fs/remove", "/fs/tags", "/fs/dupes", "/incoming/move"];
 
@@ -224,7 +210,7 @@ fn answer(app: AppHandle, req: Request) {
             LEASE_AT.store(if arg("release") == "1" { 0 } else { now_ms() }, Ordering::Relaxed);
             reply(req, 200, serde_json::json!({ "edits": EDITS.load(Ordering::Relaxed) }).to_string().into_bytes(), "application/json")
         }
-        // A request to the library engine (ADR 0104): handed to the service page, answered when it has.
+        // A request to the library engine (ADR 0104, 0153).
         "/rpc" if req.method() == &Method::Post => {
             let mut req = req;
             let mut body = String::new();
@@ -235,27 +221,8 @@ fn answer(app: AppHandle, req: Request) {
             if !read_ok {
                 return reply(req, 400, b"{\"error\":\"bad request\"}".to_vec(), "application/json");
             }
-            // The engine's own requests, answered in Rust (ADR 0153); the analysis queue's go on to the service page.
-            if let Some(answer) = crate::engine::rpc(&app, &body) {
-                return reply(req, 200, answer.into_bytes(), "application/json");
-            }
-            let id = RPC_NEXT.fetch_add(1, Ordering::Relaxed) + 1;
-            let (tx, rx) = mpsc::channel();
-            if let Ok(mut m) = rpc_waiting().lock() {
-                m.insert(id, tx);
-            }
-            let msg = serde_json::json!({ "id": id, "body": body, "read": reading });
-            if app.emit_to("service", "rpc", msg).is_err() {
-                if let Ok(mut m) = rpc_waiting().lock() { m.remove(&id); }
-                return reply(req, 503, b"{\"error\":\"GLUE Home's service isn't running\"}".to_vec(), "application/json");
-            }
-            match rx.recv_timeout(std::time::Duration::from_secs(90)) {
-                Ok(answer) => reply(req, 200, answer.into_bytes(), "application/json"),
-                Err(_) => {
-                    if let Ok(mut m) = rpc_waiting().lock() { m.remove(&id); }
-                    reply(req, 504, b"{\"error\":\"GLUE Home didn't answer in time\"}".to_vec(), "application/json")
-                }
-            }
+            // Answered by the engine, in Rust (ADR 0153, 0154).
+            reply(req, 200, crate::engine::rpc(&app, &body).into_bytes(), "application/json")
         }
         // A browser on this computer asks to join it (ADR 0091): only a page on this computer can reach this
         // address, which is the proof. The service page tells GLUE Cloud (with GLUE Home's own credential).

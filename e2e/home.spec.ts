@@ -1,9 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { TAURI_MOCK } from './tauri-mock';
+import { homeDisk } from './homeDisk';
 
 // GLUE Home's settings window (home/ui), with its Rust side replaced by e2e/tauri-mock.ts.
-const HOME = 'http://localhost:5176/';
 const GLUE = 'C:\\Users\\dj\\Documents\\GLUE';
+const HOME = 'http://localhost:5176/';
 // The website's GLUE folder on this computer: one profile, one collection with two music folders.
 const LIBRARY = {
   'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'Nova', color: '#fff' }], lastProfile: 'p1' }),
@@ -28,8 +31,14 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   });
   await ctx.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { ws.send(JSON.stringify({ type: 'presence', online: ['h1'] })); ws.onMessage(() => {}); });
   await ctx.addInitScript(TAURI_MOCK);
-  // On disk: Music (found in the usual place), Promos (found by the drive search), Crates (nowhere to be found).
-  await ctx.addInitScript(({ glue, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = lib; w.__find = { Promos: 'E:\\DJ\\Promos' }; w.__disk = { 'C:\\Users\\dj\\Music\\Sets\\a.mp3': [1], 'E:\\DJ\\Promos\\x.mp3': [1], 'D:\\Incoming\\y.mp3': [1] }; }, { glue: GLUE, lib: LIBRARY });
+  // On disk (GLUE Home's engine looks, ADR 0154): Music (found in the usual place), Promos (found by the drive search),
+  // Crates (nowhere to be found until it's picked).
+  const d = await homeDisk(LIBRARY, { 'Sets/a.mp3': Buffer.from('x') });
+  const promos = join(d.tmp, 'drives', 'E', 'DJ', 'Promos'), crates = join(d.tmp, 'Picked', 'Crates');
+  d.fake.tell({ known: { music: d.music, home: join(d.tmp, 'drives'), sep } });
+  for (const [dir, f] of [[promos, 'x.mp3'], [crates, 'y.mp3']]) { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, f), 'x'); }
+  await d.wire(ctx);
+  await ctx.addInitScript(({ glue, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = lib; }, { glue: d.glue, lib: LIBRARY });
   await page.goto(HOME + 'index.html');
   // The service window runs next to it (the tray's Start / Stop go there).
   const service = await ctx.newPage();
@@ -55,16 +64,17 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   // Codes only: no email or Google sign-in.
   await expect(page.locator('#email, #password, #google')).toHaveCount(0);
   // The website's GLUE folder is found; every collection is shared, its music folders found by themselves.
-  await expect(page.locator('#glue-folder')).toHaveText(GLUE);
+  await expect(page.locator('#glue-folder')).toHaveText(d.glue);
   await expect(page.locator('#choose-glue')).toHaveCount(0);
   const coll = page.locator('#collections [data-collection="c1"]');
   await expect(coll).toContainText('My collection');
   await expect(coll).toContainText('2 of 3 music folders found', { timeout: 10_000 });
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).folders)).toEqual({ r1: 'C:\\Users\\dj\\Music', r2: 'E:\\DJ\\Promos' });
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).folders)).toEqual({ r1: d.music, r2: promos });
   // Only a folder that can't be found is asked for (and checked with its song).
   await page.locator('#missing-folders summary').click();
   await expect(page.locator('#missing-folders')).toContainText('Crates');
-  await page.locator('#missing-folders [data-root="r3"] button').click();                                  // the stand-in picks D:\Incoming
+  await page.evaluate(f => { (window as unknown as { __pick: string }).__pick = f; }, crates);
+  await page.locator('#missing-folders [data-root="r3"] button').click();
   await expect(coll).toContainText('3 of 3 music folders found');
   await expect(page.locator('#missing-folders')).toHaveCount(0);
   // A collection can be kept to this computer.
@@ -125,8 +135,9 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   await page.click('#get-code');
   await expect.poll(() => page.evaluate(() => (window as unknown as { __opened?: string }).__opened)).toBe('https://joaopmanso.github.io/glue/');
   await page.reload();
-  await expect(page.locator('#glue-folder')).toHaveText(GLUE);
+  await expect(page.locator('#glue-folder')).toHaveText(d.glue);
   expect(await page.evaluate(() => (window as unknown as { __calls: string[] }).__calls.filter(c => c === 'plugin:dialog|message').length)).toBe(0);
+  await d.done();
 });
 
 test('GLUE Home reminds of events that need music, once a day each; Check now; off (ADR 0074)', async ({ page }) => {
@@ -144,12 +155,14 @@ test('GLUE Home reminds of events that need music, once a day each; Check now; o
     [base + '/lists/f1.json']: JSON.stringify({ id: 'f1', kind: 'folder', name: 'Lux', parentId: 'ev', items: [], event: 'e1' }),
     [base + '/lists/v1.json']: JSON.stringify({ id: 'v1', kind: 'playlist', name: 'Set', parentId: 'f1', items: [] }),
     [base + '/lists/l2.json']: JSON.stringify({ id: 'l2', kind: 'playlist', name: 'Peak', parentId: null, items: ['ab01'] }) };
-  await ctx.addInitScript(({ g, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = g; w.__glue = lib; w.__disk = {}; }, { g: GLUE, lib: glue });
+  const d = await homeDisk(glue);
+  await d.wire(ctx);
+  await ctx.addInitScript(({ g, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = g; w.__glue = lib; w.__disk = {}; }, { g: d.glue, lib: glue });
   await page.goto(HOME + 'index.html');
   const service = await ctx.newPage();
   await service.goto(HOME + 'service.html');
   const notes = () => service.evaluate(() => (window as unknown as { __notes: { title: string; body: string }[] }).__notes);
-  await expect(page.locator('#glue-folder')).toHaveText(GLUE);
+  await expect(page.locator('#glue-folder')).toHaveText(d.glue);
   await expect(page.locator('#reminders')).toBeChecked();
   await page.click('#remind-now');
   await expect.poll(notes).toHaveLength(1);
@@ -163,6 +176,7 @@ test('GLUE Home reminds of events that need music, once a day each; Check now; o
   await page.locator('#reminders').uncheck();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).reminders)).toBe(false);
   await expect(page.locator('#remind-now')).toBeDisabled();
+  await d.done();
 });
 
 test('GLUE Home opens with a gluehome://pair link and connects', async ({ page }) => {
@@ -255,15 +269,16 @@ test('GLUE Home checks its native engine against the songs it analysed: a sample
     ab01: { id: 'ab01', rootId: 'r1', relPath: 'Sets/a.mp3', importPath: null, fileName: 'a.mp3' },
     ab02: { id: 'ab02', rootId: 'r1', relPath: 'Sets/b.flac', importPath: null, fileName: 'b.flac' },
     ab03: { id: 'ab03', rootId: 'r1', relPath: 'Sets/c.flac', importPath: null, fileName: 'c.flac' } } }) };
-  await ctx.addInitScript(({ glue, lib }) => {
+  const d = await homeDisk(lib, { 'Sets/a.mp3': Buffer.from('x'), 'Sets/b.flac': Buffer.from('x'), 'Sets/c.flac': Buffer.from('x') });
+  await d.wire(ctx);
+  await ctx.addInitScript(({ glue, lib, music }) => {
     const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = lib;
-    w.__disk = { 'C:\\Music\\Sets\\a.mp3': [1], 'C:\\Music\\Sets\\b.flac': [1], 'C:\\Music\\Sets\\c.flac': [1] };
     // Analysed here: a.mp3 and b.flac (c.flac not yet).
     const cache = w.__cache as Record<string, number[]>;
     for (const id of ['ab01', 'ab02']) cache[`s/p1/c1/ab/${id}.json`] = [123, 125];
     w.__verifyAnswer = { ab02: { kind: 'differs', name: 'b.flac', ms: 3000, diffs: ['label: "Hi-res" vs "Upsampled"'] } };
-    if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't1', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, askedAutostart: true, running: true, analysisPaused: true, glue, folders: { r1: 'C:\\Music' } }));
-  }, { glue: GLUE, lib });
+    if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't1', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, askedAutostart: true, running: true, analysisPaused: true, glue, folders: { r1: music } }));
+  }, { glue: d.glue, lib, music: d.music });
   await page.goto(HOME + 'index.html');
   const service = await ctx.newPage();
   await service.goto(HOME + 'service.html');
@@ -275,6 +290,7 @@ test('GLUE Home checks its native engine against the songs it analysed: a sample
   await expect(page.locator('#vf-odd')).toContainText('b.flac: label: "Hi-res" vs "Upsampled"');
   expect((await service.evaluate(() => (window as unknown as { __verified: string[] }).__verified)).sort()).toEqual(['ab01', 'ab02']);
   await expect(page.locator('#vf-start')).toBeVisible();
+  await d.done();
 });
 
 test('GLUE Home whose settings never said running or stopped goes online, and stays so as other settings are saved', async ({ page }) => {

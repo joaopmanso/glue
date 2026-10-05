@@ -226,136 +226,11 @@ fn find_glue_folder(app: AppHandle) -> Option<String> {
     None
 }
 
-/// The usual folders of this computer (to find music folders by name).
-#[tauri::command]
+/// The usual folders of this computer (the engine finds music folders by name in them).
 fn known_folders(app: AppHandle) -> serde_json::Value {
     let p = app.path();
     let s = |r: tauri::Result<PathBuf>| r.ok().map(|d| d.to_string_lossy().into_owned());
     serde_json::json!({ "home": s(p.home_dir()), "music": s(p.audio_dir()), "documents": s(p.document_dir()), "desktop": s(p.desktop_dir()), "downloads": s(p.download_dir()), "sep": std::path::MAIN_SEPARATOR.to_string() })
-}
-
-#[tauri::command]
-fn path_exists(path: String) -> bool {
-    PathBuf::from(path).exists()
-}
-
-/// Where a song dropped onto a GLUE page is (the browser never says, ADR 0125): a file called `name` (any case) of
-/// `size` bytes. Looks through `first` (the collection's music folders) whole, then the usual folders and every
-/// drive (or volume), a few levels deep; gives up after a while.
-#[tauri::command]
-async fn find_file(app: AppHandle, name: String, size: u64, first: Vec<String>) -> Option<String> {
-    let p = app.path();
-    let mut later: Vec<PathBuf> = [p.audio_dir(), p.download_dir(), p.desktop_dir(), p.document_dir(), p.home_dir()].into_iter().flatten().collect();
-    #[cfg(windows)]
-    for d in b'C'..=b'Z' {
-        let r = PathBuf::from(format!("{}:\\", d as char));
-        if r.exists() {
-            later.push(r);
-        }
-    }
-    #[cfg(target_os = "macos")]
-    if let Ok(v) = fs::read_dir("/Volumes") {
-        later.extend(v.flatten().map(|e| e.path()));
-    }
-    let first: Vec<PathBuf> = first.into_iter().map(PathBuf::from).collect();
-    tauri::async_runtime::spawn_blocking(move || search_file(&first, 64, &name, size).or_else(|| search_file(&later, 8, &name, size))).await.ok().flatten()
-}
-
-fn search_file(starts: &[PathBuf], depth_max: u32, name: &str, size: u64) -> Option<String> {
-    use std::collections::{HashSet, VecDeque};
-    let want = name.to_lowercase();
-    let skip = ["windows", "program files", "program files (x86)", "programdata", "appdata", "$recycle.bin", "system volume information", "library", "node_modules", "applications", "system", "private", "usr", "bin", "opt"];
-    let started = std::time::Instant::now();
-    let (mut seen, mut visited) = (HashSet::new(), 0usize);
-    let mut queue: VecDeque<(PathBuf, u32)> = starts.iter().map(|s| (s.clone(), 0)).collect();
-    while let Some((dir, depth)) = queue.pop_front() {
-        if visited > 600_000 || started.elapsed().as_secs() > 25 {
-            break;
-        }
-        if !seen.insert(dir.clone()) {
-            continue;
-        }
-        let Ok(entries) = fs::read_dir(&dir) else { continue };
-        for e in entries.flatten() {
-            visited += 1;
-            let Ok(t) = e.file_type() else { continue };
-            let n = e.file_name().to_string_lossy().to_lowercase();
-            if t.is_file() {
-                if n == want && e.metadata().map(|m| m.len() == size).unwrap_or(false) {
-                    return Some(e.path().to_string_lossy().into_owned());
-                }
-                continue;
-            }
-            if !t.is_dir() || t.is_symlink() || depth >= depth_max || n.starts_with('.') || skip.contains(&n.as_str()) {
-                continue;
-            }
-            queue.push_back((e.path(), depth + 1));
-        }
-    }
-    None
-}
-
-/// Where a music folder is on this computer: a folder called `name` that has `sample` (a song's
-/// path inside it) in it. Looks in the usual folders first, then every drive (or volume), a few
-/// levels deep, skipping system folders; gives up after a while.
-#[tauri::command]
-/// `secs`: how long to look (25 at most). A folder just dropped on the website looks briefly, then GLUE Home's
-/// dialog asks: a network folder isn't on any drive here, and a long search showed nothing (ADR 0134).
-async fn find_folder(app: AppHandle, name: String, sample: String, secs: Option<u64>) -> Option<String> {
-    let p = app.path();
-    let mut starts: Vec<PathBuf> = [p.audio_dir(), p.document_dir(), p.desktop_dir(), p.download_dir(), p.home_dir()].into_iter().flatten().collect();
-    #[cfg(windows)]
-    for d in b'C'..=b'Z' {
-        let r = PathBuf::from(format!("{}:\\", d as char));
-        if r.exists() {
-            starts.push(r);
-        }
-    }
-    #[cfg(target_os = "macos")]
-    if let Ok(v) = fs::read_dir("/Volumes") {
-        starts.extend(v.flatten().map(|e| e.path()));
-    }
-    let limit = secs.unwrap_or(25).clamp(1, 25);
-    tauri::async_runtime::spawn_blocking(move || search(starts, &name, &sample, limit)).await.ok().flatten()
-}
-
-fn search(starts: Vec<PathBuf>, name: &str, sample: &str, limit: u64) -> Option<String> {
-    use std::collections::{HashSet, VecDeque};
-    let rel: PathBuf = sample.split('/').collect();
-    let want = name.to_lowercase();
-    let skip = ["windows", "program files", "program files (x86)", "programdata", "appdata", "$recycle.bin", "system volume information", "library", "node_modules", "applications", "system", "private", "usr", "bin", "opt"];
-    let started = std::time::Instant::now();
-    let (mut seen, mut visited) = (HashSet::new(), 0usize);
-    let mut queue: VecDeque<(PathBuf, u32)> = starts.into_iter().map(|s| (s, 0)).collect();
-    while let Some((dir, depth)) = queue.pop_front() {
-        if visited > 300_000 || started.elapsed().as_secs() >= limit {
-            break;
-        }
-        if !seen.insert(dir.clone()) {
-            continue;
-        }
-        let matches = dir.file_name().map(|n| n.to_string_lossy().to_lowercase() == want).unwrap_or(false);
-        if matches && dir.join(&rel).is_file() {
-            return Some(dir.to_string_lossy().into_owned());
-        }
-        if depth >= 6 {
-            continue;
-        }
-        let Ok(entries) = fs::read_dir(&dir) else { continue };
-        for e in entries.flatten() {
-            visited += 1;
-            let Ok(t) = e.file_type() else { continue };
-            if !t.is_dir() || t.is_symlink() {
-                continue;
-            }
-            let n = e.file_name().to_string_lossy().to_lowercase();
-            if n.starts_with('.') || skip.contains(&n.as_str()) {
-                continue;
-            }
-            queue.push_back((e.path(), depth + 1));
-        }
-    }
-    None
 }
 
 /// The service page's file commands are `async`: they run off the main thread, where the windows and
@@ -377,10 +252,6 @@ async fn web_get(app: AppHandle, url: String) -> Result<tauri::ipc::Response, St
 /// Does a GLUE tab hold the writer lease (ADR 0087)? Then GLUE Home leaves edits to it.
 #[tauri::command]
 fn lease_held() -> bool { local::leased() }
-
-/// The library engine's answer to a website request on the local link (ADR 0104).
-#[tauri::command]
-fn rpc_reply(id: u64, body: String) { local::rpc_done(id, body); }
 
 /// Another device sent edits for this computer: the open tab (if any) takes them in at once.
 #[tauri::command]
@@ -605,11 +476,6 @@ fn set_status(app: AppHandle, tray: State<'_, Tray>, text: String, running: bool
 }
 
 /// When the website here last read a song file (ADR 0138), ms.
-#[tauri::command]
-fn foreground_at() -> u64 {
-    local::FOREGROUND_AT.load(std::sync::atomic::Ordering::Relaxed)
-}
-
 /// The local link's port (0 until it's listening).
 #[tauri::command]
 fn local_port() -> u16 {
@@ -671,7 +537,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, known_folders, path_exists, find_folder, find_file, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, foreground_at, glue_list, activity_now, web_get, lease_held, edits_waiting, rpc_reply, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_song, analysis::analyse_incoming, analysis::cover_hash, analysis::cover_from_image, analysis::wave_from_details, rtc::rtc_answer, rtc::rtc_ice, rtc::rtc_close, rtc::rtc_reply, rtc::rtc_send_file, rtc::rtc_error, rtc::rtc_tell, engine::engine_cmd])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, web_get, lease_held, edits_waiting, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_incoming, analysis::cover_hash, analysis::cover_from_image, analysis::wave_from_details, rtc::rtc_answer, rtc::rtc_ice, rtc::rtc_close, rtc::rtc_reply, rtc::rtc_send_file, rtc::rtc_error, rtc::rtc_tell, engine::engine_cmd])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

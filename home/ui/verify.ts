@@ -4,7 +4,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { HomeConfig } from './bridge';
 import { bridge } from './bridge';
-import { describe, shared, trackPath } from './library';
+import { describe, shared } from './library';
+import { trackPath } from './engine';
 
 const HEX = '0123456789abcdef';
 
@@ -48,7 +49,7 @@ export async function run(cfg: () => HomeConfig | null, n: number, report: () =>
       if (!c) break;
       let r: Checked;
       try {
-        const f = await trackPath(j.p, j.c, j.id, c);
+        const f = await trackPath(j.p, j.c, j.id);
         r = await invoke<Checked>('verify_song', { path: f.path, p: j.p, c: j.c, id: j.id });
       } catch (e) { r = { kind: 'skipped', why: String((e as Error)?.message ?? e) }; state.counts.missing = (state.counts.missing ?? 0) + 1; }
       state.counts[r.kind] = (state.counts[r.kind] ?? 0) + 1;

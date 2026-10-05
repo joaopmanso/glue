@@ -6,6 +6,7 @@ import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TAURI_MOCK } from './tauri-mock';
+import { homeDisk } from './homeDisk';
 
 // A real (temporary) browser profile: in Playwright's default incognito-like contexts, reading a
 // stored folder handle back from IndexedDB after a reload closes the browser.
@@ -1896,13 +1897,17 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   const home = await ctx.newPage();
   await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('h1'));
   await home.addInitScript(TAURI_MOCK);
-  // Its GLUE folder: one collection with a music folder "Music" (D:\Music), where songs can be moved to.
-  await home.addInitScript(() => {
+  // Its GLUE folder (on disk: GLUE Home's engine reads it, ADR 0154): one collection with a music folder "Music"
+  // (D:\Music), where songs can be moved to.
+  const studioGlue = { 'mco.json': JSON.stringify({ profiles: [{ id: 'pd', name: 'DJ' }] }), 'profiles/pd/profile.json': JSON.stringify({ id: 'pd', name: 'DJ', collections: [{ id: 'cd', name: 'My collection' }] }), 'profiles/pd/collections/cd/collection.json': JSON.stringify({ id: 'cd', name: 'My collection', roots: [{ id: 'rm', name: 'Music', absPath: 'D:\\Music' }] }) };
+  const studioHome = await homeDisk(studioGlue);
+  await studioHome.wire(home);
+  await home.addInitScript(glue => {
     const w = window as unknown as Record<string, unknown>;
-    w.__glue = { 'mco.json': JSON.stringify({ profiles: [{ id: 'pd', name: 'DJ' }] }), 'profiles/pd/profile.json': JSON.stringify({ id: 'pd', name: 'DJ', collections: [{ id: 'cd', name: 'My collection' }] }), 'profiles/pd/collections/cd/collection.json': JSON.stringify({ id: 'cd', name: 'My collection', roots: [{ id: 'rm', name: 'Music', absPath: 'D:\\Music' }] }) };
+    w.__glue = glue;
     w.__disk = { 'D:\\Music\\x.mp3': [1] };
     localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Studio PC', user: { email: 'dj@example.com', name: 'DJ' }, incoming: 'C:\\In', running: true, askedAutostart: true, glue: 'C:\\GLUE', folders: { rm: 'D:\\Music' } }));
-  });
+  }, studioGlue);
   await home.goto('http://localhost:5176/service.html');
   await expect(home.locator('#state')).toContainText('Online as Studio PC');
 
@@ -1986,6 +1991,7 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   await page.reload();
   await page.locator('.lside').getByText('TO BE SORTED').click({ timeout: 15_000 });
   await expect(page.locator('.tr')).toHaveCount(2);
+  await studioHome.done();
 });
 
 test('GLUE Home opens the library: a GLUE tab that is open comes forward; "Use this tab instead" moves the library', { tag: '@heavy' }, async ({ page }) => {

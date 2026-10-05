@@ -7,7 +7,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { createServer, type Server } from 'node:http';
-import { createReadStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve, sep } from 'node:path';
 
 export interface FakeHomeDirs { glue: string; incoming: string; folders: Record<string, string> }
@@ -24,6 +24,8 @@ export class FakeHome {
   rpc: ((body: string, read: boolean) => Promise<string>) | null = null;
   /** GLUE Home's own cache (the test wires it to the service page's), for /cache?key=. */
   cache: ((key: string) => Promise<number[] | null>) | null = null;
+  /** Keys asked of /cache (GLUE Home's analyses, by a tab). */
+  cacheAsked: string[] = [];
   /** Requests refused to the read-only token. */
   refused: string[] = [];
   readonly device = 'e2e-home';
@@ -65,11 +67,18 @@ export class FakeHome {
   /** `engine`: the tab's /rpc goes to the engine first, as GLUE Home 0.52 does (ADR 0153); without it, a GLUE Home
       from before its engine (the tests of Home mode as GLUE Home's disk). The service page's `engine_cmd` reaches it
       either way. */
-  constructor(readonly dirs: FakeHomeDirs, readonly opts: { engine?: boolean } = {}) {}
+  /** `known`: this computer's usual folders (Music, Documents, home…), where the engine looks for music folders by name
+      and searches (the test's temp folders; no drives). */
+  constructor(readonly dirs: FakeHomeDirs, readonly opts: { engine?: boolean; known?: { home?: string; music?: string; documents?: string; desktop?: string; downloads?: string } } = {}) {}
 
   get pref() { return { home: this.device, port: this.port, token: this.token }; }
 
-  start() {
+  /** The stand-in running on each port in this worker: a test that failed before stopping its own is stopped by the next. */
+  private static live = new Map<number, FakeHome>();
+  async start() {
+    const before = FakeHome.live.get(this.port);
+    if (before && before !== this) await before.stop();
+    FakeHome.live.set(this.port, this);
     this.startEngine();
     return new Promise<void>(ok => {
       this.server = createServer((req, res) => this.handle(req.url ?? '/', req.method ?? 'GET', req.headers, req, res));
@@ -78,16 +87,26 @@ export class FakeHome {
     });
   }
   stop() {
+    if (FakeHome.live.get(this.port) === this) FakeHome.live.delete(this.port);
     this.stopEngine();
     this.playServer?.closeAllConnections(); this.playServer?.close(); this.playServer = null;
     return new Promise<void>(ok => { if (!this.server) return ok(); this.server.closeAllConnections(); this.server.close(() => ok()); this.server = null; });
   }
 
-  /** The engine, as GLUE Home runs it: its cache next to the GLUE folder (kept across a restart, like jobs.json). */
+  /** GLUE Home's cache folder: next to the GLUE folder (kept across a restart, like jobs.json). */
+  get cacheDir() { return resolve(this.dirs.glue, '..', '.home-cache'); }
+  /** A file of GLUE Home's cache, if it's there. */
+  private cacheFile(rel: string) {
+    const parts = rel.split('/').filter(Boolean);
+    if (!parts.length || parts.some(x => x === '..' || /[\\:]/.test(x))) return null;
+    const f = join(this.cacheDir, ...parts);
+    return existsSync(f) && statSync(f).isFile() ? f : null;
+  }
+  /** The engine, as GLUE Home runs it. */
   private startEngine() {
     const bin = resolve('crates/glue-engine/target/debug/glue-engine-test' + (process.platform === 'win32' ? '.exe' : ''));
     if (!existsSync(bin)) throw new Error('No ' + bin + ': cargo build --manifest-path crates/glue-engine/Cargo.toml --bin glue-engine-test');
-    const cache = resolve(this.dirs.glue, '..', '.home-cache');
+    const cache = this.cacheDir;
     mkdirSync(cache, { recursive: true }); mkdirSync(this.dirs.glue, { recursive: true });
     const e = this.engine = spawn(bin, [resolve(this.dirs.glue), cache]);
     e.stderr.on('data', d => process.stderr.write(d));
@@ -98,6 +117,7 @@ export class FakeHome {
       if (m.note === 'tags') { this.tagWrites.push({ path: m.path as string, tags: m.tags as Record<string, string> }); return; }
       if (m.note && m.note !== 'bye') this.notes.push({ ...m, n: this.notes.length + 1, note: m.note });
     });
+    this.tell({ known: { home: null, music: null, documents: null, desktop: null, downloads: null, ...this.opts.known, sep } });
     e.on('exit', () => { for (const f of this.asked.values()) f({ err: 'GLUE Home’s engine stopped' }); this.asked.clear(); });
     // The lease (local.rs's `leased()`): a tab renewed it in the last 15 s.
     let held: boolean | null = null;
@@ -143,8 +163,13 @@ export class FakeHome {
     if (q.get('t') !== this.token && !reading) return send(401, { error: 'not allowed' });
     if (reading && ['/fs/write', '/fs/mkdir', '/fs/remove', '/fs/tags', '/fs/dupes', '/incoming/move'].includes(u.pathname)) { this.refused.push(u.pathname); return send(403, { error: 'read only' }); }
     if (u.pathname === '/cache') {
+      // GLUE Home's cache folder, where its engine writes (ADR 0154); then the service page's (the stand-in's memory).
+      const key = q.get('key') ?? '';
+      this.cacheAsked.push(key);
+      const onDisk = this.cacheFile(key);
+      if (onDisk) { res.writeHead(200, { 'content-type': 'application/octet-stream', 'access-control-allow-origin': String(headers.origin ?? '*') }); return res.end(readFileSync(onDisk)); }
       if (!this.cache) return send(404, { error: 'not there' });
-      void this.cache(q.get('key') ?? '').then(b => { if (!b) return send(404, { error: 'not there' }); res.writeHead(200, { 'content-type': 'application/octet-stream', 'access-control-allow-origin': String(headers.origin ?? '*') }); res.end(Buffer.from(b)); });
+      void this.cache(key).then(b => { if (!b) return send(404, { error: 'not there' }); res.writeHead(200, { 'content-type': 'application/octet-stream', 'access-control-allow-origin': String(headers.origin ?? '*') }); res.end(Buffer.from(b)); });
       return;
     }
     if (u.pathname === '/rpc' && method === 'POST') {
@@ -173,6 +198,17 @@ export class FakeHome {
         send(200, await this.ask(m));
       });
       return;
+    }
+    // The Tauri stand-in's cache commands: GLUE Home's cache folder, as the engine writes it.
+    if (u.pathname === '/engine/cache') {
+      const f = this.cacheFile(q.get('rel') ?? '');
+      if (!f) return send(404, { error: 'not there' });
+      res.writeHead(200, { 'content-type': 'application/octet-stream', 'access-control-allow-origin': String(headers.origin ?? '*') });
+      return res.end(readFileSync(f));
+    }
+    if (u.pathname === '/engine/cache/list') {
+      const rel = q.get('rel') ?? '', d = join(this.cacheDir, ...rel.split('/').filter(Boolean));
+      return send(200, rel.split('/').some(x => x === '..') || !existsSync(d) ? [] : readdirSync(d).filter(n => statSync(join(d, n)).isFile()));
     }
     if (u.pathname === '/engine/notes') { const since = Number(q.get('since')) || 0; return send(200, this.notes.filter(n => n.n > since)); }
     if (u.pathname === '/lease' && method === 'POST') { this.leasedAt = q.get('release') === '1' ? 0 : Date.now(); return send(200, { edits: this.edits }); }

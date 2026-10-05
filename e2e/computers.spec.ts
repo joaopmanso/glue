@@ -83,6 +83,7 @@ test('a second browser on a computer with GLUE Home joins that computer: one dev
   await page.goto('./');
   await page.locator('#cloud-panel .fake-google').click();
   await expect.poll(() => attachCalls, { timeout: 60_000 }).toEqual([{ browser: 'b2' }]);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('mco.cloud.device')), { timeout: 30_000 }).toBe('b1');
+  // (The page reloads itself once it's joined: a read during it is "not yet".)
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('mco.cloud.device')).catch(() => null), { timeout: 30_000 }).toBe('b1');
   await homePage.close();
 });

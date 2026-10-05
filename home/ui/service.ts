@@ -9,8 +9,7 @@ import * as lookup from './lookup';
 import { backupDaily } from './backups';
 import { syncSharedHere } from './sharedSync';
 import { followMoves } from './moves';
-import * as analysis from './analysis';
-import { describe, locate, locateAll, newlyFound, trackPath, folderOf, found } from './library';
+import { newlyFound } from './library';
 import { findUpdate, install, version } from './updates';
 import { admit, maxOf, sessionKey } from './sessions';
 import * as engine from './engine';
@@ -44,7 +43,7 @@ function tell(e: StreamReply) { if (sessions.size) void bridge.rtcTell(e).catch(
 /** Songs analysed here, said together half a second later (a batch analyses many). */
 const made = new Map<string, Set<string>>();
 let madeTimer = 0;
-cache.onMade.f = (p, c, id) => {
+engine.on.made = (p, c, id) => {
   if (!sessions.size) return;
   const k = p + '|' + c;
   (made.get(k) ?? made.set(k, new Set()).get(k)!).add(id);
@@ -57,7 +56,7 @@ cache.onMade.f = (p, c, id) => {
 function endSession(key: string) { const s = sessions.get(key); if (!s) return; sessions.delete(key); conns.delete(s.id); void bridge.rtcClose(s.id).catch(() => {}); servedSoon(); }
 const early = new Map<string, (RTCIceCandidateInit | null)[]>();   // candidates that came before their connection
 const located = new Map<string, { path: string; name: string; until: number }>();   // songs being streamed: where they are
-const lookingUp = new Map<string, ReturnType<typeof trackPath>>();   // a song being looked for now: its lookup, shared
+const lookingUp = new Map<string, ReturnType<typeof engine.trackPath>>();   // a song being looked for now: its lookup, shared
 /** What other devices asked since GLUE Home started (ADR 0083), by kind: shown in the settings. */
 const served: Record<string, { calls: number; ms: number; bytes: number }> = {};
 
@@ -72,7 +71,7 @@ let servedTimer = 0;
 const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: structuredClone(analysis.state), engine: engine.status(), verify: structuredClone(verify.state), events: events.slice(), reminders, served: structuredClone(served), sessions: { list: [...sessions.values()].map(s => ({ key: s.key, name: s.name, since: s.since, last: s.last, calls: s.calls, open: s.open })), max: maxSessions() }, computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
+  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: engine.analysisState(), engine: engine.status(), verify: structuredClone(verify.state), events: events.slice(), reminders, served: structuredClone(served), sessions: { list: [...sessions.values()].map(s => ({ key: s.key, name: s.name, since: s.since, last: s.last, calls: s.calls, open: s.open })), max: maxSessions() }, computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -207,12 +206,12 @@ function onRequest({ conn, chan, n, req: c }: { conn: string; chan: number; n: n
       // Asked with a folder that isn't this collection's (a computer's entry that named the wrong one, ADR 0108):
       // the folder that has it.
       const pc = c as { profile?: string; collection?: string };
-      if (pc.profile && pc.collection) pc.profile = await folderOf(pc.profile, pc.collection);
+      if (pc.profile && pc.collection) pc.profile = await engine.folderOf(pc.profile, pc.collection).catch(() => pc.profile!);
       // A song streamed to another device: the analysis lets it go first (ADR 0138).
-      if (c.t === 'get' || c.t === 'range') cache.playing.at = Date.now();
+      if (c.t === 'get' || c.t === 'range') engine.played();
       if (c.t === 'get') {
         const seen = { ...(need().folders ?? {}) };
-        const f = await trackPath(c.profile, c.collection, c.track, need());
+        const f = await engine.trackPath(c.profile, c.collection, c.track);
         // A music folder found by name: remember it (and GLUE Home may read it from now on).
         if (f.folder) await keepFound(f.folder.id, f.folder.path, seen);
         await answer(null, { path: f.path }, { name: f.name, type: typeOf(f.name) });
@@ -229,7 +228,7 @@ function onRequest({ conn, chan, n, req: c }: { conn: string; chan: number; n: n
           if (known && known.until > Date.now()) ({ path, name } = known);
           else {
             const seen = { ...(need().folders ?? {}) };
-            const f = await (lookingUp.get(key) ?? (() => { const p = trackPath(c.profile!, c.collection!, c.track!, need()); lookingUp.set(key, p); void p.catch(() => {}).finally(() => lookingUp.delete(key)); return p; })());
+            const f = await (lookingUp.get(key) ?? (() => { const p = engine.trackPath(c.profile!, c.collection!, c.track!); lookingUp.set(key, p); void p.catch(() => {}).finally(() => lookingUp.delete(key)); return p; })());
             if (f.folder) await keepFound(f.folder.id, f.folder.path, seen);
             path = f.path; name = f.name;
             located.set(key, { path, name, until: Date.now() + 60_000 });
@@ -266,11 +265,11 @@ function onRequest({ conn, chan, n, req: c }: { conn: string; chan: number; n: n
         await answer({ ...await cache.kept(c.profile, c.collection), art: await cache.artKept() }, null);
       } else if (c.t === 'art') {
         // Songs' covers (ADR 0082): kept, or read from the song's tags now (and kept for next time).
-        const conf = need(), px = c.px === 320 ? 320 : 64;
+        const px = c.px === 320 ? 320 : 64;
         const found: [string, string, number][] = [], parts: Uint8Array[] = [];
         for (const it of c.items.slice(0, 60)) {
           let hash = it.hash ?? '', b = hash ? await cache.art(hash, px) : null;
-          if (!b) { hash = await cache.coverHash(c.profile, c.collection, it.track, conf).catch(() => ''); b = hash ? await cache.art(hash, px) : null; }
+          if (!b) { hash = await cache.coverHash(c.profile, c.collection, it.track).catch(() => ''); b = hash ? await cache.art(hash, px) : null; }
           found.push([it.track, hash, b?.length ?? 0]);
           if (b) parts.push(b);
         }
@@ -304,15 +303,9 @@ function onRequest({ conn, chan, n, req: c }: { conn: string; chan: number; n: n
         for (const p of parts) { all.set(p, at); at += p.length; }
         await answer(found, all);
       } else if (c.t === 'analysis') {
-        // The analysis of this computer's songs (ADR 0103): asked about, paused, songs asked for now; the tab on
-        // this computer takes the results in (and says which).
-        if (c.take) analysis.delegate();
-        // Paused from a GLUE tab: kept in the settings, like a pause there (the settings window shows it).
-        if (c.pause !== undefined && cfg && !!cfg.analysisPaused !== c.pause) { cfg = await bridge.patchConfig(() => ({ analysisPaused: c.pause })).catch(() => cfg) ?? cfg; analysis.setPaused(!!c.pause, () => cfg); }
-        if (c.now?.length) analysis.now(c.profile, c.collection, c.now, c.names ?? {}, () => cfg);
-        if (c.taken?.length) await analysis.taken(c.profile, c.collection, c.taken);
-        void analysis.run(() => cfg);
-        await answer({ state: analysis.state, waiting: analysis.waitingIn(c.profile, c.collection).slice(0, 200) }, null);
+        // The analysis of this computer's songs (ADR 0103, 0154: the engine's): asked about, paused (kept in the
+        // settings), songs asked for now; the tab on this computer takes the results in (and says which).
+        await answer(await engine.analysisAsk({ p: c.profile, c: c.collection, take: c.take, pause: c.pause, now: c.now, names: c.names, taken: c.taken }), null);
       } else if (c.t === 'local') {
         // The website on this computer: how to reach GLUE Home without GLUE Cloud (ADR 0048).
         // The read-only token too: a GLUE tab here reads, and asks the engine for every change (ADR 0104).
@@ -322,7 +315,7 @@ function onRequest({ conn, chan, n, req: c }: { conn: string; chan: number; n: n
         if (!f) throw new Error('That song isn’t in the incoming folder any more.');
         await answer(null, { path: f.path }, { name: f.name, type: typeOf(f.name) });
       } else if (c.t === 'folders') {
-        const lib = await describe(), out: HomeFolder[] = [];
+        const lib = await engine.describe(), out: HomeFolder[] = [];
         for (const p of lib?.profiles ?? []) for (const col of p.collections) for (const r of col.roots) if (cfg?.folders?.[r.id] && !out.some(x => x.id === r.id)) out.push({ id: r.id, name: r.name, collection: p.name + ' · ' + col.name });
         await answer(out, null);
       } else if (c.t === 'move-incoming') {
@@ -355,7 +348,7 @@ async function findFolders() {
       if (!cfg?.glue) { library = undefined; report(state, text); continue; }
       library = { searching: true, found: 0, missing: [] }; report(state, text);
       const before = { ...(cfg.folders ?? {}) };
-      const r = await locateAll(cfg).catch(() => ({ folders: {} as Record<string, string>, missing: [] }));
+      const r = await engine.locateAll().catch(() => ({ folders: {} as Record<string, string>, missing: [] }));
       // Only what the search found anew, and only where nothing changed meanwhile: a folder picked while
       // it searched (the website's "Add folder") is never put back to what it was.
       const next = await bridge.patchConfig(cur => { const f = newlyFound(before, r.folders, cur.folders ?? {}); return f ? { folders: f } : null; }).catch(() => null);
@@ -364,50 +357,12 @@ async function findFolders() {
       report(state, text);
       // Then the mini spectrograms and analyses it doesn't have yet, gently in the background.
       // (after the library's own analysis: it makes these too.)
-      void cache.background(() => cfg, () => cfg?.running === false || !!receiving || serving > 0 || analysis.state.running > 0 || analysis.state.left > 0, () => report(state, text));
+      void cache.background(() => cfg, () => cfg?.running === false || !!receiving || serving > 0 || engine.analysisState().running > 0 || engine.analysisState().left > 0, () => report(state, text));
     } while (again);
   })().finally(() => { finding = null; });
 }
 
 // ---- wiring ---------------------------------------------------------------------------------------
-/** A request to the library engine (ADR 0104), from a GLUE tab on this computer. */
-type Rpc =
-  | { op: 'analyse'; p: string; c: string; ids: string[]; names?: Record<string, string> }
-  | { op: 'pause'; on: boolean }
-  | { op: 'where'; id: string; name: string; sample: string }
-  | { op: 'whereFile'; name: string; size: number; roots: string[] };
-async function rpc(b: Rpc): Promise<unknown> {
-  const c = cfg;
-  if (!c) throw new Error('GLUE Home isn’t set up yet');
-  switch (b.op) {
-    // hello, wait, open, status, edit, restamp, job: the engine's, answered in Rust (ADR 0153).
-    case 'analyse': analysis.now(b.p, b.c, b.ids, b.names ?? {}, () => cfg); return { ok: true };
-    case 'pause':
-      if (!!c.analysisPaused !== !!b.on) { cfg = await bridge.patchConfig(() => ({ analysisPaused: !!b.on })).catch(() => cfg) ?? cfg; analysis.setPaused(!!b.on, () => cfg); }
-      return { paused: !!b.on };
-    // A song dropped onto a GLUE tab here (ADR 0125): where it is, and the collection's music folder it's in, if one.
-    case 'whereFile': {
-      const folders = Object.entries(c.folders ?? {}).filter(([id]) => b.roots.includes(id));
-      const at = await bridge.findFile(b.name, b.size, folders.map(f => f[1])).catch(() => null);
-      if (!at) return { path: null };
-      const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, ''), low = (p: string) => /^[a-z]:\//i.test(p) ? p.toLowerCase() : p;
-      for (const [id, dir] of folders) {
-        const d = norm(dir), f = norm(at);
-        if (low(f).startsWith(low(d) + '/')) return { path: at, folder: { id, relPath: f.slice(d.length + 1) } };
-      }
-      return { path: at };
-    }
-    // A folder dropped onto a GLUE tab here (the browser doesn't say where it is): found, and remembered as `id`.
-    case 'where': {
-      // Dropped just now (ADR 0134): a brief search, then the website has GLUE Home's dialog ask (a network folder is on
-      // no drive here, and a long search showed nothing for seconds).
-      const at = await locate({ id: b.id, name: b.name, absPath: null, handleKey: '', addedAt: '' }, b.sample ? { relPath: b.sample, importPath: null } : null, c, { secs: 5 });
-      return { path: at };
-    }
-    default: throw new Error('GLUE Home doesn’t know that request');
-  }
-}
-
 /** Which computer this is (ADR 0108): asked of GLUE Cloud (and this disk's music folders); saved when it
     changes, and then everything here reads the library as that computer again (and puts right what was written
     under another id). An unreachable GLUE Cloud changes nothing. */
@@ -428,7 +383,7 @@ async function setComputer(computer: string | null, why: string) {
   engine.forget();
   event(computer ? 'This computer is known (' + why + '): its songs are read and written as its own' : 'Which computer this is isn’t known (' + why + '): nothing is written for it');
   report(state, text);
-  if (computer) { void analysis.run(() => cfg); sharedSoon(); }
+  if (computer) { engine.analysisRun(); sharedSoon(); }
 }
 
 /** New settings (joined an account, another incoming folder, a folder picked): acted on, reconnecting when
@@ -438,7 +393,7 @@ async function listenConfig() {
     const before = cfg;
     cfg = c;
     if (before?.glue !== c.glue || JSON.stringify(before?.serve ?? {}) !== JSON.stringify(c.serve ?? {}) || JSON.stringify(before?.folders ?? {}) !== JSON.stringify(c.folders ?? {})) void findFolders();
-    if (!!before?.analysisPaused !== !!c.analysisPaused) analysis.setPaused(!!c.analysisPaused, () => cfg);
+    if (!!before?.analysisPaused !== !!c.analysisPaused) engine.setPaused(!!c.analysisPaused);
     if (!before || before.deviceId !== c.deviceId || before.token !== c.token || isRunning(before) !== isRunning(c) || (before.api ?? '') !== (c.api ?? '')) start();
     else report(state, text);
   });
@@ -449,8 +404,6 @@ async function keepFound(id: string, at: string, seen: Record<string, string>) {
   const next = await bridge.patchConfig(cur => (cur.folders ?? {})[id] === seen[id] ? { folders: { ...(cur.folders ?? {}), [id]: at } } : null).catch(() => null);
   if (next) cfg = next;
 }
-// A folder found by looking (an analysis, a dropped folder): remembered, unless the settings put it elsewhere meanwhile.
-found.f = async (id, at) => { const seen = { ...(cfg?.folders ?? {}) }; if (!seen[id]) await keepFound(id, at, seen); };
 
 async function boot() {
   cfg = await bridge.config();
@@ -462,12 +415,6 @@ async function boot() {
   // And the read-only one, for a GLUE tab while GLUE Home is the library's engine (ADR 0104).
   const readToken = [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
   if (cfg && !cfg.readToken) cfg = await bridge.patchConfig(cur => cur.readToken ? null : { readToken }).catch(() => cfg) ?? cfg;
-  // The library's engine (ADR 0104): a GLUE tab's requests, from the local link.
-  await bridge.onRpc(m => void (async () => {
-    let out: unknown;
-    try { out = await rpc(JSON.parse(m.body)); } catch (e) { out = { error: (e as Error).message || String(e) }; }
-    await bridge.rpcReply(m.id, JSON.stringify(out)).catch(() => {});
-  })());
   // Songs already waiting without an analysis (arrived while it was off, or before this version).
   void (async () => { for (const f of await bridge.incomingList().catch(() => [])) await cache.analyseIncoming(f.name, f.path).catch(() => {}); })();
   // The website's GLUE folder, when it's in a usual place and none was chosen.
@@ -481,10 +428,10 @@ async function boot() {
     const running = what !== 'stop';
     if (isRunning(cfg) !== running) cfg = await bridge.patchConfig(() => ({ running })).catch(() => cfg) ?? cfg;
     if (what === 'stop') { stop(); event('Stopped: GLUE in the browser carries on by itself'); return; }
-    if (what === 'restart') { engine.forget(); analysis.restart(); }
+    if (what === 'restart') { engine.forget(); engine.analysisRestart(); }
     start();
     event(what === 'restart' ? 'Restarted' : 'Started');
-    void analysis.run(() => cfg); sharedSoon(); void findFolders();
+    engine.analysisRun(); sharedSoon(); void findFolders();
   });
   await bridge.onAskStatus(() => report(state, text));
   void findFolders();
@@ -532,21 +479,14 @@ async function boot() {
   const moves = () => void (cfg?.running === false ? Promise.resolve() : followMoves(cfg)).catch(e => console.warn('GLUE Home: the cache didn’t follow a moved collection', e));
   setTimeout(moves, 30_000);
   setInterval(moves, 3600e3);
-  // The engine (ADR 0104, 0153: in Rust, its jobs carried on there): what it says, here.
+  // The engine (ADR 0104, 0153, 0154: in Rust, its jobs and this computer's analysis carried on there): what it says,
+  // here.
   engine.on.event = event;
   engine.on.changed = servedSoon;
-  // What the tab changed goes up to GLUE Cloud within seconds (a burst makes one push, ADR 0106).
+  engine.on.analysis = servedSoon;
+  // What the tab changed, or the analysis put in, goes up to GLUE Cloud within seconds (a burst makes one push, ADR 0106).
   engine.on.edited = () => sharedSoon(2000);
-  // Songs new to a collection (a scan): looked for now.
-  engine.on.added = () => analysis.added(() => cfg);
   await engine.listenToEngine();
-  // This computer's songs analysed for the library (ADR 0103): soon after starting, then every minute.
-  analysis.setPaused(!!cfg?.analysisPaused, undefined, true);
-  analysis.on.changed = servedSoon;
-  analysis.on.event = event;
-  analysis.on.written = n => { event('Put ' + n + ' analys' + (n === 1 ? 'is' : 'es') + ' into the library'); sharedSoon(); };
-  setTimeout(() => { if (cfg?.running !== false) void analysis.run(() => cfg); }, 20_000);
-  setInterval(() => { if (cfg?.running !== false) void analysis.run(() => cfg); }, 60_000);
   // Shared collections (ADR 0097): synced here when no GLUE tab is, soon after starting and every minute.
   setTimeout(sharedSoon, 25_000);
   setInterval(sharedSoon, 60_000);

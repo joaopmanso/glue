@@ -63,7 +63,21 @@ pub fn build_backup(home: &dyn Dir, profile: &Value, songs: bool, created: &str)
   create_zip(&all, created_ms(created))
 }
 
-fn created_ms(_iso: &str) -> i64 { std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0) }
+/// The backup's time (`toISOString()`'s form, UTC) in ms: its files' dates in the zip, so the same backup is the same
+/// bytes on any computer. Not that form: now.
+fn created_ms(iso: &str) -> i64 {
+  let n = |a: usize, b: usize| iso.get(a..b).and_then(|s| s.parse::<i64>().ok());
+  let (Some(y), Some(mo), Some(d), Some(h), Some(mi), Some(s)) = (n(0, 4), n(5, 7), n(8, 10), n(11, 13), n(14, 16), n(17, 19)) else {
+    return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
+  };
+  // Days since 1970-01-01 (Howard Hinnant's days_from_civil).
+  let y2 = if mo <= 2 { y - 1 } else { y };
+  let era = y2.div_euclid(400);
+  let yoe = y2 - era * 400;
+  let doy = (153 * (if mo > 2 { mo - 3 } else { mo + 9 }) + 2) / 5 + d - 1;
+  let days = era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468;
+  ((days * 86_400 + h * 3600 + mi * 60 + s) * 1000) + n(20, 23).unwrap_or(0)
+}
 
 /// CRC-32 (zip's).
 pub fn crc32(d: &[u8]) -> u32 {
@@ -177,6 +191,8 @@ mod tests {
     assert!(read_zip(&zip).unwrap().iter().any(|x| x.0 == "files/a.mp3" && x.1 == b"song"));
     // The website reads it (tests/store.golden.test.ts reads this file with readBackup): kept, and the same bytes
     // every time. GOLDEN=1 writes it again.
+    assert_eq!(created_ms("2026-10-05T00:00:00.000Z"), 1_791_158_400_000);
+    assert_eq!(created_ms("2000-02-29T12:34:56.789Z"), 951_827_696_789);
     let at = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/golden/store/backup.zip");
     if std::env::var("GOLDEN").is_ok() { std::fs::write(&at, &zip).unwrap(); }
     assert_eq!(std::fs::read(&at).unwrap(), zip, "tests/golden/store/backup.zip: GOLDEN=1 cargo test writes it again");

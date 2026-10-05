@@ -14,24 +14,34 @@ export const TAURI_MOCK = `(() => {
   // Tests deliver Rust's events (e.g. the local link's /attach, ADR 0091) with this.
   window.__tauriEvent = (event, payload) => deliver({ event, payload, target: undefined });
   const cfg = () => JSON.parse(localStorage.getItem('home-config') || 'null');
-  // GLUE Home's library engine (ADR 0153): the real one, run by the test's FakeHome (e2e/fakeHome.ts), reached over its
-  // local link (/engine); what it says comes back as GLUE Home's events. No FakeHome: no engine.
+  // GLUE Home's library engine (ADR 0153, 0154): the real one, run by the test's FakeHome (e2e/fakeHome.ts), reached over
+  // its local link (/engine); what it says comes back as GLUE Home's events. It analyses this computer's songs, real
+  // files on disk. No FakeHome: no engine.
+  // Only a test's FakeHome (port 47450 and up), never a real GLUE Home on this computer (47400–47409).
+  const fakeHome = (path, init) => window.__localPort >= 47450 ? fetch('http://127.0.0.1:' + window.__localPort + path + (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(window.__homeToken ?? cfg()?.localToken ?? ''), init) : Promise.reject(new Error('no GLUE Home here'));
   const toEngine = async m => {
-    const r = await fetch('http://127.0.0.1:' + (window.__localPort ?? 47400) + '/engine?t=' + encodeURIComponent(cfg()?.localToken ?? ''), { method: 'POST', body: JSON.stringify(m) });
+    const r = await fakeHome('/engine', { method: 'POST', body: JSON.stringify(m) });
     if (!r.ok) throw 'GLUE Home’s engine isn’t there';
     const a = await r.json();
     if (a.err !== undefined) throw a.err;
     return a.ok;
   };
-  const settings = () => { const c = cfg(); return toEngine({ set: { computer: c?.computer ?? null, running: c?.running !== false } }).catch(() => {}); };
+  const settings = () => toEngine({ set: { config: cfg() ?? {} } }).catch(() => {});
   let notesFrom = 0, notesOn = false;
-  const NOTE = { event: n => ['engine-event', n.text], edited: n => ['engine-edited', { p: n.p, c: n.c, paths: n.paths }], added: () => ['engine-added', null], changed: () => ['engine-changed', null] };
+  const NOTE = {
+    event: n => ['engine-event', n.text], edited: n => ['engine-edited', { p: n.p, c: n.c, paths: n.paths }], changed: () => ['engine-changed', null],
+    analysis: n => ['engine-analysis', n.state], made: n => ['engine-made', { p: n.p, c: n.c, id: n.id }],
+    // The engine changed the settings (a music folder it found, the pause): saved, and both windows told.
+    config: n => { const c = { ...(cfg() ?? {}), ...n.patch }; localStorage.setItem('home-config', JSON.stringify(c)); send('config', c); return []; },
+    // A search of the drives for a music folder (tests count them).
+    search: () => { log.push('find_folder'); return []; },
+  };
   const followEngine = async () => {
     if (notesOn) return; notesOn = true;
     await settings();
     for (;;) {
       try {
-        const r = await fetch('http://127.0.0.1:' + (window.__localPort ?? 47400) + '/engine/notes?since=' + notesFrom + '&t=' + encodeURIComponent(cfg()?.localToken ?? ''));
+        const r = await fakeHome('/engine/notes?since=' + notesFrom);
         for (const n of r.ok ? await r.json() : []) { notesFrom = n.n; const [event, payload] = NOTE[n.note]?.(n) ?? []; if (event) deliver({ event, payload, target: 'service' }); }
         await new Promise(ok => setTimeout(ok, 250));
       } catch { await new Promise(ok => setTimeout(ok, 2000)); }
@@ -68,7 +78,7 @@ export const TAURI_MOCK = `(() => {
       switch (cmd) {
         case 'plugin:event|listen': listeners.push({ event: args.event, id: args.handler }); if (args.event === 'engine-changed') void followEngine(); return listeners.length;
         case 'plugin:event|unlisten': return;
-        case 'plugin:event|emit': if (args.event === 'status') { window.__status = args.payload; if (args.payload?.analysing) void toEngine({ set: { analysis: args.payload.analysing } }).catch(() => {}); } return send(args.event, args.payload);
+        case 'plugin:event|emit': if (args.event === 'status') window.__status = args.payload; return send(args.event, args.payload);
         case 'plugin:event|emit_to': return send(args.event, args.payload, typeof args.target === 'string' ? args.target : args.target?.label);
         case 'get_config': return cfg();
         case 'set_config': localStorage.setItem('home-config', JSON.stringify(args.config)); send('config', args.config); void settings(); return;
@@ -84,8 +94,6 @@ export const TAURI_MOCK = `(() => {
         case 'local_port': return window.__localPort ?? 47400;
         // The writer lease (ADR 0087): window.__lease says whether a GLUE tab holds it; edits_waiting counts.
         case 'lease_held': return !!window.__lease;
-        // The engine's answer to a local-link request (ADR 0104): back to whoever sent it (the test's FakeHome).
-        case 'rpc_reply': window.__rpcReply?.(args.id, args.body); return null;
         case 'edits_waiting': window.__editsWaiting = (window.__editsWaiting ?? 0) + 1; return;
         // Cover services (ADR 0086): window.__web maps an address's start to its answer (JSON or bytes).
         case 'web_get': { const hit = Object.entries(window.__web ?? {}).find(([k]) => args.url.startsWith(k)); window.__webAsked = [...(window.__webAsked ?? []), args.url]; if (!hit) throw 'the service said 404'; const v = hit[1]; return typeof v === 'string' ? new TextEncoder().encode(v).buffer : new Uint8Array(v).buffer; }
@@ -96,19 +104,24 @@ export const TAURI_MOCK = `(() => {
         case 'plugin:process|restart': window.__restarted = true; return;
         // This computer's GLUE folder and music files (window.__glue: path → text, window.__disk: path → bytes).
         case 'find_glue_folder': return window.__glueFolder ?? null;
-        case 'known_folders': return { home: 'C:\\\\Users\\\\dj', music: 'C:\\\\Users\\\\dj\\\\Music', documents: 'C:\\\\Users\\\\dj\\\\Documents', desktop: null, downloads: null, sep: '\\\\' };
-        case 'path_exists': return Object.keys(window.__disk ?? {}).some(p => p === args.path || p.startsWith(args.path + '\\\\'));
         // GLUE Home's own cache (in memory) and the incoming folder (the songs received, above).
-        case 'cache_read': { const b = cache[args.rel]; if (!b) throw 'not found'; return new Uint8Array(b).buffer; }
+        // GLUE Home's cache: what the page put (in memory), then what the engine wrote (the FakeHome's folder).
+        case 'cache_read': {
+          const b = cache[args.rel];
+          if (b) return new Uint8Array(b).buffer;
+          const r = await fakeHome('/engine/cache?rel=' + encodeURIComponent(args.rel)).catch(() => null);
+          if (!r?.ok) throw 'not found';
+          return await r.arrayBuffer();
+        }
         case 'cache_write': cache[opts.headers['x-rel']] = Array.from(args); return;
         case 'activity_now': return { seconds: 120, counts: { 'bridge file_read': { calls: 3, ms: 12, bytes: 3145728 }, 'local /fs/list': { calls: 40, ms: 30, bytes: 0 } } };
-        case 'cache_list': return Object.keys(cache).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
+        case 'cache_list': {
+          const mem = Object.keys(cache).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
+          const r = await fakeHome('/engine/cache/list?rel=' + encodeURIComponent(args.rel)).catch(() => null);
+          return [...new Set([...mem, ...(r?.ok ? await r.json() : [])])];
+        }
         case 'incoming_list': return files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, size: f.chunks.reduce((a, c) => a + c.length, 0), mtime: 1, path: 'C:\\\\In\\\\' + f.name }));
         case 'incoming_move': { const f = files.find(x => x.name === args.name && x.done && !x.moved); if (!f) throw 'not found'; f.moved = args.to; return args.to + '\\\\' + f.name; }
-        // window.__find: folder name → where the drive search finds it.
-        case 'find_folder': return (window.__find ?? {})[args.name] ?? null;
-        // window.__findFile: song name → where the search finds it.
-        case 'analyse_song': { const b = disk(args.path); if (!b) throw 'not found'; window.__analysed = [...(window.__analysed ?? []), args.id]; send('analysis-step', args.p + '/' + args.c + '/' + args.id, 'service'); return (await engine()).analyseSong(args, b, put); }
         case 'analyse_incoming': { const b = disk(args.path); if (!b) throw 'not found'; return (await engine()).analyseIncoming(args.name, b, put); }
         case 'cover_hash': { const b = disk(args.path); if (!b) throw 'not found'; return (await engine()).coverHash(args, b, put); }
         case 'cover_from_image': return (await engine()).coverFromImage(Array.from(args), put);
@@ -121,8 +134,7 @@ export const TAURI_MOCK = `(() => {
         case 'rtc_error': return (await rtcE()).error(args.conn, args.chan, args.n, args.error);
         case 'rtc_tell': return (await rtcE()).tell(args.msg);
         case 'verify_song': window.__verified = [...(window.__verified ?? []), args.id]; return (window.__verifyAnswer ?? {})[args.id] ?? { kind: 'same', ms: 1000, name: args.id };
-        case 'find_file': return (window.__findFile ?? {})[args.name] ?? null;
-        case 'glue_list': return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
+        case 'glue_list': if (window.__glueDiskList) return window.__glueDiskList(args.rel); return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));
         case 'plugin:notification|is_permission_granted': return true;
         // window.__glueDisk (a test's exposed function): the GLUE folder read from the real disk, as GLUE Home does.
         case 'glue_read': { const t = window.__glueDisk ? await window.__glueDisk(args.rel) ?? undefined : (window.__glue ?? {})[args.rel]; if (t === undefined) throw 'not found'; return t; }
@@ -130,7 +142,8 @@ export const TAURI_MOCK = `(() => {
         case 'file_read': { const b = disk(args.path); if (!b) throw 'not found'; return new Uint8Array(b.slice(args.offset, args.offset + args.len)).buffer; }
         // ask() is a message dialog that answers with the clicked button's label.
         case 'plugin:dialog|message': { const b = args.buttons, labels = b && typeof b === 'object' ? Object.values(b)[0] : ['Yes', 'No']; return (window.__ask ?? true) ? labels[0] : labels[1]; }
-        case 'plugin:dialog|open': return 'D:\\\\Incoming';
+        // window.__pick: the folder the dialog picks next (once).
+        case 'plugin:dialog|open': { const f = window.__pick ?? 'D:\\\\Incoming'; window.__pick = undefined; return f; }
         case 'plugin:autostart|is_enabled': return localStorage.getItem('autostart') === '1';
         case 'plugin:autostart|enable': localStorage.setItem('autostart', '1'); return;
         case 'plugin:autostart|disable': localStorage.setItem('autostart', '0'); return;

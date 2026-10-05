@@ -1,26 +1,19 @@
-//! The native analysis engine in GLUE Home (crates/glue-audio, ADR 0147, 0148). `analyse_song`: GLUE Home's queue
-//! (home/ui/analysis.ts) hands it a song; it reads the file, analyses it and writes every cache file, in Rust.
+//! The native analysis engine in GLUE Home (crates/glue-audio, ADR 0147, 0148). A song of the library is analysed by the
+//! engine's queue (crates/glue-engine, ADR 0154), which reads it with `read_song` here.
 //! `verify_song` analyses a song natively, saves nothing, and compares with what the service page made of it before.
 //! The rest of GLUE Home's audio work is here too (ADR 0147's batch 4): songs arriving in the incoming folder
 //! (`analyse_incoming`), covers (`cover_hash`, `cover_from_image`) and waveforms from kept details
 //! (`wave_from_details`); the service page has no audio code of its own.
 use serde_json::{json, Value};
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::time::Instant;
-use tauri::{AppHandle, Emitter};
+use glue_engine::analyse::{key, now_iso, time_for};
+use tauri::AppHandle;
 
 /// What GLUE Home's native results say made them (`AnalysisSummary.engine`).
 #[allow(dead_code)]
 pub const ENGINE: &str = glue_audio::out::summary::ENGINE;
-
-/// How long a song's analysis may take (cache.ts `timeFor`, ADR 0144): 2 minutes, or a second a MB.
-fn time_for(size: u64) -> std::time::Duration { std::time::Duration::from_millis(120_000u64.max((size as f64 / 1e6).round() as u64 * 1000)) }
-
-fn now_iso() -> String {
-  let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
-  glue_audio::out::summary::iso(ms)
-}
 
 /// Run `f` on a thread of its own with room for a big song (16 MB of stack), and wait for it without holding up
 /// GLUE Home's other work.
@@ -34,37 +27,9 @@ async fn on_own_thread<T: Send + 'static>(name: &str, f: impl FnOnce() -> T + Se
 
 /// A song's file, read whole, giving way to songs being played (`Paced`, ADR 0138). `read only part`: a network folder
 /// that dropped mid-file (passing: tried again later, never analysed from a part).
-fn read_song(file: &std::path::Path, name: &str) -> Result<Vec<u8>, String> {
-  let size = fs::metadata(file).map_err(|e| format!("{name} could not be read ({e})"))?.len();
+pub(crate) fn read_song(file: &std::path::Path, name: &str) -> Result<Vec<u8>, String> {
   let f = fs::File::open(file).map_err(|e| format!("{name} could not be read ({e})"))?;
-  let mut r = crate::local::Paced { inner: std::io::BufReader::with_capacity(1 << 20, f), pri: crate::local::Pri::Analysis, busy: crate::local::playing_now };
-  let mut bytes = Vec::with_capacity(size as usize);
-  if let Err(e) = r.read_to_end(&mut bytes) { if bytes.len() as u64 >= size { return Err(format!("{name} could not be read ({e})")); } }
-  if (bytes.len() as u64) < size { return Err(format!("GLUE Home read only part of {name} ({} of {size} bytes): its folder isn’t reachable right now", bytes.len())); }
-  Ok(bytes)
-}
-
-/// One song of a shared collection, analysed here (ADR 0148): read, decoded and analysed natively; its files written
-/// to GLUE Home's cache (`t`, `w`, `d`, the cover's `a` and `c`, `p`, then `s` last: a result has all its parts).
-/// `mtime`: the song's, as the collection knows it. A song that can't be analysed is saved as such (`failed` in the
-/// answer); Err is a passing failure (unreadable now, out of time), not saved. The service page is told when the
-/// reading is done (`analysis-step`), for its meter.
-#[tauri::command]
-pub async fn analyse_song(app: AppHandle, path: String, p: String, c: String, id: String, mtime: f64) -> Result<Value, String> {
-  if [&p, &c, &id].iter().any(|s| s.is_empty() || s.contains(['/', '\\', '.'])) { return Err("bad song".into()); }
-  let file = crate::allowed(&app, &path)?;
-  let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-  let app2 = app.clone();
-  on_own_thread("glue-analysis", move || -> Result<Value, String> {
-    let t0 = Instant::now();
-    let bytes = read_song(&file, &name)?;
-    let read_ms = t0.elapsed().as_millis() as u64;
-    let _ = app2.emit_to("service", "analysis-step", format!("{p}/{c}/{id}"));
-    let k = |dir: &str, ext: &str| key(dir, &p, &c, &id, ext);
-    let mut out = analyse_into(bytes, &name, mtime, &k, &|rel, data| crate::cache_put(&app2, &rel, data))?;
-    out["readMs"] = json!(read_ms);
-    Ok(out)
-  }).await?
+  glue_engine::analyse::read_whole(file, name, crate::local::Paced { inner: std::io::BufReader::with_capacity(1 << 20, f), pri: crate::local::Pri::Analysis, busy: crate::local::playing_now })
 }
 
 /// A song that arrived in the incoming folder (ADR 0048), analysed at once so it's ready when the website shows it in
@@ -152,41 +117,6 @@ fn wave_of(header: &[u8], bin: &[u8]) -> Vec<u8> {
   glue_audio::out::files::wave(&spec, cols, rows, h["res"]["sr"].as_f64().unwrap_or(0.0))
 }
 
-/// A song's bytes analysed, and its cache files written through `put` (`k`: a part's cache key).
-fn analyse_into(bytes: Vec<u8>, name: &str, mtime: f64, k: &dyn Fn(&str, &str) -> String, put: &dyn Fn(String, &[u8]) -> Result<(), String>) -> Result<Value, String> {
-    let t0 = Instant::now();
-    let size = bytes.len() as f64;
-    glue_audio::control::set_deadline(Some(Instant::now() + time_for(bytes.len() as u64)));
-    let r = glue_audio::analyse(&bytes, name, size, mtime, now_iso());
-    glue_audio::control::set_deadline(None);
-    drop(bytes);
-    let analyse_ms = t0.elapsed().as_millis() as u64;
-    let a = match r {
-      Ok(a) => a,
-      Err(glue_audio::Failure::Broken(m)) if m.contains("took too long") => return Err(m),
-      Err(e) => {
-        // Said once, like a GLUE tab says it: not tried again until the file changes.
-        let msg = e.to_string();
-        let s = glue_audio::out::summary::failed(&msg, size, mtime, now_iso());
-        put(k("s", "json"), &serde_json::to_vec(&glue_audio::out::files::analysed_failed(&s, size, mtime)).unwrap_or_default())?;
-        return Ok(json!({ "failed": msg, "bytes": size, "analyseMs": analyse_ms }));
-      }
-    };
-    if !a.thumb.is_empty() { put(k("t", "bin"), &a.thumb)?; }
-    if !a.wave.is_empty() { put(k("w", "bin"), &a.wave)?; }
-    put(k("d", "bin"), &glue_audio::out::files::zlib(&a.details.1))?;
-    put(k("d", "json"), &serde_json::to_vec(&a.details.0).unwrap_or_default())?;   // last: a header always has its data
-    if let Some(cover) = &a.cover {
-      if let Some(cv) = cover { put(format!("a/{}-64.jpg", cv.hash), &cv.small)?; put(format!("a/{}-320.jpg", cv.hash), &cv.large)?; }
-      put(k("c", "txt"), cover.as_ref().map(|c| c.hash.as_bytes()).unwrap_or(b""))?;
-    }
-    if !a.fingerprint.is_empty() { put(k("p", "bin"), &a.fingerprint)?; }
-    put(k("s", "json"), &serde_json::to_vec(&a.analysed(size, mtime)).unwrap_or_default())?;
-    Ok(json!({ "bytes": size, "analyseMs": analyse_ms, "label": a.summary.label }))
-}
-
-/// The cache files of a song (cache.ts's keys).
-fn key(dir: &str, p: &str, c: &str, id: &str, ext: &str) -> String { format!("{dir}/{p}/{c}/{}/{id}.{ext}", &id[..id.len().min(2)]) }
 
 /// Numbers that are the same but for the last digits (the goldens' rule: within 1e-9 of their size): the maths
 /// libraries round differently there (the desktop's check, 2026-10-02: a key's tuning off in its 16th digit).
@@ -353,7 +283,7 @@ mod tests {
     let written = RefCell::new(Vec::<(String, Vec<u8>)>::new());
     let put = |rel: String, d: &[u8]| { written.borrow_mut().push((rel, d.to_vec())); Ok(()) };
     let k = |d: &str, e: &str| super::key(d, "p1", "c1", "ab01", e);
-    let r = super::analyse_into(std::fs::read(root.join("flac-cover.flac")).unwrap(), "x.flac", 5.0, &k, &put).unwrap();
+    let r = glue_engine::analyse::analyse_into(std::fs::read(root.join("flac-cover.flac")).unwrap(), "x.flac", 5.0, &k, &put).unwrap();
     assert!(r.get("failed").is_none(), "{r}");
     let w = written.borrow();
     let names: Vec<&str> = w.iter().map(|(n, _)| n.as_str()).collect();
@@ -365,7 +295,7 @@ mod tests {
     assert!(s["summary"]["engine"].as_str().unwrap().starts_with("glue-audio"));
     drop(w);
     written.borrow_mut().clear();
-    let r = super::analyse_into(b"RIFF\x10\0\0\0WAVEjunkjunk".to_vec(), "y.wav", 5.0, &k, &put).unwrap();
+    let r = glue_engine::analyse::analyse_into(b"RIFF\x10\0\0\0WAVEjunkjunk".to_vec(), "y.wav", 5.0, &k, &put).unwrap();
     assert!(r["failed"].is_string(), "{r}");
     let w = written.borrow();
     assert_eq!(w.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["s/p1/c1/ab/ab01.json"]);

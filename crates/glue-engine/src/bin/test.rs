@@ -1,13 +1,20 @@
 //! The engine for the e2e tests (e2e/fakeHome.ts starts it): `glue-engine-test <GLUE folder> <cache folder>`, driven
 //! by JSON lines on stdin, answering on stdout:
-//!   in:  {"ask": n, "rpc": {...}}           a GLUE tab's request (Engine::rpc; `null` when it isn't the engine's)
+//!   in:  {"ask": n, "rpc": {...}}           a GLUE tab's request (Engine::rpc)
 //!        {"ask": n, "cmd": "...", ...}      what GLUE Home's service page asks of it (home/src-tauri/src/engine.rs's commands)
-//!        {"set": {"lease": bool, "computer": "...", "analysis": {...}, "running": bool, "folders": {id: path}, "incoming": path}}
+//!        {"set": {"config": {...}}}         GLUE Home's settings (the Tauri stand-in's, e2e/tauri-mock.ts)
+//!        {"set": {"lease": bool, "running": bool, "folders": {id: path}, "incoming": path, "known": {...}}}
+//!                                           what e2e/fakeHome.ts stands for: the lease, Stop, the music folders its
+//!                                           disk knows, its incoming folder, this computer's usual folders
 //!   out: {"ask": n, "ok": ...} | {"ask": n, "err": "..."}
-//!        {"note": "event"|"edited"|"added"|"changed", ...}   what GLUE Home would tell its service page
+//!        {"note": "event"|"edited"|"changed"|"analysis"|"made"|"config"|"search", ...}   what GLUE Home would tell its
+//!                                           service page (`config`: a change to the settings; `search`: a drive search)
 //!        {"note": "tags", "path": relPath, "tags": {...}}     song info written into a file (the file is only touched,
 //!                                                            its date 5 s on, as e2e/fakeHome.ts's /fs/tags does)
-//! Every 2 s, as GLUE Home every 10 s: the jobs carried on, or the stores let go while a tab holds the lease.
+//! Every 2 s, as GLUE Home every 10 s: the jobs carried on, or the stores let go while a tab holds the lease. The
+//! analysis looks for songs a second after the settings first arrive, then every 10 s (GLUE Home: 20 s, every minute).
+//! Songs are analysed for real (crates/glue-audio).
+use glue_engine::library::Known;
 use glue_engine::{Engine, Host};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
@@ -15,22 +22,50 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
-struct State { lease: bool, computer: Option<String>, analysis: Value, stopped: bool, folders: std::collections::HashMap<String, PathBuf>, incoming: Option<PathBuf> }
-struct H { st: Arc<Mutex<State>>, out: Arc<Mutex<std::io::Stdout>> }
+struct State { lease: bool, stopped: bool, config: Option<Value>, folders: serde_json::Map<String, Value>, incoming: Option<PathBuf>, known: Option<Known> }
+struct H { st: Arc<Mutex<State>>, out: Arc<Mutex<std::io::Stdout>>, glue: String }
 impl H {
   fn say(&self, v: Value) { let mut o = self.out.lock().unwrap(); let _ = writeln!(o, "{v}"); let _ = o.flush(); }
-  fn folder(&self, root_id: &str) -> Option<PathBuf> { let g = self.st.lock().unwrap(); if root_id == "incoming" { g.incoming.clone() } else { g.folders.get(root_id).cloned() } }
+  fn folder(&self, root_id: &str) -> Option<PathBuf> {
+    if root_id == "incoming" { return Some(self.incoming_dir()); }
+    self.config()["folders"][root_id].as_str().map(PathBuf::from)
+  }
 }
 impl Host for H {
   fn lease_held(&self) -> bool { self.st.lock().unwrap().lease }
-  fn running(&self) -> bool { !self.st.lock().unwrap().stopped }
-  fn computer(&self) -> Option<String> { self.st.lock().unwrap().computer.clone() }
-  fn version(&self) -> String { "0.52.0".into() }
-  fn analysis_state(&self) -> Value { self.st.lock().unwrap().analysis.clone() }
+  /// The settings, with the music folders the stand-in's disk knows and its GLUE folder.
+  fn config(&self) -> Value {
+    let g = self.st.lock().unwrap();
+    let mut c = g.config.clone().unwrap_or_else(|| json!({}));
+    let mut f = c["folders"].as_object().cloned().unwrap_or_default();
+    f.extend(g.folders.clone());
+    c["folders"] = Value::Object(f);
+    c["glue"] = json!(self.glue);
+    if g.stopped { c["running"] = json!(false); }
+    c
+  }
+  fn patch_config(&self, f: &dyn Fn(&Value) -> Option<Value>) -> Option<Value> {
+    let patch = f(&self.config())?;
+    {
+      let mut g = self.st.lock().unwrap();
+      let c = g.config.get_or_insert_with(|| json!({}));
+      for (k, v) in patch.as_object().into_iter().flatten() { c[k] = v.clone(); }
+    }
+    self.say(json!({ "note": "config", "patch": patch }));
+    Some(self.config())
+  }
+  fn version(&self) -> String { "0.53.0".into() }
+  fn known_folders(&self) -> Known { self.st.lock().unwrap().known.clone().unwrap_or(Known { sep: std::path::MAIN_SEPARATOR, ..Default::default() }) }
+  fn incoming_dir(&self) -> PathBuf { self.st.lock().unwrap().incoming.clone().unwrap_or_else(|| PathBuf::from(&self.glue).join("..").join("Incoming")) }
+  fn find_folder(&self, name: &str, sample: &str, secs: u64) -> Option<String> {
+    self.say(json!({ "note": "search", "name": name }));
+    glue_engine::library::search_folder(self.known_folders().starts(), name, sample, secs.clamp(1, 25))
+  }
   fn event(&self, text: &str) { self.say(json!({ "note": "event", "text": text })) }
   fn edited(&self, p: &str, c: &str, paths: &[String]) { self.say(json!({ "note": "edited", "p": p, "c": c, "paths": paths })) }
   fn changed(&self) { self.say(json!({ "note": "changed" })) }
-  fn added(&self) { self.say(json!({ "note": "added" })) }
+  fn analysis_changed(&self, state: &Value) { self.say(json!({ "note": "analysis", "state": state })) }
+  fn made(&self, p: &str, c: &str, id: &str) { self.say(json!({ "note": "made", "p": p, "c": c, "id": id })) }
   fn write_tags(&self, root_id: &str, rel_path: &str, tags: &glue_store::json::Obj) -> Result<(f64, f64), String> {
     let root = self.folder(root_id).ok_or("GLUE Home doesn’t know this song’s music folder")?;
     let file = rel_path.split('/').fold(root, |p, x| p.join(x));
@@ -50,7 +85,7 @@ impl Host for H {
 fn main() {
   let args: Vec<String> = std::env::args().skip(1).collect();
   let (st, out) = (Arc::new(Mutex::new(State::default())), Arc::new(Mutex::new(std::io::stdout())));
-  let engine = Engine::new(args[0].clone().into(), args[1].clone().into(), H { st: st.clone(), out: out.clone() });
+  let engine = Engine::new(args[0].clone().into(), args[1].clone().into(), H { st: st.clone(), out: out.clone(), glue: args[0].clone() });
   let (e2, st2) = (engine.clone(), st.clone());
   std::thread::spawn(move || loop {
     std::thread::sleep(std::time::Duration::from_secs(2));
@@ -60,19 +95,23 @@ fn main() {
   for line in std::io::stdin().lock().lines().map_while(Result::ok) {
     let Ok(m) = serde_json::from_str::<Value>(&line) else { continue };
     if let Some(s) = m.get("set") {
-      let mut g = st.lock().unwrap();
-      if let Some(l) = s["lease"].as_bool() { g.lease = l; }
-      if let Some(c) = s.get("computer") { g.computer = c.as_str().map(String::from); }
-      if let Some(a) = s.get("analysis") { g.analysis = a.clone(); }
-      if let Some(r) = s["running"].as_bool() { g.stopped = !r; }
-      if let Some(f) = s["folders"].as_object() { g.folders = f.iter().filter_map(|(k, v)| v.as_str().map(|p| (k.clone(), PathBuf::from(p)))).collect(); }
-      if let Some(i) = s["incoming"].as_str() { g.incoming = Some(i.into()); }
+      let first = {
+        let mut g = st.lock().unwrap();
+        if let Some(l) = s["lease"].as_bool() { g.lease = l; }
+        if let Some(r) = s["running"].as_bool() { g.stopped = !r; }
+        if let Some(f) = s["folders"].as_object() { g.folders = f.clone(); }
+        if let Some(i) = s["incoming"].as_str() { g.incoming = Some(i.into()); }
+        if let Some(k) = s.get("known").filter(|k| k.is_object()) { g.known = Some(Known::from_json(k)); }
+        match s.get("config").filter(|c| c.is_object()) { Some(c) => g.config.replace(c.clone()).is_none(), None => false }
+      };
+      // GLUE Home started: the analysis as its settings say.
+      if first { engine.start_analysis(std::time::Duration::from_secs(1), std::time::Duration::from_secs(10)); }
       continue;
     }
     let (engine, out, ask) = (engine.clone(), out.clone(), m["ask"].clone());
     // Each on its own (a `wait` holds for up to 25 s).
     std::thread::spawn(move || {
-      let r: Result<Value, String> = if let Some(b) = m.get("rpc") { engine.rpc(b).unwrap_or(Ok(Value::Null)) } else { glue_engine::command(&engine, &m) };
+      let r: Result<Value, String> = if let Some(b) = m.get("rpc") { engine.rpc(b) } else { glue_engine::command(&engine, &m) };
       let v = match r { Ok(v) => json!({ "ask": ask, "ok": v }), Err(e) => json!({ "ask": ask, "err": e }) };
       let mut o = out.lock().unwrap(); let _ = writeln!(o, "{v}"); let _ = o.flush();
     });

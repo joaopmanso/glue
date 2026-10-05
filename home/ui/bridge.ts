@@ -55,7 +55,7 @@ export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online
   /** Making mini spectrograms and analyses of the shared songs (ADR 0046). */
   analysis?: { done: number; total: number; running: boolean };
   /** Analysing this computer's songs for the library (ADR 0103). */
-  analysing?: import('./analysis').AnalysisState;
+  analysing?: import('./engine').AnalysisState;
   /** Which computer this is (ADR 0108), and how GLUE Home knows (or why it doesn't). */
   computer?: { id: string | null; why: string };
   /** The library engine (ADR 0104): its revision, and the jobs under way. */
@@ -99,18 +99,10 @@ export const bridge = {
   openLibrary: () => invoke<void>('open_library'),
   // This computer's GLUE library (read-only) and its music files.
   findGlue: () => invoke<string | null>('find_glue_folder'),
-  knownFolders: () => invoke<{ home: string | null; music: string | null; documents: string | null; desktop: string | null; downloads: string | null; sep: string }>('known_folders'),
-  exists: (path: string) => invoke<boolean>('path_exists', { path }),
-  /** `secs`: how long to search (25 at most; a dropped folder looks briefly, then asks, ADR 0134). */
-  findFolder: (name: string, sample: string, secs?: number) => invoke<string | null>('find_folder', { name, sample, secs }),
-  /** A song dropped onto a GLUE page: by its name and size, in `first` (music folders) first, then everywhere. */
-  findFile: (name: string, size: number, first: string[]) => invoke<string | null>('find_file', { name, size, first }),
   // GLUE Home's own cache (mini spectrograms, analyses) and the incoming folder.
   cacheRead: (rel: string) => invoke<ArrayBuffer>('cache_read', { rel }),
   cacheWrite: (rel: string, bytes: Uint8Array) => invoke<void>('cache_write', bytes, { headers: { 'x-rel': rel } }),
   cacheList: (rel: string) => invoke<string[]>('cache_list', { rel }),
-  /** A song analysed by GLUE Home's own engine into this cache (ADR 0148); `failed`: it couldn't be, saved as such. */
-  analyseSong: (path: string, p: string, c: string, id: string, mtime: number) => invoke<{ bytes: number; readMs: number; analyseMs: number; failed?: string; label?: string }>('analyse_song', { path, p, c, id, mtime }),
   /** A song that arrived in the incoming folder, analysed by the engine into `i/<name>.…` (ADR 0048). */
   analyseIncoming: (name: string, path: string) => invoke<void>('analyse_incoming', { name, path }),
   /** A song's cover from its tags ('' for none), kept with the song's hash (ADR 0082). */
@@ -132,15 +124,11 @@ export const bridge = {
   /** Said on every session. */
   rtcTell: (msg: unknown) => invoke<void>('rtc_tell', { msg }),
   onRtc: <T>(name: 'rtc-ice' | 'rtc-state' | 'rtc-request' | 'rtc-receiving' | 'rtc-received' | 'rtc-served' | 'rtc-activity', f: (payload: T) => void) => listen<T>(name, e => f(e.payload)),
-  /** The engine read a song's file (`p/c/id`): analysing it now. */
-  onAnalysisStep: (f: (key: string) => void) => listen<string>('analysis-step', e => f(e.payload)),
   /** What GLUE Home's own side was asked since it started: the local link, the service page's file reads (ADR 0083). */
   activity: () => invoke<{ seconds: number; counts: Record<string, Activity> }>('activity_now'),
   incomingList: () => invoke<{ name: string; size: number; mtime: number; path: string }[]>('incoming_list'),
   incomingMove: (name: string, to: string) => invoke<string>('incoming_move', { name, to }),
   localPort: () => invoke<number>('local_port'),
-  /** When the website here last read a song file, ms (ADR 0138; 0 from a GLUE Home before 0.41.6). */
-  foregroundAt: () => invoke<number>('foreground_at').catch(() => 0),
   glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
   glueList: (rel: string) => invoke<string[]>('glue_list', { rel }),
   fileSize: (path: string) => invoke<number>('file_size', { path }),
@@ -150,12 +138,8 @@ export const bridge = {
   webGet: (url: string) => invoke<ArrayBuffer>('web_get', { url }),
   /** A GLUE tab here holds the writer lease (ADR 0087). */
   leaseHeld: () => invoke<boolean>('lease_held'),
-  /** The library engine's answer to a website request on the local link (ADR 0104). */
-  rpcReply: (id: number, body: string) => invoke<void>('rpc_reply', { id, body }),
   // Between the windows.
   onConfig: (f: (c: HomeConfig) => void) => listen<HomeConfig>('config', e => f(e.payload)),
-  /** A website request for the library engine, from the local link (`read`: its read-only token). */
-  onRpc: (f: (m: { id: number; body: string; read: boolean }) => void) => listen<{ id: number; body: string; read: boolean }>('rpc', e => f(e.payload)),
   onControl: (f: (what: 'start' | 'stop' | 'restart') => void) => listen<'start' | 'stop' | 'restart'>('control', e => f(e.payload)),
   control: (what: 'start' | 'stop' | 'restart') => emitTo('service', 'control', what),
   onStatus: (f: (s: Status) => void) => listen<Status>('status', e => f(e.payload)),

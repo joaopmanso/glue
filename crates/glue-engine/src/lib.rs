@@ -5,37 +5,72 @@
 //! - `edit`: a tab's changes (`StoreOp`s) applied in order and saved;
 //! - `wait`: the feed of changes (which files, which songs analysed), a long poll;
 //! - jobs that go on without the tab (removing songs), kept in GLUE Home's cache and carried on after a restart;
-//! - what was written since the last shared sync (ADR 0107).
+//! - what was written since the last shared sync (ADR 0107);
+//! - the analysis queue (`queue.rs`, ADR 0154): this computer's songs analysed natively (`analyse.rs`) and taken into
+//!   the library; where songs and music folders are on this computer (`library.rs`).
 //!
 //! No Tauri: the app is a `Host`. `glue-engine-test` serves it to the e2e tests.
+pub mod analyse;
+pub mod library;
+pub mod queue;
+
 use glue_store::dir::{read_json, Dir, FsDir};
 use glue_store::json::{stringify, Obj};
 use glue_store::store::{shard_of, LoadOpts, Store, Unwritten};
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
-use std::sync::{Arc, Condvar, Mutex};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::time::{Duration, Instant};
 
 /// What the app does for the engine.
 pub trait Host: Send + Sync + 'static {
   /// A GLUE tab from before the engine writes the library itself (ADR 0087): the engine writes nothing meanwhile.
   fn lease_held(&self) -> bool;
-  /// GLUE Home isn't stopped (Stop pauses the jobs).
-  fn running(&self) -> bool { true }
+  /// GLUE Home's settings (home/ui/bridge.ts `HomeConfig`): the GLUE folder, this computer, the music folders, Stop,
+  /// the analysis's pause and numbers.
+  fn config(&self) -> Value;
+  /// The settings changed by `f` (None: nothing to change), saved; the new settings.
+  fn patch_config(&self, _f: &dyn Fn(&Value) -> Option<Value>) -> Option<Value> { None }
+  /// GLUE Home isn't stopped (Stop pauses the jobs and the analysis).
+  fn running(&self) -> bool { self.config()["running"] != Value::Bool(false) }
   /// Which computer this is (ADR 0108), once known.
-  fn computer(&self) -> Option<String>;
+  fn computer(&self) -> Option<String> { self.config()["computer"].as_str().map(String::from) }
   fn version(&self) -> String { String::new() }
-  /// The analysis queue's state, for `status`.
-  fn analysis_state(&self) -> Value { Value::Null }
+  /// This computer's usual folders (to find music folders by name) and its drives or volumes (to search).
+  fn known_folders(&self) -> library::Known { library::Known { sep: std::path::MAIN_SEPARATOR, ..Default::default() } }
+  fn drives(&self) -> Vec<PathBuf> { vec![] }
+  /// GLUE Home's incoming folder (ADR 0048).
+  fn incoming_dir(&self) -> PathBuf;
+  /// A folder called `name` with `sample` in it, searched for on this computer's drives (at most `secs` seconds).
+  fn find_folder(&self, name: &str, sample: &str, secs: u64) -> Option<String> {
+    let mut starts = self.known_folders().starts();
+    starts.extend(self.drives());
+    library::search_folder(starts, name, sample, secs.clamp(1, 25))
+  }
+  /// A file called `name` of `size` bytes: in `first` (music folders), then the usual folders and the drives.
+  fn find_file(&self, name: &str, size: u64, first: &[PathBuf]) -> Option<String> {
+    let mut later = self.known_folders().starts();
+    later.extend(self.drives());
+    library::search_file(first, &later, name, size)
+  }
+  /// A song's file read whole (GLUE Home gives way to songs being played, ADR 0138).
+  fn read_song(&self, path: &Path, name: &str) -> Result<Vec<u8>, String> {
+    let f = std::fs::File::open(path).map_err(|e| format!("{name} could not be read ({e})"))?;
+    analyse::read_whole(path, name, std::io::BufReader::with_capacity(1 << 20, f))
+  }
+  /// When this computer last played a song (ms; the analysis eases off, ADR 0138).
+  fn foreground_at(&self) -> f64 { 0.0 }
+  /// The analysis queue's state changed (GLUE Home's window, a tab's status).
+  fn analysis_changed(&self, _state: &Value) {}
+  /// A song's parts were made here (any reason): the devices with a session are told (ADR 0133).
+  fn made(&self, _p: &str, _c: &str, _id: &str) {}
   /// Something for GLUE Home's Activity list.
   fn event(&self, _text: &str) {}
   /// A tab's edit (or a repair, or a job) was saved: the shared sync sends it up soon.
   fn edited(&self, _p: &str, _c: &str, _paths: &[String]) {}
   /// The engine's status changed (the settings window shows it).
   fn changed(&self) {}
-  /// Songs new to a collection (a scan): the analysis looks for them now.
-  fn added(&self) {}
   /// A song's edited info into its file (ADR 0071): its new size and date. Only GLUE Home writes tags.
   fn write_tags(&self, _root_id: &str, _rel_path: &str, _tags: &Obj) -> Result<(f64, f64), String> { Err("GLUE Home doesn’t write tags here".into()) }
   /// Whether a music folder can be reached now (a network folder may not be connected).
@@ -65,6 +100,8 @@ pub fn iso(ms: i64) -> String {
 }
 
 type Shared<T> = Arc<Mutex<T>>;
+/// A music folder's last drive search: what it found, and when (held while one runs).
+pub(crate) type Search = Mutex<Option<(Option<String>, Instant)>>;
 type Key = (String, String);
 
 #[derive(Default)]
@@ -88,6 +125,10 @@ pub struct Engine<H: Host> {
   running_jobs: Mutex<bool>,
   written: Mutex<HashMap<Key, indexmap::IndexSet<String>>>,
   looked_at: Mutex<HashMap<Key, i64>>,
+  pub(crate) queue: queue::Queue,
+  /// The drive searches for music folders, by folder: one at a time, what it found, when (library.rs).
+  pub(crate) searches: Mutex<HashMap<String, Arc<Search>>>,
+  pub(crate) me: Mutex<Weak<Self>>,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -96,7 +137,25 @@ fn text(v: &Value, k: &str) -> String { get(v, k).and_then(|x| x.as_str()).unwra
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    Arc::new(Engine { glue, cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()) })
+    let e = Arc::new(Engine { glue, cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()) });
+    *e.me.lock().unwrap() = Arc::downgrade(&e);
+    e
+  }
+  fn arc(&self) -> Option<Arc<Self>> { self.me.lock().unwrap().upgrade() }
+
+  /// Started with GLUE Home: the analysis paused as the settings say, then looking for songs to analyse after `first`
+  /// and every `every` (GLUE Home: 20 s, then every minute), unless GLUE Home is stopped.
+  pub fn start_analysis(self: &Arc<Self>, first: Duration, every: Duration) {
+    self.set_paused(self.host.config()["analysisPaused"].as_bool().unwrap_or(false), true);
+    let me = Arc::downgrade(self);
+    std::thread::spawn(move || {
+      std::thread::sleep(first);
+      while let Some(e) = me.upgrade() {
+        if e.host.running() { e.run_analysis(); }
+        drop(e);
+        std::thread::sleep(every);
+      }
+    });
   }
   fn dir(&self) -> FsDir { FsDir { root: self.glue.clone() } }
   fn cache_dir(&self) -> FsDir { FsDir { root: self.cache.clone() } }
@@ -298,7 +357,7 @@ impl<H: Host> Engine<H> {
     for op in ops { st.apply(op); }
     self.flush_edit(&mut st, p, c)?;
     drop(st);
-    if added { self.host.added(); }
+    if added { if let Some(e) = self.arc() { e.analysis_added(); } }
     Ok(json!({ "rev": self.rev(), "added": added }))
   }
 
@@ -340,16 +399,17 @@ impl<H: Host> Engine<H> {
     Ok(r)
   }
 
-  /// A request from a GLUE tab on this computer (the local link's `/rpc`, ADR 0104). None: not the engine's (the
-  /// analysis queue's: `analyse`, `pause`, `where`, `whereFile`).
-  pub fn rpc(self: &Arc<Self>, b: &Value) -> Option<Result<Value, String>> {
+  /// A request from a GLUE tab on this computer (the local link's `/rpc`, ADR 0104).
+  pub fn rpc(self: &Arc<Self>, b: &Value) -> Result<Value, String> {
     let (p, c) = (text(b, "p"), text(b, "c"));
-    Some(match b["op"].as_str().unwrap_or("") {
+    let cfg = self.host.config();
+    let strings = |k: &str| -> Vec<String> { b[k].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default() };
+    match b["op"].as_str().unwrap_or("") {
       // `computer`: which computer this is (ADR 0108), for a GLUE tab here to see the library as.
       "hello" => Ok(json!({ "engine": 1, "version": self.host.version(), "rev": self.rev(), "computer": self.host.computer() })),
       "wait" => Ok(self.wait(b["since"].as_u64().or_else(|| b["since"].as_f64().map(|x| x as u64)).unwrap_or(0), 25_000)),
       "open" => { self.drop_store(&p, &c); Ok(json!({ "ok": true })) }
-      "status" => { let mut s = self.status(); s["analysis"] = self.host.analysis_state(); Ok(s) }
+      "status" => { let mut s = self.status(); s["analysis"] = self.analysis_json(); Ok(s) }
       "edit" => self.edit(&p, &c, b["ops"].as_array().map(|a| a.as_slice()).unwrap_or(&[])),
       "restamp" => { self.restamp(&p, &c, &text(b, "id"), &b["was"], &b["now"]); Ok(json!({ "ok": true })) }
       "job" => {
@@ -357,13 +417,25 @@ impl<H: Host> Engine<H> {
         self.add_job(&text(b, "kind"), &p, &c, ids);
         Ok(json!({ "queued": true }))
       }
-      _ => return None,
-    })
+      // The analysis (ADR 0103, 0154): songs asked for now, and the pause.
+      "analyse" => { self.analyse_now(&p, &c, &strings("ids"), &b["names"]); Ok(json!({ "ok": true })) }
+      "pause" => { let on = b["on"].as_bool().unwrap_or(false); self.pause(on); Ok(json!({ "paused": on })) }
+      // A song dropped onto a GLUE tab here (ADR 0125): where it is, and the collection's music folder it's in, if one.
+      "whereFile" => Ok(self.where_file(&text(b, "name"), b["size"].as_f64().unwrap_or(0.0) as u64, &strings("roots"), &cfg)),
+      // A folder dropped onto a GLUE tab here (the browser doesn't say where it is): found, and remembered as `id`.
+      // Dropped just now (ADR 0134): a brief search, then the website has GLUE Home's dialog ask.
+      "where" => {
+        let root = json!({ "id": b["id"], "name": b["name"], "absPath": null });
+        let sample = b["sample"].as_str().filter(|s| !s.is_empty());
+        Ok(json!({ "path": self.locate(&root, sample.map(|s| (s, None)), &cfg, true, 5) }))
+      }
+      _ => Err("GLUE Home doesn’t know that request".into()),
+    }
   }
 }
 
-/// What GLUE Home's service page asks of the engine while the analysis queue and the shared sync are still its own
-/// (until the plan's E3 and E4): one dispatcher for GLUE Home's commands and the test binary, so both do the same.
+/// What GLUE Home's service page asks of the engine while the shared sync and the answers to other devices are still
+/// its own (until the plan's E4): one dispatcher for GLUE Home's commands and the test binary, so both do the same.
 pub fn command<H: Host>(e: &Arc<Engine<H>>, m: &Value) -> Result<Value, String> {
   let (p, c) = (text(m, "p"), text(m, "c"));
   let paths = |k: &str| -> Vec<String> { m[k].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default() };
@@ -385,6 +457,23 @@ pub fn command<H: Host>(e: &Arc<Engine<H>>, m: &Value) -> Result<Value, String> 
     "runJobs" => { let e2 = e.clone(); std::thread::spawn(move || e2.run_jobs()); Ok(json!(true)) }
     "status" => Ok(e.status()),
     "restamp" => { e.restamp(&p, &c, &text(m, "id"), &m["was"], &m["now"]); Ok(json!(true)) }
+    // The library as GLUE Home sees it (library.rs).
+    "describe" => Ok(e.describe().unwrap_or(Value::Null)),
+    "folderOf" => Ok(json!(e.folder_of(&p, &c))),
+    "trackPath" => Ok(e.track_path(&p, &c, &text(m, "id"), &e.host.config())?.to_json()),
+    "locateAll" => Ok(e.locate_all(&e.host.config())),
+    // The analysis (queue.rs): a song analysed now (another device waits for it; `tell`: for the library), the
+    // channel's ask, a look for songs, a restart, the pause, a song streamed, the state.
+    "analyseSong" => {
+      let (bytes, read_ms, analyse_ms) = e.analyse_song(&p, &c, &text(m, "id"), &e.host.config(), m["tell"].as_bool().unwrap_or(true))?;
+      Ok(json!({ "bytes": bytes, "readMs": read_ms, "analyseMs": analyse_ms }))
+    }
+    "analysisAsk" => Ok(e.analysis_ask(m)),
+    "analysisRun" => { e.run_analysis(); Ok(json!(true)) }
+    "analysisRestart" => { e.analysis_restart(); Ok(json!(true)) }
+    "setPaused" => { e.set_paused(m["on"].as_bool().unwrap_or(false), false); Ok(json!(true)) }
+    "played" => { e.played(); Ok(json!(true)) }
+    "analysisState" => Ok(e.analysis_json()),
     x => Err(format!("unknown command {x}")),
   }
 }

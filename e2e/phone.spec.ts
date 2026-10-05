@@ -4,11 +4,12 @@
    Home's real service page runs with its Rust side stood in (e2e/tauri-mock.ts). */
 import { test as base, expect, type Page } from '@playwright/test';
 import { launch } from './launch';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TAURI_MOCK } from './tauri-mock';
+import { homeDisk } from './homeDisk';
 import { SharedCloudServer } from '../tests/sharedCloud';
 
 const test = base.extend<{ page: Page }>({
@@ -92,7 +93,10 @@ test('a phone signs in and the account’s collection opens by itself: songs str
     [`profiles/${pid}/collections/${cid}/collection.json`]: JSON.stringify(meta),
     [`profiles/${pid}/collections/${cid}/tracks/dk.json`]: JSON.stringify({ schemaVersion: 1, items: tracks }),
   };
-  const disk = { 'C:\\Users\\dj\\Music\\Genorale.flac': [...readFileSync(fixture('flac-96k-24.flac'))], 'C:\\Users\\dj\\Music\\Manyaro.mp3': [...readFileSync(fixture('mp3-128k.mp3'))], 'C:\\Users\\dj\\Music\\Covered.mp3': [...readFileSync(fixture('mp3-cover.mp3'))], 'C:\\Users\\dj\\Music\\Aiffy.aiff': [...readFileSync(fixture('aiff-44k-24.aiff'))] };
+  // Its GLUE folder and the songs' files, on disk: GLUE Home's engine reads them (ADR 0154).
+  const deskHome = await homeDisk(glue, { 'Genorale.flac': readFileSync(fixture('flac-96k-24.flac')), 'Manyaro.mp3': readFileSync(fixture('mp3-128k.mp3')), 'Covered.mp3': readFileSync(fixture('mp3-cover.mp3')), 'Aiffy.aiff': readFileSync(fixture('aiff-44k-24.aiff')) });
+  await deskHome.wire(home);
+  const disk = Object.fromEntries(['Genorale.flac', 'Manyaro.mp3', 'Covered.mp3', 'Aiffy.aiff'].map(n => [join(deskHome.music, n), [...readFileSync(join(deskHome.music, n))]]));
   await home.addInitScript(({ glue, disk }) => {
     const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__disk = disk;
     localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: 'C:\\Users\\dj\\Documents\\GLUE', maxSessions: 1 }));
@@ -195,11 +199,14 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   await page.locator('#phone-library [data-view="all"]').click();
   await page.locator('#phone-songs .row', { hasText: 'Genorale' }).locator('.dots').click();
   await page.locator('#phone-sheet [data-m="details"]').click();
-  await expect.poll(() => home.evaluate(() => Object.keys((window as unknown as { __cache: Record<string, number[]> }).__cache).filter(k => k.startsWith('w/pdesk/cdesk/')).length), { timeout: 90_000 }).toBeGreaterThan(0);
+  // (Made by its engine into its cache folder, ADR 0154.)
+  const waves = () => { const d = join(deskHome.fake.cacheDir, 'w', 'pdesk', 'cdesk'); return existsSync(d) ? readdirSync(d, { recursive: true }).filter(n => String(n).endsWith('.bin')).length : 0; };
+  await expect.poll(waves, { timeout: 90_000 }).toBeGreaterThan(0);
   // Its cover was looked up: "Wrong cover" tells GLUE Home, which won't show or look for it again.
   await page.locator('#wrong-cover').click();
   await expect(page.locator('#wrong-cover')).toHaveCount(0);
   expect(await home.evaluate(() => Object.entries((window as unknown as { __cache: Record<string, number[]> }).__cache).filter(([k]) => k.startsWith('f/')).map(([, v]) => new TextDecoder().decode(new Uint8Array(v)).split(String.fromCharCode(10))[0]))).toContain('x');
   await home.close();
+  await deskHome.done();
   expect(errors).toEqual([]);
 });

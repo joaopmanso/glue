@@ -1,5 +1,5 @@
 //! The engine over a GLUE folder on disk (a temporary one): edits, the feed, the lease, jobs, the repair, restamp,
-//! song info into files.
+//! song info into files, the analysis queue (a real song, analysed natively).
 use glue_engine::{command, Engine, Host};
 use glue_store::json::Obj;
 use serde_json::{json, Value};
@@ -7,15 +7,17 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
-struct Seen { events: Vec<String>, edited: Vec<Vec<String>>, added: u32, lease: bool, computer: Option<String>, tags: Vec<(String, String, Obj)> }
+struct Seen { events: Vec<String>, edited: Vec<Vec<String>>, lease: bool, config: Value, tags: Vec<(String, String, Obj)>, made: Vec<String>, analysis: Value }
 #[derive(Clone, Default)]
 struct H(Arc<Mutex<Seen>>);
 impl Host for H {
   fn lease_held(&self) -> bool { self.0.lock().unwrap().lease }
-  fn computer(&self) -> Option<String> { self.0.lock().unwrap().computer.clone() }
+  fn config(&self) -> Value { let c = self.0.lock().unwrap().config.clone(); if c.is_null() { json!({}) } else { c } }
+  fn incoming_dir(&self) -> PathBuf { std::env::temp_dir().join("glue-engine-incoming") }
+  fn made(&self, _p: &str, _c: &str, id: &str) { self.0.lock().unwrap().made.push(id.into()); }
+  fn analysis_changed(&self, s: &Value) { self.0.lock().unwrap().analysis = s.clone(); }
   fn event(&self, t: &str) { self.0.lock().unwrap().events.push(t.into()); }
   fn edited(&self, _p: &str, _c: &str, paths: &[String]) { self.0.lock().unwrap().edited.push(paths.to_vec()); }
-  fn added(&self) { self.0.lock().unwrap().added += 1; }
   fn write_tags(&self, root: &str, rel: &str, tags: &Obj) -> Result<(f64, f64), String> { self.0.lock().unwrap().tags.push((root.into(), rel.into(), tags.clone())); Ok((2000.0, 99.0)) }
   fn now(&self) -> (i64, String) { (1_700_000_000_000, "2026-10-05T10:00:00.000Z".into()) }
 }
@@ -45,11 +47,10 @@ fn an_edit_is_saved_and_told() {
   library(&glue);
   let h = H::default();
   let e = Engine::new(glue.clone(), cache.clone(), h.clone());
-  let r = e.rpc(&json!({ "op": "edit", "p": "p1", "c": "c1", "ops": [{ "m": "tracks", "ts": [{ "id": "cd3", "title": "New" }] }, { "m": "list", "l": { "id": "l1", "items": ["cd3"] } }] })).unwrap().unwrap();
+  let r = e.rpc(&json!({ "op": "edit", "p": "p1", "c": "c1", "ops": [{ "m": "tracks", "ts": [{ "id": "cd3", "title": "New" }] }, { "m": "list", "l": { "id": "l1", "items": ["cd3"] } }] })).unwrap();
   assert_eq!(r, json!({ "rev": 1, "added": true }));
   assert_eq!(read(&glue, &format!("{C}/tracks/cd.json"))["items"]["cd3"]["title"], "New");
   assert!(glue.join(format!("{C}/lists/l1.json")).exists());
-  assert_eq!(h.0.lock().unwrap().added, 1);
   assert_eq!(h.0.lock().unwrap().edited, vec![vec!["tracks/cd.json".to_string(), "lists/l1.json".to_string()]]);
   // The feed: what changed since 0; nothing new since 1 (a short wait).
   let w = e.wait(0, 10);
@@ -67,9 +68,8 @@ fn an_edit_is_saved_and_told() {
   assert_eq!(e.take_written("p1", "c1"), Some(vec!["analysis/ab.json".to_string()]));
   // A tab from before the engine holds the lease: no edits.
   h.0.lock().unwrap().lease = true;
-  assert!(e.rpc(&json!({ "op": "edit", "p": "p1", "c": "c1", "ops": [] })).unwrap().is_err());
-  // Not the engine's (the analysis queue's).
-  assert!(e.rpc(&json!({ "op": "analyse" })).is_none());
+  assert!(e.rpc(&json!({ "op": "edit", "p": "p1", "c": "c1", "ops": [] })).is_err());
+  assert!(e.rpc(&json!({ "op": "nothing" })).is_err());
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn a_shared_collection_is_put_right_once_with_a_backup() {
   put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Shared", "shared": true, "rootsBy": { "this-computer": [{ "id": "r1", "name": "Music" }] }, "members": { "this-computer": { "profile": "p1", "name": "This computer" } } }));
   put(&glue, &format!("{C}/tracks/ab.json"), json!({ "schemaVersion": 1, "items": { "ab1": { "id": "ab1", "title": "A", "copies": { "this-computer": { "status": "linked", "rootId": "r1", "relPath": "a.mp3" } } } } }));
   let h = H::default();
-  h.0.lock().unwrap().computer = Some("desk".into());
+  h.0.lock().unwrap().config = json!({ "computer": "desk" });
   let e = Engine::new(glue.clone(), cache.clone(), h.clone());
   command(&e, &json!({ "cmd": "ensure", "p": "p1", "c": "c1" })).unwrap();
   let t = read(&glue, &format!("{C}/tracks/ab.json"));
@@ -120,4 +120,40 @@ fn edited_info_goes_into_the_files_and_the_cache_follows() {
   assert_eq!((t["size"].clone(), t["mtime"].clone(), t.get("unwritten").is_none()), (json!(2000), json!(99), true));
   assert_eq!(read(&glue, &format!("{C}/analysis/ab.json"))["items"]["ab1"]["fileSize"], 2000);
   assert_eq!(read(&cache, "s/p1/c1/ab/ab1.json")["summary"]["fileMtime"], 99);
+}
+
+#[test]
+fn the_queue_analyses_a_song_and_puts_it_into_the_library() {
+  let (glue, cache, music) = (temp("queue"), temp("queue-cache"), temp("queue-music"));
+  library(&glue);
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/mp3-128k.mp3");
+  std::fs::copy(&fixture, music.join("a.mp3")).unwrap();
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": music.to_string_lossy() }, "analysisWorkers": 2 });
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  // Where the song is: its music folder from the settings.
+  let f = command(&e, &json!({ "cmd": "trackPath", "p": "p1", "c": "c1", "id": "ab1" })).unwrap();
+  assert_eq!(f["path"], json!(music.join("a.mp3").to_string_lossy()));
+  e.run_analysis();
+  for _ in 0..300 { if h.0.lock().unwrap().events.iter().any(|x| x.starts_with("Put ")) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
+  let mut a = Value::Null;
+  for _ in 0..300 { a = std::fs::read_to_string(glue.join(format!("{C}/analysis/ab.json"))).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null); if a["items"]["ab1"]["v"] == json!(3) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
+  assert_eq!(a["items"]["ab1"]["v"], json!(3), "analysed into the library");
+  let t = read(&glue, &format!("{C}/tracks/ab.json"))["items"]["ab1"].clone();
+  assert_eq!(t["size"], json!(std::fs::metadata(music.join("a.mp3")).unwrap().len()));
+  assert_eq!(t["title"], "A", "a title set in GLUE stays");
+  assert!(cache.join("s/p1/c1/ab/ab1.json").exists() && cache.join("t/p1/c1/ab/ab1.bin").exists());
+  assert_eq!(h.0.lock().unwrap().made, vec!["ab1".to_string()]);
+  for _ in 0..50 { if h.0.lock().unwrap().events.iter().any(|x| x.starts_with("Analysis done")) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
+  let ev = h.0.lock().unwrap().events.clone();
+  assert!(ev.contains(&"Put 2 analyses into the library".to_string()), "{ev:?}");
+  // The copy kept in the GLUE folder (b.mp3 is the text "song"): couldn't be decoded, saved as failed, not tried again.
+  assert!(ev.iter().any(|x| x == "Analysis done: 1 song, 1 couldn’t be read"), "{ev:?}");
+  assert_eq!(h.0.lock().unwrap().analysis["done"], json!(1));
+  // Nothing left: a second look analyses nothing.
+  e.analysis_added();
+  std::thread::sleep(std::time::Duration::from_millis(500));
+  assert_eq!(h.0.lock().unwrap().made.len(), 1);
 }

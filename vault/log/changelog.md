@@ -5,7 +5,19 @@ updated: 2026-10-05
 
 Newest first. Each entry: date, milestone, what changed, links.
 
-## 2026-10-05 · GLUE Home 0.52.0: the library engine in Rust (ADR 0152, 0153)
+## 2026-10-05 · GLUE Home 0.53.0: the analysis queue in Rust (ADR 0154)
+- **GLUE Home's analysis queue is the engine's** ([ADR 0154](../adr/0154-the-analysis-queue-in-rust.md)): which song
+  is next, network folders taking turns, retries and giving up, the speed and its suggestion, putting the results into
+  the library, all in Rust (`crates/glue-engine/src/queue.rs`). Finding songs and music folders too (`library.rs`).
+  The local link answers every request in Rust; the service page no longer handles any.
+- **The e2e tests analyse for real:** the test engine runs `glue-audio` on real files. The tests that stood songs in
+  with a page-side disk now put them on disk (`e2e/homeDisk.ts`), and the analysis tests run faster (one went from 32 s
+  to 12 s).
+- **0.52.0 wasn't published:** its macOS build failed the store's tests. The backup made before a repair took its
+  zip's file dates from the clock, not from the backup's date, so it wasn't the same bytes on another computer. Fixed;
+  0.53.0 carries 0.52's engine too.
+
+## 2026-10-05 · GLUE Home 0.52.0 (not published): the library engine in Rust (ADR 0152, 0153)
 - **The engine answers in Rust** ([ADR 0153](../adr/0153-the-library-engine-in-rust.md), `crates/glue-engine`): a GLUE
   tab's edits, the feed of changes, the jobs (removing songs) and the repair of a shared collection are Rust's, writing
   the GLUE folder straight to disk; the backup before a repair is made in Rust too (and read by the website's

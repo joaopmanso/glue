@@ -140,8 +140,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     this computer; otherwise once, and when which are online changes (ADR 0143);
   - `/fs/*` (GLUE Home's disk: `roots`, `list`, `file` with byte ranges, `write`, `mkdir`, `remove`, `stat`,
     `tags`, `dupes`, `pick`);
-  - `/cache` (its analyses), `/rpc` (the engine, answered in Rust; the analysis queue's requests go on to the
-    service page), `/lease`, `/attach`, `/incoming`, `/dock`, `/folders`.
+  - `/cache` (its analyses), `/rpc` (the engine, every request answered in Rust, ADR 0153, 0154), `/lease`, `/attach`,
+    `/incoming`, `/dock`, `/folders`.
   - Every route but `/hello` and `/connect` needs the token (full, or read-only).
   - Stopped (Stop in the tray or settings, `running: false`), it answers only GLUE Home's own windows: the website
     carries on in the browser as if GLUE Home were quit, and nothing runs in GLUE Home (ADR 0122).
@@ -152,10 +152,13 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     repairs parts written under another id (ADR 0108), after a backup it makes itself. The service page's analysis and
     shared sync use the same stores through `engine_cmd` (`home/ui/engine.ts` is a thin wrapper), and hear its
     events (`engine-event`, `-edited`, `-added`, `-changed`).
-  - **analysis** (`analysis.ts`, `cache.ts`): a pool of workers, several songs at a time (settings). Songs added
-    from a tab are looked for at once. Passing failures (time-outs, memory) are retried, never stored
-    (ADR 0109); after the third try the song is saved as failed, with why (ADR 0144). A song has 2 minutes, or a
-    second a MB (`cache.timeFor`). Results go into the collection while no pre-engine tab holds the lease.
+  - **analysis, in the engine since 0.53** (ADR 0154, `crates/glue-engine/src/queue.rs`, `library.rs`, `analyse.rs`):
+    several songs at a time (settings), 20 s after starting and every minute. Songs added from a tab are looked for at
+    once. Passing failures (time-outs, memory) are retried, never stored (ADR 0109); after the third try the song is
+    saved as failed, with why (ADR 0144). A song has 2 minutes, or a second a MB. Results go into the collection
+    through the engine's stores while no pre-engine tab holds the lease. The engine finds songs and music folders
+    itself (one drive search per folder, saved in the settings). The service page still analyses for another
+    device at once (`cache.soon`) and fills the background thumbnails, through `engine_cmd` (until E4).
   - **FLAC is decoded by GLUE** (`src/core/formats/flac.ts`, ADR 0144; an ID3v2 tag before the stream is skipped), in every analysis worker (`decode.ts`): exact,
     any rate, read a part at a time; the browser's decoders for the other formats, and when it can't.
   - shared sync, song info written into files (`writeUnwritten`), backups, duplicates moved or recycled

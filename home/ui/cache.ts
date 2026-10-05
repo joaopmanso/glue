@@ -1,46 +1,21 @@
 /* GLUE Home's own cache of the shared songs' mini spectrograms and full analyses (ADR 0046), in the
    app's cache folder: `t/<profile>/<collection>/<shard>/<id>.bin`, the waveforms in `w/…/<id>.bin`
    (ADR 0085) and `d/…/<id>.json` + `.bin`.
-   Filled by the website on this computer (it hands over what it analysed), and by GLUE Home's own native engine
-   (ADR 0147, 0148): in the background, and at once when another computer asks. */
-import { autoPool, bridge, type HomeConfig } from './bridge';
-import { shared, describe, here, trackPath } from './library';
+   Filled by GLUE Home's native engine (ADR 0147, 0148, 0154): its analysis queue, in the background, and at once when
+   another computer asks. */
+import { bridge, type HomeConfig } from './bridge';
+import { shared, here } from './library';
+import * as engine from './engine';
 import { shardOf, type Collection, type Track } from '../../src/store/types';
 import type { SharedCollection } from '../../src/core/shared/project';
 import { DETAILS_VERSION, type DetailsHeader } from '../../src/store/details';
 import { WAVE_BYTES } from '../../src/core/library/thumb';
 import { incomingKey } from '../../src/core/transfer';
-import type { Analysed } from '../../src/core/library/analysed';
-import { failed } from '../../src/core/library/summary';
-import { gaveUp } from '../../src/core/library/analysed';
 
 const tKey = (p: string, c: string, id: string) => `t/${p}/${c}/${shardOf(id)}/${id}.bin`;
 const wKey = (p: string, c: string, id: string) => `w/${p}/${c}/${shardOf(id)}/${id}.bin`;
 const dKey = (p: string, c: string, id: string, ext: 'json' | 'bin') => `d/${p}/${c}/${shardOf(id)}/${id}.${ext}`;
 const HEX = '0123456789abcdef';
-/** The library's analysis of a song (ADR 0103): its summary and the file's facts, for the collection; and
-    its fingerprint, for duplicates. Made here, taken in by whoever writes the collection. */
-const sKey = (p: string, c: string, id: string) => `s/${p}/${c}/${shardOf(id)}/${id}.json`;
-export const pKey = (p: string, c: string, id: string) => `p/${p}/${c}/${shardOf(id)}/${id}.bin`;
-export { sKey as resultKey };
-/** A song's file changed because its tags were written (ADR 0110): what's kept of it (the details' header,
-    the analysis result) follows its new size and date, so it isn't analysed again. Only if they were of the
-    file as it was. */
-export async function restamp(p: string, c: string, id: string, was: { size: number | null; mtime: number | null }, now: { size: number; mtime: number }) {
-  const enc = (o: unknown) => new TextEncoder().encode(JSON.stringify(o));
-  const h = await read(dKey(p, c, id, 'json'));
-  if (h) { const header = JSON.parse(new TextDecoder().decode(h)) as DetailsHeader; if (header.fileSize === was.size && header.fileMtime === was.mtime) await bridge.cacheWrite(dKey(p, c, id, 'json'), enc({ ...header, fileSize: now.size, fileMtime: now.mtime })); }
-  const r = await result(p, c, id);
-  if (r && r.size === was.size && r.mtime === was.mtime) await bridge.cacheWrite(sKey(p, c, id), enc({ ...r, size: now.size, mtime: now.mtime, summary: { ...r.summary, fileSize: now.size, fileMtime: now.mtime } }));
-}
-export async function result(p: string, c: string, id: string): Promise<Analysed | null> {
-  const b = await read(sKey(p, c, id));
-  try { return b ? JSON.parse(new TextDecoder().decode(b)) as Analysed : null; } catch { return null; }
-}
-/** Told of each song analysed here (lib: the library's queue of results to take in). */
-export const onAnalysed: { f: ((p: string, c: string, id: string) => void) | null } = { f: null };
-/** Songs analysed at a time: as set in GLUE Home (Activity), else bridge.autoPool. */
-export const poolSize = (cfg: HomeConfig | null) => Math.max(1, Math.min(32, Math.round(cfg?.analysisWorkers || 0) || autoPool()));
 
 async function read(rel: string): Promise<Uint8Array | null> { try { return new Uint8Array(await bridge.cacheRead(rel)); } catch { return null; } }
 
@@ -90,10 +65,10 @@ export async function artKept(): Promise<string[]> {
 }
 /** A song's cover hash ('' none): known, or read from its tags now by GLUE Home's engine (only the tags; it keeps the
     cover and the hash). */
-export async function coverHash(p: string, c: string, id: string, cfg: HomeConfig): Promise<string> {
+export async function coverHash(p: string, c: string, id: string): Promise<string> {
   const known = await read(cKey(p, c, id));
   if (known) return new TextDecoder().decode(known);
-  const f = await trackPath(p, c, id, cfg);
+  const f = await engine.trackPath(p, c, id);
   return bridge.coverHash(f.path, p, c, id);
 }
 
@@ -108,51 +83,11 @@ export async function analyseIncoming(name: string, path: string) {
 export async function incomingSummary(name: string) { const b = await read(incomingKey(name, 'summary.json')); return b ? JSON.parse(new TextDecoder().decode(b)) : null; }
 export async function cacheFile(key: string) { return read(key); }
 
-// ---- analysing here --------------------------------------------------------------------------------
-
-/** A song given up on (ADR 0144), saved as failed: tried again when asked, or when its file changes. */
-export async function giveUp(p: string, c: string, id: string, cfg: HomeConfig, why: string) {
-  const f = await trackPath(p, c, id, cfg), size = await bridge.fileSize(f.path);
-  await bridge.cacheWrite(sKey(p, c, id), new TextEncoder().encode(JSON.stringify({ summary: failed(gaveUp(why), { size, mtime: f.mtime }), size, mtime: f.mtime, format: null, duration: null, fields: {} } satisfies Analysed)));
-  onAnalysed.f?.(p, c, id);
-}
-
-/** The step each song being analysed here is at: told by GLUE Home's engine when its file is read. */
-const reading = new Map<string, () => void>();
-let listening: Promise<unknown> | null = null;
-
-/** A song of this computer's library, analysed by GLUE Home's own engine (ADR 0147, 0148): read, decoded and analysed
-    natively, its files (`t`, `w`, `d`, `c`, `a`, `p`, then `s`) written to this cache. Throws when it couldn't be:
-    a passing failure (unreadable now, out of time; `isTransient`) isn't saved, a lasting one is saved as failed.
-    `tell`: the result is for the library (false: only this cache's, filled in the background; the library has it). */
-export async function analyse(p: string, c: string, id: string, cfg: HomeConfig, tell = true): Promise<{ bytes: number; readMs: number; analyseMs: number }> {
-  const f = await trackPath(p, c, id, cfg);
-  listening ??= bridge.onAnalysisStep(k => reading.get(k)?.());
-  await listening;
-  const k = p + '/' + c + '/' + id;
-  step(null, 'reading');
-  let now: 'reading' | 'analysing' | null = 'reading';
-  reading.set(k, () => { if (now === 'reading') { step('reading', 'analysing'); now = 'analysing'; } });
-  try {
-    const r = await bridge.analyseSong(f.path, p, c, id, f.mtime).catch(e => { throw e instanceof Error ? e : new Error(String(e)); });
-    // Said once, like a GLUE tab says it: not tried again until the file changes.
-    if (r.failed) { if (tell) onAnalysed.f?.(p, c, id); throw new Error(r.failed); }
-    if (tell) onAnalysed.f?.(p, c, id);
-    onMade.f?.(p, c, id);
-    return { bytes: r.bytes, readMs: r.readMs, analyseMs: r.analyseMs };
-  } finally { reading.delete(k); if (now) step(now, null); }
-}
-
-/** When another device last streamed a song from here (ADR 0138): the analysis eases off, as for this computer's page. */
-export const playing = { at: 0 };
-
-/** A song's parts were made here (any reason): the devices with a session are told (ADR 0133). */
-export const onMade: { f: ((p: string, c: string, id: string) => void) | null } = { f: null };
-
-/** The songs being analysed now, by step (ADR 0136): reading the file, or analysing it. Mostly reading means the
-    drive or network is the limit; mostly analysing, the processor. GLUE Home's window shows it as a meter. */
-export const steps = { reading: 0, analysing: 0, changed: null as (() => void) | null };
-const step = (from: 'reading' | 'analysing' | null, to: 'reading' | 'analysing' | null) => { if (from) steps[from]--; if (to) steps[to]++; steps.changed?.(); };
+// ---- analysing for another device ----------------------------------------------------------------------------------
+/** A song of this computer's library analysed now by GLUE Home's engine (ADR 0147, 0148, 0154), its parts into this
+    cache. `tell`: the result is for the library (false: only this cache's, filled in the background; the library has
+    it). */
+export const analyse = (p: string, c: string, id: string, tell = true) => engine.analyseSong(p, c, id, tell);
 
 type Job = { p: string; c: string; id: string; done: ((ok: boolean) => void)[] };
 const urgent: Job[] = [];
@@ -176,7 +111,7 @@ async function drain(cfg: () => HomeConfig | null) {
     while (urgent.length) {
       const j = urgent.shift()!, c = cfg();
       let ok = false;
-      if (c) { try { await analyse(j.p, j.c, j.id, c); ok = true; } catch (e) { console.warn('GLUE Home: couldn’t analyse', j.id, e); } }
+      if (c) { try { await analyse(j.p, j.c, j.id); ok = true; } catch (e) { console.warn('GLUE Home: couldn’t analyse', j.id, e); } }
       for (const d of j.done) d(ok);
     }
   } finally { running = false; }
@@ -189,7 +124,7 @@ export async function background(cfg: () => HomeConfig | null, busy: () => boole
   if (!c0?.glue || progress.background.running) return;
   progress.background = { done: 0, total: 0, running: true };
   try {
-    const lib = await describe();
+    const lib = await engine.describe();
     const todo: { p: string; c: string; id: string }[] = [];
     for (const p of lib?.profiles ?? []) for (const col of p.collections) {
       if (!shared(c0, p.id, col.id)) continue;
@@ -212,7 +147,7 @@ export async function background(cfg: () => HomeConfig | null, busy: () => boole
       // Handed over meanwhile, or only the waveform missing: made from the kept analysis if it can be.
       if (await thumb(j.p, j.c, j.id) && (await wave(j.p, j.c, j.id) || await waveFromDetails(j.p, j.c, j.id))) { progress.background.done++; continue; }
       running = true;
-      try { await analyse(j.p, j.c, j.id, c, false); } catch { /* not found or not decodable: skipped */ } finally { running = false; }
+      try { await analyse(j.p, j.c, j.id, false); } catch { /* not found or not decodable: skipped */ } finally { running = false; }
       if (urgent.length) void drain(cfg);
       progress.background.done++;
       if (progress.background.done % 10 === 0) report();

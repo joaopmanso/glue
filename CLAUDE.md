@@ -97,9 +97,10 @@ After working:
 - `crates/glue-store`: the library store in Rust (ADR 0152), held byte for byte to `src/store/collection.ts` by
   `tests/golden/store` (regenerate with `GOLDEN=1 npx vitest run tests/store.golden.test.ts` after changing the store,
   then port the change). `cargo test --manifest-path crates/glue-store/Cargo.toml`.
-- `crates/glue-engine`: GLUE Home's library engine (ADR 0153): the local link's `/rpc` and the stores, jobs and repair;
-  `home/src-tauri/src/engine.rs` hosts it in GLUE Home, its binary `glue-engine-test` in the e2e tests (`e2e/fakeHome.ts`
-  runs it; Playwright's global setup `e2e/engine-build.ts` builds it, so the e2e tests need cargo).
+- `crates/glue-engine`: GLUE Home's library engine (ADR 0153, 0154): the local link's `/rpc`, the stores, jobs, repair
+  and the analysis queue; `home/src-tauri/src/engine.rs` hosts it in GLUE Home, its binary `glue-engine-test` in the e2e
+  tests (`e2e/fakeHome.ts` runs it; Playwright's global setup `e2e/engine-build.ts` builds it, so the e2e tests need
+  cargo). It reads real files: an e2e test's GLUE Home songs and GLUE folder go on disk (`e2e/homeDisk.ts`).
 - `crates/glue-rtc`: GLUE Home's connections to other devices (ADR 0150), webrtc-rs speaking the website's protocol
   (src/core/transfer.ts). `cargo test --manifest-path crates/glue-rtc/Cargo.toml`; against Edge:
   `cargo build --release --example probe --manifest-path crates/glue-rtc/Cargo.toml && node scripts/rtc-probe.mjs`.
