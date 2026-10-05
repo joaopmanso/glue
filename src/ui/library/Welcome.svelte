@@ -16,7 +16,7 @@
   /** Cloud sync: on unless turned off for the profile (ADR 0042, 0101). */
   const profileSyncs = (p: { cloudSync?: boolean } | null | undefined) => !!p && p.cloudSync !== false;
   import { readPref, writePref } from '../../lib/prefs';
-  import { HOME_DOWNLOADS, homeOs, homePairLink } from '../../lib/homeApp';
+  import { HOME_DOWNLOADS, homeOs, homePairLink, inWindow } from '../../lib/homeApp';
   import { localHome } from '../../lib/localHome.svelte';
 
   // How GLUE is used on this device (ADR 0092): the first question. Just this computer by default (nothing
@@ -204,7 +204,7 @@
           {:else if how === 'home'}
             <p class="fine">GLUE Home is a small app that keeps running when this page is closed: it plays this computer's songs to your other devices, analyses them, follows your DJ libraries and keeps everything in sync. Recommended for the computer that holds your music.</p>
             <ol class="how">
-              <li>Install GLUE Home: {#each Object.entries(HOME_DOWNLOADS) as [os, d] (os)}<a class="dl" class:mine={homeOs() === os} href={d.url}>{d.label}</a>{' '}{/each}</li>
+              <li>{#if inWindow()}GLUE Home is installed: this is its window.{:else}Install GLUE Home: {#each Object.entries(HOME_DOWNLOADS) as [os, d] (os)}<a class="dl" class:mine={homeOs() === os} href={d.url}>{d.label}</a>{' '}{/each}{/if}</li>
               <li>{#if account.signedIn}Signed in as {account.user?.email ?? account.user?.name}.{:else}<button type="button" class="link" id="how-sign-in" onclick={signInBelow}>Sign in to GLUE Cloud</button>.{/if}</li>
               <li>{#if !account.signedIn}Connect GLUE Home with a code.{:else if homeHere}GLUE Home is connected.{:else if code}Enter <b class="code" id="how-code">{code.code}</b> in GLUE Home, or <a href={homePairLink(code.code)} id="how-open-home">open GLUE Home with it</a>.{:else}<button type="button" class="link" id="how-get-code" onclick={getCode}>Get a code for GLUE Home</button>{/if}</li>
               <li>{#if homeHere}Choose where GLUE saves its data: GLUE Home shows its own folder window.{:else}Then choose where GLUE saves its data (GLUE Home's own folder window).{/if}</li>

@@ -375,6 +375,21 @@ test('the first question: how GLUE is used here; "Just this computer" uploads no
   await expect(page.locator('#this-computer #turn-on-sync')).toBeVisible();
 });
 
+test('in GLUE Home’s own window (?app=window) GLUE Home isn’t offered for download; the address loses the flag, the session keeps it (ADR 0151)', async ({ page }) => {
+  await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+  await seed(page);
+  await page.goto('./?app=window#/');
+  await expect.poll(() => page.evaluate(() => location.search)).toBe('');
+  expect(await page.evaluate(() => sessionStorage.getItem('glue.window'))).toBe('1');
+  await page.click('#how-use [data-mode="home"]');
+  await expect(page.locator('#how-use')).toContainText('GLUE Home is installed: this is its window.');
+  await expect(page.locator('#how-use a.dl')).toHaveCount(0);
+  // A reload in the window (no flag in the address any more): still the window.
+  await page.reload();
+  await page.click('#how-use [data-mode="home"]');
+  await expect(page.locator('#how-use')).toContainText('this is its window');
+});
+
 test('a deleted playlist or folder goes to Recently deleted, and Restore puts it back with what was in it (ADR 0090)', async ({ page }) => {
   await seed(page);
   await page.goto('./');

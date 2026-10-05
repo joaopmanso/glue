@@ -345,6 +345,12 @@
 
       <section id="sec-library">
         <h2>This computer’s library</h2>
+        <!-- ADR 0151: the library in GLUE Home's own window, or in the browser. -->
+        <div class="row"><label>Open the library in
+          <select id="library-in" value={cfg?.libraryIn ?? 'window'} onchange={e => void save({ libraryIn: (e.currentTarget as HTMLSelectElement).value as 'window' | 'browser' })}>
+            <option value="window">GLUE Home’s window</option>
+            <option value="browser">My browser</option>
+          </select></label></div>
         {#if !cfg?.glue || (cfg?.glue && !lib)}
           <p class="fine">GLUE Home shares the library the GLUE website uses on this computer. It didn’t find it in the usual places: choose the website’s GLUE folder.</p>
           <div class="row"><button type="button" id="choose-glue" onclick={chooseGlue}>Choose the GLUE folder…</button></div>

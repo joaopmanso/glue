@@ -76,6 +76,13 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
 
 ## Waiting on the user
+- **GLUE Home 0.50.0, the GLUE window** (ADR 0151). Hand test:
+  - the tray icon opens GLUE in its own window, and the library comes from GLUE Home;
+  - drop a folder or a song on it;
+  - export to rekordbox (the file appears in Downloads);
+  - sign in (once, the window's own): Google's popup, or email;
+  - play;
+  - "Open the library in" › My browser goes back to the browser.
 - **The native engine and native streaming: confirmed by the user, 2026-10-03** (GLUE Home 0.49.3, ADR 0147–0150):
   - "analysing over 100 songs per minute";
   - the check "looks great";
@@ -182,6 +189,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **B5: done (0.48.0, ADR 0149)** but streaming decode from disk: a song is still read whole into memory (a
     543 MB FLAC needs about 1.5 GB while it's analysed). Left for when it shows: decoding FLAC/WAV/AIFF straight from
     the file (`decode_flac` already reads ranges) and keeping the samples f32;
+  - **The next phase** (plan `i-have-activated-plan-composed-turing.md`): W1 the GLUE window (0.50, done), then the
+    engine in Rust: E1 the store (`crates/glue-store`, goldens), E2 the engine and `/rpc` (`crates/glue-engine`, e2e
+    against it), E3 the analysis queue, E4 the cloud side (signaling, sessions, shared sync), E5 the rest and the
+    service page removed.
   - **B6: done (0.49.0, ADR 0150).** Next, when the GLUE window comes: the queue and the library's answers in Rust,
     then the service page removed.
   - **After the desktop's second check:** fix what its named fields show (suspected: the stored `d/` headers are older

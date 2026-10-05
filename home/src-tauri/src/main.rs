@@ -25,6 +25,7 @@ mod activity;
 mod web;
 mod analysis;
 mod rtc;
+mod window;
 
 /// The GLUE library in the browser. `open=home`: a GLUE tab that's open already comes forward instead.
 const LIBRARY_URL: &str = "https://joaopmanso.github.io/glue/?open=home#/";
@@ -624,8 +625,13 @@ fn open_library(app: AppHandle) {
     open_glue(&app);
 }
 
+/// The library: in the GLUE window (ADR 0151), or in the browser when the settings say so (`libraryIn: "browser"`) or
+/// the window can't open.
 fn open_glue(app: &AppHandle) {
-    let _ = app.opener().open_url(LIBRARY_URL, None::<&str>);
+    let browser = get_config_impl(app.clone()).and_then(|c| c.get("libraryIn").and_then(|v| v.as_str()).map(|s| s == "browser")).unwrap_or(false);
+    if browser || window::open(app).is_err() {
+        let _ = app.opener().open_url(LIBRARY_URL, None::<&str>);
+    }
 }
 
 fn open_settings(app: &AppHandle) {
@@ -641,7 +647,7 @@ fn open_settings(app: &AppHandle) {
 /// Cmd-Tab switcher and the Dock (it went missing from Cmd-Tab, the user's list 2026-09-28).
 #[cfg(target_os = "macos")]
 pub(crate) fn follow_windows(app: &AppHandle) {
-    let open = ["settings", "dock"].iter().any(|l| app.get_webview_window(l).and_then(|w| w.is_visible().ok()).unwrap_or(false));
+    let open = ["settings", "dock", window::LABEL].iter().any(|l| app.get_webview_window(l).and_then(|w| w.is_visible().ok()).unwrap_or(false));
     let _ = app.set_activation_policy(if open { tauri::ActivationPolicy::Regular } else { tauri::ActivationPolicy::Accessory });
 }
 #[cfg(not(target_os = "macos"))]
@@ -650,7 +656,8 @@ pub(crate) fn follow_windows(_app: &AppHandle) {}
 fn main() {
     tauri::Builder::default()
         // A second launch (or a gluehome:// link) shows the running one's settings.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| open_settings(app)))
+        // A second start: the settings, or the library with `--library` (a "GLUE" shortcut, ADR 0151).
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| if argv.iter().any(|a| a == "--library") { open_glue(app) } else { open_settings(app) }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--background"])))
         .plugin(tauri_plugin_dialog::init())
@@ -715,7 +722,10 @@ fn main() {
             local::start(app.handle().clone());
             ws::start(app.handle().clone());
             // Started with the computer: stay in the tray. Opened by hand (or the first time): settings.
-            if !std::env::args().any(|a| a == "--background") {
+            // `--library`: the library itself (ADR 0151).
+            if std::env::args().any(|a| a == "--library") {
+                open_glue(app.handle());
+            } else if !std::env::args().any(|a| a == "--background") {
                 open_settings(app.handle());
             }
             Ok(())
@@ -728,6 +738,10 @@ fn main() {
                     let _ = w.hide();
                     follow_windows(w.app_handle());
                 }
+            }
+            // The GLUE window closes for good (its memory freed); GLUE Home stays in the tray.
+            if let WindowEvent::Destroyed = e {
+                if w.label() == window::LABEL { follow_windows(w.app_handle()); }
             }
         })
         .build(tauri::generate_context!())

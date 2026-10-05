@@ -228,6 +228,10 @@ test('GLUE Home’s window says what it’s doing: the analysis, a pause button,
   await expect(page.locator('#net-workers')).toHaveValue('0');
   await page.selectOption('#net-workers', '4');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config') ?? '{}').networkAtOnce)).toBe(4);
+  // Where the library opens (ADR 0151): GLUE Home's own window unless set to the browser.
+  await expect(page.locator('#library-in')).toHaveValue('window');
+  await page.selectOption('#library-in', 'browser');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config') ?? '{}').libraryIn)).toBe('browser');
   // How fast, and a suggestion from it.
   const speed = { perMin: 42, localMBs: 85, netMBs: 22, localReadMs: 300, netReadMs: 5200, analyseMs: 900, songs: 84, netSongs: 30, history: [0, 0, 6, 12, 20, 26, 30, 34, 38, 40, 36, 42, 44, 40, 38, 42, 46, 44, 42, 40] };
   await status({ ...base, speed, steps: { reading: 6, analysing: 2 }, suggestion: 'Songs on network folders spend most of their time being read: fewer at once from each network folder (try 4) leaves places for songs on this computer’s drives.' }, []);

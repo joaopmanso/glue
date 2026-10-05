@@ -5,6 +5,23 @@ updated: 2026-10-02
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-03 · GLUE Home 0.50.0: GLUE in its own window (ADR 0151)
+- **The library opens in GLUE Home's own window** ([ADR 0151](../adr/0151-the-glue-window.md); the user: "I want a
+  desktop app… rather than just opening another browser"):
+  - it shows the live site (the user's choice), without the browser around it, with its own taskbar and Dock entry;
+  - it remembers its place and size;
+  - closing it frees it, while GLUE Home stays by the clock.
+- **What a browser did, the window does:**
+  - drops reach the page;
+  - downloads (exports, backups) go to Downloads and are shown;
+  - links to other sites open in the browser;
+  - Google's sign-in opens as its popup.
+- **The settings:** "Open the library in" (GLUE Home's window, or my browser). `--library` opens the window from a
+  shortcut.
+- **In the window** the website doesn't offer GLUE Home for download (`inWindow()`).
+- Seen working on the laptop (a debug build: the window loads the site).
+- **Next:** the engine in Rust (E1–E5 in the plan).
+
 ## 2026-10-02 · GLUE Home 0.49.3: the three songs from the desktop, checked against Edge
 The user copied the three songs that differed to the laptop. Each was analysed natively and by the website's own code
 in Edge (the same `golden` hook as the lossy goldens):

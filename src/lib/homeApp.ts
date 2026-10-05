@@ -15,5 +15,21 @@ export function homeOs(nav: { userAgent: string; userAgentData?: { platform?: st
   if (p.includes('mac')) return 'mac';
   return null;
 }
+/** In GLUE Home's own window (ADR 0151): it opens the site with `?app=window`, which is taken off the address and
+    kept for the session (reloads and links inside the window keep it). There, GLUE Home is this computer's: it isn't
+    offered for download. */
+export function inWindow(): boolean {
+  if (typeof location === 'undefined') return false;
+  try {
+    const u = new URL(location.href);
+    if (u.searchParams.get('app') === 'window') {
+      sessionStorage.setItem('glue.window', '1');
+      u.searchParams.delete('app');
+      history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+    }
+    return sessionStorage.getItem('glue.window') === '1';
+  } catch { return false; }
+}
+
 /** Opens GLUE Home (when installed) and connects it with a pairing code. */
 export const homePairLink = (code: string) => 'gluehome://pair?code=' + encodeURIComponent(code);

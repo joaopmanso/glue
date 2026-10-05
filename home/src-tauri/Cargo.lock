@@ -1848,7 +1848,7 @@ dependencies = [
 
 [[package]]
 name = "glue-home"
-version = "0.49.3"
+version = "0.50.0"
 dependencies = [
  "glue-audio",
  "glue-rtc",

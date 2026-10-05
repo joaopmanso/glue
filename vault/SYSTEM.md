@@ -158,6 +158,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     Bounded (ADR 0132): a connection not open within 30 s is let go, and an offer it can't take is answered
     "bye". The website says "bye" when it gives up, and waits 5 to 60 s before connecting again for background asks.
+  - **The GLUE window** (ADR 0151, 0.50, `home/src-tauri/src/window.rs`): the tray and "Open GLUE library" open the
+    live site in GLUE Home's own window (`?app=window`, `inWindow()`); only the site stays in it (other links go to
+    the browser, Google's sign-in is its popup, downloads go to Downloads). The settings' "Open the library in" can
+    send it to the browser.
   - **GLUE Home's connections are Rust's** (ADR 0150, 0.49, `crates/glue-rtc`, `home/src-tauri/src/rtc.rs`): the peer
     connections, their channels, pings, uploads, cache files, songs sent in and every song byte sent out; the service
     page keeps the signaling, the sessions' rules and the library's answers (`rtc-request` → `rtc_reply`,

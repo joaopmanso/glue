@@ -1,7 +1,7 @@
 ---
 title: GLUE Home
 summary: The app for your computer: analysis with the browser closed, songs on your other devices, the drag dock.
-keywords: glue home, app, tray, playing, slow to start, hard disk, sleep, session, connected, devices connected, most at once, disconnect, engine, background, stream, drag dock, incoming, stop, start, restart, download, windows, mac
+keywords: glue home, app, window, desktop, open library, browser, tray, playing, slow to start, hard disk, sleep, session, connected, devices connected, most at once, disconnect, engine, background, stream, drag dock, incoming, stop, start, restart, download, windows, mac
 tour: glue-home
 order: 12
 ---
@@ -15,6 +15,13 @@ GLUE Home is a small app for Windows and macOS (it sits by the clock). It's opti
 
 ## Getting it
 Download it from GLUE (Devices › + GLUE Home), install, and connect it with the code GLUE shows. It updates itself.
+
+## GLUE in its own window
+A click on GLUE Home's icon (or **Open GLUE library**) opens GLUE in GLUE Home's own window: the same GLUE as on the
+website, without the browser around it. Songs and folders dropped on it are added as in a browser, exports go to your
+Downloads folder, and links to other sites open in your browser. The window keeps its own sign-in: sign in once.
+Closing it leaves GLUE Home running by the clock. To open GLUE in your browser instead: GLUE Home's settings ›
+This computer's library › **Open the library in** › My browser.
 
 ## Start, Stop, Restart
 **Stop** (in its window or menu) stops everything: the website on that computer then carries on by itself. **Start** goes back; **Restart** starts its engine and analysis over.

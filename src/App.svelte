@@ -57,7 +57,10 @@
   import { nowPlaying } from './lib/nowPlaying.svelte';
   import { themes } from './lib/themes.svelte';
   import { tabs } from './lib/tabs.svelte';
+  import { inWindow } from './lib/homeApp';
 
+  // GLUE Home's own window (ADR 0151): noted before anything reads the address.
+  inWindow();
   // Opened from GLUE Home's tray icon while a GLUE tab is open: that one comes forward instead.
   onMount(() => { incoming.start(); djWatch.start(); void account.init(); void tabs.fromHome().then(async other => { if (!other) { await localHome.find(); void lib.boot(); } }); });
   // The admin panel is for admins only: anyone else is sent back to the library (the API checks too).

@@ -19,6 +19,8 @@ export interface HomeConfig {
   libraries?: unknown[];
   /** The analysis of this computer's songs is paused (ADR 0103): from the settings or a GLUE tab. */
   analysisPaused?: boolean;
+  /** Where "Open GLUE library" opens it (ADR 0151): GLUE Home's own window (unset), or the browser. */
+  libraryIn?: 'window' | 'browser';
   /** Songs analysed at a time (0 or none: automatic, cache.autoPool). */
   analysisWorkers?: number;
   deviceId: string | null;

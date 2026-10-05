@@ -14,7 +14,7 @@
   import { companionOf } from '../../lib/remoteFiles.svelte';
   import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import { localHome } from '../../lib/localHome.svelte';
-  import { HOME_DOWNLOADS, homeOs, homePairLink } from '../../lib/homeApp';
+  import { HOME_DOWNLOADS, homeOs, homePairLink, inWindow } from '../../lib/homeApp';
   import { AUDIO_EXT } from '../../core/library/tags';
   import HomeInstallHelp from '../HomeInstallHelp.svelte';
   import { drag } from '../../lib/drag.svelte';
@@ -173,9 +173,9 @@
         <button type="button" class="btn-ghost" id="copy-code" onclick={copyCode}>{copied ? 'Copied' : 'Copy'}</button></div>
       <p class="fine">{left > 0 ? 'Works once, for ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + ' more.' : 'This code has expired.'} This window closes by itself when GLUE Home has joined.</p>
       <p><a class="btn" id="pair-open" href={homePairLink(pairing.code)}>Open GLUE Home on this computer</a></p>
-      <p class="fine">Don’t have it yet?
+      {#if !inWindow()}<p class="fine">Don’t have it yet?
         {#each Object.entries(HOME_DOWNLOADS).sort(([a], [b]) => Number(b === os) - Number(a === os)) as [k, dl], i (k)}{i ? ' · ' : ' '}<a href={dl.url} data-download={k} class:mine={k === os}>Download for {dl.label}</a>{/each}
-      </p>
+      </p>{/if}
       <HomeInstallHelp />
       <div class="acts">
         {#if left <= 0}<button type="button" class="btn" onclick={startPairing}>New code</button>{/if}
