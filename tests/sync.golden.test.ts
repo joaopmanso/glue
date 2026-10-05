@@ -47,7 +47,14 @@ function recorded(server: SharedCloudServer, cid: string, dev: string, calls: Ca
     await hook?.(call, i);
     let a = await f();
     if (answer) a = answer(call, i, a) as Awaited<T>;
-    calls.push({ call, args: shown, answer: a });
+    calls.push({ call, args: shown, answer: await unpacked(call, a) });
+    return a;
+  };
+  // Packed texts in an answer, kept unpacked: gzip's header names the system that packed them (Windows, Linux), so the
+  // recording would differ by computer. The Rust replay packs them again.
+  const unpacked = async (call: string, a: unknown): Promise<unknown> => {
+    if (call === 'bundle') return Promise.all(String(a).split('\n').filter(Boolean).map(async l => { const [p, r, h, d] = l.split('\t'); return [p, Number(r), h, await unpackText(d)]; }));
+    if (call === 'log') { const r = a as { entries: { data: string }[] }; return { ...r, entries: await Promise.all(r.entries.map(async e => ({ ...e, data: await unpackText(e.data) }))) }; }
     return a;
   };
   const lines = async (body: string) => Promise.all(body.split('\n').filter(Boolean).map(async l => { const [p, h, s, d] = l.split('\t'); return [p, h, Number(s), d === '-' ? '-' : await unpackText(d)]; }));

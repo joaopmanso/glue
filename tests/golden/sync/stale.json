@@ -68,7 +68,26 @@
        "events.json"
       ]
      ],
-     "answer": "collection.json\t1\t8dd0fbe483c3dadad34be0b3b2c4bd7859dd7e659e838d068cb2eed7fb640882\tH4sIAAAAAAAACl3Nu2oDMRCF4Xc59ThoXQQynUO6JBBISBHjYryaoMXaldBoC7Po3YMvYBM45cf5F1gfdJRvLTakCdwRBg9G34EwyahgfAYp6kHoi0pVv6lgrN36ceW6leu+nOPzHpxzPyDYxXMtsxJKStWej+AFXu0A3i6XRLlLvM829CDI3j6kBvA0x0gIMvmor3oEI5y4eH/to+0aYdRxr8Vu5wtySb9DPJ3mu8CL2qGmjEaIkv+5p5t7k3xmrf0BCabIPBsBAAA=\ntracks/ab.json\t1\tea42bb58c5b277513b6a388353b2e1db3746a14b67df1737ce342ca4dc4fe39a\tH4sIAAAAAAAACk1QPU9DMQz8K+jmtPgVwZCNDRaEBGKg6uC+uG3U5KVK/ISg4r8jNx2wLPlbvrsz2niQzB9SWywT/OAQVXKDP4O3NFiMAb4XDruY5IWzXDvLXeIRDho1We+tTPub6ypXjU3h8dgTB07bOcMDDnuZqh08lbkJHBJvJfXRWHKWSXvxLVzhsaIVwSHMlfWC847IYVdqZoWf5pQcOAQJj9q3HxY0LGh4H8iT+ZKIPg0o7xv8Gl9cMzb27BTlwjZIO1psyjo3eKQ4HSXAoZaiz6ZBNVpV0ivrwciKttv/KsR8KlX7tGNq8UfgBzK0WaPpdu/QylxH+7re/Jr9AbioshKGAQAA\nevents.json\t1\t97c812741e051640302bc36b07e82460de1e58a99f7265ec413039c301c600f8\tH4sIAAAAAAAACqtWKk7OSM1NDEstKs7Mz1OyMtRRyixJzS1WsqpWSjUEkZkpSlYgpo5SXmJuqpKVkntmulJtbS0An8n86jsAAAA="
+     "answer": [
+      [
+       "collection.json",
+       1,
+       "8dd0fbe483c3dadad34be0b3b2c4bd7859dd7e659e838d068cb2eed7fb640882",
+       "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}"
+      ],
+      [
+       "tracks/ab.json",
+       1,
+       "ea42bb58c5b277513b6a388353b2e1db3746a14b67df1737ce342ca4dc4fe39a",
+       "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}"
+      ],
+      [
+       "events.json",
+       1,
+       "97c812741e051640302bc36b07e82460de1e58a99f7265ec413039c301c600f8",
+       "{\"schemaVersion\":1,\"items\":{\"e1\":{\"id\":\"e1\",\"name\":\"Gig\"}}}"
+      ]
+     ]
     },
     {
      "call": "log",
@@ -148,7 +167,7 @@
         "rev": 2,
         "by": "lap",
         "at": 1700000000000,
-        "data": "H4sIAAAAAAAACi2OPU8DMQyG/wp65/RwimDI1o2JBdQBxOC7OEdKPqokB0Kn/neUXi3LH49fy17xA6MVHMyKVnj6rvc8DqeaUye5hzp9SeSjlOo71RcF37k4euzZW5itUXA+yAtHuZHBBZ6g0HwLnb3mNN/dpFyarw0Gh61Q4DAuEQZQmCWVvvCclypQCDxK2EZTjlFS25o/4QKDPe0JCnYp3K5PPhApuFwiN5i0hKDA1oo9tE39tCO9I/2myVD3gYje+6M8V5gP/HKJ+OzHzl4qzHq52j/pFng/LwEAAA=="
+        "data": "{\"v\":1,\"f\":{\"tracks/ab.json\":{\"o\":{\"schemaVersion\":1},\"i\":{\"ef05\":{\"id\":\"ef05\",\"fileName\":\"ef05.flac\",\"title\":\"Song ef05\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{}}}}}}"
        }
       ]
      }

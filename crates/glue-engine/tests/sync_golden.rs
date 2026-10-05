@@ -1,7 +1,7 @@
 //! The shared sync held to the website's (tests/golden/sync, recorded by tests/sync.golden.test.ts from
 //! src/store/shared/engine.ts against GLUE Cloud's real code): each run's calls to GLUE Cloud, in order and with the
 //! same arguments (packed texts compared unpacked), answered as recorded; then the same files, byte for byte.
-use glue_engine::sync::{sync_shared, unpack_text, CloudError, Place, SharedCloud};
+use glue_engine::sync::{pack_text, sync_shared, unpack_text, CloudError, Place, SharedCloud};
 use glue_store::dir::{Dir, MemDir};
 use glue_store::json::stringify;
 use serde_json::{json, Value};
@@ -19,8 +19,16 @@ impl Replay {
 }
 impl SharedCloud for Replay {
   fn changes(&self, since: i64) -> Result<Value, CloudError> { Ok(self.next("changes", json!([since]))) }
-  fn bundle(&self, paths: &[String]) -> Result<String, CloudError> { Ok(self.next("bundle", json!([paths])).as_str().unwrap().to_string()) }
-  fn log(&self, since: i64) -> Result<Value, CloudError> { Ok(self.next("log", json!([since]))) }
+  // Recorded unpacked (gzip's header differs by system): packed again here.
+  fn bundle(&self, paths: &[String]) -> Result<String, CloudError> {
+    let lines = self.next("bundle", json!([paths]));
+    Ok(lines.as_array().unwrap().iter().map(|l| format!("{}\t{}\t{}\t{}", l[0].as_str().unwrap(), l[1], l[2].as_str().unwrap(), pack_text(l[3].as_str().unwrap()))).collect::<Vec<_>>().join("\n"))
+  }
+  fn log(&self, since: i64) -> Result<Value, CloudError> {
+    let mut a = self.next("log", json!([since]));
+    for e in a["entries"].as_array_mut().unwrap() { let t = pack_text(e["data"].as_str().unwrap()); e["data"] = json!(t); }
+    Ok(a)
+  }
   fn append(&self, base: i64, paths: &[String], data: &str) -> Result<Value, CloudError> { Ok(self.next("append", json!([base, paths, unpack_text(data).unwrap()]))) }
   fn touched(&self, to: i64) -> Result<Value, CloudError> { Ok(self.next("touched", json!([to]))) }
   fn checkpoint(&self, at: i64, body: &str, done: bool) -> Result<Value, CloudError> {
