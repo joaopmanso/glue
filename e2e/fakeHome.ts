@@ -111,7 +111,7 @@ export class FakeHome {
   /** What GLUE Home's settings say, as the engine reads them (this computer, Stop, the music folders). */
   tell(set: Record<string, unknown>) { this.engine?.stdin.write(JSON.stringify({ set }) + '\n'); }
   /** A request to the engine: a tab's (`rpc`) or the service page's command. */
-  ask(m: Record<string, unknown>) {
+  ask(m: Record<string, unknown>): Promise<{ ok?: unknown; err?: string }> {
     if (!this.engine) return Promise.resolve({ err: 'GLUE Home’s engine isn’t running' });
     this.tell({ folders: this.dirs.folders, incoming: this.dirs.incoming, running: !this.stopped });
     const id = this.nextAsk++;
