@@ -211,7 +211,7 @@ pub fn handle(app: AppHandle, mut req: Request, path: &str, arg: &dyn Fn(&str) -
                 let rels: Vec<String> = v.get("paths").and_then(|x| x.as_array()).map(|a| a.iter().take(500).map(|x| x.as_str().unwrap_or("").to_string()).collect()).unwrap_or_default();
                 // A path that isn't plainly inside the folder reads as nothing (an empty path fails to open).
                 let paths: Vec<PathBuf> = rels.iter().map(|r| inside(&root, r).ok().filter(|p| check(&root, p).is_ok()).unwrap_or_default()).collect();
-                Ok(json(serde_json::Value::Array(crate::tags::read_many(&paths, 8).into_iter().map(|x| x.unwrap_or(serde_json::Value::Null)).collect())))
+                Ok(json(serde_json::Value::Array(glue_engine::tags::read_many(&paths, 8).into_iter().map(|x| x.unwrap_or(serde_json::Value::Null)).collect())))
             }
             // Duplicates put aside or recycled (ADR 0070): items in the body, a result for each.
             "/fs/dupes" => {

@@ -154,12 +154,16 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     shared sync use the same stores through `engine_cmd` (`home/ui/engine.ts` is a thin wrapper), and hear its
     events (`engine-event`, `-edited`, `-added`, `-changed`).
   - **analysis, in the engine since 0.53** (ADR 0154, `crates/glue-engine/src/queue.rs`, `library.rs`, `analyse.rs`):
-    several songs at a time (settings), 20 s after starting and every minute. Songs added from a tab are looked for at
-    once. Passing failures (time-outs, memory) are retried, never stored (ADR 0109); after the third try the song is
-    saved as failed, with why (ADR 0144). A song has 2 minutes, or a second a MB. Results go into the collection
-    through the engine's stores while no pre-engine tab holds the lease. The engine finds songs and music folders
-    itself (one drive search per folder, saved in the settings). Songs another device waits for are analysed at once,
-    one at a time (`answers.rs` `soon`), and the background thumbnails are the engine's too (ADR 0156).
+    **one pipeline inside "songs at a time"** (ADR 0157): every file GLUE Home reads for the library goes through the
+    queue's places, in this order: songs asked for now (a tab's "Analyse now", another device waiting for one:
+    `analyse_for`), new songs' tags (`tags.rs`, only the tags; into the library together, so rows show who and
+    what first), the library's songs, then the background's thumbnails for other devices. Each job counted in the
+    window's meter and list, and its place given back however it ends (`Slot`, `Stepping`). An edit queues its own
+    songs (`queue_edit`: added, or whose file changed); the collections are looked through only at start, after a
+    sync took changes in, and on Restart. Passing failures (time-outs, memory) are retried, never stored (ADR 0109);
+    after the third try the song is saved as failed, with why (ADR 0144). A song has 2 minutes, or a second a MB.
+    Results go into the collection through the engine's stores while no pre-engine tab holds the lease. The engine
+    finds songs and music folders itself (one drive search per folder, saved in the settings).
   - **FLAC is decoded by GLUE** (`src/core/formats/flac.ts`, ADR 0144; an ID3v2 tag before the stream is skipped), in every analysis worker (`decode.ts`): exact,
     any rate, read a part at a time; the browser's decoders for the other formats, and when it can't.
   - shared sync (in the engine since 0.54, ADR 0155: `shared.rs` with `sync.rs`, GLUE Cloud called from Rust with this
@@ -214,7 +218,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     another drive for a song elsewhere.
   - The analysis bar shows GLUE Home's own queue (its `status`: left + running), the same "left" its window shows
     (ADR 0135). A network folder's songs take turns, at most "From each network folder at a time" (the user's, no limit unless set, ADR 0136; `home/ui/lanes.ts`); its window shows the speed (tiles, a ten-minute chart, and meters of the songs running reading or analysing, `cache.steps`) and a suggestion (`home/ui/speed.ts`); new songs' tags are read
-    by GLUE Home, 200 a request (`/fs/read-tags`).
+    by GLUE Home in its queue (0.56, ADR 0157; the tab reads none); for an older GLUE Home, 200 a request
+    (`/fs/read-tags`).
   - A folder dropped onto the library is found by GLUE Home (rpc `where`, a 5 s search, then its dialog asks; the page
     says which, ADR 0134) and becomes its folder (`home:<id>`); one
     inside a music folder isn't added (ADR 0122).

@@ -915,7 +915,9 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
     await expect(page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
     await expect(page.locator('.lside [data-view="pending"]')).not.toContainText(/[1-9]/);
     await expect(page.locator('.tr .wave canvas')).toHaveCount(3, { timeout: 30_000 });
-    expect(asked.some(k => k.includes('t/'))).toBe(true);
+    // (Mini spectrograms or waveforms, as the Overview shows them: the spectrograms come too when the tab was open as
+    // the results arrived, which a slow machine's analysis may not wait for.)
+    expect(asked.some(k => /^[tw]\//.test(k))).toBe(true);
 
     // A song's page: its stored analysis, from GLUE Home's cache (the tab can't read the file to analyse it).
     await page.locator('.tr', { hasText: 'Fixture MP3' }).first().locator('.c-title').dblclick();

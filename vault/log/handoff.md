@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   on batch by batch, each released when its checks pass.
 
 ## State (2026-10-06)
-- **Live:** the site, GLUE Cloud (migrations up to 0011), **GLUE Home 0.55.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0011), **GLUE Home 0.56.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -37,6 +37,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **E4a, the shared sync** (`sync.rs`, `shared.rs`, `glue_store::merge3`, ADR 0155): done, 0.54.0.
   - **E4b step 1, the answers to other devices** (`answers.rs`, `covers.rs`, `names.rs`, `incoming.rs`, ADR 0156):
     done, 0.55.0 (2026-10-06, on the desktop).
+  - **0.56.0, between the batches (ADR 0157):** one analysis pipeline inside "songs at a time" (the user's ask,
+    2026-10-06): a folder listed once, new songs' tags read in GLUE Home's queue, every read in its places.
   - **E4b step 2 and E5:** next (below).
 - **What's still JavaScript in GLUE Home** (`home/ui`, the hidden service page `service.ts`, about 500 lines):
   - the signaling room (`cloud.ts` `stayOnline`);
@@ -53,15 +55,16 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **The GLUE window freezes while GLUE Home analyses 50+ songs** (the user, 2026-10-06; "since moving analysis to
-  Rust"; it "keeps analysing in the background"). Not reproduced yet. Measured: the native analysis alone doesn't
-  leak (60 hi-res FLACs from the NAS, 12 at a time, 74 s, peak 1.5 GB, 400 MB before and after: a throwaway
-  `memrun` example over `glue_audio::analyse`). GLUE Home's main-thread commands don't touch the engine, and the
-  GLUE window's handlers (`window.rs`) don't run per request. Suspects left: the GLUE window's page (the website) with
-  results now arriving ~50× faster than with the JavaScript analysis (the feed's `reloadFiles`, `takeDerived`,
-  duplicates). A monitor (PowerShell: each GLUE Home process's memory and processor every 2 s, and whether its windows
-  are "not responding", `IsHungAppWindow`) was ready on the desktop; ask the user to reproduce while it runs, and
-  say when.
+- **GLUE Home 0.56.0** (ADR 0157): add a folder in the GLUE window (or a browser with GLUE Home). Its songs should show
+  at once with their file names, then their artist and title a few at a time, then their analyses; the window's
+  "Analysing N at a time" and its list should never show more songs than the setting. The 7 Blue Train songs, and
+  albums analysed several songs at a time, shouldn't fail any more ("cannot find the file" was a collision of their
+  shared cover's files).
+- **Settled, 2026-10-06: "GLUE Home freezes while it analyses 50+ songs" was Windows locking the screen** (the
+  user). Measured before that: the native analysis doesn't leak (60 hi-res FLACs from the NAS, 12 at a time, 74 s,
+  peak 1.5 GB, back to 400 MB after); a 215-song run on the desktop (1.2 GB, 6–7 cores at its height, 80 songs a
+  minute) left no GLUE Home window "not responding" (`IsHungAppWindow`, sampled every 2 s). After a run GLUE Home
+  sits at about one core for a long while: the background thumbnails for other devices, one song at a time.
 - **GLUE Home 0.53.1 / 0.54.0** (updates itself within 6 hours, or the settings' update check):
   - **the GLUE window**, opened both ways (the tray, and "Open GLUE library" in the settings): it should show GLUE, not a
     white page. Then the 0.50 checklist: drop a folder or a song on it; export to rekordbox (the file in Downloads);
@@ -105,7 +108,13 @@ In two steps, each released and tested on its own:
      Rust knows that now);
    - identity (`identity.ts` `whoAmI`, `/v1/computer`, `/v1/computer/attach`) and ICE (`/v1/turn`, cached as
      `src/core/ice.ts` does) through `Host::cloud`.
-2. **Next (0.56.0): the signaling room and the sessions,** with identity and ICE: `stayOnline` (tungstenite is already a dependency: the access token, ping
+2. **Next (0.57.0, ADR 0158): the signaling room and the sessions,** with identity and ICE. Started on 2026-10-06 and set
+   aside for 0.56: `sessions.rs` (sessions.ts and its tests ported) and `ice.rs` (src/core/ice.ts, with a test) were
+   written but not committed (they're in that session's scratchpad: write them again if they're gone, they're short).
+   The plan: the engine gets `room.rs` (a `Socket` the host gives: tungstenite with TLS in GLUE Home, a relay to the
+   test in glue-engine-test) and a `Peers` trait over glue-rtc; songs received are analysed by the engine
+   (`analyse_incoming` moves in); identity (`whoAmI`, `computersHere`, `/v1/computer/attach`, and the local link's
+   `/attach`) through `Host::cloud`. `stayOnline` (tungstenite is already a dependency: the access token, ping
    every 30 s, renew at 50 min, backoff 1–60 s, close codes 4000 replaced / 4001 removed / 4002 renew), the session
    rules (`sessions.ts`: `admit`, `maxOf`, `sessionKey`, the refusals for an hour), the offers handed to glue-rtc, a
    `shared` push starting a sync, `presence`.
@@ -120,7 +129,7 @@ Once Rust opens the socket and answers offers:
   checked against Edge: `scripts/rtc-probe.mjs`). The tests to move: `phone.spec.ts`, `computers.spec.ts`,
   `library.spec.ts` (send songs, hand-over, the local link), `identity.spec.ts`, `home.spec.ts`.
 
-### E5: the rest, and the service page removed (0.57.0)
+### E5: the rest, and the service page removed (0.58.0)
 Backups (`backups.ts`, `glue_store::backup` has the zip already), moves (`moves.ts`), reminders (`reminders.ts`, its
 memory in GLUE Home's settings, notifications from Rust), updates (`updates.ts`, the updater from Rust), verify
 (`verify.ts`), tokens and config (`patchConfig` atomic in Rust), the status and events straight to the settings

@@ -171,11 +171,13 @@ export const folders = {
         this.looseHandles.delete(t.id);
       }
       const { added, linked, missing } = applyScan(s, id, entries, { files: unsureFiles, folders: unreadable });
-      // Quick tags, so rows show artist and title before the analysis fills in the rest. With GLUE Home it reads only the
-      // tags, 200 songs a request, several files at a time (ADR 0135); otherwise the start of each file here. The count
-      // moves as they come (it sat at 0 of 9,807 on a network folder, 2026-10-01).
-      this.job = { text: 'Reading tags…', done: 0, total: added.length };
-      for (let i = 0; i < added.length; i += 200) {
+      // Quick tags, so rows show artist and title before the analysis fills in the rest. GLUE Home 0.56 and later reads
+      // them itself, each song's first step in its analysis queue, inside its "songs at a time" (ADR 0157): nothing more
+      // to do here (the rows show file names until then). Older: it reads only the tags, 200 songs a request (ADR 0135);
+      // without GLUE Home, the start of each file here. The count moves as they come.
+      const home = !!this.analysisElsewhere?.active() && platform.homeReadsTags();
+      if (!home) this.job = { text: 'Reading tags…', done: 0, total: added.length };
+      for (let i = 0; !home && i < added.length; i += 200) {
         const part = added.slice(i, i + 200), out: Track[] = [];
         const got = await platform.readTags(r.root, part.map(x => x.relPath!));
         if (got) part.forEach((x, k) => out.push(withTags(x, got[k] ?? null)));

@@ -21,6 +21,7 @@ pub mod names;
 pub mod queue;
 pub mod shared;
 pub mod sync;
+pub mod tags;
 
 use glue_store::dir::{read_json, Dir, FsDir};
 use glue_store::json::{stringify, Obj};
@@ -240,6 +241,8 @@ impl<H: Host> Engine<H> {
     let s = self.stores.lock().unwrap().get(&key(p, c)).cloned();
     if let Some(s) = s { let _ = s.lock().unwrap().reload_files(paths); }
     self.changed(p, c, paths, &[]);
+    // Changed around the edits (a sync took changes in): the analysis looks through the collections again.
+    if paths.iter().any(|x| x.starts_with("tracks/") || x.starts_with("analysis/")) { if let Some(e) = self.arc() { e.analysis_stale(); } }
   }
   /// A tab saved this collection itself just now: read it again.
   pub fn drop_store(&self, p: &str, c: &str) { self.stores.lock().unwrap().remove(&key(p, c)); }
@@ -378,12 +381,15 @@ impl<H: Host> Engine<H> {
     if self.host.lease_held() { return Err("a GLUE tab from before GLUE Home’s engine is writing this library: close it, or update it".into()); }
     let s = self.store(p, c)?;
     let mut st = s.lock().unwrap();
-    // Songs new to the collection (a scan of new music folders): the analysis looks for them now.
-    let added = ops.iter().any(|op| op["m"] == "tracks" && op["ts"].as_array().is_some_and(|ts| ts.iter().any(|t| !st.tracks.contains_key(&text(t, "id")))));
+    // The songs the edit names, and those new to the collection (a scan of new music folders): queued for their tags and
+    // their analysis at once (ADR 0157).
+    let named: Vec<String> = ops.iter().filter(|op| op["m"] == "tracks").flat_map(|op| op["ts"].as_array().into_iter().flatten().map(|t| text(t, "id"))).collect();
+    let new: std::collections::HashSet<String> = named.iter().filter(|id| !st.tracks.contains_key(*id)).cloned().collect();
+    let added = !new.is_empty();
     for op in ops { st.apply(op); }
     self.flush_edit(&mut st, p, c)?;
     drop(st);
-    if added { if let Some(e) = self.arc() { e.analysis_added(); } }
+    if !named.is_empty() { if let Some(e) = self.arc() { e.queue_edit(p, c, &named, &new); } }
     Ok(json!({ "rev": self.rev(), "added": added }))
   }
 

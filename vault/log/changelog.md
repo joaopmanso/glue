@@ -5,6 +5,24 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-06 · GLUE Home 0.56.0: one analysis pipeline inside "songs at a time" (ADR 0157)
+- **The user:** GLUE Home's window listed about 30 songs while 8 were analysed; "the analysis process should be
+  streamlined … list them once … never read over the limit"
+  ([ADR 0157](../adr/0157-one-analysis-pipeline-inside-its-number.md)). Asked about new songs' tags: inside the limit.
+- **Now:** a folder added is listed once by the tab, its songs added as not analysed (no tags read there). GLUE Home's
+  queue does everything else in its places, in order: songs asked for (a tab, another device), new songs' tags (only
+  the tags, written into the library together), the library's songs, then the background thumbnails. An edit queues
+  its own songs; the collections are looked through only at start, after a sync and on Restart (they were each time
+  songs were added, and every 5 minutes).
+- **The window's list and meter can't keep songs that ended:** each job's place is given back however it ends.
+- **A real cause of failed songs found on the way:** every write used a temporary file of a fixed name, so two of an
+  album's songs analysed together collided on their shared cover ("cannot find the file"), and the song failed, then
+  was given up after three tries. Each write has its own temporary file now.
+- **Settled:** "GLUE Home freezes while it analyses 50+ songs" was Windows locking the screen (the user).
+- Tests: `tests/engine.rs` (never more than the number, reading or analysing; new songs' tags first; the list never
+  longer than what runs), `glue-store`'s 16 writers of one file at once; the e2e fake GLUE Home with its engine says
+  0.56, so the Home-mode tests go through the new pipeline.
+
 ## 2026-10-06 · GLUE Home 0.55.0: the answers to other devices in Rust (ADR 0156)
 - **GLUE Home's engine answers the account's other devices** ([ADR 0156](../adr/0156-the-answers-to-other-devices-in-rust.md)):
   songs to play (whole or in parts), mini spectrograms and waveforms, full analyses (made now when asked), covers from

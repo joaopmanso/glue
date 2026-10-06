@@ -234,5 +234,6 @@ Planned (GLUE):
 | [0154](adr/0154-the-analysis-queue-in-rust.md) | The analysis queue in GLUE Home's engine, in Rust (and where songs are) | accepted |
 | [0155](adr/0155-the-shared-sync-in-rust.md) | GLUE Home syncs the shared collections in Rust, held to the website's sync | accepted |
 | [0156](adr/0156-the-answers-to-other-devices-in-rust.md) | GLUE Home answers the account's other devices in Rust (the engine's `answer`; the cover look-up held to the website's) | accepted |
+| [0157](adr/0157-one-analysis-pipeline-inside-its-number.md) | One analysis pipeline: a folder listed once, its songs' tags then their analyses, every read inside "songs at a time" | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

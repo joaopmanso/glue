@@ -22,10 +22,29 @@ use std::sync::{mpsc, Mutex};
 /// src/store/types.ts `ANALYSIS_VERSION`.
 pub const ANALYSIS_VERSION: f64 = 3.0;
 const PENDING: &str = "s/pending.json";
+/// A collection's songs whose tags were read (None: they couldn't be), waiting to go into the library.
+type Tagged = Vec<(String, Option<Value>)>;
 
-/// A song to analyse. `net`: its network folder (ADR 0135), if it's in one.
+/// What a job does (ADR 0157). Every kind takes one of the "songs at a time", and the window's meter counts it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+  /// The song analysed for the library (a device or the user may be waiting: `waiters`).
+  Analyse,
+  /// A new song's tags read (only its tags), so its row shows its artist and title before it's analysed.
+  Tags,
+  /// A shared song's mini spectrogram and waveform made for other devices, the library having its analysis (ADR 0046).
+  Background,
+}
+/// A song to work on. `net`: its network folder (ADR 0135), if it's in one; `waiters`: told when it's done (true:
+/// analysed).
 #[derive(Debug, Clone)]
-pub struct Job { pub p: String, pub c: String, pub id: String, pub name: String, pub net: Option<String>, added: String }
+pub struct Job { pub p: String, pub c: String, pub id: String, pub name: String, pub net: Option<String>, added: String, pub kind: Kind, waiters: Vec<mpsc::Sender<bool>> }
+impl Job {
+  fn new(p: &str, c: &str, id: &str, name: &str, net: Option<String>, added: &str, kind: Kind) -> Job {
+    Job { p: p.into(), c: c.into(), id: id.into(), name: name.into(), net, added: added.into(), kind, waiters: vec![] }
+  }
+  fn key(&self) -> String { format!("{}/{}/{}", self.p, self.c, self.id) }
+}
 
 /// One song analysed (ADR 0136): when, its size, how long reading it took, and analysing it; from a network folder.
 #[derive(Debug, Clone, Copy)]
@@ -58,10 +77,17 @@ struct Q {
   state: State,
   /// Results not taken into their collection yet, by collection.
   pending: IndexMap<(String, String), IndexSet<String>>,
-  urgent: VecDeque<Job>, queue: Vec<Job>, scanned: f64,
+  /// Asked for now (any device, ADR 0103; a song another device waits for), then new songs' tags, then the library's
+  /// songs to analyse, then the background's (ADR 0157).
+  urgent: VecDeque<Job>, tags: VecDeque<Job>, queue: Vec<Job>, background: VecDeque<Job>, scanned: f64,
   delegated_until: f64, looping: bool, loaded: bool,
-  /// Songs were added since the last look (a tab scanned new folders): looked for again at once, even mid-run.
-  stale: bool,
+  /// The collections were looked through since GLUE Home started (ADR 0157: once, then each edit's songs queued as they
+  /// come); `stale`: they changed around the engine (a sync, a Restart): looked through again.
+  looked: bool, stale: bool,
+  /// Tags read and not in the library yet, by collection (written together).
+  tagged: IndexMap<(String, String), Tagged>,
+  /// Devices waiting for a song that's being analysed now.
+  waiters: HashMap<String, Vec<mpsc::Sender<bool>>>,
   /// Being analysed now (a look while running doesn't queue them again).
   active: HashSet<String>,
   samples: Vec<Sample>,
@@ -173,6 +199,43 @@ pub fn pool_size(cfg: &Value) -> u32 {
 }
 pub fn cores() -> u32 { std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(4) }
 
+/// A song's step in the window's meter (reading, then analysing: `Some(true)`, `Some(false)`), undone however the
+/// song ends (ADR 0157).
+pub(crate) struct Stepping<'a, H: Host> { pub(crate) e: &'a Engine<H>, pub(crate) at: Option<bool> }
+impl<H: Host> Stepping<'_, H> { pub(crate) fn to(&mut self, next: Option<bool>) { self.e.step(self.at, next); self.at = next; } }
+impl<H: Host> Drop for Stepping<'_, H> { fn drop(&mut self) { if self.at.is_some() { self.e.step(self.at, None); } } }
+
+/// One of the "songs at a time", taken by a job: counted (running, the window's list of names, its network folder's
+/// turn) until it's given back, however the job ends, and those waiting for the song told (`ok`: analysed). Before, a job
+/// that ended early stayed in the window's list (the user, 2026-10-06: about 30 names shown while 8 ran).
+struct Slot<'a, H: Host> { e: &'a Engine<H>, key: String, name: String, net: Option<String>, waiters: Vec<mpsc::Sender<bool>>, ok: bool }
+impl<'a, H: Host> Slot<'a, H> {
+  fn take(e: &'a Engine<H>, j: &Job) -> Self {
+    {
+      let mut q = e.q();
+      q.active.insert(j.key());
+      if let Some(n) = &j.net { *q.net_running.entry(n.clone()).or_default() += 1; }
+      q.state.running += 1; q.state.current.push(j.name.clone()); q.state.left = q.urgent.len() + q.queue.len();
+    }
+    e.told();
+    Slot { e, key: j.key(), name: j.name.clone(), net: j.net.clone(), waiters: j.waiters.clone(), ok: false }
+  }
+}
+impl<H: Host> Drop for Slot<'_, H> {
+  fn drop(&mut self) {
+    let waiting = {
+      let mut q = self.e.q();
+      q.active.remove(&self.key);
+      if let Some(n) = &self.net { if let Some(r) = q.net_running.get_mut(n) { *r = r.saturating_sub(1); } }
+      q.state.running = q.state.running.saturating_sub(1);
+      if let Some(i) = q.state.current.iter().position(|n| *n == self.name) { q.state.current.remove(i); }
+      q.waiters.remove(&self.key).unwrap_or_default()
+    };
+    for w in self.waiters.drain(..).chain(waiting) { let _ = w.send(self.ok); }
+    self.e.told();
+  }
+}
+
 impl<H: Host> Engine<H> {
   fn q(&self) -> std::sync::MutexGuard<'_, Q> { self.queue.q.lock().unwrap() }
   /// Said to GLUE Home (its window, a tab's status).
@@ -181,9 +244,19 @@ impl<H: Host> Engine<H> {
     self.host.analysis_changed(&s);
   }
   pub fn analysis_json(&self) -> Value { self.q().state.to_json() }
-  /// The library's analysis is looking for songs or analysing, or hasn't looked yet since GLUE Home started: the
-  /// background thumbnails wait (their songs would otherwise be taken for analysed, ADR 0156).
-  pub fn analysis_busy(&self) -> bool { let q = self.q(); q.looping || q.scanned == 0.0 || q.state.running > 0 || !q.urgent.is_empty() || !q.queue.is_empty() }
+  /// The background's songs (answers.rs), queued last: those not queued already. How many.
+  pub(crate) fn queue_background(&self, todo: Vec<(String, String, String, String)>) -> usize {
+    let mut q = self.q();
+    let have: HashSet<String> = q.background.iter().map(Job::key).collect();
+    let mut n = 0;
+    for (p, c, id, name) in todo {
+      let j = Job::new(&p, &c, &id, &name, None, "", Kind::Background);
+      if have.contains(&j.key()) { continue; }
+      q.background.push_back(j);
+      n += 1;
+    }
+    n
+  }
 
   fn save_pending(&self) {
     let out: Vec<Value> = self.q().pending.iter().flat_map(|((p, c), ids)| ids.iter().map(move |id| json!([p, c, id]))).collect();
@@ -218,7 +291,12 @@ impl<H: Host> Engine<H> {
       let mut q = self.q();
       let want: HashSet<&String> = ids.iter().collect();
       let same = |j: &Job| j.p == p && j.c == c && want.contains(&j.id);
-      let mut u: VecDeque<Job> = ids.iter().map(|id| Job { p: p.into(), c: c.into(), id: id.clone(), name: names[id].as_str().unwrap_or(id).to_string(), net: None, added: String::new() }).collect();
+      let mut u: VecDeque<Job> = ids.iter().map(|id| {
+        // One already asked for keeps who's waiting for it.
+        let mut j = Job::new(p, c, id, names[id].as_str().unwrap_or(id), None, "", Kind::Analyse);
+        j.waiters = q.urgent.iter().filter(|x| x.p == p && x.c == c && x.id == *id).flat_map(|x| x.waiters.clone()).collect();
+        j
+      }).collect();
       u.extend(q.urgent.drain(..).filter(|j| !same(j)));
       q.urgent = u;
       q.queue.retain(|j| !same(j));
@@ -228,8 +306,70 @@ impl<H: Host> Engine<H> {
     self.told();
     self.run_analysis();
   }
-  /// Songs added to a collection (a GLUE tab scanned new music folders): looked for now, not at the next 5-minute look.
-  pub fn analysis_added(self: &std::sync::Arc<Self>) { self.q().stale = true; self.run_analysis(); }
+  /// A song another device waits for (its full analysis, its row's pictures: answers.rs), analysed in the next free place,
+  /// a song page's first: told when it's done (true: analysed). Already running: told when that one ends.
+  pub fn analyse_for(self: &std::sync::Arc<Self>, p: &str, c: &str, id: &str, first: bool) -> mpsc::Receiver<bool> {
+    let (tx, rx) = mpsc::channel();
+    let name = self.store(p, c).ok().and_then(|s| s.lock().unwrap().tracks.get(id).map(|t| Some(text(t, "title")).filter(|x| !x.is_empty()).unwrap_or_else(|| text(t, "fileName")))).unwrap_or_else(|| id.to_string());
+    {
+      let mut q = self.q();
+      let k = format!("{p}/{c}/{id}");
+      if q.active.contains(&k) { q.waiters.entry(k).or_default().push(tx); return rx; }
+      let mut j = match q.urgent.iter().position(|j| j.key() == k) { Some(i) => q.urgent.remove(i).unwrap(), None => Job::new(p, c, id, &name, None, "", Kind::Analyse) };
+      j.waiters.push(tx);
+      q.queue.retain(|j| j.key() != k);
+      q.background.retain(|j| j.key() != k);
+      if first { q.urgent.push_front(j) } else { q.urgent.push_back(j) }
+      q.state.left = q.urgent.len() + q.queue.len();
+    }
+    self.told();
+    self.run_analysis();
+    rx
+  }
+
+  /// Songs an edit added or whose file changed (a tab's scan, ADR 0157): queued at once (a new one to have its tags read
+  /// first), never by looking through the whole collection again. `ids`: the songs the edit named; `new`: those it added.
+  pub(crate) fn queue_edit(self: &std::sync::Arc<Self>, p: &str, c: &str, ids: &[String], new: &HashSet<String>) {
+    let cfg = self.host.config();
+    if cfg["glue"].as_str().is_none_or(|g| g.is_empty()) { return; }
+    let Ok(s) = self.store(p, c) else { return };
+    let mut add: Vec<(Job, bool, bool)> = vec![];
+    {
+      let st = s.lock().unwrap();
+      if st.shared.is_some() && unknown_computer(cfg["computer"].as_str()) { return; }
+      let roots: Vec<Value> = st.meta["roots"].as_array().cloned().unwrap_or_default();
+      let tag = !self.host.lease_held();
+      for id in ids {
+        let Some(t) = st.tracks.get(id) else { continue };
+        if truthy(get(t, "remote")) || text(t, "status") != "linked" { continue; }
+        if (text(t, "rootId").is_empty() || text(t, "relPath").is_empty()) && !text(t, "fileKey").starts_with("copy:") && text(t, "filePath").is_empty() { continue; }
+        let a = st.analysis.get(id);
+        let needs = needs_analysis(t, a) || failed_before(a);
+        let tags = tag && new.contains(id);
+        if !needs && !tags { continue; }
+        let rid = text(t, "rootId");
+        let net = cfg["folders"][&rid].as_str().map(String::from).or_else(|| roots.iter().find(|r| text(r, "id") == rid).and_then(|r| r["absPath"].as_str().map(String::from))).filter(|a| is_network(Some(a)));
+        let name = Some(text(t, "title")).filter(|s| !s.is_empty()).unwrap_or_else(|| text(t, "fileName"));
+        add.push((Job::new(p, c, id, &name, net, &text(t, "addedAt"), Kind::Analyse), needs, tags));
+      }
+    }
+    if add.is_empty() { return; }
+    {
+      let mut q = self.q();
+      let waiting: HashSet<String> = q.pending.get(&(p.into(), c.into())).map(|s| s.iter().cloned().collect()).unwrap_or_default();
+      for (j, needs, tags) in add {
+        let k = j.key();
+        if tags && !q.tags.iter().any(|x| x.key() == k) { q.tags.push_back(Job { kind: Kind::Tags, ..j.clone() }); }
+        let queued = q.active.contains(&k) || q.urgent.iter().chain(q.queue.iter()).any(|x| x.key() == k);
+        if needs && !queued && !waiting.contains(&j.id) && q.tries.get(&k).copied().unwrap_or(0) < 3 { q.queue.push(j); }
+      }
+      q.state.left = q.urgent.len() + q.queue.len();
+    }
+    self.told();
+    self.run_analysis();
+  }
+  /// The collections changed around the engine (a sync took changes in): looked through again.
+  pub fn analysis_stale(self: &std::sync::Arc<Self>) { self.q().stale = true; self.run_analysis(); }
   /// Restart (the settings or the tray): songs that failed this session are tried again, everything looked for anew.
   pub fn analysis_restart(&self) { let mut q = self.q(); q.tries.clear(); q.stale = true; }
   /// Paused or not, as the settings say (`analysisPaused`); `quiet`: GLUE Home starting.
@@ -284,7 +424,7 @@ impl<H: Host> Engine<H> {
             }
           }
           let name = Some(text(&t, "title")).filter(|s| !s.is_empty()).unwrap_or_else(|| text(&t, "fileName"));
-          jobs.push(Job { p: pid.clone(), c: cid.clone(), net: net_of(&text(&t, "rootId")), name, added: text(&t, "addedAt"), id });
+          jobs.push(Job::new(&pid, &cid, &id, &name, net_of(&text(&t, "rootId")), &text(&t, "addedAt"), Kind::Analyse));
         }
       }
     } }
@@ -296,7 +436,7 @@ impl<H: Host> Engine<H> {
   /// A song's analysis result kept here (`s/…json`).
   pub fn result(&self, p: &str, c: &str, id: &str) -> Option<Value> { read_json(&self.cache_dir(), &crate::analyse::key("s", p, c, id, "json")).ok().flatten() }
 
-  fn step(&self, from: Option<bool>, to: Option<bool>) {
+  pub(crate) fn step(&self, from: Option<bool>, to: Option<bool>) {
     {
       let mut q = self.q();
       let s = &mut q.state.steps;
@@ -316,17 +456,18 @@ impl<H: Host> Engine<H> {
   pub fn analyse_song(&self, p: &str, c: &str, id: &str, cfg: &Value, tell: bool) -> Result<(f64, f64, f64), String> {
     if [p, c, id].iter().any(|s| s.is_empty() || s.contains(['/', '\\', '.'])) { return Err("bad song".into()); }
     let f = self.track_path(p, c, id, cfg)?;
-    self.step(None, Some(true));
+    let mut step = Stepping { e: self, at: None };
+    step.to(Some(true));
     let t0 = std::time::Instant::now();
     let bytes = self.host.read_song(std::path::Path::new(&f.path), &f.name);
     let read_ms = t0.elapsed().as_millis() as f64;
-    self.step(Some(true), bytes.is_ok().then_some(false));
+    step.to(bytes.is_ok().then_some(false));
     let bytes = bytes?;
     let cache = self.cache_dir();
     let (pp, cc, ii) = (p.to_string(), c.to_string(), id.to_string());
     let (name, mtime) = (f.name.clone(), f.mtime);
     let r = crate::analyse::on_own_thread("glue-analysis", move || crate::analyse::analyse_into(bytes, &name, mtime, &|d, e| crate::analyse::key(d, &pp, &cc, &ii, e), &|rel, data| cache.write_bytes(&rel, data)));
-    self.step(Some(false), None);
+    step.to(None);
     let r = r??;
     if tell { self.add_pending(p, c, id); }
     if let Some(m) = r["failed"].as_str() { return Err(m.to_string()); }
@@ -356,8 +497,16 @@ impl<H: Host> Engine<H> {
     let (done0, failed0) = { let mut q = self.q(); q.state.away = 0; (q.state.done, q.state.failed) };
     let c0 = self.host.config();
     if c0["glue"].as_str().is_some_and(|g| !g.is_empty()) {
-      let rescan = { let q = self.q(); q.urgent.is_empty() && q.queue.is_empty() && (q.stale || ms() - q.scanned > 5.0 * 60e3) };
-      if rescan { { let mut q = self.q(); q.stale = false; q.scanned = ms(); } let jobs = self.scan(&c0); self.q().queue = jobs; }
+      // The collections looked through once since GLUE Home started, and again when they changed around the engine;
+      // otherwise each edit's songs are queued as they come (queue_edit, ADR 0157).
+      let rescan = { let q = self.q(); q.stale || !q.looked };
+      if rescan {
+        { let mut q = self.q(); q.stale = false; q.looked = true; q.scanned = ms(); }
+        let found = self.scan(&c0);
+        let mut q = self.q();
+        let have: HashSet<String> = q.queue.iter().chain(q.urgent.iter()).map(Job::key).chain(q.active.iter().cloned()).collect();
+        q.queue.extend(found.into_iter().filter(|j| !have.contains(&j.key())));
+      }
       let left = { let mut q = self.q(); q.state.left = q.urgent.len() + q.queue.len(); q.state.left };
       if left > 0 { self.host.event(&format!("Analysing {left} song{}", if left == 1 { "" } else { "s" })); }
       self.workers();
@@ -388,8 +537,8 @@ impl<H: Host> Engine<H> {
       q.queue.extend(found.into_iter().filter(|j| !have.contains(&format!("{}/{}/{}", j.p, j.c, j.id))));
       q.state.left = q.urgent.len() + q.queue.len();
     }
-    // Stopped (GLUE Home's Stop): nothing new starts; what runs finishes.
-    if { let q = self.q(); q.state.paused || q.queue.is_empty() } || c["running"] == Value::Bool(false) { return None; }
+    // Stopped (GLUE Home's Stop) or paused: nothing new starts; what runs finishes.
+    if { let q = self.q(); q.state.paused || (q.tags.is_empty() && q.queue.is_empty() && q.background.is_empty()) } || c["running"] == Value::Bool(false) { return None; }
     // A tab here analysing by itself (it holds the lease and doesn't ask): the songs are its.
     if self.host.lease_held() && ms() > self.q().delegated_until { self.q().state.by = "tab-self"; return None; }
     // A song being played here or on another device goes first: no new song beyond 2 while one was read in the last
@@ -397,10 +546,14 @@ impl<H: Host> Engine<H> {
     let played = self.q().played_at.max(self.host.foreground_at());
     let mut q = self.q();
     if q.state.running >= 2 && ms() - played < 10_000.0 { return None; }
+    // New songs' tags first (a read of their tags only), so their rows show who and what (ADR 0157).
+    if let Some(j) = q.tags.pop_front() { return Some(j); }
     // In order, but a network folder's songs take turns (ADR 0135).
     let cap = c["networkAtOnce"].as_f64().map(|x| x.round().max(0.0) as u32).unwrap_or(0);
-    let i = pick_next(&q.queue, &q.net_running, cap)?;
-    Some(q.queue.remove(i))
+    if let Some(i) = pick_next(&q.queue, &q.net_running, cap) { return Some(q.queue.remove(i)); }
+    // Nothing of the library's left: the background's, for other devices.
+    if q.queue.is_empty() { return q.background.pop_front(); }
+    None
   }
 
   /// As many songs at a time as the settings say (changed while it runs too): a worker takes songs until there are
@@ -439,19 +592,19 @@ impl<H: Host> Engine<H> {
     fn self_over<H: Host>(e: &std::sync::Arc<Engine<H>>) -> bool { let n = pool_size(&e.host.config()); e.q().state.running >= n }
   }
 
-  /// One song, analysed and counted.
+  /// One job in one of the places, counted. Its place is given back however the job ends (`Slot`).
   fn one(&self, j: &Job) {
-    let jk = format!("{}/{}/{}", j.p, j.c, j.id);
-    {
-      let mut q = self.q();
-      q.active.insert(jk.clone());
-      if let Some(n) = &j.net { *q.net_running.entry(n.clone()).or_default() += 1; }
-      q.state.running += 1; q.state.current.push(j.name.clone()); q.state.left = q.urgent.len() + q.queue.len();
-    }
-    self.told();
+    let jk = j.key();
+    let mut slot = Slot::take(self, j);
     let c = self.host.config();
+    match j.kind {
+      Kind::Tags => { self.tags_one(j, &c); return; }
+      Kind::Background => { self.background_one(&j.p, &j.c, &j.id, &c); return; }
+      Kind::Analyse => {}
+    }
     match self.analyse_song(&j.p, &j.c, &j.id, &c, true) {
       Ok((bytes, read_ms, analyse_ms)) => {
+        slot.ok = true;
         let now = ms();
         let mut q = self.q();
         q.state.done += 1;
@@ -472,14 +625,39 @@ impl<H: Host> Engine<H> {
         }
       }
     }
-    {
+  }
+
+  /// A new song's tags read (only them), its place in the meter while it reads; written into the library with the
+  /// others read meanwhile.
+  fn tags_one(&self, j: &Job, cfg: &Value) {
+    let Ok(f) = self.track_path(&j.p, &j.c, &j.id, cfg) else { return };
+    let info = { let mut step = Stepping { e: self, at: None }; step.to(Some(true)); crate::tags::read_info(std::path::Path::new(&f.path)) };
+    let flush = {
       let mut q = self.q();
-      q.active.remove(&jk);
-      if let Some(n) = &j.net { if let Some(r) = q.net_running.get_mut(n) { *r = r.saturating_sub(1); } }
-      q.state.running = q.state.running.saturating_sub(1);
-      if let Some(i) = q.state.current.iter().position(|n| *n == j.name) { q.state.current.remove(i); }
+      let list = q.tagged.entry((j.p.clone(), j.c.clone())).or_default();
+      list.push((j.id.clone(), info));
+      let n = list.len();
+      n >= 50 || q.tags.is_empty()
+    };
+    if flush { self.flush_tags(); }
+  }
+  /// The tags read, into their songs (only empty fields not edited in GLUE, then the file's name for a song without a
+  /// title), and the tabs told. A tab that writes the library itself (it holds the lease) read its own.
+  fn flush_tags(&self) {
+    let all: Vec<((String, String), Tagged)> = self.q().tagged.drain(..).collect();
+    if self.host.lease_held() { return; }
+    for ((p, c), got) in all {
+      let Ok(s) = self.store(&p, &c) else { continue };
+      let paths = {
+        let mut st = s.lock().unwrap();
+        let ts: Vec<Value> = got.iter().filter_map(|(id, info)| { let cur = st.tracks.get(id)?; let next = crate::tags::with_tags(cur, info.as_ref()); (next != *cur).then_some(next) }).collect();
+        if ts.is_empty() { continue; }
+        st.apply(&json!({ "m": "tracks", "ts": ts }));
+        match self.flush(&mut st, &p, &c) { Ok(x) => x, Err(_) => continue }
+      };
+      self.changed(&p, &c, &paths, &[]);
+      self.host.edited(&p, &c, &paths);
     }
-    self.told();
   }
 
   /// The results into their collections, when no tab holds the lease (it takes them in itself).
@@ -568,7 +746,7 @@ mod tests {
   // Which song GLUE Home analyses next (ADR 0135): a network folder's songs take turns (the user's NAS: 12 MB/s for
   // one file, 24 MB/s for eight, 2026-10-01). Moved from tests/lanes.test.ts.
   const NAS: &str = r"\\homenas\Music HR";
-  fn jobs(nets: &[Option<&str>]) -> Vec<Job> { nets.iter().map(|n| Job { p: "p".into(), c: "c".into(), id: "x".into(), name: "x".into(), net: n.map(String::from), added: String::new() }).collect() }
+  fn jobs(nets: &[Option<&str>]) -> Vec<Job> { nets.iter().map(|n| Job::new("p", "c", "x", "x", n.map(String::from), "", Kind::Analyse)).collect() }
   #[test]
   fn network_folders_take_turns() {
     assert!(is_network(Some(NAS)) && is_network(Some("//homenas/music")));
@@ -608,7 +786,7 @@ mod tests {
   }
   #[test]
   fn the_next_song_and_the_speed() {
-    let j = |net: Option<&str>| Job { p: "p".into(), c: "c".into(), id: "x".into(), name: "x".into(), net: net.map(String::from), added: String::new() };
+    let j = |net: Option<&str>| Job::new("p", "c", "x", "x", net.map(String::from), "", Kind::Analyse);
     let q = vec![j(Some("\\\\nas\\a")), j(None)];
     let mut running = HashMap::new();
     assert_eq!(pick_next(&q, &running, 0), Some(0));

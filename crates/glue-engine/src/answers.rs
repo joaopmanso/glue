@@ -18,8 +18,8 @@ use crate::covers::Query;
 use crate::{text, truthy, Engine, Host};
 use glue_store::dir::Dir;
 use serde_json::{json, Value};
-use std::collections::{HashMap, VecDeque};
-use std::sync::{mpsc, Arc, Mutex};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// src/core/transfer.ts `PENDING`: made now, ask again.
@@ -36,13 +36,10 @@ pub enum Answer {
 }
 fn data(v: Value) -> Answer { Answer::Data { data: v, bytes: vec![], tell: None } }
 
-type Urgent = (String, String, String, Vec<mpsc::Sender<bool>>);
 /// What the answers keep between requests.
 #[derive(Default)]
 pub struct Devices {
   pub(crate) lookups: crate::covers::Lookups,
-  /// Songs analysed now for another device, first come first (a song page's ask goes first), and whether one runs.
-  urgent: Mutex<(VecDeque<Urgent>, bool)>,
   /// Where a song being streamed is (looked up once a minute, not for each part).
   located: Mutex<HashMap<String, (String, String, Instant)>>,
   /// The background's mini spectrograms and waveforms (`background`).
@@ -109,7 +106,7 @@ impl<H: Host> Engine<H> {
           // Waveforms (ADR 0085): kept, or made now from the kept full analysis.
           let b = if wave { self.kept_wave(&p, &col, &id).or_else(|| self.wave_from_details(&p, &col, &id)) } else { self.cache_bytes(&key("t", &p, &col, &id, "bin")) };
           found.push(json!([id, b.as_ref().map_or(0, |b| b.len())]));
-          match b { Some(b) => parts.push(b), None => { let _ = self.soon(&p, &col, &id, false); } }   // made next, for the next ask
+          match b { Some(b) => parts.push(b), None => { let _ = self.analyse_for(&p, &col, &id, false); } }   // made next, for the next ask
         }
         Ok(Answer::Data { data: Value::Array(found), bytes: joined(parts), tell: None })
       }
@@ -120,7 +117,7 @@ impl<H: Host> Engine<H> {
           Some(d) => Some(d),
           None => {
             // Made now, first in line; if it takes long, the page asks again (it shows the summary meanwhile).
-            match self.soon(&p, &col, &id, true).recv_timeout(Duration::from_secs(12)) {
+            match self.analyse_for(&p, &col, &id, true).recv_timeout(Duration::from_secs(12)) {
               Err(_) => return Err(PENDING.into()),
               Ok(true) => self.kept_details(&p, &col, &id),
               Ok(false) => None,
@@ -221,8 +218,8 @@ impl<H: Host> Engine<H> {
     self.incoming_list().into_iter().find(|f| f["name"].as_str() == Some(name)).ok_or_else(|| "That song isn’t in the incoming folder any more.".into())
   }
 
-  fn cache_bytes(&self, rel: &str) -> Option<Vec<u8>> { self.cache_dir().read_bytes(rel).ok().flatten() }
-  fn kept_wave(&self, p: &str, c: &str, id: &str) -> Option<Vec<u8>> {
+  pub(crate) fn cache_bytes(&self, rel: &str) -> Option<Vec<u8>> { self.cache_dir().read_bytes(rel).ok().flatten() }
+  pub(crate) fn kept_wave(&self, p: &str, c: &str, id: &str) -> Option<Vec<u8>> {
     self.cache_bytes(&key("w", p, c, id, "bin")).filter(|b| b.len() == glue_audio::out::files::WAVE_BYTES)
   }
   /// A song's full analysis kept here (of this version): its header and block.
@@ -273,28 +270,6 @@ impl<H: Host> Engine<H> {
     Ok(hash)
   }
 
-  /// Analysed now for another device (`first`: its song page; else rows on its screen), one at a time, the results
-  /// for the library too: told when done (true) or not (false).
-  pub fn soon(self: &Arc<Self>, p: &str, c: &str, id: &str, first: bool) -> mpsc::Receiver<bool> {
-    let (tx, rx) = mpsc::channel();
-    {
-      let mut g = self.devices.urgent.lock().unwrap();
-      let j = match g.0.iter().position(|j| j.0 == p && j.1 == c && j.2 == id) { Some(i) => g.0.remove(i).unwrap(), None => (p.into(), c.into(), id.into(), vec![]) };
-      let mut j = j;
-      j.3.push(tx);
-      if first { g.0.push_front(j) } else { g.0.push_back(j) }
-      if std::mem::replace(&mut g.1, true) { return rx; }
-    }
-    let me = self.clone();
-    std::thread::spawn(move || loop {
-      let Some(j) = ({ let mut g = me.devices.urgent.lock().unwrap(); let j = g.0.pop_front(); if j.is_none() { g.1 = false; } j }) else { return };
-      let ok = me.analyse_song(&j.0, &j.1, &j.2, &me.host.config(), true).is_ok();
-      for d in j.3 { let _ = d.send(ok); }
-    });
-    rx
-  }
-  /// Songs being analysed for other devices (or waiting to be).
-  pub fn devices_busy(&self) -> bool { let g = self.devices.urgent.lock().unwrap(); g.1 || !g.0.is_empty() }
 }
 
 /// The background's progress (GLUE Home's window shows it): songs done of those to do, and whether it runs.
@@ -305,35 +280,33 @@ impl Background { pub fn to_json(&self) -> Value { json!({ "done": self.done, "t
 impl<H: Host> Engine<H> {
   pub fn background_json(&self) -> Value { self.devices.background.lock().unwrap().to_json() }
   fn background_set(&self, f: impl FnOnce(&mut Background)) { let v = { let mut b = self.devices.background.lock().unwrap(); f(&mut b); b.to_json() }; self.host.background_changed(&v); }
-  /// Every shared song of this computer without a mini spectrogram or a waveform, made one at a time and gently, so
-  /// other devices find them ready (ADR 0046, 0085). It steps aside while GLUE Home sends or receives for a device,
-  /// analyses for one, or analyses the library (which makes these too). One run at a time.
+  /// Every shared song of this computer without a mini spectrogram or a waveform, made so other devices find them ready
+  /// (ADR 0046, 0085): queued last in the analysis queue, after the library's own songs (which make these too), each in
+  /// one of the "songs at a time" (ADR 0157). One look at a time.
   pub fn background(self: &Arc<Self>) {
     if self.host.config()["glue"].as_str().is_none_or(|g| g.is_empty()) { return; }
     { let mut b = self.devices.background.lock().unwrap(); if b.running { return; } *b = Background { running: true, ..Default::default() }; }
     let me = self.clone();
     std::thread::spawn(move || {
       let todo = me.background_todo();
-      me.background_set(|b| b.total = todo.len());
-      for (p, c, id) in todo {
-        while me.background_waits() { std::thread::sleep(Duration::from_secs(1)); }
-        let cfg = me.host.config();
-        if !crate::library::shared(&cfg, &p, &c) { continue; }
-        // Made meanwhile, or only the waveform missing: from the kept analysis if it can be.
-        let has_thumb = me.cache_bytes(&key("t", &p, &c, &id, "bin")).is_some();
-        if !(has_thumb && (me.kept_wave(&p, &c, &id).is_some() || me.wave_from_details(&p, &c, &id).is_some())) {
-          let _ = me.analyse_song(&p, &c, &id, &cfg, false);   // not found or not decodable: skipped
-          std::thread::sleep(Duration::from_millis(1500));    // gently: this computer is in use too
-        }
-        let done = { let mut b = me.devices.background.lock().unwrap(); b.done += 1; b.done };
-        if done % 10 == 0 { me.background_set(|_| {}); }
-      }
-      me.background_set(|b| b.running = false);
+      let n = me.queue_background(todo);
+      me.background_set(|b| { b.total = n; b.running = n > 0; });
+      if n > 0 { me.run_analysis(); }
     });
   }
-  fn background_waits(&self) -> bool { !self.host.running() || self.host.serving() || self.devices_busy() || self.analysis_busy() }
+  /// One of the background's songs: its mini spectrogram and waveform (made from the kept analysis when it can be).
+  pub(crate) fn background_one(&self, p: &str, c: &str, id: &str, cfg: &Value) {
+    if crate::library::shared(cfg, p, c) {
+      let has_thumb = self.cache_bytes(&key("t", p, c, id, "bin")).is_some();
+      if !(has_thumb && (self.kept_wave(p, c, id).is_some() || self.wave_from_details(p, c, id).is_some())) {
+        let _ = self.analyse_song(p, c, id, cfg, false);   // not found or not decodable: skipped
+      }
+    }
+    let (done, left) = { let mut b = self.devices.background.lock().unwrap(); b.done += 1; (b.done, b.total.saturating_sub(b.done)) };
+    if left == 0 { self.background_set(|b| b.running = false); } else if done % 10 == 0 { self.background_set(|_| {}); }
+  }
   /// The shared collections' songs on this computer still missing a mini spectrogram or a waveform.
-  fn background_todo(&self) -> Vec<(String, String, String)> {
+  fn background_todo(&self) -> Vec<(String, String, String, String)> {
     let cfg = self.host.config();
     let mut todo = vec![];
     let lib = self.describe().unwrap_or(Value::Null);
@@ -349,7 +322,7 @@ impl<H: Host> Engine<H> {
         for raw in shard["items"].as_object().into_iter().flatten().map(|x| x.1) {
           let t = seen.track(raw);
           let id = text(&t, "id");
-          if text(&t, "status") == "linked" && !text(&t, "rootId").is_empty() && !text(&t, "relPath").is_empty() && (!thumbs.contains(&id) || !waves.contains(&id)) { todo.push((p.clone(), c.clone(), id)); }
+          if text(&t, "status") == "linked" && !text(&t, "rootId").is_empty() && !text(&t, "relPath").is_empty() && (!thumbs.contains(&id) || !waves.contains(&id)) { let name = Some(text(&t, "title")).filter(|s| !s.is_empty()).unwrap_or_else(|| text(&t, "fileName")); todo.push((p.clone(), c.clone(), id, name)); }
         }
       }
     } }

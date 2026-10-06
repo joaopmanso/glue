@@ -35,6 +35,9 @@ export class FakeHome {
   /** Requests refused to the read-only token. */
   refused: string[] = [];
   readonly device = 'e2e-home';
+  /** The version it says it is: with its engine, one that reads new songs' tags in its queue (0.56, ADR 0157), so the
+      website leaves them to it; without, one from before. */
+  get version() { return this.opts.engine ? '0.56.0' : '0.37.0'; }
   /** Paths asked for, in order (to see which disk the page uses). */
   calls: string[] = [];
   /** Files sent (/fs/file), by path in their root; " (part)" for a byte range. */
@@ -177,9 +180,9 @@ export class FakeHome {
     if (method === 'OPTIONS') return send(204, '');
     // The same version as /connect: an older one (it said 0.5.0) made the page say "needs GLUE Home 0.12" when its
     // /hello came first (CI, 2026-10-02).
-    if (u.pathname === '/hello') return send(200, { app: 'glue-home', version: '0.37.0', device: this.device, playPort: this.playPort });
+    if (u.pathname === '/hello') return send(200, { app: 'glue-home', version: this.version, device: this.device, playPort: this.playPort });
     // A GLUE page on this computer takes the link (ADR 0115).
-    if (u.pathname === '/connect') return /^http:\/\/localhost:517\d$/.test(origin) ? send(200, { home: this.device, port: this.port, playPort: this.playPort, token: this.token, version: '0.37.0' }) : send(403, { error: 'not allowed' });
+    if (u.pathname === '/connect') return /^http:\/\/localhost:517\d$/.test(origin) ? send(200, { home: this.device, port: this.port, playPort: this.playPort, token: this.token, version: this.version }) : send(403, { error: 'not allowed' });
     const reading = q.get('t') === this.readToken;
     if (q.get('t') !== this.token && !reading) return send(401, { error: 'not allowed' });
     if (reading && ['/fs/write', '/fs/mkdir', '/fs/remove', '/fs/tags', '/fs/dupes', '/incoming/move'].includes(u.pathname)) { this.refused.push(u.pathname); return send(403, { error: 'read only' }); }

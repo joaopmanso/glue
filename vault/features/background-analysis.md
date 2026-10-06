@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-10-02
-adrs: [0006, 0009, 0019, 0024, 0103, 0109, 0110, 0147]
+updated: 2026-10-06
+adrs: [0006, 0009, 0019, 0024, 0103, 0109, 0110, 0147, 0154, 0157]
 ---
 # Background analysis
 
@@ -10,6 +10,12 @@ adrs: [0006, 0009, 0019, 0024, 0103, 0109, 0110, 0147]
 Analyses every track in the background (quality verdict and tier, bandwidth, effective bit depth,
 BPM, key, tuning, fingerprint) so the table can sort and filter by them, without the user waiting or
 the UI stuttering.
+
+## Now (GLUE Home 0.56, ADR 0157)
+- With GLUE Home, one pipeline: a folder added is listed once and its songs added as not analysed; GLUE Home's queue
+  reads each new song's tags (only them), then analyses the songs, then makes the background's thumbnails for other
+  devices, every file read inside "songs at a time", every job in the window's meter and list. Songs another device
+  waits for, or a tab asks for, go first.
 
 ## Behaviour
 - Queue = tracks with no analysis or an older `analysisVersion`. New tracks go first.

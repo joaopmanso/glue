@@ -160,7 +160,7 @@ fn the_queue_analyses_a_song_and_puts_it_into_the_library() {
   assert!(ev.iter().any(|x| x == "Analysis done: 1 song, 1 couldn’t be read"), "{ev:?}");
   assert_eq!(h.0.lock().unwrap().analysis["done"], json!(1));
   // Nothing left: a second look analyses nothing.
-  e.analysis_added();
+  e.analysis_stale();
   std::thread::sleep(std::time::Duration::from_millis(500));
   assert_eq!(h.0.lock().unwrap().made.len(), 1);
 }
@@ -189,4 +189,81 @@ fn a_collection_deleted_from_the_account_is_backed_up_and_put_away() {
   h.0.lock().unwrap().cloud.clear();
   let _ = command(&e, &json!({ "cmd": "syncShared" }));
   assert_eq!(h.0.lock().unwrap().cloud[0], "GET /v1/shared/c1/log?since=0");
+}
+
+/// Never more songs read or analysed at once than the settings say (the user, 2026-10-06: GLUE Home's meter showed
+/// about 30 reading while 8 analysed).
+#[test]
+fn the_queue_never_reads_more_than_its_number() {
+  let (glue, cache, music) = (temp("limit"), temp("limit-cache"), temp("limit-music"));
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Music" }] }));
+  let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/mp3-128k.mp3");
+  let mut items = serde_json::Map::new();
+  for i in 0..40 {
+    let name = format!("s{i:02}.mp3");
+    std::fs::copy(&fixture, music.join(&name)).unwrap();
+    let id = format!("ab{i:02}");
+    items.insert(id.clone(), json!({ "id": id, "fileName": name, "status": "linked", "rootId": "r1", "relPath": name, "size": 1, "mtime": 1, "addedAt": format!("2026-01-01T00:00:{i:02}.000Z"), "sources": [] }));
+  }
+  put(&glue, &format!("{C}/tracks/ab.json"), json!({ "schemaVersion": 1, "items": items }));
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": music.to_string_lossy() }, "analysisWorkers": 4 });
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  e.run_analysis();
+  let (mut most, mut most_running) = (0i64, 0u64);
+  for _ in 0..1200 {
+    let s = e.analysis_json();
+    let busy = s["steps"]["reading"].as_i64().unwrap() + s["steps"]["analysing"].as_i64().unwrap();
+    most = most.max(busy);
+    most_running = most_running.max(s["running"].as_u64().unwrap());
+    if s["done"].as_u64() == Some(40) { break; }
+    std::thread::sleep(std::time::Duration::from_millis(5));
+  }
+  assert_eq!(e.analysis_json()["done"], json!(40));
+  assert!(most <= 4 && most_running <= 4, "at most 4 at once: {most} reading or analysing, {most_running} running");
+}
+
+/// One pipeline (ADR 0157): songs a tab's scan adds (no tags read) are queued by the edit itself, their tags read first
+/// and put into the library, then analysed, never more at once than the settings say, and the window's list never
+/// shows more songs than run; nothing looks through the collection again.
+#[test]
+fn songs_added_get_their_tags_then_their_analysis_within_the_number() {
+  let (glue, cache, music) = (temp("pipe"), temp("pipe-cache"), temp("pipe-music"));
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Music" }] }));
+  let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/mp3-cover.mp3");
+  let want = glue_engine::tags::read_info(&fixture).unwrap();
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": music.to_string_lossy() }, "analysisWorkers": 2 });
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  // GLUE Home started: nothing in the collection yet.
+  e.run_analysis();
+  for _ in 0..200 { if e.analysis_json()["running"] == json!(0) { break; } std::thread::sleep(std::time::Duration::from_millis(10)); }
+  // A tab's scan adds six songs, as the website does with GLUE Home 0.56: no tags read, the title empty.
+  let ts: Vec<Value> = (0..6).map(|i| {
+    let name = format!("{i:02} Someone - Song {i}.mp3");
+    std::fs::copy(&fixture, music.join(&name)).unwrap();
+    json!({ "id": format!("ab{i}"), "fileName": name, "title": "", "artist": "", "status": "linked", "rootId": "r1", "relPath": name, "size": 1, "mtime": 1, "addedAt": format!("2026-01-01T00:00:0{i}.000Z"), "sources": [] })
+  }).collect();
+  e.rpc(&json!({ "op": "edit", "p": "p1", "c": "c1", "ops": [{ "m": "tracks", "ts": ts }] })).unwrap();
+  let (mut most, mut names_over) = (0i64, false);
+  for _ in 0..3000 {
+    let s = e.analysis_json();
+    most = most.max(s["steps"]["reading"].as_i64().unwrap() + s["steps"]["analysing"].as_i64().unwrap()).max(s["running"].as_i64().unwrap());
+    if s["current"].as_array().unwrap().len() as u64 > s["running"].as_u64().unwrap() { names_over = true; }
+    if s["done"].as_u64() == Some(6) && s["running"] == json!(0) { break; }
+    std::thread::sleep(std::time::Duration::from_millis(5));
+  }
+  assert_eq!(e.analysis_json()["done"], json!(6), "all six analysed");
+  assert!(most <= 2, "at most 2 at once (tags or analysis): {most}");
+  assert!(!names_over, "the window's list never names more songs than run");
+  let t = read(&glue, &format!("{C}/tracks/ab.json"))["items"]["ab0"].clone();
+  let title = want["title"].as_str().filter(|s| !s.is_empty()).unwrap_or("Song 0");
+  assert_eq!(t["title"], json!(title), "the title from its tags (or its name)");
+  // The tags were in the library before the analyses were (the window's rows showed them first): one save of the
+  // tracks happened before any analysis was written.
+  assert!(h.0.lock().unwrap().edited.iter().any(|p| p.iter().all(|x| x.starts_with("tracks/"))), "{:?}", h.0.lock().unwrap().edited);
 }

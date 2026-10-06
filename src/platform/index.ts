@@ -270,6 +270,8 @@ export async function cleanDuplicates(mode: 'move' | 'trash', items: { root: Roo
   try { return (await disk.dupes(mode, named)).results; }
   catch (e) { throw (e as Error).name === 'NotFoundError' ? new Error('Cleaning up duplicates needs GLUE Home 0.11 or later: it updates itself, or download it again.') : e; }
 }
+/** GLUE Home reads new songs' tags itself, in its analysis queue (0.56, ADR 0157): the website's scan doesn't. */
+export const homeReadsTags = () => homeMode() && !!disk && !!homeVersion && !older(homeVersion, '0.56.0');
 /** A music file's address on GLUE Home's local link (Home mode): read in parts, with byte ranges. `play`: a song to
     play, on GLUE Home's port for songs (ADR 0141). */
 export async function fileLink(root: Root, path: string, play = false): Promise<string | null> {

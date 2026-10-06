@@ -70,6 +70,15 @@ impl Dir for MemDir {
 
 /// A folder on disk. Writes go to a temporary file renamed into place (a reader never sees half a file).
 pub struct FsDir { pub root: PathBuf }
+
+/// A temporary file of its own for each write: two writers of the same file at once (an album's songs analysed together
+/// share their cover's files) each rename theirs into place; with one name, the second found none ("cannot find the
+/// file") and its song failed (ADR 0157).
+fn temp_for(p: &Path) -> PathBuf {
+  static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+  let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+  p.with_extension(format!("{}.{}-{n}.tmp", p.extension().and_then(|e| e.to_str()).unwrap_or(""), std::process::id()))
+}
 impl FsDir {
   fn at(&self, path: &str) -> Result<PathBuf, String> {
     if path.split('/').any(|p| p == ".." || p == ".") { return Err("bad path".into()); }
@@ -87,7 +96,7 @@ impl Dir for FsDir {
   fn write(&self, path: &str, text: &str) -> Result<(), String> {
     let p = self.at(path)?;
     if let Some(d) = p.parent() { std::fs::create_dir_all(d).map_err(|e| e.to_string())?; }
-    let tmp = p.with_extension(format!("{}.tmp", p.extension().and_then(|e| e.to_str()).unwrap_or("")));
+    let tmp = temp_for(&p);
     std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &p).map_err(|e| e.to_string())
   }
@@ -102,7 +111,7 @@ impl Dir for FsDir {
   fn write_bytes(&self, path: &str, data: &[u8]) -> Result<(), String> {
     let p = self.at(path)?;
     if let Some(d) = p.parent() { std::fs::create_dir_all(d).map_err(|e| e.to_string())?; }
-    let tmp = p.with_extension(format!("{}.tmp", p.extension().and_then(|e| e.to_str()).unwrap_or("")));
+    let tmp = temp_for(&p);
     std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &p).map_err(|e| e.to_string())
   }
@@ -114,5 +123,21 @@ impl Dir for FsDir {
     let mut out: Vec<String> = rd.flatten().filter(|e| e.file_type().map(|t| t.is_dir() == dirs).unwrap_or(false)).map(|e| e.file_name().to_string_lossy().into_owned()).collect();
     out.sort_by(|a, b| json::utf16_cmp(a, b));
     Ok(out)
+  }
+}
+
+#[cfg(test)]
+mod same_file_at_once {
+  use super::*;
+  /// Many writers of one file at once all succeed, and the file is whole (one of theirs).
+  #[test]
+  fn writers_of_one_file_at_once() {
+    let root = std::env::temp_dir().join(format!("glue-store-race-{}", std::process::id()));
+    let d = FsDir { root: root.clone() };
+    std::thread::scope(|s| { for i in 0..16 { let d = &d; s.spawn(move || { for _ in 0..20 { d.write_bytes("a/x.jpg", &[i as u8; 4096]).unwrap(); } }); } });
+    let b = d.read_bytes("a/x.jpg").unwrap().unwrap();
+    assert!(b.len() == 4096 && b.iter().all(|x| *x == b[0]));
+    assert!(std::fs::read_dir(root.join("a")).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().ends_with(".tmp")), "no temporary file left");
+    let _ = std::fs::remove_dir_all(&root);
   }
 }

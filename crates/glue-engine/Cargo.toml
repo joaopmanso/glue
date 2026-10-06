@@ -12,6 +12,8 @@ glue-store = { path = "../glue-store" }
 indexmap = "2"
 # The cover look-up (covers.rs, names.rs): names compared as the website does.
 regex = "1"
+# A song's tags read without its audio (tags.rs, ADR 0157): GLUE Home's own reader, the analysis queue's first step.
+lofty = "0.25"
 unicode-normalization = "0.1"
 # The shared sync (ADR 0155): packed texts, and the snapshot's hashes.
 base64 = "0.22"

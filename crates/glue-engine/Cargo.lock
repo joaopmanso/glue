@@ -228,6 +228,7 @@ dependencies = [
  "glue-audio",
  "glue-store",
  "indexmap",
+ "lofty",
  "regex",
  "serde_json",
  "sha2",

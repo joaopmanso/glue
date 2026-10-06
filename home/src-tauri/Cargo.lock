@@ -1855,6 +1855,7 @@ dependencies = [
  "glue-audio",
  "glue-store",
  "indexmap 2.14.2",
+ "lofty",
  "regex",
  "serde_json",
  "sha2",
@@ -1863,7 +1864,7 @@ dependencies = [
 
 [[package]]
 name = "glue-home"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "glue-audio",
  "glue-engine",
