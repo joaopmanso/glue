@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 # Handoff: where things stand
 
@@ -21,227 +21,151 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - don't restart or touch the running GLUE Home;
   - deleting cloud data needs the user's go-ahead;
   - the old `sync_*` D1 tables stay.
+- **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): the plan below is approved; carry it
+  on batch by batch, each released when its checks pass.
 
-## State (2026-10-02)
-- **Live:** site, GLUE Cloud (migrations up to 0011), GLUE Home 0.49.0 (analyses and streams natively, DSD, ADR
-  0147–0150).
-- **Confirmed by the user on the desktop, the laptop, Edge and the phone** (ADRs 0108–0115):
-  - one id per computer;
-  - one meaning of "not analysed", GLUE Home's analyses on screen, folders taking their songs;
-  - the account's collections;
-  - profiles as every device's aliases;
-  - any browser on the computer using GLUE Home.
-- **The evening's bug list, shipped, not hand-tested yet:**
-  - the library: its place kept, name links, unreadable songs only in "Couldn't analyse", playlist numbers always
-    shown, "Lower quality", the phone's count, the Overview's background;
-  - quality: a quiet top end is still hi-res, and upsamples that passed are caught (ADR 0116);
-  - duplicates: versions kept apart, "Keep · not a duplicate", "Mark as duplicates" (ADR 0117);
-  - content beyond a wall without frequent drop-outs is "Lossless" (ADR 0119, superseding 0118); the analysis bar
-    shows GLUE Home's queue; Duplicates' buttons no longer overlap;
-  - songs that failed on the desktop leave the library on every device; Overviews and covers load for the rows on
-    screen, newest first;
-  - only the best copy shows and is used (playlists rewritten), Duplicates filters by type and certainty with a bulk
-    removal that sets aside doubtful groups (ADR 0120); GLUE Home builds once per change (no tags);
-  - an optional main music folder decides the best copy among equals (ADR 0121);
-  - a found DJ library is listed once (it was four times: the same m.db reached by several ways), and × takes one off
-    the list; Engine DJ's databases on C:, F: and G: are one entry ("+ 2 more drives"), imported together;
-  - GLUE Home 0.38.0: a dropped folder is found by GLUE Home (it was searched for per song and never analysed); a
-    folder inside a music folder isn't added; Stop stops everything and hands the library to the browser (ADR 0122);
-  - GLUE Home 0.39.0: network folders that come and go (a tester, jbvidigal, on a Mac with all music on Wi-Fi shares):
-    away folders' songs wait instead of going missing or failing; errors say what's wrong (ADR 0123);
-  - "No file linked" matches songs with no file to the library's, with a certainty, and links them in bulk; links
-    survive Engine DJ's next read (ADR 0124);
-  - GLUE Home 0.40.0: a song dragged onto the library is found by GLUE Home (in a music folder it's that folder's
-    song) and analysed; the tab analyses what only it can read; the "waiting" count no longer cycles (ADR 0125);
-  - Gluey, batch 1 of 3 (ADR 0126, `vault/features/guide.md`, the plan in `~/.claude/plans/warm-stargazing-raccoon.md`):
-    the first tour once per person, the offer for people from before him, his corner button, "Take the tour again";
-  - Gluey, batch 2 (GLUE Home 0.40.1): the help centre (18 articles, `#/help`), a tour per feature, first-visit
-    tips;
-  - batch 3: the new homepage, with media recaptured (`scripts/demo/`).
-- **graphify** (ADRs 0127, 0128, CLAUDE.md "graphify"): a code map for coding sessions.
-  - **CI** publishes it for every push to `main` (branch `graphify`); `node scripts/graph.mjs fetch` gets it, and a
-    session-start hook does that on a computer without one.
-  - **Both computers:** uv (`~/.local/bin`, not on Claude Code's PATH: `export PATH="$HOME/.local/bin:$PATH"`),
-    `graphifyy[sql]` 0.9.73 and the git hooks are installed (the laptop since 2026-10-02: there, Windows PowerShell 5
-    can't run uv's installer, PowerShell 7 can; `graphify-out/.graphify_python` written by hand).
-  - **The docs part** is refreshed by every session that changes docs (ADR 0129, CLAUDE.md "After working");
-    `vault/log/` isn't in it.
-  - **Its view:** https://joaopmanso.github.io/glue/graph/ (and `graphify-out/graph.html` locally).
+## State (2026-10-06)
+- **Live:** the site, GLUE Cloud (migrations up to 0011), **GLUE Home 0.54.0**. Nothing uncommitted; `main` is at
+  `f19fe4a` (check its CI: the e2e run was still going when this was written).
+- **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
+  the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
+  - **W1, the GLUE window** (0.50, ADR 0151): done.
+  - **E1, the store in Rust** (`crates/glue-store`, ADR 0152) and **E2, the engine** (`crates/glue-engine`, `/rpc` in
+    Rust, ADR 0153): done. They shipped in 0.53 (0.52 was never published: its macOS build failed a test).
+  - **E3, the analysis queue** (`queue.rs`, `library.rs`, `analyse.rs`, ADR 0154): done, 0.53.0.
+  - **0.53.1:** the GLUE window was white and froze GLUE Home when opened from the settings' "Open GLUE library" or
+    the tray (since 0.50). Fixed and checked on the laptop.
+  - **E4a, the shared sync** (`sync.rs`, `shared.rs`, `glue_store::merge3`, ADR 0155): done, 0.54.0.
+  - **E4b and E5:** next (below).
+- **What's still JavaScript in GLUE Home** (`home/ui`, the hidden service page `service.ts`, about 500 lines):
+  - the signaling room (`cloud.ts` `stayOnline`);
+  - the sessions with other devices (`sessions.ts`) and the offers' glue to Rust's connections (`rtc_answer`…);
+  - the answers to other devices' requests (`onRequest` in `service.ts`: thumbs, waves, details, have, art,
+    find-art with `lookup.ts`, incoming, cache, analysis, local, folders, get-incoming, move-incoming);
+  - `cache.ts` `soon`/`background` (songs analysed for another device, the background thumbnails);
+  - identity (`identity.ts`), ICE (`ice.ts`);
+  - backups, moves, reminders, updates, verify, tokens and config, the status to the settings window (E5).
+  - The engine is reached from there through one Tauri command, `engine_cmd` (`home/ui/engine.ts` wraps it).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
-- **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them). The
-  `joaopmanso/mco` repo is deleted.
-- **Probing a real file:** ffmpeg is on the desktop's PATH. Decode the file to f32le, run
-  `runJob({ type: 'float', … })` and `classify` (from `src/core/audio`), and print the verdict and the long-term
-  spectrum. That's how ADR 0116 was measured; keep the probe out of the repo.
+- **graphify** (ADRs 0127–0129): the code map; CI publishes it for every push (branch `graphify`), its view at
+  https://joaopmanso.github.io/glue/graph/. On both computers uv is in `~/.local/bin` (not on Claude Code's PATH:
+  `export PATH="$HOME/.local/bin:$PATH"`).
+- **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **GLUE Home 0.54.0: the shared sync in Rust** (ADR 0155): the laptop and the desktop's changes should still meet as
-  before (a rating on one shows on the other); the desktop's numbers in the account's list; a collection deleted on one
-  computer put away on the other with a backup.
-- **GLUE Home 0.53.1: the GLUE window from the settings or the tray** (it was white and froze GLUE Home on 0.53.0,
-  and since 0.50). Open it both ways; the 0.50 window checklist below still stands.
-- **GLUE Home 0.53.0, the library engine and the analysis queue in Rust** (ADR 0152–0154; 0.52 wasn't published):
-  nothing should look different. Edits in the window or a tab (a rating, a playlist, removing songs), the analysis
-  (its speed, Stop, Analyse now, a folder found by itself, a network folder waiting) and a shared collection's sync now
-  go through Rust; anything odd there is a regression. The first time it opens the shared collection on a
-  computer whose parts were written under another id, it makes `backups/pre-repair-…zip` first (as before).
-- **GLUE Home 0.50.0, the GLUE window** (ADR 0151). Hand test:
-  - the tray icon opens GLUE in its own window, and the library comes from GLUE Home;
-  - drop a folder or a song on it;
-  - export to rekordbox (the file appears in Downloads);
-  - sign in (once, the window's own): Google's popup, or email;
-  - play;
-  - "Open the library in" › My browser goes back to the browser.
-- **The native engine and native streaming: confirmed by the user, 2026-10-03** (GLUE Home 0.49.3, ADR 0147–0150):
-  - "analysing over 100 songs per minute";
-  - the check "looks great";
-  - the phone streams and uploads songs.
-  - Still to see: the iPhone on mobile data (the relay), if not tried yet.
-  - The three test songs in the laptop's Downloads are the user's: delete them when done.
-- **GLUE Home 0.48.0** (ADR 0149): the 342 ALAC M4As and 91 DSF files should be analysed (the queue's "left" goes up
-  by about 433 once, then down). Look at a few DSD songs' verdicts: they'll mostly read "Genuine hi-res" (DSD's noise
-  shaping), even one made from a CD master; which ones look wrong is what a DSD rule would be tuned on.
-- **GLUE Home 0.47.0:** send a song to the desktop (TO BE SORTED should show its analysis), and covers should still
-  appear (from tags, and looked up for songs without).
-- **Today's three batches (2026-10-02, the laptop's session):**
-  - **"Syncing…" on the laptop:** hover the chip after a long "Syncing…": its tooltip says where the time went
-    (saving, from and to GLUE Cloud, reading what it wrote, how many in a row). Fix the part it names.
-  - **Duplicates** (ADR 0145): new "probable" groups of one recording under release labels ("Album Version",
-    "Remastered 2009", "Mono"); mixed groups split ("When We Dance": the edit apart from the long mix). No file linked:
-    "INGOT_HM" and "Eazy Baba … PRE_MASTER" now have suggestions.
-  - **The library in parts** (ADR 0146): nothing should look different; anything odd in opening, scanning, playing or
-    analysing is a regression.
-- **GLUE Home 0.43.0** (ADR 0144): after it updates, the 7 songs (John Coltrane's *Blue Train* and two more, NAS "Music
-  HR") should be analysed (it tries again after a restart, and GLUE decodes FLAC itself now). The tab's "7 analysing"
-  should go. A song that still fails shows in "Couldn't analyse" with why.
-- **The laptop** (ADR 0143, website): the desktop's network-folder songs should show without choosing the profile
-  again; Chrome's console should have `/hello` errors once on opening, not every 15 s.
-- **Alt+Tab's ghosts** (laptop: "GLUE Home service" ×4, "GLUE Home", "GLUE · Global Library…", one untitled):
-  Edge's tabs from the e2e test browsers, handed to Windows' Alt+Tab (`msWindowTabManagerPublic`), kept by Explorer
-  (running since 2026-09-24). Not reproduced with Edge 154.0.4258.48; test browsers now run with it off (`EDGE_ARGS`).
-  - **The user:** restart Explorer (Task Manager › Windows Explorer › Restart) on the laptop and the desktop; the
-    ghosts should go and not come back after test runs.
-- **Waveforms after jumps** (ADR 0142, website only): drag the scroll bar about 5,000 songs down and again, 3 or 4
-  times. Every row on screen should get its waveform as soon as the others, no block left empty.
-- **GLUE Home 0.42.2** (ADR 0141): **confirmed** by the user, 2026-10-02: "the playing is great, it's very fast".
-  - **If it's still slow:** has F: been idle for 20 minutes or more? It's a hard disk that Windows turns off then
-    (power plan "Turn off hard disk after": 20 min), and spinning up is the drive's time, not GLUE's.
-  - **Measured:** the WAV (`F:\Music\X (PREVIEW MASTER ONLY).wav`, 52 MB) played through the local link in 0.4 s
-    from a test browser of its own.
-- **GLUE Home 0.42.1** (ADR 0140): with the NAS folder analysing, songs played start in seconds (the user: a NAS song
-  in under 2 s, 2026-10-02).
-- **GLUE Home 0.42.0** (ADR 0139): scroll the library to a part not loaded yet (the scroll bar 30–40 % down). The songs
-  on screen should stay put while waveforms and covers fill in. Click songs in a row while the NAS folder analyses.
-- **GLUE Home 0.41.6** (ADR 0138): with the NAS folder analysing, click several songs in a row. They should play, and
-  the direct link should stay. Then compare the Speed panel's MB/s from network folders with before (10 MB/s; the NAS
-  gave 47–74 to plain reads).
-- **The analysis starving GLUE Home** (ADR 0137): **settled by 0.41.5.** The user confirmed the desktop keeps its
-  direct link and the iPhone streams with 24 at a time and network folders at 4.
-  - **Measured during it:** GLUE Home's `/hello` answered in 2 to 4 ms. Its analysis process used about a quarter of
-    the machine (4 threads busy, the main thread about 11%). The network took 185 Mbit/s of a gigabit link.
-  - **So it was the page's impatient link check and its fallback session to its own GLUE Home,** not the processor
-    or the network.
-  - **The Speed panel:** 6 reading, 2 analysing; a song 31.8 s reading, 16.5 s analysing. The NAS is the limit
-    (two NAS folders at 4 each).
-- **Analysis on the desktop** (GLUE Home 0.41.2, ADR 0135):
-  - the tab's "left" and GLUE Home's window should match;
-  - a new big folder's "Reading tags…" should move in steps of 200;
-  - with the NAS folder and local folders both waiting, the processor should go well above 60%;
-  - the NAS folder alone is network-bound (about 1,500 hi-res songs an hour).
-  - The network cap is the user's now (0.41.3, ADR 0136): "From each network folder at a time", with the speed and a
-    suggestion in GLUE Home's window (0.41.4: a panel, Activity › Speed). Ask what it shows with the NAS and local folders
-    analysing.
-- **Network folders** (GLUE Home 0.41.1, ADR 0134):
-  - **Windows:** drop a network folder. The page says "Looking for…", then "Choose … in GLUE Home's window" after
-    about 5 s.
-  - **The Mac (jbvidigal):** + Folder on "Música" should scan; anything unreadable is named in the message.
-  - **Open:** whether GLUE Home analyses that Mac's songs (they seemed to be analysed in the browser). If not, ask for
-    the Activity text in GLUE Home's window ("which computer this is isn't known yet"?).
-- **Sessions** (GLUE Home 0.41.0, ADR 0133): after the desktop updates, GLUE Home's window › Service › Devices
-  connected should list the laptop's and phone's tabs.
-  - **Real time:** a song not analysed yet on the desktop should get its waveform on the laptop as soon as the
-    desktop analyses it, with no scrolling.
-  - **Full:** with "Most at once" at 1, a second device is told it's full.
-  - **Sending songs** from the laptop goes over the session.
-- **GLUE Home 0.40.2 on the desktop** (ADR 0132): the desktop's GLUE Home was at its limit of connections. Update
-  it, or Stop and Start it. Then the laptop should connect again: waveforms on the first screen, and songs play.
-  The iPhone's song pages should open.
-- **The first screen's waveforms on the laptop** (ADR 0131, not hand-tested yet): open the collection fresh on
-  the laptop (desktop on). The first screen's Overviews and covers should fill in as soon as the desktop answers,
-  without scrolling.
-- **A song on two computers is one song** (ADR 0130, not hand-tested yet):
-  - **the reported song:** open the collection on the desktop. The song sent from the laptop should be one row
-    showing both computers, no longer in Duplicates;
-  - **older pairs:** the first open may also join older pairs (the same file in both computers' music folders).
-    With more than 10, a backup is made first (`backups/pre-join-copies-…zip`). The console says how many joined;
-  - **a new send:** send another song from the laptop; on the desktop it should go straight onto the laptop's song.
-- **Browse the code map** at https://joaopmanso.github.io/glue/graph/ after this push's deploy.
-- Hand-test the evening's list:
-  - after the collection opens, the Doechii 24/88.2 album should read "Genuine hi-res" (stored verdicts are judged
-    again on open);
-  - Duplicates' new buttons;
-  - "DJ libraries found" shows one Engine DJ library (+ 2 more drives); Add imports all three, × removes the set;
-  - after GLUE Home updates to 0.38.0: drop a new folder onto the library, it's analysed by GLUE Home; Stop makes the
-    browser take over, Start takes it back. The "2025" music folder (inside "Music Collection", no songs of its own)
-    can be removed.
-  - jbvidigal (Mac, 0.39.0): the "needs 0.12" popup should be gone; if a share is down, one calm line instead. If
-    GLUE Home's window still shows songs waiting to go into the library, it now says why; ask for that line.
-  - "No file linked" on the Engine DJ import: link the sure ones (95 %+) in bulk, check a few doubtful ones.
-  - After GLUE Home 0.40.0: drag a song from a music folder onto the library; it should show as that folder's and be
-    analysed by GLUE Home. "Odessa" (added on its own before the fix) can be removed and dropped again.
+- **GLUE Home 0.53.1 / 0.54.0** (updates itself within 6 hours, or the settings' update check):
+  - **the GLUE window**, opened both ways (the tray, and "Open GLUE library" in the settings): it should show GLUE, not a
+    white page. Then the 0.50 checklist: drop a folder or a song on it; export to rekordbox (the file in Downloads);
+    sign in (once, the window's own: Google's popup, or email); play; "Open the library in" › My browser goes back to
+    the browser;
+  - **the engine in Rust** (0.53, ADR 0152–0154): nothing should look different. Edits (a rating, a playlist, removing
+    songs), the analysis (its speed, Stop, Analyse now, a folder found by itself, a network folder waiting); anything
+    odd is a regression. The first open of a shared collection whose parts were written under another id makes
+    `backups/pre-repair-…zip` first (as before);
+  - **the shared sync in Rust** (0.54, ADR 0155): a change on one computer still reaches the other; the desktop's
+    numbers in the account's list; a collection deleted on one computer put away on the other with a backup.
+- **Confirmed by the user, 2026-10-03** (0.49.3): native analysis "over 100 songs per minute", the check "looks great",
+  the phone streams and uploads. Still to see: the iPhone on mobile data (the relay). The three test songs in the
+  laptop's Downloads are the user's: delete them when done.
+- **Older, not hand-tested yet** (details in the changelog by version):
+  - 0.48.0: the 342 ALAC M4As and 91 DSF files analysed; a few DSD verdicts looked at (they mostly read "Genuine
+    hi-res": DSD's noise shaping), to tune a DSD rule on;
+  - 0.47.0: a song sent to the desktop shows its analysis in TO BE SORTED; covers still appear;
+  - 2026-10-02's batches: "Syncing…" on the laptop (the chip's tooltip says where the time went: ask for it),
+    Duplicates' release-label groups (ADR 0145), the library in parts (ADR 0146);
+  - 0.43.0: the 7 songs of NAS "Music HR" analysed, or in "Couldn't analyse" with why (ADR 0144);
+  - the laptop's network-folder songs without choosing the profile again (ADR 0143);
+  - Alt+Tab's ghosts: restart Explorer on both computers; they shouldn't come back after test runs;
+  - waveforms after big scroll jumps (ADR 0142); a new big folder's "Reading tags…" in steps of 200, the Speed panel
+    (ADR 0135, 0136); network folders dropped on Windows and on jbvidigal's Mac (ADR 0134); sessions and "Most at
+    once" (ADR 0133); a song on two computers is one row (ADR 0130); the first screen's waveforms on the laptop (ADR
+    0131); the evening list of 2026-10-01 (hi-res verdicts on open, Duplicates' buttons, DJ libraries listed once,
+    Stop/Start handing the library over, "No file linked" in bulk, a dropped song analysed by GLUE Home).
 
 ## Next
-- **The native engine (ADR 0147), batches after 0.44:**
-  - **B2: done (0.45.0).** Gate: the desktop's check (Waiting on the user).
-  - **B3: done (0.46.0, ADR 0148).**
-  - **B4: done (0.47.0).**
-  - **B5: done (0.48.0, ADR 0149)** but streaming decode from disk: a song is still read whole into memory (a
-    543 MB FLAC needs about 1.5 GB while it's analysed). Left for when it shows: decoding FLAC/WAV/AIFF straight from
-    the file (`decode_flac` already reads ranges) and keeping the samples f32;
-  - **The next phase** (plan `i-have-activated-plan-composed-turing.md`): W1 the GLUE window (0.50, done), then the
-    engine in Rust: E1 the store (`crates/glue-store`, goldens) and E2 the engine and `/rpc` (`crates/glue-engine`, the e2e
-    tests against it), E3 the analysis queue (`queue.rs`, `library.rs`): done, 0.53 (ADR 0152–0154). E4a the shared sync
-    (ADR 0155): done, 0.54. Then E4b (signaling, sessions and the answers to other devices with
-    `cache.soon`/`background`, identity, ICE), E5 the rest and the service page removed.
-  - **B6: done (0.49.0, ADR 0150).** Next, when the GLUE window comes: the queue and the library's answers in Rust,
-    then the service page removed.
-  - **After the desktop's second check:** fix what its named fields show (suspected: the stored `d/` headers are older
-    than their results); the Deftones MP3 (a shifted decode: ask for the file if it's still there).
-  - **DSD verdicts:** tune a DSD rule on the user's 91 songs once they're analysed (ADR 0149: noise shaping reads as
-    hi-res).
-  - **TURN from Rust** is untested from outside the home network (ADR 0150): if the iPhone on mobile data can't
-    connect, look at webrtc-rs's TURN (UDP should work; `turns:` over TCP may not be used).
-- **The socket** is in (GLUE Home 0.42, ADR 0139). Covers still come over HTTP: the next to move onto it if they show
-  in the numbers.
-- **From the code map** (function names defined in several files, 2026-10-01; the loaders and copy names are done):
-  - done 2026-10-02: one rule for names (ADR 0145), the library in parts (ADR 0146), `sha256`, the ICE cache, the
-    worker getters.
-  - **performance, measure before changing:** `?perf` on the laptop's first load (the store's open time, the
-    rows' cost).
-- **Bug, found 2026-10-02 (ADR 0146):** a song of the shared collection can reach another computer without `copies`
-  (seen: an unlinked rekordbox record, imported on the desktop just before it shared the collection). There it has no
-  import path or DJ library of its own and isn't another computer's either, so the "no file" bar
-  (`core/library/removal.ts` `orphans`) offers to remove it. Find who writes the local form into a shared shard
-  (around `share` / `makeShared` and the first push), and make `toLocal` treat a song without copies as nobody's here.
-  Reproduce: `e2e/shared.spec.ts` "the desktop's DJ library", with the library's fields regrouped (1 run in 7).
+### E4b: the rest of the cloud side in Rust (0.55.0, ADR 0156)
+What `service.ts` still does with other devices moves into the engine, so the service page keeps only E5's parts.
+Suggested in two steps, each released and tested on its own:
+1. **The answers and the helpers** (signaling stays in JavaScript for now):
+   - Rust's connections (`crates/glue-rtc`, host `home/src-tauri/src/rtc.rs`) answer the requests themselves instead of
+     emitting `rtc-request` to the service page: thumbs, waves, details (with `PENDING` and `cache.soon`), have, art
+     and find-art (port `home/ui/lookup.ts`, `web_get`'s rules in `web.rs`), incoming, cache, analysis
+     (`engine.analysis_ask`), local, folders, get-incoming, move-incoming;
+   - `cache.ts` `soon`/`background` into the engine (the background's "busy" means a session is serving or receiving:
+     Rust knows that now);
+   - identity (`identity.ts` `whoAmI`, `/v1/computer`, `/v1/computer/attach`) and ICE (`/v1/turn`, cached as
+     `src/core/ice.ts` does) through `Host::cloud`.
+2. **The signaling room and the sessions:** `stayOnline` (tungstenite is already a dependency: the access token, ping
+   every 30 s, renew at 50 min, backoff 1–60 s, close codes 4000 replaced / 4001 removed / 4002 renew), the session
+   rules (`sessions.ts`: `admit`, `maxOf`, `sessionKey`, the refusals for an hour), the offers handed to glue-rtc, a
+   `shared` push starting a sync, `presence`.
+
+**The e2e tests need the same move.** Today the service page's signaling is intercepted with Playwright's
+`routeWebSocket`, and GLUE Home's connections are stood in by the browser's (`e2e/home-rtc.ts` via `tauri-mock.ts`).
+Once Rust opens the socket and answers offers:
+- relay the room through the test engine's JSON-lines protocol, like `fake.cloud`: the engine says
+  `{"call": n, "ws": …}`, `e2e/fakeHome.ts` hands it to the test's existing `room(me)` function with a duck-typed
+  socket (`send`, `onMessage`, `close`);
+- link `glue-rtc` into the test engine so a phone test's browser talks to webrtc-rs for real (glue-rtc is already
+  checked against Edge: `scripts/rtc-probe.mjs`). The tests to move: `phone.spec.ts`, `computers.spec.ts`,
+  `library.spec.ts` (send songs, hand-over, the local link), `identity.spec.ts`, `home.spec.ts`.
+
+### E5: the rest, and the service page removed (0.56.0)
+Backups (`backups.ts`, `glue_store::backup` has the zip already), moves (`moves.ts`), reminders (`reminders.ts`, its
+memory in GLUE Home's settings, notifications from Rust), updates (`updates.ts`, the updater from Rust), verify
+(`verify.ts`), tokens and config (`patchConfig` atomic in Rust), the status and events straight to the settings
+window. Then remove the `service` window and its modules; `tests/homeBundle.test.ts` checks `home/ui` reaches none of
+`src/store`, `src/core/shared`, `src/core/ice`; CI checks `home/dist` has no `service.html`. Note the memory GLUE Home
+uses with and without the service WebView in the changelog.
+
+### Working notes for these batches
+- **How a batch is held to the website:** recorded goldens, replayed in Rust byte for byte:
+  - the store: `GOLDEN=1 npx vitest run tests/store.golden.test.ts`, replayed by `crates/glue-store/tests/golden.rs`;
+  - the sync: `GOLDEN=1 npx vitest run tests/sync.golden.test.ts`, replayed by `crates/glue-engine/tests/sync_golden.rs`.
+    Packed (gzip) texts are recorded unpacked: gzip's header names the system, and Linux's CI differed.
+  - the analysis: `tests/golden` (ADR 0147).
+- **The e2e tests run the real engine:** `glue-engine-test` (`crates/glue-engine/src/bin/test.rs`), built by
+  Playwright's global setup (`e2e/engine-build.ts`), run by `e2e/fakeHome.ts`. Its protocol is in the binary's header
+  comment: `{ask, rpc|cmd}` → `{ask, ok|err}`; `{set: {config | lease | folders | known…}}`; notes (`event`,
+  `analysis`, `made`, `config`, `search`, `tags`…); and calls back to the test (`{call, cloud}` → `{reply}`). It
+  analyses real files: a test's GLUE Home songs and GLUE folder go on disk (`e2e/homeDisk.ts`). `new FakeHome(dirs,
+  { engine: true })` sends a tab's `/rpc` to the engine; without it, a GLUE Home from before the engine.
+- **Windows and WebView2:** never build a window inside a synchronous command or an event handler on the main thread:
+  it deadlocks (a white window, GLUE Home frozen; 0.53.1). `open_glue` builds it on a thread of its own.
+- **Reproducing on the laptop:** GLUE Home isn't installed there. A test copy can run with a throwaway library: check
+  out the version in a `git worktree` (scratchpad), serve its pages (`npx vite --config home/vite.config.ts --port 5176`),
+  build with `CARGO_TARGET_DIR` set to a separate folder, write `%APPDATA%\io.github.joaopmanso.gluehome\config.json`
+  pointing at the throwaway GLUE folder, and drive it with Windows UI Automation. Afterwards remove that config folder,
+  `%LOCALAPPDATA%\io.github.joaopmanso.gluehome`, the registry key `HKCU:\Software\Classes\gluehome` (PowerShell
+  `Remove-Item`; `reg.exe` is blocked), the worktree and the build folder. Stop only the test copy, by its path.
+- **Rust on the laptop:** `export RUSTUP_HOME=/c/Work/rust/rustup CARGO_HOME=/c/Work/rust/cargo
+  PATH="/c/Work/rust/cargo/bin:$PATH"`. CI runs each crate's tests and `clippy -D warnings` (`.github/workflows/home.yml`).
+- **Editing files with backslashes or tabs:** a Bash heredoc into Python mangles `\n`, `\t` and `\\`. Write the script
+  with the Write tool, or use the Edit tool for such lines.
+
+### Other work
 - **The nightly e2e run fails since 2026-10-03:** `stems.spec.ts` (stem separation) runs out of its 14 minutes on CI's
-  machine (and `library.spec.ts` "No file linked" failed once on 2026-10-04). Not from the native-engine work; look at
-  the stems test's time on CI (`STEMS=1`).
-- **Flaky:** `shared.spec.ts` "the account's collections", from before 2026-10-02 (2 in 12 on `d403b25`, 4 in 12 on
-  `3353c03`; it failed CI on `3353c03`, retry included). Three ways: the desktop's backup read once without waiting,
-  0 songs for 30 s after switching collection, the account's box not shown. The first is a poll now (2026-10-02); look at the
-  other two (switching collections while a sync runs?).
-- **Gluey:** when a feature changes, update its article in `src/help/` and its tour in `src/core/guide/tours.ts`;
-  recapture the homepage's media after visible UI changes (`vault/features/homepage.md`).
-- **E2E on the laptop** (2026-10-02): the full suite takes about 14 min; `library.spec.ts:2054` (the local link, TO BE
-  SORTED) failed under full load in both runs, and `home.spec.ts:19` once; both pass alone and on CI.
-- **E2E speed and flakiness:** the full suite takes about 6 min on the desktop. When it slows to 12+ min with random
-  failures, or browsers stop starting, check free memory first: on 2026-10-01 Windows' Desktop Window Manager
-  (dwm.exe) had leaked 41 GB (a graphics-driver leak; a restart fixed it). Never kill dwm or the user's Edge; ask.
-- **"Syncing…" lingers on the laptop** though the sync looks quick (2026-10-02). The chip's tooltip now says where
-  the last sync's time went: ask the user for it after a long "Syncing…", then fix that part. Suspects: re-reading
-  the pulled files (`reloadFiles`: one at a time, each scanning all 13k songs), the full look every 30 minutes (every
-  file read twice), the GLUE folder being in OneDrive (`OneDrive - InnoWave\Documents\MCO`).
-- Events naming a profile (alias).
-- M4 step 3: the rekordbox XML export with cues and grid (`vault/features/prepare.md`, `exports.md`).
+  machine (and `library.spec.ts` "No file linked" failed once on 2026-10-04). Not from the engine work; look at the
+  stems test's time on CI (`STEMS=1`).
+- **After the desktop's second check:** fix what its named fields show (suspected: the stored `d/` headers are older
+  than their results); the Deftones MP3 (a shifted decode: ask for the file if it's still there).
+- **DSD verdicts:** tune a DSD rule on the user's 91 songs once they're analysed (ADR 0149).
+- **TURN from Rust** is untested from outside the home network (ADR 0150): if the iPhone on mobile data can't
+  connect, look at webrtc-rs's TURN (UDP should work; `turns:` over TCP may not be used).
+- **Streaming decode:** a song is still read whole into memory for its analysis (a 543 MB FLAC needs about 1.5 GB);
+  decoding FLAC/WAV/AIFF from the file (`decode_flac` already reads ranges) when it shows.
+- **Bug, found 2026-10-02 (ADR 0146):** a song of the shared collection can reach another computer without `copies`;
+  there the "no file" bar offers to remove it. Find who writes the local form into a shared shard (around `share` /
+  `makeShared` and the first push), and make `toLocal` treat a song without copies as nobody's here. Reproduce:
+  `e2e/shared.spec.ts` "the desktop's DJ library", with the library's fields regrouped (1 run in 7).
+- **Flaky:** `shared.spec.ts` "the account's collections" (from before 2026-10-02): 0 songs for 30 s after switching
+  collection, or the account's box not shown.
+- **"Syncing…" lingers on the laptop:** ask for the chip's tooltip after a long "Syncing…", then fix the part it names
+  (suspects: `reloadFiles` one file at a time, the full look every 30 minutes, the GLUE folder in OneDrive).
+- **The socket** (ADR 0139): covers still come over HTTP; the next to move onto it if they show in the numbers.
+- **Performance, measure before changing:** `?perf` on the laptop's first load.
+- **E2E:** the full suite takes 12–16 min on the laptop. When it slows a lot with random failures, check free memory
+  first (dwm.exe leaked 41 GB once); never kill dwm or the user's Edge.
+- **Gluey:** when a feature changes, update its article in `src/help/` and its tour in `src/core/guide/tours.ts`.
+- Events naming a profile (alias). M4 step 3: the rekordbox XML export with cues and grid (`vault/features/prepare.md`).
