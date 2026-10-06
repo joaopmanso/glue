@@ -1,5 +1,5 @@
 /* The reference for GLUE Home's native engine on lossy files (ADR 0147, through window.__gluePerf with ?perf): a file
-   analysed by the worker pool exactly as GLUE Home's service page does it (home/ui/cache.ts), with every output, and
+   analysed by the worker pool exactly as GLUE Home's service page did it before its engine, with every output, and
    the decoded samples' shape. e2e/golden.spec.ts writes it into tests/golden. */
 import { AnalysisPool } from './pool';
 import { decodedByWorker } from './analysis';

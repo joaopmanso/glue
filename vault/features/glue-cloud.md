@@ -1,8 +1,8 @@
 ---
 status: in-progress
 milestone: M6
-updated: 2026-10-02
-adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112, 0115, 0130, 0132, 0133, 0150]
+updated: 2026-10-06
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112, 0115, 0130, 0132, 0133, 0150, 0156, 0158]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -10,7 +10,10 @@ adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0
 The current model is in [SYSTEM.md](../SYSTEM.md): §4 (the account's collections: shared form, one id per
 computer, sync, the collections' list), §5 (GLUE Home: the local link, the engine, Home mode, any browser on the
 computer), §7 (accounts, devices and sessions, signaling). Since GLUE Home 0.49 its connections to other devices are
-Rust's ([ADR 0150](../adr/0150-glue-homes-connections-in-rust.md)). What follows is this feature's history, oldest first
+Rust's ([ADR 0150](../adr/0150-glue-homes-connections-in-rust.md)); since 0.55 its answers to them
+([ADR 0156](../adr/0156-the-answers-to-other-devices-in-rust.md)), and since 0.57 its signaling room, the sessions,
+songs received and which computer it is ([ADR 0158](../adr/0158-the-signaling-room-and-the-sessions-in-rust.md)) are
+its Rust engine's. What follows is this feature's history, oldest first
 per section: read only the part you're changing.
 
 ## What it does

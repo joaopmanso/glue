@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::atomic::{AtomicU16, Ordering};
 
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 pub static PORT: AtomicU16 = AtomicU16::new(0);
@@ -225,12 +225,16 @@ fn answer(app: AppHandle, req: Request) {
             reply(req, 200, crate::engine::rpc(&app, &body).into_bytes(), "application/json")
         }
         // A browser on this computer asks to join it (ADR 0091): only a page on this computer can reach this
-        // address, which is the proof. The service page tells GLUE Cloud (with GLUE Home's own credential).
+        // address, which is the proof. The engine tells GLUE Cloud (with GLUE Home's own credential, ADR 0158).
         "/attach" if req.method() == &Method::Post => {
             let mut body = String::new();
             let mut req = req;
             let _ = std::io::Read::read_to_string(req.as_reader(), &mut body);
-            let _ = app.emit_to("service", "attach", body);
+            let browser = serde_json::from_str::<serde_json::Value>(&body).ok().and_then(|b| b["browser"].as_str().map(String::from)).unwrap_or_default();
+            let a = app.clone();
+            std::thread::spawn(move || {
+                if let Err(e) = crate::engine::current(&a).and_then(|e| e.attach(&browser)) { eprintln!("GLUE Home: couldn’t attach the browser: {e}"); }
+            });
             reply(req, 202, b"{}".to_vec(), "application/json")
         }
         // The drag dock (ADR 0054): what's selected on the website, to drag into the DJ apps.

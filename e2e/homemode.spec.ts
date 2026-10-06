@@ -662,8 +662,8 @@ test('a shared collection with no GLUE tab open: GLUE Home takes in another devi
     const theirs = shardText(song('From the laptop', ['title']));
     const server = new SharedCloudServer();
     await server.seed('c1', 'Main', { 'collection.json': { text: metaText, rev: 1 }, 'tracks/t1.json': { text: theirs, rev: 2 } }, 'lap', 2);
-    // GLUE Home's engine syncs (ADR 0155): its calls to GLUE Cloud, answered by the stand-in.
-    fake.cloud = async (method, path, body) => (await server.answer(method, new URL('https://glue-api.joaopmanso.workers.dev' + path), body, 'hdesk')) ?? { status: 404, body: '{}' };
+    // GLUE Home's engine syncs (ADR 0155): its calls to GLUE Cloud, answered by the stand-in (the rest by the routes below).
+    fake.cloud = async (method, path, body) => (await server.answer(method, new URL('https://glue-api.joaopmanso.workers.dev' + path), body, 'hdesk')) ?? null;
     const home = await page.context().newPage();
     await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
       const req = r.request(), u = new URL(req.url()), p = u.pathname;

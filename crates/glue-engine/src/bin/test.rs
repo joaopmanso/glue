@@ -7,7 +7,7 @@
 //!                                           what e2e/fakeHome.ts stands for: the lease, Stop, the music folders its
 //!                                           disk knows, its incoming folder, this computer's usual folders
 //!   out: {"ask": n, "ok": ...} | {"ask": n, "err": "..."}
-//!        {"note": "event"|"edited"|"changed"|"analysis"|"made"|"config"|"search", ...}   what GLUE Home would tell its
+//!        {"note": "event"|"edited"|"changed"|"analysis"|"config"|"search", ...}   what GLUE Home would tell its
 //!                                           service page (`config`: a change to the settings; `search`: a drive search)
 //!        {"note": "tags", "path": relPath, "tags": {...}}     song info written into a file (the file is only touched,
 //!                                                            its date 5 s on, as e2e/fakeHome.ts's /fs/tags does)
@@ -16,10 +16,21 @@
 //!   out: {"call": n, "web": url}            a cover service asked (ADR 0086; the test's stand in), answered
 //!   in:  {"reply": n, "status": 200, "body": "<base64>"}
 //!        {"note": "background", "progress": {...}}           the background thumbnails' progress (ADR 0156)
+//! The account's signaling room and the connections (room.rs, ADR 0158), stood in for by the test's service page, which
+//! opens the room's WebSocket (the test's `routeWebSocket` stands in for GLUE Cloud's) and makes the connections with the
+//! browser's own (e2e/home-rtc.ts, as crates/glue-rtc does in GLUE Home):
+//!   out: {"note": "ws", "open": k, "url"} | {"note": "ws", "send": k, "text"} | {"note": "ws", "close": k, "code"}
+//!   in:  {"ws": k, "text": "..."} | {"ws": k, "closed": code}
+//!   out: {"call": n, "page": {"peer": "answer", "id", "sdp", "servers", "hello"}}   the answer's SDP (status 200), or why
+//!        {"note": "peer", "op": "ice"|"close"|"tell", "id", "candidate", "msg"}
+//!   in:  {"rtc": "rtc-ice"|"rtc-state"|"rtc-activity"|"rtc-received", "payload": {...}}   what the connections say
+//!   out: {"note": "room", "room": {...}}    the room's state and the sessions (GLUE Home's window)
+//!        {"call": n, "cloud": {"method": "POST", "path": "/v1/auth/device", ...}}   this GLUE Home's access token
 //! Every 2 s, as GLUE Home every 10 s: the jobs carried on, or the stores let go while a tab holds the lease. The
 //! analysis looks for songs a second after the settings first arrive, then every 10 s (GLUE Home: 20 s, every minute).
 //! Songs are analysed for real (crates/glue-audio).
 use glue_engine::library::Known;
+use glue_engine::room::{Peers, Received, Socket};
 use glue_engine::{Engine, Host};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
@@ -29,17 +40,43 @@ use std::sync::{mpsc, Arc, Mutex};
 #[derive(Default)]
 struct State { lease: bool, stopped: bool, config: Option<Value>, folders: serde_json::Map<String, Value>, incoming: Option<PathBuf>, known: Option<Known>, port: u64 }
 type Replies = Arc<Mutex<(u64, std::collections::HashMap<u64, mpsc::Sender<(u16, String)>>)>>;
-struct H { st: Arc<Mutex<State>>, out: Arc<Mutex<std::io::Stdout>>, glue: String, replies: Replies }
-impl H {
-  fn say(&self, v: Value) { let mut o = self.out.lock().unwrap(); let _ = writeln!(o, "{v}"); let _ = o.flush(); }
-  /// A call to the test (GLUE Cloud, a cover service): its status and body.
-  fn call(&self, what: Value) -> Option<(u16, String)> {
-    let (tx, rx) = mpsc::channel();
-    let n = { let mut r = self.replies.lock().unwrap(); r.0 += 1; let n = r.0; r.1.insert(n, tx); n };
-    let mut m = what; m["call"] = json!(n);
-    self.say(m);
-    rx.recv_timeout(std::time::Duration::from_secs(60)).ok()
+type Out = Arc<Mutex<std::io::Stdout>>;
+/// The room's sockets the page holds for the engine: what came on each.
+type Socks = Arc<Mutex<(u64, std::collections::HashMap<u64, mpsc::Sender<Received>>)>>;
+struct H { st: Arc<Mutex<State>>, out: Out, glue: String, replies: Replies, socks: Socks }
+fn say(out: &Out, v: Value) { let mut o = out.lock().unwrap(); let _ = writeln!(o, "{v}"); let _ = o.flush(); }
+/// A call to the test (GLUE Cloud, a cover service, the page's connections): its status and body.
+fn call(out: &Out, replies: &Replies, what: Value) -> Option<(u16, String)> {
+  let (tx, rx) = mpsc::channel();
+  let n = { let mut r = replies.lock().unwrap(); r.0 += 1; let n = r.0; r.1.insert(n, tx); n };
+  let mut m = what; m["call"] = json!(n);
+  say(out, m);
+  rx.recv_timeout(std::time::Duration::from_secs(60)).ok()
+}
+/// The room's socket, held by the page.
+struct PageSocket { k: u64, out: Out, inn: mpsc::Receiver<Received> }
+impl Socket for PageSocket {
+  fn send(&mut self, text: &str) -> Result<(), String> { say(&self.out, json!({ "note": "ws", "send": self.k, "text": text })); Ok(()) }
+  fn recv(&mut self, wait: std::time::Duration) -> Received { self.inn.recv_timeout(wait).unwrap_or(Received::Nothing) }
+  fn close(&mut self, code: u16) { say(&self.out, json!({ "note": "ws", "close": self.k, "code": code })); }
+}
+/// The connections, made by the page.
+struct PagePeers { out: Out, replies: Replies }
+impl Peers for PagePeers {
+  fn answer(&self, id: &str, sdp: &str, servers: &[Value], hello: Value) -> Result<String, String> {
+    match call(&self.out, &self.replies, json!({ "page": { "peer": "answer", "id": id, "sdp": sdp, "servers": servers, "hello": hello } })) {
+      Some((200, sdp)) => Ok(sdp),
+      Some((_, why)) => Err(why),
+      None => Err("the page didn’t answer".into()),
+    }
   }
+  fn add_ice(&self, id: &str, candidate: Option<Value>) { say(&self.out, json!({ "note": "peer", "op": "ice", "id": id, "candidate": candidate })) }
+  fn close(&self, id: &str) { say(&self.out, json!({ "note": "peer", "op": "close", "id": id })) }
+  fn tell(&self, msg: Value) { say(&self.out, json!({ "note": "peer", "op": "tell", "msg": msg })) }
+}
+impl H {
+  fn say(&self, v: Value) { say(&self.out, v) }
+  fn call(&self, what: Value) -> Option<(u16, String)> { call(&self.out, &self.replies, what) }
   fn folder(&self, root_id: &str) -> Option<PathBuf> {
     if root_id == "incoming" { return Some(self.incoming_dir()); }
     self.config()["folders"][root_id].as_str().map(PathBuf::from)
@@ -79,7 +116,6 @@ impl Host for H {
   fn edited(&self, p: &str, c: &str, paths: &[String]) { self.say(json!({ "note": "edited", "p": p, "c": c, "paths": paths })) }
   fn changed(&self) { self.say(json!({ "note": "changed" })) }
   fn analysis_changed(&self, state: &Value) { self.say(json!({ "note": "analysis", "state": state })) }
-  fn made(&self, p: &str, c: &str, id: &str) { self.say(json!({ "note": "made", "p": p, "c": c, "id": id })) }
   fn cloud(&self, method: &str, path: &str, content_type: Option<&str>, body: Option<&str>) -> Result<String, glue_engine::sync::CloudError> {
     let (status, text) = self.call(json!({ "cloud": { "method": method, "path": path, "type": content_type, "body": body } })).ok_or_else(|| glue_engine::sync::CloudError::new("GLUE Cloud didn’t answer"))?;
     if (200..300).contains(&status) { Ok(text) } else { Err(glue_engine::sync::CloudError { status, message: format!("GLUE Cloud: {status}") }) }
@@ -103,6 +139,21 @@ impl Host for H {
   }
   fn local_link(&self) -> Value { let c = self.config(); json!({ "port": self.st.lock().unwrap().port, "token": c["localToken"], "readToken": c["readToken"] }) }
   fn background_changed(&self, progress: &Value) { self.say(json!({ "note": "background", "progress": progress })) }
+  fn access_token(&self) -> Result<String, glue_engine::sync::CloudError> {
+    let c = self.config();
+    let body = json!({ "deviceId": c["deviceId"], "token": c["token"] }).to_string();
+    let (status, text) = self.call(json!({ "cloud": { "method": "POST", "path": "/v1/auth/device", "type": "application/json", "body": body } })).ok_or_else(|| glue_engine::sync::CloudError::new("GLUE Cloud didn’t answer"))?;
+    if !(200..300).contains(&status) { return Err(glue_engine::sync::CloudError { status, message: format!("GLUE Cloud: {status}") }); }
+    serde_json::from_str::<Value>(&text).ok().and_then(|v| v["access"].as_str().map(String::from)).ok_or_else(|| glue_engine::sync::CloudError::new("GLUE Cloud answered strangely"))
+  }
+  fn open_socket(&self, url: &str) -> Result<Box<dyn Socket>, String> {
+    let (tx, inn) = mpsc::channel();
+    let k = { let mut s = self.socks.lock().unwrap(); s.0 += 1; let k = s.0; s.1.insert(k, tx); k };
+    self.say(json!({ "note": "ws", "open": k, "url": url }));
+    Ok(Box::new(PageSocket { k, out: self.out.clone(), inn }))
+  }
+  fn peers(&self) -> Option<Arc<dyn Peers>> { Some(Arc::new(PagePeers { out: self.out.clone(), replies: self.replies.clone() })) }
+  fn room_changed(&self, room: &Value) { self.say(json!({ "note": "room", "room": room })) }
   fn reachable(&self, root_id: &str) -> bool {
     match self.folder(root_id) { None => true, Some(p) => std::fs::read_dir(p).map(|mut d| d.next().is_some()).unwrap_or(false) }
   }
@@ -112,7 +163,8 @@ fn main() {
   let args: Vec<String> = std::env::args().skip(1).collect();
   let (st, out) = (Arc::new(Mutex::new(State::default())), Arc::new(Mutex::new(std::io::stdout())));
   let replies: Replies = Default::default();
-  let engine = Engine::new(args[0].clone().into(), args[1].clone().into(), H { st: st.clone(), out: out.clone(), glue: args[0].clone(), replies: replies.clone() });
+  let socks: Socks = Default::default();
+  let engine = Engine::new(args[0].clone().into(), args[1].clone().into(), H { st: st.clone(), out: out.clone(), glue: args[0].clone(), replies: replies.clone(), socks: socks.clone() });
   let (e2, st2) = (engine.clone(), st.clone());
   std::thread::spawn(move || loop {
     std::thread::sleep(std::time::Duration::from_secs(2));
@@ -123,6 +175,25 @@ fn main() {
     let Ok(m) = serde_json::from_str::<Value>(&line) else { continue };
     if let Some(n) = m["reply"].as_u64() {
       if let Some(tx) = replies.lock().unwrap().1.remove(&n) { let _ = tx.send((m["status"].as_u64().unwrap_or(0) as u16, m["body"].as_str().unwrap_or("").to_string())); }
+      continue;
+    }
+    if let Some(k) = m["ws"].as_u64() {
+      let r = match m["text"].as_str() { Some(t) => Received::Text(t.into()), None => Received::Closed(m["closed"].as_u64().unwrap_or(1006) as u16) };
+      if let Some(tx) = socks.lock().unwrap().1.get(&k) { let _ = tx.send(r); }
+      continue;
+    }
+    // What the connections say, in order (as rtc.rs's thread hands it to the engine).
+    if let Some(what) = m["rtc"].as_str() {
+      let v = &m["payload"];
+      let t = |k: &str| v[k].as_str().unwrap_or("").to_string();
+      match what {
+        "rtc-ice" => engine.peer_ice(&t("id"), v["candidate"].clone()),
+        "rtc-state" => engine.peer_state(&t("id"), &t("state")),
+        "rtc-activity" => engine.peer_activity(&t("id"), v["calls"].as_u64().unwrap_or(0), v["last"].as_f64().unwrap_or(0.0) as i64),
+        // Written into the incoming folder on the test's disk (e2e/tauri-mock.ts), under its name.
+        "rtc-received" => { let name = t("name"); let path = st.lock().unwrap().incoming.clone().unwrap_or_default().join(&name); engine.received(&name, &path.to_string_lossy(), v["size"].as_u64().unwrap_or(0)); }
+        _ => {}
+      }
       continue;
     }
     if let Some(s) = m.get("set") {

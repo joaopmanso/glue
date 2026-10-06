@@ -299,6 +299,9 @@ test('GLUE Home whose settings never said running or stopped goes online, and st
   await ctx.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'a' }) }));
   await ctx.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { connects++; ws.send(JSON.stringify({ type: 'presence', online: ['h1'] })); ws.onMessage(() => {}); });
   await ctx.addInitScript(TAURI_MOCK);
+  // Its engine, which is in the room (ADR 0158).
+  const d = await homeDisk({});
+  await d.wire(ctx, { link: false });
   // Paired long ago; Start or Stop never pressed, so the settings have no `running` at all.
   await ctx.addInitScript(({ glue }) => {
     const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = {};
@@ -312,4 +315,5 @@ test('GLUE Home whose settings never said running or stopped goes online, and st
   await service.waitForTimeout(1000);
   await expect(service.locator('#state')).toContainText('Online as Desktop');
   expect(connects).toBe(1);
+  await d.done();
 });

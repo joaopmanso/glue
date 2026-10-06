@@ -107,8 +107,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
       `collectionShared` write back.
     - Only the GLUE folder recorded for a computer writes that computer's parts (`writesFor`, ADR 0108).
   - **A computer's id** is its account device: the browser device that GLUE Home is the companion of. GLUE Home
-    learns it (`home/ui/identity.ts`, `GET /v1/computer`); the tab gets it from GLUE Home's `hello`. Nothing is
-    ever written under an unknown or stand-in id.
+    learns it (its engine's `identity.rs`, `GET /v1/computer`, ADR 0158; GLUE Cloud not answering as it should changes
+    nothing); the tab gets it from GLUE Home's `hello`. Nothing is ever written under an unknown or stand-in id.
   - **Sync** (`src/store/shared/engine.ts`, ADRs 0106, 0107; GLUE Home's is its Rust port, `crates/glue-engine/src/sync.rs`,
     held to it by `tests/golden/sync`, ADR 0155):
     - GLUE Cloud keeps a snapshot (`shared_files`) and a log (`shared_log`); a push is one log entry on the
@@ -146,13 +146,15 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - Every route but `/hello` and `/connect` needs the token (full, or read-only).
   - Stopped (Stop in the tray or settings, `running: false`), it answers only GLUE Home's own windows: the website
     carries on in the browser as if GLUE Home were quit, and nothing runs in GLUE Home (ADR 0122).
-- **Service page** (`home/ui/service.ts`), hidden, which does the work:
+- **Service page** (`home/ui/service.ts`), hidden: the status for the tray and the settings window, and timers (backups,
+  reminders, updates, moves, verify, the shared sync's) until the plan's E5. The work is the engine's:
   - **engine, in Rust since 0.52** (ADR 0153, `crates/glue-engine`, `home/src-tauri/src/engine.rs`): one store per
     collection (`crates/glue-store`, ADR 0152), written straight to disk. It applies the tab's edits (ops over `/rpc`
     `edit`), saves them, and feeds changes back (`wait`); its jobs (removing songs) carry on after a restart. It
-    repairs parts written under another id (ADR 0108), after a backup it makes itself. The service page's analysis and
-    shared sync use the same stores through `engine_cmd` (`home/ui/engine.ts` is a thin wrapper), and hear its
-    events (`engine-event`, `-edited`, `-added`, `-changed`).
+    repairs parts written under another id (ADR 0108), after a backup it makes itself. The service page asks it things
+    through `engine_cmd` (`home/ui/engine.ts` is a thin wrapper), and hears its events (`engine-event`, `-edited`,
+    `-changed`, `-analysis`, `-background`, `-room`). Without a GLUE folder chosen it runs over an empty one of
+    GLUE Home's own: online, taking songs sent to it, refusing a tab's requests (ADR 0158).
   - **analysis, in the engine since 0.53** (ADR 0154, `crates/glue-engine/src/queue.rs`, `library.rs`, `analyse.rs`):
     **one pipeline inside "songs at a time"** (ADR 0157): every file GLUE Home reads for the library goes through the
     queue's places, in this order: songs asked for now (a tab's "Analyse now", another device waiting for one:
@@ -171,6 +173,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     duplicates moved or recycled
     (ADR 0070), DJ libraries followed live (ADR 0065), reminders, updates.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
+    **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
+    socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again
+    after 1, 2, 4… 60 s, removed (4001) and replaced (4000); offers answered through glue-rtc (`rtc::Conns`), early
+    candidates held; a `shared` message starts a sync; ICE servers `ice.rs`.
     Bounded (ADR 0132): a connection not open within 30 s is let go, and an offer it can't take is answered
     "bye". The website says "bye" when it gives up, and waits 5 to 60 s before connecting again for background asks.
   - **The library store in Rust** (ADR 0152, `crates/glue-store`): `CollectionStore`, the shared projections and the
@@ -183,20 +189,23 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     the browser, Google's sign-in is its popup, downloads go to Downloads). The settings' "Open the library in" can
     send it to the browser.
   - **GLUE Home's connections are Rust's** (ADR 0150, 0.49, `crates/glue-rtc`, `home/src-tauri/src/rtc.rs`): the peer
-    connections, their channels, pings, uploads, cache files, songs sent in and every song byte sent out; the service
-    page keeps the signaling and the sessions' rules. **The library's answers are the engine's** (0.55, ADR 0156:
+    connections, their channels, pings, uploads, cache files, songs sent in and every song byte sent out; what they find
+    and do (candidates, states, activity, songs received) goes to the engine on one thread, in order. **The library's
+    answers are the engine's** (0.55, ADR 0156:
     `crates/glue-engine/src/answers.rs`, `covers.rs`, `incoming.rs`): rtc.rs hands each request to `Engine::answer`
     and sends what it says (data and bytes, or a song's file from disk). Messages up to 256 KB. Tests: `crates/glue-rtc/tests`, `scripts/rtc-probe.mjs`
-    (Edge), `e2e/home-rtc.ts` (the e2e stand-in).
+    (Edge), `e2e/home-rtc.ts` (the e2e stand-in, in the test's service page, which also holds the test engine's room
+    socket: the test's `routeWebSocket` stands in for GLUE Cloud's room).
   - **Sessions** (ADR 0133, 0.41): each device's tab keeps one with each of the account's other GLUE Homes,
     opened at sign-in (`remoteFiles.tend`), kept alive by a `ping` every 15 s; requests, playing and songs sent all go
     through it. Never to this computer's own GLUE Home (ADR 0137: 127.0.0.1 only). GLUE Home keeps one per tab, at most
     "Most at once" (5, other devices only: its own computer's browser isn't counted), refuses a new one when full, and lists them
-    with Disconnect (`home/ui/sessions.ts`). It says `{t:'session'}` first, then tells every session what happened:
+    with Disconnect (the engine's `sessions.rs`, `room.rs`, ADR 0158; Disconnect refuses that tab for an hour). It says `{t:'session'}` first, then tells every session what happened:
     `made` (songs analysed: rows and song pages show them at once) and `incoming` (TO BE SORTED changed);
     covers for songs whose tags have none, looked up on public services (`covers.rs`, ADR 0086, 0156; held to the
     website's `coverSearch.ts` by `tests/golden/covers.json`).
-  - **No audio JavaScript** (ADR 0147, 0.47): songs arriving in the incoming folder (`analyse_incoming`), covers from
+  - **No audio JavaScript** (ADR 0147, 0.47): songs arriving in the incoming folder (the engine's `analyse_incoming`
+    since 0.57, ADR 0158; those that came while it was off, `analyse_waiting`), covers from
     tags (only the tags read) and from cover services, and waveforms from kept details are the Rust engine's, like the
     analysis (the last three in the engine's answers since 0.55, ADR 0156). `tests/homeBundle.test.ts` fails when
     `home/ui` reaches the website's analysis, decoders, workers or audio packages; CI fails on a worker in

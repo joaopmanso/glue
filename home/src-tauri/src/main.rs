@@ -25,6 +25,7 @@ mod activity;
 mod web;
 mod analysis;
 mod rtc;
+mod signal;
 mod engine;
 mod window;
 
@@ -476,7 +477,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, local_port, glue_list, activity_now, lease_held, edits_waiting, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_incoming, rtc::rtc_answer, rtc::rtc_ice, rtc::rtc_close, rtc::rtc_busy, rtc::rtc_tell, engine::engine_cmd])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, local_port, glue_list, activity_now, lease_held, edits_waiting, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, rtc::rtc_busy, engine::engine_cmd])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

@@ -1,8 +1,8 @@
 /* GLUE Home is the library's engine (ADR 0104), native since 0.52 (crates/glue-engine, ADR 0153, 0154): a GLUE tab's
    requests (edits, the feed of changes, jobs, the analysis) are answered in Rust, which writes the GLUE folder itself
-   and analyses this computer's songs. What's left here, until the shared sync and the answers to other devices are
-   native too (the plan's E4), is how they use the engine: the library as it sees it, a song analysed now, the queue's
-   state. */
+   and analyses this computer's songs; the shared sync, the answers to other devices, the account's signaling room and
+   the sessions are its too (ADR 0155, 0156, 0158). What's left here, until the service page is Rust too (the plan's
+   E5), is how it asks the engine things and hears what it says. */
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { Collection } from '../../src/store/types';
@@ -46,10 +46,16 @@ export interface SongFile { path: string; name: string; mtime: number; size: num
 
 const cmd = <T>(c: Record<string, unknown>) => invoke<T>('engine_cmd', { cmd: c });
 
+/** The account's signaling room and the sessions (crates/glue-engine/src/room.rs `room_json`). */
+export interface RoomState {
+  state: 'online' | 'offline' | 'connecting' | 'stopped' | 'unpaired' | 'removed'; text: string;
+  sessions: { list: { key: string; name: string; since: number; last: number; calls: number; open: boolean }[]; max: number };
+}
+
 export const on: {
   event: ((text: string) => void) | null; changed: (() => void) | null; edited: ((p: string, c: string, paths: string[]) => void) | null;
-  analysis: (() => void) | null; made: ((p: string, c: string, id: string) => void) | null;
-} = { event: null, changed: null, edited: null, analysis: null, made: null };
+  analysis: (() => void) | null; room: ((r: RoomState) => void) | null;
+} = { event: null, changed: null, edited: null, analysis: null, room: null };
 
 /** The engine's status, as it last said it (the settings window shows its jobs). */
 let last: EngineStatus = { rev: 0, jobs: [] };
@@ -69,12 +75,26 @@ export async function listenToEngine() {
   await listen<string>('engine-event', e => on.event?.(e.payload));
   await listen<{ p: string; c: string; paths: string[] }>('engine-edited', e => on.edited?.(e.payload.p, e.payload.c, e.payload.paths));
   await listen<AnalysisState>('engine-analysis', e => { queue = e.payload; on.analysis?.(); });
-  await listen<{ p: string; c: string; id: string }>('engine-made', e => on.made?.(e.payload.p, e.payload.c, e.payload.id));
+  await listen<RoomState>('engine-room', e => on.room?.(e.payload));
   await listen('engine-changed', () => void refresh());
   await listen<typeof bg>('engine-background', e => { bg = e.payload; on.analysis?.(); });
   void refresh();
   void cmd<AnalysisState>({ cmd: 'analysisState' }).then(s => { queue = s; on.analysis?.(); }).catch(() => {});
+  // The room may have said where it is before this listened.
+  void cmd<RoomState>({ cmd: 'roomState' }).then(r => on.room?.(r)).catch(() => {});
 }
+
+// ---- the account's signaling room and the sessions (crates/glue-engine/src/room.rs, identity.rs, ADR 0158) -------
+/** Online in the room (or say why not: no account, stopped), every connection made anew. */
+export const roomStart = () => void cmd({ cmd: 'roomStart' }).catch(() => {});
+/** Out of the room, every session closed. */
+export const roomStop = () => void cmd({ cmd: 'roomStop' }).catch(() => {});
+/** A session ended in the settings: its tab is refused for an hour. */
+export const roomDisconnect = (key: string) => void cmd({ cmd: 'roomDisconnect', key }).catch(() => {});
+/** Which computer this is, asked again (ADR 0108). */
+export const learnComputer = () => void cmd({ cmd: 'learnComputer' }).catch(() => {});
+/** The songs in the incoming folder without an analysis, analysed (ADR 0048). */
+export const analyseWaiting = () => void cmd({ cmd: 'analyseWaiting' }).catch(() => {});
 
 /** A GLUE tab from before the engine holds the lease: nothing kept goes stale. */
 export const forget = () => void cmd<boolean>({ cmd: 'forget' }).catch(() => {});

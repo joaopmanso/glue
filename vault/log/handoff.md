@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   on batch by batch, each released when its checks pass.
 
 ## State (2026-10-06)
-- **Live:** the site, GLUE Cloud (migrations up to 0011), **GLUE Home 0.56.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0011), **GLUE Home 0.57.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -39,14 +39,15 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     done, 0.55.0 (2026-10-06, on the desktop).
   - **0.56.0, between the batches (ADR 0157):** one analysis pipeline inside "songs at a time" (the user's ask,
     2026-10-06): a folder listed once, new songs' tags read in GLUE Home's queue, every read in its places.
-  - **E4b step 2 and E5:** next (below).
-- **What's still JavaScript in GLUE Home** (`home/ui`, the hidden service page `service.ts`, about 500 lines):
-  - the signaling room (`cloud.ts` `stayOnline`);
-  - the sessions with other devices (`sessions.ts`) and the offers' glue to Rust's connections (`rtc_answer`…);
-  - songs received (`received`: analysed with `analyse_incoming`, listed in the settings);
-  - identity (`identity.ts`), ICE (`ice.ts`);
-  - backups, moves, reminders, updates, verify, tokens and config, the status to the settings window (E5).
-  - The engine is reached from there through one Tauri command, `engine_cmd` (`home/ui/engine.ts` wraps it).
+  - **E4b step 2, the signaling room and the sessions** (`room.rs`, `sessions.rs`, `ice.rs`, `identity.rs`, ADR
+    0158): done, 0.57.0 (2026-10-06, on the desktop). With it, a race fixed: an analysis finishing after its song's
+    info was written into the file put the old date back.
+  - **E5:** next (below).
+- **What's still JavaScript in GLUE Home** (`home/ui`, the hidden service page `service.ts`, about 200 lines): E5's
+  backups, moves, reminders, updates, verify, tokens and config, the status to the settings window and the tray, and
+  the timers that start the engine's work (the shared sync every minute, the music folders looked for, the background
+  thumbnails, the room started and stopped). The engine is reached through one Tauri command, `engine_cmd`
+  (`home/ui/engine.ts` wraps it), and speaks through `engine-*` events.
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **graphify** (ADRs 0127–0129): the code map; CI publishes it for every push (branch `graphify`), its view at
@@ -55,6 +56,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.57.0** (ADR 0158): nothing should look different. Check that GLUE Home says "Online as …" in its
+  window; the phone (and the laptop) still connect to the desktop's GLUE Home, stream, show covers, and appear in
+  its window's sessions with Disconnect working (refused for an hour); a song sent from the laptop arrives in TO BE
+  SORTED with its waveform; Stop then Start goes offline and back; the iPhone on mobile data (the relay) if possible.
+  The window's "This computer" should still name the desktop.
 - **GLUE Home 0.56.0** (ADR 0157): add a folder in the GLUE window (or a browser with GLUE Home). Its songs should show
   at once with their file names, then their artist and title a few at a time, then their analyses; the window's
   "Analysing N at a time" and its list should never show more songs than the setting. The 7 Blue Train songs, and
@@ -95,45 +101,14 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     Stop/Start handing the library over, "No file linked" in bulk, a dropped song analysed by GLUE Home).
 
 ## Next
-### E4b: the rest of the cloud side in Rust
-What `service.ts` still does with other devices moves into the engine, so the service page keeps only E5's parts.
-In two steps, each released and tested on its own:
-1. **Done, 0.55.0 (ADR 0156): the answers and the helpers** (identity and ICE moved to step 2: they serve the
-   signaling). As planned:
-   - Rust's connections (`crates/glue-rtc`, host `home/src-tauri/src/rtc.rs`) answer the requests themselves instead of
-     emitting `rtc-request` to the service page: thumbs, waves, details (with `PENDING` and `cache.soon`), have, art
-     and find-art (port `home/ui/lookup.ts`, `web_get`'s rules in `web.rs`), incoming, cache, analysis
-     (`engine.analysis_ask`), local, folders, get-incoming, move-incoming;
-   - `cache.ts` `soon`/`background` into the engine (the background's "busy" means a session is serving or receiving:
-     Rust knows that now);
-   - identity (`identity.ts` `whoAmI`, `/v1/computer`, `/v1/computer/attach`) and ICE (`/v1/turn`, cached as
-     `src/core/ice.ts` does) through `Host::cloud`.
-2. **Next (0.57.0, ADR 0158): the signaling room and the sessions,** with identity and ICE. Started on 2026-10-06 and set
-   aside for 0.56: `sessions.rs` (sessions.ts and its tests ported) and `ice.rs` (src/core/ice.ts, with a test) were
-   written but not committed (they're in that session's scratchpad: write them again if they're gone, they're short).
-   The plan: the engine gets `room.rs` (a `Socket` the host gives: tungstenite with TLS in GLUE Home, a relay to the
-   test in glue-engine-test) and a `Peers` trait over glue-rtc; songs received are analysed by the engine
-   (`analyse_incoming` moves in); identity (`whoAmI`, `computersHere`, `/v1/computer/attach`, and the local link's
-   `/attach`) through `Host::cloud`. `stayOnline` (tungstenite is already a dependency: the access token, ping
-   every 30 s, renew at 50 min, backoff 1–60 s, close codes 4000 replaced / 4001 removed / 4002 renew), the session
-   rules (`sessions.ts`: `admit`, `maxOf`, `sessionKey`, the refusals for an hour), the offers handed to glue-rtc, a
-   `shared` push starting a sync, `presence`.
-
-**The e2e tests need the same move.** Today the service page's signaling is intercepted with Playwright's
-`routeWebSocket`, and GLUE Home's connections are stood in by the browser's (`e2e/home-rtc.ts` via `tauri-mock.ts`).
-Once Rust opens the socket and answers offers:
-- relay the room through the test engine's JSON-lines protocol, like `fake.cloud`: the engine says
-  `{"call": n, "ws": …}`, `e2e/fakeHome.ts` hands it to the test's existing `room(me)` function with a duck-typed
-  socket (`send`, `onMessage`, `close`);
-- link `glue-rtc` into the test engine so a phone test's browser talks to webrtc-rs for real (glue-rtc is already
-  checked against Edge: `scripts/rtc-probe.mjs`). The tests to move: `phone.spec.ts`, `computers.spec.ts`,
-  `library.spec.ts` (send songs, hand-over, the local link), `identity.spec.ts`, `home.spec.ts`.
-
 ### E5: the rest, and the service page removed (0.58.0)
 Backups (`backups.ts`, `glue_store::backup` has the zip already), moves (`moves.ts`), reminders (`reminders.ts`, its
 memory in GLUE Home's settings, notifications from Rust), updates (`updates.ts`, the updater from Rust), verify
 (`verify.ts`), tokens and config (`patchConfig` atomic in Rust), the status and events straight to the settings
-window. Then remove the `service` window and its modules; `tests/homeBundle.test.ts` checks `home/ui` reaches none of
+window, and the timers that start the engine's work (`service.ts`: the shared sync every minute and after an edit, the
+music folders looked for when the settings change, the background thumbnails, the room started on boot and when the
+account or Stop changes, `learnComputer` hourly, `analyseWaiting` on boot). Then remove the `service` window and its
+modules; `tests/homeBundle.test.ts` checks `home/ui` reaches none of
 `src/store`, `src/core/shared`, `src/core/ice`; CI checks `home/dist` has no `service.html`. Note the memory GLUE Home
 uses with and without the service WebView in the changelog.
 
@@ -146,7 +121,10 @@ uses with and without the service WebView in the changelog.
 - **The e2e tests run the real engine:** `glue-engine-test` (`crates/glue-engine/src/bin/test.rs`), built by
   Playwright's global setup (`e2e/engine-build.ts`), run by `e2e/fakeHome.ts`. Its protocol is in the binary's header
   comment: `{ask, rpc|cmd}` → `{ask, ok|err}`; `{set: {config | lease | folders | known…}}`; notes (`event`,
-  `analysis`, `made`, `config`, `search`, `tags`…); and calls back to the test (`{call, cloud}` → `{reply}`). It
+  `analysis`, `config`, `search`, `tags`, `room`…); and calls back to the test (`{call, cloud|web|page}` →
+  `{reply}`). The room and the connections are the test's service page's (ADR 0158): notes `ws` and `peer`, calls
+  `page`, and GLUE Cloud calls `fake.cloud` returns `null` for, answered by the page over the FakeHome's `/engine`
+  (`{reply}`, `{ws}`, `{rtc}`), so a test's `routeWebSocket` and routes on GLUE Home's page stand in for GLUE Cloud. It
   analyses real files: a test's GLUE Home songs and GLUE folder go on disk (`e2e/homeDisk.ts`). `new FakeHome(dirs,
   { engine: true })` sends a tab's `/rpc` to the engine; without it, a GLUE Home from before the engine.
 - **Windows and WebView2:** never build a window inside a synchronous command or an event handler on the main thread:

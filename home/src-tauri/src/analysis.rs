@@ -1,61 +1,23 @@
 //! The native analysis engine in GLUE Home (crates/glue-audio, ADR 0147, 0148). A song of the library is analysed by the
 //! engine's queue (crates/glue-engine, ADR 0154), which reads it with `read_song` here.
 //! `verify_song` analyses a song natively, saves nothing, and compares with what the service page made of it before.
-//! Songs arriving in the incoming folder are analysed here too (`analyse_incoming`, ADR 0147's batch 4); covers and
-//! waveforms from kept details are the engine's (crates/glue-engine/src/answers.rs, ADR 0156).
+//! Songs arriving in the incoming folder are analysed by the engine too (room.rs `analyse_incoming`, ADR 0158), and
+//! covers and waveforms from kept details are its (crates/glue-engine/src/answers.rs, ADR 0156).
 use serde_json::{json, Value};
 use std::fs;
 use std::io::Write;
-use std::time::Instant;
-use glue_engine::analyse::{key, now_iso, time_for};
+use glue_engine::analyse::key;
 use tauri::AppHandle;
 
 /// What GLUE Home's native results say made them (`AnalysisSummary.engine`).
 #[allow(dead_code)]
 pub const ENGINE: &str = glue_audio::out::summary::ENGINE;
 
-/// Run `f` on a thread of its own with room for a big song (16 MB of stack), and wait for it without holding up
-/// GLUE Home's other work.
-async fn on_own_thread<T: Send + 'static>(name: &str, f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
-  let t = std::thread::Builder::new().name(name.into()).stack_size(16 << 20).spawn(f).map_err(|e| e.to_string())?;
-  match tauri::async_runtime::spawn_blocking(move || t.join()).await {
-    Ok(Ok(v)) => Ok(v),
-    Ok(Err(_)) | Err(_) => Err("Its analysis worker stopped (the native engine failed on it).".into()),
-  }
-}
-
 /// A song's file, read whole, giving way to songs being played (`Paced`, ADR 0138). `read only part`: a network folder
 /// that dropped mid-file (passing: tried again later, never analysed from a part).
 pub(crate) fn read_song(file: &std::path::Path, name: &str) -> Result<Vec<u8>, String> {
   let f = fs::File::open(file).map_err(|e| format!("{name} could not be read ({e})"))?;
   glue_engine::analyse::read_whole(file, name, crate::local::Paced { inner: std::io::BufReader::with_capacity(1 << 20, f), pri: crate::local::Pri::Analysis, busy: crate::local::playing_now })
-}
-
-/// A song that arrived in the incoming folder (ADR 0048), analysed at once so it's ready when the website shows it in
-/// TO BE SORTED: `i/<name>.thumb.bin`, `.wave.bin`, `.details.bin` + `.json`, and `.summary.json` last (the summary
-/// with the file's format and length). Already analysed: nothing to do.
-#[tauri::command]
-pub async fn analyse_incoming(app: AppHandle, name: String, path: String) -> Result<(), String> {
-  if name.is_empty() || name.contains(['/', '\\']) || name.starts_with('.') { return Err("bad name".into()); }
-  if crate::cache_path(&app, &format!("i/{name}.summary.json")).is_ok_and(|p| p.is_file()) { return Ok(()); }
-  let file = crate::allowed(&app, &path)?;
-  on_own_thread("glue-incoming", move || -> Result<(), String> {
-    let k = |what: &str| format!("i/{name}.{what}");
-    let bytes = read_song(&file, &name)?;
-    glue_audio::control::set_deadline(Some(Instant::now() + time_for(bytes.len() as u64)));
-    let r = glue_audio::analyse(&bytes, &name, bytes.len() as f64, 0.0, now_iso());
-    glue_audio::control::set_deadline(None);
-    let a = r.map_err(|e| e.to_string())?;
-    let put = |rel: String, data: &[u8]| crate::cache_put(&app, &rel, data);
-    if !a.thumb.is_empty() { put(k("thumb.bin"), &a.thumb)?; }
-    if !a.wave.is_empty() { put(k("wave.bin"), &a.wave)?; }
-    put(k("details.bin"), &glue_audio::out::files::zlib(&a.details.1))?;
-    put(k("details.json"), &serde_json::to_vec(&a.details.0).unwrap_or_default())?;
-    let mut s = serde_json::to_value(&a.summary).unwrap_or(Value::Null);
-    s["format"] = if a.info.container.is_empty() { Value::Null } else { serde_json::to_value(glue_audio::out::files::format_of(&a.info)).unwrap_or(Value::Null) };
-    s["duration"] = json!(a.info.duration);
-    put(k("summary.json"), &serde_json::to_vec(&s).unwrap_or_default())
-  }).await?
 }
 
 /// Numbers that are the same but for the last digits (the goldens' rule: within 1e-9 of their size): the maths

@@ -2134,9 +2134,10 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
       const start = m ? Number(m[1]) : 0, end = m && m[2] ? Math.min(Number(m[2]), all.length - 1) : all.length - 1;
       return r.fulfill({ status: m ? 206 : 200, contentType: 'audio/flac', headers: { ...cors, 'Accept-Ranges': 'bytes', ...(m ? { 'Content-Range': 'bytes ' + start + '-' + end + '/' + all.length } : {}) }, body: all.subarray(start, end + 1) });
     }
-    const w = await home.evaluate(() => { const x = window as unknown as { __files: { name: string; chunks: number[][]; done: boolean; moved?: string }[]; __cache: Record<string, number[]> }; return { files: x.__files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, bytes: f.chunks.flat() })), cache: x.__cache }; });
-    const dec = (b: number[] | undefined) => b ? JSON.parse(Buffer.from(b).toString()) : null;
-    if (u.pathname === '/incoming') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify(w.files.map(f => ({ name: f.name, size: f.bytes.length, mtime: 1, path: 'C:\\In\\' + f.name, summary: dec(w.cache['i/' + f.name + '.summary.json']) }))) });
+    const w = await home.evaluate(() => { const x = window as unknown as { __files: { name: string; chunks: number[][]; done: boolean; moved?: string }[] }; return { files: x.__files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, bytes: f.chunks.flat() })) }; });
+    const dec = (b: number[] | null) => b ? JSON.parse(Buffer.from(b).toString()) : null;
+    const summaries = await Promise.all(w.files.map(f => cached('i/' + f.name + '.summary.json')));
+    if (u.pathname === '/incoming') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify(w.files.map((f, i) => ({ name: f.name, size: f.bytes.length, mtime: 1, path: 'C:\\In\\' + f.name, summary: dec(summaries[i]) }))) });
     if (u.pathname === '/incoming/file') {
       const f = w.files.find(x => x.name === u.searchParams.get('name'));
       if (f) served.set(f.name, served.get(f.name) ?? f.bytes);   // read once: the player asks for several ranges
@@ -2147,9 +2148,13 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
       const start = Number(m[1]), end = m[2] ? Math.min(Number(m[2]), all.length - 1) : all.length - 1;
       return r.fulfill({ status: 206, contentType: 'audio/flac', headers: { ...cors, 'Accept-Ranges': 'bytes', 'Content-Range': 'bytes ' + start + '-' + end + '/' + all.length }, body: all.subarray(start, end + 1) });
     }
-    if (u.pathname === '/cache') { const b = w.cache[u.searchParams.get('key')!]; return b ? r.fulfill({ contentType: 'application/octet-stream', headers: cors, body: Buffer.from(b) }) : r.fulfill({ status: 404, headers: cors, body: '{}' }); }
+    if (u.pathname === '/cache') { const b = await cached(u.searchParams.get('key')!); return b ? r.fulfill({ contentType: 'application/octet-stream', headers: cors, body: Buffer.from(b) }) : r.fulfill({ status: 404, headers: cors, body: '{}' }); }
     return r.fulfill({ status: 404, headers: cors, body: '{}' });
   });
+  // GLUE Home's cache, where its engine analysed the song that arrived (ADR 0158).
+  async function cached(rel: string) {
+    return home.evaluate(async k => { try { return [...new Uint8Array(await (window as unknown as { __TAURI_INTERNALS__: { invoke: (c: string, a: unknown) => Promise<ArrayBuffer> } }).__TAURI_INTERNALS__.invoke('cache_read', { rel: k }))]; } catch { return null; } }, rel);
+  }
 
   // The desktop: an empty collection, signed in; its own GLUE Home is online.
   await seed(page);
@@ -2170,7 +2175,7 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   await page.click('#send-songs');
   await (await chooser).setFiles([fixture('flac-96k-24.flac')]);
   await expect(page.locator('#send-panel')).toContainText('Sent to Desktop', { timeout: 30_000 });
-  await expect.poll(() => home.evaluate(() => Object.keys((window as unknown as { __cache: Record<string, unknown> }).__cache).some(k => k.endsWith('.summary.json'))), { timeout: 60_000 }).toBe(true);
+  await expect.poll(async () => !!await cached('i/flac-96k-24.flac.summary.json'), { timeout: 60_000 }).toBe(true);
   // The website learns the local link (once, over the account's channel).
   await expect.poll(() => page.evaluate(() => localStorage.getItem('mco.localHome')), { timeout: 40_000 }).toContain('47400');
   await expect(page.locator('#local-link')).toHaveText(' · linked directly');

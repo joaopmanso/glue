@@ -1,10 +1,11 @@
 //! GLUE Home's library engine, native (crates/glue-engine, ADR 0153, 0154): the local link's `/rpc` from a GLUE tab here
 //! is answered in Rust (edits, the feed, jobs, the analysis, where a dropped song or folder is), writing the GLUE folder
-//! straight to disk; the analysis queue runs here too. The shared sync and the answers to other devices, still in the
-//! service page until the plan's E4, use it through `engine_cmd`; the answers to other devices are its (ADR 0156, through
-//! rtc.rs). What the engine says goes to the service page as events: `engine-event` (Activity), `engine-edited` (the
-//! sync sends it up), `engine-changed` (the status), `engine-analysis` (the queue's state), `engine-made` (a song's
-//! parts made: the sessions are told), `engine-background` (the background thumbnails' progress).
+//! straight to disk; the analysis queue runs here too, and so do the shared sync (ADR 0155), the answers to other devices
+//! (ADR 0156, through rtc.rs) and the account's signaling room with the sessions (ADR 0158: the room's socket is
+//! signal.rs, the connections rtc.rs). The service page asks it things through `engine_cmd`. What the engine says goes
+//! to the service page as events: `engine-event` (Activity), `engine-edited`, `engine-changed` (the status),
+//! `engine-analysis` (the queue's state), `engine-background` (the background thumbnails' progress),
+//! `engine-room` (online or not, and the sessions).
 use glue_engine::library::Known;
 use glue_engine::sync::CloudError;
 use glue_engine::{Engine, Host};
@@ -18,8 +19,8 @@ pub struct App { app: AppHandle }
 
 fn cfg(app: &AppHandle) -> Option<Value> { crate::get_config_impl(app.clone()) }
 
-/// GLUE Cloud (home/ui/bridge.ts `API`).
-const API: &str = "https://glue-api.joaopmanso.workers.dev";
+/// GLUE Cloud: the settings' `api`, or GLUE's.
+fn api_of(c: &Value) -> String { c["api"].as_str().filter(|a| !a.is_empty()).unwrap_or(glue_engine::room::API).trim_end_matches('/').to_string() }
 /// This GLUE Home's access token, when it was asked for, and for which credential.
 static TOKEN: Mutex<Option<(String, std::time::Instant, String)>> = Mutex::new(None);
 /// An access token (cloud.ts `access`): kept 40 minutes.
@@ -78,18 +79,21 @@ impl Host for App {
   fn edited(&self, p: &str, c: &str, paths: &[String]) { let _ = self.app.emit_to("service", "engine-edited", json!({ "p": p, "c": c, "paths": paths })); }
   fn changed(&self) { let _ = self.app.emit_to("service", "engine-changed", ()); }
   fn analysis_changed(&self, state: &Value) { let _ = self.app.emit_to("service", "engine-analysis", state); }
-  fn made(&self, p: &str, c: &str, id: &str) { let _ = self.app.emit_to("service", "engine-made", json!({ "p": p, "c": c, "id": id })); }
   fn background_changed(&self, progress: &Value) { let _ = self.app.emit_to("service", "engine-background", progress); }
   /// A cover service's answer (ADR 0086): only the addresses web.rs allows.
   fn web_get(&self, url: &str) -> Result<Vec<u8>, String> { crate::web::get(url, &self.version()) }
   /// The local link and its tokens (the full one, and the read-only one for a GLUE tab while GLUE Home is the engine).
   fn local_link(&self) -> Value { let c = self.config(); json!({ "port": crate::local::PORT.load(std::sync::atomic::Ordering::Relaxed), "token": c["localToken"], "readToken": c["readToken"] }) }
   fn serving(&self) -> bool { crate::rtc::busy() }
+  fn access_token(&self) -> Result<String, CloudError> { let c = self.config(); access(&api_of(&c), &c) }
+  fn open_socket(&self, url: &str) -> Result<Box<dyn glue_engine::room::Socket>, String> { crate::signal::open(url) }
+  fn peers(&self) -> Option<Arc<dyn glue_engine::room::Peers>> { Some(Arc::new(crate::rtc::Conns(self.app.try_state::<crate::rtc::Rtc>()?.inner().clone()))) }
+  fn room_changed(&self, room: &Value) { let _ = self.app.emit_to("service", "engine-room", room); }
   /// GLUE Cloud (the settings' `api`, or GLUE's), with this GLUE Home's access token: asked for with its credential
   /// (`/v1/auth/device`) and kept 40 minutes, as the service page did.
   fn cloud(&self, method: &str, path: &str, content_type: Option<&str>, body: Option<&str>) -> Result<String, CloudError> {
     let c = self.config();
-    let api = c["api"].as_str().filter(|a| !a.is_empty()).unwrap_or(API).trim_end_matches('/').to_string();
+    let api = api_of(&c);
     let token = access(&api, &c)?;
     let req = ureq::request(method, &format!("{api}{path}")).set("Authorization", &format!("Bearer {token}")).timeout(std::time::Duration::from_secs(60));
     let r = match (content_type, body) {
@@ -123,16 +127,31 @@ fn folder(app: &AppHandle, root_id: &str) -> Option<PathBuf> {
   cfg(app)?.get("folders")?.get(root_id)?.as_str().map(PathBuf::from)
 }
 
-static ENGINE: Mutex<Option<(PathBuf, Arc<Engine<App>>)>> = Mutex::new(None);
+/// The engine: its GLUE folder, whether the settings chose it, and the engine.
+type Current = (PathBuf, bool, Arc<Engine<App>>);
+static ENGINE: Mutex<Option<Current>> = Mutex::new(None);
 
-/// The engine for the GLUE folder in the settings (a new one when it changes).
-pub fn engine(app: &AppHandle) -> Result<Arc<Engine<App>>, String> {
-  let glue = cfg(app).and_then(|c| c.get("glue").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(PathBuf::from)).ok_or("No GLUE folder chosen in GLUE Home")?;
+/// The engine for the GLUE folder in the settings (a new one when it changes). With none chosen, it's over an empty
+/// folder of GLUE Home's own: GLUE Home is still online in the account's room and takes songs sent to it, with no
+/// library. The room moves to the new engine.
+pub fn current(app: &AppHandle) -> Result<Arc<Engine<App>>, String> {
+  let chosen = cfg(app).and_then(|c| c.get("glue").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(PathBuf::from));
+  let glue = match &chosen { Some(g) => g.clone(), None => app.path().app_data_dir().map_err(|x| x.to_string())?.join("no-glue-folder") };
   let mut e = ENGINE.lock().unwrap();
-  if let Some((at, en)) = e.as_ref() { if *at == glue { return Ok(en.clone()); } }
+  if let Some((at, _, en)) = e.as_ref() { if *at == glue { return Ok(en.clone()); } }
+  if chosen.is_none() { std::fs::create_dir_all(&glue).map_err(|x| x.to_string())?; }
   let cache = app.path().app_cache_dir().map_err(|x| x.to_string())?.join("library");
   let en = Engine::new(glue.clone(), cache, App { app: app.clone() });
-  *e = Some((glue, en.clone()));
+  if let Some((_, _, old)) = e.replace((glue, chosen.is_some(), en.clone())) {
+    let new = en.clone();
+    std::thread::spawn(move || { old.room_stop(); new.room_start(); });
+  }
+  Ok(en)
+}
+/// The engine over the GLUE folder the settings chose (a GLUE tab's requests, the library's answers).
+pub fn engine(app: &AppHandle) -> Result<Arc<Engine<App>>, String> {
+  let en = current(app)?;
+  if !ENGINE.lock().unwrap().as_ref().is_some_and(|(_, chosen, e)| *chosen && Arc::ptr_eq(e, &en)) { return Err("No GLUE folder chosen in GLUE Home".into()); }
   Ok(en)
 }
 
@@ -145,7 +164,11 @@ pub fn rpc(app: &AppHandle, body: &str) -> String {
 /// What the service page asks of the engine (`glue_engine::command`).
 #[tauri::command]
 pub async fn engine_cmd(app: AppHandle, cmd: Value) -> Result<Value, String> {
-  tauri::async_runtime::spawn_blocking(move || glue_engine::command(&engine(&app)?, &cmd)).await.map_err(|e| e.to_string())?
+  tauri::async_runtime::spawn_blocking(move || {
+    // The room, the sessions, songs received and which computer this is don't need a GLUE folder.
+    let any = matches!(cmd["cmd"].as_str().unwrap_or(""), "roomStart" | "roomStop" | "roomDisconnect" | "roomState" | "learnComputer" | "attach" | "analyseWaiting");
+    glue_engine::command(&if any { current(&app)? } else { engine(&app)? }, &cmd)
+  }).await.map_err(|e| e.to_string())?
 }
 
 /// Started with GLUE Home: the analysis (20 s after starting, then every minute, ADR 0103), and every 10 s the jobs

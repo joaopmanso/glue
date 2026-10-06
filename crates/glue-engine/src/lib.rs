@@ -9,16 +9,22 @@
 //! - the analysis queue (`queue.rs`, ADR 0154): this computer's songs analysed natively (`analyse.rs`) and taken into
 //!   the library; where songs and music folders are on this computer (`library.rs`);
 //! - the shared collections synced with GLUE Cloud (`sync.rs`, `shared.rs`, ADR 0155);
-//! - the answers to the account's other devices (`answers.rs`, `covers.rs`, `incoming.rs`, ADR 0156).
+//! - the answers to the account's other devices (`answers.rs`, `covers.rs`, `incoming.rs`, ADR 0156);
+//! - the account's signaling room and the sessions with other devices, which computer this is (`room.rs`,
+//!   `sessions.rs`, `ice.rs`, `identity.rs`, ADR 0158).
 //!
 //! No Tauri: the app is a `Host`. `glue-engine-test` serves it to the e2e tests.
 pub mod analyse;
 pub mod answers;
 pub mod covers;
+pub mod ice;
+pub mod identity;
 pub mod incoming;
 pub mod library;
 pub mod names;
 pub mod queue;
+pub mod room;
+pub mod sessions;
 pub mod shared;
 pub mod sync;
 pub mod tags;
@@ -50,6 +56,14 @@ pub trait Host: Send + Sync + 'static {
   fn local_link(&self) -> Value { json!({ "port": null, "token": null, "readToken": null }) }
   /// GLUE Home is sending or receiving for another device now (the background waits).
   fn serving(&self) -> bool { false }
+  /// An access token for this GLUE Home's credential (`POST /v1/auth/device`), for the room's socket.
+  fn access_token(&self) -> Result<String, sync::CloudError> { Err(sync::CloudError::new("GLUE Home isn’t connected to GLUE Cloud")) }
+  /// The signaling room's socket (`wss://…/v1/signal?token=…`).
+  fn open_socket(&self, _url: &str) -> Result<Box<dyn room::Socket>, String> { Err("no room here".into()) }
+  /// The connections to other devices (crates/glue-rtc), if this host makes them.
+  fn peers(&self) -> Option<Arc<dyn room::Peers>> { None }
+  /// The room's state and its sessions changed (`{ state, text, sessions: { list, max } }`: GLUE Home's window).
+  fn room_changed(&self, _room: &Value) {}
   /// The background's progress changed (`{ done, total, running }`: GLUE Home's window shows it).
   fn background_changed(&self, _progress: &Value) {}
   /// Which computer this is (ADR 0108), once known.
@@ -81,7 +95,7 @@ pub trait Host: Send + Sync + 'static {
   fn foreground_at(&self) -> f64 { 0.0 }
   /// The analysis queue's state changed (GLUE Home's window, a tab's status).
   fn analysis_changed(&self, _state: &Value) {}
-  /// A song's parts were made here (any reason): the devices with a session are told (ADR 0133).
+  /// A song's parts were made here (any reason). (The devices with a session are told by the room, room.rs.)
   fn made(&self, _p: &str, _c: &str, _id: &str) {}
   /// A call to GLUE Cloud (`path` under its address, as this GLUE Home, with its credential): the answer's text, or
   /// why not (its HTTP status, 0 for none).
@@ -155,6 +169,8 @@ pub struct Engine<H: Host> {
   pub(crate) counted: Mutex<HashMap<String, (String, i64)>>,
   /// What the answers to other devices keep (answers.rs, covers.rs).
   pub(crate) devices: answers::Devices,
+  /// The signaling room and the sessions (room.rs).
+  pub(crate) room: room::Room,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -164,7 +180,7 @@ fn truthy(v: Option<&Value>) -> bool { glue_store::project::truthy(v) }
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue, cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default() });
+    let e = Arc::new(Engine { glue, cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }
@@ -396,6 +412,7 @@ impl<H: Host> Engine<H> {
   /// A song's file changed because its tags were written (ADR 0110): what's kept of it in GLUE Home's cache (the
   /// details' header, the analysis result) follows its new size and date, if they were of the file as it was.
   pub fn restamp(&self, p: &str, c: &str, id: &str, was: &Value, now: &Value) {
+    self.restamped(p, c, id, was, now);
     let cache = self.cache_dir();
     let sh = shard_of(id);
     let (dk, sk) = (format!("d/{p}/{c}/{sh}/{id}.json"), format!("s/{p}/{c}/{sh}/{id}.json"));
@@ -510,6 +527,16 @@ pub fn command<H: Host>(e: &Arc<Engine<H>>, m: &Value) -> Result<Value, String> 
     "syncShared" => e.sync_shared_here().map(|n| json!(n)).map_err(|x| x.message),
     // Another device's request (answers.rs): data with its bytes (base64), or a song's file. The e2e tests' stand-in
     // for GLUE Home's connections sends what it says.
+    // The signaling room and the sessions (room.rs, ADR 0158): online or not, a session disconnected in the settings,
+    // the room's state; which computer this is, and a browser here attaching (identity.rs).
+    "roomStart" => { e.room_start(); Ok(json!(true)) }
+    "roomStop" => { e.room_stop(); Ok(json!(true)) }
+    "roomDisconnect" => { e.disconnect(&text(m, "key")); Ok(json!(true)) }
+    "roomState" => Ok(e.room_json()),
+    "learnComputer" => { let e2 = e.clone(); std::thread::spawn(move || e2.learn_computer()); Ok(json!(true)) }
+    "attach" => { e.attach(&text(m, "browser"))?; Ok(json!(true)) }
+    // Songs in the incoming folder without an analysis (arrived while GLUE Home was off), analysed.
+    "analyseWaiting" => { let e2 = e.clone(); std::thread::spawn(move || e2.analyse_waiting()); Ok(json!(true)) }
     // The background's mini spectrograms and waveforms for other devices (answers.rs): started, and how far.
     "background" => { e.background(); Ok(json!(true)) }
     "backgroundState" => Ok(e.background_json()),

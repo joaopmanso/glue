@@ -1864,7 +1864,7 @@ dependencies = [
 
 [[package]]
 name = "glue-home"
-version = "0.56.0"
+version = "0.57.0"
 dependencies = [
  "glue-audio",
  "glue-engine",
@@ -6059,9 +6059,12 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.9.5",
+ "rustls",
+ "rustls-pki-types",
  "sha1",
  "thiserror 2.0.21",
  "utf-8",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]

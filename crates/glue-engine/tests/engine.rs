@@ -165,6 +165,31 @@ fn the_queue_analyses_a_song_and_puts_it_into_the_library() {
   assert_eq!(h.0.lock().unwrap().made.len(), 1);
 }
 
+/// Song info written into a file while it's analysed (a sync brought an edit, homemode.spec 2026-10-06): the analysis,
+/// of the same audio, lands with the file's new date, and never puts the old one back into the library.
+#[test]
+fn an_analysis_running_while_its_tags_are_written_takes_the_new_date() {
+  let (glue, cache, music) = (temp("late"), temp("late-cache"), temp("late-music"));
+  library(&glue);
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/mp3-128k.mp3");
+  std::fs::copy(&fixture, music.join("a.mp3")).unwrap();
+  let size = std::fs::metadata(music.join("a.mp3")).unwrap().len();
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": music.to_string_lossy() }, "analysisWorkers": 1 });
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  // The tags written (the record's date 5 → 99) while the analysis of the file as it was (date 5) runs.
+  e.restamp("p1", "c1", "ab1", &json!({ "size": size, "mtime": 5 }), &json!({ "size": size, "mtime": 99 }));
+  command(&e, &json!({ "cmd": "analyseSong", "p": "p1", "c": "c1", "id": "ab1" })).unwrap();
+  assert_eq!(read(&cache, "s/p1/c1/ab/ab1.json")["mtime"], json!(99), "restamped as it landed");
+  command(&e, &json!({ "cmd": "apply", "p": "p1", "c": "c1", "ops": [{ "m": "tracks", "ts": [{ "id": "ab1", "status": "linked", "rootId": "r1", "relPath": "a.mp3", "size": size, "mtime": 99, "title": "A", "sources": [] }] }] })).unwrap();
+  e.run_analysis();
+  for _ in 0..300 { if h.0.lock().unwrap().events.iter().any(|x| x.starts_with("Put ")) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
+  let t = read(&glue, &format!("{C}/tracks/ab.json"))["items"]["ab1"].clone();
+  assert_eq!((t["mtime"].clone(), read(&glue, &format!("{C}/analysis/ab.json"))["items"]["ab1"]["fileMtime"].clone()), (json!(99), json!(99)));
+}
+
 #[test]
 fn a_collection_deleted_from_the_account_is_backed_up_and_put_away() {
   let (glue, cache) = (temp("gone"), temp("gone-cache"));

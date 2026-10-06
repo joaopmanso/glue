@@ -103,23 +103,14 @@ export const bridge = {
   cacheRead: (rel: string) => invoke<ArrayBuffer>('cache_read', { rel }),
   cacheWrite: (rel: string, bytes: Uint8Array) => invoke<void>('cache_write', bytes, { headers: { 'x-rel': rel } }),
   cacheList: (rel: string) => invoke<string[]>('cache_list', { rel }),
-  /** A song that arrived in the incoming folder, analysed by the engine into `i/<name>.…` (ADR 0048). */
-  analyseIncoming: (name: string, path: string) => invoke<void>('analyse_incoming', { name, path }),
   /** A song's cover from its tags ('' for none), kept with the song's hash (ADR 0082). */
   /** A picture (a cover service's) made into the cover's JPEGs and kept: its hash (ADR 0086). */
   /** A song's waveform made from its kept details (empty: none kept). */
-  // GLUE Home's own connections to other devices (ADR 0150): the signaling stays here, the rest is Rust's.
-  /** An offer: the answer's SDP. `hello`: said on each channel as it opens. */
-  rtcAnswer: (id: string, sdp: string, servers: RTCIceServer[], hello: { version: string; max: number; name: string }) => invoke<string>('rtc_answer', { id, sdp, servers, hello }),
-  rtcIce: (id: string, candidate: RTCIceCandidateInit | null) => invoke<void>('rtc_ice', { id, candidate }),
-  rtcClose: (id: string) => invoke<void>('rtc_close', { id }),
-  /** An answer to a request: its data, and its bytes. */
-  /** A song's file (`range`: a part of it, [start, length]) read from disk and sent: the bytes sent. */
-  /** Said on every session. */
+  // GLUE Home's own connections to other devices (ADR 0150, 0158: in Rust, with the room and the sessions).
   /** GLUE Home is sending or receiving for another device now (updates wait). */
   rtcBusy: () => invoke<boolean>('rtc_busy'),
-  rtcTell: (msg: unknown) => invoke<void>('rtc_tell', { msg }),
-  onRtc: <T>(name: 'rtc-ice' | 'rtc-state' | 'rtc-request' | 'rtc-receiving' | 'rtc-received' | 'rtc-served' | 'rtc-activity', f: (payload: T) => void) => listen<T>(name, e => f(e.payload)),
+  /** A song arriving (`rtc-receiving`), and what other devices asked (`rtc-served`). */
+  onRtc: <T>(name: 'rtc-receiving' | 'rtc-served', f: (payload: T) => void) => listen<T>(name, e => f(e.payload)),
   /** What GLUE Home's own side was asked since it started: the local link, the service page's file reads (ADR 0083). */
   activity: () => invoke<{ seconds: number; counts: Record<string, Activity> }>('activity_now'),
   incomingList: () => invoke<{ name: string; size: number; mtime: number; path: string }[]>('incoming_list'),
@@ -149,8 +140,6 @@ export const bridge = {
   /** The settings' check of the native engine (ADR 0147): `n` songs, 0 to stop. */
   verify: (n: number) => emitTo('service', 'verify', n),
   onVerify: (f: (n: number) => void) => listen<number>('verify', e => f(e.payload)),
-  /** A browser on this computer asked to join it (ADR 0091): its request's body. */
-  onAttach: (f: (body: string) => void) => listen<string>('attach', e => f(e.payload)),
 };
 
 /** A desktop notification (ADR 0074); false when the OS doesn't allow them. */

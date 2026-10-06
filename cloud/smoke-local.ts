@@ -2,9 +2,22 @@
    online, both see each other in the room, a signal reaches GLUE Home, and revoking it kicks it out.
    Local (`wrangler dev`, user u1/b1): npx tsx cloud/smoke-local.ts
    Live: SMOKE_API=https://glue-api.joaopmanso.workers.dev SMOKE_KEY=<SESSION_KEY> SMOKE_USER=smoke-u1 SMOKE_DEVICE=smoke-b1 npx tsx cloud/smoke-local.ts
-   GLUE Home's own code (home/ui/cloud.ts) does the pairing and stays online. */
+   GLUE Home's own code (home/ui/cloud.ts) does the pairing; GLUE Home's side of the room (in Rust since ADR 0158) is
+   stood in for below, as crates/glue-engine/src/room.rs does it: an access token, the socket, removed (4001 or a
+   message). */
 import { signAccess } from './src/crypto.ts';
-import { claim, stayOnline } from '../home/ui/cloud.ts';
+import { claim } from '../home/ui/cloud.ts';
+
+/** GLUE Home in the room: what it heard, said to `on`. */
+async function homeRoom(api: string, deviceId: string, token: string, on: (what: string) => void) {
+  const r = await fetch(api + '/v1/auth/device', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId, token }) });
+  const t = ((await r.json()) as { access: string }).access;
+  const s = new WebSocket(api.replace(/^http/, 'ws') + '/v1/signal?token=' + encodeURIComponent(t));
+  s.onopen = () => on('online');
+  s.onmessage = e => { const m = JSON.parse(String(e.data)); on(m.type === 'signal' ? 'Connection request from ' + m.from : m.type === 'removed' ? 'removed from the account' : m.type); };
+  s.onclose = e => { if (e.code === 4001) on('removed from the account'); };
+  return { stop: () => s.close(1000) };
+}
 
 const API = process.env.SMOKE_API ?? 'http://127.0.0.1:8787', KEY = process.env.SMOKE_KEY ?? 'local-dev-session-key-not-secret-0123456789';
 const U = process.env.SMOKE_USER ?? 'u1', B = process.env.SMOKE_DEVICE ?? 'b1';
@@ -18,7 +31,7 @@ const cfg = await claim(API, code, 'Smoke Home');
 say('paired: device ' + cfg.deviceId);
 
 const homeLog: string[] = [];
-const room = stayOnline(API, cfg.deviceId, cfg.token, e => { const s = e.type === 'signal' ? 'Connection request from ' + e.from : e.type === 'removed' ? 'removed from the account' : e.type; homeLog.push(s); say('home: ' + s); });
+const room = await homeRoom(API, cfg.deviceId, cfg.token, s => { homeLog.push(s); say('home: ' + s); });
 const stop = () => room.stop();
 const ws = new WebSocket(API.replace('http', 'ws') + '/v1/signal?token=' + browser);
 const got: { type: string; online?: string[] }[] = [];

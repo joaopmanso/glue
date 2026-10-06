@@ -5,6 +5,33 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-06 · GLUE Home 0.57.0: the signaling room and the sessions in Rust (ADR 0158)
+- **The plan's E4b, step 2** ([ADR 0158](../adr/0158-the-signaling-room-and-the-sessions-in-rust.md)): GLUE Home's
+  engine is in the account's signaling room itself (`room.rs`: the socket over TLS, ping, a new token at 50 minutes,
+  backoff, removed and replaced), answers offers through its own connections (glue-rtc), keeps the sessions' rules
+  (`sessions.rs`: "Most at once", the same tab replacing its own, Disconnect refusing for an hour), relays candidates
+  (those before the answer held), lets go of connections not open in 30 s or gone for 15 s, tells every session what
+  it analysed and received, analyses songs received, and learns which computer it is (`identity.rs`, and a browser
+  here attaching through the local link). ICE servers: `ice.rs`.
+- **Nothing should look different.** One change on purpose: GLUE Cloud answering `/v1/computer` with an error no
+  longer clears which computer GLUE Home is on.
+- **Without a GLUE folder** GLUE Home is still online and takes songs sent to it (its engine runs over an empty folder
+  of its own); a tab's requests are refused until one is chosen, as before.
+- **The service page** keeps the status and E5's timers; `cloud.ts` keeps only the pairing; `sessions.ts`, `ice.ts`,
+  `identity.ts`, `cache.ts` and five commands are gone. `cloud/smoke-local.ts` stands in for GLUE Home's side of the
+  room itself.
+- **A race found on the way:** an analysis that finished after the song's info was written into its file (a sync
+  brought an edit) put the file's old date back into the library, and that went to GLUE Cloud. Such an analysis now
+  takes the new date (the same audio), and an analysis is never put back over a record that moved on. The e2e test
+  of a shared collection with no tab open was flaky under load because of it.
+- **The window's "waiting for its folder" count** (a network folder not connected) went back to 0 at GLUE Home's
+  minutely look since 0.56, which no longer looks through the songs: it's cleared only by a look that counts them again.
+- Tests: `crates/glue-engine/tests/room.rs` (a socket and connections stood in for), `tests/engine.rs` (the race),
+  `home/src-tauri` `signal.rs` (GLUE Cloud over TLS, `--ignored`: the network). The e2e test engine asks the service
+  page to hold its room socket and make its connections (the tests' `routeWebSocket` and `e2e/home-rtc.ts` stand in
+  as before), and GLUE Cloud calls `fake.cloud` doesn't answer go to the page's routes. `e2e/home-analyse.ts` is
+  gone: the test engine analyses songs received for real.
+
 ## 2026-10-06 · GLUE Home 0.56.0: one analysis pipeline inside "songs at a time" (ADR 0157)
 - **The user:** GLUE Home's window listed about 30 songs while 8 were analysed; "the analysis process should be
   streamlined … list them once … never read over the limit"

@@ -96,6 +96,9 @@ struct Q {
   net_running: HashMap<String, u32>,
   /// When a song was last streamed to another device (ADR 0138): the analysis eases off.
   played_at: f64,
+  /// Songs whose files were restamped (their tags written) lately, `p/c/id` → (was, now): an analysis of the file as it
+  /// was that lands after it is restamped too (the same audio).
+  restamped: IndexMap<String, (Value, Value)>,
 }
 
 fn ms() -> f64 { std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0) }
@@ -449,6 +452,13 @@ impl<H: Host> Engine<H> {
     }
   }
 
+  /// A song's file was restamped: kept a while (the last 200) for an analysis of it that's running now.
+  pub(crate) fn restamped(&self, p: &str, c: &str, id: &str, was: &Value, now: &Value) {
+    let mut q = self.q();
+    q.restamped.insert(format!("{p}/{c}/{id}"), (was.clone(), now.clone()));
+    while q.restamped.len() > 200 { q.restamped.shift_remove_index(0); }
+  }
+
   /// A song of this computer's library analysed here (ADR 0147, 0148): read, decoded and analysed natively, its parts
   /// written to the cache. Err when it couldn't be: a passing failure (unreadable now, out of time) isn't saved, a
   /// lasting one is saved as failed. `tell`: the result is for the library (false: only this cache's, filled in the
@@ -469,9 +479,13 @@ impl<H: Host> Engine<H> {
     let r = crate::analyse::on_own_thread("glue-analysis", move || crate::analyse::analyse_into(bytes, &name, mtime, &|d, e| crate::analyse::key(d, &pp, &cc, &ii, e), &|rel, data| cache.write_bytes(&rel, data)));
     step.to(None);
     let r = r??;
+    // Its tags were written while it was analysed: what was just made follows the file's new size and date.
+    let late = self.q().restamped.get(&format!("{p}/{c}/{id}")).cloned();
+    if let Some((was, now)) = late { if !differ(was.get("mtime"), Some(&json!(f.mtime))) { self.restamp(p, c, id, &was, &now); } }
     if tell { self.add_pending(p, c, id); }
     if let Some(m) = r["failed"].as_str() { return Err(m.to_string()); }
     self.host.made(p, c, id);
+    self.room_made(p, c, id);
     Ok((r["bytes"].as_f64().unwrap_or(0.0), read_ms, r["analyseMs"].as_f64().unwrap_or(0.0)))
   }
 
@@ -494,14 +508,15 @@ impl<H: Host> Engine<H> {
   }
   fn run_loop(self: &std::sync::Arc<Self>) {
     self.load_pending();
-    let (done0, failed0) = { let mut q = self.q(); q.state.away = 0; (q.state.done, q.state.failed) };
+    let (done0, failed0) = { let q = self.q(); (q.state.done, q.state.failed) };
     let c0 = self.host.config();
     if c0["glue"].as_str().is_some_and(|g| !g.is_empty()) {
       // The collections looked through once since GLUE Home started, and again when they changed around the engine;
       // otherwise each edit's songs are queued as they come (queue_edit, ADR 0157).
       let rescan = { let q = self.q(); q.stale || !q.looked };
       if rescan {
-        { let mut q = self.q(); q.stale = false; q.looked = true; q.scanned = ms(); }
+        // Songs whose folder isn't reachable are counted again by this look (a run that doesn't look leaves them waiting).
+        { let mut q = self.q(); q.stale = false; q.looked = true; q.scanned = ms(); q.state.away = 0; }
         let found = self.scan(&c0);
         let mut q = self.q();
         let have: HashSet<String> = q.queue.iter().chain(q.urgent.iter()).map(Job::key).chain(q.active.iter().cloned()).collect();
@@ -530,7 +545,7 @@ impl<H: Host> Engine<H> {
     let c = self.host.config();
     // Songs added while this runs: into the queue (those running or queued already aren't twice).
     if std::mem::replace(&mut self.q().stale, false) {
-      self.q().scanned = ms();
+      { let mut q = self.q(); q.scanned = ms(); q.state.away = 0; }
       let found = self.scan(&c);
       let mut q = self.q();
       let have: HashSet<String> = q.queue.iter().map(|j| format!("{}/{}/{}", j.p, j.c, j.id)).chain(q.active.iter().cloned()).collect();
@@ -693,6 +708,9 @@ impl<H: Host> Engine<H> {
           done.push(id.clone());
           let Some(cur) = st.tracks.get(id) else { continue };
           if truthy(get(cur, "remote")) { continue; }
+          // Of the file as the library's record had it when it started (the date comes from the record, the size from
+          // the bytes read): a record that moved on meanwhile is never put back; the song is analysed again.
+          if get(cur, "mtime").is_some_and(|v| v.is_number()) && differ(get(cur, "mtime"), get(&a, "mtime")) { continue; }
           // The library has this already (the same file, as new an analysis): nothing to write, or to sync.
           if let Some(had) = st.analysis.get(id) {
             if !truthy(get(had, "error")) && had["v"].as_f64().unwrap_or(0.0) >= a["summary"]["v"].as_f64().unwrap_or(0.0) && !differ(get(had, "fileSize"), get(&a, "size")) && !differ(get(had, "fileMtime"), get(&a, "mtime")) { continue; }

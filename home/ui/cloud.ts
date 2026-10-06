@@ -1,6 +1,6 @@
 /* GLUE Home and GLUE Cloud (ADR 0036, 0044, 0045): join the account with a code from the website on
-   this computer (GLUE Home becomes that browser's companion), trade the device credential for short
-   access tokens, and stay in the signaling room. */
+   this computer (GLUE Home becomes that browser's companion). Its access tokens and the signaling room are the
+   engine's (crates/glue-engine/src/room.rs, ADR 0158). */
 
 type Fetch = typeof fetch;
 export interface Joined { deviceId: string; token: string; name: string; user: { email: string | null; name: string | null } | null; companionOf?: { id: string; name: string } | null }
@@ -17,61 +17,3 @@ const platform = () => /Mac/i.test(navigator.userAgent) ? 'darwin' : /Win/i.test
     GLUE Home's previous device, which goes (connecting again doesn't leave a second one). */
 export const claim = (api: string, code: string, name: string, replaces?: { deviceId: string; token: string } | null, f?: Fetch) =>
   post<Joined>(api, '/v1/pairing/claim', { code, name, platform: platform(), ...(replaces ? { replaces } : {}) }, f);
-export const access = (api: string, deviceId: string, token: string, f?: Fetch) => post<{ access: string }>(api, '/v1/auth/device', { deviceId, token }, f).then(r => r.access);
-
-export type RoomEvent =
-  | { type: 'online' } | { type: 'offline'; why: string } | { type: 'removed' } | { type: 'replaced' }
-  | { type: 'presence'; online: string[] } | { type: 'signal'; from: string; data: unknown }
-  | { type: 'shared'; collection: string; from: string | null };
-
-/** Stay in the room: reconnect with backoff, a fresh token before the old one expires. */
-export function stayOnline(api: string, deviceId: string, token: string, on: (e: RoomEvent) => void) {
-  let retry = 0, stopped = false, ws: WebSocket | null = null;
-  const timers: ReturnType<typeof setTimeout>[] = [];
-  const clear = () => { while (timers.length) clearTimeout(timers.pop()); };
-  const again = (why: string) => {
-    if (stopped) return;
-    const wait = Math.min(60_000, 1000 * 2 ** retry++);
-    on({ type: 'offline', why: why + (why ? '; ' : '') + 'trying again in ' + Math.round(wait / 1000) + ' s' });
-    timers.push(setTimeout(() => void connect(), wait));
-  };
-  const connect = async () => {
-    if (stopped) return;
-    let t: string;
-    try { t = await access(api, deviceId, token); }
-    catch (e) {
-      if ((e as { status?: number }).status === 401) { stopped = true; on({ type: 'removed' }); return; }
-      return again('Can’t reach GLUE Cloud');
-    }
-    if (stopped) return;
-    const s = new WebSocket(api.replace(/^http/, 'ws') + '/v1/signal?token=' + encodeURIComponent(t));
-    ws = s;
-    s.onopen = () => {
-      retry = 0; on({ type: 'online' });
-      timers.push(setInterval(() => { if (s.readyState === 1) s.send('{"type":"ping"}'); }, 30_000) as unknown as ReturnType<typeof setTimeout>);
-      timers.push(setTimeout(() => s.close(4002, 'renew'), 50 * 60e3));   // access tokens last an hour
-    };
-    s.onmessage = e => {
-      let m: { type: string; online?: string[]; from?: string; data?: unknown; collection?: string };
-      try { m = JSON.parse(String(e.data)); } catch { return; }
-      // Act on these at once: the close handshake may never arrive.
-      if (m.type === 'removed') { stopped = true; clear(); s.close(); on({ type: 'removed' }); }
-      else if (m.type === 'replaced') { stopped = true; clear(); s.close(); on({ type: 'replaced' }); }
-      else if (m.type === 'presence' && m.online) on({ type: 'presence', online: m.online });
-      else if (m.type === 'signal' && m.from) on({ type: 'signal', from: m.from, data: m.data });
-      else if (m.type === 'shared' && m.collection) on({ type: 'shared', collection: m.collection, from: m.from ?? null });
-    };
-    s.onclose = e => {
-      clear(); ws = null;
-      if (stopped) return;
-      if (e.code === 4001) { stopped = true; on({ type: 'removed' }); return; }
-      if (e.code === 4000) { stopped = true; on({ type: 'replaced' }); return; }
-      again(e.code === 4002 ? '' : 'Disconnected');
-    };
-  };
-  void connect();
-  return {
-    send: (to: string, data: unknown) => { if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'signal', to, data })); },
-    stop: () => { stopped = true; clear(); ws?.close(1000, 'bye'); ws = null; },
-  };
-}

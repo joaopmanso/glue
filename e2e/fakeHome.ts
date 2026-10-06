@@ -22,8 +22,9 @@ export class FakeHome {
   readonly readToken = 'e2e-read';
   /** Where /rpc goes when it isn't the engine's (the analysis queue's: the test wires it to GLUE Home's service page); unset: 503. */
   rpc: ((body: string, read: boolean) => Promise<string>) | null = null;
-  /** GLUE Cloud as the engine calls it (ADR 0155; the test wires its stand-in): the answer's status and text. */
-  cloud: ((method: string, path: string, body: string | null) => Promise<{ status: number; body: string }>) | null = null;
+  /** GLUE Cloud as the engine calls it (ADR 0155; the test wires its stand-in): the answer's status and text; null (or
+      no stand-in): the service page asks it, the test's routes standing in (ADR 0158). */
+  cloud: ((method: string, path: string, body: string | null) => Promise<{ status: number; body: string } | null>) | null = null;
   /** The cover services as the engine asks them (ADR 0086, 0156): an address's start → its answer (JSON text or bytes);
       none: 404. What was asked, in order. */
   web: Record<string, string | number[] | Buffer> = {};
@@ -130,13 +131,16 @@ export class FakeHome {
         this.engine?.stdin.write(JSON.stringify({ reply: n, status: body ? 200 : 404, body: body?.toString('base64') ?? '' }) + '\n');
         return;
       }
+      // GLUE Cloud: the test's stand-in here, else the service page's (its routes stand in, ADR 0158).
       if (m.call !== undefined && m.cloud) {
         const n = m.call, c = m.cloud;
-        void (this.cloud ? this.cloud(c.method, c.path, c.body) : Promise.resolve({ status: 503, body: 'no GLUE Cloud' }))
+        void (this.cloud ? this.cloud(c.method, c.path, c.body) : Promise.resolve(null))
           .catch(e => ({ status: 500, body: String(e) }))
-          .then(r => this.engine?.stdin.write(JSON.stringify({ reply: n, status: r.status, body: r.body }) + '\n'));
+          .then(r => { if (r) this.engine?.stdin.write(JSON.stringify({ reply: n, status: r.status, body: r.body }) + '\n'); else this.notes.push({ note: 'call', call: n, cloud: c, n: this.notes.length + 1 }); });
         return;
       }
+      // The connections, made by the service page (e2e/home-rtc.ts): it answers.
+      if (m.call !== undefined && m.page) { this.notes.push({ note: 'call', call: m.call, page: m.page, n: this.notes.length + 1 }); return; }
       if (m.ask !== undefined) { this.asked.get(m.ask)?.(m); this.asked.delete(m.ask); return; }
       if (m.note === 'tags') { this.tagWrites.push({ path: m.path as string, tags: m.tags as Record<string, string> }); return; }
       if (m.note && m.note !== 'bye') this.notes.push({ ...m, n: this.notes.length + 1, note: m.note });
@@ -219,6 +223,8 @@ export class FakeHome {
       req.on('end', async () => {
         const m = JSON.parse(Buffer.concat(chunks).toString() || '{}') as Record<string, unknown>;
         if (m.set) { this.tell(m.set as Record<string, unknown>); return send(200, { ok: true }); }
+        // The page's answers to the engine's calls, and what the room's socket and the connections said.
+        if (m.reply !== undefined || m.ws !== undefined || m.rtc !== undefined) { this.engine?.stdin.write(JSON.stringify(m) + '\n'); return send(200, { ok: true }); }
         send(200, await this.ask(m));
       });
       return;

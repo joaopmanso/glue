@@ -69,15 +69,15 @@ test('a second browser on a computer with GLUE Home joins that computer: one dev
   await expect(homePage.locator('#state')).toContainText('Online as Desktop');
 
   // Its local link on 127.0.0.1 (Rust, stood in): /hello says who it is; /attach, with its token, is passed
-  // to the service page as Rust passes it (an event).
+  // to its engine as Rust passes it (ADR 0158), which tells GLUE Cloud.
   await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
     const u = new URL(r.request().url()), cors = { 'Access-Control-Allow-Origin': 'http://localhost:5174', 'Access-Control-Allow-Private-Network': 'true' };
     if (u.port !== '47400') return r.abort('connectionrefused');
     if (u.pathname === '/hello') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify({ app: 'glue-home', version: '0.23.0', device: 'h1' }) });
     if (u.searchParams.get('t') !== 'local-secret') return r.fulfill({ status: 401, headers: cors, body: '{}' });
     if (u.pathname === '/attach' && r.request().method() === 'POST') {
-      const body = r.request().postData() ?? '';
-      await homePage.evaluate(b => (window as unknown as { __tauriEvent: (e: string, p: unknown) => void }).__tauriEvent('attach', b), body);
+      const browser = (JSON.parse(r.request().postData() ?? '{}') as { browser?: string }).browser;
+      await homePage.evaluate(b => (window as unknown as { __TAURI_INTERNALS__: { invoke: (c: string, a: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__.invoke('engine_cmd', { cmd: { cmd: 'attach', browser: b } }), browser);
       return r.fulfill({ status: 202, headers: cors, body: '{}' });
     }
     return r.fulfill({ status: 404, headers: cors, body: '{}' });
