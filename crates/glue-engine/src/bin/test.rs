@@ -13,6 +13,9 @@
 //!                                                            its date 5 s on, as e2e/fakeHome.ts's /fs/tags does)
 //!        {"call": n, "cloud": {"method", "path", "type", "body"}}  a call to GLUE Cloud (the test's stands in), answered
 //!   in:  {"reply": n, "status": 200, "body": "..."}
+//!   out: {"call": n, "web": url}            a cover service asked (ADR 0086; the test's stand in), answered
+//!   in:  {"reply": n, "status": 200, "body": "<base64>"}
+//!        {"note": "background", "progress": {...}}           the background thumbnails' progress (ADR 0156)
 //! Every 2 s, as GLUE Home every 10 s: the jobs carried on, or the stores let go while a tab holds the lease. The
 //! analysis looks for songs a second after the settings first arrive, then every 10 s (GLUE Home: 20 s, every minute).
 //! Songs are analysed for real (crates/glue-audio).
@@ -24,11 +27,19 @@ use std::path::PathBuf;
 use std::sync::{mpsc, Arc, Mutex};
 
 #[derive(Default)]
-struct State { lease: bool, stopped: bool, config: Option<Value>, folders: serde_json::Map<String, Value>, incoming: Option<PathBuf>, known: Option<Known> }
+struct State { lease: bool, stopped: bool, config: Option<Value>, folders: serde_json::Map<String, Value>, incoming: Option<PathBuf>, known: Option<Known>, port: u64 }
 type Replies = Arc<Mutex<(u64, std::collections::HashMap<u64, mpsc::Sender<(u16, String)>>)>>;
 struct H { st: Arc<Mutex<State>>, out: Arc<Mutex<std::io::Stdout>>, glue: String, replies: Replies }
 impl H {
   fn say(&self, v: Value) { let mut o = self.out.lock().unwrap(); let _ = writeln!(o, "{v}"); let _ = o.flush(); }
+  /// A call to the test (GLUE Cloud, a cover service): its status and body.
+  fn call(&self, what: Value) -> Option<(u16, String)> {
+    let (tx, rx) = mpsc::channel();
+    let n = { let mut r = self.replies.lock().unwrap(); r.0 += 1; let n = r.0; r.1.insert(n, tx); n };
+    let mut m = what; m["call"] = json!(n);
+    self.say(m);
+    rx.recv_timeout(std::time::Duration::from_secs(60)).ok()
+  }
   fn folder(&self, root_id: &str) -> Option<PathBuf> {
     if root_id == "incoming" { return Some(self.incoming_dir()); }
     self.config()["folders"][root_id].as_str().map(PathBuf::from)
@@ -70,10 +81,7 @@ impl Host for H {
   fn analysis_changed(&self, state: &Value) { self.say(json!({ "note": "analysis", "state": state })) }
   fn made(&self, p: &str, c: &str, id: &str) { self.say(json!({ "note": "made", "p": p, "c": c, "id": id })) }
   fn cloud(&self, method: &str, path: &str, content_type: Option<&str>, body: Option<&str>) -> Result<String, glue_engine::sync::CloudError> {
-    let (tx, rx) = mpsc::channel();
-    let n = { let mut r = self.replies.lock().unwrap(); r.0 += 1; let n = r.0; r.1.insert(n, tx); n };
-    self.say(json!({ "call": n, "cloud": { "method": method, "path": path, "type": content_type, "body": body } }));
-    let (status, text) = rx.recv_timeout(std::time::Duration::from_secs(60)).map_err(|_| glue_engine::sync::CloudError::new("GLUE Cloud didn’t answer"))?;
+    let (status, text) = self.call(json!({ "cloud": { "method": method, "path": path, "type": content_type, "body": body } })).ok_or_else(|| glue_engine::sync::CloudError::new("GLUE Cloud didn’t answer"))?;
     if (200..300).contains(&status) { Ok(text) } else { Err(glue_engine::sync::CloudError { status, message: format!("GLUE Cloud: {status}") }) }
   }
   fn write_tags(&self, root_id: &str, rel_path: &str, tags: &glue_store::json::Obj) -> Result<(f64, f64), String> {
@@ -87,6 +95,14 @@ impl Host for H {
     let ms = at.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0);
     Ok((m.len() as f64, ms))
   }
+  fn web_get(&self, url: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine as _;
+    let (status, body) = self.call(json!({ "web": url })).ok_or("the service didn’t answer")?;
+    if !(200..300).contains(&status) { return Err(format!("the service said {status}")); }
+    base64::engine::general_purpose::STANDARD.decode(body).map_err(|e| e.to_string())
+  }
+  fn local_link(&self) -> Value { let c = self.config(); json!({ "port": self.st.lock().unwrap().port, "token": c["localToken"], "readToken": c["readToken"] }) }
+  fn background_changed(&self, progress: &Value) { self.say(json!({ "note": "background", "progress": progress })) }
   fn reachable(&self, root_id: &str) -> bool {
     match self.folder(root_id) { None => true, Some(p) => std::fs::read_dir(p).map(|mut d| d.next().is_some()).unwrap_or(false) }
   }
@@ -116,6 +132,7 @@ fn main() {
         if let Some(r) = s["running"].as_bool() { g.stopped = !r; }
         if let Some(f) = s["folders"].as_object() { g.folders = f.clone(); }
         if let Some(i) = s["incoming"].as_str() { g.incoming = Some(i.into()); }
+        if let Some(p) = s["port"].as_u64() { g.port = p; }
         if let Some(k) = s.get("known").filter(|k| k.is_object()) { g.known = Some(Known::from_json(k)); }
         match s.get("config").filter(|c| c.is_object()) { Some(c) => g.config.replace(c.clone()).is_none(), None => false }
       };

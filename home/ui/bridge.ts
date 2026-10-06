@@ -106,28 +106,23 @@ export const bridge = {
   /** A song that arrived in the incoming folder, analysed by the engine into `i/<name>.…` (ADR 0048). */
   analyseIncoming: (name: string, path: string) => invoke<void>('analyse_incoming', { name, path }),
   /** A song's cover from its tags ('' for none), kept with the song's hash (ADR 0082). */
-  coverHash: (path: string, p: string, c: string, id: string) => invoke<string>('cover_hash', { path, p, c, id }),
   /** A picture (a cover service's) made into the cover's JPEGs and kept: its hash (ADR 0086). */
-  coverFromImage: (bytes: Uint8Array) => invoke<string>('cover_from_image', bytes),
   /** A song's waveform made from its kept details (empty: none kept). */
-  waveFromDetails: (p: string, c: string, id: string) => invoke<ArrayBuffer>('wave_from_details', { p, c, id }),
   // GLUE Home's own connections to other devices (ADR 0150): the signaling stays here, the rest is Rust's.
   /** An offer: the answer's SDP. `hello`: said on each channel as it opens. */
   rtcAnswer: (id: string, sdp: string, servers: RTCIceServer[], hello: { version: string; max: number; name: string }) => invoke<string>('rtc_answer', { id, sdp, servers, hello }),
   rtcIce: (id: string, candidate: RTCIceCandidateInit | null) => invoke<void>('rtc_ice', { id, candidate }),
   rtcClose: (id: string) => invoke<void>('rtc_close', { id }),
   /** An answer to a request: its data, and its bytes. */
-  rtcReply: (conn: string, chan: number, n: number, data: unknown, bytes: Uint8Array, extra: { name?: string; type?: string } = {}) => invoke<void>('rtc_reply', bytes, { headers: { 'x-reply': JSON.stringify({ conn, chan, n, data: data ?? null, extra }) } }),
   /** A song's file (`range`: a part of it, [start, length]) read from disk and sent: the bytes sent. */
-  rtcSendFile: (conn: string, chan: number, n: number, song: { path: string; range: [number, number] | null; name: string; type: string }) => invoke<number>('rtc_send_file', { conn, chan, n, song }),
-  rtcError: (conn: string, chan: number, n: number, error: string) => invoke<void>('rtc_error', { conn, chan, n, error }),
   /** Said on every session. */
+  /** GLUE Home is sending or receiving for another device now (updates wait). */
+  rtcBusy: () => invoke<boolean>('rtc_busy'),
   rtcTell: (msg: unknown) => invoke<void>('rtc_tell', { msg }),
   onRtc: <T>(name: 'rtc-ice' | 'rtc-state' | 'rtc-request' | 'rtc-receiving' | 'rtc-received' | 'rtc-served' | 'rtc-activity', f: (payload: T) => void) => listen<T>(name, e => f(e.payload)),
   /** What GLUE Home's own side was asked since it started: the local link, the service page's file reads (ADR 0083). */
   activity: () => invoke<{ seconds: number; counts: Record<string, Activity> }>('activity_now'),
   incomingList: () => invoke<{ name: string; size: number; mtime: number; path: string }[]>('incoming_list'),
-  incomingMove: (name: string, to: string) => invoke<string>('incoming_move', { name, to }),
   localPort: () => invoke<number>('local_port'),
   glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
   glueList: (rel: string) => invoke<string[]>('glue_list', { rel }),
@@ -135,7 +130,6 @@ export const bridge = {
   /** `play`: a song streamed to a device (ADR 0140): GLUE Home's analysis reads wait meanwhile. */
   fileRead: (path: string, offset: number, len: number, play = false) => invoke<ArrayBuffer>('file_read', { path, offset, len, play }),
   /** A cover service's answer (ADR 0086); GLUE Home only reaches Deezer, iTunes and MusicBrainz. */
-  webGet: (url: string) => invoke<ArrayBuffer>('web_get', { url }),
   /** A GLUE tab here holds the writer lease (ADR 0087). */
   leaseHeld: () => invoke<boolean>('lease_held'),
   // Between the windows.

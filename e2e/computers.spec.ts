@@ -7,6 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TAURI_MOCK } from './tauri-mock';
+import { homeDisk } from './homeDisk';
 
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
@@ -60,13 +61,16 @@ test('a second browser on a computer with GLUE Home joins that computer: one dev
   });
   await homePage.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room(() => 'h1'));
   await homePage.addInitScript(TAURI_MOCK);
+  // Its engine answers the browser's requests (ADR 0156); its local link is the test's, below.
+  const disk = await homeDisk({});
+  await disk.wire(homePage, { link: false });
   await homePage.addInitScript(() => localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, localToken: 'local-secret' })));
   await homePage.goto('http://localhost:5176/service.html');
   await expect(homePage.locator('#state')).toContainText('Online as Desktop');
 
   // Its local link on 127.0.0.1 (Rust, stood in): /hello says who it is; /attach, with its token, is passed
   // to the service page as Rust passes it (an event).
-  await page.context().route(/^http:\/\/127\.0\.0\.1:474\d\d\//, async r => {
+  await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
     const u = new URL(r.request().url()), cors = { 'Access-Control-Allow-Origin': 'http://localhost:5174', 'Access-Control-Allow-Private-Network': 'true' };
     if (u.port !== '47400') return r.abort('connectionrefused');
     if (u.pathname === '/hello') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify({ app: 'glue-home', version: '0.23.0', device: 'h1' }) });
@@ -86,4 +90,5 @@ test('a second browser on a computer with GLUE Home joins that computer: one dev
   // (The page reloads itself once it's joined: a read during it is "not yet".)
   await expect.poll(() => page.evaluate(() => localStorage.getItem('mco.cloud.device')).catch(() => null), { timeout: 30_000 }).toBe('b1');
   await homePage.close();
+  await disk.done();
 });

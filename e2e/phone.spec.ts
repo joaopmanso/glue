@@ -105,14 +105,15 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   await home.goto('http://localhost:5176/service.html');
   await expect(home.locator('#state')).toContainText('Online as Desktop');
   // The cover services (ADR 0086), stood in: Deezer knows "Genorale" (no cover in its tags), with a picture.
-  await home.evaluate(async () => {
+  // (Asked by GLUE Home's engine, ADR 0156.)
+  const jpg = await home.evaluate(async () => {
     const c = new OffscreenCanvas(40, 40), g = c.getContext('2d')!; g.fillStyle = '#c33'; g.fillRect(0, 0, 40, 40);
-    const jpg = [...new Uint8Array(await (await c.convertToBlob({ type: 'image/jpeg' })).arrayBuffer())];
-    (window as unknown as { __web: Record<string, unknown> }).__web = {
-      'https://api.deezer.com/search?limit=10&q=artist%3A%22Kloudmen%22%20track%3A%22Genorale%22': JSON.stringify({ data: [{ title: 'Genorale', artist: { name: 'Kloudmen' }, album: { cover_xl: 'https://e-cdns-images.dzcdn.net/images/cover/gen/1000x1000.jpg' } }] }),
-      'https://e-cdns-images.dzcdn.net/images/cover/gen/': jpg,
-    };
+    return [...new Uint8Array(await (await c.convertToBlob({ type: 'image/jpeg' })).arrayBuffer())];
   });
+  deskHome.fake.web = {
+    'https://api.deezer.com/search?limit=10&q=artist%3A%22Kloudmen%22%20track%3A%22Genorale%22': JSON.stringify({ data: [{ title: 'Genorale', artist: { name: 'Kloudmen' }, album: { cover_xl: 'https://e-cdns-images.dzcdn.net/images/cover/gen/1000x1000.jpg' } }] }),
+    'https://e-cdns-images.dzcdn.net/images/cover/gen/': jpg,
+  };
 
   // The phone: no GLUE folder. Signing in opens the library by itself, in the phone layout (ADR 0078).
   await page.goto('./');
@@ -137,7 +138,7 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   // "Genorale" has none in its tags: the desktop's GLUE Home looked it up on a cover service (only the
   // artist and title went out), and the phone shows it.
   await expect(page.locator('#phone-songs .row', { hasText: 'Genorale' }).locator('.cov.has img')).toBeVisible({ timeout: 60_000 });
-  const asked = await home.evaluate(() => (window as unknown as { __webAsked?: string[] }).__webAsked ?? []);
+  const asked = deskHome.fake.webAsked;
   expect(asked.some(u => u.includes('Genorale'))).toBe(true);
   expect(asked.every(u => /^https:\/\/(api\.deezer\.com|itunes\.apple\.com|musicbrainz\.org|coverartarchive\.org|e-cdns-images\.dzcdn\.net)\//.test(u))).toBe(true);
   const row = page.locator('#phone-songs .row', { hasText: 'Manyaro' });
@@ -205,7 +206,8 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   // Its cover was looked up: "Wrong cover" tells GLUE Home, which won't show or look for it again.
   await page.locator('#wrong-cover').click();
   await expect(page.locator('#wrong-cover')).toHaveCount(0);
-  expect(await home.evaluate(() => Object.entries((window as unknown as { __cache: Record<string, number[]> }).__cache).filter(([k]) => k.startsWith('f/')).map(([, v]) => new TextDecoder().decode(new Uint8Array(v)).split(String.fromCharCode(10))[0]))).toContain('x');
+  const looked = join(deskHome.fake.cacheDir, 'f');
+  await expect.poll(() => existsSync(looked) ? readdirSync(looked).map(n => readFileSync(join(looked, n), 'utf8').split(String.fromCharCode(10))[0]) : []).toContain('x');
   await home.close();
   await deskHome.done();
   expect(errors).toEqual([]);

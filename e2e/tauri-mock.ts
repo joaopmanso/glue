@@ -17,8 +17,11 @@ export const TAURI_MOCK = `(() => {
   // GLUE Home's library engine (ADR 0153, 0154): the real one, run by the test's FakeHome (e2e/fakeHome.ts), reached over
   // its local link (/engine); what it says comes back as GLUE Home's events. It analyses this computer's songs, real
   // files on disk. No FakeHome: no engine.
-  // Only a test's FakeHome (port 47450 and up), never a real GLUE Home on this computer (47400–47409).
-  const fakeHome = (path, init) => window.__localPort >= 47450 ? fetch('http://127.0.0.1:' + window.__localPort + path + (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(window.__homeToken ?? cfg()?.localToken ?? ''), init) : Promise.reject(new Error('no GLUE Home here'));
+  // Only a test's FakeHome (port 47450 and up), never a real GLUE Home on this computer (47400–47409). Its engine's
+  // address (window.__enginePort, or its local link's when the test's GLUE Home is the FakeHome): a test can stand the
+  // local link in itself (port 47400) and still have the engine.
+  const enginePort = () => window.__enginePort ?? window.__localPort;
+  const fakeHome = (path, init) => enginePort() >= 47450 ? fetch('http://127.0.0.1:' + enginePort() + path + (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(window.__homeToken ?? cfg()?.localToken ?? ''), init) : Promise.reject(new Error('no GLUE Home here'));
   const toEngine = async m => {
     const r = await fakeHome('/engine', { method: 'POST', body: JSON.stringify(m) });
     if (!r.ok) throw 'GLUE Home’s engine isn’t there';
@@ -26,11 +29,11 @@ export const TAURI_MOCK = `(() => {
     if (a.err !== undefined) throw a.err;
     return a.ok;
   };
-  const settings = () => toEngine({ set: { config: cfg() ?? {} } }).catch(() => {});
+  const settings = () => toEngine({ set: { config: cfg() ?? {}, port: window.__localPort ?? 47400 } }).catch(() => {});
   let notesFrom = 0, notesOn = false;
   const NOTE = {
     event: n => ['engine-event', n.text], edited: n => ['engine-edited', { p: n.p, c: n.c, paths: n.paths }], changed: () => ['engine-changed', null],
-    analysis: n => ['engine-analysis', n.state], made: n => ['engine-made', { p: n.p, c: n.c, id: n.id }],
+    analysis: n => ['engine-analysis', n.state], made: n => ['engine-made', { p: n.p, c: n.c, id: n.id }], background: n => ['engine-background', n.progress],
     // The engine changed the settings (a music folder it found, the pause): saved, and both windows told.
     config: n => { const c = { ...(cfg() ?? {}), ...n.patch }; localStorage.setItem('home-config', JSON.stringify(c)); send('config', c); return []; },
     // A search of the drives for a music folder (tests count them).
@@ -50,7 +53,10 @@ export const TAURI_MOCK = `(() => {
   // A file on "disk": window.__disk, or a song received into the incoming folder (C:\\In\\<name>, or where it was saved).
   // GLUE Home's native engine, stood in for by the website's own code (e2e/home-analyse.ts, built into .e2e-home).
   const engine = () => import('/__e2e/home-analyse.js');
-  const put = (rel, bytes) => { cache[rel] = Array.from(bytes); };
+  // An incoming song's analysis: also where GLUE Home's engine reads it (its cache folder on the test's disk, ADR 0156).
+  const put = (rel, bytes) => { cache[rel] = Array.from(bytes); if (rel.startsWith('i/')) void fakeHome('/engine/cache?rel=' + encodeURIComponent(rel), { method: 'POST', body: new Uint8Array(bytes) }).catch(() => {}); };
+  // A song received into the incoming folder: also on the test's disk, where the engine lists and moves it.
+  const landed = f => void fakeHome('/engine/incoming?name=' + encodeURIComponent(f.name), { method: 'POST', body: new Uint8Array(f.chunks.flat()) }).catch(() => {});
   // A song starts arriving in the incoming folder: under a name that isn't taken.
   const begin = name => { const taken = n => files.some(f => f.name === n); let n = name, i = 2; while (taken(n)) n = name.replace(/(\\.[^.]*)?$/, ' (' + i++ + ')$1'); files.push({ name: n, chunks: [], done: false }); return [files.length, n]; };
   // GLUE Home's own connections (ADR 0150), stood in for by the browser's (e2e/home-rtc.ts, built into .e2e-home).
@@ -58,11 +64,13 @@ export const TAURI_MOCK = `(() => {
   const rtcE = () => rtcP ??= import('/__e2e/home-rtc.js').then(m => m.rtc({
     emit: (name, payload) => send(name, payload, 'service'),
     cacheGet: k => cache[k] ? new Uint8Array(cache[k]) : null,
-    cachePut: (k, b) => { cache[k] = Array.from(b); },
-    song: p => disk(p),
+    // What another device puts (a mini spectrogram, an analysis): also where the engine reads it (ADR 0156).
+    cachePut: (k, b) => { cache[k] = Array.from(b); void fakeHome('/engine/cache?rel=' + encodeURIComponent(k), { method: 'POST', body: new Uint8Array(b) }).catch(() => {}); },
+    song: async p => disk(p) ?? await fakeHome('/engine/file?path=' + encodeURIComponent(p)).then(async r => r.ok ? [...new Uint8Array(await r.arrayBuffer())] : undefined).catch(() => undefined),
+    answer: req => toEngine({ cmd: 'answer', req }),
     incomingBegin: name => begin(name),
     incomingWrite: (id, b) => files[id - 1].chunks.push(Array.from(b)),
-    incomingEnd: (id, ok) => { const f = files[id - 1]; f.done = ok; return ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; },
+    incomingEnd: (id, ok) => { const f = files[id - 1]; f.done = ok; if (ok) landed(f); return ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; },
   }));
   const disk = p => (window.__disk ?? {})[p] ?? files.find(f => f.done && !f.moved && (p === 'C:\\\\In\\\\' + f.name || p.endsWith('GLUE Incoming\\\\' + f.name)))?.chunks.flat();
   // Tauri's notification plugin puts its own Notification in the page (ADR 0074): here it records them.
@@ -89,15 +97,13 @@ export const TAURI_MOCK = `(() => {
         case 'device_name': return 'Studio PC';
         case 'incoming_begin': return begin(args.name);
         case 'incoming_write': files[Number(opts.headers['x-id']) - 1].chunks.push(Array.from(args)); return;
-        case 'incoming_end': { const f = files[args.id - 1]; f.done = args.ok; return args.ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; }
+        case 'incoming_end': { const f = files[args.id - 1]; f.done = args.ok; if (args.ok) landed(f); return args.ok ? 'C:\\\\Users\\\\dj\\\\Music\\\\GLUE Incoming\\\\' + f.name : ''; }
         case 'set_status': case 'show_settings': return;
         case 'open_library': window.__opened = 'library'; return;
         case 'local_port': return window.__localPort ?? 47400;
         // The writer lease (ADR 0087): window.__lease says whether a GLUE tab holds it; edits_waiting counts.
         case 'lease_held': return !!window.__lease;
         case 'edits_waiting': window.__editsWaiting = (window.__editsWaiting ?? 0) + 1; return;
-        // Cover services (ADR 0086): window.__web maps an address's start to its answer (JSON or bytes).
-        case 'web_get': { const hit = Object.entries(window.__web ?? {}).find(([k]) => args.url.startsWith(k)); window.__webAsked = [...(window.__webAsked ?? []), args.url]; if (!hit) throw 'the service said 404'; const v = hit[1]; return typeof v === 'string' ? new TextEncoder().encode(v).buffer : new Uint8Array(v).buffer; }
         // Updates: window.__update is the newer version, if any.
         case 'plugin:app|version': return '0.2.0';
         case 'plugin:updater|check': return window.__update ? { rid: 1, currentVersion: '0.2.0', version: window.__update, date: '', body: '', rawJson: {} } : null;
@@ -122,17 +128,11 @@ export const TAURI_MOCK = `(() => {
           return [...new Set([...mem, ...(r?.ok ? await r.json() : [])])];
         }
         case 'incoming_list': return files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, size: f.chunks.reduce((a, c) => a + c.length, 0), mtime: 1, path: 'C:\\\\In\\\\' + f.name }));
-        case 'incoming_move': { const f = files.find(x => x.name === args.name && x.done && !x.moved); if (!f) throw 'not found'; f.moved = args.to; return args.to + '\\\\' + f.name; }
         case 'analyse_incoming': { const b = disk(args.path); if (!b) throw 'not found'; return (await engine()).analyseIncoming(args.name, b, put); }
-        case 'cover_hash': { const b = disk(args.path); if (!b) throw 'not found'; return (await engine()).coverHash(args, b, put); }
-        case 'cover_from_image': return (await engine()).coverFromImage(Array.from(args), put);
-        case 'wave_from_details': return (await engine()).waveFromDetails(args, rel => cache[rel] ? new Uint8Array(cache[rel]) : null, put);
         case 'rtc_answer': return (await rtcE()).answer(args.id, args.sdp, args.servers, args.hello);
         case 'rtc_ice': return (await rtcE()).ice(args.id, args.candidate);
         case 'rtc_close': return (await rtcE()).close(args.id);
-        case 'rtc_reply': { const h = JSON.parse(opts.headers['x-reply']); return (await rtcE()).reply(h.conn, h.chan, h.n, h.data, new Uint8Array(args), h.extra); }
-        case 'rtc_send_file': return (await rtcE()).sendFile(args.conn, args.chan, args.n, args.song);
-        case 'rtc_error': return (await rtcE()).error(args.conn, args.chan, args.n, args.error);
+        case 'rtc_busy': return false;
         case 'rtc_tell': return (await rtcE()).tell(args.msg);
         case 'verify_song': window.__verified = [...(window.__verified ?? []), args.id]; return (window.__verifyAnswer ?? {})[args.id] ?? { kind: 'same', ms: 1000, name: args.id };
         case 'glue_list': if (window.__glueDiskList) return window.__glueDiskList(args.rel); return Object.keys(window.__glue ?? {}).filter(k => k.startsWith(args.rel + '/') && !k.slice(args.rel.length + 1).includes('/')).map(k => k.slice(args.rel.length + 1));

@@ -1,9 +1,12 @@
 //! The connections to the account's other devices, native (crates/glue-rtc, ADR 0150). The service page keeps the
-//! signaling (one socket per device) and the sessions' rules (who's admitted, Disconnect), and answers the library's
-//! questions; every connection, channel and song byte is here. Events go to the service page: `rtc-ice`,
-//! `rtc-state`, `rtc-request`, `rtc-receiving`, `rtc-received`, `rtc-served`, `rtc-activity`.
+//! signaling (one socket per device) and the sessions' rules (who's admitted, Disconnect); every connection, channel
+//! and song byte is here, and the library's questions are answered here too, by the engine (ADR 0156: `answer`).
+//! Events go to the service page: `rtc-ice`, `rtc-state`, `rtc-receiving`, `rtc-received`, `rtc-served`,
+//! `rtc-activity`.
+use glue_engine::answers::Answer;
 use glue_rtc::{Arriving, Host, IceCandidate, IceServer, ReadSeek, Server, Song};
-use serde_json::Value;
+use serde_json::{json, Value};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
@@ -18,8 +21,44 @@ struct Playing(fs::File);
 impl Read for Playing { fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> { crate::local::mark_playing(); self.0.read(b) } }
 impl Seek for Playing { fn seek(&mut self, p: SeekFrom) -> std::io::Result<u64> { self.0.seek(p) } }
 
+/// Requests being answered now, and whether a song is arriving: GLUE Home is busy for another device (the background
+/// thumbnails wait, and so do updates).
+static SERVING: AtomicUsize = AtomicUsize::new(0);
+static RECEIVING: AtomicBool = AtomicBool::new(false);
+pub fn busy() -> bool { SERVING.load(Ordering::Relaxed) > 0 || RECEIVING.load(Ordering::Relaxed) }
+
+/// A request the connection doesn't answer itself, answered by the engine on a thread of its own (a slow one, an
+/// analysis, doesn't hold up the others), and counted for the settings window (`rtc-served`, ADR 0083).
+fn answer(app: &AppHandle, r: Value) {
+  let app = app.clone();
+  SERVING.fetch_add(1, Ordering::Relaxed);
+  std::thread::spawn(move || {
+    let t0 = std::time::Instant::now();
+    let (conn, chan, n) = (r["conn"].as_str().unwrap_or("").to_string(), r["chan"].as_u64().unwrap_or(0) as u32, r["n"].as_u64().unwrap_or(0) as u32);
+    let rtc = app.state::<Rtc>().inner().clone();
+    let res = crate::engine::engine(&app).and_then(|e| e.answer(&r["req"]));
+    let sent = tauri::async_runtime::block_on(async {
+      match res {
+        Ok(Answer::Data { data, bytes, tell }) => {
+          let r = rtc.reply(&conn, chan, n, data, &bytes, json!({})).await.map(|_| bytes.len() as u64);
+          if let Some(m) = tell { rtc.tell(m).await; }
+          r
+        }
+        Ok(Answer::File { path, range, name, typ }) => rtc.send_file(&conn, chan, n, &Song { path, range, name, typ }).await,
+        Err(e) => rtc.error(&conn, chan, n, &e).await.map(|_| 0),
+      }
+    }).unwrap_or(0);
+    SERVING.fetch_sub(1, Ordering::Relaxed);
+    let _ = app.emit_to("service", "rtc-served", json!({ "what": r["req"]["t"], "ms": t0.elapsed().as_secs_f64() * 1000.0, "bytes": sent }));
+  });
+}
+
 impl Host for App {
-  fn event(&self, name: &str, payload: Value) { let _ = self.app.emit_to("service", name, payload); }
+  fn event(&self, name: &str, payload: Value) {
+    if name == "rtc-request" { return answer(&self.app, payload); }
+    if name == "rtc-receiving" { RECEIVING.store(!payload.is_null(), Ordering::Relaxed); }
+    let _ = self.app.emit_to("service", name, payload);
+  }
   fn cache_read(&self, key: &str) -> Option<Vec<u8>> { crate::cache_path(&self.app, key).ok().and_then(|p| fs::read(p).ok()) }
   fn cache_put(&self, key: &str, data: &[u8]) -> Result<(), String> { crate::cache_put(&self.app, key, data) }
   fn open_song(&self, path: &str) -> Result<(Box<dyn ReadSeek>, u64), String> {
@@ -64,21 +103,9 @@ pub async fn rtc_ice(rtc: State<'_, Rtc>, id: String, candidate: Option<IceCandi
 #[tauri::command]
 pub async fn rtc_close(rtc: State<'_, Rtc>, id: String) -> Result<(), String> { rtc.close(&id).await; Ok(()) }
 
-/// An answer to a request (`rtc-request`): its data, and its bytes as the body (`x-reply`: `{ conn, chan, n, data, extra }`).
+/// Is GLUE Home sending or receiving for another device now? (Updates wait.)
 #[tauri::command]
-pub async fn rtc_reply(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
-  let head: Value = request.headers().get("x-reply").and_then(|v| v.to_str().ok()).and_then(|s| serde_json::from_str(s).ok()).ok_or("no reply")?;
-  let bytes = match request.body() { tauri::ipc::InvokeBody::Raw(b) => b.clone(), _ => vec![] };
-  let rtc = app.state::<Rtc>().inner().clone();
-  rtc.reply(head["conn"].as_str().unwrap_or(""), head["chan"].as_u64().unwrap_or(0) as u32, head["n"].as_u64().unwrap_or(0) as u32, head["data"].clone(), &bytes, head["extra"].clone()).await
-}
-
-/// A song's file (or part of it) sent from disk: the bytes sent.
-#[tauri::command]
-pub async fn rtc_send_file(rtc: State<'_, Rtc>, conn: String, chan: u32, n: u32, song: Song) -> Result<u64, String> { rtc.send_file(&conn, chan, n, &song).await }
-
-#[tauri::command]
-pub async fn rtc_error(rtc: State<'_, Rtc>, conn: String, chan: u32, n: u32, error: String) -> Result<(), String> { rtc.error(&conn, chan, n, &error).await }
+pub fn rtc_busy() -> bool { busy() }
 
 /// Said on every session (`made`, `incoming`).
 #[tauri::command]

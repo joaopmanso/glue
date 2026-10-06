@@ -1,9 +1,8 @@
 //! The native analysis engine in GLUE Home (crates/glue-audio, ADR 0147, 0148). A song of the library is analysed by the
 //! engine's queue (crates/glue-engine, ADR 0154), which reads it with `read_song` here.
 //! `verify_song` analyses a song natively, saves nothing, and compares with what the service page made of it before.
-//! The rest of GLUE Home's audio work is here too (ADR 0147's batch 4): songs arriving in the incoming folder
-//! (`analyse_incoming`), covers (`cover_hash`, `cover_from_image`) and waveforms from kept details
-//! (`wave_from_details`); the service page has no audio code of its own.
+//! Songs arriving in the incoming folder are analysed here too (`analyse_incoming`, ADR 0147's batch 4); covers and
+//! waveforms from kept details are the engine's (crates/glue-engine/src/answers.rs, ADR 0156).
 use serde_json::{json, Value};
 use std::fs;
 use std::io::Write;
@@ -58,65 +57,6 @@ pub async fn analyse_incoming(app: AppHandle, name: String, path: String) -> Res
     put(k("summary.json"), &serde_json::to_vec(&s).unwrap_or_default())
   }).await?
 }
-
-/// A cover's two JPEGs kept (`a/<hash>-64.jpg`, `-320.jpg`), an album's songs sharing them.
-fn keep_cover(app: &AppHandle, c: &glue_audio::out::cover::Cover) -> Result<(), String> {
-  crate::cache_put(app, &format!("a/{}-64.jpg", c.hash), &c.small)?;
-  crate::cache_put(app, &format!("a/{}-320.jpg", c.hash), &c.large)
-}
-
-/// A song's cover hash ('' for none), read from its tags (only them: the file isn't read whole), its JPEGs kept and the
-/// hash remembered for the song (`c/…txt`, ADR 0082).
-#[tauri::command]
-pub async fn cover_hash(app: AppHandle, path: String, p: String, c: String, id: String) -> Result<String, String> {
-  if [&p, &c, &id].iter().any(|s| s.is_empty() || s.contains(['/', '\\', '.'])) { return Err("bad song".into()); }
-  let file = crate::allowed(&app, &path)?;
-  on_own_thread("glue-cover", move || -> Result<String, String> {
-    let f = fs::File::open(&file).map_err(|e| e.to_string())?;
-    let cover = glue_audio::out::cover::picture_from(std::io::BufReader::new(f)).and_then(|pic| glue_audio::out::cover::from_image(&pic).ok());
-    if let Some(cv) = &cover { keep_cover(&app, cv)?; }
-    let hash = cover.map(|c| c.hash).unwrap_or_default();
-    crate::cache_put(&app, &key("c", &p, &c, &id, "txt"), hash.as_bytes())?;
-    Ok(hash)
-  }).await?
-}
-
-/// A cover found by a cover service (ADR 0086, the picture as the request's body), made into its JPEGs and kept: its hash.
-#[tauri::command]
-pub async fn cover_from_image(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
-  let tauri::ipc::InvokeBody::Raw(data) = request.body() else { return Err("expected bytes".into()) };
-  let data = data.clone();
-  on_own_thread("glue-cover", move || -> Result<String, String> {
-    let cv = glue_audio::out::cover::from_image(&data)?;
-    keep_cover(&app, &cv)?;
-    Ok(cv.hash)
-  }).await?
-}
-
-/// A song's waveform made from its kept details (no need to read the song again), kept, and answered; empty when its
-/// details aren't kept (or are of another version).
-#[tauri::command]
-pub async fn wave_from_details(app: AppHandle, p: String, c: String, id: String) -> Result<tauri::ipc::Response, String> {
-  if [&p, &c, &id].iter().any(|s| s.is_empty() || s.contains(['/', '\\', '.'])) { return Err("bad song".into()); }
-  let w = on_own_thread("glue-wave", move || -> Result<Vec<u8>, String> {
-    let read = |ext: &str| crate::cache_path(&app, &key("d", &p, &c, &id, ext)).ok().and_then(|f| fs::read(f).ok());
-    let (Some(h), Some(bin)) = (read("json"), read("bin")) else { return Ok(vec![]) };
-    let w = wave_of(&h, &bin);
-    if !w.is_empty() { crate::cache_put(&app, &key("w", &p, &c, &id, "bin"), &w)?; }
-    Ok(w)
-  }).await??;
-  Ok(tauri::ipc::Response::new(w))
-}
-
-/// The waveform of a kept analysis (`d/…json` + `.bin`): empty for one of another version or that can't be read.
-fn wave_of(header: &[u8], bin: &[u8]) -> Vec<u8> {
-  let Ok(h) = serde_json::from_slice::<Value>(header) else { return vec![] };
-  if h["v"].as_f64() != Some(glue_audio::out::files::DETAILS_VERSION) { return vec![]; }
-  let Ok(raw) = glue_audio::out::files::unzlib(bin) else { return vec![] };
-  let Some((spec, _, cols, rows)) = glue_audio::out::files::decode_details(&h, &raw) else { return vec![] };
-  glue_audio::out::files::wave(&spec, cols, rows, h["res"]["sr"].as_f64().unwrap_or(0.0))
-}
-
 
 /// Numbers that are the same but for the last digits (the goldens' rule: within 1e-9 of their size): the maths
 /// libraries round differently there (the desktop's check, 2026-10-02: a key's tuning off in its 16th digit).
@@ -309,12 +249,12 @@ mod tests {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
     let bytes = std::fs::read(root.join("flac-96k-24.flac")).unwrap();
     let a = glue_audio::analyse(&bytes, "x.flac", bytes.len() as f64, 0.0, String::new()).unwrap();
-    let w = super::wave_of(&serde_json::to_vec(&a.details.0).unwrap(), &glue_audio::out::files::zlib(&a.details.1));
+    let w = glue_engine::analyse::wave_of(&serde_json::to_vec(&a.details.0).unwrap(), &glue_audio::out::files::zlib(&a.details.1));
     assert_eq!(w.len(), glue_audio::out::files::WAVE_BYTES);
     // From the stored (quantised) spectrum, as the website makes it (crates/glue-audio/tests/golden.rs holds it to the
     // website's byte for byte): not the analysis's own.
     assert!(w.iter().any(|&b| b > 0));
-    assert!(super::wave_of(b"{\"v\":1}", &[]).is_empty());
+    assert!(glue_engine::analyse::wave_of(b"{\"v\":1}", &[]).is_empty());
   }
 
   /// A song's stored files made from its own native analysis compare as the same; a changed byte doesn't.

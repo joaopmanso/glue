@@ -68,3 +68,12 @@ pub fn read_whole(file: &std::path::Path, name: &str, mut r: impl std::io::Read)
   if (bytes.len() as u64) < size { return Err(format!("GLUE Home read only part of {name} ({} of {size} bytes): its folder isn’t reachable right now", bytes.len())); }
   Ok(bytes)
 }
+
+/// The waveform of a kept analysis (`d/…json` + `.bin`): empty for one of another version or that can't be read.
+pub fn wave_of(header: &[u8], bin: &[u8]) -> Vec<u8> {
+  let Ok(h) = serde_json::from_slice::<serde_json::Value>(header) else { return vec![] };
+  if h["v"].as_f64() != Some(glue_audio::out::files::DETAILS_VERSION) { return vec![]; }
+  let Ok(raw) = glue_audio::out::files::unzlib(bin) else { return vec![] };
+  let Some((spec, _, cols, rows)) = glue_audio::out::files::decode_details(&h, &raw) else { return vec![] };
+  glue_audio::out::files::wave(&spec, cols, rows, h["res"]["sr"].as_f64().unwrap_or(0.0))
+}

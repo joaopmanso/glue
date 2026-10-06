@@ -181,6 +181,9 @@ impl<H: Host> Engine<H> {
     self.host.analysis_changed(&s);
   }
   pub fn analysis_json(&self) -> Value { self.q().state.to_json() }
+  /// The library's analysis is looking for songs or analysing, or hasn't looked yet since GLUE Home started: the
+  /// background thumbnails wait (their songs would otherwise be taken for analysed, ADR 0156).
+  pub fn analysis_busy(&self) -> bool { let q = self.q(); q.looping || q.scanned == 0.0 || q.state.running > 0 || !q.urgent.is_empty() || !q.queue.is_empty() }
 
   fn save_pending(&self) {
     let out: Vec<Value> = self.q().pending.iter().flat_map(|((p, c), ids)| ids.iter().map(move |id| json!([p, c, id]))).collect();

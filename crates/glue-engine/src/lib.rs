@@ -8,11 +8,16 @@
 //! - what was written since the last shared sync (ADR 0107);
 //! - the analysis queue (`queue.rs`, ADR 0154): this computer's songs analysed natively (`analyse.rs`) and taken into
 //!   the library; where songs and music folders are on this computer (`library.rs`);
-//! - the shared collections synced with GLUE Cloud (`sync.rs`, `shared.rs`, ADR 0155).
+//! - the shared collections synced with GLUE Cloud (`sync.rs`, `shared.rs`, ADR 0155);
+//! - the answers to the account's other devices (`answers.rs`, `covers.rs`, `incoming.rs`, ADR 0156).
 //!
 //! No Tauri: the app is a `Host`. `glue-engine-test` serves it to the e2e tests.
 pub mod analyse;
+pub mod answers;
+pub mod covers;
+pub mod incoming;
 pub mod library;
+pub mod names;
 pub mod queue;
 pub mod shared;
 pub mod sync;
@@ -37,6 +42,15 @@ pub trait Host: Send + Sync + 'static {
   fn patch_config(&self, _f: &dyn Fn(&Value) -> Option<Value>) -> Option<Value> { None }
   /// GLUE Home isn't stopped (Stop pauses the jobs and the analysis).
   fn running(&self) -> bool { self.config()["running"] != Value::Bool(false) }
+  /// A public service's answer (a cover look-up, ADR 0086): the body's bytes. Only GLUE Home's own rules decide which
+  /// addresses (home/src-tauri/src/web.rs).
+  fn web_get(&self, _url: &str) -> Result<Vec<u8>, String> { Err("no cover services here".into()) }
+  /// How a GLUE page on this computer reaches GLUE Home without GLUE Cloud (ADR 0048, 0104): `{ port, token, readToken }`.
+  fn local_link(&self) -> Value { json!({ "port": null, "token": null, "readToken": null }) }
+  /// GLUE Home is sending or receiving for another device now (the background waits).
+  fn serving(&self) -> bool { false }
+  /// The background's progress changed (`{ done, total, running }`: GLUE Home's window shows it).
+  fn background_changed(&self, _progress: &Value) {}
   /// Which computer this is (ADR 0108), once known.
   fn computer(&self) -> Option<String> { self.config()["computer"].as_str().map(String::from) }
   fn version(&self) -> String { String::new() }
@@ -138,15 +152,18 @@ pub struct Engine<H: Host> {
   /// One sync of the shared collections at a time (shared.rs); this computer's numbers last sent, by collection.
   pub(crate) syncing: Mutex<()>,
   pub(crate) counted: Mutex<HashMap<String, (String, i64)>>,
+  /// What the answers to other devices keep (answers.rs, covers.rs).
+  pub(crate) devices: answers::Devices,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
 fn get<'a>(o: &'a Value, k: &str) -> Option<&'a Value> { o.as_object().and_then(|o| o.get(k)) }
 fn text(v: &Value, k: &str) -> String { get(v, k).and_then(|x| x.as_str()).unwrap_or("").to_string() }
+fn truthy(v: Option<&Value>) -> bool { glue_store::project::truthy(v) }
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue, cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default() });
+    let e = Arc::new(Engine { glue, cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }
@@ -485,6 +502,15 @@ pub fn command<H: Host>(e: &Arc<Engine<H>>, m: &Value) -> Result<Value, String> 
     "analysisState" => Ok(e.analysis_json()),
     // The shared collections synced with GLUE Cloud now (shared.rs): the files that changed here.
     "syncShared" => e.sync_shared_here().map(|n| json!(n)).map_err(|x| x.message),
+    // Another device's request (answers.rs): data with its bytes (base64), or a song's file. The e2e tests' stand-in
+    // for GLUE Home's connections sends what it says.
+    // The background's mini spectrograms and waveforms for other devices (answers.rs): started, and how far.
+    "background" => { e.background(); Ok(json!(true)) }
+    "backgroundState" => Ok(e.background_json()),
+    "answer" => match e.answer(&m["req"])? {
+      answers::Answer::Data { data, bytes, tell } => { use base64::Engine as _; Ok(json!({ "data": data, "bytes": base64::engine::general_purpose::STANDARD.encode(bytes), "tell": tell })) }
+      answers::Answer::File { path, range, name, typ } => Ok(json!({ "file": { "path": path, "range": range.map(|(s, l)| [s, l]), "name": name, "type": typ } })),
+    },
     x => Err(format!("unknown command {x}")),
   }
 }

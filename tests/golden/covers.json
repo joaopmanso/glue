@@ -1,0 +1,515 @@
+{
+ "names": [
+  {
+   "in": "Daft Punk",
+   "bare": "daft punk",
+   "norm": "daftpunk"
+  },
+  {
+   "in": "The Beatles",
+   "bare": "the beatles",
+   "norm": "beatles"
+  },
+  {
+   "in": "Beyoncé",
+   "bare": "beyonce",
+   "norm": "beyonce"
+  },
+  {
+   "in": "Sigur Rós",
+   "bare": "sigur ros",
+   "norm": "sigurros"
+  },
+  {
+   "in": "Simon & Garfunkel",
+   "bare": "simon garfunkel",
+   "norm": "simongarfunkel"
+  },
+  {
+   "in": "Simon and Garfunkel",
+   "bare": "simon garfunkel",
+   "norm": "simongarfunkel"
+  },
+  {
+   "in": "AC/DC",
+   "bare": "ac dc",
+   "norm": "acdc"
+  },
+  {
+   "in": "Guns N’ Roses",
+   "bare": "guns n roses",
+   "norm": "gunsnroses"
+  },
+  {
+   "in": "Random Access Memories (Deluxe Edition)",
+   "bare": "random access memories",
+   "norm": "randomaccessmemories"
+  },
+  {
+   "in": "Abbey Road [2019 Remix]",
+   "bare": "abbey road",
+   "norm": "abbeyroad"
+  },
+  {
+   "in": "Song ft. Someone (Remix)",
+   "bare": "song",
+   "norm": "song"
+  },
+  {
+   "in": "Feather",
+   "bare": "feather",
+   "norm": "feather"
+  },
+  {
+   "in": "Featuring Me",
+   "bare": "featuring me",
+   "norm": "featuringme"
+  },
+  {
+   "in": "Get Lucky feat. Pharrell Williams",
+   "bare": "get lucky",
+   "norm": "getlucky"
+  },
+  {
+   "in": "Album with Strings",
+   "bare": "album with strings",
+   "norm": "album"
+  },
+  {
+   "in": "the the",
+   "bare": "the the",
+   "norm": "the"
+  },
+  {
+   "in": "Øystein Sevåg",
+   "bare": "øystein sevag",
+   "norm": "øysteinsevag"
+  },
+  {
+   "in": "坂本龍一",
+   "bare": "坂本龍一",
+   "norm": "坂本龍一"
+  },
+  {
+   "in": "Кино",
+   "bare": "кино",
+   "norm": "кино"
+  },
+  {
+   "in": "ﬁve ½ ① ™",
+   "bare": "five 1 2 1 TM",
+   "norm": "five121TM"
+  },
+  {
+   "in": "  spaced   out  ",
+   "bare": "spaced out",
+   "norm": "spacedout"
+  },
+  {
+   "in": "(all brackets)",
+   "bare": "all brackets",
+   "norm": "allbrackets"
+  },
+  {
+   "in": "[label 123]",
+   "bare": "label 123",
+   "norm": "label123"
+  },
+  {
+   "in": "",
+   "bare": "",
+   "norm": ""
+  },
+  {
+   "in": "Ⅻ Roman",
+   "bare": "xii roman",
+   "norm": "xiiroman"
+  },
+  {
+   "in": "Ça va",
+   "bare": "ca va",
+   "norm": "cava"
+  },
+  {
+   "in": "Mötley Crüe",
+   "bare": "motley crue",
+   "norm": "motleycrue"
+  },
+  {
+   "in": "İstanbul",
+   "bare": "istanbul",
+   "norm": "istanbul"
+  },
+  {
+   "in": "ΣΊΣΥΦΟΣ",
+   "bare": "σισυφος",
+   "norm": "σισυφος"
+  }
+ ],
+ "queries": [
+  {
+   "q": {
+    "artist": "Daft Punk",
+    "album": "Random Access Memories (Deluxe Edition)",
+    "title": "Get Lucky"
+   },
+   "key": "album:daftpunk|randomaccessmemories",
+   "file": "f/f8466450b1e7ad1dd6f0bd69ba0572e4.txt",
+   "urls": {
+    "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22Daft%20Punk%22%20album%3A%22Random%20Access%20Memories%20(Deluxe%20Edition)%22",
+    "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=Daft%20Punk%20Random%20Access%20Memories%20(Deluxe%20Edition)",
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22Daft%20Punk%22%20AND%20release%3A%22Random%20Access%20Memories%20(Deluxe%20Edition)%22"
+   }
+  },
+  {
+   "q": {
+    "artist": "Daft Punk",
+    "album": "",
+    "title": "Get Lucky feat. Pharrell Williams"
+   },
+   "key": "song:daftpunk|getlucky",
+   "file": "f/4e5ed5d1aea2f207dee7ece10bab0a8a.txt",
+   "urls": {
+    "deezer": "https://api.deezer.com/search?limit=10&q=artist%3A%22Daft%20Punk%22%20track%3A%22Get%20Lucky%20feat.%20Pharrell%20Williams%22",
+    "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=song&term=Daft%20Punk%20Get%20Lucky%20feat.%20Pharrell%20Williams",
+    "musicbrainz": "https://musicbrainz.org/ws/2/recording/?fmt=json&limit=10&query=artist%3A%22Daft%20Punk%22%20AND%20recording%3A%22Get%20Lucky%20feat.%20Pharrell%20Williams%22"
+   }
+  },
+  {
+   "q": {
+    "artist": "Simon & Garfunkel",
+    "album": "Bridge Over Troubled Water",
+    "title": ""
+   },
+   "key": "album:simongarfunkel|bridgeovertroubledwater",
+   "file": "f/0e4b194e3d73edf291b5d5907d9d89f6.txt",
+   "urls": {
+    "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22Simon%20%26%20Garfunkel%22%20album%3A%22Bridge%20Over%20Troubled%20Water%22",
+    "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=Simon%20%26%20Garfunkel%20Bridge%20Over%20Troubled%20Water",
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22Simon%20%26%20Garfunkel%22%20AND%20release%3A%22Bridge%20Over%20Troubled%20Water%22"
+   }
+  },
+  {
+   "q": {
+    "artist": "",
+    "album": "No Artist",
+    "title": "x"
+   },
+   "key": null,
+   "file": null,
+   "urls": {
+    "deezer": null,
+    "itunes": null,
+    "musicbrainz": null
+   }
+  },
+  {
+   "q": {
+    "artist": "A",
+    "album": "",
+    "title": ""
+   },
+   "key": null,
+   "file": null,
+   "urls": {
+    "deezer": null,
+    "itunes": null,
+    "musicbrainz": null
+   }
+  },
+  {
+   "q": {
+    "artist": "坂本龍一",
+    "album": "戦場のメリークリスマス",
+    "title": ""
+   },
+   "key": "album:坂本龍一|戦場のメリークリスマス",
+   "file": "f/5073caba6c33c0cccec37b1bd1ce09c6.txt",
+   "urls": {
+    "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22%E5%9D%82%E6%9C%AC%E9%BE%8D%E4%B8%80%22%20album%3A%22%E6%88%A6%E5%A0%B4%E3%81%AE%E3%83%A1%E3%83%AA%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%9E%E3%82%B9%22",
+    "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=%E5%9D%82%E6%9C%AC%E9%BE%8D%E4%B8%80%20%E6%88%A6%E5%A0%B4%E3%81%AE%E3%83%A1%E3%83%AA%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%9E%E3%82%B9",
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22%E5%9D%82%E6%9C%AC%E9%BE%8D%E4%B8%80%22%20AND%20release%3A%22%E6%88%A6%E5%A0%B4%E3%81%AE%E3%83%A1%E3%83%AA%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%9E%E3%82%B9%22"
+   }
+  },
+  {
+   "q": {
+    "artist": "Weird \"Quotes\"",
+    "album": "Al\"bum",
+    "title": ""
+   },
+   "key": "album:weirdquotes|album",
+   "file": "f/0602e06f64478988e62304502db0b8a1.txt",
+   "urls": {
+    "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22Weird%20Quotes%22%20album%3A%22Album%22",
+    "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=Weird%20%22Quotes%22%20Al%22bum",
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22Weird%20Quotes%22%20AND%20release%3A%22Album%22"
+   }
+  },
+  {
+   "q": {
+    "artist": "The Beatles",
+    "album": "Abbey Road [2019 Remix]",
+    "title": ""
+   },
+   "key": "album:beatles|abbeyroad",
+   "file": "f/aafc2a43091e02335376daa49d36c71c.txt",
+   "urls": {
+    "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22The%20Beatles%22%20album%3A%22Abbey%20Road%20%5B2019%20Remix%5D%22",
+    "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=The%20Beatles%20Abbey%20Road%20%5B2019%20Remix%5D",
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22The%20Beatles%22%20AND%20release%3A%22Abbey%20Road%20%5B2019%20Remix%5D%22"
+   }
+  }
+ ],
+ "same": [
+  {
+   "a": "Random Access Memories",
+   "b": "Random Access Memories (10th Anniversary Edition)",
+   "same": true
+  },
+  {
+   "a": "Abbey Road",
+   "b": "Abbey Road Deluxe",
+   "same": true
+  },
+  {
+   "a": "ABC",
+   "b": "ABCD",
+   "same": false
+  },
+  {
+   "a": "Beyoncé",
+   "b": "Beyonce",
+   "same": true
+  },
+  {
+   "a": "The Beatles",
+   "b": "Beatles",
+   "same": true
+  },
+  {
+   "a": "",
+   "b": "x",
+   "same": false
+  },
+  {
+   "a": "Kino",
+   "b": "Кино",
+   "same": false
+  },
+  {
+   "a": "Lost",
+   "b": "Lost in Space",
+   "same": true
+  }
+ ],
+ "picks": [
+  {
+   "service": "deezer",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "Random Access Memories (Deluxe Edition)",
+    "title": "Get Lucky"
+   },
+   "answer": {
+    "data": [
+     {
+      "title": "Random Access Memories",
+      "artist": {
+       "name": "Someone Else"
+      },
+      "cover_xl": "https://e-cdns-images.dzcdn.net/wrong.jpg"
+     },
+     {
+      "title": "Random Access Memories (Drumless Edition)",
+      "artist": {
+       "name": "Daft Punk"
+      },
+      "cover_big": "https://e-cdns-images.dzcdn.net/ram.jpg"
+     }
+    ]
+   },
+   "pick": "https://e-cdns-images.dzcdn.net/ram.jpg"
+  },
+  {
+   "service": "deezer",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "",
+    "title": "Get Lucky feat. Pharrell Williams"
+   },
+   "answer": {
+    "data": [
+     {
+      "title": "Get Lucky (Radio Edit)",
+      "artist": {
+       "name": "Daft Punk"
+      },
+      "album": {
+       "cover_xl": "https://e-cdns-images.dzcdn.net/gl.jpg"
+      }
+     }
+    ]
+   },
+   "pick": "https://e-cdns-images.dzcdn.net/gl.jpg"
+  },
+  {
+   "service": "deezer",
+   "q": {
+    "artist": "Simon & Garfunkel",
+    "album": "Bridge Over Troubled Water",
+    "title": ""
+   },
+   "answer": {
+    "data": [
+     {
+      "title": "Other",
+      "artist": {
+       "name": "Simon & Garfunkel"
+      },
+      "cover_xl": "x"
+     }
+    ]
+   },
+   "pick": null
+  },
+  {
+   "service": "itunes",
+   "q": {
+    "artist": "Simon & Garfunkel",
+    "album": "Bridge Over Troubled Water",
+    "title": ""
+   },
+   "answer": {
+    "results": [
+     {
+      "collectionName": "Bridge over Troubled Water",
+      "artistName": "Simon and Garfunkel",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/a/100x100bb.jpg"
+     }
+    ]
+   },
+   "pick": "https://is1-ssl.mzstatic.com/image/thumb/a/600x600bb.jpg"
+  },
+  {
+   "service": "itunes",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "",
+    "title": "Get Lucky feat. Pharrell Williams"
+   },
+   "answer": {
+    "results": [
+     {
+      "trackName": "Get Lucky",
+      "artistName": "Daft Punk, Pharrell Williams & Nile Rodgers",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/x/100x100bb.png"
+     }
+    ]
+   },
+   "pick": "https://is1-ssl.mzstatic.com/x/600x600bb.png"
+  },
+  {
+   "service": "musicbrainz",
+   "q": {
+    "artist": "The Beatles",
+    "album": "Abbey Road [2019 Remix]",
+    "title": ""
+   },
+   "answer": {
+    "releases": [
+     {
+      "id": "r-wrong",
+      "title": "Abbey Road",
+      "artist-credit": [
+       {
+        "name": "Tribute Band"
+       }
+      ]
+     },
+     {
+      "id": "r-1",
+      "title": "Abbey Road",
+      "artist-credit": [
+       {
+        "name": "The Beatles"
+       }
+      ]
+     }
+    ]
+   },
+   "pick": "https://coverartarchive.org/release/r-1/front-500"
+  },
+  {
+   "service": "musicbrainz",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "",
+    "title": "Get Lucky feat. Pharrell Williams"
+   },
+   "answer": {
+    "recordings": [
+     {
+      "title": "Get Lucky",
+      "artist-credit": [
+       {
+        "name": "Daft Punk"
+       },
+       {
+        "name": "Pharrell Williams"
+       }
+      ],
+      "releases": [
+       {
+        "id": "rel-9"
+       }
+      ]
+     }
+    ]
+   },
+   "pick": "https://coverartarchive.org/release/rel-9/front-500"
+  },
+  {
+   "service": "musicbrainz",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "",
+    "title": "Get Lucky feat. Pharrell Williams"
+   },
+   "answer": {
+    "recordings": [
+     {
+      "title": "Get Lucky",
+      "artist-credit": [
+       {
+        "name": "Daft Punk"
+       }
+      ]
+     }
+    ]
+   },
+   "pick": null
+  },
+  {
+   "service": "deezer",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "Random Access Memories (Deluxe Edition)",
+    "title": "Get Lucky"
+   },
+   "answer": null,
+   "pick": null
+  },
+  {
+   "service": "itunes",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "Random Access Memories (Deluxe Edition)",
+    "title": "Get Lucky"
+   },
+   "answer": {
+    "results": "not a list"
+   },
+   "pick": null
+  }
+ ]
+}

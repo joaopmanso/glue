@@ -1,9 +1,10 @@
 //! GLUE Home's library engine, native (crates/glue-engine, ADR 0153, 0154): the local link's `/rpc` from a GLUE tab here
 //! is answered in Rust (edits, the feed, jobs, the analysis, where a dropped song or folder is), writing the GLUE folder
 //! straight to disk; the analysis queue runs here too. The shared sync and the answers to other devices, still in the
-//! service page until the plan's E4, use it through `engine_cmd`. What the engine says goes to the service page as
-//! events: `engine-event` (Activity), `engine-edited` (the sync sends it up), `engine-changed` (the status),
-//! `engine-analysis` (the queue's state), `engine-made` (a song's parts made: the sessions are told).
+//! service page until the plan's E4, use it through `engine_cmd`; the answers to other devices are its (ADR 0156, through
+//! rtc.rs). What the engine says goes to the service page as events: `engine-event` (Activity), `engine-edited` (the
+//! sync sends it up), `engine-changed` (the status), `engine-analysis` (the queue's state), `engine-made` (a song's
+//! parts made: the sessions are told), `engine-background` (the background thumbnails' progress).
 use glue_engine::library::Known;
 use glue_engine::sync::CloudError;
 use glue_engine::{Engine, Host};
@@ -78,6 +79,12 @@ impl Host for App {
   fn changed(&self) { let _ = self.app.emit_to("service", "engine-changed", ()); }
   fn analysis_changed(&self, state: &Value) { let _ = self.app.emit_to("service", "engine-analysis", state); }
   fn made(&self, p: &str, c: &str, id: &str) { let _ = self.app.emit_to("service", "engine-made", json!({ "p": p, "c": c, "id": id })); }
+  fn background_changed(&self, progress: &Value) { let _ = self.app.emit_to("service", "engine-background", progress); }
+  /// A cover service's answer (ADR 0086): only the addresses web.rs allows.
+  fn web_get(&self, url: &str) -> Result<Vec<u8>, String> { crate::web::get(url, &self.version()) }
+  /// The local link and its tokens (the full one, and the read-only one for a GLUE tab while GLUE Home is the engine).
+  fn local_link(&self) -> Value { let c = self.config(); json!({ "port": crate::local::PORT.load(std::sync::atomic::Ordering::Relaxed), "token": c["localToken"], "readToken": c["readToken"] }) }
+  fn serving(&self) -> bool { crate::rtc::busy() }
   /// GLUE Cloud (the settings' `api`, or GLUE's), with this GLUE Home's access token: asked for with its credential
   /// (`/v1/auth/device`) and kept 40 minutes, as the service page did.
   fn cloud(&self, method: &str, path: &str, content_type: Option<&str>, body: Option<&str>) -> Result<String, CloudError> {

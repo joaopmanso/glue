@@ -122,30 +122,9 @@ fn device_name() -> String {
     std::env::var("HOSTNAME").unwrap_or_else(|_| "GLUE Home".into())
 }
 
-/// A file name that is safe on Windows and macOS (the website sends only the name, never a path).
-pub(crate) fn safe_name(name: &str) -> String {
-    let base = name.rsplit(['/', '\\']).next().unwrap_or("");
-    let mut n: String = base.chars().map(|c| if c.is_control() || "<>:\"|?*".contains(c) { '_' } else { c }).collect();
-    n = n.trim().trim_end_matches(['.', ' ']).to_string();
-    let stem = n.split('.').next().unwrap_or("").to_ascii_lowercase();
-    if ["con", "prn", "aux", "nul"].contains(&stem.as_str()) || ((stem.starts_with("com") || stem.starts_with("lpt")) && stem.len() == 4) {
-        n = format!("_{n}");
-    }
-    if n.is_empty() || n == "." || n == ".." {
-        n = "song".into();
-    }
-    if n.chars().count() > 180 {
-        n = n.chars().take(170).collect();
-    }
-    n
-}
-
-fn with_number(name: &str, i: u32) -> String {
-    match name.rfind('.') {
-        Some(d) if d > 0 => format!("{} ({}){}", &name[..d], i, &name[d..]),
-        _ => format!("{name} ({i})"),
-    }
-}
+/// A file name that is safe on Windows and macOS (the website sends only the name, never a path), and "Song (2).mp3":
+/// the engine's rules (ADR 0156).
+pub(crate) use glue_engine::incoming::{safe_name, with_number};
 
 pub(crate) fn incoming_dir(app: &AppHandle) -> PathBuf {
     get_config(app.clone())
@@ -238,15 +217,6 @@ fn known_folders(app: AppHandle) -> serde_json::Value {
 fn count<T>(what: &str, t0: std::time::Instant, r: Result<T, String>, size: impl FnOnce(&T) -> u64) -> Result<T, String> {
     activity::note(what, t0, r.as_ref().map(size).unwrap_or(0));
     r
-}
-
-/// A cover service's answer (ADR 0086): only the services `web.rs` allows.
-#[tauri::command]
-async fn web_get(app: AppHandle, url: String) -> Result<tauri::ipc::Response, String> {
-    let t0 = std::time::Instant::now();
-    let version = app.package_info().version.to_string();
-    let r = tauri::async_runtime::spawn_blocking(move || web::get(&url, &version)).await.map_err(|e| e.to_string()).and_then(|r| r);
-    count("bridge web_get", t0, r, |b| b.len() as u64).map(tauri::ipc::Response::new)
 }
 
 /// Does a GLUE tab hold the writer lease (ADR 0087)? Then GLUE Home leaves edits to it.
@@ -420,48 +390,12 @@ async fn incoming_list(app: AppHandle) -> Result<Vec<serde_json::Value>, String>
     count("bridge incoming_list", t0, Ok(incoming_list_impl(app)), |_| 0)
 }
 
-pub(crate) fn incoming_list_impl(app: AppHandle) -> Vec<serde_json::Value> {
-    let dir = incoming_dir(&app);
-    let Ok(d) = fs::read_dir(dir) else { return vec![] };
-    d.flatten()
-        .filter_map(|e| {
-            let m = e.metadata().ok()?;
-            let name = e.file_name().to_string_lossy().into_owned();
-            if !m.is_file() || name.ends_with(".part") || name.starts_with('.') {
-                return None;
-            }
-            let mtime = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_millis() as u64).unwrap_or(0);
-            Some(serde_json::json!({ "name": name, "size": m.len(), "mtime": mtime, "path": e.path().to_string_lossy() }))
-        })
-        .collect()
-}
-
-/// Move a song from the incoming folder into one of the music folders GLUE Home found (never
-/// overwriting); the website picks it up there on its next scan.
-#[tauri::command]
-fn incoming_move(app: AppHandle, name: String, to: String) -> Result<String, String> {
-    incoming_move_impl(app, name, to)
-}
-
+pub(crate) fn incoming_list_impl(app: AppHandle) -> Vec<serde_json::Value> { glue_engine::incoming::list(&incoming_dir(&app)) }
+/// Move a song from the incoming folder into one of the music folders GLUE Home may use (never overwriting; the
+/// engine's rule, ADR 0156); the website picks it up there on its next scan.
 pub(crate) fn incoming_move_impl(app: AppHandle, name: String, to: String) -> Result<String, String> {
-    let from = incoming_dir(&app).join(safe_name(&name));
-    if !from.is_file() {
-        return Err("that song isn't in the incoming folder any more".into());
-    }
     let dest = allowed(&app, &to)?;
-    let clean = safe_name(&name);
-    let (mut fin, mut i) = (clean.clone(), 2);
-    while dest.join(&fin).exists() {
-        fin = with_number(&clean, i);
-        i += 1;
-    }
-    let target = dest.join(&fin);
-    if fs::rename(&from, &target).is_err() {
-        // Another drive: copy, then remove.
-        fs::copy(&from, &target).map_err(|e| e.to_string())?;
-        fs::remove_file(&from).map_err(|e| e.to_string())?;
-    }
-    Ok(target.to_string_lossy().into_owned())
+    glue_engine::incoming::move_to(&incoming_dir(&app), &name, &dest)
 }
 
 /// The service reports its state: the tray's first line, tooltip and Start / Stop follow it.
@@ -542,7 +476,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, incoming_move, local_port, glue_list, activity_now, web_get, lease_held, edits_waiting, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_incoming, analysis::cover_hash, analysis::cover_from_image, analysis::wave_from_details, rtc::rtc_answer, rtc::rtc_ice, rtc::rtc_close, rtc::rtc_reply, rtc::rtc_send_file, rtc::rtc_error, rtc::rtc_tell, engine::engine_cmd])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, local_port, glue_list, activity_now, lease_held, edits_waiting, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, analysis::analyse_incoming, rtc::rtc_answer, rtc::rtc_ice, rtc::rtc_close, rtc::rtc_busy, rtc::rtc_tell, engine::engine_cmd])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]

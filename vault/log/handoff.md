@@ -25,8 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   on batch by batch, each released when its checks pass.
 
 ## State (2026-10-06)
-- **Live:** the site, GLUE Cloud (migrations up to 0011), **GLUE Home 0.54.0**. Nothing uncommitted; `main` is at
-  `f19fe4a` (check its CI: the e2e run was still going when this was written).
+- **Live:** the site, GLUE Cloud (migrations up to 0011), **GLUE Home 0.55.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -36,13 +35,13 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **0.53.1:** the GLUE window was white and froze GLUE Home when opened from the settings' "Open GLUE library" or
     the tray (since 0.50). Fixed and checked on the laptop.
   - **E4a, the shared sync** (`sync.rs`, `shared.rs`, `glue_store::merge3`, ADR 0155): done, 0.54.0.
-  - **E4b and E5:** next (below).
+  - **E4b step 1, the answers to other devices** (`answers.rs`, `covers.rs`, `names.rs`, `incoming.rs`, ADR 0156):
+    done, 0.55.0 (2026-10-06, on the desktop).
+  - **E4b step 2 and E5:** next (below).
 - **What's still JavaScript in GLUE Home** (`home/ui`, the hidden service page `service.ts`, about 500 lines):
   - the signaling room (`cloud.ts` `stayOnline`);
   - the sessions with other devices (`sessions.ts`) and the offers' glue to Rust's connections (`rtc_answer`…);
-  - the answers to other devices' requests (`onRequest` in `service.ts`: thumbs, waves, details, have, art,
-    find-art with `lookup.ts`, incoming, cache, analysis, local, folders, get-incoming, move-incoming);
-  - `cache.ts` `soon`/`background` (songs analysed for another device, the background thumbnails);
+  - songs received (`received`: analysed with `analyse_incoming`, listed in the settings);
   - identity (`identity.ts`), ICE (`ice.ts`);
   - backups, moves, reminders, updates, verify, tokens and config, the status to the settings window (E5).
   - The engine is reached from there through one Tauri command, `engine_cmd` (`home/ui/engine.ts` wraps it).
@@ -54,6 +53,15 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **The GLUE window freezes while GLUE Home analyses 50+ songs** (the user, 2026-10-06; "since moving analysis to
+  Rust"; it "keeps analysing in the background"). Not reproduced yet. Measured: the native analysis alone doesn't
+  leak (60 hi-res FLACs from the NAS, 12 at a time, 74 s, peak 1.5 GB, 400 MB before and after: a throwaway
+  `memrun` example over `glue_audio::analyse`). GLUE Home's main-thread commands don't touch the engine, and the
+  GLUE window's handlers (`window.rs`) don't run per request. Suspects left: the GLUE window's page (the website) with
+  results now arriving ~50× faster than with the JavaScript analysis (the feed's `reloadFiles`, `takeDerived`,
+  duplicates). A monitor (PowerShell: each GLUE Home process's memory and processor every 2 s, and whether its windows
+  are "not responding", `IsHungAppWindow`) was ready on the desktop; ask the user to reproduce while it runs, and
+  say when.
 - **GLUE Home 0.53.1 / 0.54.0** (updates itself within 6 hours, or the settings' update check):
   - **the GLUE window**, opened both ways (the tray, and "Open GLUE library" in the settings): it should show GLUE, not a
     white page. Then the 0.50 checklist: drop a folder or a song on it; export to rekordbox (the file in Downloads);
@@ -84,10 +92,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     Stop/Start handing the library over, "No file linked" in bulk, a dropped song analysed by GLUE Home).
 
 ## Next
-### E4b: the rest of the cloud side in Rust (0.55.0, ADR 0156)
+### E4b: the rest of the cloud side in Rust
 What `service.ts` still does with other devices moves into the engine, so the service page keeps only E5's parts.
-Suggested in two steps, each released and tested on its own:
-1. **The answers and the helpers** (signaling stays in JavaScript for now):
+In two steps, each released and tested on its own:
+1. **Done, 0.55.0 (ADR 0156): the answers and the helpers** (identity and ICE moved to step 2: they serve the
+   signaling). As planned:
    - Rust's connections (`crates/glue-rtc`, host `home/src-tauri/src/rtc.rs`) answer the requests themselves instead of
      emitting `rtc-request` to the service page: thumbs, waves, details (with `PENDING` and `cache.soon`), have, art
      and find-art (port `home/ui/lookup.ts`, `web_get`'s rules in `web.rs`), incoming, cache, analysis
@@ -96,7 +105,7 @@ Suggested in two steps, each released and tested on its own:
      Rust knows that now);
    - identity (`identity.ts` `whoAmI`, `/v1/computer`, `/v1/computer/attach`) and ICE (`/v1/turn`, cached as
      `src/core/ice.ts` does) through `Host::cloud`.
-2. **The signaling room and the sessions:** `stayOnline` (tungstenite is already a dependency: the access token, ping
+2. **Next (0.56.0): the signaling room and the sessions,** with identity and ICE: `stayOnline` (tungstenite is already a dependency: the access token, ping
    every 30 s, renew at 50 min, backoff 1–60 s, close codes 4000 replaced / 4001 removed / 4002 renew), the session
    rules (`sessions.ts`: `admit`, `maxOf`, `sessionKey`, the refusals for an hour), the offers handed to glue-rtc, a
    `shared` push starting a sync, `presence`.
@@ -111,7 +120,7 @@ Once Rust opens the socket and answers offers:
   checked against Edge: `scripts/rtc-probe.mjs`). The tests to move: `phone.spec.ts`, `computers.spec.ts`,
   `library.spec.ts` (send songs, hand-over, the local link), `identity.spec.ts`, `home.spec.ts`.
 
-### E5: the rest, and the service page removed (0.56.0)
+### E5: the rest, and the service page removed (0.57.0)
 Backups (`backups.ts`, `glue_store::backup` has the zip already), moves (`moves.ts`), reminders (`reminders.ts`, its
 memory in GLUE Home's settings, notifications from Rust), updates (`updates.ts`, the updater from Rust), verify
 (`verify.ts`), tokens and config (`patchConfig` atomic in Rust), the status and events straight to the settings

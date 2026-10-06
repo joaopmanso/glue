@@ -58,6 +58,11 @@ const refresh = () => cmd<EngineStatus>({ cmd: 'status' }).then(s => { last = s;
 /** The analysis queue's state, as it last said it. */
 let queue: AnalysisState = { paused: false, running: 0, current: [], left: 0, done: 0, failed: 0, waiting: 0, by: 'idle', why: '', away: 0 };
 export const analysisState = () => queue;
+/** The background's mini spectrograms and waveforms for other devices (answers.rs, ADR 0156): how far. */
+let bg = { done: 0, total: 0, running: false };
+export const background = () => bg;
+/** Start it (after the music folders were looked for); it waits while GLUE Home is busy. */
+export const backgroundRun = () => void cmd({ cmd: 'background' }).catch(() => {});
 
 /** What the engine says, to the service page's hooks. */
 export async function listenToEngine() {
@@ -66,6 +71,7 @@ export async function listenToEngine() {
   await listen<AnalysisState>('engine-analysis', e => { queue = e.payload; on.analysis?.(); });
   await listen<{ p: string; c: string; id: string }>('engine-made', e => on.made?.(e.payload.p, e.payload.c, e.payload.id));
   await listen('engine-changed', () => void refresh());
+  await listen<typeof bg>('engine-background', e => { bg = e.payload; on.analysis?.(); });
   void refresh();
   void cmd<AnalysisState>({ cmd: 'analysisState' }).then(s => { queue = s; on.analysis?.(); }).catch(() => {});
 }

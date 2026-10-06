@@ -158,8 +158,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     once. Passing failures (time-outs, memory) are retried, never stored (ADR 0109); after the third try the song is
     saved as failed, with why (ADR 0144). A song has 2 minutes, or a second a MB. Results go into the collection
     through the engine's stores while no pre-engine tab holds the lease. The engine finds songs and music folders
-    itself (one drive search per folder, saved in the settings). The service page still analyses for another
-    device at once (`cache.soon`) and fills the background thumbnails, through `engine_cmd` (until E4).
+    itself (one drive search per folder, saved in the settings). Songs another device waits for are analysed at once,
+    one at a time (`answers.rs` `soon`), and the background thumbnails are the engine's too (ADR 0156).
   - **FLAC is decoded by GLUE** (`src/core/formats/flac.ts`, ADR 0144; an ID3v2 tag before the stream is skipped), in every analysis worker (`decode.ts`): exact,
     any rate, read a part at a time; the browser's decoders for the other formats, and when it can't.
   - shared sync (in the engine since 0.54, ADR 0155: `shared.rs` with `sync.rs`, GLUE Cloud called from Rust with this
@@ -180,8 +180,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     send it to the browser.
   - **GLUE Home's connections are Rust's** (ADR 0150, 0.49, `crates/glue-rtc`, `home/src-tauri/src/rtc.rs`): the peer
     connections, their channels, pings, uploads, cache files, songs sent in and every song byte sent out; the service
-    page keeps the signaling, the sessions' rules and the library's answers (`rtc-request` → `rtc_reply`,
-    `rtc_send_file`, `rtc_error`). Messages up to 256 KB. Tests: `crates/glue-rtc/tests`, `scripts/rtc-probe.mjs`
+    page keeps the signaling and the sessions' rules. **The library's answers are the engine's** (0.55, ADR 0156:
+    `crates/glue-engine/src/answers.rs`, `covers.rs`, `incoming.rs`): rtc.rs hands each request to `Engine::answer`
+    and sends what it says (data and bytes, or a song's file from disk). Messages up to 256 KB. Tests: `crates/glue-rtc/tests`, `scripts/rtc-probe.mjs`
     (Edge), `e2e/home-rtc.ts` (the e2e stand-in).
   - **Sessions** (ADR 0133, 0.41): each device's tab keeps one with each of the account's other GLUE Homes,
     opened at sign-in (`remoteFiles.tend`), kept alive by a `ping` every 15 s; requests, playing and songs sent all go
@@ -189,10 +190,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     "Most at once" (5, other devices only: its own computer's browser isn't counted), refuses a new one when full, and lists them
     with Disconnect (`home/ui/sessions.ts`). It says `{t:'session'}` first, then tells every session what happened:
     `made` (songs analysed: rows and song pages show them at once) and `incoming` (TO BE SORTED changed);
-    covers for songs whose tags have none, looked up on public services (`lookup.ts`, ADR 0086).
+    covers for songs whose tags have none, looked up on public services (`covers.rs`, ADR 0086, 0156; held to the
+    website's `coverSearch.ts` by `tests/golden/covers.json`).
   - **No audio JavaScript** (ADR 0147, 0.47): songs arriving in the incoming folder (`analyse_incoming`), covers from
-    tags (`cover_hash`, only the tags read) and from cover services (`cover_from_image`), and waveforms from kept
-    details (`wave_from_details`) are the Rust engine's, like the analysis. `tests/homeBundle.test.ts` fails when
+    tags (only the tags read) and from cover services, and waveforms from kept details are the Rust engine's, like the
+    analysis (the last three in the engine's answers since 0.55, ADR 0156). `tests/homeBundle.test.ts` fails when
     `home/ui` reaches the website's analysis, decoders, workers or audio packages; CI fails on a worker in
     `home/dist`.
   - finding music folders on disk (`library.ts` `locate`, `folderOf`): one drive search per folder, and what's

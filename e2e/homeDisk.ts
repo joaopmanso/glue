@@ -10,8 +10,9 @@ import { FakeHome } from './fakeHome';
 export interface HomeDisk {
   fake: FakeHome; tmp: string; glue: string; music: string;
   /** GLUE Home's service or settings page (or every page of a context), before it opens: the stand-in reaches this
-      engine, and reads the GLUE folder from disk (as GLUE Home does), not from the page's copy. */
-  wire(page: Page | BrowserContext): Promise<void>;
+      engine, and reads the GLUE folder from disk (as GLUE Home does), not from the page's copy. `link: false`: the test
+      stands GLUE Home's local link in itself (port 47400); only the engine is this one. */
+  wire(page: Page | BrowserContext, opts?: { link?: boolean }): Promise<void>;
   done(): Promise<void>;
 }
 
@@ -26,10 +27,10 @@ export async function homeDisk(glue: Record<string, string>, songs: Record<strin
   await fake.start();
   return {
     fake, tmp, glue: g, music,
-    async wire(page) {
+    async wire(page, o = {}) {
       await page.exposeFunction('__glueDisk', (rel: string) => { try { return readFileSync(join(g, rel), 'utf8'); } catch { return null; } });
       await page.exposeFunction('__glueDiskList', (rel: string) => { try { const d = join(g, rel); return readdirSync(d).filter(n => statSync(join(d, n)).isFile()); } catch { return []; } });
-      await page.addInitScript(({ port, token }) => { Object.assign(window, { __localPort: port, __homeToken: token }); }, { port: fake.port, token: fake.token });
+      await page.addInitScript(({ port, token, link }) => { Object.assign(window, link ? { __localPort: port, __homeToken: token } : { __enginePort: port, __homeToken: token }); }, { port: fake.port, token: fake.token, link: o.link !== false });
     },
     async done() { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); },
   };

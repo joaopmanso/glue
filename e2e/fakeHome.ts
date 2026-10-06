@@ -24,6 +24,10 @@ export class FakeHome {
   rpc: ((body: string, read: boolean) => Promise<string>) | null = null;
   /** GLUE Cloud as the engine calls it (ADR 0155; the test wires its stand-in): the answer's status and text. */
   cloud: ((method: string, path: string, body: string | null) => Promise<{ status: number; body: string }>) | null = null;
+  /** The cover services as the engine asks them (ADR 0086, 0156): an address's start → its answer (JSON text or bytes);
+      none: 404. What was asked, in order. */
+  web: Record<string, string | number[] | Buffer> = {};
+  webAsked: string[] = [];
   /** GLUE Home's own cache (the test wires it to the service page's), for /cache?key=. */
   cache: ((key: string) => Promise<number[] | null>) | null = null;
   /** Keys asked of /cache (GLUE Home's analyses, by a tab). */
@@ -115,6 +119,14 @@ export class FakeHome {
     createInterface({ input: e.stdout }).on('line', line => {
       let m: { ask?: number; ok?: unknown; err?: string; note?: string; call?: number; cloud?: { method: string; path: string; body: string | null }; [k: string]: unknown };
       try { m = JSON.parse(line); } catch { return; }
+      if (m.call !== undefined && typeof m.web === 'string') {
+        const n = m.call, url = m.web;
+        this.webAsked.push(url);
+        const hit = Object.entries(this.web).find(([k]) => url.startsWith(k));
+        const body = hit ? (typeof hit[1] === 'string' ? Buffer.from(hit[1]) : Buffer.from(hit[1] as number[])) : null;
+        this.engine?.stdin.write(JSON.stringify({ reply: n, status: body ? 200 : 404, body: body?.toString('base64') ?? '' }) + '\n');
+        return;
+      }
       if (m.call !== undefined && m.cloud) {
         const n = m.call, c = m.cloud;
         void (this.cloud ? this.cloud(c.method, c.path, c.body) : Promise.resolve({ status: 503, body: 'no GLUE Cloud' }))
@@ -214,6 +226,30 @@ export class FakeHome {
       if (!f) return send(404, { error: 'not there' });
       res.writeHead(200, { 'content-type': 'application/octet-stream', 'access-control-allow-origin': String(headers.origin ?? '*') });
       return res.end(readFileSync(f));
+    }
+    // What the Tauri stand-in keeps that GLUE Home's engine reads from disk (ADR 0156): an incoming song's analysis
+    // (`i/…`), a song received into the incoming folder; and a file of its folders, to send to another device.
+    if (u.pathname === '/engine/cache' && method === 'POST') {
+      const rel = q.get('rel') ?? '';
+      if (!rel || rel.split('/').some(x => !x || x === '..')) return send(400, { error: 'bad path' });
+      const chunks: Buffer[] = [];
+      req.on('data', c => chunks.push(Buffer.from(c)));
+      req.on('end', () => { const f = join(this.cacheDir, ...rel.split('/')); mkdirSync(resolve(f, '..'), { recursive: true }); writeFileSync(f, Buffer.concat(chunks)); send(200, {}); });
+      return;
+    }
+    if (u.pathname === '/engine/incoming' && method === 'POST') {
+      const name = basename(q.get('name') ?? '');
+      if (!name || name === '..') return send(400, { error: 'bad name' });
+      const chunks: Buffer[] = [];
+      req.on('data', c => chunks.push(Buffer.from(c)));
+      req.on('end', () => { writeFileSync(join(this.dirs.incoming, name), Buffer.concat(chunks)); send(200, {}); });
+      return;
+    }
+    if (u.pathname === '/engine/file') {
+      const p = resolve(q.get('path') ?? ''), known = this.opts.known?.music ? [resolve(this.opts.known.music)] : [];
+      if (![...this.roots(), ...known].some(r => p.startsWith(r + sep)) || !existsSync(p)) return send(404, { error: 'not there' });
+      res.writeHead(200, { 'content-type': 'application/octet-stream', 'access-control-allow-origin': String(headers.origin ?? '*') });
+      return res.end(readFileSync(p));
     }
     if (u.pathname === '/engine/cache/list') {
       const rel = q.get('rel') ?? '', d = join(this.cacheDir, ...rel.split('/').filter(Boolean));

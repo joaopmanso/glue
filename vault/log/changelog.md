@@ -1,9 +1,25 @@
 ---
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-10-06 · GLUE Home 0.55.0: the answers to other devices in Rust (ADR 0156)
+- **GLUE Home's engine answers the account's other devices** ([ADR 0156](../adr/0156-the-answers-to-other-devices-in-rust.md)):
+  songs to play (whole or in parts), mini spectrograms and waveforms, full analyses (made now when asked), covers from
+  tags and from cover services, the incoming folder (TO BE SORTED, moving a song into a music folder), the music
+  folders, the local link, the analysis. GLUE Home's connections hand each request to `Engine::answer`
+  (`crates/glue-engine/src/answers.rs`) on a thread of its own; the service page's `onRequest`, `cache.ts`'s helpers
+  and `lookup.ts` are gone.
+- **The cover look-up in Rust, held to the website's** (`covers.rs`, `names.rs`): `tests/golden/covers.json`
+  records the website's keys, addresses and picks (names in Japanese, Cyrillic, Greek, ligatures, "™"…); the Rust
+  replays them.
+- **Tests:** `crates/glue-engine/tests/answers.rs` (a real song analysed when asked, its cover, its file; the incoming
+  folder; a cover looked up once, refused for good). The e2e stand-in for GLUE Home's connections asks the test
+  engine, and the "send songs" test's music folder is the test's own (it was a made-up `D:Music`, which the engine
+  would now really move songs into).
+- E4b is in two releases: these answers now; the signaling room and the sessions (with identity and ICE) next.
 
 ## 2026-10-05 · GLUE Home 0.54.0: the shared sync in Rust (ADR 0155)
 - **GLUE Home syncs the shared collections itself, in Rust** ([ADR 0155](../adr/0155-the-shared-sync-in-rust.md)):

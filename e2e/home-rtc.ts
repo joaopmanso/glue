@@ -1,7 +1,8 @@
 /* The tests' stand-in for GLUE Home's own connections (crates/glue-rtc, home/src-tauri/src/rtc.rs, ADR 0150): the same
    commands and events, done with the browser's RTCPeerConnection in the mocked service page. crates/glue-rtc holds
-   the Rust to the same protocol (tests/protocol.rs, and scripts/rtc-probe.mjs against Edge). Loaded by
-   e2e/tauri-mock.ts; never part of GLUE Home itself. */
+   the Rust to the same protocol (tests/protocol.rs, and scripts/rtc-probe.mjs against Edge). Requests are answered by
+   the test's real engine (`answer`, crates/glue-engine/src/answers.rs, ADR 0156), as rtc.rs has them answered. Loaded
+   by e2e/tauri-mock.ts; never part of GLUE Home itself. */
 import { CHUNK, HIGH_WATER, MAX_FILE, frame, unframe } from '../src/core/transfer';
 
 /** What the mock gives it: its events, cache, "disk" and incoming folder. */
@@ -9,7 +10,10 @@ export interface MockHome {
   emit: (name: string, payload: unknown) => void;
   cacheGet: (key: string) => Uint8Array | null;
   cachePut: (key: string, b: Uint8Array) => void;
-  song: (path: string) => number[] | undefined;
+  /** A file to send: the page's stand-in disk, else the test GLUE Home's folders. */
+  song: (path: string) => Promise<number[] | undefined>;
+  /** GLUE Home's engine's answer to a request (glue_engine::command `answer`). */
+  answer: (req: Record<string, unknown>) => Promise<{ data?: unknown; bytes?: string; tell?: unknown; file?: { path: string; range: [number, number] | null; name: string; type: string } }>;
   incomingBegin: (name: string) => [number, string];
   incomingWrite: (id: number, b: Uint8Array) => void;
   incomingEnd: (id: number, ok: boolean) => string;
@@ -85,7 +89,22 @@ export function rtc(home: MockHome) {
         home.emit('rtc-served', { what: 'cache', ms: performance.now() - t0, bytes: all.length });
         return;
       }
-      home.emit('rtc-request', { conn: id, chan: ch, n: req.n, req });
+      // The library's answer, from GLUE Home's engine (ADR 0156); counted for the settings (`rtc-served`).
+      const t0 = performance.now();
+      void (async () => {
+        let sent = 0;
+        try {
+          const a = await home.answer(req);
+          if (a.file) sent = await sendFile(id, ch, req.n, a.file);
+          else {
+            const b = Uint8Array.from(atob(a.bytes ?? ''), c => c.charCodeAt(0));
+            await reply(id, ch, req.n, a.data ?? null, b);
+            sent = b.length;
+            if (a.tell) tell(a.tell);
+          }
+        } catch (err) { text(dc, { t: 'error', n: req.n, error: String((err as Error)?.message ?? err) }); }
+        home.emit('rtc-served', { what: req.t, ms: performance.now() - t0, bytes: sent });
+      })();
     };
   }
 
@@ -135,8 +154,12 @@ export function rtc(home: MockHome) {
     async ice(id: string, candidate: RTCIceCandidateInit | null) { if (candidate) await conns.get(id)?.pc.addIceCandidate(candidate); },
     close(id: string) { conns.get(id)?.pc.close(); conns.delete(id); },
     reply,
-    async sendFile(id: string, ch: number, n: number, s: { path: string; range: [number, number] | null; name: string; type: string }) {
-      const dc = chan(id, ch), all = home.song(s.path);
+    sendFile,
+    error(id: string, ch: number, n: number, error: string) { text(chan(id, ch), { t: 'error', n, error }); },
+    tell,
+  };
+  async function sendFile(id: string, ch: number, n: number, s: { path: string; range: [number, number] | null; name: string; type: string }) {
+      const dc = chan(id, ch), all = await home.song(s.path);
       if (!all) throw new Error('not found');
       const total = all.length;
       const [start, len] = s.range ? [Math.min(s.range[0], total), 0] : [0, total];
@@ -145,8 +168,6 @@ export function rtc(home: MockHome) {
       await bytes(dc, n, new Uint8Array(all.slice(start, start + n2)));
       text(dc, s.range ? { t: 'eof', n } : { t: 'eof', n, type: s.type });
       return n2;
-    },
-    error(id: string, ch: number, n: number, error: string) { text(chan(id, ch), { t: 'error', n, error }); },
-    tell(msg: unknown) { for (const c of conns.values()) { const dc = c.session != null ? c.chans.get(c.session) : undefined; if (dc) text(dc, msg); } },
-  };
+  }
+  function tell(msg: unknown) { for (const c of conns.values()) { const dc = c.session != null ? c.chans.get(c.session) : undefined; if (dc) text(dc, msg); } }
 }

@@ -1,6 +1,6 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { launch } from './launch';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
@@ -1898,16 +1898,16 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('h1'));
   await home.addInitScript(TAURI_MOCK);
   // Its GLUE folder (on disk: GLUE Home's engine reads it, ADR 0154): one collection with a music folder "Music"
-  // (D:\Music), where songs can be moved to.
+  // (the test's own folder on disk: the engine moves songs there for real, ADR 0156).
   const studioGlue = { 'mco.json': JSON.stringify({ profiles: [{ id: 'pd', name: 'DJ' }] }), 'profiles/pd/profile.json': JSON.stringify({ id: 'pd', name: 'DJ', collections: [{ id: 'cd', name: 'My collection' }] }), 'profiles/pd/collections/cd/collection.json': JSON.stringify({ id: 'cd', name: 'My collection', roots: [{ id: 'rm', name: 'Music', absPath: 'D:\\Music' }] }) };
   const studioHome = await homeDisk(studioGlue);
   await studioHome.wire(home);
-  await home.addInitScript(glue => {
+  await home.addInitScript(({ glue, music }) => {
     const w = window as unknown as Record<string, unknown>;
     w.__glue = glue;
-    w.__disk = { 'D:\\Music\\x.mp3': [1] };
-    localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Studio PC', user: { email: 'dj@example.com', name: 'DJ' }, incoming: 'C:\\In', running: true, askedAutostart: true, glue: 'C:\\GLUE', folders: { rm: 'D:\\Music' } }));
-  }, studioGlue);
+    w.__disk = {};
+    localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Studio PC', user: { email: 'dj@example.com', name: 'DJ' }, incoming: 'C:\\In', running: true, askedAutostart: true, glue: 'C:\\GLUE', folders: { rm: music } }));
+  }, { glue: studioGlue, music: studioHome.music });
   await home.goto('http://localhost:5176/service.html');
   await expect(home.locator('#state')).toContainText('Online as Studio PC');
 
@@ -1985,7 +1985,7 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
   await first.locator('.c-title').click();
   await page.selectOption('#move-to', 'rm');
   await expect(page.locator('.tr')).toHaveCount(2, { timeout: 20_000 });
-  expect(await home.evaluate(() => (window as unknown as { __files: { name: string; moved?: string }[] }).__files.find(f => f.name === 'flac-96k-24.flac')?.moved)).toBe('D:\\Music');
+  expect(existsSync(join(studioHome.music, 'flac-96k-24.flac'))).toBe(true);
   // Opening the page again: TO BE SORTED is back as soon as the desktop's GLUE Home is online (not at
   // the next 30-second round).
   await page.reload();
@@ -2053,6 +2053,9 @@ test('the website hands its mini spectrograms and analyses to this computer’s 
   const home = await ctx.newPage();
   await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('h1'));
   await home.addInitScript(TAURI_MOCK);
+  // Its engine answers the website's requests (ADR 0156).
+  const disk = await homeDisk({});
+  await disk.wire(home, { link: false });
   await home.addInitScript(() => localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true })));
   await home.goto('http://localhost:5176/service.html');
   await expect(home.locator('#state')).toContainText('Online as Desktop');
@@ -2070,6 +2073,7 @@ test('the website hands its mini spectrograms and analyses to this computer’s 
   const kept = () => home.evaluate(() => Object.keys((window as unknown as { __cache: Record<string, number[]> }).__cache));
   await expect.poll(async () => (await kept()).filter(k => k.startsWith('t/')).length, { timeout: 60_000 }).toBe(4);
   await expect.poll(async () => (await kept()).filter(k => k.startsWith('d/') && k.endsWith('.json')).length, { timeout: 30_000 }).toBe(4);
+  await disk.done();
 });
 
 test('the local link: this computer’s GLUE Home answers the website directly, TO BE SORTED ready and playing without GLUE Cloud', { tag: '@heavy' }, async ({ page }) => {
@@ -2106,6 +2110,9 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   const home = await ctx.newPage();
   await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, room('h1'));
   await home.addInitScript(TAURI_MOCK);
+  // Its engine answers the website's requests (ADR 0156); its local link is the test's, below.
+  const disk = await homeDisk({});
+  await disk.wire(home, { link: false });
   await home.addInitScript(() => { if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true })); });
   await home.goto('http://localhost:5176/service.html');
   await expect(home.locator('#state')).toContainText('Online as Desktop');
@@ -2190,6 +2197,7 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   // It streams (ADR 0076): the player keeps asking for ranges; stop it before the stand-in goes.
   await page.click('#lib-play');
   await ctx.unrouteAll({ behavior: 'ignoreErrors' });
+  await disk.done();
 });
 
 test('covers: found at analysis, shown in the Cover column and on the track page, and read again from the tags when this browser lost them (ADR 0072)', async ({ page }) => {

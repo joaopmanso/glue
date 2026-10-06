@@ -10,6 +10,9 @@ publish = false
 glue-audio = { path = "../glue-audio" }
 glue-store = { path = "../glue-store" }
 indexmap = "2"
+# The cover look-up (covers.rs, names.rs): names compared as the website does.
+regex = "1"
+unicode-normalization = "0.1"
 # The shared sync (ADR 0155): packed texts, and the snapshot's hashes.
 base64 = "0.22"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }

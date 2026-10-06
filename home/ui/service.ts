@@ -3,9 +3,8 @@
    Restart come from the tray and the settings window. */
 import { API, bridge, type HomeConfig, type Received, type Status } from './bridge';
 import { access, stayOnline } from './cloud';
-import { ICE_SERVERS, PENDING, isHandshake, type Handshake, type HomeFolder, type StreamReply, type StreamReq } from '../../src/core/transfer';
+import { ICE_SERVERS, isHandshake, type Handshake, type StreamReply } from '../../src/core/transfer';
 import * as cache from './cache';
-import * as lookup from './lookup';
 import { backupDaily } from './backups';
 import { followMoves } from './moves';
 import { newlyFound } from './library';
@@ -21,7 +20,6 @@ let cfg: HomeConfig | null = null;
 let room: ReturnType<typeof stayOnline> | null = null;
 let state: Status['state'] = 'stopped', text = 'Starting…';
 let receiving: Status['receiving'] = null;
-let serving = 0;   // songs being sent to another computer right now
 let library: Status['library'] = undefined;
 let reminders: Status['reminders'] = undefined;
 /** The connections, by handshake id (GLUE Home's own, in Rust: ADR 0150): who they're with. */
@@ -54,8 +52,6 @@ engine.on.made = (p, c, id) => {
 };
 function endSession(key: string) { const s = sessions.get(key); if (!s) return; sessions.delete(key); conns.delete(s.id); void bridge.rtcClose(s.id).catch(() => {}); servedSoon(); }
 const early = new Map<string, (RTCIceCandidateInit | null)[]>();   // candidates that came before their connection
-const located = new Map<string, { path: string; name: string; until: number }>();   // songs being streamed: where they are
-const lookingUp = new Map<string, ReturnType<typeof engine.trackPath>>();   // a song being looked for now: its lookup, shared
 /** What other devices asked since GLUE Home started (ADR 0083), by kind: shown in the settings. */
 const served: Record<string, { calls: number; ms: number; bytes: number }> = {};
 
@@ -70,7 +66,7 @@ let servedTimer = 0;
 const servedSoon = () => { if (!servedTimer) servedTimer = window.setTimeout(() => { servedTimer = 0; report(state, text); }, 2000); };
 function report(s: Status['state'], t: string) {
   state = s; text = t;
-  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: { ...cache.progress.background }, analysing: engine.analysisState(), engine: engine.status(), verify: structuredClone(verify.state), events: events.slice(), reminders, served: structuredClone(served), sessions: { list: [...sessions.values()].map(s => ({ key: s.key, name: s.name, since: s.since, last: s.last, calls: s.calls, open: s.open })), max: maxSessions() }, computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
+  const status: Status = { state, text, running: isRunning(cfg) && s !== 'unpaired' && s !== 'removed', receiving, received: cfg?.received ?? [], library, analysis: engine.background(), analysing: engine.analysisState(), engine: engine.status(), verify: structuredClone(verify.state), events: events.slice(), reminders, served: structuredClone(served), sessions: { list: [...sessions.values()].map(s => ({ key: s.key, name: s.name, since: s.since, last: s.last, calls: s.calls, open: s.open })), max: maxSessions() }, computer: { id: cfg?.computer ?? null, why: cfg?.computerWhy ?? '' } };
   void bridge.status(status);
   void bridge.trayStatus(t, status.running).catch(() => {});
   const el = document.getElementById('state');
@@ -184,150 +180,9 @@ async function received(f: { name: string; path: string; size: number }) {
   report(state, text);
 }
 
-// ---- playing this computer's songs on another, and the library's other answers (ADR 0045, 0150) ------------
-const TYPES: Record<string, string> = { mp3: 'audio/mpeg', flac: 'audio/flac', wav: 'audio/wav', aif: 'audio/aiff', aiff: 'audio/aiff', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', opus: 'audio/ogg', alac: 'audio/mp4' };
-/** A request from another device that's the library's to answer (ADR 0150: pings, uploads and cache files are GLUE
-    Home's own connections'; a song's bytes are read and sent by them too, from the path said here). Requests run at
-    the same time: a slow one (an analysis) doesn't hold up the others. Each counted (ADR 0083). */
-function onRequest({ conn, chan, n, req: c }: { conn: string; chan: number; n: number; req: StreamReq }) {
-  const t0 = performance.now(), row = served[c.t] ??= { calls: 0, ms: 0, bytes: 0 };
-  /** An answer: `data`, then bytes, or a song's file (sent from disk by GLUE Home's own connection). */
-  const answer = async (data: unknown, bytes: Uint8Array | { path: string } | null, extra: { name?: string; type?: string } = {}) => {
-    if (bytes && 'path' in bytes) { row.bytes += await bridge.rtcSendFile(conn, chan, n, { path: bytes.path, range: null, name: extra.name ?? '', type: extra.type ?? '' }); return; }
-    row.bytes += bytes?.length ?? 0;
-    await bridge.rtcReply(conn, chan, n, data, bytes ?? new Uint8Array(0), extra);
-  };
-  const need = () => { if (!cfg?.glue) throw new Error('GLUE Home doesn’t know this computer’s GLUE folder: choose it in its settings.'); return cfg; };
-  const typeOf = (name: string) => TYPES[name.split('.').pop()?.toLowerCase() ?? ''] ?? '';
-  void (async () => {
-    serving++;
-    try {
-      // Asked with a folder that isn't this collection's (a computer's entry that named the wrong one, ADR 0108):
-      // the folder that has it.
-      const pc = c as { profile?: string; collection?: string };
-      if (pc.profile && pc.collection) pc.profile = await engine.folderOf(pc.profile, pc.collection).catch(() => pc.profile!);
-      // A song streamed to another device: the analysis lets it go first (ADR 0138).
-      if (c.t === 'get' || c.t === 'range') engine.played();
-      if (c.t === 'get') {
-        const seen = { ...(need().folders ?? {}) };
-        const f = await engine.trackPath(c.profile, c.collection, c.track);
-        // A music folder found by name: remember it (and GLUE Home may read it from now on).
-        if (f.folder) await keepFound(f.folder.id, f.folder.path, seen);
-        await answer(null, { path: f.path }, { name: f.name, type: typeOf(f.name) });
-      } else if (c.t === 'range') {
-        // Part of a song (streaming, ADR 0076): a collection's song, or one in the incoming folder.
-        let path: string, name: string;
-        if (c.incoming) {
-          const f = (await bridge.incomingList()).find(x => x.name === c.incoming);
-          if (!f) throw new Error('That song isn’t in the incoming folder any more.');
-          path = f.path; name = f.name;
-        } else {
-          // A song streams in many parts: where it is is looked up once a minute, not for each part.
-          const key = c.profile + '/' + c.collection + '/' + c.track, known = located.get(key);
-          if (known && known.until > Date.now()) ({ path, name } = known);
-          else {
-            const seen = { ...(need().folders ?? {}) };
-            const f = await (lookingUp.get(key) ?? (() => { const p = engine.trackPath(c.profile!, c.collection!, c.track!); lookingUp.set(key, p); void p.catch(() => {}).finally(() => lookingUp.delete(key)); return p; })());
-            if (f.folder) await keepFound(f.folder.id, f.folder.path, seen);
-            path = f.path; name = f.name;
-            located.set(key, { path, name, until: Date.now() + 60_000 });
-            if (located.size > 200) located.delete(located.keys().next().value!);
-          }
-        }
-        // Read from disk and sent by GLUE Home's own connection (ADR 0150): at most 8 MB from `start`.
-        row.bytes += await bridge.rtcSendFile(conn, chan, n, { path, range: [Math.max(0, c.start), Math.max(0, c.len)], name, type: typeOf(name) });
-      } else if (c.t === 'thumbs') {
-        need();
-        const found: [string, number][] = [], parts: Uint8Array[] = [];
-        for (const id of c.tracks.slice(0, 200)) {
-          // Waveforms (ADR 0085): kept, or made now from the kept full analysis.
-          const b = c.wave ? await cache.wave(c.profile, c.collection, id) ?? await cache.waveFromDetails(c.profile, c.collection, id) : await cache.thumb(c.profile, c.collection, id);
-          found.push([id, b?.length ?? 0]);
-          if (b) parts.push(b); else void cache.soon(c.profile, c.collection, id, () => cfg);   // made next, for the next ask
-        }
-        const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
-        for (const p of parts) { all.set(p, at); at += p.length; }
-        await answer(found, all);
-      } else if (c.t === 'details') {
-        need();
-        let d = await cache.details(c.profile, c.collection, c.track);
-        if (!d) {
-          // Made now, first in line; if it takes long, the page asks again (it shows the summary meanwhile).
-          const made = cache.soon(c.profile, c.collection, c.track, () => cfg, true);
-          const r = await Promise.race([made, new Promise<'wait'>(res => setTimeout(() => res('wait'), 12_000))]);
-          if (r === 'wait') throw new Error(PENDING);
-          if (r) d = await cache.details(c.profile, c.collection, c.track);
-        }
-        if (!d) throw new Error('GLUE Home couldn’t analyse that song.');
-        await answer(d.header, d.bin);
-      } else if (c.t === 'have') {
-        await answer({ ...await cache.kept(c.profile, c.collection), art: await cache.artKept() }, null);
-      } else if (c.t === 'art') {
-        // Songs' covers (ADR 0082): kept, or read from the song's tags now (and kept for next time).
-        const px = c.px === 320 ? 320 : 64;
-        const found: [string, string, number][] = [], parts: Uint8Array[] = [];
-        for (const it of c.items.slice(0, 60)) {
-          let hash = it.hash ?? '', b = hash ? await cache.art(hash, px) : null;
-          if (!b) { hash = await cache.coverHash(c.profile, c.collection, it.track).catch(() => ''); b = hash ? await cache.art(hash, px) : null; }
-          found.push([it.track, hash, b?.length ?? 0]);
-          if (b) parts.push(b);
-        }
-        const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
-        for (const p of parts) { all.set(p, at); at += p.length; }
-        await answer(found, all);
-      } else if (c.t === 'find-art') {
-        // Covers from public services (ADR 0086): known, or looked up now (the device asks again).
-        const px = c.px === 320 ? 320 : 64;
-        const found: [string, string, number][] = [], parts: Uint8Array[] = [];
-        for (const it of c.items.slice(0, 60)) {
-          const q = { artist: it.artist ?? '', album: it.album ?? '', title: it.title ?? '' };
-          if (c.refuse) { await lookup.refuse(q); found.push([it.id, '', 0]); continue; }
-          const hash = await lookup.known(q);
-          if (hash === undefined) { lookup.want(q); found.push([it.id, '?', 0]); continue; }
-          const b = hash && hash !== 'x' ? await cache.art(hash, px) : null;
-          found.push([it.id, b ? hash : '', b?.length ?? 0]);
-          if (b) parts.push(b);
-        }
-        const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
-        for (const p of parts) { all.set(p, at); at += p.length; }
-        await answer(found, all);
-      } else if (c.t === 'incoming') {
-        // With the analysis made when each song arrived.
-        const list = await Promise.all((await bridge.incomingList()).map(async f => ({ name: f.name, size: f.size, mtime: f.mtime, summary: await cache.incomingSummary(f.name) })));
-        await answer(list, null);
-      } else if (c.t === 'cache') {
-        const found: [string, number][] = [], parts: Uint8Array[] = [];
-        for (const key of c.keys.slice(0, 200)) { const b = await cache.cacheFile(key); found.push([key, b?.length ?? 0]); if (b) parts.push(b); }
-        const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
-        for (const p of parts) { all.set(p, at); at += p.length; }
-        await answer(found, all);
-      } else if (c.t === 'analysis') {
-        // The analysis of this computer's songs (ADR 0103, 0154: the engine's): asked about, paused (kept in the
-        // settings), songs asked for now; the tab on this computer takes the results in (and says which).
-        await answer(await engine.analysisAsk({ p: c.profile, c: c.collection, take: c.take, pause: c.pause, now: c.now, names: c.names, taken: c.taken }), null);
-      } else if (c.t === 'local') {
-        // The website on this computer: how to reach GLUE Home without GLUE Cloud (ADR 0048).
-        // The read-only token too: a GLUE tab here reads, and asks the engine for every change (ADR 0104).
-        await answer({ port: await bridge.localPort(), token: cfg?.localToken ?? null, readToken: cfg?.readToken ?? null }, null);
-      } else if (c.t === 'get-incoming') {
-        const f = (await bridge.incomingList()).find(x => x.name === c.name);
-        if (!f) throw new Error('That song isn’t in the incoming folder any more.');
-        await answer(null, { path: f.path }, { name: f.name, type: typeOf(f.name) });
-      } else if (c.t === 'folders') {
-        const lib = await engine.describe(), out: HomeFolder[] = [];
-        for (const p of lib?.profiles ?? []) for (const col of p.collections) for (const r of col.roots) if (cfg?.folders?.[r.id] && !out.some(x => x.id === r.id)) out.push({ id: r.id, name: r.name, collection: p.name + ' · ' + col.name });
-        await answer(out, null);
-      } else if (c.t === 'move-incoming') {
-        const to = cfg?.folders?.[c.folder];
-        if (!to) throw new Error('GLUE Home doesn’t know that music folder.');
-        await answer(await bridge.incomingMove(c.name, to), null);
-        tell({ t: 'event', kind: 'incoming' });
-        report(state, text);
-      }
-    } catch (err) { await bridge.rtcError(conn, chan, n, (err as Error).message || String(err)).catch(() => {}); }
-    finally { serving--; row.calls++; row.ms += performance.now() - t0; servedSoon(); }
-  })();
-}
+// ---- playing this computer's songs on another, and the library's other answers (ADR 0045, 0150, 0156) ------
+// Answered by GLUE Home's engine (crates/glue-engine/src/answers.rs) as its connections hand them over; each counted
+// here for the settings (`rtc-served`, ADR 0083).
 
 /** Find the shared collections' music folders by themselves (at start, and when the settings change);
     what's found is remembered, so songs play at once. */
@@ -356,7 +211,8 @@ async function findFolders() {
       report(state, text);
       // Then the mini spectrograms and analyses it doesn't have yet, gently in the background.
       // (after the library's own analysis: it makes these too.)
-      void cache.background(() => cfg, () => cfg?.running === false || !!receiving || serving > 0 || engine.analysisState().running > 0 || engine.analysisState().left > 0, () => report(state, text));
+      // (in GLUE Home's engine: it waits while GLUE Home works for another device or analyses the library.)
+      engine.backgroundRun();
     } while (again);
   })().finally(() => { finding = null; });
 }
@@ -397,13 +253,6 @@ async function listenConfig() {
     else report(state, text);
   });
 }
-/** A music folder found by its name while serving (it wasn't where the settings said): kept, unless the
-    settings changed that folder meanwhile (`seen`: the folders when the search started). */
-async function keepFound(id: string, at: string, seen: Record<string, string>) {
-  const next = await bridge.patchConfig(cur => (cur.folders ?? {})[id] === seen[id] ? { folders: { ...(cur.folders ?? {}), [id]: at } } : null).catch(() => null);
-  if (next) cfg = next;
-}
-
 async function boot() {
   cfg = await bridge.config();
   // Settings saved by others (the settings window, the local link's folder dialog) are heard from the start.
@@ -436,9 +285,10 @@ async function boot() {
   void findFolders();
   // Updates by itself: a minute after starting, then every six hours, when nothing is being sent.
   const auto = async () => {
-    if (cfg?.autoUpdate === false || receiving || serving) return;
+    const busy = async () => !!receiving || await bridge.rtcBusy().catch(() => false);
+    if (cfg?.autoUpdate === false || await busy()) return;
     const u = await findUpdate().catch(() => null);
-    if (!u || receiving || serving) return;
+    if (!u || await busy()) return;
     report(state, 'Updating to ' + u.version + '…');
     await install(u).catch(e => report(state, 'Update failed: ' + ((e as Error).message || e)));
   };
@@ -453,7 +303,6 @@ async function boot() {
   // GLUE Home's own connections (ADR 0150): what they found, asked and did.
   await bridge.onRtc<{ id: string; candidate: RTCIceCandidateInit | null }>('rtc-ice', ({ id, candidate }) => { const c = conns.get(id); if (c) room?.send(c.from, { app: 'glue-send', t: 'ice', id, candidate }); });
   await bridge.onRtc<{ id: string; state: string }>('rtc-state', ({ id, state }) => states.get(id)?.(state));
-  await bridge.onRtc<{ conn: string; chan: number; n: number; req: StreamReq }>('rtc-request', onRequest);
   await bridge.onRtc<Status['receiving']>('rtc-receiving', r => { receiving = r; report(state, text); });
   await bridge.onRtc<{ name: string; path: string; size: number }>('rtc-received', f => void received(f));
   await bridge.onRtc<{ what: string; ms: number; bytes: number }>('rtc-served', w => { const row = served[w.what] ??= { calls: 0, ms: 0, bytes: 0 }; row.calls++; row.ms += w.ms; row.bytes += w.bytes; servedSoon(); });
