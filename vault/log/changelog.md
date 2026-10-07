@@ -5,6 +5,16 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-07 · "No file linked" froze the page
+- **The user:** opening "No file linked" froze the whole site, until the browser was closed.
+- **Why:** the matching (ADR 0124) worked out each song's names again for every pair it compared: 5.2 s for 647 songs
+  with no file against 12,353 (a synthetic library of 13,000), more with a real library's. It also ran whole, on the
+  page, again on every change to the library: while GLUE Home kept putting analyses in, the page never got to answer.
+- **Now:** each song's names are worked out once (`relinkIndex`; the same matches, compared pair by pair with the old
+  code on three generated libraries): 527 ms. The page matches a hundred songs at a time and says how far it is, and
+  matches again only when the songs it compares (or the pairs refused) changed. Opening the view: 4.2 s → 120 ms
+  (`PERF=1 PERF_SIZES=13000`, e2e/perf.spec.ts).
+
 ## 2026-10-07 · GLUE Home 0.59.0: its service in its engine, the hidden page removed (ADR 0160)
 - **The plan's last batch, E5** ([ADR 0160](../adr/0160-glue-homes-service-in-its-engine.md)): GLUE Home's service is its
   engine's: the status its window and tray show, the Activity list, the timers (the shared sync, the day's backups, a

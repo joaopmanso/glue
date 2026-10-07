@@ -8,7 +8,7 @@ order: 10
 A DJ library can list songs whose files aren't in your music folders: moved, renamed, or removed as duplicates. GLUE lists them under **No file linked**.
 
 ## Finding them
-For each one GLUE looks in your library by title, artist, length, file name and album, and shows its best match with how sure it is (and why).
+For each one GLUE looks in your library by title, artist, length, file name and album, and shows its best match with how sure it is (and why). In a big library this takes a moment the first time: the page says how far it is, and you can use GLUE meanwhile.
 - **Link** makes the song with no file that song: its playlist places, rating, notes and cues move over, and the DJ library's record stays with it, so it doesn't come back.
 - **Not this one** means it isn't: that match isn't offered again.
 - Another candidate can be picked from the list.

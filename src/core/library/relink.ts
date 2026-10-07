@@ -34,18 +34,34 @@ function overlap(a: string, b: string): number {
   return n / Math.max(x.size, y.size);
 }
 
+/** What a song is compared by, worked out once per song (2026-10-07: worked out again for every pair, "No file
+    linked" took seconds on a library of 13,000 songs, and froze the page as the library kept changing). */
+interface Keyed { s: Songish; title: string; titleWords: Set<string>; file: string; artist: string; artists: Set<string>; album: string; version: string }
+function keyed(t: Songish): Keyed {
+  const title = titleOf(t), artist = nameOf(t).artist;
+  return { s: t, title, titleWords: words(title), file: fileStem(t.fileName), artist: songName(artist), artists: artistsOf(artist), album: songName(t.album), version: versionOf(t.title || t.fileName, t.album) };
+}
+function overlapWords(x: Set<string>, y: Set<string>): number {
+  if (!x.size || !y.size) return 0;
+  let n = 0;
+  for (const w of x) if (y.has(w)) n++;
+  return n / Math.max(x.size, y.size);
+}
+
 /** How sure GLUE is that `c` is the song `o` stands for, 0–100, and why. */
-export function relinkScore(o: Songish, c: Songish): RelinkMatch {
+export function relinkScore(o: Songish, c: Songish): RelinkMatch { return scoreKeyed(keyed(o), keyed(c)); }
+function scoreKeyed(ko: Keyed, kc: Keyed): RelinkMatch {
+  const o = ko.s, c = kc.s;
   const why: string[] = [];
   let s = 0;
-  const ta = titleOf(o), tb = titleOf(c), fa = fileStem(o.fileName), fb = fileStem(c.fileName);
+  const ta = ko.title, tb = kc.title, fa = ko.file, fb = kc.file;
   const sameFile = !!fa && fa === fb;
   if (ta && ta === tb) { s += 45; why.push('same title'); }
   else if (ta && tb && Math.min(ta.length, tb.length) >= 4 && (ta.includes(tb) || tb.includes(ta))) { s += 30; why.push('similar title'); }
-  else { const j = overlap(ta, tb); if (j >= 0.6) { s += Math.round(25 * j); why.push('similar title'); } else if (!sameFile) return { id: c.id, sure: 0, why: [] }; }
+  else { const j = overlapWords(ko.titleWords, kc.titleWords); if (j >= 0.6) { s += Math.round(25 * j); why.push('similar title'); } else if (!sameFile) return { id: c.id, sure: 0, why: [] }; }
   if (sameFile) { s += 20; why.push('same file name'); }
-  const xa = nameOf(o).artist, xb = nameOf(c).artist, aa = songName(xa), ab = songName(xb);
-  const sa = artistsOf(xa), sb = artistsOf(xb), common = [...sa].filter(a => sb.has(a)).length;
+  const aa = ko.artist, ab = kc.artist;
+  const sa = ko.artists, sb = kc.artists, common = [...sa].filter(a => sb.has(a)).length;
   if (aa && ab) {
     if (aa === ab || (common === sa.size && common === sb.size)) { s += 25; why.push('same artist'); }
     else if (common || overlap(aa, ab) >= 0.5 || aa.includes(ab) || ab.includes(aa)) { s += 15; why.push('similar artist'); }
@@ -58,31 +74,40 @@ export function relinkScore(o: Songish, c: Songish): RelinkMatch {
     else if (d <= 6) { s += 5; why.push('length ' + Math.round(d) + ' s apart'); }
     else { s -= d > 20 ? 50 : 25; why.push('length ' + Math.round(d) + ' s apart'); }
   } else s += 6;
-  const la = songName(o.album), lb = songName(c.album);
+  const la = ko.album, lb = kc.album;
   if (la && la === lb) { s += 5; why.push('same album'); }
   if (o.size && c.size && o.size === c.size) { s += 20; why.push('same size'); }
   // Another version (an instrumental, a remix, a live take): never a sure match.
-  if (versionOf(o.title || o.fileName, o.album) !== versionOf(c.title || c.fileName, c.album)) { s = Math.min(s, 40); why.push('another version?'); }
+  if (ko.version !== kc.version) { s = Math.min(s, 40); why.push('another version?'); }
   return { id: c.id, sure: Math.max(0, Math.min(100, s)), why };
 }
 
+export interface RelinkOpts { max?: number; min?: number; not?: Set<string> }
 /** For each song with no file, its likely matches among `pool`, best first (at most `max`). Two matches about as
     good as each other make neither sure. Only songs that share a title word or a file name are compared. */
-export function relinkMatches(orphans: Songish[], pool: Songish[], opts: { max?: number; min?: number; not?: Set<string> } = {}): Map<string, RelinkMatch[]> {
+export function relinkMatches(orphans: Songish[], pool: Songish[], opts: RelinkOpts = {}): Map<string, RelinkMatch[]> {
+  return relinkIndex(pool)(orphans, opts);
+}
+/** `relinkMatches` with the library's songs indexed once: the songs with no file can then be matched a few at a time
+    (the page keeps answering meanwhile). */
+export function relinkIndex(pool: Songish[]): (orphans: Songish[], opts?: RelinkOpts) => Map<string, RelinkMatch[]> {
+  const byWord = new Map<string, Keyed[]>(), byFile = new Map<string, Keyed[]>();
+  const add = (m: Map<string, Keyed[]>, k: string, t: Keyed) => { if (k) (m.get(k) ?? m.set(k, []).get(k)!).push(t); };
+  for (const p of pool) { const t = keyed(p); for (const w of t.titleWords) add(byWord, w, t); add(byFile, t.file, t); }
+  return (orphans, opts = {}) => matchAgainst(orphans, byWord, byFile, opts);
+}
+function matchAgainst(orphans: Songish[], byWord: Map<string, Keyed[]>, byFile: Map<string, Keyed[]>, opts: RelinkOpts): Map<string, RelinkMatch[]> {
   const max = opts.max ?? 3, min = opts.min ?? 50;
-  const byWord = new Map<string, Songish[]>(), byFile = new Map<string, Songish[]>();
-  const add = (m: Map<string, Songish[]>, k: string, t: Songish) => { if (k) (m.get(k) ?? m.set(k, []).get(k)!).push(t); };
-  for (const t of pool) { for (const w of words(titleOf(t))) add(byWord, w, t); add(byFile, fileStem(t.fileName), t); }
   const out = new Map<string, RelinkMatch[]>();
-  for (const o of orphans) {
-    const seen = new Set<string>(), cands: Songish[] = [];
+  for (const s of orphans) {
+    const o = keyed(s), seen = new Set<string>(), cands: Keyed[] = [];
     // The rarest title word some other song has: few songs to compare, and every true match has it. A word no other
     // song has ("INGOT_HM": "hm") left the song with nothing to compare at all.
-    const ws = [...words(titleOf(o))].filter(w => byWord.has(w)).sort((a, b) => byWord.get(a)!.length - byWord.get(b)!.length);
-    for (const t of [...(byWord.get(ws[0] ?? '') ?? []), ...(byFile.get(fileStem(o.fileName)) ?? [])]) if (t.id !== o.id && !seen.has(t.id)) { seen.add(t.id); cands.push(t); }
-    const ms = cands.map(c => relinkScore(o, c)).filter(m => m.sure >= min && !opts.not?.has(o.id + '>' + m.id)).sort((a, b) => b.sure - a.sure).slice(0, max);
+    const ws = [...o.titleWords].filter(w => byWord.has(w)).sort((a, b) => byWord.get(a)!.length - byWord.get(b)!.length);
+    for (const t of [...(byWord.get(ws[0] ?? '') ?? []), ...(byFile.get(o.file) ?? [])]) if (t.s.id !== s.id && !seen.has(t.s.id)) { seen.add(t.s.id); cands.push(t); }
+    const ms = cands.map(c => scoreKeyed(o, c)).filter(m => m.sure >= min && !opts.not?.has(s.id + '>' + m.id)).sort((a, b) => b.sure - a.sure).slice(0, max);
     if (ms.length > 1 && ms[0].sure - ms[1].sure <= 3) { ms[0] = { ...ms[0], sure: Math.max(0, ms[0].sure - 10), why: [...ms[0].why, 'another song matches as well'] }; }
-    if (ms.length) out.set(o.id, ms);
+    if (ms.length) out.set(s.id, ms);
   }
   return out;
 }

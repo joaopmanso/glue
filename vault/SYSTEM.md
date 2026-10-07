@@ -63,7 +63,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **Songs with no file** (a DJ library's records whose files are gone) are matched to the library's songs on the
   "No file linked" page (`core/library/relink.ts`, a certainty each) and linked (`linkRecords`): the song takes
   their playlists and what was set on them, and their record's path (`Track.aka`), so a new read of the DJ library
-  keeps them linked (ADR 0124).
+  keeps them linked (ADR 0124). Matched a hundred songs at a time (`relinkIndex`: each song's names worked out once),
+  and again only when the songs it compares changed (`lib/relink.svelte.ts`).
 - **Caches** are not in the GLUE folder:
   - in the browser (OPFS `cache/`): details (the full analysis), thumbs (mini spectrograms), waveforms,
     fingerprints, covers, kept per collection;

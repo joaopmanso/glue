@@ -2,15 +2,19 @@
   /* "No file linked" (ADR 0124): each song with no file, and the song in the library it most likely is, with how
      sure GLUE is. Linked one at a time, or every ticked one at once (the user, 2026-10-01: an Engine DJ import's
      playlists named duplicates removed since; most are in the library). */
+  import { untrack } from 'svelte';
   import { lib } from '../../lib/library.svelte';
   import { relink, type Orphan } from '../../lib/relink.svelte';
+  import { dupes } from '../../lib/dupes.svelte';
   import { fmtTime } from '../../core/format';
   import { router, trackHref } from '../../lib/route.svelte';
   import { APP_NAMES } from '../../lib/view.svelte';
   import type { Track } from '../../store/types';
   import type { RelinkMatch } from '../../core/library/relink';
 
-  const all = $derived.by(() => { void lib.version; return relink.orphans(); });
+  // Matched again (a few songs at a time) only when what it compares changed: a change to the library looks.
+  $effect(() => { void lib.version; void dupes.hidden; void lib.store; untrack(() => void relink.refresh()); });
+  const all = $derived(relink.list);
   let atLeast = $state(0);
   /** The match each song is linked to: the one chosen, else its best. */
   let choice = $state<Record<string, string>>({});
@@ -68,6 +72,7 @@
     </p>
     <button type="button" class="mini" id="relink-list" data-guide="relink-list" onclick={() => (relink.asList = true)}>Show them as a list</button>
   </div>
+  {#if relink.busy}<p class="note" id="relink-busy" role="status">Looking for these songs in your library… {relink.busy.done.toLocaleString()} of {relink.busy.of.toLocaleString()}</p>{/if}
   {#if all.length}
     <div class="bulk" id="relink-bulk" data-guide="relink-bulk">
       <span>{matched.length.toLocaleString()} with a match{unmatched.length ? ' · ' + unmatched.length.toLocaleString() + ' without' : ''}{pickedShown.length ? ' · ' + pickedShown.length + ' ticked' : ''}</span>
