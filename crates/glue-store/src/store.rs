@@ -51,6 +51,9 @@ pub type Clock = Box<dyn Fn() -> (i64, String) + Send + Sync>;
 
 struct BinEntry { name: String, deleted_at: String, lists: Vec<Value> }
 
+/** A store opened as this computer's own whose collection became shared since (`flush`): opened again. */
+pub const OUTDATED: &str = "OUTDATED: this collection became shared meanwhile";
+
 pub struct Store<D: Dir> {
   pub root: D,
   pub base: String,
@@ -91,19 +94,21 @@ impl<D: Dir> Store<D> {
     let meta = migrate(match &shared { Some(m) => collection_here(&raw, &m.here.me), None => raw.clone() })?;
     let mut s = Store { root, base, meta, tracks: IndexMap::new(), analysis: IndexMap::new(), lists: IndexMap::new(), sources: IndexMap::new(), events: IndexMap::new(),
       damaged: vec![], shared, dirty: IndexSet::new(), deleted: IndexSet::new(), binned: vec![], clock };
+    // The songs and analyses taken after the sources: a song's computer (`with_copies`).
+    let mut shards: Vec<(&str, Value)> = vec![];
     for dir in ["tracks", "analysis", "lists", "sources"] {
       let names: Vec<String> = s.root.list(&format!("{}/{dir}", s.base), false)?.into_iter().filter(|n| n.ends_with(".json")).collect();
       for n in names {
         let Some(v) = s.read(&format!("{}/{dir}/{n}", s.base))? else { continue };
         let v = migrate(v)?;
         match dir {
-          "tracks" => s.take_tracks(&v),
-          "analysis" => s.take_analysis(&v),
+          "tracks" | "analysis" => shards.push((dir, v)),
           "lists" => { s.lists.insert(id_of(&v), v); }
           _ => { s.sources.insert(id_of(&v), v); }
         }
       }
     }
+    for (dir, v) in shards { if dir == "tracks" { s.take_tracks(&v) } else { s.take_analysis(&v) } }
     if let Some(ev) = s.read(&format!("{}/events.json", s.base))? {
       if let Some(items) = get(&ev, "items").and_then(|i| i.as_object()) { for k in js_keys(items) { s.events.insert(k.clone(), items[k].clone()); } }
     }
@@ -131,7 +136,18 @@ impl<D: Dir> Store<D> {
     let Some(items) = get(shard, "items").and_then(|i| i.as_object()) else { return };
     for id in js_keys(items) {
       let v = &items[id];
-      match &mut self.shared { Some(m) => { m.tracks.insert(id.clone(), v.clone()); let l = to_local(v, &m.here); self.tracks.insert(id.clone(), l); } None => { self.tracks.insert(id.clone(), v.clone()); } }
+      match &mut self.shared {
+        Some(m) => {
+          // A record without its copies, put right (ADR 0161; saved so when its computer is known, for the other devices).
+          let fixed = project::with_copies(v, &m.meta, self.sources.values());
+          let st = fixed.clone().unwrap_or_else(|| v.clone());
+          m.tracks.insert(id.clone(), st.clone());
+          let l = to_local(&st, &m.here);
+          self.tracks.insert(id.clone(), l);
+          if fixed.as_ref().and_then(|f| f.get("copies")).and_then(|c| c.as_object()).is_some_and(|c| !c.is_empty()) { self.mark(format!("tracks/{}.json", shard_of(id))); }
+        }
+        None => { self.tracks.insert(id.clone(), v.clone()); }
+      }
     }
   }
   fn take_analysis(&mut self, shard: &Value) {
@@ -419,6 +435,13 @@ impl<D: Dir> Store<D> {
   /// hold back the rest; failures stay to be written next time). The files written or removed.
   pub fn flush(&mut self) -> Result<Vec<String>, String> {
     if !self.has_pending() { return Ok(vec![]); }
+    // Nothing from a store opened as this computer's own into a shared collection's files (another device would get
+    // songs without `copies`, ADR 0161): the files became shared since. Nothing is written; the caller opens it again.
+    if self.shared.is_none()
+      && read_json(&self.root, &format!("{}/collection.json", self.base)).ok().flatten().is_some_and(|m| truthy(get(&m, "shared"))) {
+      self.dirty.clear(); self.deleted.clear(); self.binned.clear();
+      return Err(OUTDATED.into());
+    }
     let paths: Vec<String> = self.dirty.drain(..).collect();
     let gone: Vec<String> = self.deleted.drain(..).collect();
     let bin: Vec<BinEntry> = std::mem::take(&mut self.binned);

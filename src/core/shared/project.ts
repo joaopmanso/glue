@@ -35,6 +35,23 @@ export function writesFor(c: Pick<SharedCollection, 'members'> | undefined, me: 
 
 const pick = <T extends object, K extends keyof T>(o: T, ks: readonly K[]) => { const out = {} as Pick<T, K>; for (const k of ks) if (o[k] !== undefined) out[k] = o[k]; return out; };
 
+/** A shared song's record that has no `copies`: one written in a computer's own form by a store opened before the
+    collection became shared (2026-10-02). Its copy is the computer's that wrote it: the member whose music folder it's
+    in, else whose DJ libraries it came from, else the only member; else nobody's (`copies: {}`), never a guess.
+    Null: it has its copies. */
+export function withCopies(t: SharedTrack, meta: { members?: SharedCollection['members']; rootsBy?: SharedCollection['rootsBy'] }, sources: Iterable<{ id: string; computer?: string }>): SharedTrack | null {
+  if (t.copies) return null;
+  const raw = t as unknown as Record<string, unknown>, common = { ...raw };
+  for (const k of COPY_FIELDS) delete common[k];
+  const members = Object.keys(meta.members ?? {}).filter(m => !unknownComputer(m)), copy = pick(raw, COPY_FIELDS);
+  const one = (ids: (string | undefined)[]) => { const u = [...new Set(ids.filter((c): c is string => !!c && members.includes(c)))]; return u.length === 1 ? u[0] : undefined; };
+  const comp = new Map([...sources].map(s => [s.id, s.computer]));
+  const owner = (raw.rootId ? one(members.filter(m => meta.rootsBy?.[m]?.some(r => r.id === raw.rootId))) : undefined)
+    ?? one(((raw.sources as string[] | undefined) ?? []).map(id => comp.get(id)))
+    ?? (members.length === 1 ? members[0] : undefined);
+  return { ...common, copies: owner && Object.keys(copy).length ? { [owner]: copy as Copy } : {} } as unknown as SharedTrack;
+}
+
 /** The song as this computer shows it. */
 export function toLocal(s: SharedTrack, here: Here): Track {
   const { copies, ...common } = s;

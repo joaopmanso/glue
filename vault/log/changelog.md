@@ -5,6 +5,20 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-07 · Shared songs without their copies (GLUE Home 0.59.1, ADR 0161)
+- **The bug (found 2026-10-02):** a song of the account's collection could reach another computer with no `copies`.
+  There it was taken for that computer's own song with no file: "No file linked" offered to remove it, on every
+  device. `e2e/shared.spec.ts` "the desktop's DJ library" showed it about once in seven runs.
+- **Why:** a store opened before the collection became shared (another tab, GLUE Home's engine, which keeps its store
+  open) saved its own form of the songs over the converted files, and the sync sent them on.
+- **Now:**
+  - such a store reads `collection.json` before each save, writes nothing once it says shared, and is opened again;
+  - a record without copies gets its writer's copy where it's read (the member whose music folder or DJ library it's
+    from, else the only member), saved so for the other devices. A song whose writer can't be told stays nobody's.
+  - Both stores, the website's and the Rust one (`withCopies` / `with_copies`), held together by the store goldens
+    `without-copies` and `without-copies-two`; tests in `tests/sharedCopies.test.ts` and
+    `crates/glue-store/tests/outdated.rs`.
+
 ## 2026-10-07 · "No file linked" froze the page
 - **The user:** opening "No file linked" froze the whole site, until the browser was closed.
 - **Why:** the matching (ADR 0124) worked out each song's names again for every pair it compared: 5.2 s for 647 songs

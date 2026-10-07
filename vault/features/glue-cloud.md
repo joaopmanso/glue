@@ -1,8 +1,8 @@
 ---
 status: in-progress
 milestone: M6
-updated: 2026-10-06
-adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112, 0115, 0130, 0132, 0133, 0150, 0156, 0158, 0159]
+updated: 2026-10-07
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112, 0115, 0130, 0132, 0133, 0150, 0156, 0158, 0159, 0161]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -14,7 +14,9 @@ Rust's ([ADR 0150](../adr/0150-glue-homes-connections-in-rust.md)); since 0.55 i
 ([ADR 0156](../adr/0156-the-answers-to-other-devices-in-rust.md)), and since 0.57 its signaling room, the sessions,
 songs received and which computer it is ([ADR 0158](../adr/0158-the-signaling-room-and-the-sessions-in-rust.md)) are
 its Rust engine's. Since 0.58 GLUE Home has a first-run guide and signs its own window in as this computer
-([ADR 0159](../adr/0159-glue-homes-first-run-and-its-window-signed-in.md)). What follows is this feature's history, oldest first
+([ADR 0159](../adr/0159-glue-homes-first-run-and-its-window-signed-in.md)). Since 2026-10-07 (GLUE Home 0.59.1) a store
+opened before its collection became shared writes nothing into it, and a song found without its computers' copies
+gets its writer's ([ADR 0161](../adr/0161-no-own-form-into-a-shared-collection.md)). What follows is this feature's history, oldest first
 per section: read only the part you're changing.
 
 ## What it does

@@ -273,7 +273,8 @@ impl<H: Host> Engine<H> {
 
   /// Saved; its files told to the feed and to the next sync (`onWrote`).
   pub fn flush(&self, st: &mut Store<FsDir>, p: &str, c: &str) -> Result<Vec<String>, String> {
-    let paths = st.flush()?;
+    // Opened as this computer's own while the website made it shared (glue_store OUTDATED): let go, read again.
+    let paths = st.flush().inspect_err(|e| { if e == glue_store::store::OUTDATED { self.drop_store(p, c); } })?;
     if !paths.is_empty() { self.wrote(p, c, &paths); self.changed(p, c, &paths, &[]); }
     Ok(paths)
   }

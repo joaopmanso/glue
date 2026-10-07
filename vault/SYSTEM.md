@@ -107,6 +107,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     - `here(meta, me)` projects it for this computer: another computer's song gets `remote`. `toShared` and
       `collectionShared` write back.
     - Only the GLUE folder recorded for a computer writes that computer's parts (`writesFor`, ADR 0108).
+    - A store opened as the computer's own writes nothing once `collection.json` says shared: it reads it before each
+      save and is opened again (`OutdatedStore`; GLUE Home's engine lets go of it). A record found without `copies`
+      gets its writer's copy where it's read: the member whose music folder or DJ library it's from, else the only
+      member, else nobody's (`withCopies`, ADR 0161).
   - **A computer's id** is its account device: the browser device that GLUE Home is the companion of. GLUE Home
     learns it (its engine's `identity.rs`, `GET /v1/computer`, ADR 0158; GLUE Cloud not answering as it should changes
     nothing); the tab gets it from GLUE Home's `hello`. Nothing is ever written under an unknown or stand-in id.

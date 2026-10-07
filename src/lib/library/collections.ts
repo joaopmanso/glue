@@ -119,6 +119,8 @@ export const collections = {
     this.saving = true;
     try { await s.flush(); this.saveError = ''; if (this.profile) this.onFlushed?.(this.profile.id); }
     catch (e) {
+      // Opened as this computer's own while it became shared (store.outdated): opened again, in the shared form.
+      if ((e as Error).name === 'OutdatedStore') { if (this.store === s) void this.openCollection(s.meta.id); return; }
       console.error(e);
       // Say it once (the save is retried quietly), and again only if the problem changes.
       const msg = 'Couldn’t save some changes to your GLUE folder: ' + ((e as Error).message || e) + ' GLUE keeps retrying.';

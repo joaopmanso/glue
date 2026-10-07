@@ -41,6 +41,35 @@ fn pick(o: &Obj, ks: &[&str]) -> Obj { let mut out = Obj::new(); for k in ks { i
 fn sorted(mut v: Vec<String>) -> Vec<String> { v.sort_by(|a, b| utf16_cmp(a, b)); v }
 
 /// `toLocal`: the song as this computer shows it.
+/// A shared song's record that has no `copies` (`withCopies`, ADR 0161): written in a computer's own form by a store
+/// opened before the collection became shared. Its copy is the computer's that wrote it: the member whose music folder
+/// it's in, else whose DJ libraries it came from, else the only member; else nobody's (`copies: {}`). None: it has its
+/// copies.
+pub fn with_copies<'a>(t: &Value, meta: &Value, sources: impl Iterator<Item = &'a Value>) -> Option<Value> {
+  let raw = t.as_object()?;
+  if raw.contains_key("copies") { return None; }
+  let mut common = raw.clone();
+  for k in COPY_FIELDS { common.shift_remove(k); }
+  let members: Vec<String> = meta.get("members").and_then(|m| m.as_object())
+    .map(|m| js_keys(m).into_iter().filter(|id| !unknown_computer(Some(id))).cloned().collect()).unwrap_or_default();
+  let one = |ids: Vec<Option<&str>>| -> Option<String> {
+    let mut u: Vec<&str> = vec![];
+    for c in ids.into_iter().flatten() { if members.iter().any(|m| m == c) && !u.contains(&c) { u.push(c); } }
+    if u.len() == 1 { Some(u[0].to_string()) } else { None }
+  };
+  let comp: std::collections::HashMap<&str, Option<&str>> = sources.filter_map(|s| Some((s.get("id")?.as_str()?, s.get("computer").and_then(|c| c.as_str())))).collect();
+  let root = raw.get("rootId").and_then(|r| r.as_str()).filter(|r| !r.is_empty());
+  let in_root = |m: &String| meta.get("rootsBy").and_then(|rb| rb.get(m.as_str())).and_then(|l| l.as_array())
+    .is_some_and(|l| l.iter().any(|r| r.get("id").and_then(|i| i.as_str()) == root));
+  let owner = root.and_then(|_| one(members.iter().filter(|m| in_root(m)).map(|m| Some(m.as_str())).collect()))
+    .or_else(|| one(raw.get("sources").and_then(|s| s.as_array()).map(|a| a.iter().map(|id| id.as_str().and_then(|id| comp.get(id).copied().flatten())).collect()).unwrap_or_default()))
+    .or_else(|| if members.len() == 1 { Some(members[0].clone()) } else { None });
+  let copy = pick(raw, &COPY_FIELDS);
+  let copies = match owner { Some(o) if !copy.is_empty() => json!({ o: copy }), _ => json!({}) };
+  common.insert("copies".into(), copies);
+  Some(Value::Object(common))
+}
+
 pub fn to_local(s: &Value, here: &Here) -> Value {
   let so = s.as_object().cloned().unwrap_or_default();
   let copies = obj(so.get("copies"));

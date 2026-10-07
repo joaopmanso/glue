@@ -184,7 +184,24 @@ const joins: Scenario = {
   ],
 };
 
-const SCENARIOS: Record<string, Scenario> = { plain, 'shared-desk': sharedDesk, 'shared-not-mine': sharedNotMine, fold, damaged, reload, joins };
+// Songs written in a computer's own form into the shared files (ADR 0161): the only member's copy, and saved so; with
+// two members the one whose music folder or DJ library it's from, else nobody's.
+const withoutCopies: Scenario = {
+  files: sharedFiles({
+    [base + '/collection.json']: J({ ...sharedMeta, members: { desk: sharedMeta.members.desk } }),
+    [base + '/tracks/cd.json']: shard({ cd01: track('cd01', { rootId: 'r1', relPath: 'Sets/x.flac', rating: 4 }), cd02: track('cd02', { status: 'unlinked', rootId: null, relPath: null, importPath: 'D:/x.mp3' }) }),
+  }),
+  steps: [{ load: { pid: 'p1', cid: 'c1', me: 'desk' } }, { flush: true }],
+};
+const withoutCopiesTwo: Scenario = {
+  files: sharedFiles({
+    [base + '/tracks/cd.json']: shard({ cd01: track('cd01', { rootId: 'r9', relPath: 'Sets/x.flac' }), cd02: track('cd02', { status: 'unlinked', rootId: null, relPath: null, importPath: 'D:/x.mp3', sources: ['s1'] }), cd03: track('cd03', { status: 'unlinked', rootId: null, relPath: null, importPath: 'D:/y.mp3' }) }),
+    [base + '/sources/s1.json']: J({ schemaVersion: 1, id: 's1', kind: 'rekordbox', name: 'rekordbox', path: 'x', addedAt: '2026-01-01T00:00:00.000Z', computer: 'desk' }),
+  }),
+  steps: [{ load: { pid: 'p1', cid: 'c1', me: 'desk' } }, { flush: true }],
+};
+
+const SCENARIOS: Record<string, Scenario> = { plain, 'shared-desk': sharedDesk, 'shared-not-mine': sharedNotMine, fold, damaged, reload, joins, 'without-copies': withoutCopies, 'without-copies-two': withoutCopiesTwo };
 
 async function run(sc: Scenario) {
   const dir = memDir(sc.files), root = dir as unknown as Dir;

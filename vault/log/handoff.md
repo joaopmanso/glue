@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-07)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.59.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.59.1**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -47,6 +47,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     signed in by GLUE Home as this computer (a single-use code, GLUE Cloud migration 0012).
   - **E5, GLUE Home's service in its engine** (`service.rs`, `reminders.rs`, `verify.rs`, ADR 0160): done, 0.59.0
     (2026-10-07). The hidden service page is gone. **The plan is done.**
+- **After the plan (2026-10-07):** "No file linked" froze the whole site (the matching ran whole on the page, again on
+  every change); fixed and live. Then the shared songs without copies (ADR 0161, GLUE Home 0.59.1).
 - **GLUE Home is Rust** plus two pages (`home/ui`): the settings window (`Settings.svelte`: it asks the engine through
   `engine_cmd` and hears its `status`) and the drag dock. One engine for its whole run (`home/src-tauri/src/engine.rs`).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
@@ -57,6 +59,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.59.1 and the site** (ADR 0161):
+  - on the laptop, "No file linked" shouldn't list the desktop's songs any more (it showed them as the laptop's, with
+    no file). Songs already broken are put right when a computer that can tell whose they are opens the collection;
+  - "No file linked" opens at once and says how far its matching is, the rest of GLUE usable meanwhile.
+- **Confirmed by the user, 2026-10-07:** the hand check after 0.59.0 ("looks good").
 - **GLUE Home 0.59.0** (ADR 0160): nothing should look different. Its window's status, Activity, the devices connected,
   Start / Stop / Restart (window and tray), "Check now" for reminders (a reminder sent today may come once more: its
   memory moved into GLUE Home's settings), the native engine check, the analysis while no GLUE tab is open, a change
@@ -159,10 +166,9 @@ The plan (W1, E1–E5) is done. What's next is the user's to choose; the list un
   connect, look at webrtc-rs's TURN (UDP should work; `turns:` over TCP may not be used).
 - **Streaming decode:** a song is still read whole into memory for its analysis (a 543 MB FLAC needs about 1.5 GB);
   decoding FLAC/WAV/AIFF from the file (`decode_flac` already reads ranges) when it shows.
-- **Bug, found 2026-10-02 (ADR 0146):** a song of the shared collection can reach another computer without `copies`;
-  there the "no file" bar offers to remove it. Find who writes the local form into a shared shard (around `share` /
-  `makeShared` and the first push), and make `toLocal` treat a song without copies as nobody's here. Reproduce:
-  `e2e/shared.spec.ts` "the desktop's DJ library", with the library's fields regrouped (1 run in 7).
+- **Shared songs without copies (ADR 0161):** fixed by explanation, not caught in the act. If `e2e/shared.spec.ts`
+  "the desktop's DJ library" ever fails that way again (about 1 run in 7 before), look for another writer of the
+  computer's own form.
 - **Flaky:** `shared.spec.ts` "the account's collections" (from before 2026-10-02): 0 songs for 30 s after switching
   collection, or the account's box not shown.
 - **"Syncing…" lingers on the laptop:** ask for the chip's tooltip after a long "Syncing…", then fix the part it names

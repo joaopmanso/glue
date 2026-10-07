@@ -5,7 +5,7 @@ import { type AnalysisSummary, type Collection, type List, type Source, type Tra
 import type { GlueEvent } from '../core/library/events';
 import { migrate } from './migrations';
 import { record, time, timeAsync } from '../core/perf';
-import { analysisHere, analysisShared, collectionHere, collectionShared, toLocal, toShared, type Here, type SharedCollection, type SharedTrack, meFor, unknownComputer, writesFor } from '../core/shared/project';
+import { analysisHere, analysisShared, collectionHere, collectionShared, toLocal, toShared, type Here, type SharedCollection, type SharedTrack, meFor, unknownComputer, withCopies, writesFor } from '../core/shared/project';
 import { foldComputer, needsFold, type FoldResult } from '../core/shared/repair';
 
 /** A shared collection (ADR 0094): its files hold every computer's parts; this is how this computer sees
@@ -99,10 +99,10 @@ export class CollectionStore {
       return readAll(names, f => read<T>(`${base}/${dir}/${f}`));
     };
     const [tracks, analysis, lists, sources, events] = await Promise.all([each<Shard<Track>>('tracks'), each<Shard<AnalysisSummary>>('analysis'), each<List>('lists'), each<Source>('sources'), read<Shard<GlueEvent>>(`${base}/events.json`)]);
+    for (const src of sources) if (src) s.sources.set(src.id, migrate('source', src));   // first: a song's computer (withCopies)
     for (const sh of tracks) if (sh) s.takeTracks(migrate('tracks', sh).items);
     for (const sh of analysis) if (sh) s.takeAnalysis(migrate('analysis', sh).items);
     for (const l of lists) if (l) s.lists.set(l.id, migrate('list', l));
-    for (const src of sources) if (src) s.sources.set(src.id, migrate('source', src));
     for (const [id, e] of Object.entries(events?.items ?? {})) s.events.set(id, e);
     // Opened on a computer that isn't a member yet (it just joined): it becomes one on the next save.
     if (mode?.own && opts.me && !mode.meta.members?.[mode.here.me]) s.saveMeta();
@@ -113,7 +113,12 @@ export class CollectionStore {
   private takeTracks(items: Record<string, unknown>) {
     const m = this.shared;
     for (const [id, v] of Object.entries(items)) {
-      if (m) { m.tracks.set(id, v as SharedTrack); this.tracks.set(id, toLocal(v as SharedTrack, m.here)); }
+      if (m) {
+        // A record without its copies, put right (ADR 0161; saved so when its computer is known, for the other devices).
+        const fixed = withCopies(v as SharedTrack, m.meta, this.sources.values()), st = fixed ?? v as SharedTrack;
+        if (fixed && Object.keys(fixed.copies).length) this.mark('tracks/' + shardOf(id) + '.json');
+        m.tracks.set(id, st); this.tracks.set(id, toLocal(st, m.here));
+      }
       else this.tracks.set(id, v as Track);
     }
   }
@@ -328,10 +333,23 @@ export class CollectionStore {
     return e.lists.length;
   }
 
+  /** Opened as this computer's own collection, its files became shared since (a share in the middle of a save, or the
+      collection opened again during one): it writes nothing more, and is opened again. */
+  outdated = false;
   /** Write every dirty file. Concurrent calls queue behind the one in flight. */
   async flush(): Promise<void> {
     while (this.writing) await this.writing;
     if (!this.hasPending) return;
+    // Nothing from a store opened as this computer's own into a shared collection's files: another
+    // device would get songs without `copies`, which it took for its own with no file (ADR 0161).
+    if (!this.shared) {
+      const meta = this.outdated ? null : await readJSON<{ shared?: boolean }>(this.root, this.base + '/collection.json').catch(() => null);
+      if (this.outdated || meta?.shared) {
+        this.outdated = true;
+        this.dirty.clear(); this.deleted.clear(); this.binned = [];
+        throw Object.assign(new Error('This collection became shared meanwhile: it’s opened again.'), { name: 'OutdatedStore' });
+      }
+    }
     const paths = [...this.dirty], gone = [...this.deleted], bin = this.binned;
     this.dirty.clear(); this.deleted.clear(); this.binned = [];
     const t0 = performance.now();
