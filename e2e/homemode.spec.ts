@@ -994,7 +994,8 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
     await expect(page.locator('.tr .wave canvas')).toHaveCount(3, { timeout: 30_000 });
     // (Mini spectrograms or waveforms, as the Overview shows them: the spectrograms come too when the tab was open as
     // the results arrived, which a slow machine's analysis may not wait for.)
-    expect(asked.some(k => /^[tw]\//.test(k))).toBe(true);
+    // (A row's canvas is there before it's filled: asked for once the tab is attached to GLUE Home's engine.)
+    await expect.poll(() => asked.some(k => /^[tw]\//.test(k)), { timeout: 30_000 }).toBe(true);
 
     // A song's page: its stored analysis, from GLUE Home's cache (the tab can't read the file to analyse it).
     await page.locator('.tr', { hasText: 'Fixture MP3' }).first().locator('.c-title').dblclick();
@@ -1008,5 +1009,58 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
     await fake.ask({ rpc: { op: 'edit', p: 'p1', c: 'c1', ops: [{ m: 'tracks', ts: [song('t1c', 'c.mp3', 65267)] }] } });
     await expect.poll(() => !!analysis().t1c?.label, { timeout: 30_000 }).toBe(true);
     await home.close();
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('with GLUE Home running, it is the app: the page starts none of the library’s work, no sync of its own, even while it opens (ADR 0162)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-app-'));
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } }, { engine: true });
+  try {
+    mkdirSync(join(tmp, 'Music', 'Sets'), { recursive: true }); mkdirSync(fake.dirs.incoming, { recursive: true });
+    copyFileSync(fixture('mp3-128k.mp3'), join(tmp, 'Music', 'Sets', 'a.mp3'));
+    // This computer's (desk) shared collection, signed in, cloud sync on.
+    const col = 'profiles/p1/collections/c1', ME = 'desk';
+    const meta = JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', shared: true, rootsBy: { desk: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }, members: { desk: { profile: 'p1', name: 'Desktop' } } });
+    const shard = JSON.stringify({ schemaVersion: 1, items: { t1: { id: 't1', fileName: 'a.mp3', title: 'A', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: null, format: null, addedAt: '2026-01-01',
+      copies: { desk: { status: 'linked', rootId: 'r1', relPath: 'Sets/a.mp3', importPath: null, size: 65267, mtime: 1, sources: [] } } } } });
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: true }),
+      [col + '/collection.json']: meta, [col + '/tracks/t1.json']: shard,
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    const server = new SharedCloudServer();
+    await server.seed('c1', 'Main', { 'collection.json': meta, 'tracks/t1.json': shard }, 'lap', 1);
+    await server.seedProfiles([{ id: 'p1', name: 'DJ' }]);
+    await fake.start();
+    await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
+      const u = new URL(r.request().url());
+      if (u.port !== '47400') return r.abort('connectionrefused');
+      u.port = String(fake.port);
+      return r.fulfill({ response: await r.fetch({ url: u.toString() }) });
+    });
+    const user = { id: 'u1', email: 'dj@example.com', name: 'DJ', picture: null }, synced: string[] = [];
+    await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+      window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+        renderButton(el) { const b = document.createElement('button'); b.className = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
+    await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', async r => {
+      const req = r.request(), u = new URL(req.url()), p = u.pathname, json = (b: unknown) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
+      if (/^\/v1\/shared\/c1\/(log|changes|append|bundle|touched|checkpoint)$/.test(p)) synced.push(req.method() + ' ' + p);
+      const a = await server.answer(req.method(), u, req.postData(), ME);
+      if (a) return r.fulfill({ status: a.status, contentType: a.type, body: a.body });
+      if (p === '/v1/auth/google' || p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: ME, user });
+      if (p === '/v1/me') return json({ user, thisDevice: ME, devices: [{ id: ME, kind: 'browser', name: 'Desktop', platform: '', createdAt: 1, lastSeen: 1, role: 'device' }, { id: fake.device, kind: 'home', name: 'Desktop', platform: '', createdAt: 1, lastSeen: 1, companionOf: ME }], sessions: [] });
+      return json({});
+    });
+    await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+    await page.goto('./');
+    await page.locator('#cloud-panel .fake-google').click();
+    await expect(page.locator('.tr')).toHaveCount(1, { timeout: 30_000 });
+    // Opened, attached, saved, a while later: the shared sync is GLUE Home's, never this page's (it synced the whole
+    // collection itself while GLUE Home attached, with GLUE Home syncing too, and froze the desktop's page, 2026-10-07).
+    await expect(page.locator('#analysis-by')).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(6000);
+    expect(synced).toEqual([]);
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

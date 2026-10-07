@@ -6,7 +6,7 @@ tour: glue-home
 order: 12
 ---
 GLUE Home is a small app for Windows and macOS (it sits by the clock). It's optional, and makes GLUE better:
-- **It's the library's engine:** it analyses your songs and keeps your library with the browser closed.
+- **It's the library's engine:** it analyses your songs, syncs them with your account, makes the day's backup and keeps your library with the browser closed. While it runs, GLUE in your browser is only its screen.
 - **No folder permissions:** a GLUE page on that computer uses GLUE Home's access to your folders.
 - **Your songs on your other devices:** your laptop and phone play this computer's songs, straight from it.
 - **TO BE SORTED:** songs sent from your other devices land in its incoming folder.

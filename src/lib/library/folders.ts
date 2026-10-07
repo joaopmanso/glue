@@ -102,7 +102,7 @@ export const folders = {
       Many at once (the first open after this came, 2026-10-01) are backed up first. */
   async joinCopies(this: Library) {
     const s = this.store;
-    if (!s?.shared || this.readOnly) return;
+    if (!s?.shared || this.readOnly || this.homeRuns()) return;
     const pairs = copiesToJoin(s);
     if (!pairs.length) return;
     if (pairs.length > 10) await this.backupBefore('join-copies');

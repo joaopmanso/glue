@@ -48,7 +48,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **E5, GLUE Home's service in its engine** (`service.rs`, `reminders.rs`, `verify.rs`, ADR 0160): done, 0.59.0
     (2026-10-07). The hidden service page is gone. **The plan is done.**
 - **After the plan (2026-10-07):** "No file linked" froze the whole site (the matching ran whole on the page, again on
-  every change); fixed and live. Then the shared songs without copies (ADR 0161, GLUE Home 0.59.1).
+  every change); fixed and live. Then the shared songs without copies (ADR 0161, GLUE Home 0.59.1). Then the real
+  cause of the desktop's freezes: with GLUE Home running, the page still ran the library's work itself (a full sync,
+  its own backup, a walk of the music drive…) and stopped answering after its first sync. Now GLUE Home is the app and
+  the page only its screen (ADR 0162, the website only).
 - **GLUE Home is Rust** plus two pages (`home/ui`): the settings window (`Settings.svelte`: it asks the engine through
   `engine_cmd` and hears its `status`) and the drag dock. One engine for its whole run (`home/src-tauri/src/engine.rs`).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
@@ -59,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **The page with GLUE Home running** (ADR 0162, the website): on the desktop, open GLUE in the browser and leave it
+  a minute, then use it: it shouldn't freeze. The analysis bar says "by GLUE Home"; the sync, the day's backup and the
+  analysis are GLUE Home's. With GLUE Home running, no new DJ library is suggested from the music folders for now.
+- **Two recordings in the repo's folder** (`edge-net-export-log.json`, 1.2 GB, and `glue-log.json`): untracked,
+  they hold GLUE Home's local key. The user's to delete; never commit them.
 - **GLUE Home 0.59.1 and the site** (ADR 0161):
   - on the laptop, "No file linked" shouldn't list the desktop's songs any more (it showed them as the laptop's, with
     no file). Songs already broken are put right when a computer that can tell whose they are opens the collection;
@@ -121,8 +129,18 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     Stop/Start handing the library over, "No file linked" in bulk, a dropped song analysed by GLUE Home).
 
 ## Next
-### After the plan
-The plan (W1, E1–E5) is done. What's next is the user's to choose; the list under "Other work" below is what's open.
+### Next: the rest of the library's work into GLUE Home (ADR 0162, the user's rule: "GLUE Home IS THE APP")
+With GLUE Home running the page still does, until each moves into the engine (then the page stops it):
+1. **Duplicates:** the page's worker matches fingerprints and publishes `dupes/<computer>.json` (which forces a full
+   sync each time, `dupes.onPublished` → `sync(true)`; the browser-alone page syncs everything twice on opening
+   because of it: give the sync the file instead).
+2. **Following DJ libraries live** (`djWatch`: a file's date every 5 s, read again when it changed).
+3. **Finding new DJ libraries** in the music folders (`findLibraries`, 3 folders deep): off with GLUE Home now.
+4. **Re-checking verdicts** (`recheckVerdicts`) and the open-time repairs (`tidyTracks`, `joinCopies`): off with
+   GLUE Home now.
+5. **The 61 clashes waiting** in the desktop's sync state (`cloud/shared/bf9246de41a24e03.json`): GLUE Home's
+   engine against this page, the same computer (most are songs' `duration`/`format`, and `dupes/<computer>.json`).
+   Clashes between two writers of one computer should settle by themselves (the newer value); settle these once.
 
 ### Working notes (GLUE Home in Rust)
 - **How a batch is held to the website:** recorded goldens, replayed in Rust byte for byte:
@@ -166,6 +184,9 @@ The plan (W1, E1–E5) is done. What's next is the user's to choose; the list un
   connect, look at webrtc-rs's TURN (UDP should work; `turns:` over TCP may not be used).
 - **Streaming decode:** a song is still read whole into memory for its analysis (a 543 MB FLAC needs about 1.5 GB);
   decoding FLAC/WAV/AIFF from the file (`decode_flac` already reads ranges) when it shows.
+- **Edge's "local network" issues:** every request to 127.0.0.1 adds one to DevTools' Issues (Local Network Access);
+  with the page doing nothing in Home mode there are far fewer. Look whether `targetAddressSpace: 'local'` on the
+  local link's fetches quiets them.
 - **Shared songs without copies (ADR 0161):** fixed by explanation, not caught in the act. If `e2e/shared.spec.ts`
   "the desktop's DJ library" ever fails that way again (about 1 run in 7 before), look for another writer of the
   computer's own form.

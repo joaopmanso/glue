@@ -172,8 +172,9 @@ export const edits = {
   writeInfo(this: Library) { return (this.writing ??= this.writeInfoOnce().finally(() => { this.writing = null; })); },
   async writeInfoOnce(this: Library) {
     const s = this.store;
-    if (!s || this.readOnly || !platform.homeMode()) return;
-    const stop = () => this.store !== s || this.readOnly || !platform.homeMode();
+    // GLUE Home's engine writes them itself (ADR 0097, 0162).
+    if (!s || this.readOnly || !platform.homeMode() || this.homeRuns()) return;
+    const stop = () => this.store !== s || this.readOnly || !platform.homeMode() || this.homeRuns();
     let r: { failed: number; why: string; away: string[] };
     try {
       r = await writeUnwritten(s, (t, tags) => {

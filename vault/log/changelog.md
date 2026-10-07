@@ -5,6 +5,20 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-07 · With GLUE Home running, the page froze a few seconds after opening (ADR 0162)
+- **The user:** the whole site froze a few seconds after opening, on the desktop ("No file linked" first); thousands
+  of "local network" requests in Edge's issues.
+- **Found** with an Edge network log the user made (5,785 requests to GLUE Home in 24 s) and a reproduction with the
+  user's collection and sync state in Home mode: the page ran a full shared sync of its own (started on opening, before
+  it was attached to GLUE Home's engine, which was syncing too: 61 clashes waiting), its own daily backup, a walk of the
+  music drive for DJ libraries, and the verdict re-check, all through GLUE Home's disk; after its first sync it never
+  answered again.
+- **Now:** GLUE Home is the app. The page knows its engine runs the library before the collection opens
+  (`engineClient.runs`, `lib.homeRuns()`) and starts none of that work: no sync, analysis, backup, verdict re-check,
+  open-time repairs, song info into files or walking for libraries. Duplicates and following DJ libraries move into
+  GLUE Home next. The engine feed's loop no longer crashes on an answer without changes. Test: `e2e/homemode.spec.ts`
+  "with GLUE Home running, it is the app" (8 sync requests from the page before, none now).
+
 ## 2026-10-07 · Shared songs without their copies (GLUE Home 0.59.1, ADR 0161)
 - **The bug (found 2026-10-02):** a song of the account's collection could reach another computer with no `copies`.
   There it was taken for that computer's own song with no file: "No file linked" offered to remove it, on every

@@ -21,8 +21,11 @@ interface EngineState { rev: number; jobs: { kind: string; left: number; total: 
 type Change = { rev: number; p: string; c: string; paths: string[]; analysed?: string[] };
 
 class EngineClient {
-  /** GLUE Home's engine is this library's writer. */
+  /** GLUE Home's engine is this library's writer: attached to the open collection's store. */
   active = $state(false);
+  /** GLUE Home's engine runs the library (it answered, in Home mode): known before a collection opens (asked for this
+      computer first), so the page never starts the library's work meanwhile (ADR 0162). */
+  runs = $state(false);
   state = $state<EngineState | null>(null);
   private rev = 0;
   private attached: CollectionStore | null = null;
@@ -44,7 +47,11 @@ class EngineClient {
   async findFolder(id: string, name: string, sample: string): Promise<string | null> { return (await this.rpc<{ path?: string | null }>({ op: 'where', id, name, sample }, 60_000)).path ?? null; }
   /** Where a dropped song is on this computer, and the music folder it's in (ADR 0125). */
   async findFile(name: string, size: number, roots: string[]) { return this.rpc<{ path: string | null; folder?: { id: string; relPath: string } }>({ op: 'whereFile', name, size, roots }, 60_000); }
-  async computer(): Promise<string | null> { return (await this.rpc<{ computer?: string | null }>({ op: 'hello' }, 5000)).computer ?? null; }
+  async computer(): Promise<string | null> {
+    const h = await this.rpc<{ engine?: number; computer?: string | null }>({ op: 'hello' }, 5000).catch(() => null);
+    if (h) this.runs = !!h.engine;
+    return h?.computer ?? null;
+  }
 
   /** In Home mode, with an engine that answers: the open collection's changes go to it. */
   async check() {
@@ -52,8 +59,8 @@ class EngineClient {
     if (!on) { this.detach(); return; }
     if (this.attached === lib.store) return;
     let computer: string | null = null;
-    try { const h = await this.rpc<{ engine?: number; rev: number; computer?: string | null }>({ op: 'hello' }, 5000); if (!h.engine) throw new Error('an older GLUE Home'); this.rev = h.rev; computer = h.computer ?? null; }
-    catch { this.detach(); return; }   // GLUE Home from before its engine: this tab writes, as before
+    try { const h = await this.rpc<{ engine?: number; rev: number; computer?: string | null }>({ op: 'hello' }, 5000); if (!h.engine) throw new Error('an older GLUE Home'); this.rev = h.rev; computer = h.computer ?? null; this.runs = true; }
+    catch { this.runs = false; this.detach(); return; }   // GLUE Home from before its engine: this tab writes, as before
     const s = lib.store;
     if (!s) return;
     // Opened as another computer than GLUE Home's (before it knew, ADR 0108): seen again as GLUE Home's.
@@ -102,7 +109,8 @@ class EngineClient {
         const r = await this.rpc<{ rev: number; changes: Change[]; reset?: boolean }>({ op: 'wait', since: this.rev }, 40_000).catch(() => null);
         if (!this.active) return;
         // No answer: GLUE Home may be stopped or quit (the library then carries on in the browser).
-        if (!r) { void localHome.check(); await new Promise(res => setTimeout(res, 3000)); continue; }
+        // No answer (or not one of the feed's): GLUE Home may be stopped or quit (the library then carries on in the browser).
+        if (!r || !Array.isArray(r.changes)) { void localHome.check(); await new Promise(res => setTimeout(res, 3000)); continue; }
         const s = this.attached, w = this.where();
         this.rev = r.rev;
         if (!s || !w) continue;
@@ -189,7 +197,8 @@ async function cacheFile(key: string, first = false, signal?: AbortSignal): Prom
   return cacheGate.run(() => localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(key)).then(b => new Uint8Array(b)).catch(() => null), first);
 }
 export const engineClient = new EngineClient();
-lib.analysisElsewhere = { active: () => engineClient.active, now: ids => engineClient.now(ids), pause: p => engineClient.pause(p) };
+lib.homeRuns = () => engineClient.runs && homeMode() && !!localHome.link;
+lib.analysisElsewhere = { active: () => lib.homeRuns(), now: ids => engineClient.now(ids), pause: p => engineClient.pause(p) };
 lib.beforeClose = () => engineClient.flush();
 // A collection opened: attached at once (not a change saved from here meanwhile).
 const prevOpened = lib.onCollectionOpened;

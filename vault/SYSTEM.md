@@ -228,6 +228,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     found is kept in its settings (ADR 0122).
 - **The tab in Home mode** (`src/platform/homeDisk.ts`, `src/lib/engine.svelte.ts`, `localHome.svelte.ts`):
   - It reads the GLUE folder through the link.
+  - **It's only GLUE Home's screen** (ADR 0162): `lib.homeRuns()` (`engineClient.runs`: the engine answered, asked
+    before a collection opens) and it starts none of the library's work: no shared sync, analysis, daily backup,
+    verdict re-check, open-time repairs, song info into files, or walking the music folders for DJ libraries. Still the
+    page's until they move into GLUE Home: duplicates (its worker) and following DJ libraries (`djWatch`).
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease.
   - Overviews and details come from GLUE Home's `/cache` when the browser has none (ADR 0110).
   - **What the user asks for goes first** (ADR 0138, 0139): the page's background loads from GLUE Home's cache go on a

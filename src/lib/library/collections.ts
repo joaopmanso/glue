@@ -56,7 +56,8 @@ export const collections = {
     await this.loadRoots();
     // Tracks naming imports that are gone, and tracks without a file whose file is here after all
     // (music folders' places known by now).
-    if (!this.readOnly) { const t = tidyTracks(s); if (t.dropped || t.relinked) console.info('Tidied: ' + t.dropped + ' leftover tracks of removed imports, ' + t.relinked + ' tracks linked to their file'); }
+    // With GLUE Home, it's the app (ADR 0162): none of this here.
+    if (!this.readOnly && !this.homeRuns()) { const t = tidyTracks(s); if (t.dropped || t.relinked) console.info('Tidied: ' + t.dropped + ' leftover tracks of removed imports, ' + t.relinked + ' tracks linked to their file'); }
     await this.joinCopies();
     await this.loadLoose();
     await this.adoptIncoming();
@@ -70,9 +71,9 @@ export const collections = {
     this.onCollectionOpened?.(this.profile.id, cid);
     // The day's backup of this profile, a little after it opens (ADR 0090).
     const pid = this.profile.id;
-    setTimeout(() => { const d = this.homeDir, p = this.profile; if (d && p?.id === pid && !this.readOnly) void autoBackup(d, p).catch(e => console.warn('GLUE: the daily backup failed', e)); }, 20_000);
+    setTimeout(() => { const d = this.homeDir, p = this.profile; if (d && p?.id === pid && !this.readOnly && !this.homeRuns()) void autoBackup(d, p).catch(e => console.warn('GLUE: the daily backup failed', e)); }, 20_000);
     void this.detectLibraries();
-    void this.recheckVerdicts();
+    if (!this.homeRuns()) void this.recheckVerdicts();
   },
   async renameCollection(this: Library, name: string) {
     const s = this.store;
