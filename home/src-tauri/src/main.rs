@@ -206,6 +206,31 @@ fn find_glue_folder(app: AppHandle) -> Option<String> {
     None
 }
 
+/// A new GLUE folder for GLUE Home's first run (ADR 0159): Documents\GLUE, made if needed ("GLUE (2)"… when that name is
+/// another folder with things in it); a GLUE folder already there is the one. The GLUE website sets a new one up the
+/// first time it opens it (`mco.json`). Its path: the settings choose it.
+#[tauri::command]
+fn new_glue_folder(app: AppHandle) -> Result<String, String> {
+    let base = app.path().document_dir().or_else(|_| app.path().home_dir()).map_err(|e| e.to_string())?;
+    Ok(free_glue_folder(&base)?.to_string_lossy().into_owned())
+}
+fn free_glue_folder(base: &std::path::Path) -> Result<PathBuf, String> {
+    let usable = |d: &std::path::Path| !d.exists() || folder_look(d).0 || folder_look(d).1;
+    let mut d = base.join("GLUE");
+    let mut n = 2;
+    while !usable(&d) { d = base.join(format!("GLUE ({n})")); n += 1; }
+    fs::create_dir_all(&d).map_err(|e| e.to_string())?;
+    Ok(d)
+}
+/// A folder is GLUE's (it has `mco.json`), and it's empty.
+fn folder_look(d: &std::path::Path) -> (bool, bool) { (d.join("mco.json").is_file(), fs::read_dir(d).map(|mut x| x.next().is_none()).unwrap_or(false)) }
+/// What a folder chosen as the GLUE folder is: GLUE's, or empty (a new one, set up when the library opens it).
+#[tauri::command]
+fn folder_state(path: String) -> serde_json::Value {
+    let (glue, empty) = folder_look(std::path::Path::new(&path));
+    serde_json::json!({ "glue": glue, "empty": empty })
+}
+
 /// The usual folders of this computer (the engine finds music folders by name in them).
 fn known_folders(app: AppHandle) -> serde_json::Value {
     let p = app.path();
@@ -477,7 +502,7 @@ fn main() {
         // Reminders of events that need music (ADR 0074).
         .plugin(tauri_plugin_notification::init())
         .manage(Transfers::default())
-        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, local_port, glue_list, activity_now, lease_held, edits_waiting, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, rtc::rtc_busy, engine::engine_cmd])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, default_incoming, device_name, new_glue_folder, folder_state, incoming_begin, incoming_write, incoming_end, set_status, show_settings, open_library, find_glue_folder, glue_read, file_size, file_read, cache_read, cache_write, cache_list, incoming_list, local_port, glue_list, activity_now, lease_held, edits_waiting, dock::dock_items, dock::dock_add, dock::dock_remove, dock::dock_clear, dock::drag_icon, dupes::default_duplicates, analysis::verify_song, rtc::rtc_busy, engine::engine_cmd])
         .setup(|app| {
             // A menu-bar app on macOS: no Dock icon.
             #[cfg(target_os = "macos")]
@@ -582,6 +607,23 @@ mod tests {
     }
 
     use super::*;
+
+    /// GLUE Home's first run makes Documents\GLUE (ADR 0159): an empty one or a GLUE folder is used as it is; a folder
+    /// of that name with other things in it is left alone for "GLUE (2)".
+    #[test]
+    fn a_new_glue_folder_never_takes_someone_elses() {
+        let base = std::env::temp_dir().join(format!("glue-new-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(&base).unwrap();
+        assert_eq!(free_glue_folder(&base).unwrap(), base.join("GLUE"));
+        assert_eq!(free_glue_folder(&base).unwrap(), base.join("GLUE"));   // empty: the same
+        fs::write(base.join("GLUE").join("notes.txt"), "mine").unwrap();
+        assert_eq!(free_glue_folder(&base).unwrap(), base.join("GLUE (2)"));
+        fs::write(base.join("GLUE (2)").join("mco.json"), "{}").unwrap();
+        assert_eq!(free_glue_folder(&base).unwrap(), base.join("GLUE (2)"));   // GLUE's: the one
+        assert_eq!(folder_state(base.join("GLUE (2)").to_string_lossy().into_owned()), serde_json::json!({ "glue": true, "empty": false }));
+        let _ = fs::remove_dir_all(&base);
+    }
 
     // A file is matched against the folder it's written under first: no other folder looked up (ADR 0141).
     #[test]

@@ -13,6 +13,8 @@ export const autoPool = () => { const n = navigator.hardwareConcurrency || 4; re
 
 export interface HomeConfig {
   api?: string;
+  /** GLUE Home's first-run guide was finished or put away (ADR 0159). */
+  setupDone?: boolean;
   /** The read-only token for a GLUE tab on this computer (ADR 0104): it reads, and asks the engine to change things. */
   readToken?: string;
   /** The DJ libraries GLUE Home follows (written by its Rust side, ADR 0065). */
@@ -99,6 +101,10 @@ export const bridge = {
   openLibrary: () => invoke<void>('open_library'),
   // This computer's GLUE library (read-only) and its music files.
   findGlue: () => invoke<string | null>('find_glue_folder'),
+  /** A new GLUE folder (Documents\GLUE, ADR 0159): its path. */
+  newGlueFolder: () => invoke<string>('new_glue_folder'),
+  /** A folder chosen as the GLUE folder: GLUE's (it has mco.json), or empty (set up when the library opens it). */
+  folderState: (path: string) => invoke<{ glue: boolean; empty: boolean }>('folder_state', { path }),
   // GLUE Home's own cache (mini spectrograms, analyses) and the incoming folder.
   cacheRead: (rel: string) => invoke<ArrayBuffer>('cache_read', { rel }),
   cacheWrite: (rel: string, bytes: Uint8Array) => invoke<void>('cache_write', bytes, { headers: { 'x-rel': rel } }),

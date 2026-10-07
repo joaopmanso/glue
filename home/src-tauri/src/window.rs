@@ -91,6 +91,9 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
       }
       true
     });
+  // Signed in by GLUE Home (ADR 0159): a single-use code for this window only, which the page trades for a session as
+  // this computer when it isn't signed in (no second sign-in in the window).
+  if let Some(code) = crate::engine::window_code(app) { b = b.initialization_script(sign_in_script(&code)); }
   match read_place(app) {
     Some(p) => { b = b.inner_size(p.w as f64, p.h as f64).position(p.x as f64, p.y as f64).maximized(p.max); }
     None => { b = b.inner_size(1400.0, 900.0).center(); }
@@ -125,6 +128,9 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
   Ok(())
 }
 
+/// The script that hands the window's page GLUE Home's code (a JSON string: nothing in it can break out).
+pub fn sign_in_script(code: &str) -> String { format!("window.__glueHomeSignIn = {};", serde_json::Value::from(code)) }
+
 /// A name in `dir` that isn't taken: "Export.xml", else "Export (2).xml"…
 fn free_name(dir: &std::path::Path, name: &str) -> PathBuf {
   let (stem, ext) = match name.rfind('.') { Some(i) if i > 0 => (&name[..i], &name[i..]), _ => (name, "") };
@@ -151,6 +157,12 @@ mod tests {
     assert!(popup(&u("https://accounts.google.com/gsi/select?client_id=1")));
     assert!(!popup(&u("https://evil.example/accounts.google.com")));
     assert!(URL.contains("app=window") && !URL.contains("open=home"));
+  }
+
+  #[test]
+  fn the_sign_in_code_is_a_json_string() {
+    assert_eq!(sign_in_script("abc-_9"), r#"window.__glueHomeSignIn = "abc-_9";"#);
+    assert_eq!(sign_in_script("\";alert(1)//"), r#"window.__glueHomeSignIn = "\";alert(1)//";"#);
   }
 
   #[test]

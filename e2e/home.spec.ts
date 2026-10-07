@@ -44,8 +44,15 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   const service = await ctx.newPage();
   await service.goto(HOME + 'service.html');
 
-  // First launch: asked once whether to start with the computer (the stand-in answers yes).
+  // First launch: the guide (ADR 0159). The GLUE folder is found where the website keeps it; the incoming folder is
+  // ready; starting with the computer is a step of it (no question in a dialog).
+  await expect(page.locator('#setup')).toBeVisible();
+  await expect(page.locator('#setup [data-step="glue"]')).toHaveClass(/done/);
+  await expect(page.locator('#setup [data-step="account"]')).not.toHaveClass(/done/);
+  await page.locator('#setup-autostart').check();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('autostart'))).toBe('1');
+  await page.click('#setup-later');
+  await expect(page.locator('#setup')).toHaveCount(0);
   await expect(page.locator('#at-login')).toBeChecked();
   await expect(page.locator('#state-pill')).toHaveText('Not connected');
   await expect(page.locator('#incoming')).toContainText('GLUE Incoming');
@@ -138,6 +145,54 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   await expect(page.locator('#glue-folder')).toHaveText(d.glue);
   expect(await page.evaluate(() => (window as unknown as { __calls: string[] }).__calls.filter(c => c === 'plugin:dialog|message').length)).toBe(0);
   await d.done();
+});
+
+test('GLUE Home’s first run: a guide to the account, a new GLUE folder in Documents, the incoming folder and starting with the computer; then the library (ADR 0159)', async ({ page }) => {
+  const ctx = page.context();
+  await ctx.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+  await ctx.addInitScript(TAURI_MOCK);
+  const made = 'C:\\Users\\dj\\Documents\\GLUE';
+  // No GLUE folder anywhere usual (a new computer): the one GLUE Home makes is new and empty; D:\Stuff is something else.
+  await ctx.addInitScript(made => { (window as unknown as { __folderState: Record<string, unknown> }).__folderState = { [made]: { glue: false, empty: true }, 'D:\\Stuff': { glue: false, empty: false } }; }, made);
+  await page.goto(HOME + 'index.html');
+  await expect(page.locator('#setup')).toBeVisible();
+  await expect(page.locator('#setup [data-step="glue"]')).not.toHaveClass(/done/);
+  await expect(page.locator('#setup-done')).toBeDisabled();   // nothing to open yet
+  if (process.env.SHOTS) { await page.setViewportSize({ width: 760, height: 620 }); await page.screenshot({ path: process.env.SHOTS + '/home-first-run.png' }); await page.setViewportSize({ width: 1280, height: 720 }); }
+  await page.click('#setup-new-glue');
+  await expect(page.locator('#setup [data-step="glue"]')).toHaveClass(/done/);
+  await expect(page.locator('#setup [data-step="glue"]')).toContainText('A new GLUE folder');
+  await expect(page.locator('#setup-glue')).toHaveText(made);
+  await expect(page.locator('#setup-incoming')).toContainText('GLUE Incoming');
+  // A folder with other things in it isn't taken as the GLUE folder.
+  await page.evaluate(() => { (window as unknown as { __pick: string }).__pick = 'D:\\Stuff'; });
+  await page.locator('#setup [data-step="glue"] button.link').click();
+  await expect(page.locator('#setup .err')).toContainText('isn’t a GLUE folder');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).glue)).toBe(made);
+  // Done: the library opens (where GLUE sets the new folder up), and the guide is put away for good.
+  await page.click('#setup-done');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __opened?: string }).__opened)).toBe('library');
+  await expect(page.locator('#setup')).toHaveCount(0);
+  await expect(page.locator('#glue-new')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('#state-pill')).toBeVisible();
+  await expect(page.locator('#setup')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { __calls: string[] }).__calls.filter(c => c === 'plugin:dialog|message').length)).toBe(0);
+});
+
+test('GLUE Home set up before its first-run guide never shows it', async ({ page }) => {
+  const ctx = page.context();
+  await ctx.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'a' }) }));
+  await ctx.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+  await ctx.addInitScript(TAURI_MOCK);
+  await ctx.addInitScript(({ glue, lib }) => {
+    const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = lib;
+    localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't1', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, askedAutostart: true, running: true, glue }));
+  }, { glue: GLUE, lib: LIBRARY });
+  await page.goto(HOME + 'index.html');
+  await expect(page.locator('#account')).toContainText('dj@example.com');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).setupDone)).toBe(true);
+  await expect(page.locator('#setup')).toHaveCount(0);
 });
 
 test('GLUE Home reminds of events that need music, once a day each; Check now; off (ADR 0074)', async ({ page }) => {

@@ -21,7 +21,7 @@ export interface Env extends TurnEnv, UsageEnv { DB: DB; SESSION_KEY: string; GO
 export interface Deps { now: () => number; googleKeys: () => Promise<JwkSet>; fetch?: typeof fetch }
 
 const DAY = 864e5;
-export const REFRESH_TTL = 60 * DAY, DEVICE_TTL = 365 * DAY, CODE_TTL = 10 * 60e3, ACCESS_TTL = 3600;
+export const REFRESH_TTL = 60 * DAY, DEVICE_TTL = 365 * DAY, CODE_TTL = 10 * 60e3, ACCESS_TTL = 3600, WINDOW_CODE_TTL = 2 * 60e3;
 const MAX_CLAIMS = 10, CLAIM_WINDOW = 10 * 60e3;   // pairing attempts per address per 10 minutes
 
 class HttpError extends Error { constructor(readonly status: number, msg: string) { super(msg); } }
@@ -52,6 +52,8 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     if (m === 'POST' && path === '/v1/auth/refresh') return reply(await refresh(env, await body(), now));
     if (m === 'POST' && path === '/v1/auth/device') return reply(await deviceSignIn(env, await body(), now));
     if (m === 'POST' && path === '/v1/pairing/claim') return reply(await claim(env, await body(), now, req.headers.get('CF-Connecting-IP') ?? 'local'));
+    // GLUE Home's window signs in with the code GLUE Home put into it (ADR 0159).
+    if (m === 'POST' && path === '/v1/auth/window') return reply(await windowSignIn(env, await body(), now, req.headers.get('CF-Connecting-IP') ?? 'local'));
     if (m === 'POST' && path === '/v1/auth/logout') {
       const b = await body();
       if (typeof b.refresh === 'string') await env.DB.prepare('DELETE FROM credentials WHERE hash = ?').bind(await sha256(b.refresh)).run();
@@ -69,6 +71,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
     // Everything else needs a signed-in device.
     const a = await authed(env, (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''), now);
     if (m === 'GET' && path === '/v1/me') return reply(await me(env, a));
+    if (m === 'POST' && path === '/v1/auth/window-code') return reply(await windowCode(env, a, now));
     // Gluey's tours and tips seen (ADR 0126): merged, never replaced.
     if (m === 'PATCH' && path === '/v1/me/guide') return reply({ guide: await guideOf(env, a, await body()) });
     // The relay's credentials (ADR 0081): a failure leaves devices to connect directly.
@@ -256,6 +259,43 @@ async function deviceSignIn(env: Env, b: Record<string, unknown>, now: number) {
   if (!c || c.expires_at < now) throw new HttpError(401, 'this GLUE Home isn’t paired any more: pair it again');
   await env.DB.prepare('UPDATE devices SET last_seen = ? WHERE id = ?').bind(now, b.deviceId).run();
   return { access: await signAccess({ sub: c.user_id, dev: b.deviceId }, env.SESSION_KEY, now, ACCESS_TTL), expiresIn: ACCESS_TTL };
+}
+
+/** GLUE Home, as it opens its own window (ADR 0159): a single-use code, two minutes, that it puts into that window only. */
+async function windowCode(env: Env, a: Access, now: number) {
+  const home = await env.DB.prepare("SELECT id FROM devices WHERE id = ? AND user_id = ? AND kind = 'home' AND revoked_at IS NULL").bind(a.dev, a.sub).first<{ id: string }>();
+  if (!home) throw new HttpError(403, 'only a GLUE Home asks for its window’s code');
+  await env.DB.prepare('DELETE FROM window_codes WHERE expires_at < ?').bind(now).run();
+  const code = randomToken();
+  await env.DB.prepare('INSERT INTO window_codes (hash, user_id, home_id, expires_at) VALUES (?, ?, ?, ?)').bind(await sha256(code), a.sub, home.id, now + WINDOW_CODE_TTL).run();
+  return { code, expiresIn: WINDOW_CODE_TTL / 1000 };
+}
+/** The page in GLUE Home's window trades the code for a session as this computer: the GLUE Home's companion (ADR 0091,
+    0108), or, when it has none yet, a new browser device that becomes it. Once, within two minutes, while the GLUE
+    Home is in the account. */
+async function windowSignIn(env: Env, b: Record<string, unknown>, now: number, ip: string) {
+  await limit(env, 'win:' + ip, 30, now);
+  const code = str(b.code, 100);
+  if (!code) throw bad('code missing');
+  const h = await sha256(code);
+  const wc = await env.DB.prepare('SELECT user_id, home_id, expires_at, used_at FROM window_codes WHERE hash = ?').bind(h).first<{ user_id: string; home_id: string; expires_at: number; used_at: number | null }>();
+  if (!wc || wc.used_at || wc.expires_at < now) throw new HttpError(401, 'that code isn’t valid any more: sign in');
+  const used = await env.DB.prepare('UPDATE window_codes SET used_at = ? WHERE hash = ? AND used_at IS NULL').bind(now, h).run();
+  if (!used.meta.changes) throw new HttpError(401, 'that code was just used');
+  const home = await env.DB.prepare("SELECT * FROM devices WHERE id = ? AND user_id = ? AND kind = 'home' AND revoked_at IS NULL").bind(wc.home_id, wc.user_id).first<DeviceRow>();
+  if (!home) throw new HttpError(401, 'this GLUE Home isn’t in the account any more: sign in');
+  let dev = home.companion_of ? await env.DB.prepare("SELECT id FROM devices WHERE id = ? AND user_id = ? AND kind = 'browser' AND revoked_at IS NULL").bind(home.companion_of, wc.user_id).first<{ id: string }>() : null;
+  if (!dev) {
+    // This computer, from now on (a GLUE Home holds music: a device, not a session).
+    const id = randomId();
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO devices (id, user_id, kind, name, platform, public_key, created_at, last_seen, role) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)').bind(id, wc.user_id, 'browser', home.name, str(b.platform, 60) || null, now, now, 'device'),
+      env.DB.prepare('UPDATE devices SET companion_of = ? WHERE id = ?').bind(id, home.id),
+    ]);
+    dev = { id };
+  }
+  const u = await env.DB.prepare('SELECT id, email, name, picture, tier FROM users WHERE id = ?').bind(wc.user_id).first<{ id: string; email: string | null; name: string | null; picture: string | null; tier: string }>();
+  return { ...(await session(env, wc.user_id, dev.id, now)), user: u };
 }
 
 /** GLUE Home turns a pairing code (made on the signed-in website) into its own device credential. */

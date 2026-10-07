@@ -314,6 +314,41 @@ describe('computers and sessions (ADR 0091)', () => {
     expect((await call('POST', '/v1/devices/' + a.json.deviceId + '/same-computer', {}, c.json.access)).json).toEqual({ device: a.json.deviceId });
     expect((await call('POST', '/v1/auth/refresh', { refresh: c.json.refresh })).json.deviceId).toBe(a.json.deviceId);
   });
+  it('GLUE Home signs its window in (ADR 0159): a code only it gets, once, within two minutes, as its computer', async () => {
+    const edge = await signIn({}, { deviceName: 'Edge on Windows' });
+    const home = (await call('POST', '/v1/pairing/claim', { code: (await call('POST', '/v1/pairing', {}, edge.json.access)).json.code, name: 'Desktop' })).json;
+    const ha = (await call('POST', '/v1/auth/device', { deviceId: home.deviceId, token: home.token })).json.access;
+    // Only a GLUE Home gets a code.
+    expect((await call('POST', '/v1/auth/window-code', {}, edge.json.access)).status).toBe(403);
+    const code = (await call('POST', '/v1/auth/window-code', {}, ha)).json.code as string;
+    // The window is this computer: Edge's device (GLUE Home's companion), with its own sign-in; Edge's stays.
+    const w = await call('POST', '/v1/auth/window', { code, deviceName: 'GLUE window' });
+    expect(w.json.deviceId).toBe(edge.json.deviceId);
+    expect(w.json.user.email).toBe('dj@example.com');
+    expect((await call('POST', '/v1/auth/refresh', { refresh: w.json.refresh })).json.deviceId).toBe(edge.json.deviceId);
+    expect((await call('POST', '/v1/auth/refresh', { refresh: edge.json.refresh })).status).toBe(200);
+    // Once only; a code goes stale after two minutes; a made-up one is refused.
+    expect((await call('POST', '/v1/auth/window', { code })).status).toBe(401);
+    const late = (await call('POST', '/v1/auth/window-code', {}, ha)).json.code as string;
+    now += 121_000;
+    expect((await call('POST', '/v1/auth/window', { code: late })).status).toBe(401);
+    expect((await call('POST', '/v1/auth/window', { code: 'x'.repeat(43) })).status).toBe(401);
+    // A GLUE Home removed from the account: its code doesn't sign anything in.
+    const gone = (await call('POST', '/v1/auth/window-code', {}, (await call('POST', '/v1/auth/device', { deviceId: home.deviceId, token: home.token })).json.access)).json.code as string;
+    await call('DELETE', '/v1/devices/' + home.deviceId, undefined, edge.json.access);
+    expect((await call('POST', '/v1/auth/window', { code: gone })).status).toBe(401);
+  });
+  it('a GLUE Home with no companion yet signs its window in as a new device of its computer, which becomes its companion', async () => {
+    const edge = await signIn({}, { deviceName: 'Edge on Windows' });
+    const home = (await call('POST', '/v1/pairing/claim', { code: (await call('POST', '/v1/pairing', {}, edge.json.access)).json.code, name: 'Studio' })).json;
+    const ha = (await call('POST', '/v1/auth/device', { deviceId: home.deviceId, token: home.token })).json.access;
+    await env.DB.prepare('UPDATE devices SET companion_of = NULL WHERE id = ?').bind(home.deviceId).run();
+    const w = await call('POST', '/v1/auth/window', { code: (await call('POST', '/v1/auth/window-code', {}, ha)).json.code });
+    expect(w.json.deviceId).not.toBe(edge.json.deviceId);
+    expect((await call('GET', '/v1/computer', undefined, ha)).json).toEqual({ computer: w.json.deviceId });
+    const mine = (await devices(w.json.access)).devices.find(d => d.id === w.json.deviceId)!;
+    expect([mine.kind, mine.role]).toEqual(['browser', 'device']);
+  });
   it('several GLUE Homes on one account: each pairs from its own computer and stays', async () => {
     const desk = await signIn({}, { deviceName: 'Desktop' }), studio = await signIn({}, { deviceName: 'Studio' });
     const pair = async (tok: string, name: string) => (await call('POST', '/v1/pairing/claim', { code: (await call('POST', '/v1/pairing', {}, tok)).json.code, name })).json;

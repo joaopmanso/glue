@@ -58,14 +58,32 @@
   // Connecting again (a new code) replaces this GLUE Home's previous device in the account.
   const withCode = (c = code) => run('Connecting…', async () => joined(await claim(api, c, cfg?.name || 'GLUE Home', cfg?.deviceId && cfg?.token ? { deviceId: cfg.deviceId, token: cfg.token } : null)));
 
-  // This computer's GLUE library: every collection is shared, its music folders found by the service.
-  async function scan() { lib = cfg?.glue ? await describe() : null; }
+  // This computer's GLUE library: every collection is shared, its music folders found by the service. A new (empty) GLUE
+  // folder is set up when the library first opens it (ADR 0159).
+  let glueNew = $state(false);
+  async function scan() {
+    lib = cfg?.glue ? await describe() : null;
+    glueNew = !!cfg?.glue && !lib && (await bridge.folderState(cfg.glue).catch(() => ({ glue: false, empty: false }))).empty;
+  }
   async function chooseGlue() {
     const f = await pickFolder(cfg?.glue ?? null);
     if (!f) return;
+    // A GLUE folder, or an empty one (a new library); never a folder of other things.
+    const st = await bridge.folderState(f).catch(() => ({ glue: false, empty: false }));
+    if (!st.glue && !st.empty) { error = 'That folder has other things in it and isn’t a GLUE folder. Choose the folder GLUE uses on this computer, an empty folder, or make a new one.'; return; }
+    error = '';
     await save({ glue: f });
     await scan();
-    if (!lib) error = 'That folder isn’t a GLUE folder (it has no mco.json). Choose the folder GLUE on the website uses.';
+  }
+  /** Documents\GLUE, made and chosen. */
+  const newGlue = () => run('Making the GLUE folder…', async () => { await save({ glue: await bridge.newGlueFolder() }); await scan(); });
+
+  // The first run (ADR 0159): a guide to what GLUE Home needs, until it's finished or put away. GLUE Homes set up before
+  // it never see it.
+  const guiding = $derived(!!cfg && cfg.setupDone !== true);
+  async function finishSetup(open: boolean) {
+    await save({ setupDone: true, askedAutostart: true });
+    if (open) await bridge.openLibrary();
   }
   async function setShared(p: string, c: string, on: boolean) { await save({ serve: { ...(cfg?.serve ?? {}), [collectionKey(p, c)]: on } }); }
   /** Only if a music folder can't be found by itself (it's checked with one of its songs). */
@@ -139,6 +157,8 @@
       await bridge.onConfig(c => { const glueChanged = c.glue !== cfg?.glue; cfg = c; if (glueChanged) void scan(); });
       // The website's GLUE folder, if it's in a usual place.
       if (!cfg.glue) { const g = await bridge.findGlue().catch(() => null); if (g) await save({ glue: g }); }
+      // Set up before the first-run guide (connected, with a GLUE folder): it never shows.
+      if (cfg.setupDone === undefined && cfg.deviceId && cfg.token && cfg.glue) await save({ setupDone: true });
       await scan().catch(() => {});
       await bridge.onStatus(s => (status = s));
       await bridge.askStatus();
@@ -146,8 +166,8 @@
       current = await version().catch(() => '');
       // gluehome://pair?code=… from the website's "Open GLUE Home".
       await onPairLink(c => { void bridge.showSettings(); void withCode(c); }).catch(() => {});
-      // The first time: start with this computer?
-      if (!cfg.askedAutostart) {
+      // The first time: start with this computer? (The first-run guide asks it as one of its steps.)
+      if (!cfg.askedAutostart && cfg.setupDone) {
         const yes = await askYesNo('Start GLUE Home when this computer starts? It then stays ready to receive songs from your other computers.', 'GLUE Home', 'Yes, start with the computer', 'Not now');
         await setAtLogin(yes);
         await save({ askedAutostart: true });
@@ -196,6 +216,52 @@
       <p class="ver">GLUE Home {current}</p>
     </nav>
     <main bind:this={pane} onscroll={spy}>
+      {#if guiding}
+        <!-- The first run (ADR 0159): what GLUE Home needs, in order; each step says when it's done. -->
+        <section id="setup" class="setup" aria-labelledby="setup-h">
+          <div class="hello"><GlueStick size={34} /><div><h2 id="setup-h" class="big">Welcome to GLUE Home</h2>
+            <p class="fine">It keeps your library working when GLUE is closed: it plays this computer’s songs on your other devices, analyses them, and receives the songs you send here. Set it up in a minute:</p></div></div>
+          <ol class="steps">
+            <li class:done={paired} data-step="account">
+              <b>Your GLUE account</b>
+              {#if paired}<span class="ok">Connected as {cfg?.user?.email ?? cfg?.name}.</span>
+              {:else}
+                <span class="fine">Open GLUE, sign in and choose “This computer, with GLUE Home”: one click connects GLUE Home. Or type a code from GLUE (sidebar › Devices › <b>+ GLUE Home</b>). Optional: without an account, GLUE works on this computer only.</span>
+                <div class="row"><button type="button" id="setup-open-glue" onclick={() => bridge.openLibrary()}>Open GLUE</button></div>
+                <form class="code" onsubmit={e => { e.preventDefault(); void withCode(); }}>
+                  <input id="setup-code" placeholder="ABCD-EFGH" aria-label="Code from GLUE" autocomplete="off" spellcheck="false" bind:value={code} required>
+                  <button type="submit" disabled={!!busy}>Connect</button>
+                </form>
+              {/if}
+            </li>
+            <li class:done={!!cfg?.glue && (!!lib || glueNew)} data-step="glue">
+              <b>Where GLUE keeps your library</b>
+              {#if cfg?.glue && (lib || glueNew)}<span class="ok">{glueNew ? 'A new GLUE folder: set up when you open the library.' : 'Your GLUE folder.'}</span> <span class="path" id="setup-glue" title={cfg.glue}>{cfg.glue}</span>
+                <button type="button" class="link" onclick={chooseGlue}>Use another folder…</button>
+              {:else}
+                <span class="fine">A small folder of GLUE’s own (your profiles, playlists, ratings and analyses; never your music). Used GLUE on this computer before? Choose its folder.</span>
+                <div class="row">
+                  <button type="button" class="primary" id="setup-new-glue" disabled={!!busy} onclick={newGlue}>Make a GLUE folder in Documents</button>
+                  <button type="button" id="setup-choose-glue" onclick={chooseGlue}>Choose a folder…</button>
+                </div>
+              {/if}
+            </li>
+            <li class="done" data-step="incoming">
+              <b>Songs sent to this computer</b>
+              <span class="fine">They arrive in <code id="setup-incoming" title={cfg?.incoming ?? ''}>{cfg?.incoming ?? '…'}</code> and show in GLUE’s TO BE SORTED. <button type="button" class="link" onclick={chooseFolder}>Change…</button></span>
+            </li>
+            <li class:done={atLogin} data-step="start">
+              <label class="check"><input type="checkbox" id="setup-autostart" checked={atLogin} onchange={e => void setAtLogin(e.currentTarget.checked)}> <b>Start with this computer</b></label>
+              <span class="fine">So it’s ready to receive songs and play to your other devices without opening it first.</span>
+            </li>
+          </ol>
+          {#if error}<p class="err">{error}</p>{/if}
+          <div class="row end">
+            <button type="button" class="link" id="setup-later" onclick={() => void finishSetup(false)}>Hide this guide</button>
+            <button type="button" class="primary" id="setup-done" disabled={!cfg?.glue} title={cfg?.glue ? '' : 'Choose where GLUE keeps your library first'} onclick={() => void finishSetup(true)}>Open GLUE library</button>
+          </div>
+        </section>
+      {/if}
       <section id="sec-service">
         <h2>Service</h2>
         <p class="fine">While it runs, GLUE on this computer uses it for your library, and your other computers can send songs here and play this computer’s. Stopped, it does nothing, and GLUE in the browser carries on by itself.</p>
@@ -351,9 +417,12 @@
             <option value="window">GLUE Home’s window</option>
             <option value="browser">My browser</option>
           </select></label></div>
-        {#if !cfg?.glue || (cfg?.glue && !lib)}
-          <p class="fine">GLUE Home shares the library the GLUE website uses on this computer. It didn’t find it in the usual places: choose the website’s GLUE folder.</p>
-          <div class="row"><button type="button" id="choose-glue" onclick={chooseGlue}>Choose the GLUE folder…</button></div>
+        {#if cfg?.glue && glueNew}
+          <p class="fine" id="glue-new">A new GLUE folder: GLUE sets it up the first time you open the library (your profile, then your music). <span class="path" title={cfg.glue}>{cfg.glue}</span></p>
+          <div class="row"><button type="button" class="primary" onclick={() => bridge.openLibrary()}>Open GLUE library</button><button type="button" class="link" onclick={chooseGlue}>Use another folder…</button></div>
+        {:else if !cfg?.glue || (cfg?.glue && !lib)}
+          <p class="fine">GLUE Home shares the library the GLUE website uses on this computer. It didn’t find it in the usual places: choose the website’s GLUE folder, or make a new one.</p>
+          <div class="row"><button type="button" id="choose-glue" onclick={chooseGlue}>Choose the GLUE folder…</button><button type="button" id="new-glue" onclick={newGlue}>Make one in Documents</button></div>
         {:else}
           <p class="fine">Every collection of this computer’s GLUE is shared with your other computers (read only: GLUE Home never changes it). <span class="path" id="glue-folder" title={cfg.glue}>{cfg.glue}</span></p>
           <ul id="collections">
@@ -513,6 +582,18 @@
   .code { grid-template-columns: 1fr auto; align-items: end; }
   #code { font-family: var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
   .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+  /* The first-run guide (ADR 0159). */
+  .setup { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); gap: 12px; }
+  .setup .hello { display: flex; gap: 12px; align-items: center; }
+  .setup h2.big { font-size: 17px; letter-spacing: 0; text-transform: none; color: var(--ink); }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: step; }
+  .steps > li { display: grid; gap: 5px; justify-content: stretch; padding: 8px 10px 8px 38px; position: relative; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); counter-increment: step; }
+  .steps > li::before { content: counter(step); position: absolute; left: 10px; top: 9px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; background: var(--line-2); color: var(--ink); }
+  .steps > li.done::before { content: '✓'; background: color-mix(in srgb, var(--ok) 35%, var(--raised)); color: var(--ok); }
+  .steps .ok { color: var(--ok); font-size: 12.5px; }
+  .steps > li span { white-space: normal; overflow: visible; }
+  .steps code { font: 11.5px var(--font-mono); }
+  .row.end { justify-content: flex-end; gap: 14px; }
   .remind { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--line); }
   .frow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 8px 0; border-top: 1px solid var(--line); }
   .frow:first-of-type { border-top: 0; padding-top: 0; }

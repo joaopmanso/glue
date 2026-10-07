@@ -3,6 +3,7 @@
    local library; signing out changes nothing on this computer. */
 import { readPref, writePref } from './prefs';
 import { passwordKey } from '../core/password';
+import { inWindow } from './homeApp';
 
 export const API_BASE = readPref('apiBase', 'https://glue-api.joaopmanso.workers.dev');
 export const GOOGLE_CLIENT_ID = '486502590189-93o8r488c7gst4bviqvbsuflke7ujd06.apps.googleusercontent.com';
@@ -55,11 +56,30 @@ class Account {
   ready = $state(false);
   async init() {
     void this.probe();
-    if (!this.refreshToken) { this.ready = true; return; }
+    if (!this.refreshToken) { await this.fromHome(); this.ready = true; return; }
     this.phase = 'working';
     try { await this.renew(); await this.loadMe(); this.connect(); }
     catch (e) { if ((e as { status?: number }).status === 401) this.forget(); else { this.phase = 'signed-out'; this.error = 'GLUE Cloud is unreachable right now.'; } }
     finally { this.ready = true; }
+  }
+
+  /** In GLUE Home's own window (ADR 0159): signed in by GLUE Home, already connected to the account, as this computer.
+      GLUE Home puts a single-use code into its window when it opens it; it's traded once for a session here. Not after
+      signing out in the window (until a sign-in there). */
+  private async fromHome() {
+    const w = window as unknown as { __glueHomeSignIn?: string };
+    const code = inWindow() ? w.__glueHomeSignIn : undefined;
+    delete w.__glueHomeSignIn;
+    if (!code || readPref('cloud.windowOut', '') === '1') return false;
+    this.phase = 'working';
+    try {
+      const s = await this.post<Session & { user: CloudUser }>('/v1/auth/window', { code, deviceName: browserName(), platform: navigator.platform || '' });
+      this.keep(s);
+      this.user = s.user;
+      await this.loadMe();
+      this.connect();
+      return true;
+    } catch { this.phase = 'signed-out'; return false; }
   }
 
   private async probe() {
@@ -113,6 +133,7 @@ class Account {
 
   async signOut() {
     const r = this.refreshToken;
+    if (inWindow()) writePref('cloud.windowOut', '1');
     this.forget();
     this.onSignedOut?.();
     try { (window as unknown as { google?: GoogleId }).google?.accounts.id.disableAutoSelect(); } catch { /* not loaded */ }
@@ -162,6 +183,7 @@ class Account {
 
   // ---- plumbing -----------------------------------------------------------------------------------
   private keep(s: Session) {
+    writePref('cloud.windowOut', '');
     this.access = s.access; this.accessExp = Date.now() + 55 * 60e3;
     this.refreshToken = s.refresh; writePref('cloud.device', s.deviceId); this.thisDevice = s.deviceId;
   }

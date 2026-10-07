@@ -236,5 +236,6 @@ Planned (GLUE):
 | [0156](adr/0156-the-answers-to-other-devices-in-rust.md) | GLUE Home answers the account's other devices in Rust (the engine's `answer`; the cover look-up held to the website's) | accepted |
 | [0157](adr/0157-one-analysis-pipeline-inside-its-number.md) | One analysis pipeline: a folder listed once, its songs' tags then their analyses, every read inside "songs at a time" | accepted |
 | [0158](adr/0158-the-signaling-room-and-the-sessions-in-rust.md) | GLUE Home's signaling room, the sessions with other devices, songs received and which computer it is, in its Rust engine | accepted |
+| [0159](adr/0159-glue-homes-first-run-and-its-window-signed-in.md) | GLUE Home's first-run guide, a GLUE folder always offered on the start page, and its window opening on the library, signed in by GLUE Home | accepted |
 | [0103](adr/0103-glue-home-analyses-its-computers-songs.md) | GLUE Home analyses its computer's songs; the tab takes the results; Stop, Analyse now, and what GLUE Home is doing | accepted |
 | [0102](adr/0102-caches-follow-and-cloud-sync-off.md) | Caches follow a collection; turning cloud sync off keeps it here, the account's copy optionally goes in 30 days | accepted |

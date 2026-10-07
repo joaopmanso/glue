@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 # Handoff: where things stand
 
@@ -24,8 +24,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): the plan below is approved; carry it
   on batch by batch, each released when its checks pass.
 
-## State (2026-10-06)
-- **Live:** the site, GLUE Cloud (migrations up to 0011), **GLUE Home 0.57.0**.
+## State (2026-10-07)
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.58.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -42,6 +42,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **E4b step 2, the signaling room and the sessions** (`room.rs`, `sessions.rs`, `ice.rs`, `identity.rs`, ADR
     0158): done, 0.57.0 (2026-10-06, on the desktop). With it, a race fixed: an analysis finishing after its song's
     info was written into the file put the old date back.
+  - **0.58.0, between the batches (ADR 0159, the user's ask 2026-10-07):** GLUE Home's first-run guide; the start page
+    always offers a GLUE folder (GLUE Home's folder window when it answers); GLUE Home's window opens on the library,
+    signed in by GLUE Home as this computer (a single-use code, GLUE Cloud migration 0012).
   - **E5:** next (below).
 - **What's still JavaScript in GLUE Home** (`home/ui`, the hidden service page `service.ts`, about 200 lines): E5's
   backups, moves, reminders, updates, verify, tokens and config, the status to the settings window and the tray, and
@@ -56,6 +59,13 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.58.0** (ADR 0159), best on a fresh setup (another Windows user, or the laptop):
+  - GLUE Home's first run shows its guide; **Make a GLUE folder in Documents**, **Open GLUE library**: the window asks
+    for a profile, then the music, with no start page and no sign-in when GLUE Home is connected;
+  - on the desktop: closing and opening the window (tray › Open GLUE library) opens on the library, signed in; the
+    guide never shows there (set up before);
+  - in a browser, signed in, "This computer, with GLUE Home" with GLUE Home running but no GLUE folder: GLUE Home's
+    folder window opens from "Choose where to save GLUE's data".
 - **GLUE Home 0.57.0** (ADR 0158): nothing should look different. Check that GLUE Home says "Online as …" in its
   window; the phone (and the laptop) still connect to the desktop's GLUE Home, stream, show covers, and appear in
   its window's sessions with Disconnect working (refused for an hour); a song sent from the laptop arrives in TO BE
@@ -101,7 +111,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     Stop/Start handing the library over, "No file linked" in bulk, a dropped song analysed by GLUE Home).
 
 ## Next
-### E5: the rest, and the service page removed (0.58.0)
+### E5: the rest, and the service page removed (0.59.0)
 Backups (`backups.ts`, `glue_store::backup` has the zip already), moves (`moves.ts`), reminders (`reminders.ts`, its
 memory in GLUE Home's settings, notifications from Rust), updates (`updates.ts`, the updater from Rust), verify
 (`verify.ts`), tokens and config (`patchConfig` atomic in Rust), the status and events straight to the settings

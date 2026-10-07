@@ -351,6 +351,83 @@ test('another browser on the computer (Edge next to Chrome) signs in and opens G
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 
+test('GLUE Home’s window opens on the library at once, signed in by GLUE Home: no start page, no second sign-in (ADR 0159)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-window-'));
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } });
+  try {
+    mkdirSync(join(tmp, 'Music'), { recursive: true }); mkdirSync(fake.dirs.incoming, { recursive: true });
+    copyFileSync(fixture('mp3-128k.mp3'), join(tmp, 'Music', 'a.mp3'));
+    const col = 'profiles/p1/collections/c1';
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: '404', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: '404', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
+      [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
+      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1a: { id: 't1a', status: 'linked', rootId: 'r1', relPath: 'a.mp3', importPath: null, fileName: 'a.mp3', size: 65267, mtime: 1000, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: null, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] } } }),
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    await fake.start();
+    // GLUE Home on its usual address (127.0.0.1:47400), stood in by the fake.
+    await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
+      const u = new URL(r.request().url());
+      if (u.port !== '47400') return r.abort('connectionrefused');
+      u.port = String(fake.port);
+      return r.fulfill({ response: await r.fetch({ url: u.toString() }) });
+    });
+    // GLUE Cloud: the window's code traded for a session as this computer.
+    const user = { id: 'u1', email: 'dj@example.com', name: 'DJ', picture: null }, codes: unknown[] = [];
+    await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+      const p = new URL(r.request().url()).pathname, json = (b: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
+      if (p === '/v1/auth/window') { codes.push(r.request().postDataJSON().code); return json({ access: 'a', refresh: 'r', deviceId: 'b1', user }); }
+      if (p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: 'b1', user });
+      if (p === '/v1/me') return json({ user, thisDevice: 'b1', devices: [{ id: 'b1', kind: 'browser', name: 'Desktop', platform: '', createdAt: 1, lastSeen: 1, role: 'device' }, { id: fake.device, kind: 'home', name: 'Desktop', platform: '', createdAt: 1, lastSeen: 1, companionOf: 'b1' }], sessions: [] });
+      if (p === '/v1/shared') return json({ collections: [], gone: [] });
+      if (p === '/v1/profiles') return json({ profiles: [], gone: [] });
+      return json({});
+    });
+    await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+    // What GLUE Home puts into its window (window.rs): the single-use code.
+    await page.addInitScript(() => { (window as unknown as { __glueHomeSignIn: string }).__glueHomeSignIn = 'code-1'; });
+
+    // A window that never met GLUE Home before (a new install): the library, not the start page; signed in.
+    await page.goto('./?app=window');
+    await expect(page.locator('.tr')).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.locator('#homepage')).toHaveCount(0);
+    expect(codes).toEqual(['code-1']);
+    expect(await page.evaluate(() => localStorage.getItem('mco.cloud.refresh'))).toBe('r');
+    // Opened again (the code is spent by then): still signed in, from its own session.
+    await page.reload();
+    await expect(page.locator('.tr')).toHaveCount(1, { timeout: 30_000 });
+    expect(codes).toEqual(['code-1']);
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('first run with GLUE Home and no GLUE folder yet: “with GLUE Home” chooses it with GLUE Home’s own folder window, even where the page has none (ADR 0159)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-first-'));
+  const fake = new FakeHome({ glue: join(tmp, 'GLUE'), incoming: join(tmp, 'Incoming'), folders: {} });
+  fake.noGlue = true;
+  try {
+    mkdirSync(fake.dirs.incoming, { recursive: true });
+    await fake.start();
+    // GLUE Home's window has no folder window of its own (WebView2: 2026-10-07, "it never prompts me to choose a folder").
+    await page.addInitScript(p => {
+      delete (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker;
+      localStorage.setItem('mco.localHome', JSON.stringify(p));
+    }, fake.pref);
+    await page.goto('./');
+    // GLUE Home answers and nothing was chosen yet: "with GLUE Home", and its folder window.
+    await expect(page.locator('[data-mode="home"]')).toHaveAttribute('aria-checked', 'true');
+    await page.locator('#choose-home').click();
+    expect(fake.picked).toEqual(['glue']);
+    // A new GLUE folder, set up there: who's using GLUE, then the music.
+    await page.fill('#profile-name', 'DJ Nova');
+    await page.getByRole('button', { name: 'Create profile' }).click();
+    await expect(page.getByRole('heading', { name: /Add your music/ })).toBeVisible({ timeout: 20_000 });
+    expect(existsSync(join(fake.dirs.glue, 'mco.json'))).toBe(true);
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});
+
 test('with GLUE Home a DJ library imported through its dialog is followed live (ADR 0065)', async ({ page }) => {
   test.setTimeout(150_000);
   const tmp = mkdtempSync(join(tmpdir(), 'glue-home-e2e-'));

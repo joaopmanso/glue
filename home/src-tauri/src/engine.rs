@@ -43,6 +43,18 @@ fn access(api: &str, c: &Value) -> Result<String, CloudError> {
   Ok(t)
 }
 
+/// A single-use code that signs GLUE Home's own window in to the account as this computer (ADR 0159), when GLUE Home is
+/// connected to one; asked as the window opens, so at most 5 s (none: the window opens signed out, as before).
+pub fn window_code(app: &AppHandle) -> Option<String> {
+  let c = cfg(app)?;
+  let api = api_of(&c);
+  let token = access(&api, &c).ok()?;
+  let r = ureq::post(&format!("{api}/v1/auth/window-code")).timeout(std::time::Duration::from_secs(5))
+    .set("Authorization", &format!("Bearer {token}")).set("Content-Type", "application/json").send_string("{}").ok()?;
+  let v: Value = serde_json::from_str(&r.into_string().ok()?).ok()?;
+  v["code"].as_str().map(String::from)
+}
+
 impl Host for App {
   fn lease_held(&self) -> bool { crate::local::leased() }
   fn config(&self) -> Value { cfg(&self.app).unwrap_or_else(|| json!({})) }

@@ -39,7 +39,8 @@ class Anywhere {
   }
 
   private async check() {
-    if (this.tried || !account.signedIn || !this.bare()) return;
+    // GLUE Home answers on this computer: the library is its GLUE folder (chosen on the start page when it has none).
+    if (this.tried || !account.signedIn || localHome.link || !this.bare()) return;
     if (!shared.list.length) { void shared.refreshList(); return; }
     this.tried = true;
     this.opening = 'Opening your library…';

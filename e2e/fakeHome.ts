@@ -51,6 +51,10 @@ export class FakeHome {
   /** DJ library files it follows (ADR 0065): each one's folder (a read-only root) and file; the next file its dialog picks. */
   libraries: { kind: string; dir: string; file: string }[] = [];
   pickFile: string | null = null;
+  /** No GLUE folder chosen yet (a GLUE Home's first run, ADR 0159): its folder dialog chooses `dirs.glue`. */
+  noGlue = false;
+  /** What GLUE Home's folder dialog was asked for (`as`: 'glue', or a collection's music folder). */
+  picked: string[] = [];
   /** Where the dock window is on the screen (screen coordinates), for /dock/drop (ADR 0061). */
   dockRect: { x: number; y: number; w: number; h: number } | null = null;
   dockDrops: { x: number; y: number; on: boolean }[] = [];
@@ -266,7 +270,16 @@ export class FakeHome {
     }
     if (u.pathname === '/engine/notes') { const since = Number(q.get('since')) || 0; return send(200, this.notes.filter(n => n.n > since)); }
     if (u.pathname === '/lease' && method === 'POST') { this.leasedAt = q.get('release') === '1' ? 0 : Date.now(); return send(200, { edits: this.edits }); }
-    if (u.pathname === '/fs/roots') return send(200, { glue: this.dirs.glue, incoming: this.dirs.incoming, folders: this.dirs.folders, libraries: this.libraries, sep });
+    if (u.pathname === '/fs/roots') return send(200, { glue: this.noGlue ? null : this.dirs.glue, incoming: this.dirs.incoming, folders: this.dirs.folders, libraries: this.libraries, sep });
+    // Its folder dialog (local.rs /fs/pick): the GLUE folder is the test's, chosen from now on.
+    if (u.pathname === '/fs/pick' && method === 'POST') {
+      const as = q.get('as') ?? '';
+      this.picked.push(as);
+      if (as !== 'glue') return send(200, { path: null });
+      this.noGlue = false;
+      mkdirSync(this.dirs.glue, { recursive: true });
+      return send(200, { path: this.dirs.glue, name: basename(this.dirs.glue) });
+    }
     if (u.pathname === '/fs/pickfile') {
       const f = this.pickFile;
       if (!f) return send(200, { path: null });

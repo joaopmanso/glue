@@ -5,7 +5,7 @@ import { HomeSocket } from '../platform/homeSocket';
 import { account } from './account.svelte';
 import { readPref, writePref } from './prefs';
 import { setHomeLink } from '../platform';
-import { homeOs } from './homeApp';
+import { homeOs, inWindow } from './homeApp';
 
 /** `wsPort`: its socket for the background loads (GLUE Home 0.42, ADR 0139). `playPort`: its port for the songs played
     (GLUE Home 0.42.2, ADR 0141), their own 6 connections in the browser. */
@@ -99,7 +99,9 @@ class LocalHome {
   find() { this.watch(); return (this.finding ??= this.findOnce()); }
   private async findOnce() {
     const known = JSON.parse(readPref(PREF, 'null') || 'null') as { home: string; port: number; token: string } | null;
-    if (!known) return;
+    // GLUE Home's own window (ADR 0151) knows GLUE Home is here: asked at once, so it opens on the library, not on the
+    // start page waiting for a sign-in to look (2026-10-07).
+    if (!known) { if (inWindow()) await this.findHere(); return; }
     // GLUE Home hands a GLUE page its link itself (ADR 0115): the current one, even if it restarted elsewhere.
     if (await this.findHere(known.port)) return;
     // An older GLUE Home (no /connect): the link it gave this browser before, if it's still the one answering.

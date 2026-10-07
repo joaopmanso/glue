@@ -187,7 +187,12 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - **The GLUE window** (ADR 0151, 0.50, `home/src-tauri/src/window.rs`): the tray and "Open GLUE library" open the
     live site in GLUE Home's own window (`?app=window`, `inWindow()`); only the site stays in it (other links go to
     the browser, Google's sign-in is its popup, downloads go to Downloads). The settings' "Open the library in" can
-    send it to the browser.
+    send it to the browser. It finds GLUE Home at once (`/connect`) and opens on the library; GLUE Home signs it in as
+    this computer with a single-use code it puts into the window as it opens it (ADR 0159, `window_code`,
+    `__glueHomeSignIn`, traded at `/v1/auth/window`).
+  - **Its first run** (ADR 0159, 0.58): a guide at the top of its window (the account, the GLUE folder found or made in
+    Documents, the incoming folder, start with the computer), until finished or hidden (`setupDone`); a new, empty GLUE
+    folder is set up by the website the first time it opens it.
   - **GLUE Home's connections are Rust's** (ADR 0150, 0.49, `crates/glue-rtc`, `home/src-tauri/src/rtc.rs`): the peer
     connections, their channels, pings, uploads, cache files, songs sent in and every song byte sent out; what they find
     and do (candidates, states, activity, songs received) goes to the engine on one thread, in order. **The library's
@@ -305,6 +310,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   `profiles`), plus WebRTC signals; TURN relay credentials come from `/v1/turn`.
 - **Operations:** a daily cron purges deleted collections; there's an admin panel (`#/admin`).
 - **Gluey's "seen"** (`users.guide`, ADR 0126): `/v1/me` returns it, `PATCH /v1/me/guide` merges it.
+- **GLUE Home's window signed in** (ADR 0159, `window_codes`, migration 0012): a GLUE Home asks for a single-use code
+  (`/v1/auth/window-code`, two minutes); its window trades it once (`/v1/auth/window`) for a session of GLUE Home's
+  companion (made when it has none).
 - **Deploy:** `.github/workflows/cloud.yml` applies D1 migrations, then deploys.
 
 ## 8. The website's layout

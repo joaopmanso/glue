@@ -29,20 +29,35 @@
     { id: 'other', name: 'Open my library from another device', what: 'A phone or a second computer: sign in only' },
   ];
   const saved = readPref('onboard', '') as How | '';
-  let how = $state<How>(saved && MODES.some(m => m.id === saved) ? saved : homeOs() ? 'local' : 'other');
+  // In GLUE Home's window, GLUE Home is this computer's (ADR 0151).
+  let how = $state<How>(saved && MODES.some(m => m.id === saved) ? saved : inWindow() ? 'home' : homeOs() ? 'local' : 'other');
   function choose(m: How) { how = m; writePref('onboard', m); }
   function signInBelow() { document.getElementById('cloud-panel')?.scrollIntoView({ behavior: 'smooth' }); lib.notice = 'Sign in (GLUE Cloud, below), then carry on here.'; }
   let code = $state<{ code: string; expiresAt: number } | null>(null), codeError = $state('');
   async function getCode() { codeError = ''; try { code = await account.pair(); } catch (e) { codeError = (e as Error).message; } }
+  /** In GLUE Home's window (ADR 0159): the code goes straight to GLUE Home (its gluehome:// link, which the window hands
+      to it), nothing to copy. */
+  async function connectHome() { await getCode(); if (code) location.assign(homePairLink(code.code)); }
   // GLUE Home connected: the page knows its local link, so the folder window is GLUE Home's (Home mode).
   const homeHere = $derived(!!localHome.link);
+  // GLUE Home answers on this computer and nothing was chosen yet: that's how GLUE is used here.
+  $effect(() => { if (homeHere && !readPref('onboard', '')) how = 'home'; });
+  /** Looking for GLUE Home on this computer now (the "Look again" button). */
+  let looking = $state(false);
+  async function lookForHome() {
+    looking = true;
+    try { if (!await localHome.findHere()) lib.notice = 'GLUE Home didn’t answer on this computer' + (localHome.problem ? ': ' + localHome.problem : '. Is it running? (Its icon is in the taskbar’s tray.)'); }
+    finally { looking = false; }
+  }
   // What this computer is now: with its GLUE Home, synced, or local only.
   const myHome = $derived(account.devices.find(d => d.kind === 'home' && d.companionOf === account.thisDevice) ?? null);
   const mode = $derived<'home' | 'synced' | 'local'>(myHome ? 'home' : account.signedIn && how !== 'local' ? 'synced' : 'local');
 
   let profileName = $state('');
   let collectionName = $state('My collection');
-  const full = canPickFolders();
+  // Folders can be chosen: with the browser's folder window, or GLUE Home's own when it answers here (its window has no
+  // other, 2026-10-07: "with GLUE Home" never offered one).
+  const full = $derived(canPickFolders() || homeHere);
 
   // Step 1: the folder for GLUE's own data, checked before it's used.
   let checking = $state<{ dir: FileSystemDirectoryHandle; look: FolderLook } | null>(null);
@@ -206,10 +221,21 @@
             <ol class="how">
               <li>{#if inWindow()}GLUE Home is installed: this is its window.{:else}Install GLUE Home: {#each Object.entries(HOME_DOWNLOADS) as [os, d] (os)}<a class="dl" class:mine={homeOs() === os} href={d.url}>{d.label}</a>{' '}{/each}{/if}</li>
               <li>{#if account.signedIn}Signed in as {account.user?.email ?? account.user?.name}.{:else}<button type="button" class="link" id="how-sign-in" onclick={signInBelow}>Sign in to GLUE Cloud</button>.{/if}</li>
-              <li>{#if !account.signedIn}Connect GLUE Home with a code.{:else if homeHere}GLUE Home is connected.{:else if code}Enter <b class="code" id="how-code">{code.code}</b> in GLUE Home, or <a href={homePairLink(code.code)} id="how-open-home">open GLUE Home with it</a>.{:else}<button type="button" class="link" id="how-get-code" onclick={getCode}>Get a code for GLUE Home</button>{/if}</li>
+              <li>{#if !account.signedIn}Connect GLUE Home with a code.{:else if myHome && homeHere}GLUE Home is connected.{:else if inWindow() && !myHome}<button type="button" class="link" id="how-connect-home" onclick={connectHome}>Connect GLUE Home to this account</button>{:else if homeHere}GLUE Home is connected.{:else if code}Enter <b class="code" id="how-code">{code.code}</b> in GLUE Home, or <a href={homePairLink(code.code)} id="how-open-home">open GLUE Home with it</a>.{:else}<button type="button" class="link" id="how-get-code" onclick={getCode}>Get a code for GLUE Home</button>{/if}</li>
               <li>{#if homeHere}Choose where GLUE saves its data: GLUE Home shows its own folder window.{:else}Then choose where GLUE saves its data (GLUE Home's own folder window).{/if}</li>
             </ol>
-            {#if homeHere}{@render saveHere()}{/if}
+            {#if homeHere}{@render saveHere()}
+            {:else if account.signedIn}
+              <!-- Never a dead end (2026-10-07): GLUE Home looked for again, or a folder chosen here meanwhile; GLUE Home
+                   takes the library over when it answers. -->
+              <div class="card fallback" id="home-not-here">
+                <p><b>GLUE Home isn’t answering on this computer yet.</b> {myHome ? 'It’s connected to your account: make sure it’s running (its icon is in the taskbar’s tray).' : 'Connect it with the code above, then it’s found here by itself.'}</p>
+                <div class="actions">
+                  <button type="button" class="btn-ghost" id="look-for-home" disabled={looking} onclick={lookForHome}>{looking ? 'Looking…' : 'Look for GLUE Home again'}</button>
+                </div>
+                <details id="home-fallback"><summary>Or choose a folder in this browser for now</summary>{@render saveHere()}</details>
+              </div>
+            {/if}
             {#if codeError}<p class="err">{codeError}</p>{/if}
           {:else}
             <p class="fine">Browse, play and edit the library of your other devices (a phone, a second computer): nothing is set up here, and this device doesn't show among your devices.</p>
@@ -420,6 +446,8 @@
   .card.gluey { grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; }
   .card.gluey p { margin: 2px 0 0; }
   .gluey-show { display: flex; gap: 6px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+  .card.fallback { background: var(--raised, var(--surface)); }
+  .card.fallback details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   .card.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
   .card .btn, .card .btn-ghost { justify-self: start; }
   .where { font-family: var(--font-mono); font-size: 13px; color: var(--ink); }

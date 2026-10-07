@@ -5,6 +5,25 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-07 · GLUE Home 0.58.0: its first run, a GLUE folder always offered, its window signed in (ADR 0159)
+- **The user:** choosing "This computer, with GLUE Home" on a first sign-in never offered a folder for GLUE's data, so
+  the library never opened; GLUE Home needs a first-run guide; its window showed the start page and asked for a sign-in
+  although GLUE Home is connected ([ADR 0159](../adr/0159-glue-homes-first-run-and-its-window-signed-in.md)).
+- **The start page:** the folder step uses GLUE Home's own folder window whenever GLUE Home answers (the page in GLUE
+  Home's window has no other, so nothing was offered), "with GLUE Home" is preselected when it answers, and without its
+  link there's **Look for GLUE Home again** and a folder in this browser for now. Never a dead end.
+- **GLUE Home's window** finds GLUE Home at once and opens on the library, signed in by GLUE Home as this computer: a
+  single-use code GLUE Home asks GLUE Cloud for as it opens the window, traded once by the page (GLUE Cloud migration
+  0012, `/v1/auth/window-code`, `/v1/auth/window`). Signed out there on purpose, it stays signed out. Signed in with
+  GLUE Home not connected, one click connects it.
+- **GLUE Home's first run:** a guide at the top of its window: the account, the GLUE folder (found, or **Make a GLUE
+  folder in Documents**), the incoming folder, start with the computer, then **Open GLUE library**. A new, empty GLUE
+  folder is fine (GLUE sets it up); a folder with other things in it isn't taken as one. Never shown to a GLUE Home set
+  up before.
+- Tests: `tests/cloud.test.ts` (the window's code), `e2e/homemode.spec.ts` (the window on the library, signed in; a
+  first run with no GLUE folder and no browser folder window: both fail on the code before), `e2e/home.spec.ts` (the
+  guide), GLUE Home's Rust tests (the new GLUE folder never takes someone else's; the sign-in script).
+
 ## 2026-10-06 · GLUE Home 0.57.0: the signaling room and the sessions in Rust (ADR 0158)
 - **The plan's E4b, step 2** ([ADR 0158](../adr/0158-the-signaling-room-and-the-sessions-in-rust.md)): GLUE Home's
   engine is in the account's signaling room itself (`room.rs`: the socket over TLS, ping, a new token at 50 minutes,

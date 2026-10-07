@@ -1,7 +1,7 @@
 ---
 title: GLUE Home
 summary: The app for your computer: analysis with the browser closed, songs on your other devices, the drag dock.
-keywords: glue home, app, window, desktop, open library, browser, tray, playing, slow to start, hard disk, sleep, session, connected, devices connected, most at once, disconnect, engine, background, stream, drag dock, incoming, stop, start, restart, download, windows, mac
+keywords: glue home, app, window, desktop, open library, browser, tray, first run, setup, guide, glue folder, sign in, playing, slow to start, hard disk, sleep, session, connected, devices connected, most at once, disconnect, engine, background, stream, drag dock, incoming, stop, start, restart, download, windows, mac
 tour: glue-home
 order: 12
 ---
@@ -14,12 +14,25 @@ GLUE Home is a small app for Windows and macOS (it sits by the clock). It's opti
 - **Song info into files,** and duplicates moved aside or recycled.
 
 ## Getting it
-Download it from GLUE (Devices › + GLUE Home), install, and connect it with the code GLUE shows. It updates itself.
+Download it from GLUE (Devices › + GLUE Home) and install it. It updates itself.
+
+The first time it opens, its window shows a short guide:
+- **Your GLUE account:** open GLUE, sign in and choose "This computer, with GLUE Home": one click connects GLUE Home.
+  Or type the code GLUE shows (Devices › + GLUE Home). Optional: without an account GLUE works on this computer only.
+- **Where GLUE keeps your library:** the folder GLUE already uses on this computer, found by itself; or **Make a GLUE
+  folder in Documents** for a new library (GLUE sets it up the first time it opens it: your profile, then your music).
+- **Songs sent to this computer:** the incoming folder, which you can change.
+- **Start with this computer,** so it's ready without opening it first.
+
+Then **Open GLUE library**. GLUE without a folder for its data asks for one on its first screen: with GLUE Home, that's
+GLUE Home's own folder window.
 
 ## GLUE in its own window
 A click on GLUE Home's icon (or **Open GLUE library**) opens GLUE in GLUE Home's own window: the same GLUE as on the
 website, without the browser around it. Songs and folders dropped on it are added as in a browser, exports go to your
-Downloads folder, and links to other sites open in your browser. The window keeps its own sign-in: sign in once.
+Downloads folder, and links to other sites open in your browser. It opens straight on your library, and when GLUE Home
+is connected to your account the window is signed in by GLUE Home, as this computer: no second sign-in. (Signed out
+there on purpose, it stays signed out.)
 Closing it leaves GLUE Home running by the clock. To open GLUE in your browser instead: GLUE Home's settings ›
 This computer's library › **Open the library in** › My browser.
 

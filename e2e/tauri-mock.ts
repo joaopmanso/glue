@@ -144,6 +144,9 @@ export const TAURI_MOCK = `(() => {
         case 'plugin:process|restart': window.__restarted = true; return;
         // This computer's GLUE folder and music files (window.__glue: path → text, window.__disk: path → bytes).
         case 'find_glue_folder': return window.__glueFolder ?? null;
+        // The first-run guide's GLUE folder (ADR 0159): a new one made in Documents; what a chosen folder is.
+        case 'new_glue_folder': log.push('new_glue_folder'); return window.__newGlue ?? 'C:\\\\Users\\\\dj\\\\Documents\\\\GLUE';
+        case 'folder_state': return (window.__folderState ?? {})[args.path] ?? { glue: true, empty: false };
         // GLUE Home's own cache (in memory) and the incoming folder (the songs received, above).
         // GLUE Home's cache: what the page put (in memory), then what the engine wrote (the FakeHome's folder).
         case 'cache_read': {
