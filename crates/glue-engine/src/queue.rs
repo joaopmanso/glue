@@ -245,6 +245,7 @@ impl<H: Host> Engine<H> {
   fn told(&self) {
     let s = { let mut q = self.q(); q.state.waiting = q.pending.values().map(|s| s.len()).sum(); q.state.to_json() };
     self.host.analysis_changed(&s);
+    self.report_soon();
   }
   pub fn analysis_json(&self) -> Value { self.q().state.to_json() }
   /// The background's songs (answers.rs), queued last: those not queued already. How many.
@@ -305,7 +306,7 @@ impl<H: Host> Engine<H> {
       q.queue.retain(|j| !same(j));
       q.state.left = q.urgent.len() + q.queue.len();
     }
-    self.host.event(&format!("Analysing {} song{} now, as asked", ids.len(), if ids.len() == 1 { "" } else { "s" }));
+    self.event(&format!("Analysing {} song{} now, as asked", ids.len(), if ids.len() == 1 { "" } else { "s" }));
     self.told();
     self.run_analysis();
   }
@@ -378,7 +379,7 @@ impl<H: Host> Engine<H> {
   /// Paused or not, as the settings say (`analysisPaused`); `quiet`: GLUE Home starting.
   pub fn set_paused(self: &std::sync::Arc<Self>, paused: bool, quiet: bool) {
     { let mut q = self.q(); if q.state.paused == paused { return; } q.state.paused = paused; }
-    if !quiet { self.host.event(if paused { "Analysis paused" } else { "Analysis resumed" }); }
+    if !quiet { self.event(if paused { "Analysis paused" } else { "Analysis resumed" }); }
     self.told();
     if !paused && !quiet { self.run_analysis(); }
   }
@@ -523,12 +524,12 @@ impl<H: Host> Engine<H> {
         q.queue.extend(found.into_iter().filter(|j| !have.contains(&j.key())));
       }
       let left = { let mut q = self.q(); q.state.left = q.urgent.len() + q.queue.len(); q.state.left };
-      if left > 0 { self.host.event(&format!("Analysing {left} song{}", if left == 1 { "" } else { "s" })); }
+      if left > 0 { self.event(&format!("Analysing {left} song{}", if left == 1 { "" } else { "s" })); }
       self.workers();
       let c1 = self.host.config();
       let _ = self.write_results(&c1);
       let (done, failed, left) = { let q = self.q(); (q.state.done - done0, q.state.failed - failed0, q.state.left) };
-      if left == 0 && (done > 0 || failed > 0) { self.host.event(&format!("Analysis done: {done} song{}{}", if done == 1 { "" } else { "s" }, if failed > 0 { format!(", {failed} couldn’t be read") } else { String::new() })); }
+      if left == 0 && (done > 0 || failed > 0) { self.event(&format!("Analysis done: {done} song{}{}", if done == 1 { "" } else { "s" }, if failed > 0 { format!(", {failed} couldn’t be read") } else { String::new() })); }
     }
     {
       let mut q = self.q();
@@ -671,7 +672,7 @@ impl<H: Host> Engine<H> {
         match self.flush(&mut st, &p, &c) { Ok(x) => x, Err(_) => continue }
       };
       self.changed(&p, &c, &paths, &[]);
-      self.host.edited(&p, &c, &paths);
+      self.edited(&p, &c, &paths);
     }
   }
 
@@ -725,12 +726,12 @@ impl<H: Host> Engine<H> {
       if !ops.is_empty() { let mut st = s.lock().unwrap(); for op in &ops { st.apply(op); } paths = self.flush(&mut st, &p, &c)?; }
       // A GLUE tab takes their mini spectrograms and details from the cache.
       self.changed(&p, &c, &[], &done);
-      if here > 0 { self.host.edited(&p, &c, &paths); }
+      if here > 0 { self.edited(&p, &c, &paths); }
       n += here;
       if let Some(s) = self.q().pending.get_mut(&(p.clone(), c.clone())) { for id in &done { s.shift_remove(id); } }
     }
     self.told(); self.save_pending();
-    if n > 0 { self.host.event(&format!("Put {n} analys{} into the library", if n == 1 { "is" } else { "es" })); }
+    if n > 0 { self.event(&format!("Put {n} analys{} into the library", if n == 1 { "is" } else { "es" })); }
     Ok(n)
   }
 

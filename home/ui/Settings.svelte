@@ -161,7 +161,7 @@
       if (cfg.setupDone === undefined && cfg.deviceId && cfg.token && cfg.glue) await save({ setupDone: true });
       await scan().catch(() => {});
       await bridge.onStatus(s => (status = s));
-      await bridge.askStatus();
+      status = await bridge.askStatus().catch(() => status);
       atLogin = await (await autostart()).isEnabled().catch(() => false);
       current = await version().catch(() => '');
       // gluehome://pair?code=… from the website's "Open GLUE Home".
@@ -177,7 +177,7 @@
   // What GLUE Home was asked since it started (ADR 0083): its own side (the local link, file reads) and
   // what other devices asked its service page. To see what keeps it busy.
   let own = $state<{ seconds: number; counts: Record<string, Activity> } | null>(null);
-  async function loadActivity() { await bridge.askStatus(); own = await bridge.activity().catch(() => null); }
+  async function loadActivity() { status = await bridge.askStatus().catch(() => status); own = await bridge.activity().catch(() => null); }
   const activity = $derived.by(() => {
     const rows: { what: string; calls: number; ms: number; bytes: number }[] = [];
     for (const [k, a] of Object.entries(own?.counts ?? {})) rows.push({ what: k.startsWith('local ') ? 'This computer’s GLUE website: ' + k.slice(6) : k.startsWith('bridge ') ? 'Reading files: ' + k.slice(7) : k, ...a });
@@ -203,7 +203,7 @@
 <div class="app">
   <header>
     <GlueStick size={30} />
-    <div class="ttl"><h1>GLUE Home</h1><p>{status?.text ?? 'Starting…'}</p></div>
+    <div class="ttl"><h1>GLUE Home</h1><p id="state">{status?.text ?? 'Starting…'}</p></div>
     <span class="pill" id="state-pill" data-state={status?.state ?? 'connecting'}>{pill}</span>
     <button type="button" class="primary" id="open-library" onclick={() => bridge.openLibrary()}>Open GLUE library</button>
   </header>

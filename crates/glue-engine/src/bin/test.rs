@@ -1,14 +1,14 @@
 //! The engine for the e2e tests (e2e/fakeHome.ts starts it): `glue-engine-test <GLUE folder> <cache folder>`, driven
 //! by JSON lines on stdin, answering on stdout:
 //!   in:  {"ask": n, "rpc": {...}}           a GLUE tab's request (Engine::rpc)
-//!        {"ask": n, "cmd": "...", ...}      what GLUE Home's service page asks of it (home/src-tauri/src/engine.rs's commands)
+//!        {"ask": n, "cmd": "...", ...}      what GLUE Home's settings window asks of it (home/src-tauri/src/engine.rs's commands)
 //!        {"set": {"config": {...}}}         GLUE Home's settings (the Tauri stand-in's, e2e/tauri-mock.ts)
 //!        {"set": {"lease": bool, "running": bool, "folders": {id: path}, "incoming": path, "known": {...}}}
 //!                                           what e2e/fakeHome.ts stands for: the lease, Stop, the music folders its
 //!                                           disk knows, its incoming folder, this computer's usual folders
 //!   out: {"ask": n, "ok": ...} | {"ask": n, "err": "..."}
 //!        {"note": "event"|"edited"|"changed"|"analysis"|"config"|"search", ...}   what GLUE Home would tell its
-//!                                           service page (`config`: a change to the settings; `search`: a drive search)
+//!                                           window (`config`: a change to the settings; `search`: a drive search)
 //!        {"note": "tags", "path": relPath, "tags": {...}}     song info written into a file (the file is only touched,
 //!                                                            its date 5 s on, as e2e/fakeHome.ts's /fs/tags does)
 //!        {"call": n, "cloud": {"method", "path", "type", "body"}}  a call to GLUE Cloud (the test's stands in), answered
@@ -16,7 +16,10 @@
 //!   out: {"call": n, "web": url}            a cover service asked (ADR 0086; the test's stand in), answered
 //!   in:  {"reply": n, "status": 200, "body": "<base64>"}
 //!        {"note": "background", "progress": {...}}           the background thumbnails' progress (ADR 0156)
-//! The account's signaling room and the connections (room.rs, ADR 0158), stood in for by the test's service page, which
+//!        {"note": "status", "status": {...}}  GLUE Home's status (service.rs, ADR 0160: its window and tray show it)
+//!        {"note": "notify", "title", "body"}  a desktop notification (shown)
+//! GLUE Home's service starts with the first settings (as GLUE Home does at start); later settings are handed to it.
+//! The account's signaling room and the connections (room.rs, ADR 0158), stood in for by the test's GLUE Home window, which
 //! opens the room's WebSocket (the test's `routeWebSocket` stands in for GLUE Cloud's) and makes the connections with the
 //! browser's own (e2e/home-rtc.ts, as crates/glue-rtc does in GLUE Home):
 //!   out: {"note": "ws", "open": k, "url"} | {"note": "ws", "send": k, "text"} | {"note": "ws", "close": k, "code"}
@@ -154,6 +157,13 @@ impl Host for H {
   }
   fn peers(&self) -> Option<Arc<dyn Peers>> { Some(Arc::new(PagePeers { out: self.out.clone(), replies: self.replies.clone() })) }
   fn room_changed(&self, room: &Value) { self.say(json!({ "note": "room", "room": room })) }
+  fn status_changed(&self, status: &Value) { self.say(json!({ "note": "status", "status": status })) }
+  /// The local link's tokens, made at start when the settings have none (as GLUE Home does, ADR 0160): not secret here.
+  fn new_token(&self) -> Option<String> {
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    Some(format!("e2e-{}-{}", std::process::id(), N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)))
+  }
+  fn notify(&self, title: &str, body: &str) -> bool { self.say(json!({ "note": "notify", "title": title, "body": body })); true }
   fn reachable(&self, root_id: &str) -> bool {
     match self.folder(root_id) { None => true, Some(p) => std::fs::read_dir(p).map(|mut d| d.next().is_some()).unwrap_or(false) }
   }
@@ -190,6 +200,9 @@ fn main() {
         "rtc-ice" => engine.peer_ice(&t("id"), v["candidate"].clone()),
         "rtc-state" => engine.peer_state(&t("id"), &t("state")),
         "rtc-activity" => engine.peer_activity(&t("id"), v["calls"].as_u64().unwrap_or(0), v["last"].as_f64().unwrap_or(0.0) as i64),
+        // A song arriving, and what the connections answered themselves: GLUE Home's status (service.rs).
+        "rtc-receiving" => engine.receiving(v.clone()),
+        "rtc-served" => engine.served(v["what"].as_str().unwrap_or("?"), v["ms"].as_f64().unwrap_or(0.0), v["bytes"].as_u64().unwrap_or(0)),
         // Written into the incoming folder on the test's disk (e2e/tauri-mock.ts), under its name.
         "rtc-received" => { let name = t("name"); let path = st.lock().unwrap().incoming.clone().unwrap_or_default().join(&name); engine.received(&name, &path.to_string_lossy(), v["size"].as_u64().unwrap_or(0)); }
         _ => {}
@@ -197,6 +210,7 @@ fn main() {
       continue;
     }
     if let Some(s) = m.get("set") {
+      let before = engine.host.config();
       let first = {
         let mut g = st.lock().unwrap();
         if let Some(l) = s["lease"].as_bool() { g.lease = l; }
@@ -207,8 +221,9 @@ fn main() {
         if let Some(k) = s.get("known").filter(|k| k.is_object()) { g.known = Some(Known::from_json(k)); }
         match s.get("config").filter(|c| c.is_object()) { Some(c) => g.config.replace(c.clone()).is_none(), None => false }
       };
-      // GLUE Home started: the analysis as its settings say.
-      if first { engine.start_analysis(std::time::Duration::from_secs(1), std::time::Duration::from_secs(10)); }
+      // GLUE Home started: the analysis as its settings say, and its service; new settings after that, to the service.
+      if first { engine.start_analysis(std::time::Duration::from_secs(1), std::time::Duration::from_secs(10)); engine.service_start(); }
+      else if s.get("config").is_some_and(|c| c.is_object()) || s.get("running").is_some() { let after = engine.host.config(); if before != after { engine.config_changed(&before, &after); } }
       continue;
     }
     let (engine, out, ask) = (engine.clone(), out.clone(), m["ask"].clone());

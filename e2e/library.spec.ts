@@ -1908,7 +1908,7 @@ test('send songs to a GLUE Home: from its menu and from the selection, peer to p
     w.__disk = {};
     localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Studio PC', user: { email: 'dj@example.com', name: 'DJ' }, incoming: 'C:\\In', running: true, askedAutostart: true, glue: 'C:\\GLUE', folders: { rm: music } }));
   }, { glue: studioGlue, music: studioHome.music });
-  await home.goto('http://localhost:5176/service.html');
+  await home.goto('http://localhost:5176/__e2e/home.html');
   await expect(home.locator('#state')).toContainText('Online as Studio PC');
 
   // The laptop: a library with music, signed in; Studio PC is online in Devices.
@@ -2057,7 +2057,7 @@ test('the website hands its mini spectrograms and analyses to this computer’s 
   const disk = await homeDisk({});
   await disk.wire(home, { link: false });
   await home.addInitScript(() => localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true })));
-  await home.goto('http://localhost:5176/service.html');
+  await home.goto('http://localhost:5176/__e2e/home.html');
   await expect(home.locator('#state')).toContainText('Online as Desktop');
 
   await seed(page);
@@ -2114,7 +2114,7 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   const disk = await homeDisk({});
   await disk.wire(home, { link: false });
   await home.addInitScript(() => { if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true })); });
-  await home.goto('http://localhost:5176/service.html');
+  await home.goto('http://localhost:5176/__e2e/home.html');
   await expect(home.locator('#state')).toContainText('Online as Desktop');
   // GLUE Home's local server (its Rust side, stood in by the test): hello, the incoming folder with
   // each song's analysis, its files, its cache; only with the token it gave (except hello).
@@ -2134,12 +2134,17 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
       const start = m ? Number(m[1]) : 0, end = m && m[2] ? Math.min(Number(m[2]), all.length - 1) : all.length - 1;
       return r.fulfill({ status: m ? 206 : 200, contentType: 'audio/flac', headers: { ...cors, 'Accept-Ranges': 'bytes', ...(m ? { 'Content-Range': 'bytes ' + start + '-' + end + '/' + all.length } : {}) }, body: all.subarray(start, end + 1) });
     }
-    const w = await home.evaluate(() => { const x = window as unknown as { __files: { name: string; chunks: number[][]; done: boolean; moved?: string }[] }; return { files: x.__files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, bytes: f.chunks.flat() })) }; });
+    // The songs received (names and sizes; a song's bytes only when it's played: copying them out of the page for every
+    // list took seconds).
+    type Got = { __files: { name: string; chunks: number[][]; done: boolean; moved?: string }[] };
+    const w = await home.evaluate(() => ({ files: (window as unknown as Got).__files.filter(f => f.done && !f.moved).map(f => ({ name: f.name, size: f.chunks.reduce((a, c) => a + c.length, 0) })) }));
     const dec = (b: number[] | null) => b ? JSON.parse(Buffer.from(b).toString()) : null;
     const summaries = await Promise.all(w.files.map(f => cached('i/' + f.name + '.summary.json')));
-    if (u.pathname === '/incoming') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify(w.files.map((f, i) => ({ name: f.name, size: f.bytes.length, mtime: 1, path: 'C:\\In\\' + f.name, summary: dec(summaries[i]) }))) });
+    if (u.pathname === '/incoming') return r.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify(w.files.map((f, i) => ({ name: f.name, size: f.size, mtime: 1, path: 'C:\\In\\' + f.name, summary: dec(summaries[i]) }))) });
     if (u.pathname === '/incoming/file') {
-      const f = w.files.find(x => x.name === u.searchParams.get('name'));
+      const name = u.searchParams.get('name') ?? '';
+      const bytes = w.files.some(x => x.name === name) ? await home.evaluate(n => (window as unknown as Got).__files.find(f => f.name === n && f.done)?.chunks.flat() ?? null, name) : null;
+      const f = bytes ? { name, bytes } : undefined;
       if (f) served.set(f.name, served.get(f.name) ?? f.bytes);   // read once: the player asks for several ranges
       if (!f) return r.fulfill({ status: 404, headers: cors, body: '{}' });
       // Byte ranges, as the real one serves them (songs stream from it: ADR 0076).

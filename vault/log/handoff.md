@@ -21,11 +21,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - don't restart or touch the running GLUE Home;
   - deleting cloud data needs the user's go-ahead;
   - the old `sync_*` D1 tables stay.
-- **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): the plan below is approved; carry it
-  on batch by batch, each released when its checks pass.
+- **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
+  batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-07)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.58.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.59.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -45,12 +45,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **0.58.0, between the batches (ADR 0159, the user's ask 2026-10-07):** GLUE Home's first-run guide; the start page
     always offers a GLUE folder (GLUE Home's folder window when it answers); GLUE Home's window opens on the library,
     signed in by GLUE Home as this computer (a single-use code, GLUE Cloud migration 0012).
-  - **E5:** next (below).
-- **What's still JavaScript in GLUE Home** (`home/ui`, the hidden service page `service.ts`, about 200 lines): E5's
-  backups, moves, reminders, updates, verify, tokens and config, the status to the settings window and the tray, and
-  the timers that start the engine's work (the shared sync every minute, the music folders looked for, the background
-  thumbnails, the room started and stopped). The engine is reached through one Tauri command, `engine_cmd`
-  (`home/ui/engine.ts` wraps it), and speaks through `engine-*` events.
+  - **E5, GLUE Home's service in its engine** (`service.rs`, `reminders.rs`, `verify.rs`, ADR 0160): done, 0.59.0
+    (2026-10-07). The hidden service page is gone. **The plan is done.**
+- **GLUE Home is Rust** plus two pages (`home/ui`): the settings window (`Settings.svelte`: it asks the engine through
+  `engine_cmd` and hears its `status`) and the drag dock. One engine for its whole run (`home/src-tauri/src/engine.rs`).
 - **User's account:** one collection `bf9246de…` (13k songs), profile "404" (`b2df29dc692b488f`). Desktop computer
   `mmJiL_dh0fD6oQEo`, laptop `x6sky9M9_5GxUe0G`, desktop GLUE Home `F59kNS0nd11yw6ly`.
 - **graphify** (ADRs 0127–0129): the code map; CI publishes it for every push (branch `graphify`), its view at
@@ -59,6 +57,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.59.0** (ADR 0160): nothing should look different. Its window's status, Activity, the devices connected,
+  Start / Stop / Restart (window and tray), "Check now" for reminders (a reminder sent today may come once more: its
+  memory moved into GLUE Home's settings), the native engine check, the analysis while no GLUE tab is open, a change
+  synced in from the laptop with no tab open, and the day's backup (`backups/auto` in the GLUE folder). Task Manager:
+  GLUE Home's WebView processes should be one fewer.
 - **GLUE Home 0.58.0** (ADR 0159), best on a fresh setup (another Windows user, or the laptop):
   - GLUE Home's first run shows its guide; **Make a GLUE folder in Documents**, **Open GLUE library**: the window asks
     for a profile, then the music, with no start page and no sign-in when GLUE Home is connected;
@@ -111,18 +114,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     Stop/Start handing the library over, "No file linked" in bulk, a dropped song analysed by GLUE Home).
 
 ## Next
-### E5: the rest, and the service page removed (0.59.0)
-Backups (`backups.ts`, `glue_store::backup` has the zip already), moves (`moves.ts`), reminders (`reminders.ts`, its
-memory in GLUE Home's settings, notifications from Rust), updates (`updates.ts`, the updater from Rust), verify
-(`verify.ts`), tokens and config (`patchConfig` atomic in Rust), the status and events straight to the settings
-window, and the timers that start the engine's work (`service.ts`: the shared sync every minute and after an edit, the
-music folders looked for when the settings change, the background thumbnails, the room started on boot and when the
-account or Stop changes, `learnComputer` hourly, `analyseWaiting` on boot). Then remove the `service` window and its
-modules; `tests/homeBundle.test.ts` checks `home/ui` reaches none of
-`src/store`, `src/core/shared`, `src/core/ice`; CI checks `home/dist` has no `service.html`. Note the memory GLUE Home
-uses with and without the service WebView in the changelog.
+### After the plan
+The plan (W1, E1–E5) is done. What's next is the user's to choose; the list under "Other work" below is what's open.
 
-### Working notes for these batches
+### Working notes (GLUE Home in Rust)
 - **How a batch is held to the website:** recorded goldens, replayed in Rust byte for byte:
   - the store: `GOLDEN=1 npx vitest run tests/store.golden.test.ts`, replayed by `crates/glue-store/tests/golden.rs`;
   - the sync: `GOLDEN=1 npx vitest run tests/sync.golden.test.ts`, replayed by `crates/glue-engine/tests/sync_golden.rs`.
@@ -131,8 +126,8 @@ uses with and without the service WebView in the changelog.
 - **The e2e tests run the real engine:** `glue-engine-test` (`crates/glue-engine/src/bin/test.rs`), built by
   Playwright's global setup (`e2e/engine-build.ts`), run by `e2e/fakeHome.ts`. Its protocol is in the binary's header
   comment: `{ask, rpc|cmd}` → `{ask, ok|err}`; `{set: {config | lease | folders | known…}}`; notes (`event`,
-  `analysis`, `config`, `search`, `tags`, `room`…); and calls back to the test (`{call, cloud|web|page}` →
-  `{reply}`). The room and the connections are the test's service page's (ADR 0158): notes `ws` and `peer`, calls
+  `analysis`, `config`, `search`, `tags`, `room`, `status`, `notify`…); and calls back to the test (`{call, cloud|web|page}` →
+  `{reply}`). The room and the connections are the test's GLUE Home page's (`__e2e/home.html`, ADR 0158, 0160): notes `ws` and `peer`, calls
   `page`, and GLUE Cloud calls `fake.cloud` returns `null` for, answered by the page over the FakeHome's `/engine`
   (`{reply}`, `{ws}`, `{rtc}`), so a test's `routeWebSocket` and routes on GLUE Home's page stand in for GLUE Cloud. It
   analyses real files: a test's GLUE Home songs and GLUE folder go on disk (`e2e/homeDisk.ts`). `new FakeHome(dirs,
@@ -151,6 +146,9 @@ uses with and without the service WebView in the changelog.
   with the Write tool, or use the Edit tool for such lines.
 
 ### Other work
+- **Edge 154.0.4258.62 (updated 2026-10-07):** `e2e/shared.spec.ts` "cloud sync…" fails locally in Edge since (the desktop's
+  song loses its play button after the laptop's rating) and passes in Chrome (`PW_CHANNEL=chrome`); the website and the
+  test were unchanged. Find what Edge does differently there. ("The account's collections" is the older flaky one below.)
 - **The nightly e2e run fails since 2026-10-03:** `stems.spec.ts` (stem separation) runs out of its 14 minutes on CI's
   machine (and `library.spec.ts` "No file linked" failed once on 2026-10-04). Not from the engine work; look at the
   stems test's time on CI (`STEMS=1`).

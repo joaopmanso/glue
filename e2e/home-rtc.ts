@@ -112,21 +112,22 @@ export function rtc(home: MockHome) {
     dc.binaryType = 'arraybuffer';
     const ready = () => text(dc, { t: 'ready', name: hello.name });
     if (dc.readyState === 'open') ready(); else dc.addEventListener('open', ready, { once: true });
-    let cur: { n: number; id: number; name: string; size: number; got: number; error: string } | null = null;
+    let cur: { n: number; id: number; name: string; size: number; got: number; told: number; error: string } | null = null;
     dc.onmessage = e => {
       if (typeof e.data !== 'string') {
         if (!cur || cur.error) return;
         cur.got += (e.data as ArrayBuffer).byteLength;
         if (cur.got > cur.size) { cur.error = 'more bytes than announced'; return; }
         home.incomingWrite(cur.id, new Uint8Array(e.data as ArrayBuffer));
-        home.emit('rtc-receiving', { name: cur.name, got: cur.got, size: cur.size });
+        // Every MB, as crates/glue-rtc says it.
+        if (cur.got - cur.told >= 1 << 20) { cur.told = cur.got; home.emit('rtc-receiving', { name: cur.name, got: cur.got, size: cur.size }); }
         return;
       }
       const m = JSON.parse(e.data) as { t: string; n: number; name?: string; size?: number };
       if (m.t === 'file') {
         if ((m.size ?? 0) > MAX_FILE) { text(dc, { t: 'failed', n: m.n, error: 'too large' }); return; }
         const [id, name] = home.incomingBegin(m.name ?? 'song');
-        cur = { n: m.n, id, name, size: m.size ?? 0, got: 0, error: '' };
+        cur = { n: m.n, id, name, size: m.size ?? 0, got: 0, told: 0, error: '' };
         home.emit('rtc-receiving', { name, got: 0, size: cur.size });
       } else if (m.t === 'end' && cur && cur.n === m.n) {
         const f = cur; cur = null;

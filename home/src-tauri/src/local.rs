@@ -15,8 +15,7 @@ pub static PORT: AtomicU16 = AtomicU16::new(0);
 /// connections to one address, and the page's other requests to GLUE Home share them: a song clicked mustn't wait
 /// for one (the first song after opening GLUE took 34 s, 2026-10-02). 0 until it listens.
 pub static PLAY_PORT: AtomicU16 = AtomicU16::new(0);
-// GLUE Home's own service page too (it applies edits through the same file API when no GLUE tab is
-// open, ADR 0087): Tauri's origin on Windows and on macOS, and the test server's.
+// GLUE Home's own windows too: Tauri's origin on Windows and on macOS, and the test server's.
 const ORIGINS: [&str; 7] = ["https://joaopmanso.github.io", "http://localhost:5174", "http://localhost:5175", "http://localhost:5173", "http://tauri.localhost", "tauri://localhost", "http://localhost:5176"];
 
 /// Stopped (Stop in the tray or the settings, `running: false`), the local link answers only GLUE Home's own
@@ -59,7 +58,6 @@ impl<R: Read> Read for Paced<R> {
         self.inner.read(buf)
     }
 }
-/// Requests to the library engine in the service page (ADR 0104): each waits here for its answer.
 /// The routes that change files: not for a read-only token (ADR 0104).
 const WRITES: [&str; 6] = ["/fs/write", "/fs/mkdir", "/fs/remove", "/fs/tags", "/fs/dupes", "/incoming/move"];
 
@@ -190,7 +188,7 @@ fn answer(app: AppHandle, req: Request) {
         return reply(req, 200, body.to_string().into_bytes(), "application/json");
     }
     // Everything else: the token GLUE Home gave the website (a header, or ?t= for <audio src>). The full one
-    // (GLUE Home's own service page, and websites until they use the engine), or the read-only one: a GLUE
+    // (GLUE Home's own windows, and websites until they use the engine), or the read-only one: a GLUE
     // tab while GLUE Home is the library's engine (ADR 0104) reads, and asks the engine for every change.
     let token = req.headers().iter().find(|h| h.field.equiv("x-glue-token")).map(|h| h.value.as_str().to_string()).unwrap_or_else(|| arg("t"));
     let want = s("localToken");

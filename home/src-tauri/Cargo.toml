@@ -1,6 +1,6 @@
 [package]
 name = "glue-home"
-version = "0.58.0"
+version = "0.59.0"
 description = "GLUE Home: your main computer, reachable from the GLUE website"
 authors = ["joaopmanso"]
 edition = "2021"
@@ -19,6 +19,8 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-drag = "2"
 tauri-plugin-notification = "2"
+# The local link's tokens (ADR 0160: made in Rust since the service page is gone).
+getrandom = "0.3"
 serde_json = "1"
 tiny_http = "0.12"
 trash = "5"

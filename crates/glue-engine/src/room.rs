@@ -86,7 +86,7 @@ impl<H: Host> Engine<H> {
     json!({ "state": st.state, "text": st.text, "sessions": { "list": st.sessions.values().map(|s| json!({ "key": s.key, "name": s.name, "since": s.since, "last": s.last, "calls": s.calls, "open": s.open })).collect::<Vec<_>>(), "max": max } })
   }
   /// The window is told what changed.
-  pub(crate) fn room_told(&self) { self.host.room_changed(&self.room_json()); }
+  pub(crate) fn room_told(&self) { self.room_says(); let j = self.room_json(); self.host.room_changed(&j); self.room_report(&j); }
   fn room_set(&self, state: &str, text: &str) {
     { let mut st = self.room.st.lock().unwrap(); st.state = state.into(); st.text = text.into(); }
     self.room_told();
@@ -113,6 +113,8 @@ impl<H: Host> Engine<H> {
     let ids: Vec<String> = { let mut st = self.room.st.lock().unwrap(); st.sessions.clear(); st.early.clear(); st.states.clear(); st.conns.drain().map(|x| x.0).collect() };
     if let Some(p) = self.host.peers() { for id in ids { p.close(&id); } }
   }
+  /// The room's state, said only by the loop of the latest start.
+  fn room_say(&self, gen: u64, state: &str, text: &str) { if self.live(gen) { self.room_set(state, text); } }
   fn live(&self, gen: u64) -> bool { self.room.gen.load(Ordering::SeqCst) == gen }
   /// A message to a device, on the room.
   fn room_send(&self, to: &str, data: Value) {
@@ -140,7 +142,7 @@ impl<H: Host> Engine<H> {
       if !wait.is_zero() { std::thread::sleep(wait); continue; }
       *me.room.sync_soon.lock().unwrap() = None;
       if me.host.running() {
-        match me.sync_shared_here() { Ok(n) if n > 0 => me.host.event(&format!("Took in {n} change{} from your other devices", if n == 1 { "" } else { "s" })), _ => {} }
+        match me.sync_shared_here() { Ok(n) if n > 0 => me.event(&format!("Took in {n} change{} from your other devices", if n == 1 { "" } else { "s" })), _ => {} }
       }
       return;
     });
@@ -185,7 +187,7 @@ impl<H: Host> Engine<H> {
       Admit::Refused => { say(json!({ "app": "glue-send", "t": "bye", "id": id, "reason": format!("Disconnected in GLUE Home’s settings on {here}.") })); return; }
       Admit::Full => {
         say(json!({ "app": "glue-send", "t": "bye", "id": id, "reason": format!("GLUE Home on {here} is full: {others} devices connected (raise the limit in its settings).") }));
-        self.host.event(&format!("{name} couldn’t connect: {others} devices are connected already (the most at once is {max})"));
+        self.event(&format!("{name} couldn’t connect: {others} devices are connected already (the most at once is {max})"));
         return;
       }
       Admit::Ok { replaces } => if replaces { self.end_session(&key); },   // the same tab again (it reconnected)
@@ -214,7 +216,7 @@ impl<H: Host> Engine<H> {
         peers.close(&id);
         { let mut st = self.room.st.lock().unwrap(); st.early.remove(&id); st.conns.remove(&id); if st.sessions.get(&key).is_some_and(|s| s.id == id) { st.sessions.shift_remove(&key); } }
         say(json!({ "app": "glue-send", "t": "bye", "id": id, "reason": format!("GLUE Home couldn’t take the connection: {why}") }));
-        self.host.event(&format!("A connection couldn’t be set up: {why}"));
+        self.event(&format!("A connection couldn’t be set up: {why}"));
         self.room_told();
       }
     }
@@ -228,7 +230,7 @@ impl<H: Host> Engine<H> {
   pub fn disconnect(&self, key: &str) {
     let name = { let mut st = self.room.st.lock().unwrap(); st.refused.insert(key.into(), now() + 3_600_000); st.sessions.get(key).map(|s| s.name.clone()).unwrap_or_else(|| "a device".into()) };
     self.end_session(key);
-    self.host.event(&format!("Disconnected {name} (refused for an hour)"));
+    self.event(&format!("Disconnected {name} (refused for an hour)"));
   }
 
   // ---- what the connections say (the host's peers) -----------------------------------------------------------
@@ -294,7 +296,7 @@ impl<H: Host> Engine<H> {
       list.truncate(30);
       Some(json!({ "received": list }))
     });
-    self.host.event(&format!("Received {name} from another device"));
+    self.event(&format!("Received {name} from another device"));
     self.room_told();
   }
   /// The songs in the incoming folder without an analysis (they arrived while GLUE Home was off), analysed.
@@ -338,7 +340,7 @@ fn room_loop<H: Host>(me: Weak<Engine<H>>, gen: u64) {
   let wait = |e: &Engine<H>, retry: &mut u32, why: &str| -> bool {
     let secs = 60u64.min(1u64 << (*retry).min(6));
     *retry += 1;
-    e.room_set("offline", &format!("Offline: {why}{}trying again in {secs} s", if why.is_empty() { "" } else { "; " }));
+    e.room_say(gen, "offline", &format!("Offline: {why}{}trying again in {secs} s", if why.is_empty() { "" } else { "; " }));
     let until = Instant::now() + Duration::from_secs(secs);
     while Instant::now() < until { if !e.live(gen) { return false; } std::thread::sleep(Duration::from_millis(200)); }
     true
@@ -348,19 +350,21 @@ fn room_loop<H: Host>(me: Weak<Engine<H>>, gen: u64) {
     if !e.live(gen) { return; }
     let cfg = e.host.config();
     let device = cfg["deviceId"].as_str().unwrap_or("").to_string();
-    if device.is_empty() || cfg["token"].as_str().is_none_or(|t| t.is_empty()) { e.unpaired(); return; }
-    if !e.host.running() { e.room_set("stopped", "Stopped"); return; }
-    if e.room.st.lock().unwrap().state != "online" { e.room_set("connecting", "Connecting…"); }
+    if device.is_empty() || cfg["token"].as_str().is_none_or(|t| t.is_empty()) { if e.live(gen) { e.unpaired(); } return; }
+    if !e.host.running() { e.room_say(gen, "stopped", "Stopped"); return; }
+    if e.room.st.lock().unwrap().state != "online" { e.room_say(gen, "connecting", "Connecting…"); }
     let token = match e.host.access_token() {
       Ok(t) => t,
-      Err(x) if x.status == 401 => { e.room_removed(&device); return; }
+      Err(x) if x.status == 401 => { if e.live(gen) { e.room_removed(&device); } return; }
       Err(_) => { if wait(&e, &mut retry, "Can’t reach GLUE Cloud") { continue } else { return } }
     };
     let url = format!("{}/v1/signal?token={}", Engine::<H>::api(&cfg).replacen("http", "ws", 1), enc(&token));
+    if !e.live(gen) { return; }
     let mut sock = match e.host.open_socket(&url) { Ok(s) => s, Err(_) => { if wait(&e, &mut retry, "Disconnected") { continue } else { return } } };
+    if !e.live(gen) { sock.close(1000); return; }
     retry = 0;
     let email = cfg["user"]["email"].as_str().filter(|s| !s.is_empty()).map(|m| format!(" · {m}")).unwrap_or_default();
-    e.room_set("online", &format!("Online as {}{email}", cfg["name"].as_str().unwrap_or("GLUE Home")));
+    e.room_say(gen, "online", &format!("Online as {}{email}", cfg["name"].as_str().unwrap_or("GLUE Home")));
     { let e2 = e.clone(); std::thread::spawn(move || { e2.learn_computer(); let _ = e2.room.ice.get(now(), || e2.host.cloud("GET", "/v1/turn", None, None).map_err(|x| x.message)); }); }
     let (tx, rx) = mpsc::channel();
     *e.room.out.lock().unwrap() = Some(tx);
@@ -379,7 +383,7 @@ fn room_loop<H: Host>(me: Weak<Engine<H>>, gen: u64) {
           match m["type"].as_str().unwrap_or("") {
             // Acted on at once: the close handshake may never arrive.
             "removed" => { sock.close(1000); e.room_removed(&device); break None; }
-            "replaced" => { sock.close(1000); e.room_set("stopped", "Stopped: GLUE Home started on another computer with this account’s same device"); break None; }
+            "replaced" => { sock.close(1000); e.room_say(gen, "stopped", "Stopped: GLUE Home started on another computer with this account’s same device"); break None; }
             "signal" => { let from = text(&m, "from"); if !from.is_empty() { e.on_signal(&from, &m["data"]); } }
             // A shared collection changed on another device (ADR 0097): taken in here.
             "shared" if m["from"].as_str() != Some(device.as_str()) => e.sync_soon(1500),
@@ -387,7 +391,7 @@ fn room_loop<H: Host>(me: Weak<Engine<H>>, gen: u64) {
           }
         }
         Received::Closed(4001) => { e.room_removed(&device); break None; }
-        Received::Closed(4000) => { e.room_set("stopped", "Stopped: GLUE Home started on another computer with this account’s same device"); break None; }
+        Received::Closed(4000) => { e.room_say(gen, "stopped", "Stopped: GLUE Home started on another computer with this account’s same device"); break None; }
         Received::Closed(4002) => break Some(true),
         Received::Closed(_) => break Some(false),
       }

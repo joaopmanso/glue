@@ -56,6 +56,10 @@ jobs:
       - name: No worker in GLUE Home's pages
         shell: bash
         run: if ls home/dist/assets | grep -i worker; then echo "GLUE Home's pages have a worker (ADR 0147)"; exit 1; fi
+      # Its service is its engine's (ADR 0160): no hidden page.
+      - name: No service page in GLUE Home
+        shell: bash
+        run: if [ -e home/dist/service.html ]; then echo "GLUE Home has a service page again (ADR 0160)"; exit 1; fi
       # The Rust build cache: the dependencies (~400 crates) are compiled once, not on every run. Only
       # main's builds save it and read it (a new version's release is one of them).
       - uses: Swatinem/rust-cache@v2

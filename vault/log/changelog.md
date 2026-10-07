@@ -5,6 +5,23 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-07 · GLUE Home 0.59.0: its service in its engine, the hidden page removed (ADR 0160)
+- **The plan's last batch, E5** ([ADR 0160](../adr/0160-glue-homes-service-in-its-engine.md)): GLUE Home's service is its
+  engine's: the status its window and tray show, the Activity list, the timers (the shared sync, the day's backups, a
+  moved collection's cache, reminders of events that need music, which computer this is, updates), Start / Stop /
+  Restart, the settings acted on, the native engine check. The hidden service window and its modules are gone; GLUE
+  Home's pages are its settings window and the drag dock. **The plan (W1, E1–E5) is done.**
+- **Nothing should look different.** What was reminded of is kept in GLUE Home's settings now (`reminded`), not the
+  hidden page's storage, so a reminder sent today may come once more after the update.
+- **Memory:** one WebView renderer fewer, about 40 MB private (80–90 MB working set) on the desktop.
+- **Fixed on the way:** a start of the room still waiting for its token when Stop came said "Online" over "Stopped".
+- Tests: `service.rs` (the music folders a search keeps), `reminders.rs` (the website's rule), `verify.rs` (moved),
+  `tests/room.rs` (a start overtaken by Stop); `tests/homeBundle.test.ts` keeps the store, the sync, ICE and the platform
+  layer out of GLUE Home's pages; CI fails on a `service.html` in `home/dist`. GLUE Home's background runs in a page of
+  its own in the e2e tests (`__e2e/home.html`); its window's tests open the window; the native check runs on real songs
+  analysed by the test engine. The local link test's stand-in no longer copies a received song out of the page for every
+  list (it took seconds, and went over the test's wait under load).
+
 ## 2026-10-07 · GLUE Home 0.58.0: its first run, a GLUE folder always offered, its window signed in (ADR 0159)
 - **The user:** choosing "This computer, with GLUE Home" on a first sign-in never offered a folder for GLUE's data, so
   the library never opened; GLUE Home needs a first-run guide; its window showed the start page and asked for a sign-in

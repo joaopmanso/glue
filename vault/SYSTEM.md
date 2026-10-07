@@ -146,15 +146,19 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - Every route but `/hello` and `/connect` needs the token (full, or read-only).
   - Stopped (Stop in the tray or settings, `running: false`), it answers only GLUE Home's own windows: the website
     carries on in the browser as if GLUE Home were quit, and nothing runs in GLUE Home (ADR 0122).
-- **Service page** (`home/ui/service.ts`), hidden: the status for the tray and the settings window, and timers (backups,
-  reminders, updates, moves, verify, the shared sync's) until the plan's E5. The work is the engine's:
+- **GLUE Home is Rust** (0.59, ADR 0160): its engine does the work, including its service (`crates/glue-engine/src/service.rs`:
+  the status for the tray and the settings window, the Activity list, the timers: the shared sync 25 s after start then
+  every minute and 2 s after an edit, the day's backups `backups/auto` (14 kept), a moved collection's cache followed,
+  reminders (`reminders.rs`, the website's rule), which computer this is, updates when nothing is being sent; Start /
+  Stop / Restart; new settings acted on). One engine for GLUE Home's whole run (its GLUE folder changes in place). Its
+  pages are the settings window and the drag dock (no hidden page; `tests/homeBundle.test.ts` keeps the store, the
+  sync, ICE and the platform layer out of them):
   - **engine, in Rust since 0.52** (ADR 0153, `crates/glue-engine`, `home/src-tauri/src/engine.rs`): one store per
     collection (`crates/glue-store`, ADR 0152), written straight to disk. It applies the tab's edits (ops over `/rpc`
     `edit`), saves them, and feeds changes back (`wait`); its jobs (removing songs) carry on after a restart. It
-    repairs parts written under another id (ADR 0108), after a backup it makes itself. The service page asks it things
-    through `engine_cmd` (`home/ui/engine.ts` is a thin wrapper), and hears its events (`engine-event`, `-edited`,
-    `-changed`, `-analysis`, `-background`, `-room`). Without a GLUE folder chosen it runs over an empty one of
-    GLUE Home's own: online, taking songs sent to it, refusing a tab's requests (ADR 0158).
+    repairs parts written under another id (ADR 0108), after a backup it makes itself. The settings window asks it
+    things through `engine_cmd` and hears its status (`status`). Without a GLUE folder chosen it runs over an empty one
+    of GLUE Home's own: online, taking songs sent to it, refusing a tab's requests (ADR 0158).
   - **analysis, in the engine since 0.53** (ADR 0154, `crates/glue-engine/src/queue.rs`, `library.rs`, `analyse.rs`):
     **one pipeline inside "songs at a time"** (ADR 0157): every file GLUE Home reads for the library goes through the
     queue's places, in this order: songs asked for now (a tab's "Analyse now", another device waiting for one:
@@ -169,7 +173,7 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - **FLAC is decoded by GLUE** (`src/core/formats/flac.ts`, ADR 0144; an ID3v2 tag before the stream is skipped), in every analysis worker (`decode.ts`): exact,
     any rate, read a part at a time; the browser's decoders for the other formats, and when it can't.
   - shared sync (in the engine since 0.54, ADR 0155: `shared.rs` with `sync.rs`, GLUE Cloud called from Rust with this
-    GLUE Home's token; the service page only says when), song info written into files (`writeUnwritten`), backups,
+    GLUE Home's token), song info written into files (`writeUnwritten`), backups,
     duplicates moved or recycled
     (ADR 0070), DJ libraries followed live (ADR 0065), reminders, updates.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).

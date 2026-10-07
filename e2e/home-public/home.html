@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- The tests' stand-in for GLUE Home running in the background (ADR 0160): no window of its own, only its Rust side,
+     which the tests' Tauri stand-in (e2e/tauri-mock.ts) gives this page: the test engine's service, its room's socket
+     and its connections (e2e/home-rtc.ts) run here, away from the settings window, as GLUE Home's run in Rust. Its
+     status line (#state) is what the settings window's header says. Built into .e2e-home/__e2e (never home/dist). -->
+<html lang="en">
+<head><meta charset="utf-8"><title>GLUE Home (tests)</title></head>
+<body>
+<p id="state">Starting…</p>
+<script>
+  // GLUE Home's status, as the settings window hears it (Tauri's event API, through the stand-in's IPC).
+  const t = window.__TAURI_INTERNALS__;
+  const show = s => { if (s && s.text) document.getElementById('state').textContent = s.text; };
+  t.invoke('plugin:event|listen', { event: 'status', target: { kind: 'Any' }, handler: t.transformCallback(e => show(e.payload)) });
+  t.invoke('engine_cmd', { cmd: { cmd: 'serviceStatus' } }).then(show, () => {});
+</script>
+</body>
+</html>

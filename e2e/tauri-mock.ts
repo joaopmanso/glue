@@ -14,9 +14,9 @@ export const TAURI_MOCK = `(() => {
   // Tests deliver Rust's events (e.g. the local link's /attach, ADR 0091) with this.
   window.__tauriEvent = (event, payload) => deliver({ event, payload, target: undefined });
   const cfg = () => JSON.parse(localStorage.getItem('home-config') || 'null');
-  // GLUE Home's library engine (ADR 0153, 0154): the real one, run by the test's FakeHome (e2e/fakeHome.ts), reached over
-  // its local link (/engine); what it says comes back as GLUE Home's events. It analyses this computer's songs, real
-  // files on disk. No FakeHome: no engine.
+  // GLUE Home's library engine (ADR 0153, 0154), and its service (ADR 0160): the real one, run by the test's FakeHome
+  // (e2e/fakeHome.ts), reached over its local link (/engine); what it says comes back as GLUE Home's events (its status
+  // to the settings window). It analyses this computer's songs, real files on disk. No FakeHome: no engine.
   // Only a test's FakeHome (port 47450 and up), never a real GLUE Home on this computer (47400–47409). Its engine's
   // address (window.__enginePort, or its local link's when the test's GLUE Home is the FakeHome): a test can stand the
   // local link in itself (port 47400) and still have the engine.
@@ -64,6 +64,9 @@ export const TAURI_MOCK = `(() => {
   const NOTE = {
     event: n => ['engine-event', n.text], edited: n => ['engine-edited', { p: n.p, c: n.c, paths: n.paths }], changed: () => ['engine-changed', null],
     analysis: n => ['engine-analysis', n.state], background: n => ['engine-background', n.progress], room: n => ['engine-room', n.room],
+    // GLUE Home's status (service.rs): to its windows (Rust emits it to all of them); and a desktop notification, recorded.
+    status: n => { window.__status = n.status; send('status', n.status); return []; },
+    notify: n => { window.__notes.push({ title: n.title, body: n.body }); return []; },
     ws, peer, call: n => { void answerCall(n); return []; },
     // The engine changed the settings (a music folder it found, the pause): saved, and both windows told.
     config: n => { const c = { ...(cfg() ?? {}), ...n.patch }; localStorage.setItem('home-config', JSON.stringify(c)); send('config', c); return []; },
@@ -88,13 +91,12 @@ export const TAURI_MOCK = `(() => {
   const begin = name => { const taken = n => files.some(f => f.name === n); let n = name, i = 2; while (taken(n)) n = name.replace(/(\\.[^.]*)?$/, ' (' + i++ + ')$1'); files.push({ name: n, chunks: [], done: false }); return [files.length, n]; };
   // GLUE Home's own connections (ADR 0150), stood in for by the browser's (e2e/home-rtc.ts, built into .e2e-home).
   let rtcP = null;
-  // What they say goes to the engine (the room, the sessions, songs received: ADR 0158), a song once it's on the disk;
-  // a song arriving and what they were asked, to the service page.
+  // What they say goes to the engine, in order (the room, the sessions, songs received: ADR 0158; a song arriving and
+  // what they answered: its status, ADR 0160), a song once it's on the disk.
   const rtcE = () => rtcP ??= import('/__e2e/home-rtc.js').then(m => m.rtc({
     emit: (name, payload) => {
       if (name === 'rtc-received') { const f = files.find(x => x.name === payload.name); void Promise.resolve(f?.landing).then(() => post({ rtc: name, payload })); }
-      else if (['rtc-ice', 'rtc-state', 'rtc-activity'].includes(name)) void post({ rtc: name, payload });
-      else send(name, payload, 'service');
+      else void post({ rtc: name, payload });
     },
     cacheGet: k => cache[k] ? new Uint8Array(cache[k]) : null,
     // What another device puts (a mini spectrogram, an analysis): also where the engine reads it (ADR 0156).
@@ -117,7 +119,7 @@ export const TAURI_MOCK = `(() => {
     async invoke(cmd, args, opts) {
       log.push(cmd);
       switch (cmd) {
-        case 'plugin:event|listen': listeners.push({ event: args.event, id: args.handler }); if (args.event === 'engine-changed') void followEngine(); return listeners.length;
+        case 'plugin:event|listen': listeners.push({ event: args.event, id: args.handler }); if (args.event === 'status') void followEngine(); return listeners.length;
         case 'plugin:event|unlisten': return;
         case 'plugin:event|emit': if (args.event === 'status') window.__status = args.payload; return send(args.event, args.payload);
         case 'plugin:event|emit_to': return send(args.event, args.payload, typeof args.target === 'string' ? args.target : args.target?.label);

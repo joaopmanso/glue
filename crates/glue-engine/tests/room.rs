@@ -33,7 +33,7 @@ impl Socket for FakeSocket {
 }
 
 #[derive(Default)]
-struct Seen { config: Value, url: Vec<String>, wires: Vec<Wire>, room: Value, events: Vec<String>, refuse: bool }
+struct Seen { config: Value, url: Vec<String>, wires: Vec<Wire>, room: Value, events: Vec<String>, refuse: bool, slow: bool }
 #[derive(Clone, Default)]
 struct H(Arc<Mutex<Seen>>, Arc<FakePeers>);
 impl Host for H {
@@ -43,6 +43,7 @@ impl Host for H {
   fn incoming_dir(&self) -> PathBuf { std::env::temp_dir() }
   fn version(&self) -> String { "0.57.0".into() }
   fn access_token(&self) -> Result<String, glue_engine::sync::CloudError> {
+    if self.0.lock().unwrap().slow { std::thread::sleep(Duration::from_millis(300)); }
     if self.0.lock().unwrap().refuse { Err(glue_engine::sync::CloudError { status: 401, message: "no".into() }) } else { Ok("tok en".into()) }
   }
   fn open_socket(&self, url: &str) -> Result<Box<dyn Socket>, String> {
@@ -166,4 +167,17 @@ fn removed_from_the_account_or_replaced() {
   e.room_start();
   until(|| h.0.lock().unwrap().room["state"] == "removed");
   assert_eq!(command(&e, &json!({ "cmd": "roomState" })).unwrap()["state"], "removed");
+}
+
+/// Stopped while a start still waits for its token (2026-10-07): that start says nothing, and opens nothing.
+#[test]
+fn a_start_overtaken_by_stop_says_nothing() {
+  let (e, h) = setup(3);
+  h.0.lock().unwrap().slow = true;
+  e.room_start();
+  std::thread::sleep(Duration::from_millis(50));
+  e.room_stop();
+  std::thread::sleep(Duration::from_millis(600));
+  let g = h.0.lock().unwrap();
+  assert_eq!((g.room["state"].clone(), g.url.len()), (json!("stopped"), 0));
 }

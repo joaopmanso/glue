@@ -70,7 +70,7 @@ impl<H: Host> Engine<H> {
     self.room_told();
     if computer == was { return; }
     self.forget();
-    self.host.event(&match &computer {
+    self.event(&match &computer {
       Some(_) => format!("This computer is known ({why}): its songs are read and written as its own"),
       None => format!("Which computer this is isn’t known ({why}): nothing is written for it"),
     });

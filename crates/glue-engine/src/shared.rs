@@ -120,7 +120,7 @@ impl<H: Host> Engine<H> {
     prof["collections"] = Value::Array(left);
     if write_json(&self.dir(), &path, &prof).is_err() { return; }
     self.drop_store(pid, cid);
-    self.host.event(&format!("“{name}” was deleted from your account: backed up and put away"));
+    self.event(&format!("“{name}” was deleted from your account: backed up and put away"));
   }
 }
 

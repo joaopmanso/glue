@@ -38,8 +38,13 @@ function reach() {
 describe('GLUE Home has no audio JavaScript (ADR 0147)', () => {
   const { files, packages, workers } = reach();
   it('reaches none of the website’s analysis, decoders or workers', () => {
-    expect(files.length).toBeGreaterThan(20);
+    expect(files.length).toBeGreaterThan(5);
     expect(files.filter(([f]) => FORBIDDEN.some(r => r.test(f))).map(([f, by]) => `${f} (from ${by})`)).toEqual([]);
+  });
+  // ADR 0160: what GLUE Home does is its engine's (crates/glue-engine): its pages hold no library, sync, ICE or disk access.
+  it('leaves the library, the sync and the disk to its engine: no store, shared sync, ICE or platform layer (ADR 0160)', () => {
+    const ENGINE_WORK = [/^src\/store\//, /^src\/core\/shared\//, /^src\/core\/ice/, /^src\/platform\//, /^src\/lib\//];
+    expect(files.filter(([f]) => ENGINE_WORK.some(r => r.test(f))).map(([f, by]) => `${f} (from ${by})`)).toEqual([]);
   });
   it('makes no WebRTC connection of its own: GLUE Home\'s connections are Rust\'s (ADR 0150)', () => {
     const ui = files.filter(([f]) => f.startsWith('home/ui/')).map(([f]) => f);

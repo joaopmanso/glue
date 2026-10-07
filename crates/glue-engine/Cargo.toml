@@ -20,6 +20,8 @@ base64 = "0.22"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 sha2 = "0.10"
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+# GLUE Home's service (ADR 0160): reminders count this computer's local days, as the website does.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [[bin]]
 name = "glue-engine-test"

@@ -1,7 +1,8 @@
-/* GLUE Home's web part talking to its Rust side and to the OS (ADR 0044): settings, the incoming
-   folder, events between the two windows, start at login, the folder picker, links. */
+/* GLUE Home's settings window talking to its Rust side and to the OS (ADR 0044): the settings, its status (the
+   engine's service, ADR 0160), start at login, the folder picker, links. */
 import { invoke } from '@tauri-apps/api/core';
-import { emit, emitTo, listen } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
+import type { AnalysisState, EngineStatus } from './engine';
 
 export const API = 'https://glue-api.joaopmanso.workers.dev';
 export const WEBSITE = 'https://joaopmanso.github.io/glue/';
@@ -50,20 +51,20 @@ export interface HomeConfig {
 }
 export interface Received { name: string; path: string; from: string; at: number; size: number }
 
-/** What the service tells the settings window and the tray. */
+/** GLUE Home's status (crates/glue-engine/src/service.rs `status_json`): its window and tray show it. */
 export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online' | 'offline' | 'removed'; text: string; running: boolean; receiving: { name: string; got: number; size: number } | null; received: Received[];
   /** Finding the music folders of the shared collections (by itself). */
   library?: { searching: boolean; found: number; missing: { id: string; name: string; collection: string }[] };
   /** Making mini spectrograms and analyses of the shared songs (ADR 0046). */
   analysis?: { done: number; total: number; running: boolean };
   /** Analysing this computer's songs for the library (ADR 0103). */
-  analysing?: import('./engine').AnalysisState;
+  analysing?: AnalysisState;
   /** Which computer this is (ADR 0108), and how GLUE Home knows (or why it doesn't). */
   computer?: { id: string | null; why: string };
   /** The library engine (ADR 0104): its revision, and the jobs under way. */
-  engine?: import('./engine').EngineStatus;
+  engine?: EngineStatus;
   /** The native engine checked against this computer's analyses (ADR 0147). */
-  verify?: import('./verify').VerifyState;
+  verify?: VerifyState;
   /** What GLUE Home did lately, newest first (the settings window shows each new one as a toast). */
   events?: { at: number; text: string }[];
   /** The last look at the events (ADR 0074): when, how many need music, which were just notified. */
@@ -74,6 +75,19 @@ export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online
   sessions?: { list: { key: string; name: string; since: number; last: number; calls: number; open: boolean }[]; max: number } }
 /** How many, the time spent (ms), the bytes. */
 export interface Activity { calls: number; ms: number; bytes: number }
+/** The native engine checked against this computer's analyses (ADR 0147; crates/glue-engine/src/verify.rs). */
+export interface VerifyState {
+  running: boolean; done: number; total: number;
+  counts: Partial<Record<'same' | 'close' | 'differs' | 'failed' | 'fixed' | 'skipped' | 'missing', number>>;
+  /** The native analyses' time (ms), and the songs it's over. */
+  ms: number; timed: number;
+  /** Why songs were skipped, and how many each. */
+  skips: Record<string, number>;
+  /** The latest that differ or failed, newest first. */
+  odd: { name: string; kind: string; why: string }[];
+}
+/** What GLUE Home's engine is asked (`glue_engine::command`). */
+const cmd = <T>(c: Record<string, unknown>) => invoke<T>('engine_cmd', { cmd: c });
 
 export const bridge = {
   config: () => invoke<HomeConfig | null>('get_config'),
@@ -93,10 +107,6 @@ export const bridge = {
   defaultIncoming: () => invoke<string>('default_incoming'),
   defaultDuplicates: () => invoke<string>('default_duplicates'),
   deviceName: () => invoke<string>('device_name'),
-  begin: (name: string) => invoke<[number, string]>('incoming_begin', { name }),
-  write: (id: number, bytes: Uint8Array) => invoke<void>('incoming_write', bytes, { headers: { 'x-id': String(id) } }),
-  end: (id: number, ok: boolean) => invoke<string>('incoming_end', { id, ok }),
-  trayStatus: (text: string, running: boolean) => invoke<void>('set_status', { text, running }),
   showSettings: () => invoke<void>('show_settings'),
   openLibrary: () => invoke<void>('open_library'),
   // This computer's GLUE library (read-only) and its music files.
@@ -105,59 +115,22 @@ export const bridge = {
   newGlueFolder: () => invoke<string>('new_glue_folder'),
   /** A folder chosen as the GLUE folder: GLUE's (it has mco.json), or empty (set up when the library opens it). */
   folderState: (path: string) => invoke<{ glue: boolean; empty: boolean }>('folder_state', { path }),
-  // GLUE Home's own cache (mini spectrograms, analyses) and the incoming folder.
-  cacheRead: (rel: string) => invoke<ArrayBuffer>('cache_read', { rel }),
-  cacheWrite: (rel: string, bytes: Uint8Array) => invoke<void>('cache_write', bytes, { headers: { 'x-rel': rel } }),
-  cacheList: (rel: string) => invoke<string[]>('cache_list', { rel }),
-  /** A song's cover from its tags ('' for none), kept with the song's hash (ADR 0082). */
-  /** A picture (a cover service's) made into the cover's JPEGs and kept: its hash (ADR 0086). */
-  /** A song's waveform made from its kept details (empty: none kept). */
-  // GLUE Home's own connections to other devices (ADR 0150, 0158: in Rust, with the room and the sessions).
-  /** GLUE Home is sending or receiving for another device now (updates wait). */
-  rtcBusy: () => invoke<boolean>('rtc_busy'),
-  /** A song arriving (`rtc-receiving`), and what other devices asked (`rtc-served`). */
-  onRtc: <T>(name: 'rtc-receiving' | 'rtc-served', f: (payload: T) => void) => listen<T>(name, e => f(e.payload)),
-  /** What GLUE Home's own side was asked since it started: the local link, the service page's file reads (ADR 0083). */
+  /** What GLUE Home's own side was asked since it started: the local link, file reads (ADR 0083). */
   activity: () => invoke<{ seconds: number; counts: Record<string, Activity> }>('activity_now'),
-  incomingList: () => invoke<{ name: string; size: number; mtime: number; path: string }[]>('incoming_list'),
-  localPort: () => invoke<number>('local_port'),
-  glueRead: (rel: string) => invoke<string>('glue_read', { rel }),
-  glueList: (rel: string) => invoke<string[]>('glue_list', { rel }),
-  fileSize: (path: string) => invoke<number>('file_size', { path }),
-  /** `play`: a song streamed to a device (ADR 0140): GLUE Home's analysis reads wait meanwhile. */
-  fileRead: (path: string, offset: number, len: number, play = false) => invoke<ArrayBuffer>('file_read', { path, offset, len, play }),
-  /** A cover service's answer (ADR 0086); GLUE Home only reaches Deezer, iTunes and MusicBrainz. */
-  /** A GLUE tab here holds the writer lease (ADR 0087). */
-  leaseHeld: () => invoke<boolean>('lease_held'),
-  // Between the windows.
   onConfig: (f: (c: HomeConfig) => void) => listen<HomeConfig>('config', e => f(e.payload)),
-  onControl: (f: (what: 'start' | 'stop' | 'restart') => void) => listen<'start' | 'stop' | 'restart'>('control', e => f(e.payload)),
-  control: (what: 'start' | 'stop' | 'restart') => emitTo('service', 'control', what),
+  // GLUE Home's service, in its engine (ADR 0160): its status when it changes, and now; Start / Stop / Restart.
   onStatus: (f: (s: Status) => void) => listen<Status>('status', e => f(e.payload)),
-  status: (s: Status) => emit('status', s),
-  askStatus: () => emit('status-request'),
-  onAskStatus: (f: () => void) => listen('status-request', () => f()),
+  askStatus: () => cmd<Status>({ cmd: 'serviceStatus' }),
+  control: (what: 'start' | 'stop' | 'restart') => cmd({ cmd: 'control', what }),
   /** The settings' "Check now" for reminders. */
-  remindNow: () => emitTo('service', 'remind-now'),
+  remindNow: () => cmd({ cmd: 'remindNow' }),
   /** End a device's session (ADR 0133); it's refused for an hour. */
-  disconnect: (key: string) => emitTo('service', 'disconnect', key),
-  onDisconnect: (f: (key: string) => void) => listen<string>('disconnect', e => f(e.payload)),
-  onRemindNow: (f: () => void) => listen('remind-now', () => f()),
+  disconnect: (key: string) => cmd({ cmd: 'roomDisconnect', key }),
   /** The settings' check of the native engine (ADR 0147): `n` songs, 0 to stop. */
-  verify: (n: number) => emitTo('service', 'verify', n),
-  onVerify: (f: (n: number) => void) => listen<number>('verify', e => f(e.payload)),
+  verify: (n: number) => cmd({ cmd: 'verify', n }),
 };
 
-/** A desktop notification (ADR 0074); false when the OS doesn't allow them. */
-export async function notify(title: string, body: string): Promise<boolean> {
-  const n = await import('@tauri-apps/plugin-notification');
-  let ok = await n.isPermissionGranted();
-  if (!ok) ok = (await n.requestPermission()) === 'granted';
-  if (ok) n.sendNotification({ title, body });
-  return ok;
-}
-
-/** The OS: plugins loaded on demand, so the service window doesn't need them. */
+/** The OS: plugins loaded on demand. */
 export async function pickFolder(start?: string | null): Promise<string | null> {
   const { open } = await import('@tauri-apps/plugin-dialog');
   const r = await open({ directory: true, multiple: false, defaultPath: start ?? undefined, title: 'Where should songs sent to this computer go?' });

@@ -102,7 +102,7 @@ test('a phone signs in and the account’s collection opens by itself: songs str
     localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: 'C:\\Users\\dj\\Documents\\GLUE', maxSessions: 1 }));
     // (maxSessions 1, ADR 0133: the phone's tab connecting again still gets in, replacing its own session.)
   }, { glue, disk });
-  await home.goto('http://localhost:5176/service.html');
+  await home.goto('http://localhost:5176/__e2e/home.html');
   await expect(home.locator('#state')).toContainText('Online as Desktop');
   // The cover services (ADR 0086), stood in: Deezer knows "Genorale" (no cover in its tags), with a picture.
   // (Asked by GLUE Home's engine, ADR 0156.)

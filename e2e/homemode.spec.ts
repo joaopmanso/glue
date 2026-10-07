@@ -761,7 +761,7 @@ test('a shared collection with no GLUE tab open: GLUE Home takes in another devi
       const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__localPort = port; w.__lease = false;
       localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token }));
     }, { glue: files, port: fake.port, token: fake.token, dir: fake.dirs.glue });
-    await home.goto('http://localhost:5176/service.html');
+    await home.goto('http://localhost:5176/__e2e/home.html');
 
     // Taken in, written into the file, and sent back with nothing left to write.
     const local = () => JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items.t1;
@@ -811,7 +811,7 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
       const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__localPort = port; w.__lease = false;
       localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token, folders: { r3: share } }));
     }, { glue: files, port: fake.port, token: fake.token, dir: fake.dirs.glue, share: join(tmp, 'NAS', 'Share') });
-    await home.goto('http://localhost:5176/service.html');
+    await home.goto('http://localhost:5176/__e2e/home.html');
 
     home.on('console', m => { if (/GLUE Home/.test(m.text())) console.log('HOME:', m.text().slice(0, 300)); });
     // Analysed by GLUE Home, into the collection's files (no GLUE tab holds the lease).
@@ -880,7 +880,7 @@ test('GLUE Home is the library’s engine: the tab shows, GLUE Home analyses and
       const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__localPort = port; w.__lease = false;
       localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token, analysisPaused: true }));
     }, { glue: files, port: fake.port, token: fake.token, dir: fake.dirs.glue });
-    await home.goto('http://localhost:5176/service.html');
+    await home.goto('http://localhost:5176/__e2e/home.html');
     fake.cache = key => home.evaluate(k => (window as unknown as { __cache: Record<string, number[]> }).__cache[k] ?? null, key);
     // Its lease: whatever the tab says, through the local link (the stand-in keeps it).
     await home.exposeFunction('leaseAt', () => fake.leasedAt);
@@ -978,7 +978,7 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
       const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__localPort = port; w.__lease = false;
       localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token }));
     }, { glue: files, port: fake.port, token: fake.token, dir: fake.dirs.glue });
-    await home.goto('http://localhost:5176/service.html');
+    await home.goto('http://localhost:5176/__e2e/home.html');
     const asked = fake.cacheAsked;
 
     // With no GLUE tab open, GLUE Home analyses both: the time-out wasn't the file's fault, so it's tried again.

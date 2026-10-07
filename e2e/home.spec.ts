@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join, sep } from 'node:path';
 import { TAURI_MOCK } from './tauri-mock';
 import { homeDisk } from './homeDisk';
@@ -7,6 +8,7 @@ import { homeDisk } from './homeDisk';
 // GLUE Home's settings window (home/ui), with its Rust side replaced by e2e/tauri-mock.ts.
 const GLUE = 'C:\\Users\\dj\\Documents\\GLUE';
 const HOME = 'http://localhost:5176/';
+const fixture = (name: string) => fileURLToPath(new URL('../tests/fixtures/' + name, import.meta.url));
 // The website's GLUE folder on this computer: one profile, one collection with two music folders.
 const LIBRARY = {
   'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'Nova', color: '#fff' }], lastProfile: 'p1' }),
@@ -40,9 +42,6 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   await d.wire(ctx);
   await ctx.addInitScript(({ glue, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = lib; }, { glue: d.glue, lib: LIBRARY });
   await page.goto(HOME + 'index.html');
-  // The service window runs next to it (the tray's Start / Stop go there).
-  const service = await ctx.newPage();
-  await service.goto(HOME + 'service.html');
 
   // First launch: the guide (ADR 0159). The GLUE folder is found where the website keeps it; the incoming folder is
   // ready; starting with the computer is a step of it (no question in a dialog).
@@ -97,7 +96,7 @@ test('GLUE Home settings: asks about starting with the computer; connects with a
   await page.click('#use-code');
   await expect(page.locator('#account')).toContainText('dj@example.com');
   await expect(page.locator('#state-pill')).toHaveText('Online', { timeout: 15_000 });
-  await expect(service.locator('#state')).toContainText('Online as Studio PC');
+  await expect(page.locator('#state')).toContainText('Online as Studio PC');
   expect(claims[1]).toMatchObject({ code: 'ABCD-EFGH', name: 'Studio PC' });
   expect(claims[1].replaces).toBeUndefined();
 
@@ -214,9 +213,7 @@ test('GLUE Home reminds of events that need music, once a day each; Check now; o
   await d.wire(ctx);
   await ctx.addInitScript(({ g, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = g; w.__glue = lib; w.__disk = {}; }, { g: d.glue, lib: glue });
   await page.goto(HOME + 'index.html');
-  const service = await ctx.newPage();
-  await service.goto(HOME + 'service.html');
-  const notes = () => service.evaluate(() => (window as unknown as { __notes: { title: string; body: string }[] }).__notes);
+  const notes = () => page.evaluate(() => (window as unknown as { __notes: { title: string; body: string }[] }).__notes);
   await expect(page.locator('#glue-folder')).toHaveText(d.glue);
   await expect(page.locator('#reminders')).toBeChecked();
   await page.click('#remind-now');
@@ -224,7 +221,7 @@ test('GLUE Home reminds of events that need music, once a day each; Check now; o
   expect((await notes())[0]).toEqual({ title: 'Lux needs music', body: expect.stringMatching(/in 2 days at Club. Open GLUE › Calendar/) });
   await expect(page.locator('#remind-state')).toContainText('1 event needs music');
   // Once a day: the hourly look doesn't repeat it (Check now does).
-  await service.evaluate(() => localStorage.getItem('glue-home-reminded')).then(v => expect(Object.keys(JSON.parse(v!))).toEqual(['c1/e1']));
+  expect(Object.keys(await page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).reminded))).toEqual(['c1/e1']);
   await page.click('#remind-now');
   await expect.poll(notes).toHaveLength(2);
   // Off.
@@ -320,30 +317,35 @@ test('GLUE Home checks its native engine against the songs it analysed: a sample
   await ctx.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'a' }) }));
   await ctx.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, ws => { ws.send(JSON.stringify({ type: 'presence', online: ['h1'] })); ws.onMessage(() => {}); });
   await ctx.addInitScript(TAURI_MOCK);
-  const lib = { ...LIBRARY, 'profiles/p1/collections/c1/tracks/ab.json': JSON.stringify({ schemaVersion: 1, items: {
-    ab01: { id: 'ab01', rootId: 'r1', relPath: 'Sets/a.mp3', importPath: null, fileName: 'a.mp3' },
-    ab02: { id: 'ab02', rootId: 'r1', relPath: 'Sets/b.flac', importPath: null, fileName: 'b.flac' },
-    ab03: { id: 'ab03', rootId: 'r1', relPath: 'Sets/c.flac', importPath: null, fileName: 'c.flac' } } }) };
-  const d = await homeDisk(lib, { 'Sets/a.mp3': Buffer.from('x'), 'Sets/b.flac': Buffer.from('x'), 'Sets/c.flac': Buffer.from('x') });
+  // Two real songs in its music folder, their records as the website keeps them (size and date).
+  const d = await homeDisk(LIBRARY, { 'Sets/a.mp3': readFileSync(fixture('mp3-128k.mp3')), 'Sets/b.flac': readFileSync(fixture('flac-96k-24.flac')) });
+  const rec = (id: string, rel: string) => { const s = statSync(join(d.music, ...rel.split('/'))); return { id, status: 'linked', rootId: 'r1', relPath: rel, importPath: null, fileName: rel.split('/').pop(), size: s.size, mtime: Math.floor(s.mtimeMs), sources: [] }; };
+  writeFileSync(join(d.glue, 'profiles', 'p1', 'collections', 'c1', 'tracks', 'ab.json'), JSON.stringify({ schemaVersion: 1, items: { ab01: rec('ab01', 'Sets/a.mp3'), ab02: rec('ab02', 'Sets/b.flac') } }));
   await d.wire(ctx);
-  await ctx.addInitScript(({ glue, lib, music }) => {
-    const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = lib;
-    // Analysed here: a.mp3 and b.flac (c.flac not yet).
-    const cache = w.__cache as Record<string, number[]>;
-    for (const id of ['ab01', 'ab02']) cache[`s/p1/c1/ab/${id}.json`] = [123, 125];
-    w.__verifyAnswer = { ab02: { kind: 'differs', name: 'b.flac', ms: 3000, diffs: ['label: "Hi-res" vs "Upsampled"'] } };
-    if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't1', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, askedAutostart: true, running: true, analysisPaused: true, glue, folders: { r1: music } }));
-  }, { glue: d.glue, lib, music: d.music });
+  await ctx.addInitScript(({ glue, music }) => {
+    const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue;
+    if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't1', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, askedAutostart: true, running: true, glue, folders: { r1: music } }));
+  }, { glue: d.glue, music: d.music });
   await page.goto(HOME + 'index.html');
-  const service = await ctx.newPage();
-  await service.goto(HOME + 'service.html');
+  // Analysed by GLUE Home; then made to look as the service page stored them before the native engine (no engine named),
+  // b.flac's verdict changed.
+  const result = (id: string) => join(d.fake.cacheDir, 's', 'p1', 'c1', 'ab', id + '.json');
+  await expect.poll(() => ['ab01', 'ab02'].every(id => existsSync(result(id))), { timeout: 60_000 }).toBe(true);
+  for (const id of ['ab01', 'ab02']) {
+    const r = JSON.parse(readFileSync(result(id), 'utf8'));
+    delete r.summary.engine;
+    if (id === 'ab02') r.summary.label = 'Upsampled';
+    writeFileSync(result(id), JSON.stringify(r));
+  }
   await page.click('nav [data-page="now"]');
   await page.selectOption('#vf-n', '100');
   await page.click('#vf-start');
-  await expect(page.locator('#vf-state')).toContainText('Checked 2 of 2 · 1 the same · 0 close (lossy) · 1 differ', { timeout: 15_000 });
-  await expect(page.locator('#vf-state')).toContainText('2.0 s a song natively');
-  await expect(page.locator('#vf-odd')).toContainText('b.flac: label: "Hi-res" vs "Upsampled"');
-  expect((await service.evaluate(() => (window as unknown as { __verified: string[] }).__verified)).sort()).toEqual(['ab01', 'ab02']);
+  await expect(page.locator('#vf-state')).toContainText('Checked 2 of 2 · 1 the same · 0 close (lossy) · 1 differ', { timeout: 60_000 });
+  await expect(page.locator('#vf-state')).toContainText('s a song natively');
+  await expect(page.locator('#vf-odd')).toContainText('b.flac: label:');
+  await expect(page.locator('#vf-odd')).toContainText('vs "Upsampled"');
+  // Each song's outcome, kept in GLUE Home's cache.
+  expect(readFileSync(join(d.fake.cacheDir, 'x', 'verify.jsonl'), 'utf8').trim().split('\n')).toHaveLength(2);
   await expect(page.locator('#vf-start')).toBeVisible();
   await d.done();
 });
@@ -362,13 +364,12 @@ test('GLUE Home whose settings never said running or stopped goes online, and st
     const w = window as unknown as Record<string, unknown>; w.__glueFolder = glue; w.__glue = {};
     if (!localStorage.getItem('home-config')) localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't1', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, askedAutostart: true, glue }));
   }, { glue: GLUE });
-  const service = await ctx.newPage();
-  await service.goto(HOME + 'service.html');
-  await expect(service.locator('#state')).toContainText('Online as Desktop', { timeout: 15_000 });
-  // Other settings saved meanwhile (the tokens GLUE Home makes itself, a pause): still online, not reconnected.
-  await service.evaluate(() => { const c = JSON.parse(localStorage.getItem('home-config')!); localStorage.setItem('home-config', JSON.stringify({ ...c, analysisPaused: true })); (window as unknown as { __tauriEvent: (e: string, p: unknown) => void }).__tauriEvent('config', { ...c, analysisPaused: true }); });
-  await service.waitForTimeout(1000);
-  await expect(service.locator('#state')).toContainText('Online as Desktop');
+  await page.goto(HOME + 'index.html');
+  await expect(page.locator('#state')).toContainText('Online as Desktop', { timeout: 15_000 });
+  // Other settings saved meanwhile (a pause): still online, not reconnected.
+  await page.evaluate(() => { const c = JSON.parse(localStorage.getItem('home-config')!); return (window as unknown as { __TAURI_INTERNALS__: { invoke: (c: string, a: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__.invoke('set_config', { config: { ...c, analysisPaused: true } }); });
+  await page.waitForTimeout(1000);
+  await expect(page.locator('#state')).toContainText('Online as Desktop');
   expect(connects).toBe(1);
   await d.done();
 });

@@ -97,7 +97,7 @@ test('GLUE Home learns its computer from its music folders, vouches for it, and 
       const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__localPort = port; w.__lease = false;
       localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token, folders: { music } }));
     }, { glue: files, port: fake.port, token: fake.token, dir: fake.dirs.glue, music: join(tmp, 'Music') });
-    await home.goto('http://localhost:5176/service.html');
+    await home.goto('http://localhost:5176/__e2e/home.html');
 
     // It vouches for the computer whose music folders it found here, and says so.
     await expect.poll(() => attached, { timeout: 60_000 }).toEqual(['mmJiL']);

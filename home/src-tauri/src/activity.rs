@@ -1,7 +1,6 @@
 // What GLUE Home was asked, since it started (the user's report, 2026-09-28, of GLUE Home using the CPU
 // while idle; ADR 0083): per kind of request, how many, the time spent and the bytes. The local link's
-// requests and the service page's bridge calls are counted here; the settings show them, with what other
-// devices asked the service page.
+// requests are counted here; the settings show them, with what other devices asked (the engine's `served`).
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 use std::time::Instant;

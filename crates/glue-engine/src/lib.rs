@@ -26,8 +26,11 @@ pub mod queue;
 pub mod room;
 pub mod sessions;
 pub mod shared;
+pub mod service;
+pub mod reminders;
 pub mod sync;
 pub mod tags;
+pub mod verify;
 
 use glue_store::dir::{read_json, Dir, FsDir};
 use glue_store::json::{stringify, Obj};
@@ -112,6 +115,18 @@ pub trait Host: Send + Sync + 'static {
   fn reachable(&self, _root_id: &str) -> bool { true }
   /// The time, ms and ISO (the bin's names, backups, jobs).
   fn now(&self) -> (i64, String) { now() }
+  // ---- GLUE Home's service (service.rs, ADR 0160) ----------------------------------------------------------------
+  /// GLUE Home's status changed (`service::status_json`: its window and its tray show it).
+  fn status_changed(&self, _status: &Value) {}
+  /// A desktop notification (an event that needs music, ADR 0074): shown or not.
+  fn notify(&self, _title: &str, _body: &str) -> bool { false }
+  /// The website's GLUE folder in a usual place, when none is chosen (GLUE Home: Documents\GLUE…).
+  fn find_glue(&self) -> Option<String> { None }
+  /// GLUE Home updates itself now if a newer version is out (nothing is being sent: the service checks first), saying
+  /// so first with `say` ("Updating to 0.59.0…"), then why not if it failed.
+  fn auto_update(&self, _say: &dyn Fn(&str)) {}
+  /// A new secret for the local link (random, hex), or None where none is made here.
+  fn new_token(&self) -> Option<String> { None }
 }
 
 /// The time now, ms since 1970 and its ISO form (`Date.now()`, `toISOString()`).
@@ -150,7 +165,8 @@ const JOBS: &str = "j/jobs.json";
 const FULL_EVERY: i64 = 30 * 60 * 1000;
 
 pub struct Engine<H: Host> {
-  pub glue: PathBuf,
+  /// The GLUE folder (GLUE Home's settings choose it; it can change while the engine runs: `set_glue`).
+  glue: std::sync::RwLock<PathBuf>,
   pub cache: PathBuf,
   pub host: H,
   stores: Mutex<HashMap<Key, Shared<Store<FsDir>>>>,
@@ -171,6 +187,8 @@ pub struct Engine<H: Host> {
   pub(crate) devices: answers::Devices,
   /// The signaling room and the sessions (room.rs).
   pub(crate) room: room::Room,
+  /// GLUE Home's service: its status, its timers (service.rs).
+  pub(crate) svc: service::Svc,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -180,7 +198,7 @@ fn truthy(v: Option<&Value>) -> bool { glue_store::project::truthy(v) }
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue, cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default() });
+    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }
@@ -200,7 +218,22 @@ impl<H: Host> Engine<H> {
       }
     });
   }
-  fn dir(&self) -> FsDir { FsDir { root: self.glue.clone() } }
+  fn dir(&self) -> FsDir { FsDir { root: self.glue() } }
+  /// The GLUE folder.
+  pub fn glue(&self) -> PathBuf { self.glue.read().unwrap().clone() }
+  /// Another GLUE folder (GLUE Home's settings chose it): everything kept of the last one let go, its collections
+  /// looked through for songs to analyse.
+  pub fn set_glue(self: &Arc<Self>, p: PathBuf) {
+    if *self.glue.read().unwrap() == p { return; }
+    *self.glue.write().unwrap() = p;
+    self.forget();
+    self.analysis_stale();
+  }
+  /// A tab's edit (or a repair, a job, the analysis's results) was saved: told, and the shared collections synced two
+  /// seconds later (a burst makes one sync, ADR 0106).
+  pub(crate) fn edited(&self, p: &str, c: &str, paths: &[String]) { self.host.edited(p, c, paths); if let Some(e) = self.arc() { e.sync_soon(2000); } }
+  /// Something for GLUE Home's Activity (its window shows each new one as a toast).
+  pub fn event(&self, text: &str) { self.svc_event(text); self.host.event(text); }
   fn cache_dir(&self) -> FsDir { FsDir { root: self.cache.clone() } }
 
   /// A collection's store, loaded once and kept (a shared one as this computer, put right once).
@@ -234,7 +267,7 @@ impl<H: Host> Engine<H> {
     self.flush_edit(st, p, c)?;
     let n = counts.copies_moved + counts.copies_dropped + counts.analyses_moved + counts.twins;
     let name = text(&st.meta, "name");
-    self.host.event(&format!("Put this computer’s part of “{name}” back under it{}", if n > 0 { format!(" ({n} record{})", if n == 1 { "" } else { "s" }) } else { String::new() }));
+    self.event(&format!("Put this computer’s part of “{name}” back under it{}", if n > 0 { format!(" ({n} record{})", if n == 1 { "" } else { "s" }) } else { String::new() }));
     Ok(())
   }
 
@@ -247,7 +280,7 @@ impl<H: Host> Engine<H> {
   /// Saved, and told as the user's own change (it goes up to GLUE Cloud within seconds, ADR 0106).
   fn flush_edit(&self, st: &mut Store<FsDir>, p: &str, c: &str) -> Result<(), String> {
     let paths = self.flush(st, p, c)?;
-    if !paths.is_empty() { self.host.edited(p, c, &paths); }
+    if !paths.is_empty() { self.edited(p, c, &paths); }
     Ok(())
   }
 
@@ -294,7 +327,7 @@ impl<H: Host> Engine<H> {
       while f.log.len() > 500 { f.log.pop_front(); }
     }
     self.woke.notify_all();
-    self.host.changed();
+    self.host.changed(); self.report_soon();
   }
   pub fn rev(&self) -> u64 { self.feed.lock().unwrap().rev }
 
@@ -338,7 +371,7 @@ impl<H: Host> Engine<H> {
       list.push(Job { id: format!("{ms:x}-{}", list.len()), kind: kind.to_string(), p: p.to_string(), c: c.to_string(), ids, done: 0, at: ms });
       self.save_jobs(list);
     }
-    self.host.event(&format!("Removing {n} song{}", if n == 1 { "" } else { "s" }));
+    self.event(&format!("Removing {n} song{}", if n == 1 { "" } else { "s" }));
     let me = self.clone();
     std::thread::spawn(move || me.run_jobs());
   }
@@ -374,17 +407,17 @@ impl<H: Host> Engine<H> {
         if let Some(first) = j.as_mut().unwrap().first_mut() { first.done = job.done; }
         self.save_jobs(j.as_ref().unwrap());
         drop(j);
-        self.host.changed();
+        self.host.changed(); self.report_soon();
       }
       let mut j = self.load_jobs();
       j.as_mut().unwrap().remove(0);
       self.save_jobs(j.as_ref().unwrap());
       drop(j);
       let n = job.ids.len();
-      self.host.event(&format!("Removed {n} song{}", if n == 1 { "" } else { "s" }));
+      self.event(&format!("Removed {n} song{}", if n == 1 { "" } else { "s" }));
     }
     // Nothing to do (every 10 s): nothing to tell.
-    if any { self.host.changed(); }
+    if any { self.host.changed(); self.report_soon(); }
   }
 
   pub fn status(&self) -> Value {
@@ -483,8 +516,8 @@ impl<H: Host> Engine<H> {
   }
 }
 
-/// What GLUE Home's service page asks of the engine while the answers to other devices are still its own (until the
-/// plan's E4b): one dispatcher for GLUE Home's commands and the test binary, so both do the same.
+/// What GLUE Home's settings window asks of the engine: one dispatcher for GLUE Home's commands and the test binary, so
+/// both do the same.
 pub fn command<H: Host>(e: &Arc<Engine<H>>, m: &Value) -> Result<Value, String> {
   let (p, c) = (text(m, "p"), text(m, "c"));
   let paths = |k: &str| -> Vec<String> { m[k].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default() };
@@ -529,6 +562,11 @@ pub fn command<H: Host>(e: &Arc<Engine<H>>, m: &Value) -> Result<Value, String> 
     // for GLUE Home's connections sends what it says.
     // The signaling room and the sessions (room.rs, ADR 0158): online or not, a session disconnected in the settings,
     // the room's state; which computer this is, and a browser here attaching (identity.rs).
+    // GLUE Home's service (service.rs, ADR 0160): its status; Start, Stop, Restart; reminders now; the native check.
+    "serviceStatus" => Ok(e.status_json()),
+    "control" => { let (e2, what) = (e.clone(), text(m, "what")); std::thread::spawn(move || e2.control(&what)); Ok(json!(true)) }
+    "remindNow" => { let e2 = e.clone(); std::thread::spawn(move || e2.check_reminders(true)); Ok(json!(true)) }
+    "verify" => { e.verify_run(m["n"].as_u64().unwrap_or(0) as usize); Ok(json!(true)) }
     "roomStart" => { e.room_start(); Ok(json!(true)) }
     "roomStop" => { e.room_stop(); Ok(json!(true)) }
     "roomDisconnect" => { e.disconnect(&text(m, "key")); Ok(json!(true)) }

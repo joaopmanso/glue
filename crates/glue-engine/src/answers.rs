@@ -279,7 +279,7 @@ impl Background { pub fn to_json(&self) -> Value { json!({ "done": self.done, "t
 
 impl<H: Host> Engine<H> {
   pub fn background_json(&self) -> Value { self.devices.background.lock().unwrap().to_json() }
-  fn background_set(&self, f: impl FnOnce(&mut Background)) { let v = { let mut b = self.devices.background.lock().unwrap(); f(&mut b); b.to_json() }; self.host.background_changed(&v); }
+  fn background_set(&self, f: impl FnOnce(&mut Background)) { let v = { let mut b = self.devices.background.lock().unwrap(); f(&mut b); b.to_json() }; self.host.background_changed(&v); self.report_soon(); }
   /// Every shared song of this computer without a mini spectrogram or a waveform, made so other devices find them ready
   /// (ADR 0046, 0085): queued last in the analysis queue, after the library's own songs (which make these too), each in
   /// one of the "songs at a time" (ADR 0157). One look at a time.

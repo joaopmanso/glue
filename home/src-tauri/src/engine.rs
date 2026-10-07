@@ -2,10 +2,9 @@
 //! is answered in Rust (edits, the feed, jobs, the analysis, where a dropped song or folder is), writing the GLUE folder
 //! straight to disk; the analysis queue runs here too, and so do the shared sync (ADR 0155), the answers to other devices
 //! (ADR 0156, through rtc.rs) and the account's signaling room with the sessions (ADR 0158: the room's socket is
-//! signal.rs, the connections rtc.rs). The service page asks it things through `engine_cmd`. What the engine says goes
-//! to the service page as events: `engine-event` (Activity), `engine-edited`, `engine-changed` (the status),
-//! `engine-analysis` (the queue's state), `engine-background` (the background thumbnails' progress),
-//! `engine-room` (online or not, and the sessions).
+//! signal.rs, the connections rtc.rs), and GLUE Home's service (ADR 0160: its status, timers, Start / Stop / Restart).
+//! One engine for GLUE Home's whole run, over the GLUE folder in the settings. The settings window asks it things
+//! through `engine_cmd`, and hears its status (`status`, which the tray shows too).
 use glue_engine::library::Known;
 use glue_engine::sync::CloudError;
 use glue_engine::{Engine, Host};
@@ -87,11 +86,35 @@ impl Host for App {
     crate::analysis::read_song(&file, name)
   }
   fn foreground_at(&self) -> f64 { crate::local::FOREGROUND_AT.load(std::sync::atomic::Ordering::Relaxed) as f64 }
-  fn event(&self, text: &str) { let _ = self.app.emit_to("service", "engine-event", text); }
-  fn edited(&self, p: &str, c: &str, paths: &[String]) { let _ = self.app.emit_to("service", "engine-edited", json!({ "p": p, "c": c, "paths": paths })); }
-  fn changed(&self) { let _ = self.app.emit_to("service", "engine-changed", ()); }
-  fn analysis_changed(&self, state: &Value) { let _ = self.app.emit_to("service", "engine-analysis", state); }
-  fn background_changed(&self, progress: &Value) { let _ = self.app.emit_to("service", "engine-background", progress); }
+  /// GLUE Home's status (service.rs): to its window, and its tray's first line, tooltip and Start / Stop.
+  fn status_changed(&self, status: &Value) {
+    let _ = self.app.emit("status", status);
+    crate::tray_status(&self.app, status["text"].as_str().unwrap_or(""), status["running"].as_bool().unwrap_or(false));
+  }
+  fn notify(&self, title: &str, body: &str) -> bool {
+    use tauri_plugin_notification::NotificationExt;
+    self.app.notification().builder().title(title).body(body).show().is_ok()
+  }
+  fn find_glue(&self) -> Option<String> { crate::find_glue(self.app.clone()) }
+  /// The updater (ADR 0045): the latest release's latest.json, its signature checked against the key in tauri.conf.json;
+  /// installed, then GLUE Home restarts.
+  fn auto_update(&self, say: &dyn Fn(&str)) {
+    use tauri_plugin_updater::UpdaterExt;
+    let app = self.app.clone();
+    let Ok(u) = app.updater() else { return };
+    let found = tauri::async_runtime::block_on(u.check());
+    let Ok(Some(up)) = found else { return };
+    say(&format!("Updating to {}…", up.version));
+    match tauri::async_runtime::block_on(up.download_and_install(|_, _| {}, || {})) {
+      Ok(()) => app.restart(),
+      Err(e) => say(&format!("Update failed: {e}")),
+    }
+  }
+  fn new_token(&self) -> Option<String> {
+    let mut b = [0u8; 24];
+    getrandom::fill(&mut b).ok()?;
+    Some(b.iter().map(|x| format!("{x:02x}")).collect())
+  }
   /// A cover service's answer (ADR 0086): only the addresses web.rs allows.
   fn web_get(&self, url: &str) -> Result<Vec<u8>, String> { crate::web::get(url, &self.version()) }
   /// The local link and its tokens (the full one, and the read-only one for a GLUE tab while GLUE Home is the engine).
@@ -100,7 +123,6 @@ impl Host for App {
   fn access_token(&self) -> Result<String, CloudError> { let c = self.config(); access(&api_of(&c), &c) }
   fn open_socket(&self, url: &str) -> Result<Box<dyn glue_engine::room::Socket>, String> { crate::signal::open(url) }
   fn peers(&self) -> Option<Arc<dyn glue_engine::room::Peers>> { Some(Arc::new(crate::rtc::Conns(self.app.try_state::<crate::rtc::Rtc>()?.inner().clone()))) }
-  fn room_changed(&self, room: &Value) { let _ = self.app.emit_to("service", "engine-room", room); }
   /// GLUE Cloud (the settings' `api`, or GLUE's), with this GLUE Home's access token: asked for with its credential
   /// (`/v1/auth/device`) and kept 40 minutes, as the service page did.
   fn cloud(&self, method: &str, path: &str, content_type: Option<&str>, body: Option<&str>) -> Result<String, CloudError> {
@@ -139,32 +161,26 @@ fn folder(app: &AppHandle, root_id: &str) -> Option<PathBuf> {
   cfg(app)?.get("folders")?.get(root_id)?.as_str().map(PathBuf::from)
 }
 
-/// The engine: its GLUE folder, whether the settings chose it, and the engine.
-type Current = (PathBuf, bool, Arc<Engine<App>>);
-static ENGINE: Mutex<Option<Current>> = Mutex::new(None);
+static ENGINE: Mutex<Option<Arc<Engine<App>>>> = Mutex::new(None);
 
-/// The engine for the GLUE folder in the settings (a new one when it changes). With none chosen, it's over an empty
-/// folder of GLUE Home's own: GLUE Home is still online in the account's room and takes songs sent to it, with no
-/// library. The room moves to the new engine.
+/// The GLUE folder the settings chose, if any.
+fn chosen(app: &AppHandle) -> Option<PathBuf> { cfg(app).and_then(|c| c.get("glue").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(PathBuf::from)) }
+/// GLUE Home's engine, one for its whole run (ADR 0160), over the GLUE folder in the settings (it follows a change).
+/// With none chosen, it's over an empty folder of GLUE Home's own: GLUE Home is still online in the account's room
+/// and takes songs sent to it, with no library.
 pub fn current(app: &AppHandle) -> Result<Arc<Engine<App>>, String> {
-  let chosen = cfg(app).and_then(|c| c.get("glue").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(PathBuf::from));
-  let glue = match &chosen { Some(g) => g.clone(), None => app.path().app_data_dir().map_err(|x| x.to_string())?.join("no-glue-folder") };
+  let glue = match chosen(app) { Some(g) => g, None => { let d = app.path().app_data_dir().map_err(|x| x.to_string())?.join("no-glue-folder"); std::fs::create_dir_all(&d).map_err(|x| x.to_string())?; d } };
   let mut e = ENGINE.lock().unwrap();
-  if let Some((at, _, en)) = e.as_ref() { if *at == glue { return Ok(en.clone()); } }
-  if chosen.is_none() { std::fs::create_dir_all(&glue).map_err(|x| x.to_string())?; }
+  if let Some(en) = e.as_ref() { let en = en.clone(); drop(e); en.set_glue(glue); return Ok(en); }
   let cache = app.path().app_cache_dir().map_err(|x| x.to_string())?.join("library");
-  let en = Engine::new(glue.clone(), cache, App { app: app.clone() });
-  if let Some((_, _, old)) = e.replace((glue, chosen.is_some(), en.clone())) {
-    let new = en.clone();
-    std::thread::spawn(move || { old.room_stop(); new.room_start(); });
-  }
+  let en = Engine::new(glue, cache, App { app: app.clone() });
+  *e = Some(en.clone());
   Ok(en)
 }
 /// The engine over the GLUE folder the settings chose (a GLUE tab's requests, the library's answers).
 pub fn engine(app: &AppHandle) -> Result<Arc<Engine<App>>, String> {
-  let en = current(app)?;
-  if !ENGINE.lock().unwrap().as_ref().is_some_and(|(_, chosen, e)| *chosen && Arc::ptr_eq(e, &en)) { return Err("No GLUE folder chosen in GLUE Home".into()); }
-  Ok(en)
+  if chosen(app).is_none() { return Err("No GLUE folder chosen in GLUE Home".into()); }
+  current(app)
 }
 
 /// A GLUE tab's request (`/rpc`): the engine's answer (`{error}` when it couldn't).
@@ -173,12 +189,12 @@ pub fn rpc(app: &AppHandle, body: &str) -> String {
   match r { Ok(v) => v.to_string(), Err(err) => json!({ "error": err }).to_string() }
 }
 
-/// What the service page asks of the engine (`glue_engine::command`).
+/// What the settings window asks of the engine (`glue_engine::command`).
 #[tauri::command]
 pub async fn engine_cmd(app: AppHandle, cmd: Value) -> Result<Value, String> {
   tauri::async_runtime::spawn_blocking(move || {
-    // The room, the sessions, songs received and which computer this is don't need a GLUE folder.
-    let any = matches!(cmd["cmd"].as_str().unwrap_or(""), "roomStart" | "roomStop" | "roomDisconnect" | "roomState" | "learnComputer" | "attach" | "analyseWaiting");
+    // The service, the room, the sessions, songs received and which computer this is don't need a GLUE folder.
+    let any = matches!(cmd["cmd"].as_str().unwrap_or(""), "serviceStatus" | "control" | "roomStart" | "roomStop" | "roomDisconnect" | "roomState" | "learnComputer" | "attach" | "analyseWaiting");
     glue_engine::command(&if any { current(&app)? } else { engine(&app)? }, &cmd)
   }).await.map_err(|e| e.to_string())?
 }
@@ -187,7 +203,8 @@ pub async fn engine_cmd(app: AppHandle, cmd: Value) -> Result<Value, String> {
 /// carried on (or, while a GLUE tab from before the engine holds the lease, the stores let go: nothing kept here goes
 /// stale).
 pub fn start(app: &AppHandle) {
-  if let Ok(e) = engine(app) { e.start_analysis(std::time::Duration::from_secs(20), std::time::Duration::from_secs(60)); }
+  // Its service (ADR 0160): online, the music folders found, its timers.
+  if let Ok(e) = current(app) { e.start_analysis(std::time::Duration::from_secs(20), std::time::Duration::from_secs(60)); e.service_start(); }
   let app = app.clone();
   std::thread::spawn(move || loop {
     std::thread::sleep(std::time::Duration::from_secs(10));

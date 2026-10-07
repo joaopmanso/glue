@@ -83,13 +83,13 @@ After working:
   never in the repo.
 - `home/`: GLUE Home, a Tauri 2 tray app (ADR 0044). `home/src-tauri` Rust (tray, settings file,
   incoming-folder writes, autostart, `gluehome://`,
-  `local.rs`: the local link on 127.0.0.1:47400–47409, ADR 0048), `home/ui` its settings and hidden service pages.
+  `local.rs`: the local link on 127.0.0.1:47400–47409, ADR 0048), `home/ui` its settings window and drag dock (its service is the engine's, ADR 0160).
   Both computers build and test it: the desktop (JMansoPC) runs GLUE Home; on the laptop Rust lives in `C:\Work\rust`
   (`CARGO_HOME`, `RUSTUP_HOME`; its policy blocks programs under `%USERPROFILE%\.cargo`), so a Bash session first runs
   `export RUSTUP_HOME=/c/Work/rust/rustup CARGO_HOME=/c/Work/rust/cargo PATH="/c/Work/rust/cargo/bin:$PATH"`.
   `.github/workflows/home.yml` builds Windows + macOS on every push to `main` that
   touches it; when the version in `home/src-tauri/tauri.conf.json` (also `Cargo.toml`, `Cargo.lock`) has no release
-  yet, that build publishes it (tag `home-v<version>`, the release the website links to). Don't push tags. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts` (the engine the real one, run by `e2e/fakeHome.ts`; the connections to other devices stood in for by `e2e/home-rtc.ts`, served from `.e2e-home/`).
+  yet, that build publishes it (tag `home-v<version>`, the release the website links to). Don't push tags. `npm run home:ui` / `home:dev`; tests drive `home/ui` with `e2e/tauri-mock.ts` (the engine the real one, run by `e2e/fakeHome.ts`; the connections to other devices stood in for by `e2e/home-rtc.ts`, in GLUE Home's background page `__e2e/home.html`, served from `.e2e-home/`).
 - `crates/glue-audio`: the native analysis engine (ADR 0147), a line-for-line Rust port of `src/core`'s analysis with
   JavaScript's numbers (`src/js.rs`). `cargo test --manifest-path crates/glue-audio/Cargo.toml` compares it with the
   TypeScript's results in `tests/golden` (regenerate with `GOLDEN=1 npx vitest run tests/golden.test.ts` after changing

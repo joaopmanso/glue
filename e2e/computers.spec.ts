@@ -65,7 +65,7 @@ test('a second browser on a computer with GLUE Home joins that computer: one dev
   const disk = await homeDisk({});
   await disk.wire(homePage, { link: false });
   await homePage.addInitScript(() => localStorage.setItem('home-config', JSON.stringify({ deviceId: 'h1', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, localToken: 'local-secret' })));
-  await homePage.goto('http://localhost:5176/service.html');
+  await homePage.goto('http://localhost:5176/__e2e/home.html');
   await expect(homePage.locator('#state')).toContainText('Online as Desktop');
 
   // Its local link on 127.0.0.1 (Rust, stood in): /hello says who it is; /attach, with its token, is passed

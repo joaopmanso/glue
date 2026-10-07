@@ -1,8 +1,8 @@
 //! The connections to the account's other devices, native (crates/glue-rtc, ADR 0150): every connection, channel and
 //! song byte. The engine holds the room and the sessions (ADR 0158): it opens and closes them through `Conns` (its
 //! `Peers`), and hears what they found and did (candidates, states, activity, songs received) on one thread of their
-//! own, in order. The library's questions are answered by the engine too (ADR 0156: `answer`). To the service page:
-//! `rtc-receiving` and `rtc-served` (the settings window's).
+//! own, in order, with a song arriving and what they answered (its status). The library's questions are answered by the
+//! engine too (ADR 0156: `answer`).
 use glue_engine::answers::Answer;
 use glue_rtc::{Arriving, Host, IceCandidate, IceServer, ReadSeek, Server, Song};
 use serde_json::{json, Value};
@@ -13,7 +13,7 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 pub struct App { app: AppHandle, arriving: Mutex<HashMap<u64, (PathBuf, PathBuf)>>, next: Mutex<u64>, to_engine: Mutex<mpsc::Sender<(String, Value)>> }
 
@@ -50,7 +50,7 @@ fn answer(app: &AppHandle, r: Value) {
       }
     }).unwrap_or(0);
     SERVING.fetch_sub(1, Ordering::Relaxed);
-    let _ = app.emit_to("service", "rtc-served", json!({ "what": r["req"]["t"], "ms": t0.elapsed().as_secs_f64() * 1000.0, "bytes": sent }));
+    if let Ok(e) = crate::engine::current(&app) { e.served(r["req"]["t"].as_str().unwrap_or("?"), t0.elapsed().as_secs_f64() * 1000.0, sent); }
   });
 }
 
@@ -58,8 +58,8 @@ impl Host for App {
   fn event(&self, name: &str, payload: Value) {
     if name == "rtc-request" { return answer(&self.app, payload); }
     if name == "rtc-receiving" { RECEIVING.store(!payload.is_null(), Ordering::Relaxed); }
-    if matches!(name, "rtc-ice" | "rtc-state" | "rtc-activity" | "rtc-received") { let _ = self.to_engine.lock().unwrap().send((name.into(), payload)); return; }
-    let _ = self.app.emit_to("service", name, payload);
+    // What the connections say, to the engine, in order (rtc-served: what they answered themselves).
+    let _ = self.to_engine.lock().unwrap().send((name.into(), payload));
   }
   fn cache_read(&self, key: &str) -> Option<Vec<u8>> { crate::cache_path(&self.app, key).ok().and_then(|p| fs::read(p).ok()) }
   fn cache_put(&self, key: &str, data: &[u8]) -> Result<(), String> { crate::cache_put(&self.app, key, data) }
@@ -96,7 +96,10 @@ pub fn new(app: &AppHandle) -> Rtc {
       "rtc-ice" => e.peer_ice(&t("id"), v["candidate"].clone()),
       "rtc-state" => e.peer_state(&t("id"), &t("state")),
       "rtc-activity" => e.peer_activity(&t("id"), v["calls"].as_u64().unwrap_or(0), v["last"].as_f64().unwrap_or(0.0) as i64),
-      _ => e.received(&t("name"), &t("path"), v["size"].as_u64().unwrap_or(0)),
+      "rtc-received" => e.received(&t("name"), &t("path"), v["size"].as_u64().unwrap_or(0)),
+      "rtc-receiving" => e.receiving(v),
+      "rtc-served" => e.served(v["what"].as_str().unwrap_or("?"), v["ms"].as_f64().unwrap_or(0.0), v["bytes"].as_u64().unwrap_or(0)),
+      _ => {}
     }
   }).ok();
   Server::new(App { app: app.clone(), arriving: Mutex::new(HashMap::new()), next: Mutex::new(0), to_engine: Mutex::new(tx) })
@@ -121,7 +124,3 @@ impl glue_engine::room::Peers for Conns {
   fn close(&self, id: &str) { tauri::async_runtime::block_on(self.0.close(id)) }
   fn tell(&self, msg: Value) { tauri::async_runtime::block_on(self.0.tell(msg)) }
 }
-
-/// Is GLUE Home sending or receiving for another device now? (Updates wait.)
-#[tauri::command]
-pub fn rtc_busy() -> bool { busy() }
