@@ -197,6 +197,14 @@ With GLUE Home running the page still does, until each moves into the engine (th
 - **Shared songs without copies (ADR 0161):** fixed by explanation, not caught in the act. If `e2e/shared.spec.ts`
   "the desktop's DJ library" ever fails that way again (about 1 run in 7 before), look for another writer of the
   computer's own form.
+- **Seen once (2026-10-08, full local run):** while a laptop joined the account's collection (`shared.spec.ts` "a laptop with
+  songs of its own"), the "N songs here have no file: … Remove them too?" warning (`#orphans`, `removal.ts` `orphans`: a
+  song with no folder, path, copy or source, not another computer's) showed next to the join's notice. A song passes
+  through that state for a moment while joining; not reproduced in 4 runs. Find which step leaves a song with nothing
+  (a record without `copies` taken as nobody's? the store opened again mid-join?), and never offer to remove it then.
+- **The native check test** (`home.spec.ts` "GLUE Home checks its native engine", flaky on CI since 0.60, failed twice
+  on 0.62): a song's cached result was written again after the test edited it; the test now waits for "Put 2
+  analyses" and "Analysis done". No path found in GLUE Home that analyses a song twice; watch for it.
 - **Flaky under a full local run:** `library.spec.ts` "the player…": after the reload the player shows the queue's next song
   (Fixture AAC) though the saved queue had Fixture MP3 current (checked just before the reload). 0 in 10 with five at once;
   about 1 full run in 3. Not yet understood.

@@ -331,6 +331,8 @@ test('GLUE Home checks its native engine against the songs it analysed: a sample
   // b.flac's verdict changed.
   const result = (id: string) => join(d.fake.cacheDir, 's', 'p1', 'c1', 'ab', id + '.json');
   await expect.poll(() => ['ab01', 'ab02'].every(id => existsSync(result(id))), { timeout: 60_000 }).toBe(true);
+  // …and in the library, the analysis done (on CI's slower machine the last of it landed after the edit below).
+  await expect.poll(() => d.fake.notes.some(n => n.note === 'event' && /Put 2 analyses/.test(String(n.text))) && d.fake.notes.some(n => n.note === 'event' && /Analysis done/.test(String(n.text))), { timeout: 60_000 }).toBe(true);
   for (const id of ['ab01', 'ab02']) {
     const r = JSON.parse(readFileSync(result(id), 'utf8'));
     delete r.summary.engine;

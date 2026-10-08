@@ -15,6 +15,10 @@ Newest first. Each entry: date, milestone, what changed, links.
   moment did nothing); only a real "Check again" shows "Comparing…".
 - Tests: `e2e/homemode.spec.ts` "it finds the duplicates" (now: grouped by GLUE Home, a playlist on the best copy,
   "Keep · not a duplicate" through it), the groups golden in Rust.
+- **Deploy:** GLUE Home 0.62.0 was published but the website's deploy failed: the new groups golden test didn't
+  typecheck (`bitrate: null` against `TrackFormat`). Locally only the last line of `npm run check` was read (its
+  first checker's); read its exit code. Fixed with the next push, with two tests made to wait for what they check
+  (the native check, after the analysis is done; the join's notice, among others).
 
 ## 2026-10-08 · GLUE Home 0.61.0: GLUE Home matches the duplicates (ADR 0164)
 - **Why:** the user, after ADR 0163: "I want to get all of these moved to Rust so that we can move on to the DJ

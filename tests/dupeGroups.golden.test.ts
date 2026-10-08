@@ -9,8 +9,9 @@ import type { AnalysisSummary, List, Track } from '../src/store/types';
 
 const OUT = join(__dirname, 'golden', 'dupes');
 
-const lossless = (sampleRate: number, bits: number) => ({ codec: 'FLAC', container: 'FLAC', lossless: true, sampleRate, bits, bitrate: null, channels: 2 });
-const lossy = (bitrate: number | null) => ({ codec: 'MP3', container: 'MPEG', lossless: false, sampleRate: 44100, bits: 0, bitrate, channels: 2 });
+// A null bitrate on purpose (a format read without one): the score's arithmetic takes it as 0, as JavaScript does.
+const lossless = (sampleRate: number, bits: number) => ({ codec: 'FLAC', container: 'FLAC', lossless: true, sampleRate, bits, bitrate: null as unknown as number, channels: 2 });
+const lossy = (bitrate: number | null) => ({ codec: 'MP3', container: 'MPEG', lossless: false, sampleRate: 44100, bits: 0, bitrate: bitrate as number, channels: 2 });
 const song = (id: string, o: Partial<Track> & Record<string, unknown> = {}): Track => ({ id, status: 'linked', rootId: 'r1', relPath: id + '.mp3', importPath: null, fileName: id + '.mp3', size: 1000, mtime: 1, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: 300, format: null, addedAt: '2026-01-01', sources: [], ...o } as Track);
 const graded = (grade: string): AnalysisSummary => ({ v: 3, grade, label: grade, headline: '' } as unknown as AnalysisSummary);
 const m = (a: string, b: string, ber: number): Match => ({ a, b, ber, offsetSec: 0.2, overlapSec: 120.5 });

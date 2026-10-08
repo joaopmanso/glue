@@ -200,7 +200,7 @@ test('a laptop with songs of its own is asked once: put into the account’s col
     await expect(lap.page.locator('#join-box')).toHaveCount(0, { timeout: 30_000 });
     await lap.page.locator('.lside .name', { hasText: 'All tracks' }).click();
     await expect(lap.page.locator('#shared-chip')).toBeVisible({ timeout: 30_000 });
-    await expect(lap.page.locator('.notice')).toContainText('2 songs were already there, 0 came in');
+    await expect(lap.page.locator('.notice', { hasText: 'were already there' })).toContainText('2 songs were already there, 0 came in');   // (other notices may show too)
     await expect(lap.page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
     await expect(lap.page.locator('.tr', { hasText: 'Fixture FLAC' }).locator('.pbtn')).toHaveCount(1);
     await expect(lap.page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.pbtn')).toHaveCount(0);
