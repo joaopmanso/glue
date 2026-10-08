@@ -2,7 +2,7 @@
   /* A row's mini spectrogram (ADR 0031): drawn once from its 3 KB thumbnail; the playhead and the
      played part are a light overlay, so only the playing row changes while music plays.
      Click (or drag) to play from that spot, or to scrub the playing track. `kind`: always that one (Duplicates shows
-     waveforms, to see a recording's shape); else the Overview column's. `tall`: taller (Duplicates). */
+     waveforms, to see a recording's shape); else the Overview column's. */
   import { thumbs, waves } from '../../lib/thumbs.svelte';
   import { overview } from '../../lib/columns.svelte';
   import { drawWave } from '../render/wave';
@@ -16,7 +16,7 @@
   import type { CuePoint } from '../../core/interop/types';
   import { cuesFor } from '../../lib/cues';
 
-  let { t, order, kind, tall = false }: { t: Track; order: string[]; kind?: 'waveform' | 'spectrogram'; tall?: boolean } = $props();
+  let { t, order, kind }: { t: Track; order: string[]; kind?: 'waveform' | 'spectrogram' } = $props();
   let cv = $state<HTMLCanvasElement>();
   // The spectrogram, or the waveform (right-click the Overview header; the user's list, 2026-09-27).
   const wave = $derived((kind ?? overview.kind) === 'waveform');
@@ -67,7 +67,7 @@
 
 <!-- Pointer-only extra: keyboard users have the row’s play button and the player bar. -->
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-<div class="wave" class:empty={!data} class:playing class:tall title={here ? 'Click to play from here' : t.remote ? 'On ' + t.remote.name + ': plays there' : ''}
+<div class="wave" class:empty={!data} class:playing title={here ? 'Click to play from here' : t.remote ? 'On ' + t.remote.name + ': plays there' : ''}
   onpointerdown={down} onpointermove={move} onpointerup={() => (scrubbing = false)} onclick={e => e.stopPropagation()} ondblclick={e => e.stopPropagation()}>
   {#if data}{#key wave}<canvas bind:this={cv} width={THUMB_W} height={wave ? WAVE_H : THUMB_H} aria-hidden="true"></canvas>{/key}{/if}
   {#if playing}
@@ -92,6 +92,4 @@
   .cue.hot { height: 22px; opacity: .8; width: 1.5px; }
   .cue.loop { background: var(--ok); }
   .wave.playing { box-shadow: inset 0 0 0 1px var(--accent); }
-  .wave.tall { height: 40px; }
-  .wave.tall .cue.hot { height: 40px; }
 </style>

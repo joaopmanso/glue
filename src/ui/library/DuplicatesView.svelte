@@ -156,6 +156,8 @@
               {#if nowPlaying.trackId === id && !player.paused}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 1.5h3.2v11H2.5zM8.3 1.5h3.2v11H8.3z" fill="currentColor"/></svg>
               {:else}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9.5-5.5z" fill="currentColor"/></svg>{/if}
             </button>
+            <!-- Its waveform, as the library's Overview, to the group's time scale: click to play from there, drag to scrub. -->
+            <div class="wvcell"><div class="wv" data-wave={id} data-guide="dupes-wave" style:width={t.duration && longest(g) ? (t.duration / longest(g)) * 100 + '%' : '100%'}><WaveCell {t} order={g.ids} kind="waveform" /></div></div>
             <div class="who">
               <a href={trackHref(id)} onclick={e => { e.preventDefault(); router.go(trackHref(id)); }}>{t.title || t.fileName}</a>
               <span>{t.artist}</span>
@@ -171,8 +173,6 @@
               {:else}<button type="button" class="mini" data-best={id} title="Make this the copy that stays: every playlist uses it, and the library shows it" onclick={() => keep(g, id)}>Make it the best</button>{/if}
               <button type="button" class="mini" data-apart={id} disabled={lib.readOnly} title="Not a duplicate of the others (another version: an instrumental, a live take, a longer mix…). It leaves this group for good; clean up the rest." onclick={() => dupes.apart(g, id)}>Keep · not a duplicate</button>
             </span>
-            <!-- Its waveform, to the group's time scale: click to play from there, drag to scrub. -->
-            <div class="wv" data-wave={id} data-guide="dupes-wave" style:width={t.duration && longest(g) ? (t.duration / longest(g)) * 100 + '%' : '100%'}><WaveCell {t} order={g.ids} kind="waveform" tall /></div>
           </li>
         {/if}
       {/each}
@@ -278,9 +278,9 @@
   .kind.probable { color: var(--warn); }
   .sim { color: var(--muted); font-size: 12.5px; flex: 1; }
   ul { list-style: none; margin: 0; padding: 0; }
-  li { display: grid; grid-template-columns: minmax(28px, auto) minmax(200px, 1fr) 130px 50px 70px 150px 110px 310px; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
+  li { display: grid; grid-template-columns: minmax(28px, auto) 150px minmax(200px, 1fr) 130px 50px 70px 150px 110px 310px; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
   li:last-child { border-bottom: 0; }
-  .wv { grid-column: 2 / -1; min-width: 0; }
+  .wvcell { min-width: 0; }
   li.best { background: color-mix(in srgb, var(--ok) 7%, transparent); outline: 1px solid color-mix(in srgb, var(--ok) 55%, transparent); outline-offset: -1px; }
   li.focus { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 12%, transparent); transition: background .4s; }
   .who { display: grid; min-width: 0; line-height: 1.35; }
@@ -336,5 +336,5 @@
   .plan .more { color: var(--muted); }
   .acts { display: flex; gap: 8px; justify-content: flex-end; }
   .dangerbtn { background: var(--bad); border-color: var(--bad); color: #fff; }
-  @media (max-width: 1200px) { li { grid-template-columns: 28px minmax(160px, 1fr) 120px 140px 310px; } li > :nth-child(4), li > :nth-child(5), li > :nth-child(7) { display: none; } }
+  @media (max-width: 1200px) { li { grid-template-columns: 28px 150px minmax(160px, 1fr) 120px 140px 310px; } li > :nth-child(5), li > :nth-child(6), li > :nth-child(8) { display: none; } }
 </style>

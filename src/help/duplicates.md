@@ -10,7 +10,7 @@ GLUE finds the same recording under any name, tag or format by how it **sounds**
 Songs with the same artist and title and about the same length show too, as **probable**. Words that only name the release don't make another song ("Album Version", "Remastered 2009", "Mono", "feat. …"); words that name another recording do ("Live at …", "BBC Session", "Remixed by …").
 
 ## Seeing and hearing them
-Each copy shows its **waveform**, all to the same time scale: the same recording lines up, and a trimmed intro or a longer edit shows at a glance. Click a waveform to play from that spot, and drag along it to scrub. With one copy playing, another's play button starts it **at the same moment**, so you can switch between them and listen.
+Each copy shows its **waveform** (as in the library's Overview), all to the same time scale: the same recording lines up, and a trimmed intro or a longer edit shows at a glance. Click a waveform to play from that spot, and drag along it to scrub. With one copy playing, another's play button starts it **at the same moment**, so you can switch between them and listen.
 
 ## One copy, everywhere
 Each song shows as its **best copy** everywhere else, and every playlist uses it. The best copy is the better-judged one, lossless before lossy, then the one in your **main folder** (optional), then the higher resolution. **Make it the best** picks another.
