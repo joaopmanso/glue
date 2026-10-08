@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CollectionStore, type StoreOp } from '../src/store/collection';
-import { absorbTracks } from '../src/store/merge';
+import { absorbTracks, joinCopies, tidyTracks } from '../src/store/merge';
 import type { Track } from '../src/store/types';
 import type { Dir } from '../src/store/fsx';
 
@@ -42,6 +42,8 @@ type Step =
   | { fold: { into: string; name?: string } }
   /** The last fold's twins folded together (store/merge absorbTracks), as GLUE Home's engine does after a repair. */
   | { absorb: true }
+  | { tidy: true }
+  | { join: true }
   | { reload: string[]; files: Record<string, string> }
   | { flush: true };
 interface Scenario { files: Record<string, string>; steps: Step[] }
@@ -201,7 +203,39 @@ const withoutCopiesTwo: Scenario = {
   steps: [{ load: { pid: 'p1', cid: 'c1', me: 'desk' } }, { flush: true }],
 };
 
-const SCENARIOS: Record<string, Scenario> = { plain, 'shared-desk': sharedDesk, 'shared-not-mine': sharedNotMine, fold, damaged, reload, joins, 'without-copies': withoutCopies, 'without-copies-two': withoutCopiesTwo };
+// The repairs a collection gets when it opens (ADR 0166: GLUE Home's too): songs naming an import that's gone lose it, and
+// one that was only that import's record goes; a song without a file found by its path folds into the one that has it.
+const tidyScenario: Scenario = {
+  files: {
+    [base + '/collection.json']: J({ schemaVersion: 1, id: 'c1', name: 'Mine', createdAt: '2026-01-01T00:00:00.000Z', roots: [{ id: 'r1', name: 'Music Collection', absPath: 'D:\\Music Collection', handleKey: 'h1', addedAt: '2026-01-01T00:00:00.000Z' }] }),
+    [base + '/tracks/ab.json']: shard({
+      ab01: track('ab01', { sources: ['s1', 'gone'], rating: 3 }),
+      ab02: track('ab02', { status: 'unlinked', rootId: null, relPath: null, sources: ['gone'] }),
+      ab03: track('ab03', { status: 'unlinked', rootId: null, relPath: null, importPath: 'D:\\Music Collection\\Sets\\cd04.flac', fileName: 'cd04.flac', sources: ['s1'], rating: 5 }),
+      ab05: track('ab05', { status: 'unlinked', rootId: null, relPath: null, importPath: 'E:\\Elsewhere\\nothing.mp3', fileName: 'nothing.mp3', sources: ['s1'] }),
+    }),
+    [base + '/tracks/cd.json']: shard({ cd04: track('cd04', { relPath: 'Sets/cd04.flac' }) }),
+    [base + '/sources/s1.json']: J({ schemaVersion: 1, id: 's1', kind: 'rekordbox', name: 'rekordbox', path: 'x', addedAt: '2026-01-01T00:00:00.000Z', tracks: [{ trackId: 'ab03', key: 'k3' }, { trackId: 'ab01', key: 'k1' }, { trackId: 'ab05', key: 'k5' }] }),
+    [base + '/lists/l1.json']: J({ schemaVersion: 1, id: 'l1', kind: 'playlist', name: 'Set', parentId: null, position: 0, notes: '', items: ['ab03', 'ab01'], origin: null }),
+  },
+  steps: [{ load: { pid: 'p1', cid: 'c1' } }, { tidy: true }, { flush: true }],
+};
+// A shared collection: this computer's song that's the same file as another computer's ("Song (2).flac" too) joins it as
+// this computer's copy, with its analysis and playlist places; the newer of the two goes.
+const joinScenario: Scenario = {
+  files: sharedFiles({
+    [base + '/tracks/ef.json']: shard({
+      ef01: { ...common('ef01', { fileName: 'Song.flac', addedAt: '2026-01-01T10:00:00.000Z' }), copies: { lap: copy('r9', 'Song.flac', { size: 777 }) } },
+      ef02: { ...common('ef02', { fileName: 'Song (2).flac', addedAt: '2026-02-01T10:00:00.000Z' }), copies: { desk: copy('r1', 'In/Song (2).flac', { size: 777 }) } },
+      ef03: { ...common('ef03', { fileName: 'Other.flac', addedAt: '2026-01-01T10:00:00.000Z' }), copies: { desk: copy('r1', 'Other.flac', { size: 5 }) } },
+    }),
+    [base + '/analysis/ef.json']: shard({ ef02: { desk: summary({ bpm: 99 }) } }),
+    [base + '/lists/l3.json']: J({ schemaVersion: 1, id: 'l3', kind: 'playlist', name: 'Mine', parentId: null, position: 1, notes: '', items: ['ef02', 'ef03'], origin: null }),
+  }),
+  steps: [{ load: { pid: 'p1', cid: 'c1', me: 'desk' } }, { join: true }, { flush: true }],
+};
+
+const SCENARIOS: Record<string, Scenario> = { tidy: tidyScenario, join: joinScenario,  plain, 'shared-desk': sharedDesk, 'shared-not-mine': sharedNotMine, fold, damaged, reload, joins, 'without-copies': withoutCopies, 'without-copies-two': withoutCopiesTwo };
 
 async function run(sc: Scenario) {
   const dir = memDir(sc.files), root = dir as unknown as Dir;
@@ -211,6 +245,8 @@ async function run(sc: Scenario) {
     if ('load' in st) { const { pid, cid, ...opts } = st.load; s = await CollectionStore.load(root, pid, cid, opts); out.push({ damaged: s.damaged }); }
     else if ('op' in st) s!.apply(st.op);
     else if ('fold' in st) { const r = s!.foldComputer(st.fold.into, st.fold.name); twins = r?.twins ?? []; out.push({ fold: r }); }
+    else if ('tidy' in st) out.push({ tidy: tidyTracks(s!) });
+    else if ('join' in st) out.push({ join: joinCopies(s!) });
     else if ('absorb' in st) { const m = new Map<string, Track>(); for (const [from, into] of twins) { const t = s!.tracks.get(into); if (t) m.set(from, t); } absorbTracks(s!, m); }
     else if ('reload' in st) { for (const [k, v] of Object.entries(st.files)) dir.files.set(k, v); await s!.reloadFiles(st.reload); }
     else { await s!.flush(); out.push({ files: Object.fromEntries([...dir.files].sort(([a], [b]) => (a < b ? -1 : 1))) }); }

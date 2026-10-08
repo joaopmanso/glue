@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M6
 updated: 2026-10-07
-adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112, 0115, 0130, 0132, 0133, 0150, 0156, 0158, 0159, 0161, 0162, 0163]
+adrs: [0036, 0040, 0041, 0042, 0043, 0044, 0045, 0046, 0037, 0038, 0081, 0082, 0083, 0108, 0112, 0115, 0130, 0132, 0133, 0150, 0156, 0158, 0159, 0161, 0162, 0163, 0166]
 ---
 # GLUE Cloud: accounts, GLUE Home and devices
 
@@ -20,7 +20,9 @@ gets its writer's ([ADR 0161](../adr/0161-no-own-form-into-a-shared-collection.m
 only its screen, and runs no sync or other library work of its own
 ([ADR 0162](../adr/0162-with-glue-home-the-page-is-only-its-screen.md)). Since 0.60 a computer never clashes with
 itself, and GLUE Home's clashes are shown and answered in the tab
-([ADR 0163](../adr/0163-one-computer-never-clashes-with-itself.md)). What follows is this feature's history, oldest first
+([ADR 0163](../adr/0163-one-computer-never-clashes-with-itself.md)). Since 0.63 GLUE Home joins this computer's song
+with another computer's that's the same file, when a collection opens and after a sync
+([ADR 0166](../adr/0166-glue-home-rechecks-verdicts-and-tidies.md)). What follows is this feature's history, oldest first
 per section: read only the part you're changing.
 
 ## What it does

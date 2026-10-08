@@ -1865,7 +1865,7 @@ dependencies = [
 
 [[package]]
 name = "glue-home"
-version = "0.62.0"
+version = "0.63.0"
 dependencies = [
  "getrandom 0.3.4",
  "glue-audio",
@@ -1910,6 +1910,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "indexmap 2.14.2",
+ "regex",
  "serde_json",
 ]
 

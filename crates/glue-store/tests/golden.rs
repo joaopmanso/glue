@@ -29,6 +29,13 @@ fn run(sc: &Value) -> Vec<Value> {
         "counts": { "copiesMoved": c.copies_moved, "copiesDropped": c.copies_dropped, "analysesMoved": c.analyses_moved, "twins": c.twins },
         "twins": twins.iter().map(|(a, b)| json!([a, b])).collect::<Vec<_>>(),
       })) }));
+    } else if st.get("tidy").is_some() {
+      let (unlinked, dropped, relinked) = s.as_mut().unwrap().tidy_tracks();
+      out.push(json!({ "tidy": { "unlinked": unlinked, "dropped": dropped, "relinked": relinked } }));
+    } else if st.get("join").is_some() {
+      let s = s.as_mut().unwrap();
+      let pairs = s.copies_to_join();
+      out.push(json!({ "join": s.join_copies(&pairs) }));
     } else if st.get("absorb").is_some() {
       let s = s.as_mut().unwrap();
       let mut into = indexmap::IndexMap::new();

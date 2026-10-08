@@ -1,0 +1,31 @@
+{
+ "v": 3,
+ "grade": "warn",
+ "label": "Caution",
+ "headline": "Band-limited to about 5.2 kHz",
+ "fc": 5200,
+ "wall": false,
+ "full": false,
+ "effBits": 24,
+ "declaredBits": 24,
+ "origin": "Band-limited source",
+ "bpm": null,
+ "key": null,
+ "findings": [
+  {
+   "sev": "warn",
+   "title": "Band-limited to about 5.2 kHz"
+  },
+  {
+   "sev": "warn",
+   "title": "Left and right are identical"
+  },
+  {
+   "sev": "ok",
+   "title": "All 24 bits in use"
+  }
+ ],
+ "fileSize": 1058454,
+ "fileMtime": 1700000000000,
+ "vv": 8
+}

@@ -1,0 +1,22 @@
+[
+ {
+  "damaged": []
+ },
+ {
+  "tidy": {
+   "unlinked": 2,
+   "dropped": 1,
+   "relinked": 1
+  }
+ },
+ {
+  "files": {
+   "profiles/p1/collections/c1/analysis/ab.json": "{\"schemaVersion\":1,\"items\":{}}",
+   "profiles/p1/collections/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Mine\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"roots\":[{\"id\":\"r1\",\"name\":\"Music Collection\",\"absPath\":\"D:\\\\Music Collection\",\"handleKey\":\"h1\",\"addedAt\":\"2026-01-01T00:00:00.000Z\"}]}",
+   "profiles/p1/collections/c1/lists/l1.json": "{\"schemaVersion\":1,\"id\":\"l1\",\"kind\":\"playlist\",\"name\":\"Set\",\"parentId\":null,\"position\":0,\"notes\":\"\",\"items\":[\"cd04\",\"ab01\"],\"origin\":null}",
+   "profiles/p1/collections/c1/sources/s1.json": "{\"schemaVersion\":1,\"id\":\"s1\",\"kind\":\"rekordbox\",\"name\":\"rekordbox\",\"path\":\"x\",\"addedAt\":\"2026-01-01T00:00:00.000Z\",\"tracks\":[{\"trackId\":\"cd04\",\"key\":\"k3\"},{\"trackId\":\"ab01\",\"key\":\"k1\"},{\"trackId\":\"ab05\",\"key\":\"k5\"}]}",
+   "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"fileName\":\"ab01.flac\",\"size\":1000,\"mtime\":5,\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-05T10:00:00.000Z\",\"sources\":[\"s1\"],\"rating\":3},\"ab05\":{\"id\":\"ab05\",\"status\":\"unlinked\",\"rootId\":null,\"relPath\":null,\"importPath\":\"E:\\\\Elsewhere\\\\nothing.mp3\",\"fileName\":\"nothing.mp3\",\"size\":1000,\"mtime\":5,\"title\":\"Song ab05\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-09T10:00:00.000Z\",\"sources\":[\"s1\"]}}}",
+   "profiles/p1/collections/c1/tracks/cd.json": "{\"schemaVersion\":1,\"items\":{\"cd04\":{\"id\":\"cd04\",\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/cd04.flac\",\"importPath\":\"D:\\\\Music Collection\\\\Sets\\\\cd04.flac\",\"fileName\":\"cd04.flac\",\"size\":1000,\"mtime\":5,\"title\":\"Song cd04\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-08T10:00:00.000Z\",\"sources\":[\"s1\"],\"rating\":5}}}"
+  }
+ }
+]

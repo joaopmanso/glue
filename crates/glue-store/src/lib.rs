@@ -15,3 +15,4 @@ pub mod merge3;
 pub mod project;
 pub mod repair;
 pub mod store;
+pub mod tidy;

@@ -401,6 +401,10 @@ impl<H: Host> Engine<H> {
       if sh && unknown_computer(computer) { continue; }
       let me = if sh { computer.unwrap_or("").to_string() } else { String::new() };
       let roots: Vec<Value> = (if sh { meta["rootsBy"][&me].as_array() } else { meta["roots"].as_array() }).cloned().unwrap_or_default();
+      // The repairs a collection gets when it opens, and verdicts made by older rules made again from what’s kept (once
+      // a run, ADR 0166).
+      self.tidy_once(&pid, &cid);
+      self.recheck_once(&pid, &cid);
       let seen = Seen::new(Some(meta), &pid, &cid, computer);
       let waiting: HashSet<String> = self.q().pending.get(&(pid.clone(), cid.clone())).map(|s| s.iter().cloned().collect()).unwrap_or_default();
       let tries = self.q().tries.clone();

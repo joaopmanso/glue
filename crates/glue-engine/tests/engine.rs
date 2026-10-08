@@ -292,3 +292,60 @@ fn songs_added_get_their_tags_then_their_analysis_within_the_number() {
   // tracks happened before any analysis was written.
   assert!(h.0.lock().unwrap().edited.iter().any(|p| p.iter().all(|x| x.starts_with("tracks/"))), "{:?}", h.0.lock().unwrap().edited);
 }
+
+/// Verdicts made by older rules (ADR 0166): GLUE Home makes them again from the details it kept, never the file; the
+/// song's analysis date stays.
+#[test]
+fn verdicts_made_by_older_rules_are_made_again_from_the_details() {
+  let (glue, cache, music) = (temp("recheck"), temp("recheck-cache"), temp("recheck-music"));
+  library(&glue);
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/flac-96k-24.flac");
+  std::fs::copy(&fixture, music.join("a.mp3")).unwrap();   // its record names it a.mp3: the bytes say FLAC
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": music.to_string_lossy() }, "analysisWorkers": 2 });
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  e.run_analysis();
+  let mut a = Value::Null;
+  for _ in 0..300 { a = std::fs::read_to_string(glue.join(format!("{C}/analysis/ab.json"))).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null); if a["items"]["ab1"]["v"] == json!(3) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
+  let now = a["items"]["ab1"].clone();
+  assert_eq!(now["label"], "Genuine hi-res", "{now}");
+  for _ in 0..50 { if h.0.lock().unwrap().events.iter().any(|x| x.starts_with("Analysis done")) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
+  // As an older rule judged it.
+  let vv = now["vv"].as_f64().unwrap();
+  let mut old = now.clone();
+  old["vv"] = json!(vv - 1.0); old["grade"] = json!("warn"); old["label"] = json!("Upsampled"); old["at"] = json!("2026-01-01T00:00:00.000Z");
+  a["items"]["ab1"] = old;
+  put(&glue, &format!("{C}/analysis/ab.json"), a);
+  e.drop_store("p1", "c1");
+  assert_eq!(e.recheck_verdicts("p1", "c1").unwrap(), (1, 0));
+  let back = read(&glue, &format!("{C}/analysis/ab.json"))["items"]["ab1"].clone();
+  assert_eq!((back["label"].as_str(), back["grade"].as_str(), back["vv"].as_f64()), (Some("Genuine hi-res"), Some("ok"), Some(vv)));
+  assert_eq!(back["at"], "2026-01-01T00:00:00.000Z", "analysed when it was");
+  assert!(h.0.lock().unwrap().events.iter().any(|x| x == "Quality verdicts updated: 1 song now count as fine (a quiet top end is still hi-res)."));
+  // Nothing more to do.
+  assert_eq!(e.recheck_verdicts("p1", "c1").unwrap(), (0, 0));
+}
+
+#[test]
+fn a_collection_is_tidied_when_it_opens() {
+  let glue = temp("tidy");
+  library(&glue);
+  let mut t = read(&glue, &format!("{C}/tracks/ab.json"));
+  // A song without a file whose file is here (an import's), and one that was only a removed import's record.
+  t["items"]["ab3"] = json!({ "id": "ab3", "status": "unlinked", "rootId": null, "relPath": null, "importPath": r"C:\Music\a.mp3", "fileName": "a.mp3", "size": 1000, "rating": 5, "sources": [] });
+  t["items"]["ab4"] = json!({ "id": "ab4", "status": "unlinked", "rootId": null, "relPath": null, "importPath": r"E:\x.mp3", "fileName": "x.mp3", "sources": ["gone"] });
+  put(&glue, &format!("{C}/tracks/ab.json"), t);
+  put(&glue, &format!("{C}/lists/l1.json"), json!({ "schemaVersion": 1, "id": "l1", "kind": "playlist", "name": "Set", "parentId": null, "position": 0, "notes": "", "items": ["ab3"], "origin": null }));
+  let h = H::default();
+  let e = Engine::new(glue.clone(), temp("tidy-cache"), h.clone());
+  assert_eq!(e.tidy("p1", "c1").unwrap(), (1, 1, 0));
+  let items = read(&glue, &format!("{C}/tracks/ab.json"))["items"].clone();
+  assert!(items.get("ab3").is_none() && items.get("ab4").is_none(), "{items}");
+  assert_eq!(items["ab1"]["rating"], 5, "what the user set comes along");
+  assert_eq!(read(&glue, &format!("{C}/lists/l1.json"))["items"], json!(["ab1"]));
+  assert!(h.0.lock().unwrap().events.iter().any(|x| x == "Tidied “Main”: 1 leftover song of a removed import gone, 1 song linked to its file"), "{:?}", h.0.lock().unwrap().events);
+  assert!(!h.0.lock().unwrap().edited.is_empty(), "sent up like an edit");
+  assert_eq!(e.tidy("p1", "c1").unwrap(), (0, 0, 0));
+}

@@ -87,6 +87,10 @@ fn check_files(name: &str, a: &Analysis, size: f64) {
   // GLUE reads the covers in AIFF tags natively; the browser's reader couldn't (no `art` there).
   if want.get("art").is_none() && an["art"] == "" && name.ends_with(".aiff") { an.as_object_mut().unwrap().remove("art"); }
   same(&an, &want.take(), 1e-12, "analysed", &mut diffs);
+  // The verdict made again from these details (ADR 0166): the website's from the same block.
+  let mut re = serde_json::to_value(glue_audio::recheck(&a.details.0, raw, String::new()).expect("the details re-check")).unwrap();
+  { let o = re.as_object_mut().unwrap(); o.remove("at"); o.remove("engine"); o.remove("fp"); }
+  same(&re, &golden(name, "recheck.json"), 1e-12, "recheck", &mut diffs);
   assert!(diffs.is_empty(), "{name}'s stored files differ from the website's:
   {}", diffs.join("
   "));

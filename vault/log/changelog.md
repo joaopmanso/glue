@@ -1,9 +1,20 @@
 ---
-updated: 2026-10-06
+updated: 2026-10-08
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-10-08 · GLUE Home 0.63.0: GLUE Home makes old verdicts again and repairs a collection when it opens (ADR 0166)
+- **Why:** ADR 0162 left two of the page's open-time jobs with nobody doing them while GLUE Home runs: verdicts made by
+  older rules made again (`recheckVerdicts`), and the repairs (`tidyTracks`: songs naming a removed import, songs
+  without a file whose file is here; `joinCopies`: this computer's song that's another computer's, the same file).
+- **Now:** GLUE Home does both, in Rust, once per collection per run and only while no tab is the writer:
+  `glue_audio::recheck` (the verdict and summary from the stored details), the engine's `verdicts.rs` (one edit, one
+  event); `glue_store::tidy` (`tidy_tracks`, `match_tracks`, `copies_to_join`, `join_copies`, `add_copy`), the engine's
+  `repairs.rs` (one edit; a backup first above 10 songs to join), the join again after a sync brings songs.
+- Tests: the analysis goldens gain `recheck.json` (six fixtures and the demo), the store goldens `tidy` and `join`, all
+  replayed in Rust byte for byte; engine tests for each.
 
 ## 2026-10-08 · GLUE Home 0.62.0: GLUE Home makes the duplicate groups (ADR 0165)
 - **Now:** the page's grouping and playlist rewrite are pure functions (`buildGroups`, `bestLists`), and GLUE Home's

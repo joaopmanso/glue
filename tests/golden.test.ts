@@ -68,6 +68,9 @@ async function golden(info: FileInfo, out: AnalysisResult, size: number, art?: s
       thumb: b64(makeThumb(out)), wave: b64(makeWaveThumb(out)), waveFromDetails: b64(makeWaveThumb((await decodeDetails(d.header, d.bin)).res)), fingerprint: out.fp ? b64(encodeFingerprint(out.fp)) : null,
       analysed: (() => { const a = analysed({ summary: { ...s, fp: !!out.fp }, info: plain, duration: out.duration, art: art === undefined ? undefined : art ? { hash: art } : null }, size, MTIME); const { at: _x, ...sum } = a.summary; return { ...a, summary: sum }; })(),
     },
+    // The verdict made again from the stored details (`recheckVerdicts`, GLUE Home's `recheck`, ADR 0166): the rules on
+    // what's kept.
+    'recheck.json': await (async () => { const k = await decodeDetails(d.header, d.bin); const rs = summarize(k.info, k.res, classify(k.info, k.res), { size, mtime: MTIME }); const { at: _r, ...rest } = rs; return rest; })(),
     'info.json': plain,
     'summary.json': summary,
     'verdict.json': { ...v, cut },

@@ -314,6 +314,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "indexmap",
+ "regex",
  "serde_json",
 ]
 

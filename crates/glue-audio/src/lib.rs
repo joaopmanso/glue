@@ -165,3 +165,21 @@ pub fn analyse_demo() -> (AnalysisResult, Verdict, AnalysisSummary, FileInfo) {
   let summary = out::summary::summarize(&info, &result, &verdict, 0.0, 1_700_000_000_000.0, out::summary::iso(0));
   (result, verdict, summary, info)
 }
+
+/// A song's verdict made again from its stored details (`recheckVerdicts`, ADR 0166): the header and the inflated block
+/// back to the analysis (`decodeDetails`), the rules on it, the summary of the file the details are of. None: the
+/// details don't decode.
+pub fn recheck(header: &Value, raw: &[u8], at: String) -> Option<AnalysisSummary> {
+  let info: FileInfo = serde_json::from_value(header.get("info")?.clone()).ok()?;
+  let r = header.get("res")?;
+  let (spec, ltas, cols, rows) = out::files::decode_details(header, raw)?;
+  let res = AnalysisResult {
+    spec, cols, rows, ltas,
+    n: r["N"].as_u64()? as usize, bin_hz: r["binHz"].as_f64()?,
+    music: serde_json::from_value(r.get("music")?.clone()).ok()?, stats: serde_json::from_value(r.get("stats")?.clone()).ok()?,
+    sr: r["sr"].as_f64()?, duration: r["duration"].as_f64()?, channels: r["channels"].as_u64()? as usize, container_bits: r["containerBits"].as_f64()?,
+    fp: None,
+  };
+  let verdict = classify(&info, &VerdictInput { sr: res.sr, stats: &res.stats, ltas: &res.ltas, bin_hz: res.bin_hz, container_bits: res.container_bits, spec: Some((&res.spec, res.cols, res.rows)) });
+  Some(out::summary::summarize(&info, &res, &verdict, header["fileSize"].as_f64().unwrap_or(f64::NAN), header["fileMtime"].as_f64().unwrap_or(f64::NAN), at))
+}

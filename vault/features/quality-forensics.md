@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: Speklone
-updated: 2026-09-30
-adrs: [0002, 0033, 0034, 0116, 0118, 0119]
+updated: 2026-10-08
+adrs: [0002, 0033, 0034, 0116, 0118, 0119, 0166]
 ---
 # Quality forensics
 
@@ -23,7 +23,8 @@ spectrogram, the average spectrum, a verdict, the evidence behind it, and the fi
   Fail (mastering lowpasses).
 - A lossless CD / 48 kHz file whose top end fades out gently (no wall) from 17 kHz up is Lossless,
   with a Note; below 17 kHz it's a Caution ([ADR 0033](../adr/0033-tolerate-gentle-roll-offs.md)).
-  Stored verdicts are re-checked from stored analyses when these rules change.
+  Stored verdicts are re-checked from stored analyses when these rules change: by GLUE Home where it runs, once a
+  run, even with no tab open ([ADR 0166](../adr/0166-glue-home-rechecks-verdicts-and-tidies.md)).
 - A fade below 17 kHz is still Lossless when quiet content (hats, cymbals, tails) reaches 17 kHz or
   higher in the louder moments: "Quiet content up to X kHz"
   ([ADR 0034](../adr/0034-quiet-content-above-the-fade.md)). Steady hiss up there doesn't count.

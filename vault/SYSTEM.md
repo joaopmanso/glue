@@ -102,7 +102,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     - a song has `copies[computer]` (its file on each computer);
     - the same file on two computers (its size, and its name or "Name (2)") is one song, with a copy on each
       (ADR 0130): a scan makes a new file another computer's song's copy here (`applyScan`, `store.addCopy`), and
-      pairs made before are joined when a collection opens and after a sync (`joinCopies`);
+      pairs made before are joined when a collection opens and after a sync (`joinCopies`; GLUE Home's `repairs.rs`
+      where it runs, ADR 0166);
     - analyses are stored per computer.
     - `here(meta, me)` projects it for this computer: another computer's song gets `remote`. `toShared` and
       `collectionShared` write back.
@@ -233,7 +234,7 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - It reads the GLUE folder through the link.
   - **It's only GLUE Home's screen** (ADR 0162): `lib.homeRuns()` (`engineClient.runs`: the engine answered, asked
     before a collection opens) and it starts none of the library's work: no shared sync, analysis, daily backup,
-    verdict re-check, open-time repairs, song info into files, duplicates (matching, groups, playlists' best copies, ADR
+    verdict re-check and open-time repairs (GLUE Home's, ADR 0166), song info into files, duplicates (matching, groups, playlists' best copies, ADR
     0164, 0165), or walking the music folders for DJ libraries. Still the page's until it moves into GLUE Home:
     following DJ libraries (`djWatch`).
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease. A
@@ -299,7 +300,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - A steep top end with content above that follows the music, and without frequent drop-outs under it (under
     12 %), is a lowpass in the master: "Lossless" (ADR 0119).
   - A song on another computer whose analysis failed there for good is "failed" on every device too.
-  - A rule change bumps `VERDICT_VERSION`, and stored verdicts are judged again on open (`recheckVerdicts`).
+  - A rule change bumps `VERDICT_VERSION`, and stored verdicts are judged again from the details kept, never the file:
+    on open in the browser (`recheckVerdicts`), once a run in GLUE Home where it runs (`verdicts.rs`,
+    `glue_audio::recheck`, ADR 0166).
   - The tab tries a failing song twice before saving it as failed, since a failed song leaves the library's lists.
 - **Duplicates** (`src/lib/dupes.svelte.ts`, `core/library/duplicates.ts`):
   - who matches and groups: GLUE Home where it runs (`crates/glue-engine/src/dupes.rs`, ADR 0164, 0165: its cached

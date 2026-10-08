@@ -24,8 +24,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## State (2026-10-07)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.62.0**.
+## State (2026-10-08)
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.63.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.63.0** (ADR 0166): nothing to do; GLUE Home's Activity may say "Quality verdicts updated: …" or
+  "Tidied “…”" or "Joined N songs…" once after the update, when there was something to put right.
 - **GLUE Home 0.61.0 / 0.62.0** (ADR 0164, 0165): Duplicates should look the same, now found and grouped by GLUE Home
   (it compares a few seconds after it analyses new songs; "Check again" compares every song); "Keep · not a
   duplicate" and the other answers show a moment later. No "making fingerprints" line on the page.
@@ -137,16 +139,18 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 ## Next
 ### Next: the rest of the library's work into GLUE Home (ADR 0162, the user's rule: "GLUE Home IS THE APP")
 The user (2026-10-08): "I want to get all of these moved to Rust so that we can move on to the DJ library cue points
-and real-time integrations." Done: the clashes (0.60, ADR 0163), the duplicates' matching (0.61, ADR 0164) and groups (0.62, ADR 0165). Left, in
-order:
-With GLUE Home running the page still does, until each moves into the engine (then the page stops it):
-1. ~~Duplicates' groups~~: done (0.62). (Browser alone: a published duplicates file still forces a full sync,
-   `dupes.onPublished` → `sync(true)`; give the sync the file instead.)
-2. **Following DJ libraries live** (`djWatch`: a file's date every 5 s, read again when it changed).
+and real-time integrations." Done: the clashes (0.60, ADR 0163), the duplicates' matching (0.61, ADR 0164) and groups
+(0.62, ADR 0165), the verdict re-check and the open-time repairs (0.63, ADR 0166). Left, the next batch: **DJ libraries
+in GLUE Home** (the user agreed the order: the quick win first, then this):
+1. **The parsers in Rust** (`src/core/interop/`: rekordbox XML, Engine DJ's `m.db`, Traktor NML, Serato, Apple Music
+   XML, M3U), held to the website by goldens like the store's, and the re-import merge (`store/merge.ts`
+   `mergeImport`).
+2. **Following DJ libraries live** (`djWatch`: a file's date every 5 s, read again when it changed): still the page's
+   with GLUE Home running.
 3. **Finding new DJ libraries** in the music folders (`findLibraries`, 3 folders deep): off with GLUE Home now.
-4. **Re-checking verdicts** (`recheckVerdicts`) and the open-time repairs (`tidyTracks`, `joinCopies`): off with
-   GLUE Home now.
-5. ~~The 61 clashes~~: done in 0.60.0 (ADR 0163: a computer never clashes with itself; GLUE Home's clashes in the tab).
+4. Then the cue points and the real-time integrations (the user's goal).
+- (Browser alone: a published duplicates file still forces a full sync, `dupes.onPublished` → `sync(true)`; give the
+  sync the file instead.)
 
 ### Working notes (GLUE Home in Rust)
 - **How a batch is held to the website:** recorded goldens, replayed in Rust byte for byte:
@@ -208,6 +212,9 @@ With GLUE Home running the page still does, until each moves into the engine (th
 - **Flaky under a full local run:** `library.spec.ts` "the player…": after the reload the player shows the queue's next song
   (Fixture AAC) though the saved queue had Fixture MP3 current (checked just before the reload). 0 in 10 with five at once;
   about 1 full run in 3. Not yet understood.
+- **Flaky under a full local run (once, 2026-10-08):** `library.spec.ts` "a DJ library found by several ways is listed
+  once; ×…": after the reload the dismissed Engine DJ library was listed again (3 of 3 alone). Suspect the dismissal
+  saved after `#saving` hid, or a second find racing it.
 - **Flaky:** `shared.spec.ts` "the account's collections" (from before 2026-10-02): 0 songs for 30 s after switching
   collection, or the account's box not shown.
 - **"Syncing…" lingers on the laptop:** ask for the chip's tooltip after a long "Syncing…", then fix the part it names

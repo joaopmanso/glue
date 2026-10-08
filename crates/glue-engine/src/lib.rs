@@ -29,8 +29,10 @@ pub mod sessions;
 pub mod shared;
 pub mod service;
 pub mod reminders;
+pub mod repairs;
 pub mod sync;
 pub mod tags;
+pub mod verdicts;
 pub mod verify;
 
 use glue_store::dir::{read_json, Dir, FsDir};
@@ -192,6 +194,9 @@ pub struct Engine<H: Host> {
   pub(crate) svc: service::Svc,
   /// The duplicates' matching to do, one at a time (dupes.rs).
   pub(crate) dupes: dupes::Pending,
+  /// The collections whose verdicts were looked at again this run (verdicts.rs).
+  pub(crate) rechecked: Mutex<std::collections::HashSet<Key>>,
+  pub(crate) tidied: Mutex<std::collections::HashSet<Key>>,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -214,7 +219,7 @@ pub fn changed_over(cur: Option<&Value>, mine: &Value, was: Option<&Value>) -> V
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default() });
+    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }
@@ -307,6 +312,8 @@ impl<H: Host> Engine<H> {
     let s = self.stores.lock().unwrap().get(&key(p, c)).cloned();
     if let Some(s) = s { let _ = s.lock().unwrap().reload_files(paths); }
     self.changed(p, c, paths, &[]);
+    // Songs a sync brought: one another computer has may be this computer's too (ADR 0166).
+    if paths.iter().any(|x| x.starts_with("tracks/")) { self.join_after_sync(p, c); }
     // Changed around the edits (a sync took changes in): the analysis looks through the collections again.
     if paths.iter().any(|x| x.starts_with("tracks/") || x.starts_with("analysis/")) { if let Some(e) = self.arc() { e.analysis_stale(); } }
     // Songs, the user's say or another computer's matches: the duplicate groups made again (ADR 0164).

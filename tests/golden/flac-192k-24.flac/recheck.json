@@ -1,0 +1,31 @@
+{
+ "v": 3,
+ "grade": "ok",
+ "label": "Genuine hi-res",
+ "headline": "Real hi-res: content to 93.1 kHz",
+ "fc": 22676,
+ "wall": false,
+ "full": false,
+ "effBits": 24,
+ "declaredBits": 24,
+ "origin": "Hi-res master",
+ "bpm": null,
+ "key": null,
+ "findings": [
+  {
+   "sev": "ok",
+   "title": "Content reaches 93.1 kHz"
+  },
+  {
+   "sev": "ok",
+   "title": "All 24 bits in use"
+  },
+  {
+   "sev": "info",
+   "title": "Near-mono"
+  }
+ ],
+ "fileSize": 424053,
+ "fileMtime": 1700000000000,
+ "vv": 8
+}
