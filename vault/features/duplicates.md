@@ -1,7 +1,7 @@
 ---
 status: in-progress
 milestone: M5
-updated: 2026-10-02
+updated: 2026-10-08
 adrs: [0013, 0025, 0117, 0120, 0121]
 ---
 # Duplicates
@@ -14,6 +14,9 @@ adrs: [0013, 0025, 0117, 0120, 0121]
   credits and (…) parts that only name the release ("Album Version", "Remastered 2009", "Mono") don't count; other
   (…) parts do ("Live at …", "BBC Session"). A name's songs are split into copies of one version within 3 s of each
   other (`nameGroups`), so a remix and the original are never one group.
+- **Seeing and hearing them** (2026-10-08): each copy's waveform (`WaveCell`, `kind="waveform"`, taller), to the group's
+  time scale (its length against the longest copy); click plays from there, drag scrubs. With a copy of the group
+  playing, another's play starts at the same moment.
 - **Your say:** "Keep · not a duplicate" takes a copy out of its group for good; "Mark as duplicates" (song menu, 2+
   songs) makes your own group.
 - **Cleaning up:** with GLUE Home, the rest move to its duplicates folder or the Recycle Bin (ADR 0070).

@@ -123,6 +123,7 @@ export const TOURS: Tour[] = [
       { target: 'dupes-main', optional: true, title: 'Your main folder', place: 'bottom', body: 'Optional: among copies, the one in this folder is kept (a lossless copy elsewhere still wins).' },
       { target: 'dupes-filters', optional: true, title: 'How sure', place: 'bottom', body: 'Each group says how it was found and how sure GLUE is. Filter, say, to 95 % and up.' },
       { target: 'dupes-group', optional: true, title: 'A group', place: 'top', body: '“Make it the best” picks the copy that stays; “Keep · not a duplicate” takes a copy out (an instrumental, a live take).' },
+      { target: 'dupes-wave', optional: true, title: 'See and hear them', place: 'top', body: 'Each copy’s waveform, to the same time scale: the same recording lines up. Click one to play from there, drag to scrub; another copy’s ▶ starts at the same moment.' },
       { target: 'dupes-bulk', optional: true, title: 'Many at once', place: 'bottom', body: 'With GLUE Home: tick groups (or Tick all shown), then move the other copies aside or to the Recycle Bin.' },
     ],
   },

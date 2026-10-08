@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 # Handoff: where things stand
 
@@ -62,9 +62,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **The page with GLUE Home running** (ADR 0162, the website): on the desktop, open GLUE in the browser and leave it
-  a minute, then use it: it shouldn't freeze. The analysis bar says "by GLUE Home"; the sync, the day's backup and the
-  analysis are GLUE Home's. With GLUE Home running, no new DJ library is suggested from the music folders for now.
+- **Duplicates' waveforms** (2026-10-08, the website): each copy's waveform to the group's time scale, click to play
+  from a spot, drag to scrub; another copy's play starts at the same moment. Look at a few real groups.
+- **Confirmed by the user, 2026-10-08:** the page with GLUE Home running no longer freezes (ADR 0162).
 - **Two recordings in the repo's folder** (`edge-net-export-log.json`, 1.2 GB, and `glue-log.json`): untracked,
   they hold GLUE Home's local key. The user's to delete; never commit them.
 - **GLUE Home 0.59.1 and the site** (ADR 0161):

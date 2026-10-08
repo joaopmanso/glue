@@ -20,6 +20,7 @@
   import { homeMode } from '../../platform';
   import { APP_NAMES } from '../../lib/view.svelte';
   import { fmtBytes } from '../../core/format';
+  import WaveCell from './WaveCell.svelte';
 
   const pending = $derived.by(() => { void lib.version; return lib.pendingCount(); });
   const folders = $derived(lib.musicFolders);
@@ -45,9 +46,15 @@
     if (!f) return t.fileName.split('.').pop()?.toUpperCase() ?? '';
     return f.lossless ? f.codec.replace(/^PCM.*/, f.container.replace(/ .*/, '')) + ' ' + (f.bits || '') + '/' + +(f.sampleRate / 1000).toFixed(1) : f.codec + ' ' + (f.bitrate || '') + ' kbps';
   }
+  /** Another copy of the group playing: this one starts at the same moment (listened to side by side). */
   function play(id: string, g: DupGroup) {
-    if (nowPlaying.trackId === id && player.url) nowPlaying.resumeFrom(id, g.ids); else void nowPlaying.play(id, g.ids);
+    if (nowPlaying.trackId === id && player.url) { nowPlaying.resumeFrom(id, g.ids); return; }
+    const other = nowPlaying.trackId && nowPlaying.trackId !== id && g.ids.includes(nowPlaying.trackId) && player.url ? player.time : 0;
+    void nowPlaying.play(id, g.ids, other);
   }
+  /** The group's time scale: each copy's waveform as long as the copy, against the longest (the same recording lines
+      up; a trimmed or longer edit shows). */
+  const longest = (g: DupGroup) => Math.max(0, ...g.ids.map(id => lib.store?.tracks.get(id)?.duration ?? 0));
   function keep(g: DupGroup, id: string) {
     const n = dupes.useCopy(g, id), t = lib.store?.tracks.get(id);
     lib.notice = 'The best copy is ' + (t?.title || t?.fileName) + ' now' + (n ? ': ' + n + ' playlist' + (n === 1 ? '' : 's') + ' use it.' : '.');
@@ -164,6 +171,8 @@
               {:else}<button type="button" class="mini" data-best={id} title="Make this the copy that stays: every playlist uses it, and the library shows it" onclick={() => keep(g, id)}>Make it the best</button>{/if}
               <button type="button" class="mini" data-apart={id} disabled={lib.readOnly} title="Not a duplicate of the others (another version: an instrumental, a live take, a longer mix…). It leaves this group for good; clean up the rest." onclick={() => dupes.apart(g, id)}>Keep · not a duplicate</button>
             </span>
+            <!-- Its waveform, to the group's time scale: click to play from there, drag to scrub. -->
+            <div class="wv" data-wave={id} data-guide="dupes-wave" style:width={t.duration && longest(g) ? (t.duration / longest(g)) * 100 + '%' : '100%'}><WaveCell {t} order={g.ids} kind="waveform" tall /></div>
           </li>
         {/if}
       {/each}
@@ -271,6 +280,7 @@
   ul { list-style: none; margin: 0; padding: 0; }
   li { display: grid; grid-template-columns: minmax(28px, auto) minmax(200px, 1fr) 130px 50px 70px 150px 110px 310px; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
   li:last-child { border-bottom: 0; }
+  .wv { grid-column: 2 / -1; min-width: 0; }
   li.best { background: color-mix(in srgb, var(--ok) 7%, transparent); outline: 1px solid color-mix(in srgb, var(--ok) 55%, transparent); outline-offset: -1px; }
   li.focus { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 12%, transparent); transition: background .4s; }
   .who { display: grid; min-width: 0; line-height: 1.35; }

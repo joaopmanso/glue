@@ -2602,6 +2602,22 @@ test('duplicates by hand: songs marked as duplicates group; “Keep · not a dup
     const a = (await li.locator('.lists').boundingBox())!, b = (await li.locator('.act').boundingBox())!;
     expect(a.x + a.width <= b.x || b.y >= a.y + a.height || b.y + b.height <= a.y).toBe(true);
   }
+  // Each copy's waveform (the user, 2026-10-08: to see whether it's the same song), to the group's time scale (the
+  // longest copy across); clicked, it plays from there.
+  await expect(grp.locator('[data-wave] .wave canvas')).toHaveCount(2, { timeout: 20_000 });
+  expect(await grp.locator('[data-wave]').evaluateAll(els => els.map(e => (e as HTMLElement).style.width))).toContain('100%');
+  const wv = (t: string) => grp.locator('li', { hasText: t }).locator('[data-wave] .wave');
+  const b = (await wv('Fixture FLAC').boundingBox())!;
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+  await expect(page.locator('#lib-now')).toHaveText('Fixture FLAC');
+  await page.click('#lib-play');   // paused, at about 2 s of 4
+  const at = page.locator('#lib-player .seek .mono').first();
+  await expect(at).toHaveText(/^0:0[23]$/, { timeout: 5000 });
+  // The other copy's play: from the same moment, to hear them side by side.
+  await grp.locator('li', { hasText: 'Fixture MP3' }).locator('.pbtn').click();
+  await expect(page.locator('#lib-now')).toHaveText('Fixture MP3');
+  await page.click('#lib-play');
+  await expect(at).toHaveText(/^0:0[23]$/, { timeout: 5000 });
   // One of them isn't (another version): it leaves the group, and the group goes.
   await grp.locator('li', { hasText: 'Fixture MP3' }).locator('[data-apart]').click();
   await expect(page.locator('.grp', { hasText: 'Fixture FLAC' })).toHaveCount(0);

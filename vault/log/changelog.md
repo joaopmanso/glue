@@ -5,6 +5,14 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · Duplicates: each copy's waveform, scrubbed; copies heard side by side
+- **The user:** a waveform on the Duplicates tab, to see whether it's the same song; scrub instead of playing from the
+  start each time.
+- **Now:** each copy shows its waveform (the rows' Overview cell, always as a waveform, taller), to the group's time
+  scale, so the same recording lines up and a trimmed or longer copy shows. Click plays from that spot, drag scrubs.
+  With a copy of the group playing, another copy's play starts at the same moment. Help: duplicates.md. Test:
+  `e2e/library.spec.ts` "duplicates by hand".
+
 ## 2026-10-07 · With GLUE Home running, the page froze a few seconds after opening (ADR 0162)
 - **The user:** the whole site froze a few seconds after opening, on the desktop ("No file linked" first); thousands
   of "local network" requests in Edge's issues.
