@@ -2,7 +2,7 @@
 status: in-progress (steps 1 and 2 shipped 2026-09-26; step 3, the rekordbox XML export, next)
 milestone: M4
 updated: 2026-10-08
-adrs: [0052, 0006, 0011, 0168]
+adrs: [0052, 0006, 0011, 0168, 0169]
 ---
 # Prepare (track page tab)
 
@@ -37,7 +37,9 @@ tempos. Corrections override the analysis ([ADR 0052](../adr/0052-prepare-tab.md
   song's (replacing GLUE's), **Use its grid** its BPM and first beat (`prepare.useGrid`).
 - Read from rekordbox XML (`POSITION_MARK`, `TEMPO`), Traktor (`CUE_V2`, its AutoGrid marker) and Engine DJ
   (`PerformanceData`: `quickCues`, `loops`, `beatData`; `core/interop/enginePerf.ts`, `glue_interop::perf`).
-- Next (ADR 0168): what's set here written into Engine DJ, and theirs taken in, both ways.
+- **The main DJ library** (ADR 0169): its grid and cues are the song's by default (GLUE's own first); on the pads too,
+  and setting one makes the list GLUE's own. "Make it main" here or in the sidebar's library menu.
+- Next (ADR 0168): what's set here written into the main DJ library (Engine DJ first), and its changes taken in.
 
 ## How it works
 - `Track.prep` stores bpm, beat0 (first beat, s), bar (0–3), flip, and later cues.

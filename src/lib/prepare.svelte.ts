@@ -7,6 +7,7 @@ import { waveformOf } from './analysis';
 import { jobOf } from './audioJob';
 import { beatGrid, type Waveform } from '../core/audio/waveform';
 import { bpmInUse } from '../core/library/bpm';
+import { mainOf } from './cues';
 import { anchorAt, nudge, retempo, tapBpm, type Grid } from '../core/library/grid';
 import { loadWaveform, writeWaveform } from '../store/waveform';
 import * as platform from '../platform';
@@ -44,10 +45,13 @@ class Prepare {
   /** The grid in use: the user's (Prepare), else placed on the audio for the BPM in use. */
   grid(t: Track | null | undefined): Grid | null {
     if (!t) return null;
-    const bpm = bpmInUse(t, lib.store?.analysis.get(t.id));
+    const main = mainOf(t.id)?.grid ?? null;
+    const bpm = bpmInUse(t, lib.store?.analysis.get(t.id), null, main?.bpm);
     if (!bpm) return null;
     const p = t.prep;
     if (p?.beat0 != null) return { bpm, beat0: p.beat0, bar: p.bar ?? 0 };
+    // The main DJ library's grid (ADR 0169), unless GLUE's BPM differs from it.
+    if (main && p?.bpm == null) return main;
     const w = this.wave;
     if (!w || this.trackId !== t.id) return { bpm, beat0: 0, bar: 0 };
     const key = Math.round(bpm * 1000);

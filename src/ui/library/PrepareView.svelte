@@ -18,7 +18,7 @@
   import type { Track } from '../../store/types';
   import type { CuePoint } from '../../core/interop/types';
   import { HOT_COLORS, LETTERS, addMemory, autoLoop, hotCue, importable, removeCue, renameCue, setHotCue, snap } from '../../core/library/cueEdit';
-  import { fromApps } from '../../lib/cues';
+  import { fromApps, mainOf } from '../../lib/cues';
   import { APP_NAMES } from '../../lib/view.svelte';
 
   let { track }: { track: Track } = $props();
@@ -125,7 +125,8 @@
   const cur = () => lib.store?.tracks.get(track.id) ?? track;
 
   // ─── Cues and loops (step 2) ─────────────────────────────────────────────────
-  const cues = $derived.by(() => { void lib.version; return cur().prep?.cues ?? []; });
+  /** GLUE's own cues, else the main DJ library's (ADR 0169): editing them makes them GLUE's. */
+  const cues = $derived.by(() => { void lib.version; return cur().prep?.cues ?? importable(mainOf(track.id)?.cues ?? []); });
   /** What each DJ app has for this song (ADR 0168): its cues and loops, and its grid, each taken over with a click. */
   const apps = $derived.by(() => { void lib.version; return fromApps(track.id); });
   const appSummary = (a: { cues: CuePoint[]; grid: { bpm: number } | null }) => {
@@ -266,8 +267,9 @@
         {#each apps as a (a.sourceId)}
           {@const take = importable(a.cues)}
           <div class="app" data-app-cues={a.app}>
-            <b>{APP_NAMES[a.app] ?? a.app}</b><small>{appSummary(a)}</small>
+            <b>{APP_NAMES[a.app] ?? a.app}</b>{#if a.main}<span class="mainf" title="Your main DJ library: its grid and cues are this song's unless GLUE has its own">main</span>{/if}<small>{appSummary(a)}</small>
             {#if take.length}<button type="button" class="mini" data-use-cues={a.app} title={'Take ' + (APP_NAMES[a.app] ?? a.app) + '’s cues and loops as this song’s (they replace GLUE’s)'} onclick={() => saveCues(take)}>Use its cues</button>{/if}
+            {#if !a.main && !lib.readOnly}<button type="button" class="mini" data-make-main={a.app} title="Its grids and cues become every song's by default (after GLUE's own), and the one GLUE syncs with" onclick={() => lib.setMainDj(a.sourceId)}>Make it main</button>{/if}
             {#if a.grid}{@const g = a.grid}<button type="button" class="mini" data-use-grid={a.app} title={'Take ' + (APP_NAMES[a.app] ?? a.app) + '’s beat grid: ' + g.bpm.toFixed(2) + ' BPM, first beat at ' + fmtCue(g.beat0)} onclick={() => prepare.useGrid(cur(), g)}>Use its grid</button>{/if}
           </div>
         {/each}
@@ -319,6 +321,7 @@
   .apps { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 2px 4px; }
   .apps .app { display: inline-flex; gap: 8px; align-items: center; }
   .apps .app small { color: var(--muted); }
+  .apps .mainf { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; }
   .pads { display: flex; gap: 5px; align-items: center; }
   .pad { width: 54px; height: 38px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line-2)); background: color-mix(in srgb, var(--c) 6%, var(--ground)); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; line-height: 1.1; padding: 2px; }
   .pad b { font-size: 13px; }

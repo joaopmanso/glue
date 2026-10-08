@@ -193,7 +193,7 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await expect(page.locator('[data-pad="B"]')).toHaveClass(/set/, { timeout: 30_000 });
 });
 
-test('Prepare shows what each DJ app has for a song: its cues, loops and grid, each taken with a click (ADR 0168)', async ({ page }) => {
+test('Prepare shows what each DJ app has for a song, taken with a click; the main DJ library’s are the song’s by default (ADR 0168, 0169)', async ({ page }) => {
   test.setTimeout(150_000);
   await page.goto('./#/analyze');
   const wav = beatWav(124, 0.2).toString('base64');
@@ -223,19 +223,31 @@ test('Prepare shows what each DJ app has for a song: its cues, loops and grid, e
   await page.click('#tab-prepare');
   const rb = page.locator('#prep-apps [data-app-cues="rekordbox"]');
   await expect(rb).toContainText('2 hot cues · 1 loop · 126.00 BPM grid', { timeout: 30_000 });
-  // Its grid: 126 BPM in use.
-  await rb.locator('[data-use-grid]').click();
-  await expect(page.locator('#prep-bpm')).toContainText('126.00');
-  // Its cues: A and C set, the loop a memory loop; B empty.
+  // Its cues taken as the song's (Use its cues): A and C set, the loop a memory loop, B empty.
   await rb.locator('[data-use-cues]').click();
   await expect(page.locator('[data-pad="A"]')).toHaveClass(/set/);
   await expect(page.locator('[data-pad="C"]')).toHaveClass(/set/);
   await expect(page.locator('[data-pad="B"]')).not.toHaveClass(/set/);
-  await expect(page.locator('#prep-cues .mc')).toHaveCount(1);
   await expect(page.locator('#prep-cues .mc')).toContainText('Roll ⟳');
-  // Kept: after a reload, the song's own.
+  // Back to none of GLUE's own (clear all three), then rekordbox made the main DJ library (ADR 0169): its grid and cues
+  // are the song's without a click, the BPM everywhere.
+  for (const k of ['A', 'C']) await page.locator(`[data-pad="${k}"]`).click({ modifiers: ['Shift'] });
+  await page.locator('#prep-cues .mc .mcx').click();
+  await expect(page.locator('[data-pad="A"]')).not.toHaveClass(/set/);
+  await rb.locator('[data-make-main]').click();
+  await expect(rb.locator('.mainf')).toHaveText('main');
+  await expect(page.locator('#dj-libs .mainf')).toHaveCount(1);
+  await expect(page.locator('#prep-bpm')).toContainText('126.00');
+  await expect(page.locator('[data-pad="A"]')).toHaveClass(/set/);
+  await expect(page.locator('[data-pad="C"]')).toHaveClass(/set/);
+  // A pad set here: the song's own cues from now on, rekordbox's with it.
+  await page.click('[data-pad="B"]');
+  await expect(page.locator('[data-pad="B"]')).toHaveClass(/set/);
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
   await page.reload();
   await expect(page.locator('#prep-bpm')).toContainText('126.00', { timeout: 30_000 });
-  await expect(page.locator('[data-pad="A"]')).toHaveClass(/set/);
+  for (const k of ['A', 'B', 'C']) await expect(page.locator(`[data-pad="${k}"]`)).toHaveClass(/set/);
+  // The library shows the main DJ library's BPM too.
+  await page.click('#sheet-close');
+  await expect(page.locator('.tr', { hasText: 'Beat 124' }).locator('.c-num').first()).toHaveText(/^126/, { timeout: 20_000 });
 });

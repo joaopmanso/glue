@@ -203,6 +203,12 @@
    }
   },
   {
+   "main": {
+    "app": "rekordbox",
+    "fileName": "rekordbox.xml"
+   }
+  },
+  {
    "flush": true
   },
   {

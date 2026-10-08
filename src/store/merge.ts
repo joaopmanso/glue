@@ -210,13 +210,22 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   // The library's playlists are kept as its tree, browsed in the sidebar and brought in on demand; the
   // copies already in GLUE follow it (ADR 0063).
   const tree: SourceList[] = lib.lists.map(l => ({ externalId: l.externalId, kind: l.kind, name: l.name, parent: l.parent, items: l.items }));
-  const src: Source = { schemaVersion: SCHEMA, id: sourceId, app: lib.app, name: lib.name, fileName, importedAt: now(), tracks: sourceTracks, lists: lib.lists.length, tree, ...(existing?.origin ? { origin: existing.origin } : {}) };
+  const src: Source = { schemaVersion: SCHEMA, id: sourceId, app: lib.app, name: lib.name, fileName, importedAt: now(), tracks: sourceTracks, lists: lib.lists.length, tree, ...(existing?.origin ? { origin: existing.origin } : {}), ...(existing?.main ? { main: true } : {}) };
   store.putSource(src);
   const linkedLists = syncLinkedLists(store, src, existing?.tree, existing?.pendingGone);
   return { sourceId, tracks: lib.tracks.length, matched, linked: links.size, lists: lib.lists.length, linkedLists, dropped, entries: lib.stats };
 }
 
 export interface ScanEntry { relPath: string; size: number; mtime: number; fileName: string }
+
+/** The main DJ library (ADR 0169): this one, of this computer's (none: null); the others aren't any more. */
+export function setMainSource(store: CollectionStore, id: string | null) {
+  for (const s of [...store.sources.values()]) {
+    if (!store.ownSource(s) || !!s.main === (s.id === id)) continue;
+    const { main: _m, ...rest } = s;
+    store.putSource(s.id === id ? { ...rest, main: true } : rest);
+  }
+}
 
 /** A folder was scanned: link unlinked tracks to its files, add the rest as new tracks, flag vanished ones. */
 /** The same file on two computers: its size, and its name ("Song (2).mp3" is "Song.mp3" put where that name was

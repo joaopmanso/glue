@@ -196,6 +196,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     `grid`), Engine DJ's from `PerformanceData` (`enginePerf.ts`, `glue_interop::perf`); Prepare shows each app's and
     takes them on a click. GLUE writes into a DJ app's library only as ADR 0168 allows (through GLUE Home, opt-in per
     library, a backup first, the app closed): not yet in this release.
+  - **The main DJ library** (0.66, ADR 0169): one per computer, `Source.main` (kept through every read). A song's BPM is
+    GLUE's correction, then the main library's grid, then the analysis (`bpmInUse`); its grid and cues GLUE's own,
+    else the main library's (`lib/cues.ts` `mainOf`, `prepare.grid`). The two-way sync is with it.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
     socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again

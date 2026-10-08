@@ -356,6 +356,11 @@
       live ? st !== 'live' && st !== 'reading' && { label: 'Find its file…', title: 'GLUE Home follows a library live once it knows its file', run: () => void importWithHome() }
         : { label: 'Refresh', title: 'Read this library again', run: () => void refresh(s) },
       SEP,
+      // The main DJ library (ADR 0169).
+      !lib.readOnly && (s.main
+        ? { label: 'Not the main DJ library any more', attrs: { 'data-m': 'unmain-dj' }, run: () => lib.setMainDj(null) }
+        : { label: 'Make it the main DJ library', attrs: { 'data-m': 'main-dj' }, title: 'Its grids and cues become every song’s by default (after GLUE’s own), and the one GLUE syncs with', run: () => lib.setMainDj(s.id) }),
+      SEP,
       { label: 'Remove this import…', danger: true, run: () => removeSource(s) },
       ...whatsThis('dj-libraries'),
     ]);
@@ -589,7 +594,7 @@
           <div class="item" class:sel={isSel({ kind: 'source', id: s.id })} class:menued={menued('s:' + s.id)} data-source={s.id} oncontextmenu={e => onMenu(e, 's:' + s.id, () => sourceMenu(s), APP_NAMES[s.app] ?? s.app)}>
             {#if s.tree?.length}<button type="button" class="twist" data-dj-open={s.id} aria-label={djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists'} onclick={() => (djOpen[s.id] = !djOpen[s.id])}>{djOpen[s.id] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
             <AppIcon app={s.app} />
-            <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}<small> {s.fileName}</small></button>
+            <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}{#if s.main}<span class="mainf" title="Your main DJ library: its grids and cues are every song's by default, after GLUE's own">main</span>{/if}<small> {s.fileName}</small></button>
             <span class="n">{s.tracks.length}</span>
             {#if elsewhere(s)}<span class="onpc" data-dj-where={s.id} title={'On ' + elsewhere(s) + ': GLUE reads it there, and keeps it up to date for every device'}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 13.5h5M8 11v2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>{elsewhere(s)}</span>
             {:else if live}

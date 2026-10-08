@@ -227,10 +227,25 @@ pub fn apply_import<D: Dir>(store: &mut Store<D>, mut lib: ImportedLibrary, file
   let tree: Vec<Value> = lib.lists.iter().map(ImportedList::to_json).collect();
   let mut src = json!({ "schemaVersion": 1, "id": source_id, "app": lib.app, "name": lib.name, "fileName": file_name, "importedAt": store.now().1, "tracks": source_tracks, "lists": lib.lists.len(), "tree": tree });
   if let Some(o) = existing.as_ref().and_then(|e| get(e, "origin")).filter(|o| truthy(Some(o))) { src["origin"] = o.clone(); }
+  // The main DJ library stays so through every read (ADR 0169).
+  if existing.as_ref().is_some_and(|e| truthy(get(e, "main"))) { src["main"] = json!(true); }
   store.put_source(src.clone());
   let prev: Option<Vec<Value>> = existing.as_ref().and_then(|e| get(e, "tree")).and_then(Value::as_array).cloned();
   let pending = existing.as_ref().and_then(|e| get(e, "pendingGone")).and_then(Value::as_object).cloned().unwrap_or_default();
   let at = store.now().0;
   let linked_lists = sync_linked_lists(store, &src, prev.as_deref(), &pending, at);
   ImportReport { source_id, tracks: lib.tracks.len(), matched, linked: links.len(), lists: lib.lists.len(), linked_lists, dropped, entries: lib.stats.clone() }
+}
+
+/// The main DJ library (`setMainSource`, ADR 0169): this one, of this computer's (None: none); the others aren't any more.
+pub fn set_main_source<D: Dir>(store: &mut Store<D>, id: Option<&str>) {
+  let all: Vec<Value> = store.sources.values().cloned().collect();
+  for s in all {
+    let on = Some(st(&s, "id")) == id;
+    if !store.own_source(&s) || truthy(get(&s, "main")) == on { continue; }
+    let mut rest = s.as_object().cloned().unwrap_or_default();
+    rest.shift_remove("main");
+    if on { rest.insert("main".into(), json!(true)); }
+    store.put_source(Value::Object(rest));
+  }
 }

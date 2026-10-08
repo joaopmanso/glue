@@ -5,6 +5,16 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · GLUE Home 0.66.0: the main DJ library (ADR 0169)
+- **Why:** the user, seeing Engine DJ's grids and cues in Prepare: "much like the 'main folder' there should be a 'main
+  dj collection' that would default to always show and sync to that collection".
+- **Now:** one DJ library per computer can be the main one (`Source.main`; the sidebar's library menu, or "Make it
+  main" in Prepare; marked "main"). A song's BPM is GLUE's correction, then the main library's grid, then the analysis;
+  its grid and cues GLUE's own, else the main library's (on the pads too: setting one makes the list GLUE's). Every
+  read of the library keeps the mark, in GLUE Home as on the website. The two-way sync (ADR 0168) will be with it.
+- Tests: the import goldens mark libraries main (and unmark them) across reads; `e2e/prepare.spec.ts`: rekordbox made
+  main shows its grid (126 BPM, also in the library) and cues without a click, a pad set then keeps them.
+
 ## 2026-10-08 · GLUE Home 0.65.0: every DJ app's cues, loops and beat grid in Prepare (ADR 0168, phase 1)
 - **Why:** the user (2026-10-08): prepare songs in GLUE, synced both ways with the DJ apps (playlists, cues, loops,
   grids). Decided with them: write-back allowed (opt-in per library, a backup before each write, only while the app is

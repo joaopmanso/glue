@@ -17,7 +17,7 @@ The **Prepare** tab of a song's page is for getting it ready to mix.
 Set cue points and loops on the waveform; they show in the overview above.
 
 ## From your DJ apps
-Under the cues, **In your DJ apps** shows what each DJ library has for this song: rekordbox, Engine DJ or Traktor, with its hot cues, memory cues, loops and beat grid. **Use its cues** takes them as the song's (they replace GLUE's), **Use its grid** takes its BPM and first beat.
+Under the cues, **In your DJ apps** shows what each DJ library has for this song: rekordbox, Engine DJ or Traktor, with its hot cues, memory cues, loops and beat grid. **Use its cues** takes them as the song's (they replace GLUE's), **Use its grid** takes its BPM and first beat. Your **main DJ library**'s grid and cues are the song's without a click (**Make it main**); setting a pad then makes them GLUE's own.
 
 ## Keys
 Space plays and pauses; the arrows move along the song.

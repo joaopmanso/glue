@@ -140,6 +140,9 @@ export interface Source { schemaVersion: number; id: string; app: SourceApp; nam
   /** Lists the library's last read didn't have, with when that was first seen: GLUE's copies go only when
       a read at least a minute later still lacks them (ADR 0090). */
   pendingGone?: Record<string, number>;
+  /** The main DJ library (ADR 0169): of this computer's, the one whose grids and cues a song shows by default, after
+      GLUE's own, and the one GLUE syncs with (ADR 0168). One per computer, kept through every read. */
+  main?: boolean;
   /** In a shared collection, the computer whose library this is (ADR 0099): only it reads, follows and removes it. */
   computer?: string }
 
