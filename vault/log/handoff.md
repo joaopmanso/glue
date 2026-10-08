@@ -188,6 +188,11 @@ LINK, Traktor's broadcast…). Smaller leftovers of the page's library work with
   with the Write tool, or use the Edit tool for such lines.
 
 ### Other work
+- **A release half published (2026-10-08, 0.64.0):** the Windows build uploaded its installer, the macOS build then failed
+  a test, and the next push's build saw the release there and published nothing (no macOS files, no `latest.json`: the
+  updater and the website's macOS link had nothing). Put right by deleting that release and its tag and running the
+  build again. Real fix: in `.github/workflows/home.yml`, each build uploads its files as artifacts, and one job after
+  both (the `manifest` one) makes the release with all of them, so it's all or nothing.
 - **Edge 154.0.4258.62 (updated 2026-10-07):** its automatic tab freeze is now off for test browsers (2026-10-08, it
   froze background pages under load); `e2e/shared.spec.ts` "cloud sync…" passed in the full runs since. Before: it failed locally in Edge since (the desktop's
   song loses its play button after the laptop's rating) and passes in Chrome (`PW_CHANNEL=chrome`); the website and the
