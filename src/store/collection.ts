@@ -12,7 +12,9 @@ import { foldComputer, needsFold, type FoldResult } from '../core/shared/repair'
     them, and what was read, so saving changes only this computer's parts. */
 /** A change to a collection, as a GLUE tab sends it to GLUE Home's engine (ADR 0104): the record itself. */
 export type StoreOp =
-  | { m: 'meta'; meta: Collection } | { m: 'tracks'; ts: Track[] } | { m: 'removeTrack'; id: string } | { m: 'analysis'; id: string; a: AnalysisSummary }
+  /** `was`: each song as this store had it (sent to GLUE Home's engine: only what changed from it is applied there,
+      over a change it made meanwhile, ADR 0162). */
+  | { m: 'meta'; meta: Collection } | { m: 'tracks'; ts: Track[]; was?: (Track | null)[] } | { m: 'removeTrack'; id: string } | { m: 'analysis'; id: string; a: AnalysisSummary }
   | { m: 'list'; l: List } | { m: 'deleteList'; id: string } | { m: 'event'; e: GlueEvent } | { m: 'deleteEvent'; id: string }
   | { m: 'source'; s: Source } | { m: 'deleteSource'; id: string };
 /** `own`: this GLUE folder may write its computer's parts (its copies, analyses, music folders): the
@@ -185,8 +187,8 @@ export class CollectionStore {
   private changed() { this.onChange?.(); }
 
   saveMeta() { this.sink?.({ m: 'meta', meta: this.meta }); this.mark('collection.json'); this.changed(); }
-  putTrack(t: Track) { if (!this.ephemeral.has(t.id)) this.sink?.({ m: 'tracks', ts: [t] }); this.tracks.set(t.id, t); this.rev.tracks++; if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); this.changed(); }
-  putTracks(ts: Track[]) { if (this.sink) { const own = ts.filter(t => !this.ephemeral.has(t.id)); if (own.length) this.sink({ m: 'tracks', ts: own }); } for (const t of ts) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); } this.rev.tracks++; this.changed(); }
+  putTrack(t: Track) { if (!this.ephemeral.has(t.id)) this.sink?.({ m: 'tracks', ts: [t], was: [this.tracks.get(t.id) ?? null] }); this.tracks.set(t.id, t); this.rev.tracks++; if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); this.changed(); }
+  putTracks(ts: Track[]) { if (this.sink) { const own = ts.filter(t => !this.ephemeral.has(t.id)); if (own.length) this.sink({ m: 'tracks', ts: own, was: own.map(t => this.tracks.get(t.id) ?? null) }); } for (const t of ts) { this.tracks.set(t.id, t); if (!this.ephemeral.has(t.id)) this.mark(`tracks/${shardOf(t.id)}.json`); } this.rev.tracks++; this.changed(); }
   removeTrack(id: string) {
     if (this.ephemeral.has(id)) return;   // another device's track: removed there, not here
     // Shared, and this folder doesn't hold this computer's parts (ADR 0108): it removes nothing.

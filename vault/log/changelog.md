@@ -5,6 +5,29 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · GLUE Home 0.60.0: one computer never clashes with itself; clashes shown with GLUE Home (ADR 0163)
+- **Why:** the desktop's sync state held 61 clashes "by" its own GLUE Home (the page and GLUE Home both writing the
+  same songs' length and format before ADR 0162), never shown: with GLUE Home running the page doesn't sync, and only a
+  syncing page showed the box. A real clash between computers would have been hidden the same way.
+- **Now:**
+  - a sync's `Place.own` names this computer's other devices: their changes never clash; ones recorded before are
+    dropped (website and Rust alike, sync golden `own`);
+  - with GLUE Home running, its clashes show in the tab's box and are answered through it (engine `clashes`,
+    `resolve`);
+  - found on the way: a tab in Home mode sent whole song records, so a cover found just after a clash was settled put
+    the old title back (`Covers.readTags`), and GLUE Home's analysis saved records read before letting go of its
+    store. A tab's song now carries the record it had (`was`) and the engine applies only what changed
+    (`changed_over`); the analysis builds and saves under one hold of the store.
+- Tests: `e2e/homemode.spec.ts` "the clashes its syncs left" (5 of 5; failed 2 of 3 before the two races were
+  fixed), Rust `changed_over` and `set_at` units, sync golden `own`.
+- **Also:** with GLUE Home running, a row drawn before the tab attached to its engine didn't ask GLUE Home's cache for
+  its overview (`fromCache` waited for the attachment) and made it here from the song's analysis instead; it asks
+  as soon as GLUE Home runs the library (`lib.homeRuns()`, ADR 0162).
+- **The tests under load** (the full suite failed 1–2 tests a run since Edge 154): Edge 154's automatic tab freeze
+  turned off for test browsers (`e2e/launch.ts`: `msAutomaticTabFreeze`…); the local link's send waits 60 s for
+  "Sent" ("100%" is what's handed to the connection); the player test waits for the queue to be saved before reloading
+  (it waited a fixed 600 ms). Full suite: 108 of 108.
+
 ## 2026-10-08 · A song's page is a sheet over the library
 - **The user:** the details page shouldn't be a separate page (faster, friendlier). Chosen: a sheet over the library
   (rather than a side panel).

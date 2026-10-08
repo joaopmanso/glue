@@ -860,7 +860,9 @@ test('the player: a queue (menu, drags, reorder, remove), shuffle and repeat, ke
   await page.click('#lib-play');
   await expect(page.locator('#lib-play')).toHaveAttribute('aria-label', 'Play');
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
-  await page.waitForTimeout(600);   // the queue is written a moment after it changes
+  // The queue is written a moment after it changes (later under load): waited for, with this song current.
+  const nowId = /track\/([\w-]+)/.exec((await page.locator('#lib-now').getAttribute('href')) ?? '')![1];
+  await expect.poll(() => page.evaluate(id => Object.keys(localStorage).some(k => k.startsWith('mco.queue.') && JSON.parse(localStorage.getItem(k) ?? '{}').current === id), nowId), { timeout: 10_000 }).toBe(true);
   await page.reload();
   await expect(page.locator('#lib-now')).toHaveText('Fixture MP3', { timeout: 20_000 });
   await page.click('#player-expand');
@@ -2182,7 +2184,7 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   const chooser = page.waitForEvent('filechooser');
   await page.click('#send-songs');
   await (await chooser).setFiles([fixture('flac-96k-24.flac')]);
-  await expect(page.locator('#send-panel')).toContainText('Sent to Desktop', { timeout: 30_000 });
+  await expect(page.locator('#send-panel')).toContainText('Sent to Desktop', { timeout: 60_000 });   // "100%" is handed to the connection, not received: slow under load
   await expect.poll(async () => !!await cached('i/flac-96k-24.flac.summary.json'), { timeout: 60_000 }).toBe(true);
   // The website learns the local link (once, over the account's channel).
   await expect.poll(() => page.evaluate(() => localStorage.getItem('mco.localHome')), { timeout: 40_000 }).toContain('47400');

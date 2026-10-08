@@ -40,7 +40,11 @@ pub trait SharedCloud {
   fn checkpoint(&self, at: i64, body: &str, done: bool) -> R<Value>;
 }
 
-pub struct Place<'a> { pub root: &'a dyn Dir, pub pid: String, pub cid: String, pub me: String, pub cloud: &'a dyn SharedCloud }
+/// `own`: this computer's other devices (its GLUE Home): their changes are this computer's own, one writer at a time
+/// (ADR 0162), so they never clash with it; one recorded before is dropped.
+pub struct Place<'a> { pub root: &'a dyn Dir, pub pid: String, pub cid: String, pub me: String, pub cloud: &'a dyn SharedCloud, pub own: Vec<String> }
+/// A change by this computer itself (`by`: the device whose push it came in).
+fn own_by(p: &Place, by: Option<&Value>) -> bool { by.and_then(|b| b.as_str()).is_some_and(|b| b == p.me || p.own.iter().any(|o| o == b)) }
 #[derive(Debug, Default)]
 pub struct SyncResult { pub changed: Vec<String>, pub clashes: Vec<Value>, pub pushed: usize }
 
@@ -106,7 +110,8 @@ pub struct State { pub cursor: i64, pub clashes: Vec<Value>, merged: IndexSet<St
 impl State {
   pub fn load(p: &Place) -> State {
     let meta = parse(p.root.read(&state_path(p)).ok().flatten().as_deref());
-    let mut s = State { cursor: meta.as_ref().and_then(|m| m["cursor"].as_i64()).unwrap_or(0), clashes: meta.as_ref().and_then(|m| m["clashes"].as_array().cloned()).unwrap_or_default(), merged: IndexSet::new(), texts: HashMap::new(), dirty: IndexSet::new() };
+    let clashes = meta.as_ref().and_then(|m| m["clashes"].as_array().cloned()).unwrap_or_default().into_iter().filter(|c| !own_by(p, c.get("by"))).collect();
+    let mut s = State { cursor: meta.as_ref().and_then(|m| m["cursor"].as_i64()).unwrap_or(0), clashes, merged: IndexSet::new(), texts: HashMap::new(), dirty: IndexSet::new() };
     // From before (every agreed text in this one file): each into its own, once.
     if let Some(files) = meta.as_ref().and_then(|m| m["files"].as_object()) {
       for (k, v) in files { if let Some(t) = v["text"].as_str() { if synced(k) { s.set(k, Some(t.to_string())); } } }
@@ -178,6 +183,36 @@ pub fn apply_change(was: Option<&str>, c: &Value) -> Option<String> {
 
 // ---- pull ----------------------------------------------------------------------------------------------------------
 
+/// The clashes waiting for an answer (kept with the sync state; `waitingClashes`).
+pub fn waiting_clashes(p: &Place) -> Vec<Value> { State::load(p).clashes }
+/// Settle a clash (`resolveClash`): `value` goes into this device's file at the clash's place (the cloud's value is
+/// already there when that's the answer: `keep_remote`), and the clash is forgotten. The next push sends it.
+pub fn resolve_clash(p: &Place, file: &str, at: &str, value: Option<&Value>, keep_remote: bool) {
+  let mut s = State::load(p);
+  if !keep_remote {
+    let v = set_at(parse(read_local(p, file).as_deref()), at, value);
+    write_local(p, file, v.as_ref().map(stringify).as_deref());
+  }
+  s.clashes.retain(|c| !(c["file"].as_str() == Some(file) && c["at"].as_str() == Some(at)));
+  s.save(p);
+}
+/// The value at a clash's place (`items.t1.title`) in a file's JSON, set (None: removed; `setAt`).
+pub fn set_at(doc: Option<Value>, at: &str, value: Option<&Value>) -> Option<Value> {
+  if at.is_empty() { return value.cloned(); }
+  let mut root = match doc { Some(v @ Value::Object(_)) => v, _ => json!({}) };
+  let keys: Vec<&str> = at.split('.').collect();
+  let mut o = &mut root;
+  for k in &keys[..keys.len() - 1] {
+    let m = o.as_object_mut()?;
+    if !m.get(*k).is_some_and(|v| v.is_object()) { m.insert(k.to_string(), json!({})); }
+    o = m.get_mut(*k)?;
+  }
+  let m = o.as_object_mut()?;
+  let last = keys[keys.len() - 1];
+  match value { None => { m.shift_remove(last); } Some(v) => { m.insert(last.to_string(), v.clone()); } }
+  Some(root)
+}
+
 /// The cloud's copy of a file came in: taken, or merged with this device's own changes.
 #[allow(clippy::too_many_arguments)]
 fn take(p: &Place, s: &mut State, path: &str, remote: Option<String>, by: Option<&Value>, at: Option<&Value>, changed: &mut Vec<String>, clashes: &mut Vec<Value>) {
@@ -187,8 +222,10 @@ fn take(p: &Place, s: &mut State, path: &str, remote: Option<String>, by: Option
   else if mine == agreed { write_local(p, path, remote.as_deref()); changed.push(path.into()); }
   else {
     let (v, cs) = merge3(path, parse(agreed.as_deref()).as_ref(), parse(mine.as_deref()).as_ref(), parse(remote.as_deref()).as_ref(), &p.me);
-    let by = by.filter(|b| !b.is_null()).cloned().unwrap_or(Value::Null);
-    clashes.extend(cs.iter().map(|c| c.to_json(Some(&by), at)));
+    if !own_by(p, by) {
+      let by = by.filter(|b| !b.is_null()).cloned().unwrap_or(Value::Null);
+      clashes.extend(cs.iter().map(|c| c.to_json(Some(&by), at)));
+    }
     write_local(p, path, v.as_ref().map(stringify).as_deref());
     changed.push(path.into());
     s.merged.insert(path.into());
@@ -362,6 +399,14 @@ pub fn sync_shared(p: &Place, changed_here: Option<&[String]>, changed: &mut Vec
 #[cfg(test)]
 mod tests {
   use super::*;
+  #[test]
+  fn a_clash_answered_sets_its_place_as_the_website_does() {
+    let doc = json!({ "schemaVersion": 1, "items": { "t1": { "title": "A", "rating": 3 } } });
+    assert_eq!(stringify(&set_at(Some(doc.clone()), "items.t1.title", Some(&json!("B"))).unwrap()), r#"{"schemaVersion":1,"items":{"t1":{"title":"B","rating":3}}}"#);
+    assert_eq!(stringify(&set_at(Some(doc.clone()), "items.t1.title", None).unwrap()), r#"{"schemaVersion":1,"items":{"t1":{"rating":3}}}"#);
+    assert_eq!(stringify(&set_at(Some(doc), "items.t2.tags", Some(&json!(["x"]))).unwrap()), r#"{"schemaVersion":1,"items":{"t1":{"title":"A","rating":3},"t2":{"tags":["x"]}}}"#);
+    assert_eq!(set_at(None, "", None), None);
+  }
   #[test]
   fn files_and_changes() {
     assert!(synced("tracks/ab.json") && synced("collection.json") && !synced("tracks/a b.json") && !synced("other/x.json") && !synced("tracks/.json"));

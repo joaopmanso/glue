@@ -9,7 +9,9 @@ import { createRequire } from 'node:module';
    pages to the activity history (`msWindowsUserActivities`), headless too. Test runs left "GLUE Home service", "GLUE
    Home" and "GLUE · …" entries in Alt+Tab that did nothing and stayed until Explorer restarted (Edge 153–154,
    2026-10-02). Edge keeps only the last --disable-features, so Playwright's own list is read and carried along. */
-const OFF = ['msWindowTabManagerPublic', 'msWindowsUserActivities'];
+/* Edge 154's automatic tab freeze (2026-10-07) froze a test's background page, GLUE Home's stand-in: a song sent to
+   it waited for its "saved" (the local link test, 3 runs in 5 under load, 2026-10-08). */
+const OFF = ['msWindowTabManagerPublic', 'msWindowsUserActivities', 'msAutomaticTabFreeze', 'msEnableAutomaticTabFreeze', 'msAutomaticTabFreezeImmediateTimeout'];
 function playwrightOff(): string[] {
   const src = readFileSync(createRequire(import.meta.url).resolve('playwright-core/lib/coreBundle'), 'utf8');
   const list = /disabledFeatures = \[([\s\S]*?)\]/.exec(src)?.[1];

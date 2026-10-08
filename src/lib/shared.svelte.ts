@@ -22,6 +22,12 @@ import { countsOf, holdsMusic as aComputer, sendCounts } from '../core/shared/co
 import { forgetDeleted } from '../store/shared/forget';
 import type { CollectionStore } from '../store/collection';
 
+/** This computer's other devices (ADR 0162): its GLUE Home, and this browser's sign-in when it isn't the computer's. */
+function ownDevices(me: string): string[] {
+  const out = account.devices.filter(d => d.kind === 'home' && d.companionOf === me).map(d => d.id);
+  if (account.thisDevice && account.thisDevice !== me) out.push(account.thisDevice);
+  return out;
+}
 /** A computer's numbers for a collection (ADR 0112): its songs and when it said so, and its last change. */
 export interface ComputerStats { songs?: number; at?: number; changed?: number }
 /** deleteAfter: cloud sync was turned off and its account copy goes then (ADR 0102). */
@@ -63,7 +69,7 @@ class Shared {
     // GLUE Home's engine is the writer here (ADR 0104): it syncs, not this tab.
     if (lib.homeRuns()) return null;
     if (!s?.shared || !lib.homeHandle || !lib.profile || lib.profile.cloudSync === false || !me || !account.signedIn || lib.readOnly) return null;
-    return { root: lib.homeHandle, pid: lib.profile.id, cid: s.meta.id, me, cloud: cloudFor(s.meta.id) };
+    return { root: lib.homeHandle, pid: lib.profile.id, cid: s.meta.id, me, cloud: cloudFor(s.meta.id), own: ownDevices(me) };
   }
   /** The account's collections, asked for again (one request at a time). Known once GLUE Cloud answered. */
   refreshList(): Promise<void> {
@@ -194,15 +200,28 @@ class Shared {
     if (mine.length < all.length) void dupes.loadOthers();   // another computer's duplicates (ADR 0098)
   }
 
+  /** With GLUE Home, the clashes its syncs left (ADR 0162): asked for when it says something changed. */
+  async homeClashes() {
+    const s = lib.store;
+    if (!lib.homeRuns() || !s?.shared) return;
+    const got = await engineClient.clashes().catch(() => null);
+    if (got && lib.store === s) this.clashes = got;
+  }
   /** Settle clashes (ADR 0095): this device's value, the other's (already in place), or both joined. */
   async resolve(cs: Clash[], how: 'mine' | 'theirs' | 'both') {
+    const answer = (c: Clash) => { const both = how === 'both' ? mergeBoth(c.local, c.remote) : undefined; return { value: how === 'mine' ? c.local : both, keepRemote: how === 'theirs' || (how === 'both' && both === undefined) }; };
+    // With GLUE Home, it syncs: it settles them, and the file comes back through its feed (ADR 0162).
+    if (lib.homeRuns()) {
+      for (const c of cs) { const a = answer(c); await engineClient.resolveClash(c, a.value, a.keepRemote); }
+      this.clashes = await engineClient.clashes().catch(() => this.clashes.filter(x => !cs.includes(x)));
+      return;
+    }
     const p = this.place(), s = lib.store;
     if (!p || !s || !cs.length) return;
     await lib.flush();
     for (const c of cs) {
-      const both = how === 'both' ? mergeBoth(c.local, c.remote) : undefined;
-      const keepRemote = how === 'theirs' || (how === 'both' && both === undefined);
-      await resolveClash(p, c, how === 'mine' ? c.local : both, keepRemote);
+      const a = answer(c);
+      await resolveClash(p, c, a.value, a.keepRemote);
       this.written.add(c.file);   // written around the store: the next sync looks at it
     }
     await s.reloadFiles([...new Set(cs.map(c => c.file))]);
@@ -350,6 +369,7 @@ export async function askDeleteShared(id: string, name: string) {
 }
 // The duplicates are written around the store: every file is looked at.
 dupes.onPublished = () => void shared.sync(true);
+engineClient.onFeed = () => void shared.homeClashes();
 
 // Opened as this computer; synced after saves, when another device pushed, and when it opens.
 /** Which computer a shared collection is seen as here (ADR 0108): GLUE Home's, where it's the library's engine;

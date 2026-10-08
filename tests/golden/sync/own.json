@@ -1,0 +1,145 @@
+{
+ "me": "desk",
+ "own": [
+  "hdesk"
+ ],
+ "pid": "p1",
+ "cid": "c1",
+ "files": {},
+ "runs": [
+  {
+   "hint": null,
+   "calls": [
+    {
+     "call": "log",
+     "args": [
+      0
+     ],
+     "answer": {
+      "reset": true,
+      "floor": 1,
+      "seq": 1,
+      "more": true,
+      "entries": []
+     }
+    },
+    {
+     "call": "changes",
+     "args": [
+      0
+     ],
+     "answer": {
+      "seq": 1,
+      "more": false,
+      "files": [
+       {
+        "path": "collection.json",
+        "rev": 1,
+        "hash": "8dd0fbe483c3dadad34be0b3b2c4bd7859dd7e659e838d068cb2eed7fb640882",
+        "size": 283,
+        "deleted": false,
+        "by": "desk",
+        "at": 1700000000000
+       },
+       {
+        "path": "tracks/ab.json",
+        "rev": 1,
+        "hash": "ea42bb58c5b277513b6a388353b2e1db3746a14b67df1737ce342ca4dc4fe39a",
+        "size": 390,
+        "deleted": false,
+        "by": "desk",
+        "at": 1700000000000
+       }
+      ]
+     }
+    },
+    {
+     "call": "bundle",
+     "args": [
+      [
+       "collection.json",
+       "tracks/ab.json"
+      ]
+     ],
+     "answer": [
+      [
+       "collection.json",
+       1,
+       "8dd0fbe483c3dadad34be0b3b2c4bd7859dd7e659e838d068cb2eed7fb640882",
+       "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}"
+      ],
+      [
+       "tracks/ab.json",
+       1,
+       "ea42bb58c5b277513b6a388353b2e1db3746a14b67df1737ce342ca4dc4fe39a",
+       "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}"
+      ]
+     ]
+    },
+    {
+     "call": "log",
+     "args": [
+      1
+     ],
+     "answer": {
+      "seq": 1,
+      "more": false,
+      "entries": []
+     }
+    }
+   ],
+   "changed": [
+    "collection.json",
+    "tracks/ab.json"
+   ],
+   "clashes": [],
+   "pushed": 0,
+   "after": {
+    "cloud/shared/c1.json": "{\"v\":2,\"cursor\":1}",
+    "cloud/shared/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "cloud/shared/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}",
+    "profiles/p1/collections/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}"
+   }
+  },
+  {
+   "hint": null,
+   "edit": {
+    "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":299,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}",
+    "cloud/shared/c1.json": "{\"v\":2,\"cursor\":1,\"clashes\":[{\"file\":\"tracks/ab.json\",\"at\":\"items.ab01.format\",\"local\":null,\"remote\":\"FLAC\",\"by\":\"hdesk\",\"when\":1},{\"file\":\"tracks/ab.json\",\"at\":\"items.ab01.title\",\"local\":\"Mine\",\"remote\":\"Theirs\",\"by\":\"lap\",\"when\":2}]}"
+   },
+   "calls": [
+    {
+     "call": "log",
+     "args": [
+      1
+     ],
+     "answer": {
+      "seq": 2,
+      "more": false,
+      "entries": [
+       {
+        "rev": 2,
+        "by": "hdesk",
+        "at": 1700000000000,
+        "data": "{\"v\":1,\"f\":{\"tracks/ab.json\":{\"o\":{\"schemaVersion\":1},\"i\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":301,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}}}"
+       }
+      ]
+     }
+    }
+   ],
+   "changed": [
+    "tracks/ab.json"
+   ],
+   "clashes": [],
+   "pushed": 0,
+   "after": {
+    "cloud/shared/c1.json": "{\"v\":2,\"cursor\":2,\"clashes\":[{\"file\":\"tracks/ab.json\",\"at\":\"items.ab01.title\",\"local\":\"Mine\",\"remote\":\"Theirs\",\"by\":\"lap\",\"when\":2}]}",
+    "cloud/shared/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "cloud/shared/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":301,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}",
+    "profiles/p1/collections/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Shared\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"shared\":true,\"rootsBy\":{\"desk\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":null,\"handleKey\":\"h1\",\"addedAt\":\"\"}]},\"members\":{\"desk\":{\"profile\":\"p1\",\"name\":\"Desktop\"},\"lap\":{\"profile\":\"p9\",\"name\":\"Laptop\"}}}",
+    "profiles/p1/collections/c1/tracks/ab.json": "{\"schemaVersion\":1,\"items\":{\"ab01\":{\"id\":\"ab01\",\"fileName\":\"ab01.flac\",\"title\":\"Song ab01\",\"artist\":\"Artist\",\"album\":\"\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":301,\"format\":null,\"addedAt\":\"2026-01-01T10:00:00.000Z\",\"tags\":[\"warm\"],\"copies\":{\"desk\":{\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"Sets/ab01.flac\",\"importPath\":null,\"size\":1000,\"mtime\":5,\"sources\":[]}}}}}"
+   }
+  }
+ ]
+}

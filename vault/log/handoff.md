@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-07)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.59.1**.
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.60.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,16 +62,14 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **A song's page as a sheet over the library** (2026-10-08, the website): double-click a song; ✕, Esc, a click beside
-  it or Back close it, on the view as it was. Previous / Next inside it. Prepare's waveform in the sheet's width.
-- **Each view's address** (2026-10-08, the website): `#/duplicates`, `#/playlist/<id>`…; the mouse's back button from
-  Duplicates (or any view) goes to the view before, from a song's page to the view it came from; a bookmarked or
-  reloaded view opens on it.
-- **Duplicates' waveforms** (2026-10-08, the website): each copy's waveform to the group's time scale, click to play
-  from a spot, drag to scrub; another copy's play starts at the same moment. Look at a few real groups.
+- **GLUE Home 0.60.0** (ADR 0163): the desktop's 61 stale clashes go with its first sync (nothing to see). A real one:
+  change the same song's title on the laptop and, before it syncs, on the desktop: the desktop's box asks, with GLUE
+  Home running, and the answer reaches the laptop.
+- **Confirmed by the user, 2026-10-08:** a song's page as a sheet, each view's address, Back and Forward, the
+  duplicates' waveforms (desktop and laptop).
 - **Confirmed by the user, 2026-10-08:** the page with GLUE Home running no longer freezes (ADR 0162).
-- **Two recordings in the repo's folder** (`edge-net-export-log.json`, 1.2 GB, and `glue-log.json`): untracked,
-  they hold GLUE Home's local key. The user's to delete; never commit them.
+- **A recording in the repo's folder** (`glue-log.json`; the 1.2 GB one is deleted): untracked, it holds GLUE Home's
+  local key. The user's to delete; never commit it.
 - **GLUE Home 0.59.1 and the site** (ADR 0161):
   - on the laptop, "No file linked" shouldn't list the desktop's songs any more (it showed them as the laptop's, with
     no file). Songs already broken are put right when a computer that can tell whose they are opens the collection;
@@ -143,9 +141,7 @@ With GLUE Home running the page still does, until each moves into the engine (th
 3. **Finding new DJ libraries** in the music folders (`findLibraries`, 3 folders deep): off with GLUE Home now.
 4. **Re-checking verdicts** (`recheckVerdicts`) and the open-time repairs (`tidyTracks`, `joinCopies`): off with
    GLUE Home now.
-5. **The 61 clashes waiting** in the desktop's sync state (`cloud/shared/bf9246de41a24e03.json`): GLUE Home's
-   engine against this page, the same computer (most are songs' `duration`/`format`, and `dupes/<computer>.json`).
-   Clashes between two writers of one computer should settle by themselves (the newer value); settle these once.
+5. ~~The 61 clashes~~: done in 0.60.0 (ADR 0163: a computer never clashes with itself; GLUE Home's clashes in the tab).
 
 ### Working notes (GLUE Home in Rust)
 - **How a batch is held to the website:** recorded goldens, replayed in Rust byte for byte:
@@ -176,7 +172,8 @@ With GLUE Home running the page still does, until each moves into the engine (th
   with the Write tool, or use the Edit tool for such lines.
 
 ### Other work
-- **Edge 154.0.4258.62 (updated 2026-10-07):** `e2e/shared.spec.ts` "cloud sync…" fails locally in Edge since (the desktop's
+- **Edge 154.0.4258.62 (updated 2026-10-07):** its automatic tab freeze is now off for test browsers (2026-10-08, it
+  froze background pages under load); `e2e/shared.spec.ts` "cloud sync…" passed in the full runs since. Before: it failed locally in Edge since (the desktop's
   song loses its play button after the laptop's rating) and passes in Chrome (`PW_CHANNEL=chrome`); the website and the
   test were unchanged. Find what Edge does differently there. ("The account's collections" is the older flaky one below.)
 - **The nightly e2e run fails since 2026-10-03:** `stems.spec.ts` (stem separation) runs out of its 14 minutes on CI's

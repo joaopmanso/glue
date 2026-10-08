@@ -76,19 +76,19 @@ const meta = J({ schemaVersion: 1, id: 'c1', name: 'Shared', createdAt: '2026-01
 const shard = (items: Record<string, unknown>) => J({ schemaVersion: 1, items });
 
 interface Run { hint: string[] | null; edit?: Record<string, string | null>; calls: Call[]; changed: string[]; clashes: unknown[]; pushed: number; after: Record<string, string> }
-interface Golden { me: string; pid: string; cid: string; files: Record<string, string>; runs: Run[] }
+interface Golden { me: string; own?: string[]; pid: string; cid: string; files: Record<string, string>; runs: Run[] }
 
 /** One sync of `dev`'s folder, recorded. */
-async function run(server: SharedCloudServer, dir: ReturnType<typeof memDir>, me: string, hint: string[] | null, edit: Record<string, string | null> | undefined, hook?: (call: string, n: number) => Promise<void>, answer?: (call: string, n: number, a: unknown) => unknown): Promise<Run> {
+async function run(server: SharedCloudServer, dir: ReturnType<typeof memDir>, me: string, hint: string[] | null, edit: Record<string, string | null> | undefined, hook?: (call: string, n: number) => Promise<void>, answer?: (call: string, n: number, a: unknown) => unknown, own?: string[]): Promise<Run> {
   for (const [k, v] of Object.entries(edit ?? {})) { if (v === null) dir.files.delete(k); else dir.files.set(k, v); }
   const calls: Call[] = [], changed: string[] = [];
-  const r = await syncShared({ root: asDir(dir), pid: 'p1', cid: 'c1', me, cloud: recorded(server, 'c1', me, calls, hook, answer) }, hint ?? undefined, changed);
+  const r = await syncShared({ root: asDir(dir), pid: 'p1', cid: 'c1', me, cloud: recorded(server, 'c1', me, calls, hook, answer), ...(own ? { own } : {}) }, hint ?? undefined, changed);
   return { hint, ...(edit ? { edit } : {}), calls, changed: r.changed, clashes: r.clashes, pushed: r.pushed, after: snapshot(dir) };
 }
-/** Another device's own sync (not recorded): its changes reach GLUE Cloud. */
-async function other(server: SharedCloudServer, dir: ReturnType<typeof memDir>, edit: Record<string, string | null>) {
+/** Another device's own sync (not recorded): its changes reach GLUE Cloud. `dev` pushes them, as computer `me`. */
+async function other(server: SharedCloudServer, dir: ReturnType<typeof memDir>, edit: Record<string, string | null>, dev = 'lap', me = 'lap', pid = 'p9') {
   for (const [k, v] of Object.entries(edit)) { if (v === null) dir.files.delete(k); else dir.files.set(k, v); }
-  await syncShared({ root: asDir(dir), pid: 'p9', cid: 'c1', me: 'lap', cloud: server.cloudFor('c1', 'lap') });
+  await syncShared({ root: asDir(dir), pid, cid: 'c1', me, cloud: server.cloudFor('c1', dev) });
 }
 const lapBase = 'profiles/p9/collections/c1';
 const lapEdit = (d: ReturnType<typeof memDir>, path: string, f: (v: { items: Record<string, Record<string, unknown>> }) => void) => {
@@ -147,6 +147,24 @@ async function scenarios(): Promise<Record<string, Golden>> {
     const compact = (call: string, n: number, a: unknown) => call === 'append' && n === 2 ? { ...(a as object), compact: true } : a;
     runs.push(await run(server, desk, 'desk', ['tracks/ab.json', 'events.json'], { [base + '/tracks/ab.json']: J(mine), [base + '/events.json']: null }, lapFirst, compact));
     out.stale = { me: 'desk', pid: 'p1', cid: 'c1', files: {}, runs };
+  }
+
+  // This computer's own devices (ADR 0162): a change its GLUE Home pushed, against another of the same song made here,
+  // records no clash (the cloud's value kept); one recorded before from it is dropped, the laptop's kept.
+  {
+    const server = new SharedCloudServer();
+    await server.seed('c1', 'Shared', { 'collection.json': { text: meta, rev: 1 }, 'tracks/ab.json': { text: shard({ ab01: song('ab01') }), rev: 1 } }, 'desk', 1);
+    const desk = memDir(), home = memDir();
+    const runs: Run[] = [];
+    runs.push(await run(server, desk, 'desk', null, undefined, undefined, undefined, ['hdesk']));
+    await other(server, home, {}, 'hdesk', 'desk', 'p1');
+    const theirs = JSON.parse(home.files.get(base + '/tracks/ab.json')!); theirs.items.ab01.duration = 301;
+    await other(server, home, { [base + '/tracks/ab.json']: J(theirs) }, 'hdesk', 'desk', 'p1');
+    const mine = JSON.parse(desk.files.get(base + '/tracks/ab.json')!); mine.items.ab01.duration = 299;
+    const state = JSON.parse(desk.files.get('cloud/shared/c1.json')!);
+    state.clashes = [{ file: 'tracks/ab.json', at: 'items.ab01.format', local: null, remote: 'FLAC', by: 'hdesk', when: 1 }, { file: 'tracks/ab.json', at: 'items.ab01.title', local: 'Mine', remote: 'Theirs', by: 'lap', when: 2 }];
+    runs.push(await run(server, desk, 'desk', null, { [base + '/tracks/ab.json']: J(mine), 'cloud/shared/c1.json': JSON.stringify(state) }, undefined, undefined, ['hdesk']));
+    out.own = { me: 'desk', own: ['hdesk'], pid: 'p1', cid: 'c1', files: {}, runs };
   }
   vi.useRealTimers();
   return out;

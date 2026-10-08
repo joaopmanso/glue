@@ -120,8 +120,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
       latest revision, otherwise the device pulls, merges and pushes again;
     - only files marked changed are looked at, and every file every 30 minutes;
     - `merge3` merges per field; for per-computer parts, a computer's own side wins;
-    - clashes wait in a box (ADR 0095).
-    - GLUE Home syncs where it runs (`home/ui/sharedSync.ts`); otherwise the tab does (`src/lib/shared.svelte.ts`).
+    - clashes wait in a box (ADR 0095); a computer never clashes with itself (`Place.own`: its GLUE Home, its
+      browser's sign-in; one recorded before is dropped, ADR 0163).
+    - GLUE Home syncs where it runs (`crates/glue-engine/src/shared.rs`); otherwise the tab does
+      (`src/lib/shared.svelte.ts`). With GLUE Home, its clashes show in the tab's box (the engine's `clashes` and
+      `resolve`, asked on attaching and after each batch of the feed, ADR 0163).
     - the files a sync wrote are told as it writes them (`syncShared(…, changed)`), and read again into the open
       collection even when the sync fails partway or the collection was opened again (ADR 0143).
     - the chip ("Synced") says in its tooltip where the last sync's time went: saving first, from GLUE Cloud, to it,
@@ -232,7 +235,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     before a collection opens) and it starts none of the library's work: no shared sync, analysis, daily backup,
     verdict re-check, open-time repairs, song info into files, or walking the music folders for DJ libraries. Still the
     page's until they move into GLUE Home: duplicates (its worker) and following DJ libraries (`djWatch`).
-  - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease.
+  - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease. A
+    song goes with the record the tab had (`was`): the engine applies only the fields changed from it over its own
+    (`changed_over`), so a change GLUE Home made meanwhile stays (ADR 0163). The engine's store is its files' only
+    writer: the analysis builds and saves its results under one hold of it.
   - Overviews and details come from GLUE Home's `/cache` when the browser has none (ADR 0110).
   - **What the user asks for goes first** (ADR 0138, 0139): the page's background loads from GLUE Home's cache go on a
     socket (GLUE Home 0.42, `ws.rs`, `src/platform/homeSocket.ts`: numbered, cancellable), else through a gate (3 at a

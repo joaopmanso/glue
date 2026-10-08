@@ -3,7 +3,7 @@
 //! holds the lease, ADR 0051). Then the song info edited on other devices goes into this computer's files, and what
 //! that changed (their size and date) goes back up. A collection deleted from the account is backed up and put away
 //! (ADR 0112). GLUE Cloud is reached through the host (`Host::cloud`: its address and this GLUE Home's credential).
-use crate::sync::{sync_shared, CloudError, Place, SharedCloud};
+use crate::sync::{resolve_clash, sync_shared, waiting_clashes, CloudError, Place, SharedCloud};
 use crate::{get, text, Engine, Host};
 use glue_store::dir::{read_json, write_json, Dir};
 use glue_store::project::{truthy, unknown_computer};
@@ -30,6 +30,9 @@ impl<H: Host> SharedCloud for HttpCloud<'_, H> {
     self.json("POST", &format!("/checkpoint?at={at}{}", if done { "&done=1" } else { "" }), Some("text/plain"), Some(body))
   }
 }
+
+/// This computer's other devices (ADR 0162): this GLUE Home's own; its pushes are this computer's.
+fn own_devices(cfg: &Value) -> Vec<String> { cfg["deviceId"].as_str().filter(|d| !d.is_empty()).map(|d| vec![d.to_string()]).unwrap_or_default() }
 
 /// A collection's numbers, sent when they changed since the last time, and once a day anyway (counts.ts `sendCounts`).
 fn send_counts(last: &mut std::collections::HashMap<String, (String, i64)>, cid: &str, tracks: u64, songs: u64, now: i64) -> bool {
@@ -65,7 +68,7 @@ impl<H: Host> Engine<H> {
       self.store(&pid, &cid).map_err(CloudError::new)?;
       let root = self.dir();
       let cloud = HttpCloud { host: &self.host, cid: cid.clone() };
-      let place = Place { root: &root, pid: pid.clone(), cid: cid.clone(), me, cloud: &cloud };
+      let place = Place { root: &root, pid: pid.clone(), cid: cid.clone(), me, cloud: &cloud, own: own_devices(&cfg) };
       // Only the files written here since the last sync are looked at (every one now and then, ADR 0107).
       let hint = self.take_written(&pid, &cid);
       // What came in, into the store (and a GLUE tab's feed), also when the sync fails partway (ADR 0143).
@@ -101,6 +104,37 @@ impl<H: Host> Engine<H> {
       if let Err(e) = sync_shared(&place, hint.as_deref(), &mut vec![]) { self.written_again(&pid, &cid, hint.as_deref()); return Err(e); }
     } }
     Ok(changed)
+  }
+
+  /// The clashes waiting in a shared collection here (ADR 0095): GLUE Home syncs it, a GLUE tab shows them (ADR 0162).
+  pub fn clashes(&self, pid: &str, cid: &str) -> Value {
+    let cfg = self.host.config();
+    let (root, cloud) = (self.dir(), HttpCloud { host: &self.host, cid: cid.into() });
+    let place = Place { root: &root, pid: pid.into(), cid: cid.into(), me: cfg["computer"].as_str().unwrap_or("").into(), cloud: &cloud, own: own_devices(&cfg) };
+    json!({ "clashes": waiting_clashes(&place) })
+  }
+  /// A clash answered in a GLUE tab (`shared.resolve`): settled here, the file read again (and in the tab's feed), and
+  /// sent with the next sync.
+  pub fn resolve(&self, pid: &str, cid: &str, b: &Value) -> Result<Value, String> {
+    let (file, at) = (text(b, "file"), text(b, "at"));
+    if !crate::sync::synced(&file) { return Err("not a file of the collection".into()); }
+    let cfg = self.host.config();
+    let (root, cloud) = (self.dir(), HttpCloud { host: &self.host, cid: cid.into() });
+    let place = Place { root: &root, pid: pid.into(), cid: cid.into(), me: cfg["computer"].as_str().unwrap_or("").into(), cloud: &cloud, own: own_devices(&cfg) };
+    // The store is the file's writer: what it has waiting saved first, then the answer written and read back, all while
+    // holding it (an analysis saving between the two put the old value back).
+    let files = std::slice::from_ref(&file);
+    {
+      let s = self.store(pid, cid)?;
+      let mut st = s.lock().unwrap();
+      self.flush(&mut st, pid, cid)?;
+      resolve_clash(&place, &file, &at, b.get("value"), b["keepRemote"].as_bool().unwrap_or(false));
+      st.reload_files(files).map_err(|e| e.to_string())?;
+    }
+    self.written_again(pid, cid, Some(files));
+    self.changed(pid, cid, files, &[]);
+    if let Some(e) = self.arc() { e.sync_soon(500); }
+    Ok(json!({ "left": waiting_clashes(&place).len() }))
   }
 
   /// A collection deleted from the account (ADR 0112; store/shared/forget.ts): the profile backed up, then the

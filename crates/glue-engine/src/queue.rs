@@ -702,8 +702,11 @@ impl<H: Host> Engine<H> {
       if !matches!(read_json(&self.dir(), &format!("profiles/{p}/collections/{c}/collection.json")), Ok(Some(_))) { self.q().pending.shift_remove(&(p, c)); continue; }
       let s = self.store(&p, &c)?;
       let (mut ops, mut done, mut here) = (vec![], vec![], 0);
+      let mut paths = vec![];
       {
-        let st = s.lock().unwrap();
+        // Built and saved under one hold of the store: an edit saved between the two (a clash answered, a rating) was
+        // put back as the record was when the results were read (2026-10-08).
+        let mut st = s.lock().unwrap();
         for id in &ids {
           let Some(a) = self.result(&p, &c, id) else { done.push(id.clone()); continue };
           done.push(id.clone());
@@ -720,10 +723,9 @@ impl<H: Host> Engine<H> {
           ops.push(json!({ "m": "tracks", "ts": [after_analysis(cur, &a)] }));
           here += 1;
         }
+        if self.host.lease_held() { return Ok(0); }   // a tab opened meanwhile: it's the writer now (these wait)
+        if !ops.is_empty() { for op in &ops { st.apply(op); } paths = self.flush(&mut st, &p, &c)?; }
       }
-      if self.host.lease_held() { return Ok(0); }   // a tab opened meanwhile: it's the writer now (these wait)
-      let mut paths = vec![];
-      if !ops.is_empty() { let mut st = s.lock().unwrap(); for op in &ops { st.apply(op); } paths = self.flush(&mut st, &p, &c)?; }
       // A GLUE tab takes their mini spectrograms and details from the cache.
       self.changed(&p, &c, &[], &done);
       if here > 0 { self.edited(&p, &c, &paths); }

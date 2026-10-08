@@ -1064,3 +1064,64 @@ test('with GLUE Home running, it is the app: the page starts none of the library
     expect(synced).toEqual([]);
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
+
+test('with GLUE Home running, the clashes its syncs left show here and are answered through it; this computer’s own never clash (ADR 0162)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-clash-'));
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } }, { engine: true });
+  try {
+    mkdirSync(join(tmp, 'Music', 'Sets'), { recursive: true }); mkdirSync(fake.dirs.incoming, { recursive: true });
+    copyFileSync(fixture('mp3-128k.mp3'), join(tmp, 'Music', 'Sets', 'a.mp3'));
+    const col = 'profiles/p1/collections/c1', ME = 'desk';
+    const meta = JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', shared: true, rootsBy: { desk: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }, members: { desk: { profile: 'p1', name: 'Desktop' }, lap: { profile: 'p9', name: 'Laptop' } } });
+    const shard = JSON.stringify({ schemaVersion: 1, items: { t1: { id: 't1', fileName: 'a.mp3', title: 'From the laptop', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: 4, format: null, addedAt: '2026-01-01',
+      copies: { desk: { status: 'linked', rootId: 'r1', relPath: 'Sets/a.mp3', importPath: null, size: 65267, mtime: 1, sources: [] } } } } });
+    // The sync left two: the laptop's title against this computer's, and one from this computer itself (before ADR 0162).
+    const clashes = [
+      { file: 'tracks/t1.json', at: 'items.t1.title', local: 'Mine here', remote: 'From the laptop', by: 'lap', when: 1_790_000_000_000 },
+      { file: 'tracks/t1.json', at: 'items.t1.duration', local: 4.1, remote: 4, by: ME, when: 1_790_000_000_000 },
+    ];
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: true }),
+      [col + '/collection.json']: meta, [col + '/tracks/t1.json']: shard,
+      'cloud/shared/c1.json': JSON.stringify({ v: 2, cursor: 1, clashes }),
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    await fake.start();
+    fake.tell({ config: { computer: ME, glue: fake.dirs.glue } });   // GLUE Home knows its computer; no account: it doesn't sync
+    await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
+      const u = new URL(r.request().url());
+      if (u.port !== '47400') return r.abort('connectionrefused');
+      u.port = String(fake.port);
+      return r.fulfill({ response: await r.fetch({ url: u.toString() }) });
+    });
+    const user = { id: 'u1', email: 'dj@example.com', name: 'DJ', picture: null };
+    await page.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `
+      window.google = { accounts: { id: { initialize(o) { window.__gcb = o.callback; }, disableAutoSelect() {},
+        renderButton(el) { const b = document.createElement('button'); b.className = 'fake-google'; b.textContent = 'Sign in with Google'; b.onclick = () => window.__gcb({ credential: 'fake' }); el.appendChild(b); } } } };` }));
+    await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
+      const p = new URL(r.request().url()).pathname, json = (b: unknown) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
+      if (p === '/v1/auth/google' || p === '/v1/auth/refresh') return json({ access: 'a', refresh: 'r', deviceId: ME, user });
+      if (p === '/v1/me') return json({ user, thisDevice: ME, devices: [{ id: ME, kind: 'browser', name: 'Desktop', platform: '', createdAt: 1, lastSeen: 1, role: 'device' }, { id: 'lap', kind: 'browser', name: 'Laptop', platform: '', createdAt: 1, lastSeen: 1, role: 'device' }, { id: fake.device, kind: 'home', name: 'Desktop', platform: '', createdAt: 1, lastSeen: 1, companionOf: ME }], sessions: [] });
+      if (p === '/v1/shared') return json({ collections: [{ id: 'c1', name: 'Main' }], gone: [] });
+      if (p === '/v1/profiles') return json({ profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff', updatedAt: 1 }], gone: [], seeded: true });
+      return json({});
+    });
+    await page.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+    await page.goto('./');
+    await page.locator('#cloud-panel .fake-google').click();
+    await expect(page.locator('.tr')).toHaveCount(1, { timeout: 30_000 });
+    // GLUE Home's clashes, here: the laptop's only (this computer's own was never one).
+    const box = page.locator('#clashes');
+    await expect(box).toContainText('1 change clashes with Laptop', { timeout: 20_000 });
+    await expect(box).toContainText('Here: Mine here');
+    await expect(page.locator('.tr', { hasText: 'From the laptop' })).toHaveCount(1);   // theirs until answered
+    // Answered here, settled by GLUE Home: its value in the file, read back here, nothing left waiting.
+    await box.locator('[data-keep="mine"]').click();
+    await expect(box).toHaveCount(0);
+    await expect(page.locator('.tr', { hasText: 'Mine here' })).toHaveCount(1, { timeout: 20_000 });
+    expect(JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items.t1.title).toBe('Mine here');
+    expect(JSON.parse(readFileSync(join(fake.dirs.glue, 'cloud', 'shared', 'c1.json'), 'utf8')).clashes).toBeUndefined();
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});

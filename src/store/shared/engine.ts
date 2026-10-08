@@ -34,7 +34,11 @@ export interface SharedCloud {
   /** Lines of path \t hash \t size \t base64(gzip(text)) or '-' deleted, into the snapshot at `at`. */
   checkpoint(at: number, body: string, done: boolean): Promise<unknown>;
 }
-export interface Place { root: Dir; pid: string; cid: string; me: string; cloud: SharedCloud }
+/** `own`: this computer's other devices (its GLUE Home, its browser's): their changes are this computer's own, one writer
+    at a time (ADR 0162), so they never clash with it; one recorded before is dropped. */
+export interface Place { root: Dir; pid: string; cid: string; me: string; cloud: SharedCloud; own?: string[] }
+/** A change by this computer itself (`by`: the device whose push it came in). */
+const ownBy = (p: Place, by: string | null | undefined) => !!by && (by === p.me || !!p.own?.includes(by));
 export interface SyncResult { changed: string[]; clashes: Clash[]; pushed: number; ms: { pull: number; push: number } }
 /** How one file changed: its songs (a shard: the other keys, and each song changed, null gone), its whole
     text, or deleted. */
@@ -87,7 +91,7 @@ class State {
   static async load(p: Place): Promise<State> {
     const s = new State(p);
     const meta = parse(await readText(p.root, statePath(p)).catch(() => null)) as { cursor?: number; clashes?: Clash[]; files?: Record<string, { text?: string | null }> } | undefined;
-    s.cursor = meta?.cursor ?? 0; s.clashes = meta?.clashes ?? [];
+    s.cursor = meta?.cursor ?? 0; s.clashes = (meta?.clashes ?? []).filter(c => !ownBy(p, c.by));
     // From before (every agreed text in this one file): each into its own, once.
     if (meta?.files) { for (const [k, v] of Object.entries(meta.files)) if (v?.text != null && SYNCED.test(k)) s.set(k, v.text); await s.save(); }
     return s;
@@ -156,7 +160,7 @@ async function take(p: Place, s: State, path: string, remote: string | undefined
   else if (mine === agreed || mine === undefined && agreed === undefined) { await writeLocal(p, path, remote); changed.push(path); }
   else {
     const m = merge3(path, parse(agreed), parse(mine), parse(remote), p.me);
-    clashes.push(...m.clashes.map(c => ({ ...c, by: by ?? null, when: at })));
+    if (!ownBy(p, by)) clashes.push(...m.clashes.map(c => ({ ...c, by: by ?? null, when: at })));
     await writeLocal(p, path, m.value === undefined ? undefined : pretty(m.value));
     changed.push(path); s.merged.add(path);
   }

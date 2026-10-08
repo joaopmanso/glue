@@ -16,6 +16,7 @@ import { shardOf } from '../store/types';
 import type { CollectionStore, StoreOp } from '../store/collection';
 import type { Analysed } from '../core/library/analysed';
 import type { DetailsHeader } from '../store/details';
+import type { Clash } from '../core/shared/merge3';
 
 interface EngineState { rev: number; jobs: { kind: string; left: number; total: number }[]; analysis: { paused: boolean; running: number; current: string[]; left: number; done: number; failed: number; waiting: number } }
 type Change = { rev: number; p: string; c: string; paths: string[]; analysed?: string[] };
@@ -33,6 +34,8 @@ class EngineClient {
   private sending: Promise<void> | null = null;
   private timer = 0;
   private polling = false;
+  /** Attached, and after each batch of the engine's feed: what may have changed with it (the clashes waiting). */
+  onFeed: (() => void) | null = null;
 
   private async rpc<T>(body: unknown, ms = 30_000): Promise<T> {
     const r = await fetch(localHome.url('/rpc'), { method: 'POST', body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
@@ -77,6 +80,7 @@ class EngineClient {
     lib.stopOwnAnalysis?.();
     void this.poll();
     void this.refresh();
+    this.onFeed?.();
   }
   private detach() {
     if (this.attached) this.attached.sink = null;
@@ -122,6 +126,7 @@ class EngineClient {
         if (paths.length && lib.store === s) await s.reloadFiles(paths);
         const analysed = [...new Set(mine.flatMap(x => x.analysed ?? []))];
         if (analysed.length) void this.takeDerived(w, analysed);
+        if (paths.length) this.onFeed?.();
         void this.refresh();
       }
     } finally { this.polling = false; }
@@ -131,7 +136,8 @@ class EngineClient {
   /** `first`: the user's (a song's page), ahead of the rows' and the analyses' results in the gate (ADR 0138). */
   /** `signal`: not wanted any more (its row scrolled away), cancelled on the socket (ADR 0139). */
   async fromCache(kind: 't' | 'w' | 'd' | 'p', id: string, ext: 'bin' | 'json' = 'bin', w = this.where(), first = false, signal?: AbortSignal): Promise<Uint8Array | null> {
-    if (!this.active || !w || !localHome.link) return null;
+    // GLUE Home runs the library (known before the tab attaches, ADR 0162): its cache, not one made here meanwhile.
+    if (!lib.homeRuns() || !w || !localHome.link) return null;
     return cacheFile(`${kind}/${w.p}/${w.c}/${shardOf(id)}/${id}.${ext}`, first, signal);
   }
   /** A song's tags were written from here: GLUE Home's copy of its analysis follows the file. */
@@ -182,6 +188,16 @@ class EngineClient {
     const names = Object.fromEntries(mine.map(id => [id, s.tracks.get(id)?.title || s.tracks.get(id)?.fileName || id]));
     void this.rpc({ op: 'analyse', ...w, ids: mine, names }).then(() => this.refresh()).catch(e => { lib.notice = 'GLUE Home couldn’t analyse them: ' + (e as Error).message; });
     return mine.length;
+  }
+  /** The open shared collection's clashes waiting (GLUE Home syncs it, ADR 0162). */
+  async clashes(): Promise<Clash[]> {
+    const w = this.where();
+    return w ? (await this.rpc<{ clashes: Clash[] }>({ op: 'clashes', ...w }, 10_000)).clashes : [];
+  }
+  /** A clash answered here, settled by GLUE Home (`value` undefined: removed; `keepRemote`: the value in place). */
+  async resolveClash(c: Clash, value: unknown, keepRemote: boolean) {
+    const w = this.where();
+    if (w) await this.rpc({ op: 'resolve', ...w, file: c.file, at: c.at, ...(value === undefined ? {} : { value }), keepRemote }, 20_000);
   }
   pause(p: boolean) { if (this.active) void this.rpc({ op: 'pause', on: p }).then(() => this.refresh()).catch(() => {}); }
 }

@@ -196,6 +196,19 @@ fn get<'a>(o: &'a Value, k: &str) -> Option<&'a Value> { o.as_object().and_then(
 fn text(v: &Value, k: &str) -> String { get(v, k).and_then(|x| x.as_str()).unwrap_or("").to_string() }
 fn truthy(v: Option<&Value>) -> bool { glue_store::project::truthy(v) }
 
+/// A song the tab sent (`mine`) over the one here (`cur`): the fields it changed from what it had (`was`) taken, the
+/// others as they are here. No record here, or none the tab had: as sent.
+pub fn changed_over(cur: Option<&Value>, mine: &Value, was: Option<&Value>) -> Value {
+  let (Some(cur), Some(m), Some(w)) = (cur.and_then(|c| c.as_object()), mine.as_object(), was.and_then(|w| w.as_object())) else { return mine.clone() };
+  let mut out = cur.clone();
+  for k in m.keys().chain(w.keys().filter(|k| !m.contains_key(*k))) {
+    let (a, b) = (m.get(k), w.get(k));
+    if a == b { continue; }
+    match a { Some(v) => { out.insert(k.clone(), v.clone()); } None => { out.shift_remove(k); } }
+  }
+  Value::Object(out)
+}
+
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
     let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default() });
@@ -436,7 +449,18 @@ impl<H: Host> Engine<H> {
     let named: Vec<String> = ops.iter().filter(|op| op["m"] == "tracks").flat_map(|op| op["ts"].as_array().into_iter().flatten().map(|t| text(t, "id"))).collect();
     let new: std::collections::HashSet<String> = named.iter().filter(|id| !st.tracks.contains_key(*id)).cloned().collect();
     let added = !new.is_empty();
-    for op in ops { st.apply(op); }
+    for op in ops {
+      // Songs as the tab had them (`was`): only what it changed goes over the record here, which may have moved on since
+      // (a clash answered, an analysis saved) before the tab read it back (ADR 0162).
+      if op["m"] == "tracks" {
+        if let (Some(ts), Some(was)) = (op["ts"].as_array(), op["was"].as_array()) {
+          let merged: Vec<Value> = ts.iter().enumerate().map(|(i, t)| changed_over(st.tracks.get(&text(t, "id")), t, was.get(i))).collect();
+          st.apply(&json!({ "m": "tracks", "ts": merged }));
+          continue;
+        }
+      }
+      st.apply(op);
+    }
     self.flush_edit(&mut st, p, c)?;
     drop(st);
     if !named.is_empty() { if let Some(e) = self.arc() { e.queue_edit(p, c, &named, &new); } }
@@ -494,6 +518,9 @@ impl<H: Host> Engine<H> {
       "open" => { self.drop_store(&p, &c); Ok(json!({ "ok": true })) }
       "status" => { let mut s = self.status(); s["analysis"] = self.analysis_json(); Ok(s) }
       "edit" => self.edit(&p, &c, b["ops"].as_array().map(|a| a.as_slice()).unwrap_or(&[])),
+      // The shared collection's clashes, shown and answered in a GLUE tab (ADR 0095, 0162).
+      "clashes" => Ok(self.clashes(&p, &c)),
+      "resolve" => self.resolve(&p, &c, b),
       "restamp" => { self.restamp(&p, &c, &text(b, "id"), &b["was"], &b["now"]); Ok(json!({ "ok": true })) }
       "job" => {
         let ids = b["ids"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
@@ -592,6 +619,21 @@ impl Drop for Done<'_> { fn drop(&mut self) { *self.0.lock().unwrap() = false; }
 
 #[cfg(test)]
 mod tests {
+  use serde_json::json;
+  #[test]
+  fn a_tabs_song_changes_only_what_it_changed() {
+    // Here: the title answered in a clash, and an analysis's length; the tab still had the old ones, and found a cover.
+    let here = json!({ "id": "t1", "title": "Mine here", "duration": 4.05, "art": "" });
+    let had = json!({ "id": "t1", "title": "From the laptop", "duration": 4, "art": "" });
+    let sent = json!({ "id": "t1", "title": "From the laptop", "duration": 4, "art": "abc" });
+    assert_eq!(super::changed_over(Some(&here), &sent, Some(&had)), json!({ "id": "t1", "title": "Mine here", "duration": 4.05, "art": "abc" }));
+    // A field the tab removed goes; one it added comes.
+    let sent = json!({ "id": "t1", "title": "From the laptop", "duration": 4, "rating": 5 });
+    assert_eq!(super::changed_over(Some(&here), &sent, Some(&had)), json!({ "id": "t1", "title": "Mine here", "duration": 4.05, "rating": 5 }));
+    // New here, or no base: as sent.
+    assert_eq!(super::changed_over(None, &sent, Some(&had)), sent);
+    assert_eq!(super::changed_over(Some(&here), &sent, None), sent);
+  }
   #[test]
   fn iso_is_javascripts() {
     assert_eq!(super::iso(1_700_000_000_000), "2023-11-14T22:13:20.000Z");

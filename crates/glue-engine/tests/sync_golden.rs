@@ -52,7 +52,7 @@ fn the_sync_does_what_the_website_does() {
     for (i, run) in g["runs"].as_array().unwrap().iter().enumerate() {
       for (k, v) in run["edit"].as_object().into_iter().flatten() { if v.is_null() { root.remove(k).unwrap(); } else { root.write(k, v.as_str().unwrap()).unwrap(); } }
       let cloud = Replay { calls: run["calls"].as_array().unwrap().clone(), at: RefCell::new(0), name: format!("{name} run {i}") };
-      let place = Place { root: &root, pid: g["pid"].as_str().unwrap().into(), cid: g["cid"].as_str().unwrap().into(), me: g["me"].as_str().unwrap().into(), cloud: &cloud };
+      let place = Place { root: &root, pid: g["pid"].as_str().unwrap().into(), cid: g["cid"].as_str().unwrap().into(), me: g["me"].as_str().unwrap().into(), cloud: &cloud, own: g["own"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default() };
       let hint: Option<Vec<String>> = run["hint"].as_array().map(|h| h.iter().map(|x| x.as_str().unwrap().to_string()).collect());
       let mut changed = vec![];
       let r = sync_shared(&place, hint.as_deref(), &mut changed).unwrap_or_else(|e| panic!("{name} run {i}: {e}"));
