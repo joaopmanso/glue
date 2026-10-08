@@ -17,6 +17,7 @@ import type { CollectionStore, StoreOp } from '../store/collection';
 import type { Analysed } from '../core/library/analysed';
 import type { DetailsHeader } from '../store/details';
 import type { Clash } from '../core/shared/merge3';
+import type { Match } from '../core/library/duplicates';
 
 interface EngineState { rev: number; jobs: { kind: string; left: number; total: number }[]; analysis: { paused: boolean; running: number; current: string[]; left: number; done: number; failed: number; waiting: number } }
 type Change = { rev: number; p: string; c: string; paths: string[]; analysed?: string[] };
@@ -34,8 +35,9 @@ class EngineClient {
   private sending: Promise<void> | null = null;
   private timer = 0;
   private polling = false;
-  /** Attached, and after each batch of the engine's feed: what may have changed with it (the clashes waiting). */
-  onFeed: (() => void) | null = null;
+  /** Told when the tab attaches (`null`) and after each batch of the engine's feed (the files it changed): the clashes
+      waiting, the duplicates it found. */
+  readonly onFeed: ((paths: string[] | null) => void)[] = [];
 
   private async rpc<T>(body: unknown, ms = 30_000): Promise<T> {
     const r = await fetch(localHome.url('/rpc'), { method: 'POST', body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
@@ -80,7 +82,7 @@ class EngineClient {
     lib.stopOwnAnalysis?.();
     void this.poll();
     void this.refresh();
-    this.onFeed?.();
+    for (const f of this.onFeed) f(null);
   }
   private detach() {
     if (this.attached) this.attached.sink = null;
@@ -122,11 +124,11 @@ class EngineClient {
         await this.flush();
         if (r.reset) { await lib.openCollection(w.c); continue; }
         const mine = r.changes.filter(x => x.p === w.p && x.c === w.c);
-        const paths = [...new Set(mine.flatMap(x => x.paths))];
+        const all = [...new Set(mine.flatMap(x => x.paths))], paths = all.filter(p => !p.startsWith('dupes'));
         if (paths.length && lib.store === s) await s.reloadFiles(paths);
         const analysed = [...new Set(mine.flatMap(x => x.analysed ?? []))];
         if (analysed.length) void this.takeDerived(w, analysed);
-        if (paths.length) this.onFeed?.();
+        if (all.length) for (const f of this.onFeed) f(all);
         void this.refresh();
       }
     } finally { this.polling = false; }
@@ -188,6 +190,12 @@ class EngineClient {
     const names = Object.fromEntries(mine.map(id => [id, s.tracks.get(id)?.title || s.tracks.get(id)?.fileName || id]));
     void this.rpc({ op: 'analyse', ...w, ids: mine, names }).then(() => this.refresh()).catch(e => { lib.notice = 'GLUE Home couldn’t analyse them: ' + (e as Error).message; });
     return mine.length;
+  }
+  /** The duplicates GLUE Home found among this computer's songs (ADR 0164): its last result, or matched now; `full`:
+      every song matched again. `missing`: songs analysed with no fingerprint there. */
+  async dupes(full = false): Promise<{ at: number; matches: Match[]; missing: number } | null> {
+    const w = this.where();
+    return w ? this.rpc<{ at: number; matches: Match[]; missing: number }>({ op: 'dupes', ...w, ...(full ? { full } : {}) }, 180_000) : null;
   }
   /** The open shared collection's clashes waiting (GLUE Home syncs it, ADR 0162). */
   async clashes(): Promise<Clash[]> {

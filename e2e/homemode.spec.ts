@@ -1125,3 +1125,65 @@ test('with GLUE Home running, the clashes its syncs left show here and are answe
     expect(JSON.parse(readFileSync(join(fake.dirs.glue, 'cloud', 'shared', 'c1.json'), 'utf8')).clashes).toBeUndefined();
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
+
+test('with GLUE Home running, it finds the duplicates: the same recording under two names, matched by GLUE Home and shown here (ADR 0164)', async ({ page }) => {
+  test.setTimeout(240_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-dupes-'));
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} }, { engine: true, known: { music: join(tmp, 'Music') } });
+  try {
+    mkdirSync(fake.dirs.incoming, { recursive: true }); mkdirSync(join(tmp, 'Music'), { recursive: true });
+    // The same recording twice (a song and its copy under another name), and another song: 40 s each (a match needs 20 s
+    // of sound in common), made as library.spec's "finds the same recording" makes them.
+    const make = (seed: number) => {
+      let sd = seed; const r = () => { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; return sd / 4294967296; };
+      const sr = 44100, x = new Float32Array(sr * 40);
+      for (let t0 = 0; t0 < 40; t0 += 0.25) {
+        const f = 110 * Math.pow(2, Math.floor(r() * 36) / 12), amp = 0.1 + r() * 0.2, a = Math.floor(t0 * sr);
+        for (let i = a; i < Math.min(x.length, a + sr * 0.6); i++) { const t = (i - a) / sr; x[i] += amp * Math.exp(-t * 6) * (Math.sin(2 * Math.PI * f * t) + 0.5 * Math.sin(4 * Math.PI * f * t)); }
+      }
+      const wav = Buffer.alloc(44 + x.length * 2);
+      wav.write('RIFF', 0); wav.writeUInt32LE(36 + x.length * 2, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+      wav.writeUInt32LE(sr, 24); wav.writeUInt32LE(sr * 2, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(x.length * 2, 40);
+      for (let i = 0; i < x.length; i++) wav.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(x[i] * 32767))), 44 + i * 2);
+      return wav;
+    };
+    const one = make(11), other = make(99);
+    writeFileSync(join(tmp, 'Music', 'Night Drive.wav'), one); writeFileSync(join(tmp, 'Music', 'Night Drive (copy).wav'), one); writeFileSync(join(tmp, 'Music', 'Other.wav'), other);
+    const col = 'profiles/p1/collections/c1';
+    const song = (id: string, file: string, size: number) => ({ id, status: 'linked', rootId: 'r1', relPath: file, importPath: null, fileName: file, size, mtime: 1000, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: null, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] });
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
+      [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
+      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1a: song('t1a', 'Night Drive.wav', one.length), t1b: song('t1b', 'Night Drive (copy).wav', one.length), t1c: song('t1c', 'Other.wav', other.length) } }),
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    await fake.start();
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue } });
+    // With no GLUE tab open, GLUE Home analyses the three (their fingerprints into its cache).
+    const analysis = () => { try { return JSON.parse(readFileSync(join(fake.dirs.glue, col, 'analysis', 't1.json'), 'utf8')).items as Record<string, { error?: string; label: string }>; } catch { return {}; } };
+    await expect.poll(() => ['t1a', 't1b', 't1c'].every(id => analysis()[id]?.label && !analysis()[id].error), { timeout: 150_000 }).toBe(true);
+    // The tab (Home mode): it asks GLUE Home what it found, and shows the group.
+    const asked: string[] = [];
+    page.on('request', r => { if (r.url().includes('/rpc')) { try { const b = JSON.parse(r.postData() ?? '{}'); if (b.op === 'dupes') asked.push(b.op + (b.full ? ' full' : '')); } catch { /* not JSON */ } } });
+    await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
+      const u = new URL(r.request().url());
+      if (u.port !== '47400') return r.abort('connectionrefused');
+      u.port = String(fake.port);
+      return r.fulfill({ response: await r.fetch({ url: u.toString() }) });
+    });
+    await page.goto('./#/analyze');
+    await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), fake.pref);
+    await page.goto('./');
+    await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });   // one row per song: the best copy
+    await page.locator('.lside [data-view="dupes"]').click();
+    const grp = page.locator('.grp', { hasText: 'Same recording' });
+    await expect(grp).toHaveCount(1, { timeout: 30_000 });
+    await expect(grp.locator('li')).toHaveCount(2);
+    expect(asked.length).toBeGreaterThan(0);
+    // "Check again": GLUE Home matches every song again.
+    await page.click('#dupes-rescan');
+    await expect.poll(() => asked.includes('dupes full'), { timeout: 30_000 }).toBe(true);
+    await expect(grp.locator('li')).toHaveCount(2);
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});

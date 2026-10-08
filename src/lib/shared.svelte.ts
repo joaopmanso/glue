@@ -369,7 +369,7 @@ export async function askDeleteShared(id: string, name: string) {
 }
 // The duplicates are written around the store: every file is looked at.
 dupes.onPublished = () => void shared.sync(true);
-engineClient.onFeed = () => void shared.homeClashes();
+engineClient.onFeed.push(() => void shared.homeClashes());
 
 // Opened as this computer; synced after saves, when another device pushed, and when it opens.
 /** Which computer a shared collection is seen as here (ADR 0108): GLUE Home's, where it's the library's engine;

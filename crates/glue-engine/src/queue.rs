@@ -728,7 +728,11 @@ impl<H: Host> Engine<H> {
       }
       // A GLUE tab takes their mini spectrograms and details from the cache.
       self.changed(&p, &c, &[], &done);
-      if here > 0 { self.edited(&p, &c, &paths); }
+      if here > 0 {
+        self.edited(&p, &c, &paths);
+        // New fingerprints in the cache: the duplicates matched again in a moment (ADR 0164).
+        if let Some(e) = self.arc() { e.dupes_soon(&p, &c); }
+      }
       n += here;
       if let Some(s) = self.q().pending.get_mut(&(p.clone(), c.clone())) { for id in &done { s.shift_remove(id); } }
     }

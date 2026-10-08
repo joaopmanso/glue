@@ -5,7 +5,7 @@ keywords: duplicates, duplicate, waveform, compare, listen, scrub, best copy, ma
 tour: duplicates
 order: 9
 ---
-GLUE finds the same recording under any name, tag or format by how it **sounds**: a WAV and its MP3, two rips, a re-download.
+GLUE finds the same recording under any name, tag or format by how it **sounds**: a WAV and its MP3, two rips, a re-download. With GLUE Home running it does the comparing, a few seconds after it analyses new songs; **Check again** has it compare every song once more.
 
 Songs with the same artist and title and about the same length show too, as **probable**. Words that only name the release don't make another song ("Album Version", "Remastered 2009", "Mono", "feat. …"); words that name another recording do ("Live at …", "BBC Session", "Remixed by …").
 

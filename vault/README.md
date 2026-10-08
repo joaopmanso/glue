@@ -238,6 +238,7 @@ Planned (GLUE):
 | [0158](adr/0158-the-signaling-room-and-the-sessions-in-rust.md) | GLUE Home's signaling room, the sessions with other devices, songs received and which computer it is, in its Rust engine | accepted |
 | [0159](adr/0159-glue-homes-first-run-and-its-window-signed-in.md) | GLUE Home's first-run guide, a GLUE folder always offered on the start page, and its window opening on the library, signed in by GLUE Home | accepted |
 | [0160](adr/0160-glue-homes-service-in-its-engine.md) | GLUE Home's service (status, timers, Start / Stop, backups, reminders, updates, the native check) in its engine; the hidden service page removed | accepted |
+| [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |
 | [0161](adr/0161-no-own-form-into-a-shared-collection.md) | A store opened as the computer's own never writes into a shared collection; a record without copies gets its writer's copy | accepted |

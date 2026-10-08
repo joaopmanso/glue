@@ -5,6 +5,17 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · GLUE Home 0.61.0: GLUE Home matches the duplicates (ADR 0164)
+- **Why:** the user, after ADR 0163: "I want to get all of these moved to Rust so that we can move on to the DJ
+  library cue points and real-time integrations". Duplicates first: with GLUE Home running the page still read every
+  fingerprint, matched them in a worker and published the result (forcing a full sync).
+- **Now:** `crates/glue-engine/src/dupes.rs`, the website's matcher line for line (to the byte: `tests/golden/dupes`),
+  over GLUE Home's cached fingerprints (8,318 of the desktop's 8,320 analysed songs have one): five seconds after its
+  analysis saves results (the new songs only), or every song on "Check again"; kept in its cache, published in a
+  shared collection. The page asks it (`dupes`) and still builds the groups (they move next).
+- Tests: `e2e/homemode.spec.ts` "it finds the duplicates" (a 40 s song and its copy, analysed and matched by GLUE
+  Home, shown in the tab; "Check again"), the golden, `dupes.rs` units.
+
 ## 2026-10-08 · GLUE Home 0.60.0: one computer never clashes with itself; clashes shown with GLUE Home (ADR 0163)
 - **Why:** the desktop's sync state held 61 clashes "by" its own GLUE Home (the page and GLUE Home both writing the
   same songs' length and format before ADR 0162), never shown: with GLUE Home running the page doesn't sync, and only a

@@ -18,6 +18,7 @@ export { copyScore };
 import { time, timeAsync } from '../core/perf';
 import type { DupReply, DupRequest } from '../workers/duplicates.worker';
 import type { AnalysisSummary, Track } from '../store/types';
+import { engineClient } from './engine.svelte';
 
 /** confirmed: a probable group the user said is the same recording (it can be cleaned up like one). */
 /** how: found by sound, marked by the user, confirmed by the user (a probable group), or by name only. sure: 0–100.
@@ -118,6 +119,8 @@ class Dupes {
 
   /** `full`: match everything again ("Check again"), not just the songs fingerprinted since. */
   async scan(full = false) {
+    // GLUE Home is the app (ADR 0162): it matches its songs' fingerprints, the page shows what it found (ADR 0164).
+    if (lib.homeRuns()) { await this.fromHome(full); return; }
     const s = lib.store, dir = await cacheDir();
     if (!s || !dir || this.running) return;
     this.running = true;
@@ -168,6 +171,21 @@ class Dupes {
     } catch (e) { console.warn('Duplicate scan failed', e); }
     finally { this.running = false; }
     if (this.toFill.length && !this.filling) void this.fill();
+  }
+
+  /** What GLUE Home found (ADR 0164): its last result, or matched now (`full`: "Check again"). */
+  async fromHome(full = false) {
+    const s = lib.store;
+    if (!s || (this.running && !full)) return;
+    this.running = true;
+    try {
+      const r = await engineClient.dupes(full).catch(e => { console.warn('GLUE: GLUE Home couldn’t say what duplicates it found', e); return null; });
+      if (!r || lib.store !== s) return;
+      this.toFill = []; this.missing = r.missing ?? 0;
+      if (!full && r.at === this.at && this.known) return;
+      this.matches = r.matches; this.known = new Set(r.matches.flatMap(m => [m.a, m.b])); this.at = r.at;
+      this.groups = time('dupes.build', () => this.build(r.matches));
+    } finally { this.running = false; }
   }
 
   /** Make the missing fingerprints, one song at a time (just the fingerprint, not a full analysis),
@@ -336,6 +354,8 @@ class Dupes {
 export const dupes = new Dupes();
 lib.onOpened = () => { dupes.reset(); void dupes.open(); };
 lib.onSettled = () => dupes.schedule();
+// With GLUE Home: when it attaches, and when it found duplicates again or another computer's came in (ADR 0164).
+engineClient.onFeed.push(paths => { if (!lib.homeRuns() || (paths && !paths.some(p => p.startsWith('dupes')))) return; void dupes.loadOthers().then(() => dupes.fromHome()); });
 
 /** Keep each group's best copy and put the others aside in GLUE Home's duplicates folder, or into the
     Recycle Bin (ADR 0070). Only "same recording" groups, only files on this computer. The files go
