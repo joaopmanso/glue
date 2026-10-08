@@ -163,7 +163,9 @@ fn removed_from_the_account_or_replaced() {
   std::thread::sleep(Duration::from_millis(100));
   { let g = h.0.lock().unwrap(); assert_eq!((g.room["state"].clone(), g.url.len()), (json!("removed"), tries)); }
   // A credential GLUE Cloud refuses (401): removed.
-  { let mut g = h.0.lock().unwrap(); g.config["deviceId"] = json!("h2"); g.config["token"] = json!("t2"); g.refuse = true; }
+  // (What was said before forgotten: "removed" already, so only this start's own answer ends the wait; macOS's runner
+  // once read the state while the start was still connecting.)
+  { let mut g = h.0.lock().unwrap(); g.config["deviceId"] = json!("h2"); g.config["token"] = json!("t2"); g.refuse = true; g.room = Value::Null; }
   e.room_start();
   until(|| h.0.lock().unwrap().room["state"] == "removed");
   assert_eq!(command(&e, &json!({ "cmd": "roomState" })).unwrap()["state"], "removed");

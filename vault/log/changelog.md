@@ -17,6 +17,9 @@ Newest first. Each entry: date, milestone, what changed, links.
   (rekordbox over six reads, an Engine DJ set, a shared collection), replayed in Rust byte for byte; engine tests for
   the import, the following, the lease and a lost file, and the finder; `e2e/homemode.spec.ts` "it finds a DJ library
   in the music folder, imports it and follows it live itself".
+- **Deploy:** the first macOS build failed an older room test (`removed_from_the_account_or_replaced`): it waited for
+  "removed" while the state already said so, and read the engine mid-start. The test now waits for the new start's own
+  answer; 0.64.0 published with the next push.
 
 ## 2026-10-08 · GLUE Home 0.63.0: GLUE Home makes old verdicts again and repairs a collection when it opens (ADR 0166)
 - **Why:** ADR 0162 left two of the page's open-time jobs with nobody doing them while GLUE Home runs: verdicts made by
