@@ -334,6 +334,7 @@ dependencies = [
  "indexmap",
  "lofty",
  "regex",
+ "rusqlite",
  "serde_json",
  "sha2",
  "unicode-normalization",

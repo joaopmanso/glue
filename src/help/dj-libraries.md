@@ -5,7 +5,7 @@ keywords: dj, rekordbox, engine, serato, traktor, apple music, itunes, m3u, impo
 tour: dj-libraries
 order: 4
 ---
-GLUE reads your DJ apps' libraries, and never writes into them.
+GLUE reads your DJ apps' libraries. It writes into one only when you ask it to keep your main Engine DJ library in step (below).
 
 ## Importing
 - **Found for you:** GLUE looks for DJ libraries in your music folders and the places you point it at ("Look in…"). They show under **DJ libraries found**; click **Add**, or **×** to take one off the list.
@@ -19,6 +19,13 @@ With **GLUE Home** running, GLUE Home does this itself: it finds the libraries i
 
 ## Your main DJ library
 Right-click a DJ library › **Make it the main DJ library** (or **Make it main** on a song's Prepare tab). Its beat grids and cues become every song's by default: the BPM in your lists, the grid and the cue pads in Prepare. What you set in GLUE still comes first. It's marked **main**, and it's the library GLUE will keep in step with both ways.
+
+## Kept in step both ways (Engine DJ)
+With GLUE Home running, right-click your main Engine DJ library › **Keep in step both ways…**. The hot cues, saved loops and beat grids you set in GLUE are written into Engine DJ, and what you change in Engine DJ comes into GLUE.
+- GLUE Home writes only while **Engine DJ is closed**: a few seconds after you quit it. The ⇄ by the library turns amber while changes wait.
+- It backs Engine DJ's library up before each write.
+- GLUE's pads A–H are Engine DJ's hot cues (a loop on a pad goes as a hot cue at its start); GLUE's memory loops are its saved loops. Memory cues and Engine DJ's main cue stay where they are.
+- A song changed in both since they were last in step: its Prepare tab asks which to keep.
 
 ## Songs with no file
 A DJ library can list files that aren't in your music folders (moved, or removed as duplicates). They show under **No file linked**, where GLUE finds most of them in your library. See [No file linked](#/help/no-file).

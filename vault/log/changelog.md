@@ -5,6 +5,22 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · GLUE Home 0.67.0: Engine DJ kept in step both ways (ADR 0170, phase 2 of ADR 0168)
+- **Why:** the user's goal (2026-10-08): prepare songs in GLUE, and have Engine DJ follow (and the other way round).
+- **Now:** "Keep in step both ways…" on the main Engine DJ library (`Source.sync`). GLUE Home merges each song's hot
+  cues, saved loops and beat grid three ways (`glue_interop::sync`): GLUE's pads are Engine DJ's hot cues, its memory
+  loops Engine DJ's saved loops (slots kept); each side's change goes to the other; a change on both is a clash, settled
+  in the song's Prepare. It writes Engine DJ's `PerformanceData` (and `bpmAnalyzed` with a grid) only while Engine DJ and
+  its analyser aren't running, after a copy of the database in its cache, every unknown byte kept; Engine DJ's changes
+  come into GLUE as its own edit. The sidebar's ⇄ says whether changes wait for Engine DJ to close.
+- **Changed:** Engine DJ's saved loops are read as memory loops (they were pad loops in 0.65, colliding with hot cues).
+- Tests: the merge (each side's change, both, nothing agreed yet, GLUE's prep slot by slot), the blobs written and read
+  back (main cue, analysed grid and extra bytes kept), an engine test on a throwaway Engine DJ database (waiting while
+  it runs, written with a backup, a change taken, a clash settled), `e2e/homemode.spec.ts` "the main Engine DJ library
+  is kept in step both ways".
+- **Tests:** `e2e/fakeHome.ts` ignores a write to an engine that already stopped (a late reply at a test's end gave
+  "write EPIPE", about 1 run in 4 of `homemode.spec.ts` "the screen takes GLUE Home's analyses" two at a time).
+
 ## 2026-10-08 · GLUE Home 0.66.0: the main DJ library (ADR 0169)
 - **Why:** the user, seeing Engine DJ's grids and cues in Prepare: "much like the 'main folder' there should be a 'main
   dj collection' that would default to always show and sync to that collection".

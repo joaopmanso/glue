@@ -10,6 +10,8 @@ publish = false
 glue-audio = { path = "../glue-audio" }
 glue-store = { path = "../glue-store" }
 glue-interop = { path = "../glue-interop" }
+# Writing into Engine DJ's database (ADR 0170), the same SQLite the reading uses.
+rusqlite = { version = "0.37", features = ["bundled"] }
 indexmap = "2"
 # The cover look-up (covers.rs, names.rs): names compared as the website does.
 regex = "1"

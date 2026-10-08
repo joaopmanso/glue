@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CollectionStore, type StoreOp } from '../src/store/collection';
-import { absorbTracks, applyImport, joinCopies, setMainSource, tidyTracks } from '../src/store/merge';
+import { absorbTracks, applyImport, joinCopies, setMainSource, setSourceSync, tidyTracks } from '../src/store/merge';
 import { importLists } from '../src/store/linked';
 import { blankTrack, type ImportedLibrary, type ImportedTrack } from '../src/core/interop/types';
 import type { Track } from '../src/store/types';
@@ -57,6 +57,8 @@ type Step =
   | { advance: number }
   /** The main DJ library (`setMainSource`, ADR 0169), by its app and file; null: none. */
   | { main: { app: string; fileName: string } | null }
+  /** GLUE's changes written into a DJ library (`setSourceSync`, ADR 0170), by its app and file. */
+  | { sync: { app: string; fileName: string; on: boolean } }
   | { flush: true };
 interface Scenario { files: Record<string, string>; steps: Step[] }
 
@@ -280,6 +282,7 @@ const rbImport: Scenario = {
     { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Gigs/Fri', 'Fri', '/Gigs', ['1', '5', '6']), pl('/Warm', 'Warm', null, ['2', '4'])]), fileName: 'rekordbox.xml' } },
     { importLists: { app: 'rekordbox', fileName: 'rekordbox.xml', ids: ['/Gigs'] } },
     { main: { app: 'rekordbox', fileName: 'rekordbox.xml' } },
+    { sync: { app: 'rekordbox', fileName: 'rekordbox.xml', on: true } },
     { flush: true },
     // Fri renamed Friday (in its place), Sat new in a folder brought in whole; Five gone from the library.
     { advance: 1000 },
@@ -312,7 +315,9 @@ const engineImport: Scenario = {
     // The drive's library read later: the computer's songs are carried, the playlist has both.
     { import: { lib: engineLib('drive', [rt('drive/5', '../Music Collection/e.mp3', { title: 'E', size: 50, grid: { bpm: 140, beat0: 0.1, bar: 0 } })]), fileName: 'm.db' } },
     { flush: true },
+    { sync: { app: 'engine', fileName: 'm.db', on: true } },
     { main: null },
+    { sync: { app: 'engine', fileName: 'm.db', on: false } },
     { flush: true },
   ],
 };
@@ -356,6 +361,7 @@ async function steps(sc: Scenario, dir: ReturnType<typeof memDir>, root: Dir) {
       out.push({ importLists: importLists(s!, src, ids) });
     }
     else if ('advance' in st) vi.setSystemTime(Date.now() + st.advance);
+    else if ('sync' in st) setSourceSync(s!, [...s!.sources.values()].find(x => x.app === st.sync.app && x.fileName === st.sync.fileName)!.id, st.sync.on);
     else if ('main' in st) setMainSource(s!, st.main ? [...s!.sources.values()].find(x => x.app === st.main!.app && x.fileName === st.main!.fileName)!.id : null);
     else if ('reload' in st) { for (const [k, v] of Object.entries(st.files)) dir.files.set(k, v); await s!.reloadFiles(st.reload); }
     else { await s!.flush(); out.push({ files: Object.fromEntries([...dir.files].sort(([a], [b]) => (a < b ? -1 : 1))) }); }

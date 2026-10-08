@@ -8,6 +8,7 @@ pub mod merge;
 pub mod perf;
 pub mod rekordbox;
 pub mod serato;
+pub mod sync;
 pub mod traktor;
 pub mod types;
 pub mod xml;

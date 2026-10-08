@@ -16,7 +16,13 @@ use std::time::{Duration, Instant};
 const AT_MOST: Duration = Duration::from_secs(10);
 
 #[derive(Default)]
-pub(crate) struct DjWatch { looking: bool, status: HashMap<String, &'static str>, last_read: HashMap<String, Instant>, warned: HashSet<String>, reread: HashSet<String> }
+pub(crate) struct DjWatch {
+  looking: bool, status: HashMap<String, &'static str>, last_read: HashMap<String, Instant>, warned: HashSet<String>, reread: HashSet<String>,
+  /// The main library's two-way sync (ADR 0170), by source: "waiting" (for Engine DJ to close) or "synced".
+  pub(crate) syncing: HashMap<String, &'static str>,
+  /// What a collection was when it was last synced (its feed's revision, its databases' dates).
+  pub(crate) synced_at: HashMap<String, String>,
+}
 
 const APPS: [(&str, &str); 6] = [("rekordbox", "rekordbox"), ("engine", "Engine DJ"), ("serato", "Serato"), ("traktor", "Traktor"), ("apple", "Apple Music"), ("m3u", "M3U")];
 fn app_name(app: &str) -> &str { APPS.iter().find(|a| a.0 == app).map_or(app, |a| a.1) }
@@ -268,4 +274,20 @@ pub fn find_libraries(root: &std::path::Path, max_depth: usize) -> Vec<(&'static
   }
   walk(root, "", 0, max_depth, &mut dirs, &mut out);
   out
+}
+
+/// Is any of these programs running? Windows: `tasklist` (no window shown); macOS: `pgrep -x`. Unsure (it couldn't
+/// ask): running, so nothing is written.
+pub fn apps_running(names: &[&str]) -> bool {
+  #[cfg(windows)]
+  {
+    use std::os::windows::process::CommandExt;
+    let Ok(out) = std::process::Command::new("tasklist").args(["/FO", "CSV", "/NH"]).creation_flags(0x0800_0000).output() else { return true };
+    let list = String::from_utf8_lossy(&out.stdout).to_lowercase();
+    names.iter().any(|n| list.contains(&format!("\"{}.exe\"", n.to_lowercase())))
+  }
+  #[cfg(not(windows))]
+  {
+    names.iter().any(|n| std::process::Command::new("pgrep").args(["-x", n]).output().map_or(true, |o| o.status.success()))
+  }
 }

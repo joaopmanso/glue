@@ -531,6 +531,76 @@ test('with GLUE Home running, it finds a DJ library in the music folder, imports
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 
+test('with GLUE Home running, the main Engine DJ library is kept in step both ways: a cue set in GLUE is written into it once Engine DJ is closed (ADR 0169, 0170)', async ({ page }) => {
+  test.setTimeout(180_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-djsync-'));
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } }, { engine: true });
+  try {
+    mkdirSync(fake.dirs.incoming, { recursive: true });
+    // A throwaway Engine DJ library in the music folder: the golden one (its song A has hot cues, a loop and a grid).
+    const db = join(tmp, 'Music', 'Engine Library', 'Database2', 'm.db');
+    mkdirSync(dirname(db), { recursive: true });
+    writeFileSync(db, readFileSync(fileURLToPath(new URL('../tests/golden/interop/engine-set/in/m.db', import.meta.url))));
+    const col = 'profiles/p1/collections/c1';
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
+      [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    await fake.start();
+    // Engine DJ open, as far as GLUE Home can tell.
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: true } });
+    await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
+      const u = new URL(r.request().url());
+      if (u.port !== '47400') return r.abort('connectionrefused');
+      u.port = String(fake.port);
+      return r.fulfill({ response: await r.fetch({ url: u.toString() }) });
+    });
+    page.on('dialog', d => void d.accept());
+    await page.goto('./#/analyze');
+    await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), fake.pref);
+    await page.goto('./');
+    const found = page.locator('#dj-libs .found', { hasText: 'Engine Library' });
+    await expect(found).toHaveCount(1, { timeout: 30_000 });
+    await found.locator('.addlib').click();
+    await expect(page.locator('.notice')).toContainText('track', { timeout: 30_000 });
+    // The main DJ library, kept in step both ways.
+    const src = page.locator('#dj-libs .item[data-source]').first();
+    await src.click({ button: 'right' });
+    await page.locator('[data-m="main-dj"]').click();
+    await expect(src.locator('.mainf')).toHaveText('main');
+    await src.click({ button: 'right' });
+    await page.locator('[data-m="sync-dj"]').click();
+    await expect(src.locator('.syncf')).toBeVisible();
+    // Song A's Prepare: Engine DJ's cues on the pads; pad B set here.
+    await src.locator('.name').click();
+    await page.locator('.tr', { hasText: /^\s*A\b/ }).first().locator('.c-title').dblclick();
+    await page.click('#tab-prepare');
+    await expect(page.locator('[data-pad="A"]')).toHaveClass(/set/, { timeout: 30_000 });
+    await expect(page.locator('[data-pad="B"]')).not.toHaveClass(/set/);
+    await page.click('[data-pad="B"]');
+    await expect(page.locator('[data-pad="B"]')).toHaveClass(/set/);
+    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+    // While Engine DJ runs, nothing is written; its library says what waits.
+    const slotB = async () => {
+      const initSqlJs = (await import('sql.js')).default, SQL = await initSqlJs(), d = new SQL.Database(readFileSync(db));
+      const q = d.exec('SELECT quickCues FROM PerformanceData WHERE trackId = 1')[0].values[0][0] as Uint8Array;
+      d.close();
+      const raw = (await import('node:zlib')).inflateSync(Buffer.from(q).subarray(4)), dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+      let p = 8;   // the count, then each slot: label, offset, colour
+      for (let i = 0; i < 2; i++) { const n = raw[p]; p += 1 + n; if (i === 1) return dv.getFloat64(p, false); p += 12; }
+      return null;
+    };
+    await expect(src.locator('.syncf')).toHaveAttribute('data-dj-sync', 'waiting', { timeout: 40_000 });
+    expect(await slotB()).toBe(-1);
+    // Engine DJ closed: written within seconds.
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false } });
+    await expect.poll(slotB, { timeout: 40_000 }).toBeGreaterThanOrEqual(0);
+    await expect(src.locator('.syncf')).toHaveAttribute('data-dj-sync', 'synced', { timeout: 20_000 });
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});
+
 test('with GLUE Home, duplicates are cleaned up: the others moved aside or recycled; playlists and ratings go to the copy that stays (ADR 0070)', async ({ page }) => {
   test.setTimeout(300_000);
   const { execFileSync } = await import('node:child_process');

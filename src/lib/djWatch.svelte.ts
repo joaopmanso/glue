@@ -13,7 +13,7 @@
 import { lib } from './library.svelte';
 import * as platform from '../platform';
 import { syncSource } from './importActions';
-import { engineClient } from './engine.svelte';
+import { engineClient, type DjClash } from './engine.svelte';
 import type { Source, SourceOrigin } from '../store/types';
 
 const EVERY = 5000, AT_MOST = 10_000;
@@ -56,6 +56,10 @@ class DjWatch {
   private busy = false;
   private lastRead = new Map<string, number>();
   status = $state<Record<string, DjState>>({});
+  /** The main library's two-way sync (ADR 0170), by source: waiting for Engine DJ to close, or in step. */
+  sync = $state<Record<string, 'waiting' | 'synced'>>({});
+  /** Its clashes, by GLUE song. */
+  clashes = $state<Record<string, DjClash[]>>({});
 
   start() {
     if (this.timer) return;
@@ -75,7 +79,8 @@ class DjWatch {
       const home = lib.homeRuns();
       if (home) {
         const st = await engineClient.djStatus().catch(() => null);
-        if (st && lib.store === s) for (const [id, v] of Object.entries(st)) this.set(id, v);
+        if (st && lib.store === s) { for (const [id, v] of Object.entries(st.status)) this.set(id, v); if (JSON.stringify(st.sync) !== JSON.stringify(this.sync)) this.sync = st.sync; }
+        if (lib.store === s && [...s.sources.values()].some(x => x.main && x.sync)) await this.loadClashes();
       }
       for (const src of [...s.sources.values()]) {
         if (lib.store !== s) return;
@@ -99,6 +104,13 @@ class DjWatch {
     try { return await this.check(src, true, true); } catch (e) { console.warn('Couldn’t read ' + src.fileName, e); return false; }
   }
 
+  async loadClashes() { const c = await engineClient.djClashes().catch(() => null); if (c && JSON.stringify(c) !== JSON.stringify(this.clashes)) this.clashes = c; }
+  /** A clash settled (ADR 0170). */
+  async resolve(track: string, keep: 'glue' | 'app') {
+    try { const r = await engineClient.djResolve(track, keep); if (r.waiting) lib.notice = 'Settled: it goes to Engine DJ when you close it.'; }
+    catch (e) { lib.notice = 'GLUE Home couldn’t settle it: ' + ((e as Error).message || e); }
+    await this.loadClashes();
+  }
   set(id: string, st: DjState) { if (this.status[id] !== st) this.status = { ...this.status, [id]: st }; }
 
   private async check(src: Source, force: boolean, ask: boolean): Promise<boolean> {

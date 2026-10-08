@@ -220,7 +220,7 @@ impl<H: Host> Engine<H> {
       "reminders" => self.check_reminders(false),
       "computer" => self.learn_computer(),
       // The DJ libraries followed live (ADR 0167).
-      "dj" if on => self.dj_look(),
+      "dj" if on => { self.dj_look(); self.dj_sync(); }
       "update" if cfg["autoUpdate"] != false && !self.busy() => self.host.auto_update(&|t| self.say(t)),
       _ => {}
     }

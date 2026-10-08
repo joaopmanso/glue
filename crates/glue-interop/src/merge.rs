@@ -229,6 +229,8 @@ pub fn apply_import<D: Dir>(store: &mut Store<D>, mut lib: ImportedLibrary, file
   if let Some(o) = existing.as_ref().and_then(|e| get(e, "origin")).filter(|o| truthy(Some(o))) { src["origin"] = o.clone(); }
   // The main DJ library stays so through every read (ADR 0169).
   if existing.as_ref().is_some_and(|e| truthy(get(e, "main"))) { src["main"] = json!(true); }
+  // So does its two-way sync (ADR 0170).
+  if existing.as_ref().is_some_and(|e| truthy(get(e, "sync"))) { src["sync"] = json!(true); }
   store.put_source(src.clone());
   let prev: Option<Vec<Value>> = existing.as_ref().and_then(|e| get(e, "tree")).and_then(Value::as_array).cloned();
   let pending = existing.as_ref().and_then(|e| get(e, "pendingGone")).and_then(Value::as_object).cloned().unwrap_or_default();
@@ -248,4 +250,14 @@ pub fn set_main_source<D: Dir>(store: &mut Store<D>, id: Option<&str>) {
     if on { rest.insert("main".into(), json!(true)); }
     store.put_source(Value::Object(rest));
   }
+}
+
+/// GLUE's changes written into this DJ library too, or not (`setSourceSync`, ADR 0170).
+pub fn set_source_sync<D: Dir>(store: &mut Store<D>, id: &str, on: bool) {
+  let Some(s) = store.sources.get(id).cloned() else { return };
+  if !store.own_source(&s) || truthy(get(&s, "sync")) == on { return; }
+  let mut rest = s.as_object().cloned().unwrap_or_default();
+  rest.shift_remove("sync");
+  if on { rest.insert("sync".into(), json!(true)); }
+  store.put_source(Value::Object(rest));
 }

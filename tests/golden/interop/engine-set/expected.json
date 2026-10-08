@@ -51,7 +51,7 @@
        {
         "t": 96,
         "kind": "loop",
-        "num": 1,
+        "num": null,
         "name": "Roll",
         "color": "#ff8000",
         "end": 98

@@ -199,6 +199,12 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - **The main DJ library** (0.66, ADR 0169): one per computer, `Source.main` (kept through every read). A song's BPM is
     GLUE's correction, then the main library's grid, then the analysis (`bpmInUse`); its grid and cues GLUE's own,
     else the main library's (`lib/cues.ts` `mainOf`, `prepare.grid`). The two-way sync is with it.
+  - **Engine DJ kept in step both ways** (0.67, ADR 0170): with `Source.sync` on the main Engine DJ library, GLUE Home's
+    `djsync.rs` (after each look, when GLUE's library or a database changed) merges each song's hot cues, saved loops
+    and grid three ways (`glue_interop::sync`; pads are its hot cues, memory loops its saved loops) against what they
+    last agreed on (GLUE Home's cache `dj/…`), writes Engine DJ's `PerformanceData` only while Engine DJ and its
+    analyser aren't running (`Host::apps_running`), after a copy (`dj-backups/`), and takes Engine DJ's changes into
+    `prep` as its own edit; clashes are settled in Prepare (`djClashes`, `djResolve`).
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
     socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again

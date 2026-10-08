@@ -87,6 +87,8 @@ impl H {
 }
 impl Host for H {
   fn lease_held(&self) -> bool { self.st.lock().unwrap().lease }
+  /// Engine DJ open or not, as the test says (`{set: {config: {testAppsRunning: true}}}`), never this computer's.
+  fn apps_running(&self, _names: &[&str]) -> bool { self.config()["testAppsRunning"] == json!(true) }
   /// The settings, with the music folders the stand-in's disk knows and its GLUE folder.
   fn config(&self) -> Value {
     let g = self.st.lock().unwrap();

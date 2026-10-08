@@ -1877,6 +1877,7 @@ dependencies = [
  "indexmap 2.14.2",
  "lofty",
  "regex",
+ "rusqlite",
  "serde_json",
  "sha2",
  "unicode-normalization",
@@ -1884,7 +1885,7 @@ dependencies = [
 
 [[package]]
 name = "glue-home"
-version = "0.66.0"
+version = "0.67.0"
 dependencies = [
  "getrandom 0.3.4",
  "glue-audio",

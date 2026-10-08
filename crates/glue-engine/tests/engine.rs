@@ -7,11 +7,12 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
-struct Seen { events: Vec<String>, edited: Vec<Vec<String>>, lease: bool, config: Value, tags: Vec<(String, String, Obj)>, made: Vec<String>, analysis: Value, cloud: Vec<String>, gone: bool }
+struct Seen { events: Vec<String>, edited: Vec<Vec<String>>, lease: bool, config: Value, tags: Vec<(String, String, Obj)>, made: Vec<String>, analysis: Value, cloud: Vec<String>, gone: bool, engine_open: bool }
 #[derive(Clone, Default)]
 struct H(Arc<Mutex<Seen>>);
 impl Host for H {
   fn lease_held(&self) -> bool { self.0.lock().unwrap().lease }
+  fn apps_running(&self, _names: &[&str]) -> bool { self.0.lock().unwrap().engine_open }
   fn config(&self) -> Value { let c = self.0.lock().unwrap().config.clone(); if c.is_null() { json!({}) } else { c } }
   fn incoming_dir(&self) -> PathBuf { std::env::temp_dir().join("glue-engine-incoming") }
   fn made(&self, _p: &str, _c: &str, id: &str) { self.0.lock().unwrap().made.push(id.into()); }
@@ -420,4 +421,100 @@ fn dj_libraries_are_found_in_the_music_folders() {
     .map(|d| format!("{} {} {} {}", d["kind"].as_str().unwrap(), d["place"].as_str().unwrap(), d["placeName"].as_str().unwrap(), d["relPath"].as_str().unwrap())).collect();
   found.sort();
   assert_eq!(found, ["apple r1 Music iTunes/iTunes Library.xml", "engine r1 Music Engine Library/Database2/m.db", "rekordbox r1 Music Sets/export.xml", "serato r1 Music _Serato_", "traktor r1 Music a/b/c/collection.nml"]);
+}
+
+/// Engine DJ's hot cues of a song in a database, by slot (seconds).
+fn engine_hot(db: &std::path::Path, id: i64) -> Vec<Option<glue_interop::perf::Hot>> {
+  let c = rusqlite::Connection::open(db).unwrap();
+  let q: Vec<u8> = c.query_row("SELECT quickCues FROM PerformanceData WHERE trackId = ?1", [id], |r| r.get(0)).unwrap();
+  glue_interop::perf::hot_slots(glue_interop::perf::unq(Some(&q)).as_deref(), 44100.0)
+}
+/// A hot cue moved in Engine DJ (as Engine DJ would, the app closed).
+fn engine_move(db: &std::path::Path, id: i64, slot: usize, t: f64) {
+  let c = rusqlite::Connection::open(db).unwrap();
+  let q: Vec<u8> = c.query_row("SELECT quickCues FROM PerformanceData WHERE trackId = ?1", [id], |r| r.get(0)).unwrap();
+  let raw = glue_interop::perf::unq(Some(&q)).unwrap();
+  let mut hot = glue_interop::perf::hot_slots(Some(&raw), 44100.0);
+  hot[slot] = Some(glue_interop::perf::Hot { t, name: "Moved".into(), color: None });
+  c.execute("UPDATE PerformanceData SET quickCues = ?1 WHERE trackId = ?2", rusqlite::params![glue_interop::perf::qcompress(&glue_interop::perf::encode_hot(Some(&raw), &hot, 44100.0)), id]).unwrap();
+}
+
+#[test]
+fn the_main_dj_library_is_kept_in_step_both_ways() {
+  let (glue, libs) = (temp("djsync"), temp("djsync-libs"));
+  library(&glue);
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  // A throwaway Engine DJ library: the golden one (its songs have hot cues, a loop and a grid).
+  let db = libs.join("Engine Library").join("Database2").join("m.db");
+  std::fs::create_dir_all(db.parent().unwrap()).unwrap();
+  std::fs::copy(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/golden/interop/engine-set/in/m.db"), &db).unwrap();
+  let h = H::default();
+  let cache = temp("djsync-cache");
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  let place = format!("hl:{}", libs.to_string_lossy());
+  let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": place, "relPath": "Engine Library/Database2/m.db" })).unwrap();
+  let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
+  // The main library, kept in step.
+  let song = {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    glue_interop::merge::set_main_source(&mut st, Some(&sid));
+    glue_interop::merge::set_source_sync(&mut st, &sid, true);
+    st.flush().unwrap();
+    st.sources[&sid]["tracks"].as_array().unwrap().iter().find(|t| t["externalId"] == "pc-uuid/1").unwrap()["trackId"].as_str().unwrap().to_string()
+  };
+  let sync = || e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  // GLUE has nothing of its own: in step, nothing written.
+  assert_eq!((sync()["written"].as_u64(), sync()["taken"].as_u64()), (Some(0), Some(0)));
+  let before = engine_hot(&db, 1);
+  assert_eq!(before[0].as_ref().map(|c| (c.t, c.name.as_str())), Some((64.5, "Drop")));
+  // Prepared in GLUE: Engine DJ's cues taken, pad B set, and a grid of its own.
+  let set_prep = |prep: Value| { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); let mut t = st.tracks[&song].clone(); t["prep"] = prep; st.put_track(t); st.flush().unwrap(); };
+  set_prep(json!({ "bpm": 128.0, "beat0": 0.1, "bar": 0, "cues": [
+    { "t": 64.5, "kind": "cue", "num": 0, "name": "Drop", "color": "#28e214", "end": null },
+    { "t": 5.0, "kind": "cue", "num": 1, "name": "Mine", "color": "#fb1ab0", "end": null },
+    { "t": 1000.0 / 44100.0, "kind": "cue", "num": 3, "name": "", "color": "#ffe800", "end": null },
+    { "t": 200.0, "kind": "cue", "num": 7, "name": "Ünï", "color": "#0000ff", "end": null },
+    { "t": 96.0, "kind": "loop", "num": null, "name": "Roll", "color": "#ff8000", "end": 98.0 } ] }));
+  // Engine DJ open: it waits.
+  h.0.lock().unwrap().engine_open = true;
+  assert_eq!(sync()["waiting"], true);
+  assert_eq!(engine_hot(&db, 1), before, "nothing written while Engine DJ runs");
+  // Closed: written, after a backup.
+  h.0.lock().unwrap().engine_open = false;
+  let r = sync();
+  assert_eq!(r["written"].as_u64(), Some(1), "{r}");
+  let now = engine_hot(&db, 1);
+  assert_eq!(now[1].as_ref().map(|c| (c.t, c.name.as_str(), c.color.as_deref())), Some((5.0, "Mine", Some("#fb1ab0"))));
+  assert_eq!(now[0], before[0], "the rest as it was");
+  let c = rusqlite::Connection::open(&db).unwrap();
+  let (beats, bpm): (Vec<u8>, f64) = c.query_row("SELECT p.beatData, t.bpmAnalyzed FROM PerformanceData p JOIN Track t ON t.id = p.trackId WHERE p.trackId = 1", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+  let g = glue_interop::perf::beat_data(&glue_interop::perf::unq(Some(&beats)).unwrap()).unwrap().1.unwrap();
+  assert!((g.bpm - 128.0).abs() < 1e-6 && (g.beat0 - 0.1).abs() < 1e-6, "{g:?}");
+  assert_eq!(bpm, 128.0);
+  drop(c);
+  assert_eq!(std::fs::read_dir(cache.join("dj-backups").join("pc-uuid")).unwrap().count(), 1, "backed up first");
+  assert!(h.0.lock().unwrap().events.iter().any(|x| x.starts_with("Engine DJ: GLUE’s cues and grids written for 1 song")));
+  // In step now: nothing more.
+  assert_eq!(sync()["written"].as_u64(), Some(0));
+  // Moved in Engine DJ: taken into GLUE.
+  engine_move(&db, 1, 0, 70.0);
+  let r = sync();
+  assert_eq!((r["taken"].as_u64(), r["written"].as_u64()), (Some(1), Some(0)), "{r}");
+  let prep = read(&glue, &format!("{C}/tracks/{}.json", &song[..2]))["items"][&song]["prep"].clone();
+  let a = prep["cues"].as_array().unwrap().iter().find(|c| c["num"] == 0).unwrap().clone();
+  assert_eq!((a["t"].as_f64(), a["name"].as_str()), (Some(70.0), Some("Moved")));
+  // Pad B moved on both sides: a clash, each side as it is; settled for GLUE's, it's written.
+  let mut p2 = prep.clone();
+  for c in p2["cues"].as_array_mut().unwrap() { if c["num"] == 1 { c["t"] = json!(6.0); } }
+  set_prep(p2);
+  engine_move(&db, 1, 1, 7.0);
+  assert_eq!(sync()["clashes"].as_u64(), Some(1));
+  let clashes = e.rpc(&json!({ "op": "djClashes", "p": "p1", "c": "c1" })).unwrap();
+  assert_eq!(clashes[&song][0]["what"], "hot 1", "{clashes}");
+  assert_eq!(engine_hot(&db, 1)[1].as_ref().map(|c| c.t), Some(7.0));
+  e.rpc(&json!({ "op": "djResolve", "p": "p1", "c": "c1", "track": song, "keep": "glue" })).unwrap();
+  assert_eq!(engine_hot(&db, 1)[1].as_ref().map(|c| c.t), Some(6.0), "GLUE's kept, written");
+  assert_eq!(e.rpc(&json!({ "op": "djClashes", "p": "p1", "c": "c1" })).unwrap().as_object().map(|o| o.len()), Some(0));
 }

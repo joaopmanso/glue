@@ -124,6 +124,8 @@ export class FakeHome {
     mkdirSync(cache, { recursive: true }); mkdirSync(this.dirs.glue, { recursive: true });
     const e = this.engine = spawn(bin, [resolve(this.dirs.glue), cache]);
     e.stderr.on('data', d => process.stderr.write(d));
+    // A reply that comes after the engine stopped (the test ending) has no one to tell: not the test's error (EPIPE).
+    e.stdin.on('error', () => {});
     createInterface({ input: e.stdout }).on('line', line => {
       let m: { ask?: number; ok?: unknown; err?: string; note?: string; call?: number; cloud?: { method: string; path: string; body: string | null }; [k: string]: unknown };
       try { m = JSON.parse(line); } catch { return; }

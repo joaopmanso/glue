@@ -360,6 +360,12 @@
       !lib.readOnly && (s.main
         ? { label: 'Not the main DJ library any more', attrs: { 'data-m': 'unmain-dj' }, run: () => lib.setMainDj(null) }
         : { label: 'Make it the main DJ library', attrs: { 'data-m': 'main-dj' }, title: 'Its grids and cues become every song’s by default (after GLUE’s own), and the one GLUE syncs with', run: () => lib.setMainDj(s.id) }),
+      // Kept in step both ways (ADR 0170): the main Engine DJ library, through GLUE Home.
+      !lib.readOnly && s.main && s.app === 'engine' && lib.homeRuns() && (s.sync
+        ? { label: 'Stop writing GLUE’s changes into Engine DJ', attrs: { 'data-m': 'unsync-dj' }, run: () => lib.setDjSync(s.id, false) }
+        : { label: 'Keep in step both ways…', attrs: { 'data-m': 'sync-dj' }, title: 'GLUE’s cues, loops and grids written into Engine DJ, and Engine DJ’s changes taken into GLUE', run: () => {
+          if (confirm('Keep Engine DJ in step with GLUE both ways?\n\nGLUE Home writes the cues, loops and beat grids you set in GLUE into Engine DJ’s library, and takes Engine DJ’s changes into GLUE. It writes only while Engine DJ is closed (a few seconds after you quit it), backs up the library first, and asks you when a song was changed on both sides.')) lib.setDjSync(s.id, true);
+        } }),
       SEP,
       { label: 'Remove this import…', danger: true, run: () => removeSource(s) },
       ...whatsThis('dj-libraries'),
@@ -594,7 +600,7 @@
           <div class="item" class:sel={isSel({ kind: 'source', id: s.id })} class:menued={menued('s:' + s.id)} data-source={s.id} oncontextmenu={e => onMenu(e, 's:' + s.id, () => sourceMenu(s), APP_NAMES[s.app] ?? s.app)}>
             {#if s.tree?.length}<button type="button" class="twist" data-dj-open={s.id} aria-label={djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists'} onclick={() => (djOpen[s.id] = !djOpen[s.id])}>{djOpen[s.id] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
             <AppIcon app={s.app} />
-            <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}{#if s.main}<span class="mainf" title="Your main DJ library: its grids and cues are every song's by default, after GLUE's own">main</span>{/if}<small> {s.fileName}</small></button>
+            <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}{#if s.main}<span class="mainf" title="Your main DJ library: its grids and cues are every song's by default, after GLUE's own">main</span>{/if}{#if s.main && s.sync}<span class="syncf" data-dj-sync={djWatch.sync[s.id] ?? 'on'} title={djWatch.sync[s.id] === 'waiting' ? 'Kept in step both ways: GLUE’s changes go into ' + (APP_NAMES[s.app] ?? s.app) + ' when you close it' : 'Kept in step both ways with GLUE (through GLUE Home)'}>⇄</span>{/if}<small> {s.fileName}</small></button>
             <span class="n">{s.tracks.length}</span>
             {#if elsewhere(s)}<span class="onpc" data-dj-where={s.id} title={'On ' + elsewhere(s) + ': GLUE reads it there, and keeps it up to date for every device'}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 13.5h5M8 11v2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>{elsewhere(s)}</span>
             {:else if live}
@@ -731,6 +737,8 @@
   @keyframes blink { to { opacity: .35; } }
   .refresh { font-size: 11px; padding: 1px 6px; }
   .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; }
+  .syncf { margin-left: 4px; color: var(--ok); font-size: 11px; }
+  .syncf[data-dj-sync="waiting"] { color: var(--warn, #e0a030); }
   .mainf { margin-left: 6px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; vertical-align: 1px; }
   .djtree { list-style: none; margin: 0; padding: 0; }
   .onpc { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); white-space: nowrap; }

@@ -19,6 +19,8 @@ import type { DetailsHeader } from '../store/details';
 import type { Clash } from '../core/shared/merge3';
 import type { DupGroup, Match } from '../core/library/duplicates';
 import type { ImportReport } from '../store/merge';
+/** A clash of the two-way sync (ADR 0170): what ("hot 2", "loop 0", "grid") and each side's. */
+export interface DjClash { what: string; glue: { t?: number; a?: number; b?: number; name?: string; bpm?: number } | null; app: { t?: number; a?: number; b?: number; name?: string; bpm?: number } | null }
 
 interface EngineState { rev: number; jobs: { kind: string; left: number; total: number }[]; analysis: { paused: boolean; running: number; current: string[]; left: number; done: number; failed: number; waiting: number } }
 type Change = { rev: number; p: string; c: string; paths: string[]; analysed?: string[] };
@@ -199,9 +201,21 @@ class EngineClient {
     return w ? this.rpc<{ at: number; matches: Match[]; missing: number; groups?: DupGroup[] }>({ op: 'dupes', ...w, ...(full ? { full } : {}) }, 180_000) : null;
   }
   /** The DJ libraries GLUE Home follows (ADR 0167): how each is ('live', 'lost', 'reading'), by source id. */
-  async djStatus(): Promise<Record<string, 'live' | 'lost' | 'reading'>> {
+  async djStatus(): Promise<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync: Record<string, 'waiting' | 'synced'> }> {
     const w = this.where();
-    return w ? (await this.rpc<{ status: Record<string, 'live' | 'lost' | 'reading'> }>({ op: 'dj', ...w }, 10_000)).status : {};
+    const r = w ? await this.rpc<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync?: Record<string, 'waiting' | 'synced'> }>({ op: 'dj', ...w }, 10_000) : null;
+    return { status: r?.status ?? {}, sync: r?.sync ?? {} };
+  }
+  /** The main DJ library kept in step both ways (ADR 0170): its clashes by GLUE song. */
+  async djClashes(): Promise<Record<string, DjClash[]>> {
+    const w = this.where();
+    return w ? this.rpc<Record<string, DjClash[]>>({ op: 'djClashes', ...w }, 10_000) : {};
+  }
+  /** A clash settled: GLUE's kept (written into the library) or the library's (taken into GLUE). */
+  async djResolve(track: string, keep: 'glue' | 'app'): Promise<{ written: number; taken: number; waiting: boolean }> {
+    const w = this.where();
+    if (!w) throw new Error('No collection open');
+    return this.rpc({ op: 'djResolve', ...w, track, keep }, 120_000);
   }
   /** A library read again now by GLUE Home (Refresh). ok false: it can't reach its file. */
   async djRefresh(id: string): Promise<{ ok: boolean; notice?: string }> {

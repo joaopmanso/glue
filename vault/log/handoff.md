@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-08)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.66.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.67.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.67.0** (ADR 0170): the first write into the user's own Engine DJ library is theirs to start. Before
+  switching it on: quit Engine DJ, make a copy of `Music/Engine Library` (and the drives' ones) by hand too. Then:
+  right-click the main Engine DJ library › **Keep in step both ways…**; set a cue on one song in GLUE (Prepare); with
+  Engine DJ closed it's written within ~5 s (GLUE Home's Activity says so; a copy goes to GLUE Home's cache
+  `dj-backups/`); open Engine DJ: the cue is there. Then move a cue in Engine DJ, quit it: GLUE shows the move. Check
+  that Engine DJ's BPM column follows a grid changed in GLUE (`bpmAnalyzed`, unverified).
 - **GLUE Home 0.66.0** (ADR 0169): right-click your Engine DJ library › **Make it the main DJ library** (marked
   "main"). Songs then show its grid's BPM in the lists, and its grid and cues in Prepare without a click.
 - **GLUE Home 0.65.0** (ADR 0168, phase 1): open a song that's in Engine DJ (or rekordbox, Traktor) and its **Prepare**
@@ -158,13 +164,7 @@ parsers, import, following and finding, `crates/glue-interop` and the engine's `
 of their DJ native apps": playlists, cues, loops and the grid, both ways; write-back opt-in per library, a backup before
 every write, only while the app is closed; Engine DJ first; clashes asked; the grid included). Phase 1 (every app's
 cues, loops and grid shown in Prepare) shipped in 0.65. Next:
-2. **Cues, loops and the grid written into the main DJ library** (ADR 0169: one per computer, `Source.main`; Engine DJ
-   first): GLUE Home keeps the last synced state per (library, song); a
-   three-way merge (like `glue_store::merge3`); the song's `PerformanceData` row changed in place in the database that
-   holds it (unknown bytes kept, `vault/research/engine-dj-write-back.md`), with Engine DJ closed (`m.db-journal` empty
-   and no Engine DJ process), after a backup of that m.db; a per-library switch ("Write GLUE's changes into Engine
-   DJ") in the DJ libraries panel. Test on throwaway databases only (made like `tests/interop.golden.test.ts`'s);
-   never on the user's until they say so.
+2. ~~Cues, loops and the grid written into the main DJ library~~: done in 0.67 (ADR 0170; `djsync.rs`, `glue_interop::sync`).
 3. **Playlists both ways with Engine DJ**: first an experiment, with the user, on how Engine DJ reconciles the playlist
    tree it copies into every database (C:, F:, G: hold the same 763 lists; drives not connected?). Its own triggers
    keep the linked lists (inserting before a list, deleting).

@@ -44,14 +44,14 @@ export function quickCues(raw: Uint8Array, sr: number): CuePoint[] {
   } catch { /* cut short: what was read */ }
   return out;
 }
-/** The loops that have a start and an end (num 0–7). */
+/** The saved loops that have a start and an end: GLUE's memory loops (Engine DJ has no hot loops; ADR 0170). */
 export function loops(raw: Uint8Array, sr: number): CuePoint[] {
   const out: CuePoint[] = [];
   try {
     const rd = new Reader(raw), n = rd.i64(true);
     for (let i = 0; i < n; i++) {
       const name = rd.text(), a = rd.f64(true), b = rd.f64(true), aSet = rd.u8(), bSet = rd.u8(), color = colour(rd);
-      if (aSet && bSet && a >= 0 && b > a) out.push({ t: a / sr, kind: 'loop', num: i, name, color, end: b / sr });
+      if (aSet && bSet && a >= 0 && b > a) out.push({ t: a / sr, kind: 'loop', num: null, name, color, end: b / sr });
     }
   } catch { /* cut short */ }
   return out;

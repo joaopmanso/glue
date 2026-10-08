@@ -209,6 +209,13 @@
    }
   },
   {
+   "sync": {
+    "app": "rekordbox",
+    "fileName": "rekordbox.xml",
+    "on": true
+   }
+  },
+  {
    "flush": true
   },
   {

@@ -143,6 +143,8 @@ export interface Source { schemaVersion: number; id: string; app: SourceApp; nam
   /** The main DJ library (ADR 0169): of this computer's, the one whose grids and cues a song shows by default, after
       GLUE's own, and the one GLUE syncs with (ADR 0168). One per computer, kept through every read. */
   main?: boolean;
+  /** GLUE's changes written into it too (ADR 0170): the main DJ library kept in step both ways by GLUE Home. Opt-in. */
+  sync?: boolean;
   /** In a shared collection, the computer whose library this is (ADR 0099): only it reads, follows and removes it. */
   computer?: string }
 

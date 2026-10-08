@@ -1,7 +1,7 @@
 /* DJ libraries: found in the folders GLUE may read (ADR 0030, 0063), imported, their playlists.
    Part of `lib` (src/lib/library.svelte.ts): its methods, `this` being the library. */
 import { importLists as importListsInto } from '../../store/linked';
-import { applyImport, setMainSource, type ImportReport } from '../../store/merge';
+import { applyImport, setMainSource, setSourceSync, type ImportReport } from '../../store/merge';
 import type { List, Track } from '../../store/types';
 import type { ImportedLibrary } from '../../core/interop/types';
 import { findLibraries, libraryAt, type Detected } from '../../core/library/detect';
@@ -129,6 +129,12 @@ export const djLibraries = {
     const s = this.store;
     if (!s || this.readOnly) return;
     setMainSource(s, id);
+  },
+  /** GLUE's changes written into the main DJ library too (ADR 0170), or not. */
+  setDjSync(this: Library, id: string, on: boolean) {
+    const s = this.store;
+    if (!s || this.readOnly) return;
+    setSourceSync(s, id, on);
   },
   /** Bring a DJ library's lists into GLUE, linked to it (ADR 0063); '' = all of them. */
   importLists(this: Library, sourceId: string, ids: string[]): number {

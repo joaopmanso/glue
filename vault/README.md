@@ -243,6 +243,7 @@ Planned (GLUE):
 | [0167](adr/0167-dj-libraries-in-glue-home.md) | DJ libraries in GLUE Home: read, brought in and followed in Rust (`glue-interop`, held to the website byte for byte); the page asks | accepted |
 | [0168](adr/0168-dj-apps-synced-both-ways.md) | DJ apps synced both ways (playlists, cues, loops, grids) through GLUE Home: opt-in, backed up, the app closed; Engine DJ first; phase 1, every app's cues and grid shown | accepted |
 | [0169](adr/0169-the-main-dj-library.md) | The main DJ library (one per computer, on its record): its grids and cues are a song's by default after GLUE's own; the two-way sync is with it | accepted |
+| [0170](adr/0170-engine-dj-kept-in-step-both-ways.md) | Engine DJ kept in step both ways (hot cues, saved loops, grid): three-way merge per slot, written by GLUE Home only while Engine DJ is closed, backed up, clashes asked | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

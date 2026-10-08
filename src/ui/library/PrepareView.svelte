@@ -20,6 +20,7 @@
   import { HOT_COLORS, LETTERS, addMemory, autoLoop, hotCue, importable, removeCue, renameCue, setHotCue, snap } from '../../core/library/cueEdit';
   import { fromApps, mainOf } from '../../lib/cues';
   import { APP_NAMES } from '../../lib/view.svelte';
+  import { djWatch } from '../../lib/djWatch.svelte';
 
   let { track }: { track: Track } = $props();
   const key = $derived('track:' + track.id);
@@ -129,6 +130,11 @@
   const cues = $derived.by(() => { void lib.version; return cur().prep?.cues ?? importable(mainOf(track.id)?.cues ?? []); });
   /** What each DJ app has for this song (ADR 0168): its cues and loops, and its grid, each taken over with a click. */
   const apps = $derived.by(() => { void lib.version; return fromApps(track.id); });
+  /** Changed in both GLUE and the main DJ library (ADR 0170): the user settles it. */
+  const clashes = $derived(djWatch.clashes[track.id] ?? []);
+  const mainApp = $derived(APP_NAMES[apps.find(a => a.main)?.app ?? 'engine'] ?? 'Engine DJ');
+  const clashName = (w: string) => w === 'grid' ? 'the beat grid' : w.startsWith('hot ') ? 'hot cue ' + (LETTERS[+w.slice(4)] ?? '') : 'saved loop ' + (+w.slice(5) + 1);
+  $effect(() => { void track.id; if (lib.homeRuns() && [...lib.store?.sources.values() ?? []].some(s => s.main && s.sync)) void djWatch.loadClashes(); });
   const appSummary = (a: { cues: CuePoint[]; grid: { bpm: number } | null }) => {
     const n = (k: string, c: number) => c ? c + ' ' + k + (c === 1 ? '' : 's') : '';
     return [n('hot cue', a.cues.filter(c => c.kind === 'cue' && c.num != null).length), n('memory cue', a.cues.filter(c => c.kind === 'cue' && c.num == null).length),
@@ -261,6 +267,12 @@
         {/each}
       </div>
     </section>
+    {#if clashes.length}
+      <p class="clash" id="prep-clash" role="status">Changed in both GLUE and {mainApp}: {clashes.map(c => clashName(c.what)).join(', ')}.
+        <button type="button" class="mini" data-keep="glue" title={'GLUE’s goes into ' + mainApp} onclick={() => djWatch.resolve(track.id, 'glue')}>Keep GLUE’s</button>
+        <button type="button" class="mini" data-keep="app" title={mainApp + '’s comes into GLUE'} onclick={() => djWatch.resolve(track.id, 'app')}>Keep {mainApp}’s</button>
+      </p>
+    {/if}
     {#if apps.length}
       <section class="apps" aria-label="In your DJ apps" id="prep-apps" data-guide="prep-apps">
         <span class="k">In your DJ apps</span>
@@ -321,6 +333,7 @@
   .apps { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 2px 4px; }
   .apps .app { display: inline-flex; gap: 8px; align-items: center; }
   .apps .app small { color: var(--muted); }
+  .clash { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; padding: 8px 12px; border: 1px solid var(--warn, #e0a030); border-radius: var(--radius); }
   .apps .mainf { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; }
   .pads { display: flex; gap: 5px; align-items: center; }
   .pad { width: 54px; height: 38px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line-2)); background: color-mix(in srgb, var(--c) 6%, var(--ground)); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; line-height: 1.1; padding: 2px; }

@@ -2,7 +2,7 @@
 //! tests/store.golden.test.ts): each scenario's steps replayed over a folder in memory, the same ids given in order and
 //! the clock moved as there, every file after each save byte for byte the TypeScript's.
 use glue_interop::linked::import_lists;
-use glue_interop::merge::{apply_import, set_main_source};
+use glue_interop::merge::{apply_import, set_main_source, set_source_sync};
 use glue_interop::types::ImportedLibrary;
 use glue_store::dir::MemDir;
 use glue_store::store::{LoadOpts, Store};
@@ -46,6 +46,10 @@ fn run(sc: &Value) -> Vec<Value> {
       let src = s.sources.values().find(|x| x["app"] == i["app"] && x["fileName"] == i["fileName"]).cloned().unwrap();
       let ids: Vec<String> = i["ids"].as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect();
       out.push(json!({ "importLists": import_lists(s, &src, &ids) }));
+    } else if let Some(m) = st.get("sync") {
+      let s = s.as_mut().unwrap();
+      let id = s.sources.values().find(|x| x["app"] == m["app"] && x["fileName"] == m["fileName"]).map(|x| x["id"].as_str().unwrap().to_string()).unwrap();
+      set_source_sync(s, &id, m["on"].as_bool().unwrap());
     } else if let Some(m) = st.get("main") {
       let s = s.as_mut().unwrap();
       let id = m.as_object().and_then(|_| s.sources.values().find(|x| x["app"] == m["app"] && x["fileName"] == m["fileName"])).map(|x| x["id"].as_str().unwrap().to_string());

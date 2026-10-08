@@ -168,7 +168,21 @@
    "flush": true
   },
   {
+   "sync": {
+    "app": "engine",
+    "fileName": "m.db",
+    "on": true
+   }
+  },
+  {
    "main": null
+  },
+  {
+   "sync": {
+    "app": "engine",
+    "fileName": "m.db",
+    "on": false
+   }
   },
   {
    "flush": true

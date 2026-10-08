@@ -210,7 +210,7 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
   // The library's playlists are kept as its tree, browsed in the sidebar and brought in on demand; the
   // copies already in GLUE follow it (ADR 0063).
   const tree: SourceList[] = lib.lists.map(l => ({ externalId: l.externalId, kind: l.kind, name: l.name, parent: l.parent, items: l.items }));
-  const src: Source = { schemaVersion: SCHEMA, id: sourceId, app: lib.app, name: lib.name, fileName, importedAt: now(), tracks: sourceTracks, lists: lib.lists.length, tree, ...(existing?.origin ? { origin: existing.origin } : {}), ...(existing?.main ? { main: true } : {}) };
+  const src: Source = { schemaVersion: SCHEMA, id: sourceId, app: lib.app, name: lib.name, fileName, importedAt: now(), tracks: sourceTracks, lists: lib.lists.length, tree, ...(existing?.origin ? { origin: existing.origin } : {}), ...(existing?.main ? { main: true } : {}), ...(existing?.sync ? { sync: true } : {}) };
   store.putSource(src);
   const linkedLists = syncLinkedLists(store, src, existing?.tree, existing?.pendingGone);
   return { sourceId, tracks: lib.tracks.length, matched, linked: links.size, lists: lib.lists.length, linkedLists, dropped, entries: lib.stats };
@@ -225,6 +225,14 @@ export function setMainSource(store: CollectionStore, id: string | null) {
     const { main: _m, ...rest } = s;
     store.putSource(s.id === id ? { ...rest, main: true } : rest);
   }
+}
+
+/** GLUE's changes written into this DJ library too, or not (ADR 0170). */
+export function setSourceSync(store: CollectionStore, id: string, on: boolean) {
+  const s = store.sources.get(id);
+  if (!s || !store.ownSource(s) || !!s.sync === on) return;
+  const { sync: _s, ...rest } = s;
+  store.putSource(on ? { ...rest, sync: true } : rest);
 }
 
 /** A folder was scanned: link unlinked tracks to its files, add the rest as new tracks, flag vanished ones. */

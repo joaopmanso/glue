@@ -1,8 +1,8 @@
 ---
 status: in-progress (steps 1 and 2 shipped 2026-09-26; step 3, the rekordbox XML export, next)
 milestone: M4
-updated: 2026-10-08
-adrs: [0052, 0006, 0011, 0168, 0169]
+updated: 2026-10-09
+adrs: [0052, 0006, 0011, 0168, 0169, 0170]
 ---
 # Prepare (track page tab)
 
@@ -39,7 +39,11 @@ tempos. Corrections override the analysis ([ADR 0052](../adr/0052-prepare-tab.md
   (`PerformanceData`: `quickCues`, `loops`, `beatData`; `core/interop/enginePerf.ts`, `glue_interop::perf`).
 - **The main DJ library** (ADR 0169): its grid and cues are the song's by default (GLUE's own first); on the pads too,
   and setting one makes the list GLUE's own. "Make it main" here or in the sidebar's library menu.
-- Next (ADR 0168): what's set here written into the main DJ library (Engine DJ first), and its changes taken in.
+- **Kept in step both ways with Engine DJ** (2026-10-09, [ADR 0170](../adr/0170-engine-dj-kept-in-step-both-ways.md)): with
+  the main Engine DJ library's syncing on, what's set here (pads, memory loops, a whole grid) goes into Engine DJ once
+  it's closed, and its changes come here; a song changed on both shows a banner (`#prep-clash`: Keep GLUE's / Keep
+  Engine DJ's).
+- Next (ADR 0168): playlists both ways with Engine DJ; then rekordbox.
 
 ## How it works
 - `Track.prep` stores bpm, beat0 (first beat, s), bar (0–3), flip, and later cues.
