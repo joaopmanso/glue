@@ -1,11 +1,11 @@
 ---
 title: A song's page
 summary: Details, the spectrogram, notes, tags and song info.
-keywords: song, track, page, details, spectrogram, notes, tags, genre, edit info, stems, live view
+keywords: song, track, page, sheet, close, details, spectrogram, notes, tags, genre, edit info, stems, live view
 tour: song-page
 order: 6
 ---
-Double-click a song to open its page.
+Double-click a song to open its page. It opens over your library, which stays as it was underneath: close it with **✕**, **Esc**, a click beside it, or your browser's Back, and you're where you were. **‹ Previous** and **Next ›** go through the songs of the view you opened it from.
 
 ## Details
 - **The verdict**, with why: the measured bandwidth, the expected one, the likely origin.

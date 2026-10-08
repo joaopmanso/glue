@@ -62,6 +62,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **A song's page as a sheet over the library** (2026-10-08, the website): double-click a song; ✕, Esc, a click beside
+  it or Back close it, on the view as it was. Previous / Next inside it. Prepare's waveform in the sheet's width.
 - **Each view's address** (2026-10-08, the website): `#/duplicates`, `#/playlist/<id>`…; the mouse's back button from
   Duplicates (or any view) goes to the view before, from a song's page to the view it came from; a bookmarked or
   reloaded view opens on it.

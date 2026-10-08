@@ -329,7 +329,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **Deploy:** `.github/workflows/cloud.yml` applies D1 migrations, then deploys.
 
 ## 8. The website's layout
-- **Routes:** `#/<view>` the library on a view, `#/track/<id>`, `#/events` (and `#/events/<id>`), `#/analyze`, `#/admin`,
+- **Routes:** `#/<view>` the library on a view, `#/track/<id>` a song's page (a sheet over the library, which stays
+  mounted underneath: `TrackSheet.svelte`; tabs, Previous and Next replace the address, so closing, `closeTrack`, is one
+  step back, or the library's address when it was opened directly; 2026-10-08), `#/events` (and `#/events/<id>`), `#/analyze`, `#/admin`,
   `#/help`. A view's address (`view.svelte.ts` `viewHash` / `viewOf`, 2026-10-08): `#/all-tracks`, `#/recently-added`,
   `#/not-analysed`, `#/couldnt-analyse`, `#/lower-quality`, `#/no-file`, `#/duplicates`, `#/playlist/<id>`,
   `#/dj-library/<id>[/<playlist>]`, `#/folder/<id>`, `#/tag/<name>`, `#/browse/<field>[/<value>]`. Choosing a view is a step

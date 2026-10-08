@@ -15,6 +15,7 @@
   import Welcome from './ui/library/Welcome.svelte';
   import LibraryView from './ui/library/LibraryView.svelte';
   import TrackDetail from './ui/library/TrackDetail.svelte';
+  import TrackSheet from './ui/library/TrackSheet.svelte';
   import LibPlayer from './ui/library/LibPlayer.svelte';
   import DragTag from './ui/library/DragTag.svelte';
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
@@ -217,17 +218,17 @@
     <Welcome />
   {:else if phoneLib}
     <PhoneApp children={route.name === 'library' ? undefined : page} />
-  {:else if route.name === 'track'}
-    {#key route.id}<TrackDetail id={route.id} tab={route.tab} />{/key}
   {:else if route.name === 'events'}
     <CalendarView />
   {:else if route.name === 'event'}
     {#key route.id}<EventPage id={route.id} />{/key}
   {:else}
+    <!-- A song's page is a sheet over the library, which stays as it was underneath (2026-10-08). -->
     <LibraryView />
+    {#if route.name === 'track'}<TrackSheet id={route.id} tab={route.tab} />{/if}
   {/if}
 </div>
-{#if inLibrary && !phone.active && (route.name === 'library' || route.name === 'events' || route.name === 'event') && lib.onboarding !== 'music'}<LibPlayer />{/if}
+{#if inLibrary && !phone.active && (route.name === 'library' || route.name === 'track' || route.name === 'events' || route.name === 'event') && lib.onboarding !== 'music'}<LibPlayer />{/if}
 <DragTag />
 {#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}

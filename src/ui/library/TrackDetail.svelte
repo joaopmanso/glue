@@ -8,7 +8,7 @@
   import { app, analyzeFile, showResult } from '../../lib/app.svelte';
   import { player } from '../../lib/player.svelte';
   import { router, trackHref, trackTab } from '../../lib/route.svelte';
-  import { view, viewHash } from '../../lib/view.svelte';
+  import { closeTrack, view, viewHash } from '../../lib/view.svelte';
   import { summarize } from '../../core/library/summary';
   import { formatOf } from '../../core/library/tags';
   import { fmtBytes, fmtTime } from '../../core/format';
@@ -33,7 +33,8 @@
   import AppIcon from '../AppIcon.svelte';
 
   let { id, tab = 'details' }: { id: string; tab?: TrackTab } = $props();
-  const goTab = (t: TrackTab) => router.go(trackHref(id, t));
+  // In its sheet: the address replaced, so closing it is one step back (2026-10-08).
+  const goTab = (t: TrackTab) => router.replace(trackHref(id, t));
   // The tab shown becomes the one songs open on (the user's list, 2026-09-27).
   $effect(() => trackTab.set(tab));
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
@@ -227,15 +228,15 @@ canPlay = true;
 
 <div class="detail">
   <nav class="crumbs">
-    <a href={viewHash(view.sel)}>← Library</a>
+    <a href={viewHash(view.sel)} onclick={e => { if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); closeTrack(); } }}>← Library</a>
     <span class="nav">
       {#if phase === 'ready'}
         <span class="src">{stored ? 'Stored analysis' : 'Just analysed'}</span>
         <button type="button" class="mini" id="auto-from-page" onclick={() => auto.show(id)}>Build playlist from this</button>
         <button type="button" class="mini" id="reanalyse" title="Analyse the file again and replace the stored result" onclick={() => { const t = lib.store?.tracks.get(id); if (t) prepare.reset(t); void load(true, true); }}>Re-analyse</button>
       {/if}
-      <button type="button" class="mini" disabled={pos <= 0} onclick={() => router.go(trackHref(order[pos - 1], tab))}>‹ Previous</button>
-      <button type="button" class="mini" disabled={pos < 0 || pos >= order.length - 1} onclick={() => router.go(trackHref(order[pos + 1], tab))}>Next ›</button>
+      <button type="button" class="mini" disabled={pos <= 0} onclick={() => router.replace(trackHref(order[pos - 1], tab))}>‹ Previous</button>
+      <button type="button" class="mini" disabled={pos < 0 || pos >= order.length - 1} onclick={() => router.replace(trackHref(order[pos + 1], tab))}>Next ›</button>
     </span>
   </nav>
 

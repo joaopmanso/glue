@@ -5,6 +5,15 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · A song's page is a sheet over the library
+- **The user:** the details page shouldn't be a separate page (faster, friendlier). Chosen: a sheet over the library
+  (rather than a side panel).
+- **Now:** `#/track/<id>` shows `TrackSheet.svelte` over the library, which stays mounted underneath (its scroll, view
+  and selection as they were; nothing drawn again on closing), dimmed. ✕, Esc (unless a menu or another dialog is on
+  top), a click beside it, "← Library" or Back close it. Its tabs, Previous and Next replace the address, so closing is
+  one step back to the view it came from; opened from an address directly, the library's address replaces it. The
+  player bar stays under it. Help: song-page.md. Test: `e2e/library.spec.ts` "a song opens in a sheet".
+
 ## 2026-10-08 · Each library view has its address
 - **The user:** an address for the view shown, as a song's page has.
 - **Now:** `#/duplicates`, `#/recently-added`, `#/lower-quality`, `#/no-file`, `#/playlist/<id>`, `#/tag/<name>`,

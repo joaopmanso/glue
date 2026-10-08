@@ -212,6 +212,11 @@ function stillThere(s: ViewSel): boolean {
 // The view shown went (a playlist deleted, the songs added on their own taken into a folder, a DJ library removed):
 // All tracks, in its place.
 if (typeof window !== 'undefined') $effect.root(() => { $effect(() => { void lib.version; void lib.store; untrack(() => { if (router.current.name === 'library' && !stillThere(view.sel)) view.select({ kind: 'all' }, { replace: true }); }); }); });
+/** A song's sheet closed: a step back to the library it was opened from, else the library's address in its place. */
+export function closeTrack() {
+  if (router.current.name !== 'track') return;
+  if (router.fromLibrary) history.back(); else router.replace(viewHash(view.sel));
+}
 /** The address chose a view (Back, Forward, a link, a reload): shown. */
 function fromAddress() {
   const r = router.current;

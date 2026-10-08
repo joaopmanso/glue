@@ -106,7 +106,7 @@ After working:
 - `crates/glue-rtc`: GLUE Home's connections to other devices (ADR 0150), webrtc-rs speaking the website's protocol
   (src/core/transfer.ts). `cargo test --manifest-path crates/glue-rtc/Cargo.toml`; against Edge:
   `cargo build --release --example probe --manifest-path crates/glue-rtc/Cargo.toml && node scripts/rtc-probe.mjs`.
-- Routes: `#/` library (`#/<view>` on a view: `#/duplicates`, `#/playlist/<id>`…, `viewHash`), `#/track/<id>` track page, `#/events` calendar (`#/events/<id>` an event),
+- Routes: `#/` library (`#/<view>` on a view: `#/duplicates`, `#/playlist/<id>`…, `viewHash`), `#/track/<id>` a song's page (a sheet over the library), `#/events` calendar (`#/events/<id>` an event),
   `#/analyze` analyze a file, `#/help` help (`#/help/<article>`), `#/admin`.
 - Gluey (ADR 0126): when a feature changes, update its help article (`src/help/*.md`) and its tour
   (`src/core/guide/tours.ts`, pointing at `data-guide` attributes; `tests/guide.test.ts` checks they exist).

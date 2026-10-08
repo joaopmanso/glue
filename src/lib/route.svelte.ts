@@ -18,7 +18,16 @@ function parse(h: string): Route {
 
 class Router {
   current = $state<Route>(parse(typeof location !== 'undefined' ? location.hash : ''));
-  constructor() { if (typeof window !== 'undefined') window.addEventListener('hashchange', () => { this.current = parse(location.hash); }); }
+  /** The song's sheet open now was opened from the library in this tab: closing it is a step back (one step: moving
+      between songs and tabs in it replaces the address). */
+  fromLibrary = false;
+  constructor() {
+    if (typeof window !== 'undefined') window.addEventListener('hashchange', () => {
+      const next = parse(location.hash);
+      this.fromLibrary = next.name === 'track' && (this.current.name === 'library' || (this.current.name === 'track' && this.fromLibrary));
+      this.current = next;
+    });
+  }
   go(hash: string) { if (location.hash !== hash) location.hash = hash; else this.current = parse(hash); }
   /** This address instead of the current one (no step in the browser's history). */
   replace(hash: string) { if (location.hash !== hash) { history.replaceState(history.state, '', hash); this.current = parse(hash); } }

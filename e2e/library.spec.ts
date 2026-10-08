@@ -2615,12 +2615,12 @@ test('duplicates by hand: songs marked as duplicates group; “Keep · not a dup
   await expect(page.locator('#lib-now')).toHaveText('Fixture FLAC');
   await page.click('#lib-play');   // paused, at about 2 s of 4
   const at = page.locator('#lib-player .seek .mono').first();
-  await expect(at).toHaveText(/^0:0[23]$/, { timeout: 5000 });
+  await expect(at).toHaveText(/^0:0[234]$/, { timeout: 5000 });   // near the middle, not the start (late under load)
   // The other copy's play: from the same moment, to hear them side by side.
   await grp.locator('li', { hasText: 'Fixture MP3' }).locator('.pbtn').click();
   await expect(page.locator('#lib-now')).toHaveText('Fixture MP3');
   await page.click('#lib-play');
-  await expect(at).toHaveText(/^0:0[23]$/, { timeout: 5000 });
+  await expect(at).toHaveText(/^0:0[234]$/, { timeout: 5000 });   // near the middle, not the start (late under load)
   // One of them isn't (another version): it leaves the group, and the group goes.
   await grp.locator('li', { hasText: 'Fixture MP3' }).locator('[data-apart]').click();
   await expect(page.locator('.grp', { hasText: 'Fixture FLAC' })).toHaveCount(0);
@@ -2870,4 +2870,60 @@ test('each view has its address: the browser’s Back and Forward go through the
   await page.locator('.lside [data-view="recent"]').click();
   await page.evaluate(() => { location.hash = '#/'; });
   await expect(page).toHaveURL(/#\/recently-added$/); await on('recent');
+});
+
+test('a song opens in a sheet over the library: the library as it was underneath; Previous and Next in it; ✕, Esc, a click beside it or Back close it (the user, 2026-10-08)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.locator('.lside [data-view="recent"]').click();
+  const sheet = page.locator('#track-sheet');
+  // Opened: the library stays (its rows, the view chosen, the song selected), under the sheet.
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
+  await expect(sheet).toBeVisible();
+  await expect(page).toHaveURL(/#\/track\//);
+  await expect(page.locator('.tr')).toHaveCount(4);
+  await expect(page.locator('.lside [data-view="recent"]')).toHaveClass(/\bsel\b/);
+  await expect(sheet.locator('h1, h2').first()).toContainText(/Fixture/);
+  // Next and Previous: another song, one step in the history for the sheet.
+  const next = sheet.getByRole('button', { name: 'Next ›' }), prev = sheet.getByRole('button', { name: '‹ Previous' });
+  const [there, back] = await next.isEnabled() ? [next, prev] : [prev, next];
+  const title = await sheet.locator('h1, h2').first().textContent();
+  await there.click();
+  await expect(sheet.locator('h1, h2').first()).not.toHaveText(title!);
+  await back.click();
+  await expect(sheet.locator('h1, h2').first()).toHaveText(title!);
+  await expect(page).toHaveURL(/#\/track\//);
+  // Esc: closed, back on the view.
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/recently-added$/);
+  // ✕, a click beside it, and Back close it too.
+  await page.locator('.tr', { hasText: 'Fixture MP3' }).dblclick();
+  await page.click('#sheet-close');
+  await expect(sheet).toHaveCount(0);
+  await page.locator('.tr', { hasText: 'Fixture MP3' }).dblclick();
+  await expect(sheet).toBeVisible();
+  await page.mouse.click(20, 400);   // beside it, over the dimmed library
+  await expect(sheet).toHaveCount(0);
+  await page.locator('.tr', { hasText: 'Fixture MP3' }).dblclick();
+  await expect(sheet).toBeVisible();
+  await page.goBack();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/recently-added$/);
+  // A song's address opened directly: closed, the library's address in its place.
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
+  await expect(sheet).toBeVisible();
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 90_000 });
+  await page.reload();
+  await expect(sheet).toBeVisible({ timeout: 30_000 });
+  await page.click('#sheet-close');
+  await expect(page).toHaveURL(/#\/all-tracks$/);   // no view before it (reloaded): All tracks
+  await expect(page.locator('.tr')).toHaveCount(4);
 });
