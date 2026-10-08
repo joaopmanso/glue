@@ -2816,3 +2816,31 @@ test('No file linked: songs an Engine DJ library lists whose files are gone are 
   await page.locator('.lside .name', { hasText: 'No file linked' }).click();
   await expect(page.locator('#relink-none li')).toHaveCount(2);
 });
+
+test('the browser’s Back and Forward go through the library’s views, and back from a song’s page to the view it came from (the user, 2026-10-08)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  const on = (k: string) => expect(page.locator(`.lside [data-view="${k}"]`)).toHaveClass(/\bsel\b/);
+  await on('all');
+  await page.locator('.lside [data-view="recent"]').click(); await on('recent');
+  await page.locator('.lside [data-view="dupes"]').click(); await on('dupes');
+  expect(new URL(page.url()).hash).toMatch(/^(#\/?)?$/);   // no page of their own
+  // Back: the view before; again: the first one.
+  await page.goBack(); await on('recent');
+  await page.goBack(); await on('all');
+  await page.goForward(); await on('recent');
+  // A song's page and Back: the view it was opened from.
+  await page.locator('.tr', { hasText: 'Fixture FLAC' }).dblclick();
+  await expect(page).toHaveURL(/#\/track\//);
+  await page.goBack();
+  await expect(page.locator('.tr').first()).toBeVisible();
+  await on('recent');
+  await page.goForward();
+  await expect(page).toHaveURL(/#\/track\//);
+});

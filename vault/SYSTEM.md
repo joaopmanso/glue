@@ -329,7 +329,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **Deploy:** `.github/workflows/cloud.yml` applies D1 migrations, then deploys.
 
 ## 8. The website's layout
-- **Routes:** `#/` library, `#/track/<id>`, `#/events` (and `#/events/<id>`), `#/analyze`, `#/admin`.
+- **Routes:** `#/` library, `#/track/<id>`, `#/events` (and `#/events/<id>`), `#/analyze`, `#/admin`. The library's
+  views have no route of their own: each one chosen is a step in the browser's history at the same address
+  (`view.select` → `viewStep`, the view kept in `history.state.glueView`), so Back and Forward go through them (2026-10-08).
 - **State** (`src/lib/`):
   - `library.svelte.ts` (the library's state, `lib`) and its methods by concern in `src/lib/library/` (ADR 0146):
     `glueFolder`, `profiles`, `collections`, `folders`, `djLibraries`, `edits`, `files`, `analysis`; a new method goes

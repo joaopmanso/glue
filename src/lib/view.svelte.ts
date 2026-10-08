@@ -11,6 +11,7 @@ import type { AnalysisSummary, Source, Track } from '../store/types';
 import { keyLabel, type KeyNotation } from '../core/audio/keys';
 import { hasTag, tagsOf } from '../core/library/tagging';
 import { readPref, writePref } from './prefs';
+import { router } from './route.svelte';
 
 export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'failed' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string }
   /** Browsing (2026-09-28): a field's values (Artists…), and one value's songs. */
@@ -54,7 +55,12 @@ class View {
   reveal = $state<string | null>(null);
   anchor: string | null = null;
 
-  select(s: ViewSel) { this.sel = s; this.selected = new Set(); this.anchor = null; const ordered = s.kind === 'list' || s.kind === 'dj'; if (!ordered && this.sort.key === 'order') this.sort = { key: 'added', dir: -1 }; else if (ordered) this.sort = { key: 'order', dir: 1 }; }
+  /** `history: false`: the browser's Back or Forward chose it (no new step). */
+  select(s: ViewSel, opts: { history?: boolean } = {}) {
+    const was = this.sel;
+    this.sel = s; this.selected = new Set(); this.anchor = null; const ordered = s.kind === 'list' || s.kind === 'dj'; if (!ordered && this.sort.key === 'order') this.sort = { key: 'added', dir: -1 }; else if (ordered) this.sort = { key: 'order', dir: 1 };
+    if (opts.history !== false) viewStep(was, s);
+  }
   /** "#" (playlist order) always sorts ascending: it's the order you arrange by dragging. */
   sortBy(k: SortKey) { this.sort = k === 'order' ? { key: k, dir: 1 } : this.sort.key === k ? { key: k, dir: this.sort.dir === 1 ? -1 : 1 } : { key: k, dir: k === 'added' ? -1 : 1 }; }
   /** The track whose note editor is open, and where. */
@@ -155,6 +161,34 @@ class View {
   }
 }
 export const view = new View();
+
+/* The browser's Back and Forward go through the views (the user, 2026-10-08: the mouse's Back left GLUE from
+   Duplicates): each view chosen in the library is a step in the browser's history, at the same address (no page of
+   its own); the step left keeps the view it showed. Back or Forward chooses that view again; one gone since (a
+   playlist deleted), All tracks. */
+const plain = (s: ViewSel) => JSON.parse(JSON.stringify(s)) as ViewSel;
+const sameView = (a: ViewSel, b: ViewSel) => JSON.stringify(a) === JSON.stringify(b);
+function viewStep(was: ViewSel, now: ViewSel) {
+  if (typeof history === 'undefined' || router.current.name !== 'library' || sameView(was, now)) return;
+  try {
+    history.replaceState({ ...(history.state ?? {}), glueView: plain(was) }, '');
+    history.pushState({ glueView: plain(now) }, '');
+  } catch { /* history unavailable (a sandboxed frame) */ }
+}
+function stillThere(s: ViewSel): boolean {
+  const st = lib.store;
+  if (!st) return false;
+  if (s.kind === 'list') return st.lists.has(s.id);
+  if (s.kind === 'source') return st.sources.has(s.id);
+  if (s.kind === 'dj') return st.sources.has(s.sourceId);
+  if (s.kind === 'root') return st.meta.roots.some(r => r.id === s.id);
+  return true;
+}
+if (typeof window !== 'undefined') window.addEventListener('popstate', e => {
+  const s = (e.state as { glueView?: ViewSel } | null)?.glueView;
+  if (!s || sameView(s, view.sel)) return;
+  view.select(stillThere(s) ? s : { kind: 'all' }, { history: false });
+});
 
 export const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
 /** What a view is called (its heading; the player says it's playing from there). */

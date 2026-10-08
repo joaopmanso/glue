@@ -1,7 +1,7 @@
 ---
 title: The library and its views
 summary: All tracks, the views in the sidebar, search, filters and collections.
-keywords: library, views, sidebar, search, filter, columns, browse, collection, all tracks
+keywords: library, views, sidebar, search, filter, columns, browse, collection, all tracks, back, forward, mouse
 tour: library
 order: 2
 ---
@@ -17,6 +17,8 @@ The **Library** section of the sidebar picks songs out:
 - **Duplicates**: see [Duplicates](#/help/duplicates).
 
 Right-click a view to hide it; "hidden · show…" brings it back.
+
+Your browser's **Back** and **Forward** (and your mouse's back button) go through the views you opened, and back from a song's page to the view you opened it from.
 
 ## Finding songs
 - **Search** finds songs by title, artist, album, genre, label or tag.

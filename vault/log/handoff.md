@@ -62,6 +62,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Back and Forward through the views** (2026-10-08, the website): the mouse's back button from Duplicates (or any
+  view) goes to the view before; from a song's page, to the view it came from.
 - **Duplicates' waveforms** (2026-10-08, the website): each copy's waveform to the group's time scale, click to play
   from a spot, drag to scrub; another copy's play starts at the same moment. Look at a few real groups.
 - **Confirmed by the user, 2026-10-08:** the page with GLUE Home running no longer freezes (ADR 0162).

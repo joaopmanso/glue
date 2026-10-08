@@ -5,6 +5,14 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · Back and Forward go through the library's views
+- **The user:** the mouse's back button, on Duplicates (or any view), left GLUE for the page before it; it should go
+  back to the view before, without views becoming pages of their own.
+- **Now:** each view chosen in the library is a step in the browser's history at the same address (the view kept in
+  its state, `view.svelte.ts` `viewStep`); Back and Forward choose it again (a playlist deleted since: All tracks),
+  and Back from a song's page finds the view it was opened from. Help: library.md. Test: `e2e/library.spec.ts`
+  "the browser’s Back and Forward".
+
 ## 2026-10-08 · Duplicates: each copy's waveform, scrubbed; copies heard side by side
 - **The user:** a waveform on the Duplicates tab, to see whether it's the same song; scrub instead of playing from the
   start each time.
