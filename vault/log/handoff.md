@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-07)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.61.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.62.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,8 +62,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **GLUE Home 0.61.0** (ADR 0164): Duplicates should look the same, now found by GLUE Home (it compares a few seconds
-  after it analyses new songs; "Check again" compares every song). The page shouldn't have a "making fingerprints" line.
+- **GLUE Home 0.61.0 / 0.62.0** (ADR 0164, 0165): Duplicates should look the same, now found and grouped by GLUE Home
+  (it compares a few seconds after it analyses new songs; "Check again" compares every song); "Keep · not a
+  duplicate" and the other answers show a moment later. No "making fingerprints" line on the page.
 - **GLUE Home 0.60.0** (ADR 0163): the desktop's 61 stale clashes go with its first sync (nothing to see). A real one:
   change the same song's title on the laptop and, before it syncs, on the desktop: the desktop's box asks, with GLUE
   Home running, and the answer reaches the laptop.
@@ -136,12 +137,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 ## Next
 ### Next: the rest of the library's work into GLUE Home (ADR 0162, the user's rule: "GLUE Home IS THE APP")
 The user (2026-10-08): "I want to get all of these moved to Rust so that we can move on to the DJ library cue points
-and real-time integrations." Done: the clashes (0.60, ADR 0163), the duplicates' matching (0.61, ADR 0164). Left, in
+and real-time integrations." Done: the clashes (0.60, ADR 0163), the duplicates' matching (0.61, ADR 0164) and groups (0.62, ADR 0165). Left, in
 order:
 With GLUE Home running the page still does, until each moves into the engine (then the page stops it):
-1. **Duplicates' groups and playlists' best copies** (D2): `build`, `nameGroups`, `certainty`, `concerns`,
-   `copyScore`, `bestInLists` and `core/library/names.ts` in Rust, a golden per piece. (Browser alone: a published
-   duplicates file still forces a full sync, `dupes.onPublished` → `sync(true)`; give the sync the file instead.)
+1. ~~Duplicates' groups~~: done (0.62). (Browser alone: a published duplicates file still forces a full sync,
+   `dupes.onPublished` → `sync(true)`; give the sync the file instead.)
 2. **Following DJ libraries live** (`djWatch`: a file's date every 5 s, read again when it changed).
 3. **Finding new DJ libraries** in the music folders (`findLibraries`, 3 folders deep): off with GLUE Home now.
 4. **Re-checking verdicts** (`recheckVerdicts`) and the open-time repairs (`tidyTracks`, `joinCopies`): off with
@@ -197,6 +197,9 @@ With GLUE Home running the page still does, until each moves into the engine (th
 - **Shared songs without copies (ADR 0161):** fixed by explanation, not caught in the act. If `e2e/shared.spec.ts`
   "the desktop's DJ library" ever fails that way again (about 1 run in 7 before), look for another writer of the
   computer's own form.
+- **Flaky under a full local run:** `library.spec.ts` "the player…": after the reload the player shows the queue's next song
+  (Fixture AAC) though the saved queue had Fixture MP3 current (checked just before the reload). 0 in 10 with five at once;
+  about 1 full run in 3. Not yet understood.
 - **Flaky:** `shared.spec.ts` "the account's collections" (from before 2026-10-02): 0 songs for 30 s after switching
   collection, or the account's box not shown.
 - **"Syncing…" lingers on the laptop:** ask for the chip's tooltip after a long "Syncing…", then fix the part it names

@@ -1126,7 +1126,7 @@ test('with GLUE Home running, the clashes its syncs left show here and are answe
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 
-test('with GLUE Home running, it finds the duplicates: the same recording under two names, matched by GLUE Home and shown here (ADR 0164)', async ({ page }) => {
+test('with GLUE Home running, it finds the duplicates: the same recording under two names, matched and grouped by GLUE Home and shown here; a playlist on the best copy; "Keep · not a duplicate" through it (ADR 0164)', async ({ page }) => {
   test.setTimeout(240_000);
   const tmp = mkdtempSync(join(tmpdir(), 'glue-home-dupes-'));
   const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} }, { engine: true, known: { music: join(tmp, 'Music') } });
@@ -1156,6 +1156,8 @@ test('with GLUE Home running, it finds the duplicates: the same recording under 
       'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
       [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
       [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1a: song('t1a', 'Night Drive.wav', one.length), t1b: song('t1b', 'Night Drive (copy).wav', one.length), t1c: song('t1c', 'Other.wav', other.length) } }),
+      // A playlist with both copies: GLUE Home points it at the best one.
+      [col + '/lists/l1.json']: JSON.stringify({ schemaVersion: 1, id: 'l1', kind: 'playlist', name: 'Set', parentId: null, position: 0, notes: '', items: ['t1b', 't1c', 't1a'], origin: null }),
     };
     for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
     await fake.start();
@@ -1181,9 +1183,20 @@ test('with GLUE Home running, it finds the duplicates: the same recording under 
     await expect(grp).toHaveCount(1, { timeout: 30_000 });
     await expect(grp.locator('li')).toHaveCount(2);
     expect(asked.length).toBeGreaterThan(0);
+    // The playlist, by GLUE Home: the best copy once (the two copies are the same file, so the first is the best).
+    const list = () => JSON.parse(readFileSync(join(fake.dirs.glue, col, 'lists', 'l1.json'), 'utf8')).items as string[];
+    await expect.poll(list, { timeout: 30_000 }).toHaveLength(2);
+    expect(list()).toContain('t1c');
     // "Check again": GLUE Home matches every song again.
     await page.click('#dupes-rescan');
     await expect.poll(() => asked.includes('dupes full'), { timeout: 30_000 }).toBe(true);
     await expect(grp.locator('li')).toHaveCount(2);
+    // "Keep · not a duplicate": said here, the group made again by GLUE Home, gone.
+    await grp.locator('li').nth(1).locator('[data-apart]').click();
+    await expect(grp).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+    await page.reload();
+    await page.locator('.lside [data-view="dupes"]').click({ timeout: 30_000 });
+    await expect(page.locator('.grp', { hasText: 'Same recording' })).toHaveCount(0);
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

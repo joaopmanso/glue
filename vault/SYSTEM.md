@@ -233,9 +233,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - It reads the GLUE folder through the link.
   - **It's only GLUE Home's screen** (ADR 0162): `lib.homeRuns()` (`engineClient.runs`: the engine answered, asked
     before a collection opens) and it starts none of the library's work: no shared sync, analysis, daily backup,
-    verdict re-check, open-time repairs, song info into files, matching duplicates (ADR 0164), or walking the music
-    folders for DJ libraries. Still the page's until they move into GLUE Home: the duplicates' groups and playlists'
-    best copies, and following DJ libraries (`djWatch`).
+    verdict re-check, open-time repairs, song info into files, duplicates (matching, groups, playlists' best copies, ADR
+    0164, 0165), or walking the music folders for DJ libraries. Still the page's until it moves into GLUE Home:
+    following DJ libraries (`djWatch`).
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease. A
     song goes with the record the tab had (`was`): the engine applies only the fields changed from it over its own
     (`changed_over`), so a change GLUE Home made meanwhile stays (ADR 0163). The engine's store is its files' only
@@ -302,9 +302,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - A rule change bumps `VERDICT_VERSION`, and stored verdicts are judged again on open (`recheckVerdicts`).
   - The tab tries a failing song twice before saving it as failed, since a failed song leaves the library's lists.
 - **Duplicates** (`src/lib/dupes.svelte.ts`, `core/library/duplicates.ts`):
-  - who matches: GLUE Home where it runs (`crates/glue-engine/src/dupes.rs`, ADR 0164: its cached fingerprints, five
-    seconds after its analysis saves results, kept in its cache, published in a shared collection; the page asks it,
-    `dupes`); otherwise the page (a worker, the browser's fingerprints);
+  - who matches and groups: GLUE Home where it runs (`crates/glue-engine/src/dupes.rs`, ADR 0164, 0165: its cached
+    fingerprints, five seconds after its analysis saves results, published in a shared collection; the groups
+    (`buildGroups`) and the playlists' best copies (`bestLists`) after every match and half a second after the songs,
+    the user's say or another computer's matches change; the page asks it, `dupes`, and shows its groups); otherwise
+    the page (a worker, the browser's fingerprints, the same pure functions);
   - how they're found: fingerprints ("same recording"), and artist + title with lengths within 3 s ("probable",
     `nameGroups`: split into copies of one version);
   - names are compared one way everywhere (ADR 0145, `core/library/names.ts`): `songName` for Duplicates and No file

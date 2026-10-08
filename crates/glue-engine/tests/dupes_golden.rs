@@ -8,6 +8,19 @@ use serde_json::Value;
 fn out(ms: &[Match]) -> String { stringify(&Value::Array(ms.iter().map(|m| m.to_json()).collect())) }
 
 #[test]
+fn the_groups_and_the_playlists_best_copies_are_the_websites() {
+  let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/golden/dupes/groups.json");
+  let g: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+  let tracks: indexmap::IndexMap<String, Value> = g["tracks"].as_array().unwrap().iter().map(|t| (t["id"].as_str().unwrap().to_string(), t.clone())).collect();
+  let analysis: indexmap::IndexMap<String, Value> = g["analysis"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+  let ms = |k: &str| -> Vec<Match> { g[k].as_array().unwrap().iter().filter_map(Match::from_json).collect() };
+  let groups = glue_engine::dupes::build_groups(&tracks, &analysis, &g["meta"], &ms("matches"), &ms("others"));
+  assert_eq!(stringify(&Value::Array(groups.clone())), stringify(&g["groups"]), "the groups");
+  let lists: Vec<Value> = glue_engine::dupes::best_lists(g["lists"].as_array().unwrap().iter(), &groups).into_iter().map(|(id, items)| serde_json::json!({ "id": id, "items": items })).collect();
+  assert_eq!(stringify(&Value::Array(lists)), stringify(&g["bestLists"]), "the playlists' best copies");
+}
+
+#[test]
 fn the_matches_are_the_websites() {
   let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/golden/dupes/matches.json");
   let g: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();

@@ -309,6 +309,8 @@ impl<H: Host> Engine<H> {
     self.changed(p, c, paths, &[]);
     // Changed around the edits (a sync took changes in): the analysis looks through the collections again.
     if paths.iter().any(|x| x.starts_with("tracks/") || x.starts_with("analysis/")) { if let Some(e) = self.arc() { e.analysis_stale(); } }
+    // Songs, the user's say or another computer's matches: the duplicate groups made again (ADR 0164).
+    if paths.iter().any(|x| x.starts_with("tracks/") || x.starts_with("dupes/") || x == "collection.json") { if let Some(e) = self.arc() { e.groups_soon(p, c); } }
   }
   /// A tab saved this collection itself just now: read it again.
   pub fn drop_store(&self, p: &str, c: &str) { self.stores.lock().unwrap().remove(&key(p, c)); }
@@ -452,6 +454,8 @@ impl<H: Host> Engine<H> {
     let named: Vec<String> = ops.iter().filter(|op| op["m"] == "tracks").flat_map(|op| op["ts"].as_array().into_iter().flatten().map(|t| text(t, "id"))).collect();
     let new: std::collections::HashSet<String> = named.iter().filter(|id| !st.tracks.contains_key(*id)).cloned().collect();
     let added = !new.is_empty();
+    // Songs, playlists or the user's say about duplicates: the groups made again in a moment (ADR 0164).
+    let regroup = ops.iter().any(|op| matches!(op["m"].as_str(), Some("tracks" | "removeTrack" | "meta" | "list" | "deleteList")));
     for op in ops {
       // Songs as the tab had them (`was`): only what it changed goes over the record here, which may have moved on since
       // (a clash answered, an analysis saved) before the tab read it back (ADR 0162).
@@ -467,6 +471,7 @@ impl<H: Host> Engine<H> {
     self.flush_edit(&mut st, p, c)?;
     drop(st);
     if !named.is_empty() { if let Some(e) = self.arc() { e.queue_edit(p, c, &named, &new); } }
+    if regroup { if let Some(e) = self.arc() { e.groups_soon(p, c); } }
     Ok(json!({ "rev": self.rev(), "added": added }))
   }
 

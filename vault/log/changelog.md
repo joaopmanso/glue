@@ -5,6 +5,17 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · GLUE Home 0.62.0: GLUE Home makes the duplicate groups (ADR 0165)
+- **Now:** the page's grouping and playlist rewrite are pure functions (`buildGroups`, `bestLists`), and GLUE Home's
+  in Rust (`dupes.rs`, with `names.rs` `song_name` and `version_of`), to the byte the website's
+  (`tests/golden/dupes/groups.json`, every rule at work). GLUE Home makes the groups after each match and half a second
+  after the songs, the user's say or another computer's matches change, and points playlists at the best copies; the
+  page shows its groups and does no duplicates work.
+- **Also:** with GLUE Home, the page's quick fetches of its result no longer grey out "Check again" (a click in that
+  moment did nothing); only a real "Check again" shows "Comparing…".
+- Tests: `e2e/homemode.spec.ts` "it finds the duplicates" (now: grouped by GLUE Home, a playlist on the best copy,
+  "Keep · not a duplicate" through it), the groups golden in Rust.
+
 ## 2026-10-08 · GLUE Home 0.61.0: GLUE Home matches the duplicates (ADR 0164)
 - **Why:** the user, after ADR 0163: "I want to get all of these moved to Rust so that we can move on to the DJ
   library cue points and real-time integrations". Duplicates first: with GLUE Home running the page still read every

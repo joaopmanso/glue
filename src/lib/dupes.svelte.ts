@@ -13,19 +13,15 @@ import { fingerprintOf } from './analysis';
 import { jobOf } from './audioJob';
 import type { Fingerprint } from '../core/audio/fingerprint';
 import type { Match } from '../core/library/duplicates';
-import { certainty, concerns, copyScore, groupMatches, nameGroups, pairKey, sameVersion } from '../core/library/duplicates';
+import { bestLists, buildGroups, copyScore, groupKey, pairKey, type DupGroup } from '../core/library/duplicates';
 export { copyScore };
 import { time, timeAsync } from '../core/perf';
 import type { DupReply, DupRequest } from '../workers/duplicates.worker';
 import type { AnalysisSummary, Track } from '../store/types';
 import { engineClient } from './engine.svelte';
 
-/** confirmed: a probable group the user said is the same recording (it can be cleaned up like one). */
-/** how: found by sound, marked by the user, confirmed by the user (a probable group), or by name only. sure: 0–100.
-    concerns: what to look at before removing its copies (versions, lengths, artists). */
-export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null; confirmed?: boolean; byHand?: boolean; how: 'sound' | 'hand' | 'confirmed' | 'name'; sure: number; concerns: string[] }
-
-export const groupKey = (ids: string[]) => [...ids].sort().join('+');
+export type { DupGroup };
+export { groupKey };
 /** The last result, kept per collection: the songs that had a fingerprint, and what matched. */
 interface Saved { v: 1; at: number; ids: string[]; matches: Match[] }
 const savedPath = (cid: string) => 'dupes/' + cid + '.json';
@@ -67,7 +63,7 @@ class Dupes {
         if (!st || !this.known || st.rev.tracks === this.seenTracks) return;
         this.seenTracks = st.rev.tracks;
         clearTimeout(this.rebuildTimer);
-        this.rebuildTimer = window.setTimeout(() => { if (lib.store === st && !this.running) this.rebuild(); }, 400);
+        this.rebuildTimer = window.setTimeout(() => { if (lib.store === st && !this.running && !lib.homeRuns()) this.rebuild(); }, 400);
       });
     });
   }
@@ -176,17 +172,27 @@ class Dupes {
   /** What GLUE Home found (ADR 0164): its last result, or matched now (`full`: "Check again"). */
   async fromHome(full = false) {
     const s = lib.store;
-    if (!s || (this.running && !full)) return;
-    this.running = true;
+    if (!s) return;
+    if (this.fetching && !full) { this.askAgain = true; return; }   // told again while asking: asked once more after
+    // Only "Check again" is the user's wait ("Comparing…"); asking for GLUE Home's last result is quick, and mustn't
+    // grey the button out under the user's click.
+    this.fetching = true;
+    if (full) this.running = true;
     try {
       const r = await engineClient.dupes(full).catch(e => { console.warn('GLUE: GLUE Home couldn’t say what duplicates it found', e); return null; });
       if (!r || lib.store !== s) return;
       this.toFill = []; this.missing = r.missing ?? 0;
-      if (!full && r.at === this.at && this.known) return;
       this.matches = r.matches; this.known = new Set(r.matches.flatMap(m => [m.a, m.b])); this.at = r.at;
-      this.groups = time('dupes.build', () => this.build(r.matches));
-    } finally { this.running = false; }
+      // Its groups too (0.62, ADR 0164); from an older GLUE Home, made here from its matches.
+      this.groups = r.groups ?? time('dupes.build', () => this.build(r.matches));
+    } finally {
+      this.fetching = false;
+      if (full) this.running = false;
+      if (this.askAgain) { this.askAgain = false; void this.fromHome(); }
+    }
   }
+  private fetching = false;
+  private askAgain = false;
 
   /** Make the missing fingerprints, one song at a time (just the fingerprint, not a full analysis),
       looking for duplicates again every 100 made and at the end. Only when some were made: songs whose
@@ -232,39 +238,12 @@ class Dupes {
   }
 
   private build(matches: Match[]): DupGroup[] {
-    const s = lib.store!, ignored = new Set(s.meta.ignoredDupes ?? []), confirmed = new Set(s.meta.dupConfirmed ?? []);
-    // What the user said (ADR 0117): pairs that aren't duplicates, and groups marked by hand.
-    const apart = new Set(s.meta.dupApart ?? []), manual: Match[] = [], byHand = new Set<string>();
-    for (const g of s.meta.dupManual ?? []) for (let i = 1; i < g.length; i++) { manual.push({ a: g[0], b: g[i], ber: 0, offsetSec: 0, overlapSec: 0 }); byHand.add(pairKey(g[0], g[i])); }
-    // Another version (instrumental, live, remix…, or a length that differs) is never a duplicate, however the sound
-    // matched; nor a pair the user kept apart.
-    const same = (m: Match) => { const a = s.tracks.get(m.a), b = s.tracks.get(m.b); return !a || !b || sameVersion(a, b); };
-    // The copy the user chose ("Make it the best"), else the best by quality.
-    const best = (ids: string[]) => { const chosen = s.meta.dupBest?.[groupKey(ids)]; return chosen && ids.includes(chosen) ? chosen : ids.reduce((b, id) => copyScore(s.tracks.get(id)!, s.analysis.get(id) ?? null, s.meta.mainRoot) > copyScore(s.tracks.get(b)!, s.analysis.get(b) ?? null, s.meta.mainRoot) ? id : b); };
-    const out: DupGroup[] = [];
-    const inGroup = new Set<string>();
-    const all = (this.others.length ? matches.concat(this.others) : matches).filter(m => !apart.has(pairKey(m.a, m.b)) && same(m)).concat(manual);
-    for (const ids of groupMatches(all)) {
-      const live = ids.filter(id => s.tracks.has(id));
-      if (live.length < 2 || ignored.has(groupKey(live))) continue;
-      const pairs = all.filter(m => live.includes(m.a) && live.includes(m.b)), hand = pairs.some(m => byHand.has(pairKey(m.a, m.b)));
-      const sim = hand ? null : 1 - 2 * Math.max(...pairs.map(m => m.ber)), copies = live.map(id => s.tracks.get(id)!);
-      out.push({ key: groupKey(live), kind: 'same', ids: live, best: best(live), similarity: sim, ...(hand ? { confirmed: true, byHand: true } : {}), how: hand ? 'hand' : 'sound', sure: certainty('same', sim, hand, copies), concerns: concerns(copies) });
-      live.forEach(id => inGroup.add(id));
-    }
-    // Probable: same artist + title, similar length, not already matched by sound.
-    for (const near of nameGroups([...s.tracks.values()].filter(t => !inGroup.has(t.id)), (t, u) => apart.has(pairKey(t.id, u.id)))) {
-      const ids = near.map(t => t.id);
-      if (ids.length < 2 || ignored.has(groupKey(ids))) continue;
-      const key = groupKey(ids);
-      const said = confirmed.has(key), extra = { sure: certainty(said ? 'same' : 'probable', null, said, near), concerns: concerns(near) };
-      out.push(said ? { key, kind: 'same', ids, best: best(ids), similarity: null, confirmed: true, how: 'confirmed', ...extra } : { key, kind: 'probable', ids, best: best(ids), similarity: null, how: 'name', ...extra });
-    }
-    return out.sort((a, b) => (a.kind === b.kind ? b.ids.length - a.ids.length : a.kind === 'same' ? -1 : 1));
+    const s = lib.store!;
+    return buildGroups({ tracks: s.tracks, analysis: s.analysis, meta: s.meta, matches, others: this.others });
   }
 
   /** The groups again from the last matches (after songs left the collection). */
-  rebuild() { if (lib.store) this.groups = this.build(this.matches); }
+  rebuild() { if (lib.store && !lib.homeRuns()) this.groups = this.build(this.matches); }   // with GLUE Home: its groups, through its feed
 
   /** "Same recording": the user confirms a probable group (remembered); it's cleaned up like one. */
   confirm(g: DupGroup) {
@@ -279,15 +258,9 @@ class Dupes {
   /** Playlists and folders point at the best copies (their order kept; never the same song twice). */
   private bestInLists(gs: DupGroup[]) {
     const s = lib.store;
-    if (!s || lib.readOnly || gs !== this.groups) return;
-    const to = this.bestOf;
-    if (!to.size) return;
-    for (const l of [...s.lists.values()]) {
-      if (!l.items.some(i => to.has(i))) continue;
-      const items: string[] = [];
-      for (const i of l.items) { const v = to.get(i) ?? i; if (!items.includes(v)) items.push(v); }
-      lib.updateList(l.id, { items });
-    }
+    // With GLUE Home, it points the playlists at the best copies (ADR 0164).
+    if (!s || lib.readOnly || gs !== this.groups || lib.homeRuns()) return;
+    for (const l of bestLists(s.lists.values(), gs)) lib.updateList(l.id, { items: l.items });
   }
   /** The main music folder (ADR 0121), or none: the best copies are chosen again, and playlists follow. */
   setMainRoot(id: string | null) {
@@ -355,7 +328,7 @@ export const dupes = new Dupes();
 lib.onOpened = () => { dupes.reset(); void dupes.open(); };
 lib.onSettled = () => dupes.schedule();
 // With GLUE Home: when it attaches, and when it found duplicates again or another computer's came in (ADR 0164).
-engineClient.onFeed.push(paths => { if (!lib.homeRuns() || (paths && !paths.some(p => p.startsWith('dupes')))) return; void dupes.loadOthers().then(() => dupes.fromHome()); });
+engineClient.onFeed.push(paths => { if (lib.homeRuns() && (!paths || paths.some(p => p.startsWith('dupes')))) void dupes.fromHome(); });
 
 /** Keep each group's best copy and put the others aside in GLUE Home's duplicates folder, or into the
     Recycle Bin (ADR 0070). Only "same recording" groups, only files on this computer. The files go

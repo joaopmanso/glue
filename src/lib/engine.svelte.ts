@@ -17,7 +17,7 @@ import type { CollectionStore, StoreOp } from '../store/collection';
 import type { Analysed } from '../core/library/analysed';
 import type { DetailsHeader } from '../store/details';
 import type { Clash } from '../core/shared/merge3';
-import type { Match } from '../core/library/duplicates';
+import type { DupGroup, Match } from '../core/library/duplicates';
 
 interface EngineState { rev: number; jobs: { kind: string; left: number; total: number }[]; analysis: { paused: boolean; running: number; current: string[]; left: number; done: number; failed: number; waiting: number } }
 type Change = { rev: number; p: string; c: string; paths: string[]; analysed?: string[] };
@@ -193,9 +193,9 @@ class EngineClient {
   }
   /** The duplicates GLUE Home found among this computer's songs (ADR 0164): its last result, or matched now; `full`:
       every song matched again. `missing`: songs analysed with no fingerprint there. */
-  async dupes(full = false): Promise<{ at: number; matches: Match[]; missing: number } | null> {
+  async dupes(full = false): Promise<{ at: number; matches: Match[]; missing: number; groups?: DupGroup[] } | null> {
     const w = this.where();
-    return w ? this.rpc<{ at: number; matches: Match[]; missing: number }>({ op: 'dupes', ...w, ...(full ? { full } : {}) }, 180_000) : null;
+    return w ? this.rpc<{ at: number; matches: Match[]; missing: number; groups?: DupGroup[] }>({ op: 'dupes', ...w, ...(full ? { full } : {}) }, 180_000) : null;
   }
   /** The open shared collection's clashes waiting (GLUE Home syncs it, ADR 0162). */
   async clashes(): Promise<Clash[]> {

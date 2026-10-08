@@ -14,8 +14,9 @@ adrs: [0013, 0025, 0117, 0120, 0121]
   credits and (…) parts that only name the release ("Album Version", "Remastered 2009", "Mono") don't count; other
   (…) parts do ("Live at …", "BBC Session"). A name's songs are split into copies of one version within 3 s of each
   other (`nameGroups`), so a remix and the original are never one group.
-- **Who matches** (2026-10-08, ADR 0164): GLUE Home where it runs (its cached fingerprints, in Rust, after its
-  analysis saves results); the page asks it. Without GLUE Home, the page as before.
+- **Who matches and groups** (2026-10-08, ADR 0164, 0165): GLUE Home where it runs (its cached fingerprints, in Rust,
+  after its analysis saves results; the groups and the playlists' best copies too); the page asks it and shows its
+  groups. Without GLUE Home, the page as before.
 - **Seeing and hearing them** (2026-10-08): each copy's waveform (`WaveCell`, `kind="waveform"`, the library's Overview size, next to its play button), to the group's
   time scale (its length against the longest copy); click plays from there, drag scrubs. With a copy of the group
   playing, another's play starts at the same moment.

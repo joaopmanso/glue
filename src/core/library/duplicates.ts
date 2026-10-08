@@ -3,7 +3,7 @@
    recording share many pieces at a consistent time offset, unrelated tracks only by chance. Each
    candidate pair is then confirmed by bit error rate at the best alignment. */
 import { ber, FP_FRAME_SEC, type Fingerprint } from '../audio/fingerprint';
-import type { AnalysisSummary, Track } from '../../store/types';
+import type { AnalysisSummary, Collection, List, Track } from '../../store/types';
 import { songName, versionOf } from './names';
 
 export const SAME_BER = 0.3;          // at or below: same recording (unrelated audio ≈ 0.5)
@@ -210,4 +210,67 @@ export function copyScore(t: Track, a: AnalysisSummary | null, mainRoot?: string
   const q = f ? (f.lossless ? 1e6 + (f.sampleRate / 1000) * (f.bits || 16) : f.bitrate) : 0;
   const main = mainRoot && t.rootId === mainRoot ? 5e5 : 0;   // over any resolution (≤ 6,144) or bitrate, under lossless
   return (a && !a.error ? GRADE[a.grade] ?? 1 : 1) * 1e7 + q + main;
+}
+
+/** A group of copies of one recording. how: found by sound, marked by the user, confirmed by the user (a probable
+    group), or by name only; confirmed: a probable group the user said is the same recording (it can be cleaned up like
+    one). sure: 0–100. concerns: what to look at before removing its copies (versions, lengths, artists). */
+export interface DupGroup { key: string; kind: 'same' | 'probable'; ids: string[]; best: string; similarity: number | null; confirmed?: boolean; byHand?: boolean; how: 'sound' | 'hand' | 'confirmed' | 'name'; sure: number; concerns: string[] }
+export const groupKey = (ids: string[]) => [...ids].sort().join('+');
+
+/** What the groups are made of: the collection's songs and their analyses (as this computer sees them), what the user
+    said (its meta), this computer's matches and the other computers' (a shared collection, ADR 0098). */
+export interface GroupInput {
+  tracks: Map<string, Track>; analysis: Map<string, AnalysisSummary>;
+  meta: Pick<Collection, 'ignoredDupes' | 'dupConfirmed' | 'dupApart' | 'dupManual' | 'dupBest' | 'mainRoot'>;
+  matches: Match[]; others: Match[];
+}
+/** The duplicate groups (Duplicates, the N× badge, the best copy everywhere): pure, so GLUE Home makes the same ones
+    (ADR 0164, `tests/golden/dupes`). */
+export function buildGroups({ tracks, analysis, meta, matches, others }: GroupInput): DupGroup[] {
+  const ignored = new Set(meta.ignoredDupes ?? []), confirmed = new Set(meta.dupConfirmed ?? []);
+  // What the user said (ADR 0117): pairs that aren't duplicates, and groups marked by hand.
+  const apart = new Set(meta.dupApart ?? []), manual: Match[] = [], byHand = new Set<string>();
+  for (const g of meta.dupManual ?? []) for (let i = 1; i < g.length; i++) { manual.push({ a: g[0], b: g[i], ber: 0, offsetSec: 0, overlapSec: 0 }); byHand.add(pairKey(g[0], g[i])); }
+  // Another version (instrumental, live, remix…, or a length that differs) is never a duplicate, however the sound
+  // matched; nor a pair the user kept apart.
+  const same = (m: Match) => { const a = tracks.get(m.a), b = tracks.get(m.b); return !a || !b || sameVersion(a, b); };
+  // The copy the user chose ("Make it the best"), else the best by quality.
+  const best = (ids: string[]) => { const chosen = meta.dupBest?.[groupKey(ids)]; return chosen && ids.includes(chosen) ? chosen : ids.reduce((b, id) => copyScore(tracks.get(id)!, analysis.get(id) ?? null, meta.mainRoot) > copyScore(tracks.get(b)!, analysis.get(b) ?? null, meta.mainRoot) ? id : b); };
+  const out: DupGroup[] = [];
+  const inGroup = new Set<string>();
+  const all = (others.length ? matches.concat(others) : matches).filter(m => !apart.has(pairKey(m.a, m.b)) && same(m)).concat(manual);
+  for (const ids of groupMatches(all)) {
+    const live = ids.filter(id => tracks.has(id));
+    if (live.length < 2 || ignored.has(groupKey(live))) continue;
+    const pairs = all.filter(m => live.includes(m.a) && live.includes(m.b)), hand = pairs.some(m => byHand.has(pairKey(m.a, m.b)));
+    const sim = hand ? null : 1 - 2 * Math.max(...pairs.map(m => m.ber)), copies = live.map(id => tracks.get(id)!);
+    out.push({ key: groupKey(live), kind: 'same', ids: live, best: best(live), similarity: sim, ...(hand ? { confirmed: true, byHand: true } : {}), how: hand ? 'hand' : 'sound', sure: certainty('same', sim, hand, copies), concerns: concerns(copies) });
+    live.forEach(id => inGroup.add(id));
+  }
+  // Probable: same artist + title, similar length, not already matched by sound.
+  for (const near of nameGroups([...tracks.values()].filter(t => !inGroup.has(t.id)), (t, u) => apart.has(pairKey(t.id, u.id)))) {
+    const ids = near.map(t => t.id);
+    if (ids.length < 2 || ignored.has(groupKey(ids))) continue;
+    const key = groupKey(ids);
+    const said = confirmed.has(key), extra = { sure: certainty(said ? 'same' : 'probable', null, said, near), concerns: concerns(near) };
+    out.push(said ? { key, kind: 'same', ids, best: best(ids), similarity: null, confirmed: true, how: 'confirmed', ...extra } : { key, kind: 'probable', ids, best: best(ids), similarity: null, how: 'name', ...extra });
+  }
+  return out.sort((a, b) => (a.kind === b.kind ? b.ids.length - a.ids.length : a.kind === 'same' ? -1 : 1));
+}
+
+/** Playlists and folders pointed at the best copies (ADR 0120): each list whose items name another copy, with those
+    replaced by their best (its order kept; never the same song twice). */
+export function bestLists(lists: Iterable<List>, groups: DupGroup[]): { id: string; items: string[] }[] {
+  const to = new Map<string, string>();
+  for (const g of groups) if (g.kind === 'same') for (const id of g.ids) if (id !== g.best) to.set(id, g.best);
+  if (!to.size) return [];
+  const out: { id: string; items: string[] }[] = [];
+  for (const l of lists) {
+    if (!l.items.some(i => to.has(i))) continue;
+    const items: string[] = [];
+    for (const i of l.items) { const v = to.get(i) ?? i; if (!items.includes(v)) items.push(v); }
+    out.push({ id: l.id, items });
+  }
+  return out;
 }
