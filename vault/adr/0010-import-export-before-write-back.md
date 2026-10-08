@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0168 (write-back allowed, opt-in, backed up, the app closed)
 date: 2026-09-24
 ---
 # 0010. Read-only import and file export before any write-back

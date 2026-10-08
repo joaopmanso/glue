@@ -122,7 +122,7 @@ describe('Engine DJ m.db', () => {
       INSERT INTO PlaylistEntity VALUES (100,10,2,101),(101,10,1,0),(102,12,1,0);`);
     const bytes = db.export(); db.close();
     expect(isSqlite(bytes)).toBe(true);
-    const lib = parseEngineDb(bytes, SQL);
+    const lib = await parseEngineDb(bytes, SQL);
     expect(lib.tracks.map(t => [t.title, t.bpm, t.key, t.rating, t.path])).toEqual([['A', 127.98, '8A', 4, '../Music/a.mp3'], ['B', 120, '7B', 0, '../Music/b.mp3']]);
     expect(lib.lists.map(l => [l.name, l.kind, l.items, l.parent])).toEqual([['First', 'folder', [], null], ['Child', 'playlist', ['1'], '11'], ['Second', 'playlist', ['2', '1'], null]]);
     expect(engineKey(0)).toBe('8B'); expect(engineKey(3)).toBe('9A');
@@ -138,14 +138,14 @@ describe('Engine DJ m.db', () => {
       INSERT INTO Track VALUES (1,'../Music/a.mp3','A'),(2,'../Music/b.mp3','B');
       INSERT INTO Playlist VALUES (20,'2021',0,0),(21,'DNB',20,0),(22,'Bangers',21,0);
       INSERT INTO PlaylistEntity VALUES (200,20,1,'here',0),(201,22,2,'here',202),(202,22,1,'here',203),(203,22,7,'drive',0);`);
-    const lib = parseEngineDb(db.export(), SQL); db.close();
+    const lib = await parseEngineDb(db.export(), SQL); db.close();
     expect(lib.lists.map(l => [l.name, l.kind, l.items, l.parent])).toEqual([
       ['2021', 'folder', ['here/1'], null], ['DNB', 'folder', [], '20'], ['Bangers', 'playlist', ['here/2', 'here/1'], '21']]);
     expect(lib.stats).toEqual({ entries: 4, matched: 3, otherLibraries: 1, missingLibraries: 1, gone: 0, libraries: 1 });
   });
 
   /** An Engine DJ 3 library: its own tracks, and the playlist tree every library of the set shares. */
-  function engineLib(SQL: Awaited<ReturnType<typeof initSqlJs>>, uuid: string, tracks: [number, string][]) {
+  async function engineLib(SQL: Awaited<ReturnType<typeof initSqlJs>>, uuid: string, tracks: [number, string][]) {
     const db = new SQL.Database();
     db.run(`CREATE TABLE Information (id INTEGER PRIMARY KEY, uuid TEXT);
       CREATE TABLE Track (id INTEGER PRIMARY KEY, path TEXT, title TEXT);
@@ -155,12 +155,12 @@ describe('Engine DJ m.db', () => {
       INSERT INTO Playlist VALUES (10,'Friday',0,0);
       INSERT INTO PlaylistEntity VALUES (100,10,1,'pc',101),(101,10,5,'drive',102),(102,10,9,'stick',103),(103,10,2,'pc',0);`);
     for (const [id, path] of tracks) db.run('INSERT INTO Track VALUES (?, ?, ?)', [id, path, path]);
-    const out = parseEngineDb(db.export(), SQL); db.close();
+    const out = await parseEngineDb(db.export(), SQL); db.close();
     return out;
   }
   it('resolves a playlist across the libraries of a set (Engine DJ 3), imported together or one after another', async () => {
     const SQL = await initSqlJs();
-    const pc = engineLib(SQL, 'pc', [[1, '../Music/a.mp3']]), drive = engineLib(SQL, 'drive', [[5, '../Music Collection/e.mp3']]);
+    const pc = await engineLib(SQL, 'pc', [[1, '../Music/a.mp3']]), drive = await engineLib(SQL, 'drive', [[5, '../Music Collection/e.mp3']]);
     // Alone: the computer's song only; the drive's and the stick's are libraries not imported; track 2 is gone.
     expect(pc.lists[0].items).toEqual(['pc/1']);
     expect(pc.stats).toMatchObject({ entries: 4, matched: 1, otherLibraries: 2, missingLibraries: 2, gone: 1 });

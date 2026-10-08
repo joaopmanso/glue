@@ -5,6 +5,22 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · GLUE Home 0.65.0: every DJ app's cues, loops and beat grid in Prepare (ADR 0168, phase 1)
+- **Why:** the user (2026-10-08): prepare songs in GLUE, synced both ways with the DJ apps (playlists, cues, loops,
+  grids). Decided with them: write-back allowed (opt-in per library, a backup before each write, only while the app is
+  closed), Engine DJ first, clashes asked, the grid included. ADR 0168 supersedes ADR 0010. This release is phase 1, read
+  only.
+- **Now:** Engine DJ's hot cues, moved main cue, loops and beat grid are read from `PerformanceData`
+  (`core/interop/enginePerf.ts`, `glue_interop::perf`; layout from libdjinterop and the user's own songs, in
+  `vault/research/engine-dj-write-back.md`); rekordbox's grid from `TEMPO`, Traktor's from its AutoGrid. Each DJ
+  library's record keeps its grid next to its cues. Prepare's **In your DJ apps** shows each app's, with **Use its
+  cues** and **Use its grid**.
+- A library read before this (no grids kept yet) is read once more by GLUE Home after the update.
+- Checked on a copy of the user's F: library: 6,871 songs, all with a grid, 4,602 with cues (4,563 hot cues, 10 loops,
+  135 moved main cues).
+- Tests: the Engine DJ golden gains packed cues, loops and grids (and a song with only trackData, one cut short);
+  rekordbox's and Traktor's grids; `e2e/prepare.spec.ts` "Prepare shows what each DJ app has".
+
 ## 2026-10-08 · GLUE Home 0.64.0: DJ libraries in GLUE Home (ADR 0167)
 - **Why:** the next step to "GLUE Home IS THE APP" before cue points and real-time integrations: with GLUE Home
   running, DJ libraries were still followed by the page (each change sent over the local link whole, nothing followed

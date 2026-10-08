@@ -28,7 +28,7 @@ export async function parseLibraryFiles(files: File[], sql: () => Promise<SqlJsS
     const head = new TextDecoder().decode(bytes.subarray(0, 4096));
     try {
       const add = (l: ImportedLibrary) => libs.push({ lib: l, fileName: f.name });
-      if (isSqlite(bytes)) engines.push(parseEngineDb(bytes, await sql(), f.name));
+      if (isSqlite(bytes)) engines.push(await parseEngineDb(bytes, await sql(), f.name));
       else if (isSeratoDatabase(bytes)) add(buildSeratoLibrary(bytes, await Promise.all(crates.map(async c => ({ fileName: c.name, bytes: new Uint8Array(await c.arrayBuffer()) })))));
       else if (isRekordboxXml(head)) add(parseRekordboxXml(new TextDecoder().decode(bytes), f.name));
       else if (isTraktorNml(head)) add(parseTraktorNml(new TextDecoder().decode(bytes), f.name));

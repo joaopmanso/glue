@@ -48,6 +48,12 @@ pub fn parse_rekordbox_xml(xml: &str, file_name: &str) -> Result<ImportedLibrary
     }).collect();
     tr.cue_list.sort_by(|x, y| x.t.partial_cmp(&y.t).unwrap_or(std::cmp::Ordering::Equal));
     tr.cues = tr.cue_list.len();
+    // TEMPO: its first beat (Inizio, s) is beat Battito (1–4) of a bar; a grid that changes tempo is taken as its start.
+    if let Some(tempo) = t.child("TEMPO") {
+      if let Some(tb) = num(tempo.attr("Bpm")).filter(|&b| b != 0.0) {
+        tr.grid = grid_at(tb, num(tempo.attr("Inizio")).unwrap_or(0.0) + ((5.0 - num(tempo.attr("Battito")).unwrap_or(1.0)) % 4.0) * 60.0 / tb);
+      }
+    }
     by_location.insert(location.to_string(), id.to_string());
     tracks.push(tr);
   }

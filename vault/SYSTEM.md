@@ -192,6 +192,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     the GLUE folder, `hl:` a file chosen with its dialog) every 5 s, by date, and reads a changed one again as its own
     edit; it finds new ones in the music folders and the GLUE folder (`djFind`), and imports the one the page adds
     (`djImport`). The page only shows each one's state (`dj`) and asks for Refresh (`djRefresh`).
+  - **Cues, loops and beat grids from every app** (0.65, ADR 0168): each record keeps them (`SourceTrack.cueList`,
+    `grid`), Engine DJ's from `PerformanceData` (`enginePerf.ts`, `glue_interop::perf`); Prepare shows each app's and
+    takes them on a click. GLUE writes into a DJ app's library only as ADR 0168 allows (through GLUE Home, opt-in per
+    library, a backup first, the app closed): not yet in this release.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
     socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again

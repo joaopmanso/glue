@@ -1,7 +1,7 @@
 ---
 title: Prepare
 summary: The beat grid, tempo, cues and loops, before a set.
-keywords: prepare, grid, beat grid, bpm, cue, cues, loop, tap, metronome, tempo, keyboard
+keywords: prepare, grid, beat grid, bpm, cue, cues, loop, tap, metronome, tempo, keyboard, engine dj, rekordbox, traktor, hot cue
 tour: prepare
 order: 7
 ---
@@ -15,6 +15,9 @@ The **Prepare** tab of a song's page is for getting it ready to mix.
 
 ## Cues and loops
 Set cue points and loops on the waveform; they show in the overview above.
+
+## From your DJ apps
+Under the cues, **In your DJ apps** shows what each DJ library has for this song: rekordbox, Engine DJ or Traktor, with its hot cues, memory cues, loops and beat grid. **Use its cues** takes them as the song's (they replace GLUE's), **Use its grid** takes its BPM and first beat.
 
 ## Keys
 Space plays and pauses; the arrows move along the song.

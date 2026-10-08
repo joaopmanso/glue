@@ -38,7 +38,8 @@
        "dateAdded": null,
        "cues": 0,
        "cueList": [],
-       "size": null
+       "size": null,
+       "grid": null
       },
       {
        "externalId": "C:/:Music/:new.flac",
@@ -59,7 +60,8 @@
        "dateAdded": null,
        "cues": 0,
        "cueList": [],
-       "size": null
+       "size": null,
+       "grid": null
       },
       {
        "externalId": "C:/:Music/:c.flac",
@@ -80,7 +82,8 @@
        "dateAdded": null,
        "cues": 0,
        "cueList": [],
-       "size": null
+       "size": null,
+       "grid": null
       }
      ],
      "lists": [

@@ -49,7 +49,12 @@
         "end": null
        }
       ],
-      "size": 9999360
+      "size": 9999360,
+      "grid": {
+       "bpm": 125.000061,
+       "beat0": 0.0125,
+       "bar": 0
+      }
      },
      {
       "externalId": "Macintosh HD/:Users/:dj/:Music/:mac.aiff",
@@ -70,7 +75,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": 0
+      "size": 0,
+      "grid": null
      },
      {
       "externalId": "Stick/:Sets/:ext.wav",
@@ -91,7 +97,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": null
+      "size": null,
+      "grid": null
      }
     ],
     "lists": [

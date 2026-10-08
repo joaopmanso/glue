@@ -42,6 +42,10 @@ impl Cell {
   fn number(&self) -> f64 {
     match self { Cell::Null => 0.0, Cell::Num(x) => *x, Cell::Text(s) => js_number(s), Cell::Blob(b) => if b.is_empty() { 0.0 } else if b.len() == 1 { b[0] as f64 } else { f64::NAN } }
   }
+  /// As a JavaScript Map key: a number and a text are different keys.
+  fn key(&self) -> String { match self { Cell::Num(x) => format!("n{}", num_str(*x)), Cell::Text(s) => format!("s{s}"), Cell::Null => "null".into(), Cell::Blob(b) => format!("b{b:?}") } }
+  /// A blob (sql.js's Uint8Array); anything else none.
+  fn blob(&self) -> Option<&[u8]> { if let Cell::Blob(b) = self { Some(b) } else { None } }
   /// `num(String(v ?? ''))`.
   fn num(&self) -> Option<f64> { num(Some(&self.or(""))) }
 }
@@ -93,7 +97,7 @@ pub fn parse_engine_db(bytes: &[u8], file_name: &str) -> Result<ImportedLibrary,
       {} AS dateAdded, {} AS fileBytes FROM Track",
     pick("path"), pick("filename"), pick("title"), pick("artist"), pick("album"), pick("genre"), pick("comment"), pick("label"), pick("year"),
     pick("bpmAnalyzed"), pick("bpm"), pick("key"), pick("rating"), pick("length"), pick("dateAdded"), pick("fileBytes"));
-  let mut tracks = vec![];
+  let (mut tracks, mut ids) = (vec![], vec![]);
   for r in rows(&db, &sql)? {
     let path = if !r["path"].is_null() { r["path"].string() } else { r["filename"].or("") };
     let mut t = blank_track(ext(&r["id"]), path.replace('\\', "/"));
@@ -106,7 +110,19 @@ pub fn parse_engine_db(bytes: &[u8], file_name: &str) -> Result<ImportedLibrary,
     t.duration = r["length"].num();
     t.date_added = match r["dateAdded"].num() { Some(d) if d > 0.0 => Some(iso_day(d)?), _ => None };
     t.size = r["fileBytes"].num();
-    if !t.path.is_empty() { tracks.push(t); }
+    if !t.path.is_empty() { ids.push(r["id"].key()); tracks.push(t); }
+  }
+  // Cues, loops and the beat grid (ADR 0168), where the database has them.
+  if tables.contains("PerformanceData") {
+    let pc = cols(&db, "PerformanceData")?;
+    let pk = |c: &str| if pc.contains(c) { c.to_string() } else { "NULL".into() };
+    let mut perf: IndexMap<String, IndexMap<String, Cell>> = IndexMap::new();
+    for r in rows(&db, &format!("SELECT trackId, {} AS quickCues, {} AS loops, {} AS beatData, {} AS trackData FROM PerformanceData", pk("quickCues"), pk("loops"), pk("beatData"), pk("trackData")))? { perf.insert(r["trackId"].key(), r); }
+    for (t, id) in tracks.iter_mut().zip(&ids) {
+      let Some(r) = perf.get(id) else { continue };
+      let (cues, grid) = crate::perf::performance(r["quickCues"].blob(), r["loops"].blob(), r["beatData"].blob(), r["trackData"].blob());
+      t.cues = cues.len(); t.cue_list = cues; t.grid = grid;
+    }
   }
   let mut lists = vec![];
   let mut entries: IndexMap<String, Vec<String>> = IndexMap::new();

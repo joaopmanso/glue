@@ -22,9 +22,55 @@
       "rating": 4,
       "playCount": null,
       "dateAdded": "2026-01-01",
-      "cues": 0,
-      "cueList": [],
-      "size": 1000
+      "cues": 5,
+      "cueList": [
+       {
+        "t": 0.022675736961451247,
+        "kind": "cue",
+        "num": 3,
+        "name": "",
+        "color": null,
+        "end": null
+       },
+       {
+        "t": 0.5,
+        "kind": "load",
+        "num": null,
+        "name": "",
+        "color": null,
+        "end": null
+       },
+       {
+        "t": 64.5,
+        "kind": "cue",
+        "num": 0,
+        "name": "Drop",
+        "color": "#28e214",
+        "end": null
+       },
+       {
+        "t": 96,
+        "kind": "loop",
+        "num": 1,
+        "name": "Roll",
+        "color": "#ff8000",
+        "end": 98
+       },
+       {
+        "t": 200,
+        "kind": "cue",
+        "num": 7,
+        "name": "Ünï",
+        "color": "#0000ff",
+        "end": null
+       }
+      ],
+      "size": 1000,
+      "grid": {
+       "bpm": 160.30232697962623,
+       "beat0": 0.06831340617054904,
+       "bar": 2
+      }
      },
      {
       "externalId": "pc-uuid/2",
@@ -45,7 +91,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": 2000
+      "size": 2000,
+      "grid": null
      },
      {
       "externalId": "pc-uuid/3",
@@ -66,7 +113,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": null
+      "size": null,
+      "grid": null
      },
      {
       "externalId": "pc-uuid/5",
@@ -85,9 +133,19 @@
       "rating": 3,
       "playCount": null,
       "dateAdded": "2023-11-14",
-      "cues": 0,
-      "cueList": [],
-      "size": 3000
+      "cues": 1,
+      "cueList": [
+       {
+        "t": 30,
+        "kind": "cue",
+        "num": 0,
+        "name": "Only",
+        "color": "#010203",
+        "end": null
+       }
+      ],
+      "size": 3000,
+      "grid": null
      },
      {
       "externalId": "drive-uuid/5",
@@ -108,7 +166,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": null
+      "size": null,
+      "grid": null
      }
     ],
     "lists": [

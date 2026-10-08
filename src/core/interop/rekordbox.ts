@@ -1,6 +1,6 @@
 /* rekordbox XML (Pioneer's official exchange format). Spec: cdn.rekordbox.com …/xml_format_list.pdf */
 import { child, childrenNamed, parseXml, type XNode } from './xml';
-import { blankTrack, fileUrlToPath, num, pathId, type ImportedLibrary, type ImportedList } from './types';
+import { blankTrack, fileUrlToPath, gridAt, num, pathId, type ImportedLibrary, type ImportedList } from './types';
 
 export function isRekordboxXml(head: string) { return /<DJ_PLAYLISTS[\s>]/.test(head); }
 
@@ -26,6 +26,9 @@ export function parseRekordboxXml(xml: string, fileName = 'rekordbox.xml'): Impo
         num: slot != null && slot >= 0 ? slot : null, name: p.Name || '', color: rgb, end: type === '4' && end != null ? end : null };
     }).sort((a, b) => a.t - b.t);
     tr.cues = tr.cueList.length;
+    // TEMPO: its first beat (Inizio, s) is beat Battito (1–4) of a bar; a grid that changes tempo is taken as its start.
+    const tempo = child(t, 'TEMPO')?.attrs, tb = num(tempo?.Bpm);
+    if (tempo && tb) tr.grid = gridAt(tb, (num(tempo.Inizio) ?? 0) + ((5 - (num(tempo.Battito) ?? 1)) % 4) * 60 / tb);
     tracks.push(tr);
     byLocation.set(a.Location, id);
   }

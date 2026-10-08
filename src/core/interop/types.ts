@@ -1,5 +1,6 @@
 /* What every library importer produces; the app turns it into tracks, playlists and a source. */
 import type { SourceApp } from '../../store/types';
+import type { Grid } from '../library/grid';
 
 /** A cue point or loop from a DJ app (seconds). num: hot cue slot 0–7 (A–H), null for a memory cue. */
 export interface CuePoint { t: number; kind: 'cue' | 'loop' | 'load' | 'fade'; num: number | null; name: string; color: string | null; end: number | null }
@@ -18,6 +19,17 @@ export interface ImportedTrack {
   cues: number;              // cue / hot cue / loop markers (count)
   cueList: CuePoint[];       // the markers themselves, where the format has them
   size: number | null;
+  grid: Grid | null;         // the app's beat grid, where the format has one
+}
+/** A DJ app's beat grid, as Prepare keeps one (core/library/grid): its first tempo (a grid that changes tempo is taken
+    as its start). */
+export type { Grid };
+/** A grid from its tempo and a bar's first beat (`down`, s, before the start or after it): the first beat in the song
+    and where the bar starts. */
+export function gridAt(bpm: number, down: number): Grid | null {
+  if (!(bpm > 0) || !Number.isFinite(bpm) || !Number.isFinite(down)) return null;
+  const spb = 60 / bpm, k = Math.floor(down / spb);
+  return { bpm, beat0: down - k * spb, bar: ((k % 4) + 4) % 4 };
 }
 export interface ImportedList {
   externalId: string;
@@ -39,7 +51,7 @@ export interface ImportedLibrary {
 
 export const blankTrack = (externalId: string, path: string): ImportedTrack => ({
   externalId, path, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', grouping: '',
-  duration: null, bpm: null, key: null, rating: null, playCount: null, dateAdded: null, cues: 0, cueList: [], size: null,
+  duration: null, bpm: null, key: null, rating: null, playCount: null, dateAdded: null, cues: 0, cueList: [], size: null, grid: null,
 });
 
 /** file://localhost/C:/Users/x/a%20b.mp3 → C:/Users/x/a b.mp3 ; file:///Users/x → /Users/x */

@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 const AT_MOST: Duration = Duration::from_secs(10);
 
 #[derive(Default)]
-pub(crate) struct DjWatch { looking: bool, status: HashMap<String, &'static str>, last_read: HashMap<String, Instant>, warned: HashSet<String> }
+pub(crate) struct DjWatch { looking: bool, status: HashMap<String, &'static str>, last_read: HashMap<String, Instant>, warned: HashSet<String>, reread: HashSet<String> }
 
 const APPS: [(&str, &str); 6] = [("rekordbox", "rekordbox"), ("engine", "Engine DJ"), ("serato", "Serato"), ("traktor", "Traktor"), ("apple", "Apple Music"), ("m3u", "M3U")];
 fn app_name(app: &str) -> &str { APPS.iter().find(|a| a.0 == app).map_or(app, |a| a.1) }
@@ -94,7 +94,10 @@ impl<H: Host> Engine<H> {
     self.dj_set(&id, "live");
     // Up to date, unless GLUE hasn't kept its tree yet (a library imported before ADR 0063).
     let known = origin["modified"].as_f64().unwrap_or(0.0);
-    if !force && truthy(get(src, "tree")) && found.modified <= known + 1000.0 { return Ok(Some(String::new())); }
+    // Read before records kept their grids (ADR 0168): read once more, once a run, for its cues and grids.
+    let gridless = !get(src, "tracks").and_then(Value::as_array).is_some_and(|ts| ts.iter().any(|t| t.get("grid").is_some()));
+    let again = gridless && matches!(text(src, "app").as_str(), "engine" | "rekordbox" | "traktor") && self.dj.lock().unwrap().reread.insert(id.clone());
+    if !force && !again && truthy(get(src, "tree")) && found.modified <= known + 1000.0 { return Ok(Some(String::new())); }
     if !force && self.dj.lock().unwrap().last_read.get(&id).is_some_and(|t| t.elapsed() < AT_MOST) { return Ok(Some(String::new())); }
     if text(src, "app") == "engine" {
       let mut j = found.main.clone().into_os_string();

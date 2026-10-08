@@ -101,7 +101,7 @@ function carriedEngine(store: CollectionStore, existing: Source | undefined, lib
     if (!uuid || have.has(uuid)) continue;
     const t = store.tracks.get(st.trackId), it = blankTrack(st.externalId, st.path);
     if (t) { it.title = t.title; it.artist = t.artist; it.album = t.album; it.genre = t.genre; it.label = t.label; it.comment = t.comment; it.year = t.year; it.duration = t.duration; it.size = t.size; }
-    it.bpm = st.bpm; it.key = st.key; it.rating = st.rating; it.playCount = st.playCount; it.dateAdded = st.dateAdded; it.cues = st.cues; it.cueList = st.cueList ?? [];
+    it.bpm = st.bpm; it.key = st.key; it.rating = st.rating; it.playCount = st.playCount; it.dateAdded = st.dateAdded; it.cues = st.cues; it.cueList = st.cueList ?? []; it.grid = st.grid ?? null;
     out.push(it);
   }
   return out;
@@ -192,7 +192,7 @@ export function applyImport(store: CollectionStore, lib: ImportedLibrary, fileNa
     ext2track.set(it.externalId, t);
     // The DJ app's rating becomes the track's own when it hasn't been rated in GLUE.
     if (t.rating == null && it.rating) t.rating = Math.min(5, Math.max(0, it.rating));
-    sourceTracks.push({ externalId: it.externalId, trackId: t.id, bpm: it.bpm, key: it.key, rating: it.rating, playCount: it.playCount, cues: it.cues, dateAdded: it.dateAdded, path: it.path, ...(it.cueList.length ? { cueList: it.cueList } : {}) });
+    sourceTracks.push({ externalId: it.externalId, trackId: t.id, bpm: it.bpm, key: it.key, rating: it.rating, playCount: it.playCount, cues: it.cues, dateAdded: it.dateAdded, path: it.path, ...(it.cueList.length ? { cueList: it.cueList } : {}), ...(it.grid ? { grid: it.grid } : {}) });
   }
   store.putTracks([...touched.values()]);
   // What the library no longer has: the track stops naming it; one without a file and without any other

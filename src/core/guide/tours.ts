@@ -106,6 +106,7 @@ export const TOURS: Tour[] = [
       { target: 'prep-deck', go: { song: 'first', tab: 'prepare' }, optional: true, title: 'The deck', place: 'bottom', body: 'The song’s waveform around the play head, with the beat grid. Space plays; drag to move along.' },
       { target: 'prep-grid', optional: true, title: 'The beat grid', place: 'top', body: 'Check the BPM with the metronome (M); ÷2 and ×2 fix half or double tempo, Tap (T) taps it, ◀ ▶ move the grid.' },
       { target: 'prep-cues', optional: true, title: 'Cues and loops', place: 'top', body: 'Set cue points and loops here; they show on the waveform.' },
+      { target: 'prep-apps', optional: true, title: 'From your DJ apps', place: 'top', body: 'What rekordbox, Engine DJ or Traktor has for this song: its cues, loops and beat grid. Use its cues or its grid to take them.' },
     ],
   },
   {

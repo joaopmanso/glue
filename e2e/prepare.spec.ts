@@ -192,3 +192,50 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.click('#tab-prepare');
   await expect(page.locator('[data-pad="B"]')).toHaveClass(/set/, { timeout: 30_000 });
 });
+
+test('Prepare shows what each DJ app has for a song: its cues, loops and grid, each taken with a click (ADR 0168)', async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.goto('./#/analyze');
+  const wav = beatWav(124, 0.2).toString('base64');
+  await page.evaluate(async b64 => {
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('Music', { create: true });
+    const w = await (await dir.getFileHandle('Beat 124.wav', { create: true })).createWritable();
+    await w.write(Uint8Array.from(atob(b64), c => c.charCodeAt(0))); await w.close();
+  }, wav);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr', { hasText: 'Beat 124' })).toHaveCount(1, { timeout: 30_000 });
+  // rekordbox has the song with two hot cues, a loop and its own grid (126 BPM, its first beat a bar's second).
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="1">
+<TRACK TrackID="1" Name="Beat 124" Location="file://localhost/D:/Music/Beat%20124.wav">
+<TEMPO Inizio="0.700" Bpm="126.00" Metro="4/4" Battito="2"/>
+<POSITION_MARK Name="Intro" Type="0" Start="0.200" Num="0" Red="40" Green="226" Blue="20"/>
+<POSITION_MARK Name="" Type="0" Start="10.000" Num="2"/>
+<POSITION_MARK Name="Roll" Type="4" Start="12.000" End="14.000" Num="-1"/>
+</TRACK></COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="0"></NODE></PLAYLISTS></DJ_PLAYLISTS>`;
+  await page.setInputFiles('#import-input', { name: 'rekordbox.xml', mimeType: 'text/xml', buffer: Buffer.from(xml) });
+  await expect(page.locator('.notice')).toContainText('1 track', { timeout: 20_000 });
+  await page.locator('.tr', { hasText: 'Beat 124' }).locator('.c-title').dblclick();
+  await page.click('#tab-prepare');
+  const rb = page.locator('#prep-apps [data-app-cues="rekordbox"]');
+  await expect(rb).toContainText('2 hot cues · 1 loop · 126.00 BPM grid', { timeout: 30_000 });
+  // Its grid: 126 BPM in use.
+  await rb.locator('[data-use-grid]').click();
+  await expect(page.locator('#prep-bpm')).toContainText('126.00');
+  // Its cues: A and C set, the loop a memory loop; B empty.
+  await rb.locator('[data-use-cues]').click();
+  await expect(page.locator('[data-pad="A"]')).toHaveClass(/set/);
+  await expect(page.locator('[data-pad="C"]')).toHaveClass(/set/);
+  await expect(page.locator('[data-pad="B"]')).not.toHaveClass(/set/);
+  await expect(page.locator('#prep-cues .mc')).toHaveCount(1);
+  await expect(page.locator('#prep-cues .mc')).toContainText('Roll ⟳');
+  // Kept: after a reload, the song's own.
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.reload();
+  await expect(page.locator('#prep-bpm')).toContainText('126.00', { timeout: 30_000 });
+  await expect(page.locator('[data-pad="A"]')).toHaveClass(/set/);
+});

@@ -23,6 +23,27 @@ pub struct ImportedTrack {
   pub cues: usize,
   pub cue_list: Vec<CuePoint>,
   pub size: Option<f64>,
+  /// The app's beat grid, where the format has one.
+  pub grid: Option<Grid>,
+}
+
+/// A beat grid as Prepare keeps one (`core/library/grid`): the tempo, the first beat's time (s), which of each four beats
+/// is a bar's first (0–3). A DJ app's is its first tempo.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Grid { pub bpm: f64, pub beat0: f64, pub bar: f64 }
+impl Grid {
+  pub fn to_json(&self) -> Value { json!({ "bpm": num_value(self.bpm), "beat0": num_value(self.beat0), "bar": num_value(self.bar) }) }
+  pub fn from_json(v: &Value) -> Option<Grid> { Some(Grid { bpm: v.get("bpm")?.as_f64()?, beat0: v.get("beat0")?.as_f64()?, bar: v.get("bar")?.as_f64()? }) }
+}
+/// Above 0 (not NaN).
+pub fn positive(x: f64) -> bool { x > 0.0 }
+/// `gridAt`: a grid from its tempo and a bar's first beat (before the start or after it): the first beat in the song,
+/// and where the bar starts.
+pub fn grid_at(bpm: f64, down: f64) -> Option<Grid> {
+  if !positive(bpm) || !bpm.is_finite() || !down.is_finite() { return None; }
+  let spb = 60.0 / bpm;
+  let k = (down / spb).floor();
+  Some(Grid { bpm, beat0: down - k * spb, bar: ((k % 4.0) + 4.0) % 4.0 })
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,7 +64,7 @@ pub fn blank_track(external_id: String, path: String) -> ImportedTrack {
   ImportedTrack {
     external_id, path, title: String::new(), artist: String::new(), album: String::new(), genre: String::new(), label: String::new(),
     comment: String::new(), year: String::new(), grouping: String::new(), duration: None, bpm: None, key: None, rating: None, play_count: None,
-    date_added: None, cues: 0, cue_list: vec![], size: None,
+    date_added: None, cues: 0, cue_list: vec![], size: None, grid: None,
   }
 }
 
@@ -64,7 +85,7 @@ impl ImportedTrack {
       "externalId": self.external_id, "path": self.path, "title": self.title, "artist": self.artist, "album": self.album, "genre": self.genre,
       "label": self.label, "comment": self.comment, "year": self.year, "grouping": self.grouping, "duration": n(self.duration), "bpm": n(self.bpm),
       "key": s(&self.key), "rating": n(self.rating), "playCount": n(self.play_count), "dateAdded": s(&self.date_added), "cues": self.cues,
-      "cueList": self.cue_list.iter().map(CuePoint::to_json).collect::<Vec<_>>(), "size": n(self.size),
+      "cueList": self.cue_list.iter().map(CuePoint::to_json).collect::<Vec<_>>(), "size": n(self.size), "grid": self.grid.map_or(Value::Null, |g| g.to_json()),
     })
   }
 }

@@ -45,7 +45,8 @@ After working:
   program on their own computer; when it runs, the website uses it as its disk and engine over the
   local link (ADR 0051).
 - GLUE's data is JSON files in the user's GLUE folder, no database (ADR 0009).
-- Never write into another app's library in v1 (ADR 0010).
+- Write into a DJ app's library only as ADR 0168 allows: through GLUE Home, for a library the user switched on, after
+  a backup, while that app is closed.
 - OS access only through `src/platform/` (ADR 0007): the browser's handles, or GLUE Home's disk in
   Home mode (ADR 0051).
 - One writer of the GLUE folder at a time: a tab in Home mode writes only while it holds GLUE Home's

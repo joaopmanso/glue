@@ -24,7 +24,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": null
+      "size": null,
+      "grid": null
      },
      {
       "externalId": "1000",
@@ -45,7 +46,8 @@
       "dateAdded": "2020-02-02",
       "cues": 0,
       "cueList": [],
-      "size": 1500000
+      "size": 1500000,
+      "grid": null
      },
      {
       "externalId": "abc",
@@ -66,7 +68,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": null
+      "size": null,
+      "grid": null
      }
     ],
     "lists": [

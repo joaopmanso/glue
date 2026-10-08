@@ -1,8 +1,8 @@
 ---
 status: in-progress (steps 1 and 2 shipped 2026-09-26; step 3, the rekordbox XML export, next)
 milestone: M4
-updated: 2026-09-26
-adrs: [0052, 0006, 0011]
+updated: 2026-10-08
+adrs: [0052, 0006, 0011, 0168]
 ---
 # Prepare (track page tab)
 
@@ -30,6 +30,14 @@ tempos. Corrections override the analysis ([ADR 0052](../adr/0052-prepare-tab.md
 - **Re-analyse** resets the BPM and grid corrections; cues and loops stay.
 - Step 2: hot cues A–H, memory cues, loops; the cues from a Rekordbox import can be taken over.
 - Step 3: exported with the rekordbox XML ([exports](exports.md)).
+
+## From the DJ apps (2026-10-08, [ADR 0168](../adr/0168-dj-apps-synced-both-ways.md))
+- **In your DJ apps** (`#prep-apps`): what each of this computer's DJ libraries has for the song, from its record
+  (`SourceTrack.cueList`, `grid`): hot cues, memory cues, loops and the beat grid. **Use its cues** takes them as the
+  song's (replacing GLUE's), **Use its grid** its BPM and first beat (`prepare.useGrid`).
+- Read from rekordbox XML (`POSITION_MARK`, `TEMPO`), Traktor (`CUE_V2`, its AutoGrid marker) and Engine DJ
+  (`PerformanceData`: `quickCues`, `loops`, `beatData`; `core/interop/enginePerf.ts`, `glue_interop::perf`).
+- Next (ADR 0168): what's set here written into Engine DJ, and theirs taken in, both ways.
 
 ## How it works
 - `Track.prep` stores bpm, beat0 (first beat, s), bar (0–3), flip, and later cues.

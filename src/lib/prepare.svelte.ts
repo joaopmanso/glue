@@ -95,6 +95,8 @@ class Prepare {
   replace(t: Track) { this.apply(t, { beat0: undefined, bar: undefined }); }
   /** Back to the analysis: BPM and grid (cues stay). */
   reset(t: Track) { this.apply(t, { bpm: undefined, beat0: undefined, bar: undefined }); }
+  /** A DJ app's grid taken as this song's (ADR 0168). */
+  useGrid(t: Track, g: Grid) { this.save(t, g); }
   flip(t: Track) { this.apply(t, { flip: t.prep?.flip ? undefined : true }); }
 }
 

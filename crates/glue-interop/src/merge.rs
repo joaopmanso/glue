@@ -41,6 +41,7 @@ impl ImportedTrack {
     t.duration = number(v, "duration"); t.bpm = number(v, "bpm"); t.key = opt_text(v, "key"); t.rating = number(v, "rating");
     t.play_count = number(v, "playCount"); t.date_added = opt_text(v, "dateAdded"); t.cues = number(v, "cues").unwrap_or(0.0) as usize;
     t.cue_list = get(v, "cueList").and_then(Value::as_array).into_iter().flatten().map(CuePoint::from_json).collect(); t.size = number(v, "size");
+    t.grid = get(v, "grid").and_then(Grid::from_json);
     t
   }
 }
@@ -101,6 +102,7 @@ fn carried_engine<D: Dir>(store: &Store<D>, existing: Option<&Value>, lib: &Impo
     it.bpm = number(s, "bpm"); it.key = opt_text(s, "key"); it.rating = number(s, "rating"); it.play_count = number(s, "playCount");
     it.date_added = opt_text(s, "dateAdded"); it.cues = number(s, "cues").unwrap_or(0.0) as usize;
     it.cue_list = get(s, "cueList").and_then(Value::as_array).into_iter().flatten().map(CuePoint::from_json).collect();
+    it.grid = get(s, "grid").and_then(Grid::from_json);
     out.push(it);
   }
   out
@@ -204,6 +206,7 @@ pub fn apply_import<D: Dir>(store: &mut Store<D>, mut lib: ImportedLibrary, file
     ext2track.insert(it.external_id.clone(), t.clone());
     let mut s = json!({ "externalId": it.external_id, "trackId": st(&t, "id"), "bpm": opt(it.bpm), "key": opt_s(&it.key), "rating": opt(it.rating), "playCount": opt(it.play_count), "cues": it.cues, "dateAdded": opt_s(&it.date_added), "path": it.path });
     if !it.cue_list.is_empty() { s["cueList"] = Value::Array(it.cue_list.iter().map(CuePoint::to_json).collect()); }
+    if let Some(g) = it.grid { s["grid"] = g.to_json(); }
     source_tracks.push(s);
   }
   store.put_tracks(touched.values().cloned().collect());

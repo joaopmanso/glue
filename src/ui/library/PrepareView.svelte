@@ -18,7 +18,8 @@
   import type { Track } from '../../store/types';
   import type { CuePoint } from '../../core/interop/types';
   import { HOT_COLORS, LETTERS, addMemory, autoLoop, hotCue, importable, removeCue, renameCue, setHotCue, snap } from '../../core/library/cueEdit';
-  import { cuesFor } from '../../lib/cues';
+  import { fromApps } from '../../lib/cues';
+  import { APP_NAMES } from '../../lib/view.svelte';
 
   let { track }: { track: Track } = $props();
   const key = $derived('track:' + track.id);
@@ -125,8 +126,13 @@
 
   // ─── Cues and loops (step 2) ─────────────────────────────────────────────────
   const cues = $derived.by(() => { void lib.version; return cur().prep?.cues ?? []; });
-  /** An import's cues, offered while the track has none of its own. */
-  const imported = $derived.by(() => { void lib.version; return cur().prep?.cues ? [] : importable(cuesFor(track.id)); });
+  /** What each DJ app has for this song (ADR 0168): its cues and loops, and its grid, each taken over with a click. */
+  const apps = $derived.by(() => { void lib.version; return fromApps(track.id); });
+  const appSummary = (a: { cues: CuePoint[]; grid: { bpm: number } | null }) => {
+    const n = (k: string, c: number) => c ? c + ' ' + k + (c === 1 ? '' : 's') : '';
+    return [n('hot cue', a.cues.filter(c => c.kind === 'cue' && c.num != null).length), n('memory cue', a.cues.filter(c => c.kind === 'cue' && c.num == null).length),
+      n('loop', a.cues.filter(c => c.kind === 'loop').length), a.grid ? a.grid.bpm.toFixed(2) + ' BPM grid' : ''].filter(Boolean).join(' · ') || 'nothing set';
+  };
   const memory = $derived(cues.filter(c => c.num == null));
   let quantize = $state(readPref('prepQ', '1') === '1');
   $effect(() => writePref('prepQ', quantize ? '1' : '0'));
@@ -253,10 +259,20 @@
           </span>
         {/each}
       </div>
-      {#if imported.length}
-        <button type="button" class="mini" id="prep-import-cues" title="Take the cues and loops from your imported DJ library as this track's" onclick={() => saveCues(imported)}>Use the {imported.length} cue{imported.length === 1 ? '' : 's'} from your DJ app</button>
-      {/if}
     </section>
+    {#if apps.length}
+      <section class="apps" aria-label="In your DJ apps" id="prep-apps" data-guide="prep-apps">
+        <span class="k">In your DJ apps</span>
+        {#each apps as a (a.sourceId)}
+          {@const take = importable(a.cues)}
+          <div class="app" data-app-cues={a.app}>
+            <b>{APP_NAMES[a.app] ?? a.app}</b><small>{appSummary(a)}</small>
+            {#if take.length}<button type="button" class="mini" data-use-cues={a.app} title={'Take ' + (APP_NAMES[a.app] ?? a.app) + '’s cues and loops as this song’s (they replace GLUE’s)'} onclick={() => saveCues(take)}>Use its cues</button>{/if}
+            {#if a.grid}{@const g = a.grid}<button type="button" class="mini" data-use-grid={a.app} title={'Take ' + (APP_NAMES[a.app] ?? a.app) + '’s beat grid: ' + g.bpm.toFixed(2) + ' BPM, first beat at ' + fmtCue(g.beat0)} onclick={() => prepare.useGrid(cur(), g)}>Use its grid</button>{/if}
+          </div>
+        {/each}
+      </section>
+    {/if}
     {#if show3d}<div class="c3d"><Live3D /></div>{/if}
     {#if message}<p class="err">{message}</p>{/if}
     <p class="fine">Space plays · 1–8 hot cues (shift: clear) · M metronome · T tap · ← → nudge the grid (shift: 1 ms) · wheel on the waveform zooms · drag it to scrub.</p>
@@ -300,6 +316,9 @@
   .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .mini:disabled { opacity: .4; cursor: default; }
   .cues { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 8px 12px; }
+  .apps { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 2px 4px; }
+  .apps .app { display: inline-flex; gap: 8px; align-items: center; }
+  .apps .app small { color: var(--muted); }
   .pads { display: flex; gap: 5px; align-items: center; }
   .pad { width: 54px; height: 38px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line-2)); background: color-mix(in srgb, var(--c) 6%, var(--ground)); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; line-height: 1.1; padding: 2px; }
   .pad b { font-size: 13px; }

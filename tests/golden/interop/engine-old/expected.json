@@ -24,7 +24,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": null
+      "size": null,
+      "grid": null
      },
      {
       "externalId": "2",
@@ -45,7 +46,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": null
+      "size": null,
+      "grid": null
      }
     ],
     "lists": [],

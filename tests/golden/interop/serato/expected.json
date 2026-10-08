@@ -24,7 +24,8 @@
       "dateAdded": "2026-01-01",
       "cues": 0,
       "cueList": [],
-      "size": 8.5
+      "size": 8.5,
+      "grid": null
      },
      {
       "externalId": "/volumes/ext/b.mp3",
@@ -45,7 +46,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": null
+      "size": null,
+      "grid": null
      },
      {
       "externalId": "/c.mp3",
@@ -66,7 +68,8 @@
       "dateAdded": null,
       "cues": 0,
       "cueList": [],
-      "size": null
+      "size": null,
+      "grid": null
      }
     ],
     "lists": [

@@ -61,6 +61,10 @@ pub fn parse_traktor_nml(xml: &str, file_name: &str) -> Result<ImportedLibrary, 
     }).collect();
     t.cue_list.sort_by(|x, y| x.t.partial_cmp(&y.t).unwrap_or(std::cmp::Ordering::Equal));
     t.cues = t.cue_list.len();
+    // The grid: the AutoGrid marker (TYPE 4) is a bar's first beat, at the TEMPO's BPM.
+    if let (Some(auto), Some(bpm)) = (e.children_named("CUE_V2").find(|c| c.attr("TYPE") == Some("4")), t.bpm) {
+      t.grid = grid_at(bpm, num(auto.attr("START")).unwrap_or(0.0) / 1000.0);
+    }
     tracks.push(t);
   }
   let mut lists = vec![];

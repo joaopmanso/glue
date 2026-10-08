@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import initSqlJs from 'sql.js';
+import { deflateSync } from 'node:zlib';
 import { parseLibraryFiles } from '../src/lib/imports';
 
 const OUT = join(__dirname, 'golden', 'interop');
@@ -148,7 +149,37 @@ function engineMain(SQL: SQL) {
     INSERT INTO Playlist VALUES (10,'Second',0,0),(11,'First',0,10),(12,'Child',11,13),(13,'Child',11,0),(20,'Loop A',0,21),(21,'Loop B',0,20),(30,'Lost',99,0);
     INSERT INTO PlaylistEntity VALUES (100,10,2,'pc-uuid',101),(101,10,1,'pc-uuid',102),(102,10,5,'drive-uuid',103),(103,10,9,'stick-uuid',104),(104,10,77,'pc-uuid',0);
     INSERT INTO PlaylistEntity VALUES (105,11,1,NULL,0),(106,12,3,'pc-uuid',0),(107,13,5,'drive-uuid',0),(108,30,1,'pc-uuid',0);`);
+  // Cues, loops and grids (ADR 0168), as Engine DJ packs them (vault/research/engine-dj-write-back.md).
+  db.run('CREATE TABLE PerformanceData (trackId INTEGER PRIMARY KEY, trackData BLOB, overviewWaveFormData BLOB, beatData BLOB, quickCues BLOB, loops BLOB, thirdPartySourceId INTEGER, activeOnLoadLoops INTEGER)');
+  const put = (id: number, o: { q?: Uint8Array | null; l?: Uint8Array | null; b?: Uint8Array | null; t?: Uint8Array | null }) => db.run('INSERT INTO PerformanceData (trackId, quickCues, loops, beatData, trackData) VALUES (?, ?, ?, ?, ?)', [id, o.q ?? null, o.l ?? null, o.b ?? null, o.t ?? null]);
+  put(1, {
+    q: qCompress(quick([{ name: 'Drop', at: 44100 * 64.5, argb: [255, 40, 226, 20] }, null, null, { name: '', at: 1000, argb: [0, 0, 0, 0] }, null, null, null, { name: 'Ünï', at: 44100 * 200, argb: [255, 0, 0, 255] }], { main: 22050, moved: 1, def: 0 }, [7, 7])),
+    l: loopsBlob([null, { name: 'Roll', a: 44100 * 96, b: 44100 * 98, aSet: 1, bSet: 1, argb: [255, 255, 128, 0] }, { name: 'Half', a: 44100 * 10, b: -1, aSet: 1, bSet: 0, argb: [0, 0, 0, 0] }, null, null, null, null, null], [1]),
+    b: qCompress(beats(44100, 14_155_000, [[-31414.5, -4, 858], [14_131_000.25, 854, 0]], [[-30000, -4, 858], [14_132_414.5, 854, 0]], [1, 2, 3, 4, 5, 6, 7, 8, 9])),
+    t: qCompress(be64(44100)),
+  });
+  put(2, {});
+  // No beat data: the rate from trackData; cues cut short: what was read.
+  put(5, { q: qCompress(quick([{ name: 'Only', at: 48000 * 30, argb: [255, 1, 2, 3] }, null, null, null, null, null, null, null], { main: 0, moved: 0, def: 0 }, []).slice(0, 40)), t: qCompress(be64(48000)) });
   const b = db.export(); db.close(); return b;
+}
+// ── Engine DJ's packed fields ──
+const be64 = (x: number) => { const b = new Uint8Array(8); new DataView(b.buffer).setFloat64(0, x, false); return b; };
+const cat = (...p: (Uint8Array | number[])[]) => { const out: number[] = []; for (const x of p) out.push(...x); return new Uint8Array(out); };
+function qCompress(raw: Uint8Array) { const z = deflateSync(raw), out = new Uint8Array(4 + z.length); new DataView(out.buffer).setUint32(0, raw.length, false); out.set(z, 4); return out; }
+const label = (s: string) => { const b = new TextEncoder().encode(s); return [b.length, ...b]; };
+const i64 = (x: number, le: boolean) => { const b = new Uint8Array(8); new DataView(b.buffer).setBigInt64(0, BigInt(x), le); return b; };
+const f64 = (x: number, le: boolean) => { const b = new Uint8Array(8); new DataView(b.buffer).setFloat64(0, x, le); return b; };
+const i32 = (x: number) => { const b = new Uint8Array(4); new DataView(b.buffer).setInt32(0, x, true); return b; };
+function quick(cues: ({ name: string; at: number; argb: number[] } | null)[], m: { main: number; moved: number; def: number }, extra: number[]) {
+  return cat(i64(cues.length, false), ...cues.map(c => c ? cat(label(c.name), f64(c.at, false), c.argb) : cat([0], f64(-1, false), [0, 0, 0, 0])), f64(m.main, false), [m.moved], f64(m.def, false), extra);
+}
+function loopsBlob(ls: ({ name: string; a: number; b: number; aSet: number; bSet: number; argb: number[] } | null)[], extra: number[]) {
+  return cat(i64(ls.length, true), ...ls.map(l => l ? cat(label(l.name), f64(l.a, true), f64(l.b, true), [l.aSet, l.bSet], l.argb) : cat([0], f64(-1, true), f64(-1, true), [0, 0, 0, 0, 0, 0])), extra);
+}
+function beats(sr: number, samples: number, def: [number, number, number][], adj: [number, number, number][], extra: number[]) {
+  const grid = (ms: [number, number, number][]) => cat(i64(ms.length, false), ...ms.map(([at, beat, n]) => cat(f64(at, true), i64(beat, true), i32(n), i32(0))));
+  return cat(f64(sr, false), f64(samples, false), [1], grid(def), grid(adj), extra);
 }
 function engineDrive(SQL: SQL) {
   const db = new SQL.Database();

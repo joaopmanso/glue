@@ -1,6 +1,6 @@
 /* Traktor collection.nml. LOCATION = VOLUME + DIR ("/:"-separated) + FILE. */
 import { child, childrenNamed, parseXml, type XNode } from './xml';
-import { blankTrack, num, pathId, type ImportedLibrary, type ImportedList } from './types';
+import { blankTrack, gridAt, num, pathId, type ImportedLibrary, type ImportedList } from './types';
 
 export function isTraktorNml(head: string) { return /<NML[\s>]/.test(head); }
 
@@ -46,6 +46,9 @@ export function parseTraktorNml(xml: string, fileName = 'collection.nml'): Impor
         num: hc != null && hc >= 0 ? hc : null, name: a.NAME && a.NAME !== 'n.n.' ? a.NAME : '', color: null, end: type === '5' && len > 0 ? start + len : null };
     }).sort((a, b) => a.t - b.t);
     t.cues = t.cueList.length;
+    // The grid: the AutoGrid marker (TYPE 4) is a bar's first beat, at the TEMPO's BPM.
+    const auto = childrenNamed(e, 'CUE_V2').find(c => c.attrs.TYPE === '4');
+    if (auto && t.bpm) t.grid = gridAt(t.bpm, (num(auto.attrs.START) ?? 0) / 1000);
     tracks.push(t);
   }
   const lists: ImportedList[] = [];

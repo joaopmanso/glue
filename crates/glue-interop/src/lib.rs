@@ -5,6 +5,7 @@ pub mod engine;
 pub mod linked;
 pub mod m3u;
 pub mod merge;
+pub mod perf;
 pub mod rekordbox;
 pub mod serato;
 pub mod traktor;

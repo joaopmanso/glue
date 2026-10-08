@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-08)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.64.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.65.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.65.0** (ADR 0168, phase 1): open a song that's in Engine DJ (or rekordbox, Traktor) and its **Prepare**
+  tab: under the cues, **In your DJ apps** should list each app's hot cues, loops and grid; **Use its cues** /
+  **Use its grid** take them. (GLUE Home reads each library once more after the update, for these; Refresh does it
+  now.)
 - **GLUE Home 0.64.0** (ADR 0167): DJ libraries are GLUE Home's now. On the desktop with GLUE Home running:
   - the DJ libraries panel should still show the libraries (with the live dot); the music folders' libraries are found
     again (they weren't since ADR 0162);
@@ -148,11 +152,20 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 The user (2026-10-08): "I want to get all of these moved to Rust so that we can move on to the DJ library cue points
 and real-time integrations." Done: the clashes (0.60, ADR 0163), the duplicates' matching (0.61, ADR 0164) and groups
 (0.62, ADR 0165), the verdict re-check and the open-time repairs (0.63, ADR 0166), the DJ libraries (0.64, ADR 0167:
-parsers, import, following and finding, `crates/glue-interop` and the engine's `dj.rs`). **Next: the cue points and the
-real-time integrations** (the user's goal). Not planned yet: ask what the user means by each before designing
-(cue points: GLUE's own markers, edited in Prepare, written to rekordbox XML / Engine DJ on export, read from the
-libraries as `cueList` already is; real-time: what a DJ app is playing now? Engine DJ's StagelinQ, rekordbox's PRO DJ
-LINK, Traktor's broadcast…). Smaller leftovers of the page's library work with GLUE Home:
+parsers, import, following and finding, `crates/glue-interop` and the engine's `dj.rs`). **Now: two-way sync with the DJ apps** (ADR 0168, the user's goal 2026-10-08: "prepare songs outside
+of their DJ native apps": playlists, cues, loops and the grid, both ways; write-back opt-in per library, a backup before
+every write, only while the app is closed; Engine DJ first; clashes asked; the grid included). Phase 1 (every app's
+cues, loops and grid shown in Prepare) shipped in 0.65. Next:
+2. **Cues, loops and the grid written into Engine DJ**: GLUE Home keeps the last synced state per (library, song); a
+   three-way merge (like `glue_store::merge3`); the song's `PerformanceData` row changed in place in the database that
+   holds it (unknown bytes kept, `vault/research/engine-dj-write-back.md`), with Engine DJ closed (`m.db-journal` empty
+   and no Engine DJ process), after a backup of that m.db; a per-library switch ("Write GLUE's changes into Engine
+   DJ") in the DJ libraries panel. Test on throwaway databases only (made like `tests/interop.golden.test.ts`'s);
+   never on the user's until they say so.
+3. **Playlists both ways with Engine DJ**: first an experiment, with the user, on how Engine DJ reconciles the playlist
+   tree it copies into every database (C:, F:, G: hold the same 763 lists; drives not connected?). Its own triggers
+   keep the linked lists (inserting before a list, deleting).
+4. rekordbox (`master.db`, SQLCipher), then Traktor and Serato. Smaller leftovers of the page's library work with GLUE Home:
 - a file chosen in the browser with + Import is still parsed by the page (its bytes are the browser's);
 - the page still sets `origin` on a library it finds that was imported by hand (`detectLibraries`), and follows a
   `place:` library (only the browser can reach it).

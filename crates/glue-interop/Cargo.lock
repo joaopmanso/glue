@@ -104,6 +104,7 @@ dependencies = [
 name = "glue-interop"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "glue-store",
  "indexmap",
  "regex",

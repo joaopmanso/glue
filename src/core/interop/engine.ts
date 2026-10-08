@@ -6,6 +6,7 @@
    "uuid/id", and entries are resolved across every library imported so far (resolveEngine). */
 import type { Database, SqlJsStatic } from 'sql.js';
 import { blankTrack, num, type ImportedLibrary, type ImportedList, type ImportedTrack } from './types';
+import { performance } from './enginePerf';
 
 export function isSqlite(b: Uint8Array) { return b.length > 16 && new TextDecoder().decode(b.subarray(0, 15)) === 'SQLite format 3'; }
 
@@ -34,7 +35,8 @@ function linkedOrder<T extends { id: number; next: number }>(items: T[]): T[] {
   return out;
 }
 
-export function parseEngineDb(bytes: Uint8Array, SQL: SqlJsStatic, fileName = 'm.db'): ImportedLibrary {
+/** Async: its cues, loops and grid are zlib-packed (`enginePerf.ts`). */
+export async function parseEngineDb(bytes: Uint8Array, SQL: SqlJsStatic, fileName = 'm.db'): Promise<ImportedLibrary> {
   const db = new SQL.Database(bytes);
   try {
     const tables = new Set(rows(db, "SELECT name FROM sqlite_master WHERE type='table'").map(r => String(r.name)));
@@ -43,6 +45,7 @@ export function parseEngineDb(bytes: Uint8Array, SQL: SqlJsStatic, fileName = 'm
     const uuid = tables.has('Information') && cols(db, 'Information').has('uuid') ? String(rows(db, 'SELECT uuid FROM Information LIMIT 1')[0]?.uuid ?? '') : '';
     const ext = (id: unknown) => uuid ? uuid + '/' + String(id) : String(id);
     const pick = (c: string) => tc.has(c) ? c : 'NULL';
+    const ids = new Map<ImportedTrack, unknown>();
     const tracks = rows(db, `SELECT id, ${pick('path')} AS path, ${pick('filename')} AS filename, ${pick('title')} AS title, ${pick('artist')} AS artist,
       ${pick('album')} AS album, ${pick('genre')} AS genre, ${pick('comment')} AS comment, ${pick('label')} AS label, ${pick('year')} AS year,
       ${pick('bpmAnalyzed')} AS bpmAnalyzed, ${pick('bpm')} AS bpm, ${pick('key')} AS key, ${pick('rating')} AS rating, ${pick('length')} AS length,
@@ -58,8 +61,22 @@ export function parseEngineDb(bytes: Uint8Array, SQL: SqlJsStatic, fileName = 'm
       t.duration = num(String(r.length ?? ''));
       const da = num(String(r.dateAdded ?? '')); t.dateAdded = da && da > 0 ? new Date(da * 1000).toISOString().slice(0, 10) : null;
       t.size = num(String(r.fileBytes ?? ''));
+      ids.set(t, r.id);
       return t;
     }).filter(t => t.path);
+    // Cues, loops and the beat grid (ADR 0168), where the database has them.
+    if (tables.has('PerformanceData')) {
+      const pc = cols(db, 'PerformanceData'), pk = (c: string) => pc.has(c) ? c : 'NULL';
+      const perf = new Map<unknown, Record<string, unknown>>();
+      for (const r of rows(db, `SELECT trackId, ${pk('quickCues')} AS quickCues, ${pk('loops')} AS loops, ${pk('beatData')} AS beatData, ${pk('trackData')} AS trackData FROM PerformanceData`)) perf.set(r.trackId, r);
+      const blob = (v: unknown) => v instanceof Uint8Array ? v : null;
+      for (const t of tracks) {
+        const r = perf.get(ids.get(t));
+        if (!r) continue;
+        const p = await performance({ quickCues: blob(r.quickCues), loops: blob(r.loops), beatData: blob(r.beatData), trackData: blob(r.trackData) });
+        t.cueList = p.cueList; t.cues = p.cueList.length; t.grid = p.grid;
+      }
+    }
     const lists: ImportedList[] = [], entries = new Map<string, string[]>();
     if (tables.has('Playlist') && tables.has('PlaylistEntity')) {
       const pl = rows(db, 'SELECT id, title, parentListId AS parent, nextListId AS next FROM Playlist')
