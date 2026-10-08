@@ -258,7 +258,7 @@ test('adds single songs, links them to imports, and keeps them across reloads', 
   // Still there after a reload, and the track page can read the file.
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
   await page.reload();
-  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 20_000 });
+  await expect(page.locator('.tr')).toHaveCount(2, { timeout: 20_000 });   // on "Added songs" still (its address)
   await page.locator('.tr', { hasText: 'aiff-44k-24' }).dblclick();
   const allow = page.getByRole('button', { name: 'Allow and analyse' });
   await expect(page.locator('#v-pill').or(allow)).toBeVisible({ timeout: 30_000 });
@@ -425,7 +425,8 @@ test('a deleted playlist or folder goes to Recently deleted, and Restore puts it
   // Gigs is back, with Friday inside (opened to see it); still so after a reload.
   const opened = async () => { await expect.poll(names).toContain('Gigs'); if (!(await names()).includes('Friday')) await page.locator('.lside .tree li', { has: page.locator('.name', { hasText: 'Gigs' }) }).first().locator('.twist').first().click(); await expect.poll(names).toEqual(['Gigs', 'Friday']); };
   await opened();
-  await page.reload();
+  await page.reload();   // (on the view it was on: its address)
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click({ timeout: 30_000 });
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
   await opened();
 });
@@ -1075,7 +1076,8 @@ test('finds the same recording under different names and formats', async ({ page
   });
   expect(kept.results).toBe(1);
   expect(kept.packs).toBeGreaterThan(0);
-  await page.reload();
+  await page.reload();   // (on the view it was on: its address)
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click({ timeout: 20_000 });
   await expect(page.locator('.tr')).toHaveCount(2, { timeout: 20_000 });
   await expect(page.locator('.tr', { hasText: 'HHH 04 RADIX' }).locator('.dup')).toHaveText('2×', { timeout: 2_000 });
   await page.locator('.tr', { hasText: 'HHH 04 RADIX' }).first().locator('.dup').click();
@@ -1100,7 +1102,8 @@ test('finds the same recording under different names and formats', async ({ page
   await grp.getByRole('button', { name: 'Not duplicates' }).click();
   await expect(page.locator('#dupes .grp')).toHaveCount(0);
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
-  await page.reload();
+  await page.reload();   // (on Duplicates still: its address)
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click({ timeout: 20_000 });
   await expect(page.locator('.tr')).toHaveCount(3, { timeout: 20_000 });
   await page.waitForTimeout(2500);
   await expect(page.locator('.tr .dup')).toHaveCount(0);
@@ -1828,14 +1831,14 @@ test('email + password account, and the admin panel only for admins', async ({ p
   await expect(page.locator('#admin-tab')).toHaveCount(0);
   await expect(page.locator('#admin-link')).toHaveCount(0);
   await page.goto('./#/admin');
-  await expect(page).toHaveURL(/#\/$/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/#\/(all-tracks)?$/, { timeout: 15_000 });
   await expect(page.locator('#admin')).toHaveCount(0);
   expect(calls).toEqual([]);
   // Signed out, too (the account menu may still be open from signing in).
   if (!await page.locator('#sign-out').isVisible()) await page.click('#account-btn');
   await page.click('#sign-out');
   await page.goto('./#/admin');
-  await expect(page).toHaveURL(/#\/$/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/#\/(all-tracks)?$/, { timeout: 15_000 });
   await page.click('#account-btn');
   await page.fill('#pw-email', 'dj@example.com');
   await page.fill('#pw-password', 'correct horse battery');
@@ -2016,7 +2019,7 @@ test('GLUE Home opens the library: a GLUE tab that is open comes forward; "Use t
     await expect(second.locator('.lside')).toBeVisible({ timeout: 15_000 });
     await expect(second.locator('.notice.warn')).toHaveCount(0);                  // it has the GLUE folder, not read-only
     await expect(page.locator('#tab-elsewhere')).toContainText('moved to another tab');
-    await expect(second).toHaveURL(/\/glue\/#\/$/);                               // ?open=home is gone
+    await expect(second).toHaveURL(/\/glue\/#\/(all-tracks)?$/);                               // ?open=home is gone
   }
 });
 
@@ -2817,7 +2820,7 @@ test('No file linked: songs an Engine DJ library lists whose files are gone are 
   await expect(page.locator('#relink-none li')).toHaveCount(2);
 });
 
-test('the browser’s Back and Forward go through the library’s views, and back from a song’s page to the view it came from (the user, 2026-10-08)', async ({ page }) => {
+test('each view has its address: the browser’s Back and Forward go through them, a reload or a link opens one, and back from a song’s page to the view it came from (the user, 2026-10-08)', async ({ page }) => {
   await seed(page);
   await page.goto('./');
   await page.click('#choose-home');
@@ -2828,9 +2831,11 @@ test('the browser’s Back and Forward go through the library’s views, and bac
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
   const on = (k: string) => expect(page.locator(`.lside [data-view="${k}"]`)).toHaveClass(/\bsel\b/);
   await on('all');
+  await expect(page).toHaveURL(/#\/all-tracks$/);
   await page.locator('.lside [data-view="recent"]').click(); await on('recent');
+  await expect(page).toHaveURL(/#\/recently-added$/);
   await page.locator('.lside [data-view="dupes"]').click(); await on('dupes');
-  expect(new URL(page.url()).hash).toMatch(/^(#\/?)?$/);   // no page of their own
+  await expect(page).toHaveURL(/#\/duplicates$/);
   // Back: the view before; again: the first one.
   await page.goBack(); await on('recent');
   await page.goBack(); await on('all');
@@ -2843,4 +2848,26 @@ test('the browser’s Back and Forward go through the library’s views, and bac
   await on('recent');
   await page.goForward();
   await expect(page).toHaveURL(/#\/track\//);
+  // "← Library": the view it came from.
+  await page.locator('a', { hasText: '← Library' }).first().click();
+  await expect(page).toHaveURL(/#\/recently-added$/); await on('recent');
+  // A playlist's address; reloaded, the same view.
+  page.once('dialog', d => void d.accept('Warm up'));
+  await page.locator('.tr', { hasText: 'Fixture MP3' }).locator('.c-title').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="add"]').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
+  await page.locator('.lside .tree .name', { hasText: 'Warm up' }).click();
+  await expect(page).toHaveURL(/#\/playlist\/[\w-]+$/);
+  const playlist = page.url();
+  await page.locator('.lside [data-view="dupes"]').click();
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  await page.goto(playlist);
+  await expect(page.locator('.tr')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.locator('.lside .tree .item', { hasText: 'Warm up' })).toHaveClass(/\bsel\b/);
+  // One that's gone: All tracks.
+  await page.goto(playlist.replace(/playlist\/[\w-]+$/, 'playlist/gone'));
+  await expect(page).toHaveURL(/#\/all-tracks$/, { timeout: 30_000 }); await on('all');
+  // "#/" alone: the library as it was.
+  await page.locator('.lside [data-view="recent"]').click();
+  await page.evaluate(() => { location.hash = '#/'; });
+  await expect(page).toHaveURL(/#\/recently-added$/); await on('recent');
 });

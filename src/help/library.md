@@ -18,7 +18,7 @@ The **Library** section of the sidebar picks songs out:
 
 Right-click a view to hide it; "hidden · show…" brings it back.
 
-Your browser's **Back** and **Forward** (and your mouse's back button) go through the views you opened, and back from a song's page to the view you opened it from.
+Each view has its own address (`#/duplicates`, `#/recently-added`, `#/playlist/…`), so you can bookmark one or reload on it. Your browser's **Back** and **Forward** (and your mouse's back button) go through the views you opened, and back from a song's page to the view you opened it from.
 
 ## Finding songs
 - **Search** finds songs by title, artist, album, genre, label or tag.

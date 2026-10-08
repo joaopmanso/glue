@@ -8,7 +8,7 @@
   import { app, analyzeFile, showResult } from '../../lib/app.svelte';
   import { player } from '../../lib/player.svelte';
   import { router, trackHref, trackTab } from '../../lib/route.svelte';
-  import { view } from '../../lib/view.svelte';
+  import { view, viewHash } from '../../lib/view.svelte';
   import { summarize } from '../../core/library/summary';
   import { formatOf } from '../../core/library/tags';
   import { fmtBytes, fmtTime } from '../../core/format';
@@ -227,7 +227,7 @@ canPlay = true;
 
 <div class="detail">
   <nav class="crumbs">
-    <a href="#/">← Library</a>
+    <a href={viewHash(view.sel)}>← Library</a>
     <span class="nav">
       {#if phase === 'ready'}
         <span class="src">{stored ? 'Stored analysis' : 'Just analysed'}</span>

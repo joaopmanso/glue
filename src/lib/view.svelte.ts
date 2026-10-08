@@ -1,13 +1,14 @@
 /* What the library view shows: the selected sidebar entry, search, sort and row selection. */
 import { asShown } from '../core/library/summary';
-import { facetInfo, inFacet, type Facet } from '../core/library/browse';
+import { facetInfo, facetKey, inFacet, type Facet } from '../core/library/browse';
+import { untrack } from 'svelte';
 import { lib } from './library.svelte';
 import type { InfoField } from '../core/library/tags';
 import { time } from '../core/perf';
 import { bpmShown } from './bpm';
 import { LOOSE } from '../store/merge';
 import { dupes } from './dupes.svelte';
-import type { AnalysisSummary, Source, Track } from '../store/types';
+import { INCOMING_ROOT, type AnalysisSummary, type Source, type Track } from '../store/types';
 import { keyLabel, type KeyNotation } from '../core/audio/keys';
 import { hasTag, tagsOf } from '../core/library/tagging';
 import { readPref, writePref } from './prefs';
@@ -55,11 +56,11 @@ class View {
   reveal = $state<string | null>(null);
   anchor: string | null = null;
 
-  /** `history: false`: the browser's Back or Forward chose it (no new step). */
-  select(s: ViewSel, opts: { history?: boolean } = {}) {
-    const was = this.sel;
+  /** Its address follows (`viewHash`): a step in the browser's history, or `replace` the current one; `history: false`:
+      the address chose it. */
+  select(s: ViewSel, opts: { history?: boolean; replace?: boolean } = {}) {
     this.sel = s; this.selected = new Set(); this.anchor = null; const ordered = s.kind === 'list' || s.kind === 'dj'; if (!ordered && this.sort.key === 'order') this.sort = { key: 'added', dir: -1 }; else if (ordered) this.sort = { key: 'order', dir: 1 };
-    if (opts.history !== false) viewStep(was, s);
+    if (opts.history !== false && router.current.name === 'library') { const h = viewHash(s); if (opts.replace) router.replace(h); else router.go(h); }
   }
   /** "#" (playlist order) always sorts ascending: it's the order you arrange by dragging. */
   sortBy(k: SortKey) { this.sort = k === 'order' ? { key: k, dir: 1 } : this.sort.key === k ? { key: k, dir: this.sort.dir === 1 ? -1 : 1 } : { key: k, dir: k === 'added' ? -1 : 1 }; }
@@ -162,33 +163,68 @@ class View {
 }
 export const view = new View();
 
-/* The browser's Back and Forward go through the views (the user, 2026-10-08: the mouse's Back left GLUE from
-   Duplicates): each view chosen in the library is a step in the browser's history, at the same address (no page of
-   its own); the step left keeps the view it showed. Back or Forward chooses that view again; one gone since (a
-   playlist deleted), All tracks. */
-const plain = (s: ViewSel) => JSON.parse(JSON.stringify(s)) as ViewSel;
-const sameView = (a: ViewSel, b: ViewSel) => JSON.stringify(a) === JSON.stringify(b);
-function viewStep(was: ViewSel, now: ViewSel) {
-  if (typeof history === 'undefined' || router.current.name !== 'library' || sameView(was, now)) return;
-  try {
-    history.replaceState({ ...(history.state ?? {}), glueView: plain(was) }, '');
-    history.pushState({ glueView: plain(now) }, '');
-  } catch { /* history unavailable (a sandboxed frame) */ }
+/* The view's address (the user, 2026-10-08): #/duplicates, #/playlist/<id>, #/browse/artist/<name>… The address is
+   the view: choosing one is a step in the browser's history (Back and Forward go through them; the mouse's Back left
+   GLUE from Duplicates), and a view's address opens it (one gone since, a playlist deleted: All tracks). "#/" alone is
+   the library as it was (a song page's "← Library"): it becomes the view's address. */
+const SLUG: Record<string, string> = { all: 'all-tracks', recent: 'recently-added', pending: 'not-analysed', failed: 'couldnt-analyse', attention: 'lower-quality', unlinked: 'no-file', dupes: 'duplicates' };
+const KIND = Object.fromEntries(Object.entries(SLUG).map(([k, s]) => [s, k]));
+const FACETS: string[] = ['artist', 'album', 'genre', 'label', 'year'];
+const enc = encodeURIComponent;
+const dec = (x: string) => { try { return decodeURIComponent(x); } catch { return x; } };
+export function viewHash(s: ViewSel): string {
+  switch (s.kind) {
+    case 'list': return '#/playlist/' + enc(s.id);
+    case 'source': return '#/dj-library/' + enc(s.id);
+    case 'dj': return '#/dj-library/' + enc(s.sourceId) + '/' + enc(s.id);
+    case 'root': return '#/folder/' + enc(s.id);
+    case 'tag': return '#/tag/' + enc(s.name);
+    case 'browse': return '#/browse/' + s.by;
+    case 'facet': return '#/browse/' + s.by + '/' + enc(s.value);
+    default: return '#/' + SLUG[s.kind];
+  }
 }
+/** The view an address names; null: none (`#/`, or one not known). */
+export function viewOf(path: string): ViewSel | null {
+  const [a, b, c] = path.split('/');
+  if (!a) return null;
+  if (KIND[a] && !b) return { kind: KIND[a] } as ViewSel;
+  if (!b) return null;
+  if (a === 'playlist') return { kind: 'list', id: dec(b) };
+  if (a === 'dj-library') return c ? { kind: 'dj', sourceId: dec(b), id: dec(c) } : { kind: 'source', id: dec(b) };
+  if (a === 'folder') return { kind: 'root', id: dec(b) };
+  if (a === 'tag') return { kind: 'tag', name: dec(b) };
+  if (a === 'browse' && FACETS.includes(b)) { if (!c) return { kind: 'browse', by: b as Facet }; const value = dec(c); return { kind: 'facet', by: b as Facet, key: facetKey(value), value }; }
+  return null;
+}
+const sameView = (x: ViewSel, y: ViewSel) => JSON.stringify(x) === JSON.stringify(y);
 function stillThere(s: ViewSel): boolean {
   const st = lib.store;
-  if (!st) return false;
+  if (!st) return true;   // not open yet: looked at when it opens
   if (s.kind === 'list') return st.lists.has(s.id);
   if (s.kind === 'source') return st.sources.has(s.id);
   if (s.kind === 'dj') return st.sources.has(s.sourceId);
-  if (s.kind === 'root') return st.meta.roots.some(r => r.id === s.id);
+  // Songs added on their own (there while there are some) and GLUE Home's TO BE SORTED are music folders of their own,
+  // not in the collection's list.
+  if (s.kind === 'root') return s.id === INCOMING_ROOT || st.meta.roots.some(r => r.id === s.id) || (s.id === LOOSE && [...st.tracks.values()].some(t => !!t.fileKey));
   return true;
 }
-if (typeof window !== 'undefined') window.addEventListener('popstate', e => {
-  const s = (e.state as { glueView?: ViewSel } | null)?.glueView;
-  if (!s || sameView(s, view.sel)) return;
-  view.select(stillThere(s) ? s : { kind: 'all' }, { history: false });
-});
+// The view shown went (a playlist deleted, the songs added on their own taken into a folder, a DJ library removed):
+// All tracks, in its place.
+if (typeof window !== 'undefined') $effect.root(() => { $effect(() => { void lib.version; void lib.store; untrack(() => { if (router.current.name === 'library' && !stillThere(view.sel)) view.select({ kind: 'all' }, { replace: true }); }); }); });
+/** The address chose a view (Back, Forward, a link, a reload): shown. */
+function fromAddress() {
+  const r = router.current;
+  if (r.name !== 'library') return;
+  const s = viewOf(r.path);
+  if (!s) { if (lib.store) router.replace(viewHash(view.sel)); return; }
+  if (!stillThere(s)) { view.select({ kind: 'all' }, { replace: true }); return; }
+  if (!sameView(s, view.sel)) view.select(s, { history: false });
+}
+if (typeof window !== 'undefined') $effect.root(() => { $effect(() => { void router.current; untrack(fromAddress); }); });
+// A collection opened: the address's view looked at again (its playlists known now), "#/" made the view's address.
+const prevOpened = lib.onCollectionOpened;
+lib.onCollectionOpened = (pid, cid) => { prevOpened?.(pid, cid); fromAddress(); };
 
 export const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
 /** What a view is called (its heading; the player says it's playing from there). */

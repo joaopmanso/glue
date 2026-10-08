@@ -329,9 +329,13 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **Deploy:** `.github/workflows/cloud.yml` applies D1 migrations, then deploys.
 
 ## 8. The website's layout
-- **Routes:** `#/` library, `#/track/<id>`, `#/events` (and `#/events/<id>`), `#/analyze`, `#/admin`. The library's
-  views have no route of their own: each one chosen is a step in the browser's history at the same address
-  (`view.select` → `viewStep`, the view kept in `history.state.glueView`), so Back and Forward go through them (2026-10-08).
+- **Routes:** `#/<view>` the library on a view, `#/track/<id>`, `#/events` (and `#/events/<id>`), `#/analyze`, `#/admin`,
+  `#/help`. A view's address (`view.svelte.ts` `viewHash` / `viewOf`, 2026-10-08): `#/all-tracks`, `#/recently-added`,
+  `#/not-analysed`, `#/couldnt-analyse`, `#/lower-quality`, `#/no-file`, `#/duplicates`, `#/playlist/<id>`,
+  `#/dj-library/<id>[/<playlist>]`, `#/folder/<id>`, `#/tag/<name>`, `#/browse/<field>[/<value>]`. Choosing a view is a step
+  in the browser's history (Back and Forward go through views); an address opens its view (one gone since: All tracks);
+  `#/` alone is the library as it was (a song page's "← Library"), made the view's address (`router.replace`). A view
+  that goes while shown (a playlist deleted, "Added songs" emptied) gives way to All tracks.
 - **State** (`src/lib/`):
   - `library.svelte.ts` (the library's state, `lib`) and its methods by concern in `src/lib/library/` (ADR 0146):
     `glueFolder`, `profiles`, `collections`, `folders`, `djLibraries`, `edits`, `files`, `analysis`; a new method goes

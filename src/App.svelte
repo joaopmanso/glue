@@ -3,7 +3,7 @@
   import { app, analyzeFile } from './lib/app.svelte';
   import { player } from './lib/player.svelte';
   import { lib } from './lib/library.svelte';
-  import { view } from './lib/view.svelte';
+  import { view, viewHash } from './lib/view.svelte';
   import { localHome } from './lib/localHome.svelte';
   import { router } from './lib/route.svelte';
   import { importFiles } from './lib/importActions';
@@ -155,7 +155,7 @@
     <div class="brand">
       <h1><a href="#/" id="home-link" aria-label="GLUE, Global Library Unified Exporter" onclick={() => { if (lib.phase === 'profiles') lib.backToLibrary(); }}><GlueStick /><b>G</b><span>lobal</span><b>L</b><span>ibrary</span><b>U</b><span>nified</span><b>E</b><span>xporter</span></a></h1>
       <nav class="tabs" aria-label="Sections">
-        <a href="#/" class:on={route.name === 'library' || route.name === 'track'}>Library</a>
+        <a href={viewHash(view.sel)} class:on={route.name === 'library' || route.name === 'track'}>Library</a>
         <a href="#/events" id="calendar-tab" class:on={route.name === 'events' || route.name === 'event'}>Calendar{#if inLibrary && needing}<i class="badge" title={needing + ' event' + (needing === 1 ? '' : 's') + ' coming with no music yet'}>{needing}</i>{/if}</a>
         <a href="#/analyze" class:on={route.name === 'analyze'}>Analyze a file</a>
         <a href="#/help" id="help-tab" class:on={route.name === 'help'}>Help</a>

@@ -5,6 +5,18 @@ updated: 2026-10-06
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · Each library view has its address
+- **The user:** an address for the view shown, as a song's page has.
+- **Now:** `#/duplicates`, `#/recently-added`, `#/lower-quality`, `#/no-file`, `#/playlist/<id>`, `#/tag/<name>`,
+  `#/browse/artist/<name>`… (`view.svelte.ts` `viewHash` / `viewOf`; All tracks is `#/all-tracks`). The address is the view:
+  choosing one is a step in the browser's history (replacing the history state of the entry below), a reload or a link
+  opens it, one gone since opens All tracks; `#/` alone is the library as it was. A view that goes while it's shown
+  (a playlist deleted, the songs added on their own taken into a folder) gives way to All tracks. A reload stays on its
+  view now: tests that reloaded and expected All tracks choose it. Help: library.md. Test: `e2e/library.spec.ts` "each
+  view has its address".
+- **Seen while testing:** `e2e/library.spec.ts` "the local link…" (`Sent to Desktop` within 30 s) failed in 3 of 5 full
+  runs under load today, passing alone (4 of 4); the send's last confirmation is late, nothing of the views'.
+
 ## 2026-10-08 · Back and Forward go through the library's views
 - **The user:** the mouse's back button, on Duplicates (or any view), left GLUE for the page before it; it should go
   back to the view before, without views becoming pages of their own.

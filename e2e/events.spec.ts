@@ -67,7 +67,7 @@ test('events: a gig in the calendar, its folder, an assigned playlist and a vers
   // No music yet: said on its page, on the Calendar tab, and above the library.
   await expect(page.locator('#event-needs')).toBeVisible();
   await expect(page.locator('#calendar-tab .badge')).toHaveText('1');
-  await page.locator('.tabs a[href="#/"]').click();
+  await page.locator('.tabs a', { hasText: 'Library' }).click();
   await expect(page.locator('.remind')).toContainText('Lux');
   // Its folder, in Playlists › Events.
   await expect(page.locator('.lside .tree .name', { hasText: 'Events' })).toHaveCount(1);
@@ -125,7 +125,7 @@ test('events: a gig in the calendar, its folder, an assigned playlist and a vers
   await page.click('#event-delete');
   await expect(page).toHaveURL(/#\/events$/);
   await expect(page.locator('#calendar .evc')).toHaveCount(0);
-  await page.locator('.tabs a[href="#/"]').click();
+  await page.locator('.tabs a', { hasText: 'Library' }).click();
   await expect(page.locator('.lside .tree .name', { hasText: 'Lux' })).toHaveCount(0);
   await expect(page.locator('.lside .tree .name', { hasText: 'Warm-up' })).toHaveCount(1);
   expect(errors).toEqual([]);

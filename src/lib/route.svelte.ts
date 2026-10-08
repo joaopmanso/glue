@@ -1,8 +1,8 @@
-/* Hash routes: #/ library · #/track/<id> track detail (…/prepare: its Prepare tab) · #/events the calendar
+/* Hash routes: #/ library (#/<view>: the view shown, view.svelte `viewHash`; #/ alone: as it was) · #/track/<id> track detail (…/prepare: its Prepare tab) · #/events the calendar
    (#/events/<id> an event, ADR 0074) · #/analyze analyse a single file · #/admin admin panel. */
 import { readPref, writePref } from './prefs';
 export type TrackTab = 'details' | 'prepare';
-export type Route = { name: 'library' } | { name: 'track'; id: string; tab: TrackTab } | { name: 'events' } | { name: 'event'; id: string } | { name: 'analyze' } | { name: 'admin' } | { name: 'help'; id: string | null };
+export type Route = { name: 'library'; path: string } | { name: 'track'; id: string; tab: TrackTab } | { name: 'events' } | { name: 'event'; id: string } | { name: 'analyze' } | { name: 'admin' } | { name: 'help'; id: string | null };
 
 function parse(h: string): Route {
   const m = /^#\/track\/([\w-]+)(\/prepare)?/.exec(h);
@@ -13,13 +13,15 @@ function parse(h: string): Route {
   if (h.startsWith('#/admin')) return { name: 'admin' };
   const help = /^#\/help(?:\/([\w-]+))?/.exec(h);
   if (help) return { name: 'help', id: help[1] ?? null };
-  return { name: 'library' };
+  return { name: 'library', path: h.replace(/^#\/?/, '') };
 }
 
 class Router {
   current = $state<Route>(parse(typeof location !== 'undefined' ? location.hash : ''));
   constructor() { if (typeof window !== 'undefined') window.addEventListener('hashchange', () => { this.current = parse(location.hash); }); }
   go(hash: string) { if (location.hash !== hash) location.hash = hash; else this.current = parse(hash); }
+  /** This address instead of the current one (no step in the browser's history). */
+  replace(hash: string) { if (location.hash !== hash) { history.replaceState(history.state, '', hash); this.current = parse(hash); } }
 }
 export const router = new Router();
 
