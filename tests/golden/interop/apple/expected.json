@@ -1,0 +1,110 @@
+{
+ "libs": [
+  {
+   "lib": {
+    "app": "apple",
+    "name": "Apple Music (Library.xml)",
+    "tracks": [
+     {
+      "externalId": "20",
+      "path": "/twenty.mp3",
+      "title": "Twenty again",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "AAA=",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     },
+     {
+      "externalId": "1000",
+      "path": "/Users/dj/Music/Big One.m4a",
+      "title": "Big",
+      "artist": "42",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "1999",
+      "grouping": "",
+      "duration": 245.123,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": 2,
+      "dateAdded": "2020-02-02",
+      "cues": 0,
+      "cueList": [],
+      "size": 1500000
+     },
+     {
+      "externalId": "abc",
+      "path": "C:/Music/abc.mp3",
+      "title": "Lettered",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     }
+    ],
+    "lists": [
+     {
+      "externalId": "F0F0",
+      "kind": "folder",
+      "name": "Crates",
+      "parent": null,
+      "items": []
+     },
+     {
+      "externalId": "A1A1",
+      "kind": "playlist",
+      "name": "Set",
+      "parent": "F0F0",
+      "items": [
+       "1000",
+       "20"
+      ]
+     },
+     {
+      "externalId": "6.5",
+      "kind": "playlist",
+      "name": "Orphan",
+      "parent": null,
+      "items": []
+     },
+     {
+      "externalId": "7",
+      "kind": "playlist",
+      "name": "Playlist",
+      "parent": null,
+      "items": []
+     }
+    ]
+   },
+   "fileName": "Library.xml"
+  }
+ ],
+ "skipped": []
+}

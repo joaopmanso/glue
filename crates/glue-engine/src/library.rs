@@ -133,7 +133,7 @@ pub fn newly_found(before: &Value, found: &Value, cur: &Value) -> Option<Value> 
 }
 
 impl<H: Host> Engine<H> {
-  fn read(&self, rel: &str) -> Option<Value> { read_json(&self.dir(), rel).ok().flatten() }
+  pub(crate) fn read(&self, rel: &str) -> Option<Value> { read_json(&self.dir(), rel).ok().flatten() }
 
   /// The profiles and collections in the GLUE folder, each collection's music folders (library.ts `describe`).
   pub fn describe(&self) -> Option<Value> {

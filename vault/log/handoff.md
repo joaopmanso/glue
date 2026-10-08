@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-08)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.63.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.64.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,13 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.64.0** (ADR 0167): DJ libraries are GLUE Home's now. On the desktop with GLUE Home running:
+  - the DJ libraries panel should still show the libraries (with the live dot); the music folders' libraries are found
+    again (they weren't since ADR 0162);
+  - change a playlist in rekordbox (export the XML again) or Engine DJ, with or without a GLUE tab open: within about
+    10 seconds the tab shows it, and GLUE Home's Activity says "… changed its playlists: in GLUE …" when GLUE's copies
+    changed;
+  - Add on a found library and Refresh should work as before.
 - **GLUE Home 0.63.0** (ADR 0166): nothing to do; GLUE Home's Activity may say "Quality verdicts updated: …" or
   "Tidied “…”" or "Joined N songs…" once after the update, when there was something to put right.
 - **GLUE Home 0.61.0 / 0.62.0** (ADR 0164, 0165): Duplicates should look the same, now found and grouped by GLUE Home
@@ -140,15 +147,15 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 ### Next: the rest of the library's work into GLUE Home (ADR 0162, the user's rule: "GLUE Home IS THE APP")
 The user (2026-10-08): "I want to get all of these moved to Rust so that we can move on to the DJ library cue points
 and real-time integrations." Done: the clashes (0.60, ADR 0163), the duplicates' matching (0.61, ADR 0164) and groups
-(0.62, ADR 0165), the verdict re-check and the open-time repairs (0.63, ADR 0166). Left, the next batch: **DJ libraries
-in GLUE Home** (the user agreed the order: the quick win first, then this):
-1. **The parsers in Rust** (`src/core/interop/`: rekordbox XML, Engine DJ's `m.db`, Traktor NML, Serato, Apple Music
-   XML, M3U), held to the website by goldens like the store's, and the re-import merge (`store/merge.ts`
-   `mergeImport`).
-2. **Following DJ libraries live** (`djWatch`: a file's date every 5 s, read again when it changed): still the page's
-   with GLUE Home running.
-3. **Finding new DJ libraries** in the music folders (`findLibraries`, 3 folders deep): off with GLUE Home now.
-4. Then the cue points and the real-time integrations (the user's goal).
+(0.62, ADR 0165), the verdict re-check and the open-time repairs (0.63, ADR 0166), the DJ libraries (0.64, ADR 0167:
+parsers, import, following and finding, `crates/glue-interop` and the engine's `dj.rs`). **Next: the cue points and the
+real-time integrations** (the user's goal). Not planned yet: ask what the user means by each before designing
+(cue points: GLUE's own markers, edited in Prepare, written to rekordbox XML / Engine DJ on export, read from the
+libraries as `cueList` already is; real-time: what a DJ app is playing now? Engine DJ's StagelinQ, rekordbox's PRO DJ
+LINK, Traktor's broadcast…). Smaller leftovers of the page's library work with GLUE Home:
+- a file chosen in the browser with + Import is still parsed by the page (its bytes are the browser's);
+- the page still sets `origin` on a library it finds that was imported by hand (`detectLibraries`), and follows a
+  `place:` library (only the browser can reach it).
 - (Browser alone: a published duplicates file still forces a full sync, `dupes.onPublished` → `sync(true)`; give the
   sync the file instead.)
 

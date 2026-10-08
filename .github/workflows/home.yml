@@ -70,6 +70,7 @@ jobs:
             crates/glue-rtc -> target
             crates/glue-store -> target
             crates/glue-engine -> target
+            crates/glue-interop -> target
           shared-key: home-${{ matrix.os }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # GLUE Home's Rust tests, on each system: some rules differ (a ':' in a file name is fine on macOS, ADR 0134).
@@ -85,6 +86,11 @@ jobs:
         run: |
           cargo test --manifest-path crates/glue-store/Cargo.toml
           cargo clippy --manifest-path crates/glue-store/Cargo.toml --all-targets -- -D warnings
+      # The DJ libraries (ADR 0167): held to the website's parsers and imports (tests/golden/interop, import), and clippy.
+      - name: DJ library tests
+        run: |
+          cargo test --manifest-path crates/glue-interop/Cargo.toml
+          cargo clippy --manifest-path crates/glue-interop/Cargo.toml --all-targets -- -D warnings
       # The library engine (ADR 0153): a GLUE tab's requests answered natively, and clippy.
       - name: Library engine tests
         run: |

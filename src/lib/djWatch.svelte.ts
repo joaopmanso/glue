@@ -6,10 +6,14 @@
      playlists. Only dates are read to look (GLUE Home answers without sending the file). Engine DJ
      writes its database as you work; a save in progress (its journal isn't empty) waits for the next look.
    - In the browser alone: "Refresh" reads a library again when asked (its file chosen again when GLUE
-     can't reach it). */
+     can't reach it).
+   - With GLUE Home's engine (ADR 0167): GLUE Home follows the libraries it can reach itself, in Rust, and this only
+     shows how each is; Refresh asks it. The page still follows one only a browser can reach (a place it was allowed
+     into). */
 import { lib } from './library.svelte';
 import * as platform from '../platform';
 import { syncSource } from './importActions';
+import { engineClient } from './engine.svelte';
 import type { Source, SourceOrigin } from '../store/types';
 
 const EVERY = 5000, AT_MOST = 10_000;
@@ -40,6 +44,10 @@ async function stat(h: AnyFile): Promise<{ modified: number; size: number }> {
   return { modified: f.lastModified, size: f.size };
 }
 
+/** GLUE Home follows a library itself (ADR 0167): in a music folder, the GLUE folder, or one chosen with its dialog;
+    not one in a place only this browser was allowed into. */
+export const homeFollows = (place: string) => !place.startsWith('place:');
+
 /** 'live': followed (with GLUE Home); 'lost': GLUE can't reach its file now; 'reading': being read. */
 export type DjState = 'live' | 'lost' | 'reading';
 
@@ -64,9 +72,14 @@ class DjWatch {
     if (this.busy || !s || !platform.homeMode() || document.hidden || lib.readOnly || lib.phase !== 'library') return;
     this.busy = true;
     try {
+      const home = lib.homeRuns();
+      if (home) {
+        const st = await engineClient.djStatus().catch(() => null);
+        if (st && lib.store === s) for (const [id, v] of Object.entries(st)) this.set(id, v);
+      }
       for (const src of [...s.sources.values()]) {
         if (lib.store !== s) return;
-        if (src.origin && s.ownSource(src)) await this.check(src, false, false).catch(e => { this.set(src.id, 'lost'); console.warn('Couldn’t look at ' + src.fileName, e); });
+        if (src.origin && s.ownSource(src) && !(home && homeFollows(src.origin.place))) await this.check(src, false, false).catch(e => { this.set(src.id, 'lost'); console.warn('Couldn’t look at ' + src.fileName, e); });
       }
     } finally { this.busy = false; }
   }
@@ -74,10 +87,19 @@ class DjWatch {
   /** Read a library again now (the Refresh button). False: GLUE can't reach its file (choose it again). */
   async refresh(src: Source): Promise<boolean> {
     if (!src.origin) return false;
+    if (lib.homeRuns() && homeFollows(src.origin.place)) {
+      try {
+        this.set(src.id, 'reading');
+        const r = await engineClient.djRefresh(src.id);
+        if (r.notice) lib.notice = r.notice;
+        this.set(src.id, r.ok ? 'live' : 'lost');
+        return r.ok;
+      } catch (e) { console.warn('GLUE Home couldn’t read ' + src.fileName, e); this.set(src.id, 'lost'); return false; }
+    }
     try { return await this.check(src, true, true); } catch (e) { console.warn('Couldn’t read ' + src.fileName, e); return false; }
   }
 
-  private set(id: string, st: DjState) { if (this.status[id] !== st) this.status = { ...this.status, [id]: st }; }
+  set(id: string, st: DjState) { if (this.status[id] !== st) this.status = { ...this.status, [id]: st }; }
 
   private async check(src: Source, force: boolean, ask: boolean): Promise<boolean> {
     const at = await walk(src.origin!, ask);

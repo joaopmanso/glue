@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-24
-adrs: [0010, 0012]
+updated: 2026-10-08
+adrs: [0010, 0012, 0167]
 ---
 # Import: Apple Music library & iCloud Drive
 
@@ -43,3 +43,8 @@ Imports the Apple Music / iTunes library (tracks and playlists) and scans music 
 ## Detected automatically (2026-09-24)
 - Sidebar › DJ libraries lists this library with **Add** (and **Update** when its file changes) once it's in an allowed folder ([ADR 0030](../adr/0030-detect-dj-libraries.md)).
 
+
+## GLUE Home reads it (2026-10-08, [ADR 0167](../adr/0167-dj-libraries-in-glue-home.md))
+With GLUE Home running, this library is read in Rust by GLUE Home (`crates/glue-interop`, held byte for byte to
+`src/core/interop` by `tests/golden/interop`): found in the music folders, imported when **Add** is clicked, and followed
+live by GLUE Home itself, with no tab open. In the browser alone, as before.

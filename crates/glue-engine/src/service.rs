@@ -195,7 +195,7 @@ impl<H: Host> Engine<H> {
       let t0 = Instant::now();
       let s = Duration::from_secs;
       // (what, first after, then every): the service page's, as it had them.
-      let mut due: Vec<(&str, Duration, Duration)> = vec![("sync", s(25), s(60)), ("moves", s(30), s(3600)), ("backups", s(45), s(3600)), ("update", s(60), s(6 * 3600)), ("reminders", s(90), s(3600)), ("computer", s(3600), s(3600))];
+      let mut due: Vec<(&str, Duration, Duration)> = vec![("sync", s(25), s(60)), ("moves", s(30), s(3600)), ("backups", s(45), s(3600)), ("update", s(60), s(6 * 3600)), ("reminders", s(90), s(3600)), ("computer", s(3600), s(3600)), ("dj", s(20), s(5))];
       loop {
         std::thread::sleep(s(1));
         let Some(e) = me.upgrade() else { return };
@@ -219,6 +219,8 @@ impl<H: Host> Engine<H> {
       "backups" if on => { self.backups_daily(); }
       "reminders" => self.check_reminders(false),
       "computer" => self.learn_computer(),
+      // The DJ libraries followed live (ADR 0167).
+      "dj" if on => self.dj_look(),
       "update" if cfg["autoUpdate"] != false && !self.busy() => self.host.auto_update(&|t| self.say(t)),
       _ => {}
     }

@@ -168,6 +168,8 @@ export class Library {
   /** GLUE Home is the app here (ADR 0162, lib/engine): its engine runs this library, known before it opens; the
       page starts none of the library's work then (sync, analysis, backups, repairs, looking for libraries). */
   homeRuns: () => boolean = () => false;
+  /** The DJ libraries GLUE Home finds in the music folders and the GLUE folder (ADR 0167; lib/engine). */
+  homeDjFind: (() => Promise<(Omit<Detected, 'handle'> & { place: string; placeName: string })[]>) | null = null;
   /** This computer's GLUE Home analyses its songs (ADR 0103, 0104): lib/engine says so, and takes the asks. */
   analysisElsewhere: { active: () => boolean; now: (ids: string[]) => number; pause: (p: boolean) => void } | null = null;
   /** Where GLUE Home finds a folder dropped onto the page (Home mode), by its name and a song in it; set by the engine client. */

@@ -184,7 +184,14 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - shared sync (in the engine since 0.54, ADR 0155: `shared.rs` with `sync.rs`, GLUE Cloud called from Rust with this
     GLUE Home's token), song info written into files (`writeUnwritten`), backups,
     duplicates moved or recycled
-    (ADR 0070), DJ libraries followed live (ADR 0065), reminders, updates.
+    (ADR 0070), reminders, updates.
+  - **DJ libraries, in Rust** (0.64, ADR 0167): `crates/glue-interop` reads rekordbox XML, Traktor NML, Apple Music XML,
+    Serato, Engine DJ's `m.db` (SQLite, from a copy in memory) and M3U as the website's `src/core/interop` does, and
+    brings them in as its `applyImport` and `syncLinkedLists` do (held to it byte for byte: `tests/golden/interop`,
+    `tests/golden/import`). The engine's `dj.rs` follows every collection's libraries it can reach (a music folder,
+    the GLUE folder, `hl:` a file chosen with its dialog) every 5 s, by date, and reads a changed one again as its own
+    edit; it finds new ones in the music folders and the GLUE folder (`djFind`), and imports the one the page adds
+    (`djImport`). The page only shows each one's state (`dj`) and asks for Refresh (`djRefresh`).
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
     socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again
@@ -235,8 +242,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - **It's only GLUE Home's screen** (ADR 0162): `lib.homeRuns()` (`engineClient.runs`: the engine answered, asked
     before a collection opens) and it starts none of the library's work: no shared sync, analysis, daily backup,
     verdict re-check and open-time repairs (GLUE Home's, ADR 0166), song info into files, duplicates (matching, groups, playlists' best copies, ADR
-    0164, 0165), or walking the music folders for DJ libraries. Still the page's until it moves into GLUE Home:
-    following DJ libraries (`djWatch`).
+    0164, 0165), or DJ libraries (finding, importing from where they are, following: GLUE Home's, ADR 0167; the page
+    still follows one only a browser was allowed into, a `place:`).
   - Its store is a client (`CollectionStore.sink` sends every change as an op), and it releases the writer lease. A
     song goes with the record the tab had (`was`): the engine applies only the fields changed from it over its own
     (`changed_over`), so a change GLUE Home made meanwhile stays (ADR 0163). The engine's store is its files' only

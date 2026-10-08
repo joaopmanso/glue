@@ -7,11 +7,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CollectionStore, type StoreOp } from '../src/store/collection';
-import { absorbTracks, joinCopies, tidyTracks } from '../src/store/merge';
+import { absorbTracks, applyImport, joinCopies, tidyTracks } from '../src/store/merge';
+import { importLists } from '../src/store/linked';
+import { blankTrack, type ImportedLibrary, type ImportedTrack } from '../src/core/interop/types';
 import type { Track } from '../src/store/types';
 import type { Dir } from '../src/store/fsx';
 
 const OUT = join(__dirname, 'golden', 'store');
+/** The DJ libraries brought into a collection (ADR 0167): replayed by crates/glue-interop/tests/import_golden.rs. */
+const OUT_IMPORT = join(__dirname, 'golden', 'import');
 const NOW = 1_700_000_000_000;
 
 /** A GLUE folder in memory, by whole paths (fsx's "direct" folder, as GLUE Home's disk is). */
@@ -45,6 +49,12 @@ type Step =
   | { tidy: true }
   | { join: true }
   | { reload: string[]; files: Record<string, string> }
+  /** A DJ library read (`applyImport`), as the importers give it (an Engine set's entries as an object). */
+  | { import: { lib: Record<string, unknown>; fileName: string } }
+  /** Lists of a DJ library brought into GLUE (`importLists`), the library found by its app and file. */
+  | { importLists: { app: string; fileName: string; ids: string[] } }
+  /** The clock moved on. */
+  | { advance: number }
   | { flush: true };
 interface Scenario { files: Record<string, string>; steps: Step[] }
 
@@ -237,8 +247,90 @@ const joinScenario: Scenario = {
 
 const SCENARIOS: Record<string, Scenario> = { tidy: tidyScenario, join: joinScenario,  plain, 'shared-desk': sharedDesk, 'shared-not-mine': sharedNotMine, fold, damaged, reload, joins, 'without-copies': withoutCopies, 'without-copies-two': withoutCopiesTwo };
 
+// ── DJ libraries brought in (ADR 0167) ──────────────────────────────────────────────────────────────────────────
+const rt = (externalId: string, path: string, o: Partial<ImportedTrack> = {}): ImportedTrack => ({ ...blankTrack(externalId, path), ...o });
+const pl = (externalId: string, name: string, parent: string | null, items: string[], kind: 'folder' | 'playlist' = 'playlist') => ({ externalId, kind, name, parent, items });
+const rbTracks = [
+  rt('1', 'D:/Music Collection/House/One.mp3', { title: 'One', artist: 'A1', label: 'Lab', bpm: 124, key: '8A', rating: 4, playCount: 3, dateAdded: '2024-01-01', size: 1000, cues: 1, cueList: [{ t: 64.5, kind: 'cue', num: 0, name: 'Drop', color: '#28e214', end: null }] }),
+  rt('2', 'D:/Music Collection/House/Two.mp3', { title: 'Theirs', artist: 'A2', label: 'L2', comment: 'c', grouping: 'warm', rating: 5, size: 2000 }),
+  rt('3', 'E:/preparation/Three.mp3', { size: 3000 }),
+  rt('4', 'C:/Old/Four.mp3', { title: 'Four', size: 4000 }),
+  rt('5', 'D:/Elsewhere/Five.mp3', { title: 'Five', artist: 'A5', duration: 200, size: 5000, rating: 3 }),
+  // Another copy of One, elsewhere (within 1 kB): it's One.
+  rt('6', 'F:/Copies/One.mp3', { size: 1500 }),
+];
+const rb = (tracks: ImportedTrack[], lists: unknown[]) => ({ app: 'rekordbox', name: 'Rekordbox (rekordbox.xml)', tracks, lists });
+const rbImport: Scenario = {
+  files: {
+    [base + '/collection.json']: J({ schemaVersion: 1, id: 'c1', name: 'Mine', createdAt: '2026-01-01T00:00:00.000Z', roots: [{ id: 'r1', name: 'Music Collection', absPath: null, handleKey: 'h1', addedAt: '2026-01-01T00:00:00.000Z' }] }),
+    [base + '/tracks/aa.json']: shard({
+      aa01: track('aa01', { relPath: 'House/One.mp3', fileName: 'One.mp3', size: 1000, label: '' }),
+      aa02: track('aa02', { relPath: 'House/Two.mp3', fileName: 'Two.mp3', size: 2000, title: 'Mine', edited: ['title'], label: '' }),
+      aa03: track('aa03', { relPath: 'Prep/Three.mp3', fileName: 'Three.mp3', size: 3000 }),
+      // A record an earlier import didn't find: its file is aa05's.
+      aa04: track('aa04', { status: 'unlinked', rootId: null, relPath: null, importPath: 'C:/Old/Four.mp3', fileName: 'Four.mp3', size: 4000, rating: 2 }),
+      aa05: track('aa05', { relPath: 'Four.mp3', fileName: 'Four.mp3', size: 4000 }),
+    }),
+    [base + '/lists/l1.json']: J({ schemaVersion: 1, id: 'l1', kind: 'playlist', name: 'Mine', parentId: null, position: 0, notes: '', items: ['aa04', 'aa01'], origin: null }),
+  },
+  steps: [
+    { load: { pid: 'p1', cid: 'c1' } },
+    { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Gigs/Fri', 'Fri', '/Gigs', ['1', '5', '6']), pl('/Warm', 'Warm', null, ['2', '4'])]), fileName: 'rekordbox.xml' } },
+    { importLists: { app: 'rekordbox', fileName: 'rekordbox.xml', ids: ['/Gigs'] } },
+    { flush: true },
+    // Fri renamed Friday (in its place), Sat new in a folder brought in whole; Five gone from the library.
+    { advance: 1000 },
+    { import: { lib: rb(rbTracks.filter(t => t.externalId !== '5'), [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Gigs/Friday', 'Friday', '/Gigs', ['1', '6']), pl('/Gigs/Sat', 'Sat', '/Gigs', ['2']), pl('/Warm', 'Warm', null, ['2', '4'])]), fileName: 'rekordbox.xml' } },
+    { flush: true },
+    // Sat missing: kept a minute; still missing a minute later: gone.
+    { advance: 1000 },
+    { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Gigs/Friday', 'Friday', '/Gigs', ['1']), pl('/Warm', 'Warm', null, ['2', '4'])]), fileName: 'rekordbox.xml' } },
+    { flush: true },
+    { advance: 61_000 },
+    { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Gigs/Friday', 'Friday', '/Gigs', ['1']), pl('/Warm', 'Warm', null, ['2', '4']), pl('/New', 'New', null, ['3'])]), fileName: 'rekordbox.xml' } },
+    { flush: true },
+    // A read with less than half the lists: ignored whole.
+    { import: { lib: rb(rbTracks.slice(0, 1), [pl('/Warm', 'Warm', null, ['1'])]), fileName: 'rekordbox.xml' } },
+    { flush: true },
+  ],
+};
+const engineLib = (uuid: string, tracks: ImportedTrack[]) => ({ app: 'engine', name: 'Engine DJ (m.db)', tracks, lists: [pl('10', 'Friday', null, [])], engine: { uuids: [uuid], entries: { 10: ['pc/1', 'drive/5', 'pc/2', 'stick/9'] } } });
+const engineImport: Scenario = {
+  files: {
+    [base + '/collection.json']: J({ schemaVersion: 1, id: 'c1', name: 'Mine', createdAt: '2026-01-01T00:00:00.000Z', roots: [{ id: 'r1', name: 'Music', absPath: 'C:\\Users\\dj\\Music', handleKey: 'h1', addedAt: '2026-01-01T00:00:00.000Z' }] }),
+    [base + '/tracks/ee.json']: shard({ ee01: track('ee01', { relPath: 'a.mp3', fileName: 'a.mp3', size: 10 }) }),
+  },
+  steps: [
+    { load: { pid: 'p1', cid: 'c1' } },
+    { import: { lib: engineLib('pc', [rt('pc/1', '../Music/a.mp3', { title: 'A', size: 10 }), rt('pc/2', '../Music/b.mp3', { title: 'B' })]), fileName: 'm.db' } },
+    { importLists: { app: 'engine', fileName: 'm.db', ids: [''] } },
+    { flush: true },
+    // The drive's library read later: the computer's songs are carried, the playlist has both.
+    { import: { lib: engineLib('drive', [rt('drive/5', '../Music Collection/e.mp3', { title: 'E', size: 50 })]), fileName: 'm.db' } },
+    { flush: true },
+  ],
+};
+// A shared collection: the library is this computer's; songs only another computer has aren't matched.
+const sharedImport: Scenario = {
+  files: sharedFiles(),
+  steps: [
+    { load: { pid: 'p1', cid: 'c1', me: 'desk' } },
+    { import: { lib: { app: 'traktor', name: 'Traktor (collection.nml)', tracks: [rt('C:/:Music/:a.flac', 'C:/Music/a.flac', { title: 'From Traktor', bpm: 120 }), rt('C:/:Music/:new.flac', 'C:/Music/new.flac', { title: 'New one' }), rt('C:/:Music/:c.flac', 'C:/Music/c.flac')], lists: [pl('u:1', 'Set', null, ['C:/:Music/:a.flac', 'C:/:Music/:new.flac'])] }, fileName: 'collection.nml' } },
+    { importLists: { app: 'traktor', fileName: 'collection.nml', ids: ['u:1'] } },
+    { flush: true },
+  ],
+};
+const IMPORTS: Record<string, Scenario> = { rekordbox: rbImport, engine: engineImport, shared: sharedImport };
+
 async function run(sc: Scenario) {
   const dir = memDir(sc.files), root = dir as unknown as Dir;
+  // New ids in order (newId: a random UUID's first 16 hex digits): the Rust store is given the same ones.
+  vi.setSystemTime(NOW);
+  let n = 0;
+  const ids = vi.spyOn(crypto, 'randomUUID').mockImplementation(() => ((++n).toString(16).padStart(8, '0') + '-0000-4000-8000-000000000000') as `${string}-${string}-${string}-${string}-${string}`);
+  try { return await steps(sc, dir, root); } finally { ids.mockRestore(); }
+}
+async function steps(sc: Scenario, dir: ReturnType<typeof memDir>, root: Dir) {
   let s: CollectionStore | null = null, twins: [string, string][] = [];
   const out: unknown[] = [];
   for (const st of sc.steps) {
@@ -248,6 +340,16 @@ async function run(sc: Scenario) {
     else if ('tidy' in st) out.push({ tidy: tidyTracks(s!) });
     else if ('join' in st) out.push({ join: joinCopies(s!) });
     else if ('absorb' in st) { const m = new Map<string, Track>(); for (const [from, into] of twins) { const t = s!.tracks.get(into); if (t) m.set(from, t); } absorbTracks(s!, m); }
+    else if ('import' in st) {
+      const l = st.import.lib as unknown as ImportedLibrary & { engine?: { uuids: string[]; entries: Record<string, string[]> } };
+      const lib = (l.engine ? { ...l, engine: { uuids: l.engine.uuids, entries: new Map(Object.entries(l.engine.entries)) } } : l) as ImportedLibrary;
+      out.push({ import: applyImport(s!, lib, st.import.fileName) });
+    }
+    else if ('importLists' in st) {
+      const { app, fileName, ids } = st.importLists, src = [...s!.sources.values()].find(x => x.app === app && x.fileName === fileName)!;
+      out.push({ importLists: importLists(s!, src, ids) });
+    }
+    else if ('advance' in st) vi.setSystemTime(Date.now() + st.advance);
     else if ('reload' in st) { for (const [k, v] of Object.entries(st.files)) dir.files.set(k, v); await s!.reloadFiles(st.reload); }
     else { await s!.flush(); out.push({ files: Object.fromEntries([...dir.files].sort(([a], [b]) => (a < b ? -1 : 1))) }); }
   }
@@ -257,10 +359,10 @@ async function run(sc: Scenario) {
 describe('the library store, recorded for the Rust one (ADR 0152)', () => {
   beforeAll(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW); });
   afterAll(() => vi.useRealTimers());
-  for (const [name, sc] of Object.entries(SCENARIOS)) {
+  for (const [name, sc, out] of [...Object.entries(SCENARIOS).map(([n, x]) => [n, x, OUT] as const), ...Object.entries(IMPORTS).map(([n, x]) => [n, x, OUT_IMPORT] as const)]) {
     it(name, async () => {
       const expected = await run(sc);
-      const dir = join(OUT, name), file = join(dir, 'expected.json'), text = JSON.stringify(expected, null, 1) + '\n';
+      const dir = join(out, name), file = join(dir, 'expected.json'), text = JSON.stringify(expected, null, 1) + '\n';
       if (process.env.GOLDEN || !existsSync(file)) {
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'scenario.json'), JSON.stringify(sc, null, 1) + '\n');

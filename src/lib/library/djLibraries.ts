@@ -44,8 +44,12 @@ export const djLibraries = {
         found.push({ ...d, place, placeName, status, sourceId: src?.id ?? null, routes: [place + '|' + d.relPath], followed });
       };
       let followed = false;
-      // With GLUE Home it's the app (ADR 0162): no walking the music folders through it from here; the libraries it follows.
-      if (!this.homeRuns()) for (const w of where) for (const d of await findLibraries(w.dir, w.place === 'home' ? 2 : 3)) add(d, w.place, w.name);
+      // With GLUE Home it's the app (ADR 0162): it looks in the music folders and the GLUE folder itself (ADR 0167); the
+      // page only in a place this browser was allowed into.
+      if (this.homeRuns()) {
+        for (const d of await (this.homeDjFind?.() ?? Promise.resolve([])).catch(e => { console.warn('GLUE Home couldn’t look for DJ libraries', e); return []; })) add({ ...d, handle: null as unknown as FileSystemHandle }, d.place, d.placeName);
+        for (const w of where) if (w.place.startsWith('place:')) for (const d of await findLibraries(w.dir, 3)) add(d, w.place, w.name);
+      } else for (const w of where) for (const d of await findLibraries(w.dir, w.place === 'home' ? 2 : 3)) add(d, w.place, w.name);
       // The DJ libraries GLUE Home follows (ADR 0065): their files are known, no looking around.
       for (const h of await platform.homeLibraries()) {
         const d = await libraryAt(h.dir, h.file).catch(() => null);

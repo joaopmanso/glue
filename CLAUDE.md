@@ -97,6 +97,10 @@ After working:
 - `crates/glue-store`: the library store in Rust (ADR 0152), held byte for byte to `src/store/collection.ts` by
   `tests/golden/store` (regenerate with `GOLDEN=1 npx vitest run tests/store.golden.test.ts` after changing the store,
   then port the change). `cargo test --manifest-path crates/glue-store/Cargo.toml`.
+- `crates/glue-interop`: the DJ libraries in Rust (ADR 0167): `src/core/interop`'s parsers and `store/merge.ts`
+  `applyImport` / `store/linked.ts`, held to them by `tests/golden/interop` and `tests/golden/import` (regenerate with
+  `GOLDEN=1 npx vitest run tests/interop.golden.test.ts tests/store.golden.test.ts`, then port the change). The engine's
+  `dj.rs` follows, finds and imports with it.
 - `crates/glue-engine`: GLUE Home's library engine (ADR 0153, 0154): the local link's `/rpc`, the stores, jobs, repair
   and the analysis queue; `home/src-tauri/src/engine.rs` hosts it in GLUE Home, its binary `glue-engine-test` in the e2e
   tests (`e2e/fakeHome.ts` runs it; Playwright's global setup `e2e/engine-build.ts` builds it, so the e2e tests need

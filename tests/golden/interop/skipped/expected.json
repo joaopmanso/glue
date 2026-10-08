@@ -1,0 +1,9 @@
+{
+ "libs": [],
+ "skipped": [
+  "notes.txt",
+  "broken.xml (Unterminated tag in XML)",
+  "bad.nml (Unterminated tag in XML)",
+  "lonely.crate (needs Serato’s “database V2” too)"
+ ]
+}

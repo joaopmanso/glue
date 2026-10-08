@@ -5,3 +5,5 @@
 *.flac binary
 *.mp3 binary
 *.onnx binary
+# DJ library files the parsers are held to (tests/golden/interop): their bytes, line ends and all.
+tests/golden/interop/*/in/** binary

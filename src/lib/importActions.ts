@@ -3,6 +3,8 @@ import { lib } from './library.svelte';
 import { parseInWorker, seratoFiles } from './parseWorker';
 import * as platform from '../platform';
 import { libraryAt } from '../core/library/detect';
+import { engineClient } from './engine.svelte';
+import { homeFollows } from './djWatch.svelte';
 import type { FoundLibrary } from '../core/library/scan';
 import type { Detected } from '../core/library/detect';
 import type { ImportedLibrary } from '../core/interop/types';
@@ -62,6 +64,19 @@ export async function importFound(f: FoundLibrary) {
 /** Add (or update) a library the finder detected, remembering where it came from. */
 export async function importDetected(d: Detected & { place: string; also?: Detected[] }) {
   lib.job = { text: 'Importing ' + d.relPath + '…', done: 0, total: null };
+  const also = (d.also ?? []).map(x => ({ place: (x as Detected & { place?: string }).place ?? d.place, relPath: x.relPath }));
+  // GLUE Home reads it where it is, brings it in and follows it (ADR 0167).
+  if (lib.homeRuns() && homeFollows(d.place) && also.every(x => homeFollows(x.place))) {
+    try {
+      const r = await engineClient.djImport(d.place, d.relPath, also), s = lib.store;
+      // What it wrote, read here now (the feed brings it a moment later): the list of found libraries then knows.
+      if (s && r.paths.length) await s.reloadFiles(r.paths);
+      lib.notice = r.imports.map(x => report(x.name, x.report)).join(' ') || 'Nothing to import.';
+    } catch (e) { console.error(e); lib.notice = 'Couldn’t import ' + d.relPath + ': ' + ((e as Error).message || e); }
+    finally { lib.job = null; }
+    await lib.detectLibraries();
+    return;
+  }
   try {
     // An Engine DJ set's databases (one per drive) are read together: one library (combineEngine).
     const files = d.kind === 'serato' ? await seratoFiles(d.handle as FileSystemDirectoryHandle)

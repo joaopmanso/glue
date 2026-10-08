@@ -240,6 +240,7 @@ Planned (GLUE):
 | [0160](adr/0160-glue-homes-service-in-its-engine.md) | GLUE Home's service (status, timers, Start / Stop, backups, reminders, updates, the native check) in its engine; the hidden service page removed | accepted |
 | [0165](adr/0165-glue-home-makes-the-duplicate-groups.md) | GLUE Home makes the duplicate groups and points playlists at the best copies (Rust, to the byte the website's) | accepted |
 | [0166](adr/0166-glue-home-rechecks-verdicts-and-tidies.md) | GLUE Home makes old verdicts again from the stored details and repairs a collection when it opens (Rust, held to the website's goldens) | accepted |
+| [0167](adr/0167-dj-libraries-in-glue-home.md) | DJ libraries in GLUE Home: read, brought in and followed in Rust (`glue-interop`, held to the website byte for byte); the page asks | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

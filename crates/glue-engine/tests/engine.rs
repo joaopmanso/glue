@@ -349,3 +349,75 @@ fn a_collection_is_tidied_when_it_opens() {
   assert!(!h.0.lock().unwrap().edited.is_empty(), "sent up like an edit");
   assert_eq!(e.tidy("p1", "c1").unwrap(), (0, 0, 0));
 }
+
+/// A rekordbox XML with `extra` playlists in its folder Gigs.
+fn rekordbox(extra: &str) -> String {
+  format!(r#"<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="2">
+<TRACK TrackID="1" Name="A from rekordbox" Rating="204" Location="file://localhost/C:/Music/a.mp3"/>
+<TRACK TrackID="2" Name="Elsewhere" Location="file://localhost/D:/x/y.mp3"/></COLLECTION>
+<PLAYLISTS><NODE Type="0" Name="ROOT"><NODE Type="0" Name="Gigs"><NODE Name="Fri" Type="1" KeyType="0"><TRACK Key="1"/><TRACK Key="2"/></NODE>{extra}</NODE></NODE></PLAYLISTS></DJ_PLAYLISTS>"#)
+}
+
+#[test]
+fn dj_libraries_are_imported_and_followed_by_glue_home() {
+  let (glue, libs) = (temp("dj"), temp("dj-libs"));
+  library(&glue);
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  std::fs::write(libs.join("rekordbox.xml"), rekordbox("")).unwrap();
+  let h = H::default();
+  let e = Engine::new(glue.clone(), temp("dj-cache"), h.clone());
+  let place = format!("hl:{}", libs.to_string_lossy());
+  // Imported from where it is (Import, with GLUE Home's dialog): read here, followed from then on.
+  let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": place, "relPath": "rekordbox.xml" })).unwrap();
+  let rep = &r["imports"][0]["report"];
+  assert_eq!((rep["tracks"].as_u64(), rep["linked"].as_u64(), rep["lists"].as_u64()), (Some(2), Some(1), Some(2)), "{r}");
+  let sid = rep["sourceId"].as_str().unwrap().to_string();
+  let src = read(&glue, &format!("{C}/sources/{sid}.json"));
+  assert_eq!((src["origin"]["place"].as_str(), src["origin"]["relPath"].as_str()), (Some(place.as_str()), Some("rekordbox.xml")));
+  let tracks = read(&glue, &format!("{C}/tracks/ab.json"))["items"].clone();
+  assert_eq!(tracks["ab1"]["rating"], 4, "the DJ app's rating, the song having none");
+  // Its playlists brought into GLUE (as the page does), then the library changes on disk.
+  { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); let src = st.sources[&sid].clone(); glue_interop::linked::import_lists(&mut st, &src, &[String::new()]); st.flush().unwrap(); }
+  std::fs::write(libs.join("rekordbox.xml"), rekordbox(r#"<NODE Name="Sat" Type="1" KeyType="0"><TRACK Key="1"/></NODE>"#)).unwrap();
+  // (As if it were written after the import.)
+  { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); let mut src = st.sources[&sid].clone(); src["origin"]["modified"] = json!(0); st.put_source(src); st.flush().unwrap(); }
+  e.dj_look();
+  assert!(h.0.lock().unwrap().events.iter().any(|x| x == "rekordbox changed its playlists: in GLUE 1 new."), "{:?}", h.0.lock().unwrap().events);
+  assert_eq!(e.rpc(&json!({ "op": "dj", "p": "p1", "c": "c1" })).unwrap()["status"][&sid], "live");
+  let src = read(&glue, &format!("{C}/sources/{sid}.json"));
+  assert_eq!(src["tree"].as_array().map(Vec::len), Some(3));
+  assert!(src["origin"]["modified"].as_f64().unwrap() > 0.0, "marked as read");
+  // Not while a tab is the writer.
+  h.0.lock().unwrap().lease = true;
+  std::fs::write(libs.join("rekordbox.xml"), rekordbox("")).unwrap();
+  e.dj_look();
+  assert_eq!(read(&glue, &format!("{C}/sources/{sid}.json"))["tree"].as_array().map(Vec::len), Some(3));
+  h.0.lock().unwrap().lease = false;
+  // Gone from where it was: lost, and Refresh says GLUE Home can't reach it.
+  std::fs::remove_file(libs.join("rekordbox.xml")).unwrap();
+  assert_eq!(e.rpc(&json!({ "op": "djRefresh", "p": "p1", "c": "c1", "id": sid })).unwrap()["ok"], false);
+  assert_eq!(e.rpc(&json!({ "op": "dj", "p": "p1", "c": "c1" })).unwrap()["status"][&sid], "lost");
+}
+
+#[test]
+fn dj_libraries_are_found_in_the_music_folders() {
+  let (glue, music) = (temp("djfind"), temp("djfind-music"));
+  library(&glue);
+  let file = |rel: &str, body: &[u8]| { let p = music.join(rel); std::fs::create_dir_all(p.parent().unwrap()).unwrap(); std::fs::write(p, body).unwrap(); };
+  file("Engine Library/Database2/m.db", b"SQLite format 3\0");
+  file("Sets/export.xml", rekordbox("").as_bytes());
+  file("Sets/small.xml", b"<DJ_PLAYLISTS>");
+  file("iTunes/iTunes Library.xml", format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict>{}</dict></plist>", " ".repeat(300)).as_bytes());
+  file(".hidden/collection.nml", b"<NML>");
+  file("a/b/c/collection.nml", b"<NML>");   // three folders deep: looked into
+  file("a/b/c/d/collection.nml", b"<NML>"); // four: not
+  file("_Serato_/database V2", b"vrsn");
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": music.to_string_lossy() } });
+  let e = Engine::new(glue.clone(), temp("djfind-cache"), h);
+  let mut found: Vec<String> = e.rpc(&json!({ "op": "djFind", "p": "p1", "c": "c1" })).unwrap().as_array().unwrap().iter()
+    .map(|d| format!("{} {} {} {}", d["kind"].as_str().unwrap(), d["place"].as_str().unwrap(), d["placeName"].as_str().unwrap(), d["relPath"].as_str().unwrap())).collect();
+  found.sort();
+  assert_eq!(found, ["apple r1 Music iTunes/iTunes Library.xml", "engine r1 Music Engine Library/Database2/m.db", "rekordbox r1 Music Sets/export.xml", "serato r1 Music _Serato_", "traktor r1 Music a/b/c/collection.nml"]);
+}

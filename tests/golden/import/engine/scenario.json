@@ -1,0 +1,158 @@
+{
+ "files": {
+  "profiles/p1/collections/c1/collection.json": "{\"schemaVersion\":1,\"id\":\"c1\",\"name\":\"Mine\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"roots\":[{\"id\":\"r1\",\"name\":\"Music\",\"absPath\":\"C:\\\\Users\\\\dj\\\\Music\",\"handleKey\":\"h1\",\"addedAt\":\"2026-01-01T00:00:00.000Z\"}]}",
+  "profiles/p1/collections/c1/tracks/ee.json": "{\"schemaVersion\":1,\"items\":{\"ee01\":{\"id\":\"ee01\",\"status\":\"linked\",\"rootId\":\"r1\",\"relPath\":\"a.mp3\",\"importPath\":null,\"fileName\":\"a.mp3\",\"size\":10,\"mtime\":5,\"title\":\"Song ee01\",\"artist\":\"Artist\",\"album\":\"Album\",\"genre\":\"House\",\"label\":\"\",\"comment\":\"\",\"year\":\"2020\",\"duration\":300,\"format\":null,\"addedAt\":\"2026-01-05T10:00:00.000Z\",\"sources\":[]}}}"
+ },
+ "steps": [
+  {
+   "load": {
+    "pid": "p1",
+    "cid": "c1"
+   }
+  },
+  {
+   "import": {
+    "lib": {
+     "app": "engine",
+     "name": "Engine DJ (m.db)",
+     "tracks": [
+      {
+       "externalId": "pc/1",
+       "path": "../Music/a.mp3",
+       "title": "A",
+       "artist": "",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": null,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 10
+      },
+      {
+       "externalId": "pc/2",
+       "path": "../Music/b.mp3",
+       "title": "B",
+       "artist": "",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": null,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": null
+      }
+     ],
+     "lists": [
+      {
+       "externalId": "10",
+       "kind": "playlist",
+       "name": "Friday",
+       "parent": null,
+       "items": []
+      }
+     ],
+     "engine": {
+      "uuids": [
+       "pc"
+      ],
+      "entries": {
+       "10": [
+        "pc/1",
+        "drive/5",
+        "pc/2",
+        "stick/9"
+       ]
+      }
+     }
+    },
+    "fileName": "m.db"
+   }
+  },
+  {
+   "importLists": {
+    "app": "engine",
+    "fileName": "m.db",
+    "ids": [
+     ""
+    ]
+   }
+  },
+  {
+   "flush": true
+  },
+  {
+   "import": {
+    "lib": {
+     "app": "engine",
+     "name": "Engine DJ (m.db)",
+     "tracks": [
+      {
+       "externalId": "drive/5",
+       "path": "../Music Collection/e.mp3",
+       "title": "E",
+       "artist": "",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": null,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 50
+      }
+     ],
+     "lists": [
+      {
+       "externalId": "10",
+       "kind": "playlist",
+       "name": "Friday",
+       "parent": null,
+       "items": []
+      }
+     ],
+     "engine": {
+      "uuids": [
+       "drive"
+      ],
+      "entries": {
+       "10": [
+        "pc/1",
+        "drive/5",
+        "pc/2",
+        "stick/9"
+       ]
+      }
+     }
+    },
+    "fileName": "m.db"
+   }
+  },
+  {
+   "flush": true
+  }
+ ]
+}

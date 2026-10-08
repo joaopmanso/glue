@@ -10,24 +10,33 @@ use regex::Regex;
 use serde_json::Value;
 use std::sync::LazyLock;
 
+/// Songs added on their own (no music folder): their folder in the matcher (`LOOSE`).
+pub const LOOSE: &str = "__files";
+
 fn get<'a>(v: &'a Value, k: &str) -> Option<&'a Value> { v.as_object().and_then(|o| o.get(k)) }
 fn s<'a>(v: &'a Value, k: &str) -> &'a str { get(v, k).and_then(|x| x.as_str()).unwrap_or("") }
 
-/// A file a song may be (`FileEntry`): its path in its music folder, its size, where the folder is (`under`).
-struct FileEntry { rel_path: String, size: Value, under: Option<String> }
+/// A file a song may be (`FileEntry`): its music folder, its path in it, its size and date, where the folder is
+/// (`under`, for matching only).
+pub struct FileEntry { pub root_id: String, pub rel_path: String, pub size: Value, pub mtime: Value, pub under: Option<String> }
+/// A song to match (`Linkable`): its id, imported path, file name and size.
+pub struct Linkable { pub id: String, pub import_path: String, pub file_name: String, pub size: Value }
 
 fn segs(p: &str) -> Vec<String> { p.replace('\\', "/").split('/').filter(|x| !x.is_empty() && *x != "." && *x != "..").map(String::from).collect() }
 
-/// Which file each song is (`matchTracks`'s links): the same file name, then the longest run of equal trailing path
-/// segments (the folder's own place counting), the size breaking ties; anything still ambiguous stays unlinked.
-/// `tracks`: (id, imported path, file name, size). Each file once.
-fn match_tracks(tracks: &[(String, String, String, Value)], files: &[FileEntry]) -> IndexMap<String, usize> {
+/// Which file each song is (`matchTracks`): the same file name, then the longest run of equal trailing path segments
+/// (the folder's own place counting), the size breaking ties; anything still ambiguous stays unlinked. Each file once.
+/// Also where each music folder is, from the absolute paths that matched (`rootPaths`).
+pub fn match_tracks(tracks: &[Linkable], files: &[FileEntry]) -> (IndexMap<String, usize>, IndexMap<String, String>) {
   let mut by_name: IndexMap<String, Vec<usize>> = IndexMap::new();
   for (i, f) in files.iter().enumerate() { by_name.entry(segs(&f.rel_path).pop().unwrap_or_default().to_lowercase()).or_default().push(i); }
   let (mut links, mut used): (IndexMap<String, usize>, IndexSet<usize>) = (IndexMap::new(), IndexSet::new());
-  for (id, import, name, size) in tracks {
-    let path = if import.is_empty() { name } else { import };
-    let tl: Vec<String> = segs(path).iter().map(|x| x.to_lowercase()).collect();
+  // root → absolute prefix → votes
+  let mut votes: IndexMap<String, IndexMap<String, usize>> = IndexMap::new();
+  for t in tracks {
+    let path = if t.import_path.is_empty() { &t.file_name } else { &t.import_path };
+    let ts = segs(path);
+    let tl: Vec<String> = ts.iter().map(|x| x.to_lowercase()).collect();
     let cands: Vec<usize> = by_name.get(tl.last().map(String::as_str).unwrap_or("")).map(|v| v.iter().copied().filter(|i| !used.contains(i)).collect()).unwrap_or_default();
     if cands.is_empty() { continue; }
     let (mut best, mut best_score): (Vec<usize>, usize) = (vec![], 0);
@@ -37,12 +46,31 @@ fn match_tracks(tracks: &[(String, String, String, Value)], files: &[FileEntry])
       while k < fs.len() && k < tl.len() && fs[fs.len() - 1 - k] == tl[tl.len() - 1 - k] { k += 1; }
       if k > best_score { best_score = k; best = vec![f]; } else if k == best_score { best.push(f); }
     }
-    if best.len() > 1 && truthy(Some(size)) { best.retain(|&f| files[f].size.as_f64() == size.as_f64()); }
+    if best.len() > 1 && truthy(Some(&t.size)) { best.retain(|&f| files[f].size.as_f64() == t.size.as_f64()); }
     if best.len() != 1 { continue; }
-    links.insert(id.clone(), best[0]);
-    used.insert(best[0]);
+    let f = best[0];
+    links.insert(t.id.clone(), f);
+    used.insert(f);
+    // The part of the imported path before the matched relative path is where the folder is; only an absolute path
+    // says so (Engine DJ's "../Music Collection/…" doesn't).
+    let rel = segs(&files[f].rel_path);
+    let b = t.import_path.as_bytes();
+    let absolute = (b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/')) || b.first() == Some(&b'/');
+    if absolute && best_score >= rel.len() && ts.len() > rel.len() {
+      let d = ts[0].as_bytes();
+      let drive = d.len() >= 2 && d[0].is_ascii_alphabetic() && d[1] == b':';
+      let head = ts[..ts.len() - rel.len()].join(if drive { "\\" } else { "/" });
+      let prefix = if drive { head } else { format!("/{head}") };
+      *votes.entry(files[f].root_id.clone()).or_default().entry(prefix).or_default() += 1;
+    }
   }
-  links
+  let mut root_paths = IndexMap::new();
+  for (root, v) in votes {
+    let mut sorted: Vec<(String, usize)> = v.into_iter().collect();
+    sorted.sort_by_key(|x| std::cmp::Reverse(x.1));
+    if sorted[0].1 >= 2 || sorted.len() == 1 { root_paths.insert(root, sorted[0].0.clone()); }
+  }
+  (links, root_paths)
 }
 
 static NUMBERED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" \([0-9]+\)(\.[^.]*)$").unwrap());
@@ -50,6 +78,27 @@ static NUMBERED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" \([0-9]+\)(\.[
 fn file_key(name: &str, size: &Value) -> String { NUMBERED.replace(name, "$1").to_lowercase() + "|" + &crate::json::stringify(size) }
 
 impl<D: Dir> Store<D> {
+  /// The songs with their file (`linkedFiles`), as files to match against, and each one's song: where each music
+  /// folder is counts (its path, or its name); songs added on their own match by name (and size) only.
+  pub fn linked_files(&self) -> (Vec<FileEntry>, Vec<String>) {
+    let place: IndexMap<String, String> = get(&self.meta, "roots").and_then(|r| r.as_array()).into_iter().flatten()
+      .map(|r| (s(r, "id").to_string(), get(r, "absPath").and_then(|a| a.as_str()).map(String::from).unwrap_or_else(|| s(r, "name").to_string()))).collect();
+    let (mut files, mut by_file) = (vec![], vec![]);
+    for t in self.tracks.values() {
+      let (root, rel) = (s(t, "rootId"), s(t, "relPath"));
+      if truthy(get(t, "remote")) || !((!root.is_empty() && !rel.is_empty()) || truthy(get(t, "fileKey"))) { continue; }
+      let or0 = |k: &str| match get(t, k) { Some(v) if !v.is_null() => v.clone(), _ => Value::from(0) };
+      files.push(FileEntry {
+        root_id: if root.is_empty() { LOOSE.into() } else { root.into() },
+        rel_path: if rel.is_empty() { s(t, "fileName").into() } else { rel.into() },
+        size: or0("size"), mtime: or0("mtime"),
+        under: if root.is_empty() { None } else { place.get(root).cloned() },
+      });
+      by_file.push(s(t, "id").to_string());
+    }
+    (files, by_file)
+  }
+
   /// Tracks naming imports that are gone lose that name; one left without a file and without any import was only that
   /// import's record, and goes; tracks without a file are matched again by path and fold into the track that has it
   /// (`tidyTracks`). (unlinked, dropped, relinked).
@@ -67,27 +116,14 @@ impl<D: Dir> Store<D> {
     }
     if !keep.is_empty() { self.put_tracks(keep); }
     for id in drop { self.remove_track(&id); dropped += 1; }
-    let strays: Vec<(String, String, String, Value)> = self.tracks.values()
+    let strays: Vec<Linkable> = self.tracks.values()
       .filter(|t| s(t, "status") == "unlinked" && !truthy(get(t, "remote")) && !truthy(get(t, "fileKey")))
-      .map(|t| (s(t, "id").into(), s(t, "importPath").into(), s(t, "fileName").into(), get(t, "size").cloned().unwrap_or(Value::Null))).collect();
+      .map(|t| Linkable { id: s(t, "id").into(), import_path: s(t, "importPath").into(), file_name: s(t, "fileName").into(), size: get(t, "size").cloned().unwrap_or(Value::Null) }).collect();
     let mut relinked = 0;
     if !strays.is_empty() {
-      // The songs with their file (`linkedFiles`): where each music folder is counts (its path, or its name).
-      let place: IndexMap<String, String> = get(&self.meta, "roots").and_then(|r| r.as_array()).into_iter().flatten()
-        .map(|r| (s(r, "id").to_string(), get(r, "absPath").and_then(|a| a.as_str()).map(String::from).unwrap_or_else(|| s(r, "name").to_string()))).collect();
-      let (mut files, mut by_file) = (vec![], vec![]);
-      for t in self.tracks.values() {
-        let (root, rel) = (s(t, "rootId"), s(t, "relPath"));
-        if truthy(get(t, "remote")) || !((!root.is_empty() && !rel.is_empty()) || truthy(get(t, "fileKey"))) { continue; }
-        files.push(FileEntry {
-          rel_path: if rel.is_empty() { s(t, "fileName").into() } else { rel.into() },
-          size: match get(t, "size") { Some(v) if !v.is_null() => v.clone(), _ => Value::from(0) },
-          under: if root.is_empty() { None } else { place.get(root).cloned() },
-        });
-        by_file.push(s(t, "id").to_string());
-      }
+      let (files, by_file) = self.linked_files();
       let mut into: IndexMap<String, Value> = IndexMap::new();
-      for (id, f) in match_tracks(&strays, &files) {
+      for (id, f) in match_tracks(&strays, &files).0 {
         let to = &by_file[f];
         if *to != id { if let Some(t) = self.tracks.get(to) { into.insert(id, t.clone()); } }
       }

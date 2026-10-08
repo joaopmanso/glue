@@ -1,0 +1,17 @@
+[package]
+name = "glue-interop"
+version = "0.1.0"
+edition = "2021"
+description = "GLUE's DJ libraries in Rust (ADR 0167): rekordbox, Traktor, Apple Music, Serato, Engine DJ and M3U read as the website reads them, and brought into a collection"
+license = "MIT"
+publish = false
+
+[dependencies]
+glue-store = { path = "../glue-store" }
+indexmap = "2"
+regex = { version = "1", default-features = false, features = ["std", "perf", "unicode-perl"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+# Engine DJ's m.db (SQLite), read from a copy in memory as the website reads it with sql.js.
+rusqlite = { version = "0.37", features = ["bundled", "serialize"] }
+# Serato's crates sorted as JavaScript's localeCompare sorts them (accents after their letter).
+unicode-normalization = "0.1"

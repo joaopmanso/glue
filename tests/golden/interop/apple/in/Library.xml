@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Major Version</key><integer>1</integer>
+  <key>Tracks</key>
+  <dict>
+    <key>1000</key><dict><key>Track ID</key><integer>1000</integer><key>Name</key><string>Big</string><key>Artist</key><integer>42</integer><key>Year</key><integer>1999</integer><key>Total Time</key><integer>245123</integer><key>BPM</key><integer>0</integer><key>Rating</key><integer>80</integer><key>Rating Computed</key><true/><key>Play Count</key><integer>2</integer><key>Date Added</key><date>2020-02-02T10:00:00Z</date><key>Size</key><real>1.5e6</real><key>Location</key><string>file://localhost/Users/dj/Music/Big%20One.m4a</string></dict>
+    <key>20</key><dict><key>Track ID</key><integer>20</integer><key>Name</key><string>Small &amp; early</string><key>Grouping</key><string>g</string><key>BPM</key><integer>128</integer><key>Rating</key><integer>60</integer><key>Total Time</key><string>100</string><key>Location</key><string>file:///Volumes/Ext/x.mp3</string></dict>
+    <key>abc</key><dict><key>Name</key><string>Lettered</string><key>Location</key><string>file:///C:/Music/abc.mp3</string></dict>
+    <key>7</key><dict><key>Name</key><string>Stream</string><key>Track Type</key><string>URL</string><key>Location</key><string>http://radio</string></dict>
+    <key>8</key><dict><key>Name</key><string>Pod</string><key>Podcast</key><true/><key>Location</key><string>file:///p.mp3</string></dict>
+    <key>9</key><dict><key>Name</key><string>Nowhere</string></dict>
+    <key>20</key><dict><key>Name</key><string>Twenty again</string><key>Comments</key><data>AAA=</data><key>Location</key><string>file:///twenty.mp3</string></dict>
+  </dict>
+  <key>Playlists</key>
+  <array>
+    <dict><key>Name</key><string>Library</string><key>Master</key><true/><key>Playlist ID</key><integer>1</integer><key>Playlist Items</key><array><dict><key>Track ID</key><integer>20</integer></dict></array></dict>
+    <dict><key>Name</key><string>Music</string><key>Distinguished Kind</key><integer>4</integer><key>Playlist ID</key><integer>2</integer></dict>
+    <dict><key>Name</key><string>Hidden</string><key>Visible</key><false/><key>Playlist ID</key><integer>3</integer></dict>
+    <dict><key>Name</key><string>Crates</string><key>Folder</key><true/><key>Playlist ID</key><integer>4</integer><key>Playlist Persistent ID</key><string>F0F0</string></dict>
+    <dict><key>Name</key><string>Set</string><key>Playlist ID</key><integer>5</integer><key>Playlist Persistent ID</key><string>A1A1</string><key>Parent Persistent ID</key><string>F0F0</string><key>Playlist Items</key><array><dict><key>Track ID</key><integer>1000</integer></dict><dict><key>Track ID</key><integer>7</integer></dict><dict><key>Track ID</key><integer>20</integer></dict></array></dict>
+    <dict><key>Name</key><string>Orphan</string><key>Playlist ID</key><real>6.5</real><key>Parent Persistent ID</key><string>GONE</string></dict>
+    <dict><key>Playlist ID</key><integer>7</integer><key>Playlist Items</key><array></array></dict>
+  </array>
+</dict>
+</plist>

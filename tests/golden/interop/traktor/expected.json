@@ -1,0 +1,135 @@
+{
+ "libs": [
+  {
+   "lib": {
+    "app": "traktor",
+    "name": "Traktor (collection.nml)",
+    "tracks": [
+     {
+      "externalId": "C:/:Music/:House/:win.mp3",
+      "path": "C:/Music/House/win.mp3",
+      "title": "Win",
+      "artist": "A",
+      "album": "Alb",
+      "genre": "House",
+      "label": "Lab",
+      "comment": "Com",
+      "year": "",
+      "grouping": "",
+      "duration": 245,
+      "bpm": 125.000061,
+      "key": "Am",
+      "rating": 4,
+      "playCount": 3,
+      "dateAdded": "2023-1-5",
+      "cues": 3,
+      "cueList": [
+       {
+        "t": 1.50025,
+        "kind": "loop",
+        "num": null,
+        "name": "Loop",
+        "color": null,
+        "end": 9.50025
+       },
+       {
+        "t": 30,
+        "kind": "cue",
+        "num": 1,
+        "name": "",
+        "color": null,
+        "end": null
+       },
+       {
+        "t": 200,
+        "kind": "fade",
+        "num": null,
+        "name": "Out",
+        "color": null,
+        "end": null
+       }
+      ],
+      "size": 9999360
+     },
+     {
+      "externalId": "Macintosh HD/:Users/:dj/:Music/:mac.aiff",
+      "path": "/Users/dj/Music/mac.aiff",
+      "title": "Mac",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": "G",
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": 0
+     },
+     {
+      "externalId": "Stick/:Sets/:ext.wav",
+      "path": "/Volumes/Stick/Sets/ext.wav",
+      "title": "Ext",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     }
+    ],
+    "lists": [
+     {
+      "externalId": "u:aa11",
+      "kind": "playlist",
+      "name": "_LOOPS",
+      "parent": null,
+      "items": []
+     },
+     {
+      "externalId": "/Gigs",
+      "kind": "folder",
+      "name": "Gigs",
+      "parent": null,
+      "items": []
+     },
+     {
+      "externalId": "u:bb22",
+      "kind": "playlist",
+      "name": "Friday",
+      "parent": "/Gigs",
+      "items": [
+       "Stick/:Sets/:ext.wav",
+       "C:/:Music/:House/:win.mp3"
+      ]
+     },
+     {
+      "externalId": "/Gigs/Friday#2",
+      "kind": "playlist",
+      "name": "Friday",
+      "parent": "/Gigs",
+      "items": []
+     }
+    ]
+   },
+   "fileName": "collection.nml"
+  }
+ ],
+ "skipped": []
+}

@@ -1,0 +1,191 @@
+{
+ "libs": [
+  {
+   "lib": {
+    "app": "rekordbox",
+    "name": "Rekordbox (rekordbox.xml)",
+    "tracks": [
+     {
+      "externalId": "1",
+      "path": "C:/Music/Café Bar.mp3",
+      "title": "Café & Bar",
+      "artist": "Déjà \"Vu\"",
+      "album": "A",
+      "genre": "House",
+      "label": "L",
+      "comment": "c <3",
+      "year": "2019",
+      "grouping": "warm, peak",
+      "duration": 301,
+      "bpm": 124,
+      "key": "8A",
+      "rating": 5,
+      "playCount": 7,
+      "dateAdded": "2024-03-01",
+      "cues": 5,
+      "cueList": [
+       {
+        "t": 0.025,
+        "kind": "cue",
+        "num": null,
+        "name": "",
+        "color": null,
+        "end": null
+       },
+       {
+        "t": 1,
+        "kind": "load",
+        "num": null,
+        "name": "",
+        "color": null,
+        "end": null
+       },
+       {
+        "t": 2.5,
+        "kind": "fade",
+        "num": null,
+        "name": "",
+        "color": null,
+        "end": null
+       },
+       {
+        "t": 64.5,
+        "kind": "cue",
+        "num": 1,
+        "name": "Drop",
+        "color": "#28e214",
+        "end": null
+       },
+       {
+        "t": 96,
+        "kind": "loop",
+        "num": 2,
+        "name": "Roll",
+        "color": "#ff0000",
+        "end": 98
+       }
+      ],
+      "size": 10485760
+     },
+     {
+      "externalId": "2",
+      "path": "/Users/dj/Music/Zero%E0%A4%A.mp3",
+      "title": "Zero",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": 16,
+      "bpm": null,
+      "key": null,
+      "rating": 2,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": 1000
+     },
+     {
+      "externalId": "file://localhost/D:/Sets/loc.flac",
+      "path": "D:/Sets/loc.flac",
+      "title": "By location",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": 3,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     },
+     {
+      "externalId": "5",
+      "path": "E:/a/b/🎵.wav",
+      "title": "single 'quoted'",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     }
+    ],
+    "lists": [
+     {
+      "externalId": "/2024",
+      "kind": "folder",
+      "name": "2024",
+      "parent": null,
+      "items": []
+     },
+     {
+      "externalId": "/2024/Warm",
+      "kind": "playlist",
+      "name": "Warm",
+      "parent": "/2024",
+      "items": [
+       "2",
+       "1",
+       "99"
+      ]
+     },
+     {
+      "externalId": "/2024/Warm#2",
+      "kind": "playlist",
+      "name": "Warm",
+      "parent": "/2024",
+      "items": []
+     },
+     {
+      "externalId": "/By path",
+      "kind": "playlist",
+      "name": "By path",
+      "parent": null,
+      "items": [
+       "file://localhost/D:/Sets/loc.flac"
+      ]
+     },
+     {
+      "externalId": "/",
+      "kind": "playlist",
+      "name": "Playlist",
+      "parent": null,
+      "items": [
+       "5"
+      ]
+     },
+     {
+      "externalId": "/Empty",
+      "kind": "folder",
+      "name": "Empty",
+      "parent": null,
+      "items": []
+     }
+    ]
+   },
+   "fileName": "rekordbox.xml"
+  }
+ ],
+ "skipped": []
+}

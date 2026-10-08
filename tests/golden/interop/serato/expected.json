@@ -1,0 +1,121 @@
+{
+ "libs": [
+  {
+   "lib": {
+    "app": "serato",
+    "name": "Serato",
+    "tracks": [
+     {
+      "externalId": "/users/dj/music/a.mp3",
+      "path": "/Users/dj/Music/A.mp3",
+      "title": "Á 🎵 title",
+      "artist": "Art",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "2001",
+      "grouping": "",
+      "duration": 225.12,
+      "bpm": 126.5,
+      "key": "8A",
+      "rating": null,
+      "playCount": null,
+      "dateAdded": "2026-01-01",
+      "cues": 0,
+      "cueList": [],
+      "size": 8.5
+     },
+     {
+      "externalId": "/volumes/ext/b.mp3",
+      "path": "/Volumes/Ext/b.mp3",
+      "title": "",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": 225,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     },
+     {
+      "externalId": "/c.mp3",
+      "path": "/c.mp3",
+      "title": "�",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     }
+    ],
+    "lists": [
+     {
+      "externalId": "c:a.crate",
+      "kind": "playlist",
+      "name": "a",
+      "parent": null,
+      "items": []
+     },
+     {
+      "externalId": "c:B.crate",
+      "kind": "playlist",
+      "name": "B",
+      "parent": null,
+      "items": [
+       "/volumes/ext/b.mp3",
+       "/users/dj/music/a.mp3"
+      ]
+     },
+     {
+      "externalId": "c:House.crate",
+      "kind": "playlist",
+      "name": "House",
+      "parent": null,
+      "items": [
+       "/c.mp3"
+      ]
+     },
+     {
+      "externalId": "f:House",
+      "kind": "folder",
+      "name": "House",
+      "parent": null,
+      "items": []
+     },
+     {
+      "externalId": "c:House%%Deep.crate",
+      "kind": "playlist",
+      "name": "Deep",
+      "parent": "f:House",
+      "items": [
+       "/users/dj/music/a.mp3"
+      ]
+     }
+    ]
+   },
+   "fileName": "database V2"
+  }
+ ],
+ "skipped": []
+}

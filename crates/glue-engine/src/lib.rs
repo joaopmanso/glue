@@ -17,6 +17,7 @@
 pub mod analyse;
 pub mod answers;
 pub mod covers;
+pub mod dj;
 pub mod dupes;
 pub mod ice;
 pub mod identity;
@@ -197,6 +198,7 @@ pub struct Engine<H: Host> {
   /// The collections whose verdicts were looked at again this run (verdicts.rs).
   pub(crate) rechecked: Mutex<std::collections::HashSet<Key>>,
   pub(crate) tidied: Mutex<std::collections::HashSet<Key>>,
+  pub(crate) dj: Mutex<dj::DjWatch>,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -219,7 +221,7 @@ pub fn changed_over(cur: Option<&Value>, mine: &Value, was: Option<&Value>) -> V
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default() });
+    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default(), dj: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }
@@ -538,6 +540,14 @@ impl<H: Host> Engine<H> {
       "resolve" => self.resolve(&p, &c, b),
       // The duplicates GLUE Home found (ADR 0164): its last result, or matched now (`full`: every song again).
       "dupes" => self.dupes(&p, &c, b["full"].as_bool().unwrap_or(false)),
+      // The DJ libraries GLUE Home follows (ADR 0167): how each is, Refresh, and an import from where a library is.
+      "dj" => Ok(json!({ "status": self.dj_status(&p, &c) })),
+      "djRefresh" => self.dj_refresh(&p, &c, &text(b, "id")),
+      "djFind" => self.dj_find_all(&p, &c),
+      "djImport" => {
+        let also: Vec<(String, String)> = b["also"].as_array().into_iter().flatten().map(|x| (text(x, "place"), text(x, "relPath"))).collect();
+        self.dj_import(&p, &c, &text(b, "place"), &text(b, "relPath"), &also)
+      }
       "restamp" => { self.restamp(&p, &c, &text(b, "id"), &b["was"], &b["now"]); Ok(json!({ "ok": true })) }
       "job" => {
         let ids = b["ids"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();

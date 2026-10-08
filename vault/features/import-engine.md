@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-26
-adrs: [0010]
+updated: 2026-10-08
+adrs: [0010, 0167]
 ---
 # Import: Engine DJ
 
@@ -113,3 +113,8 @@ user's library, the Engine record in `preparation` that their playlists use now 
 - **In the browser alone:** Refresh (or Update when a newer file was seen).
 - **Engine DJ's relative paths** (`../Music Collection/…`) find their file by the music folder's name
   ([ADR 0066](../adr/0066-imported-records-find-their-files.md)).
+
+## GLUE Home reads it (2026-10-08, [ADR 0167](../adr/0167-dj-libraries-in-glue-home.md))
+With GLUE Home running, this library is read in Rust by GLUE Home (`crates/glue-interop`, held byte for byte to
+`src/core/interop` by `tests/golden/interop`): found in the music folders, imported when **Add** is clicked, and followed
+live by GLUE Home itself, with no tab open. In the browser alone, as before.

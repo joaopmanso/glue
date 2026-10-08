@@ -5,6 +5,19 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-08 · GLUE Home 0.64.0: DJ libraries in GLUE Home (ADR 0167)
+- **Why:** the next step to "GLUE Home IS THE APP" before cue points and real-time integrations: with GLUE Home
+  running, DJ libraries were still followed by the page (each change sent over the local link whole, nothing followed
+  without a tab), and finding them in the music folders was off.
+- **Now:** `crates/glue-interop` reads rekordbox, Traktor, Apple Music, Serato, Engine DJ (SQLite, from a copy) and M3U
+  as the website does, and brings them in as `applyImport` / `syncLinkedLists` do; GLUE Home's engine follows every
+  collection's libraries it can reach every 5 s, finds new ones in the music folders and the GLUE folder, and imports
+  the one the page adds. The page shows each one's state and asks for Refresh.
+- Tests: `tests/golden/interop` (eight cases of library files with JavaScript's corners) and `tests/golden/import`
+  (rekordbox over six reads, an Engine DJ set, a shared collection), replayed in Rust byte for byte; engine tests for
+  the import, the following, the lease and a lost file, and the finder; `e2e/homemode.spec.ts` "it finds a DJ library
+  in the music folder, imports it and follows it live itself".
+
 ## 2026-10-08 · GLUE Home 0.63.0: GLUE Home makes old verdicts again and repairs a collection when it opens (ADR 0166)
 - **Why:** ADR 0162 left two of the page's open-time jobs with nobody doing them while GLUE Home runs: verdicts made by
   older rules made again (`recheckVerdicts`), and the repairs (`tidyTracks`: songs naming a removed import, songs

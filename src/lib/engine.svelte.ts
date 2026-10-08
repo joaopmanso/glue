@@ -18,6 +18,7 @@ import type { Analysed } from '../core/library/analysed';
 import type { DetailsHeader } from '../store/details';
 import type { Clash } from '../core/shared/merge3';
 import type { DupGroup, Match } from '../core/library/duplicates';
+import type { ImportReport } from '../store/merge';
 
 interface EngineState { rev: number; jobs: { kind: string; left: number; total: number }[]; analysis: { paused: boolean; running: number; current: string[]; left: number; done: number; failed: number; waiting: number } }
 type Change = { rev: number; p: string; c: string; paths: string[]; analysed?: string[] };
@@ -197,6 +198,28 @@ class EngineClient {
     const w = this.where();
     return w ? this.rpc<{ at: number; matches: Match[]; missing: number; groups?: DupGroup[] }>({ op: 'dupes', ...w, ...(full ? { full } : {}) }, 180_000) : null;
   }
+  /** The DJ libraries GLUE Home follows (ADR 0167): how each is ('live', 'lost', 'reading'), by source id. */
+  async djStatus(): Promise<Record<string, 'live' | 'lost' | 'reading'>> {
+    const w = this.where();
+    return w ? (await this.rpc<{ status: Record<string, 'live' | 'lost' | 'reading'> }>({ op: 'dj', ...w }, 10_000)).status : {};
+  }
+  /** A library read again now by GLUE Home (Refresh). ok false: it can't reach its file. */
+  async djRefresh(id: string): Promise<{ ok: boolean; notice?: string }> {
+    const w = this.where();
+    return w ? this.rpc<{ ok: boolean; notice?: string }>({ op: 'djRefresh', ...w, id }, 120_000) : { ok: false };
+  }
+  /** A library imported from where it is, read by GLUE Home and followed from then on (an Engine DJ set's other
+      databases in `also`). */
+  async djImport(place: string, relPath: string, also: { place: string; relPath: string }[]): Promise<{ imports: { name: string; report: ImportReport }[]; skipped: string[]; paths: string[] }> {
+    const w = this.where();
+    if (!w) throw new Error('No collection open');
+    return this.rpc({ op: 'djImport', ...w, place, relPath, also }, 300_000);
+  }
+  /** The DJ libraries in the collection's music folders and the GLUE folder, as GLUE Home finds them. */
+  async djFind(): Promise<{ kind: 'engine' | 'serato' | 'traktor' | 'rekordbox' | 'apple'; relPath: string; place: string; placeName: string; modified: number; size: number }[]> {
+    const w = this.where();
+    return w ? this.rpc({ op: 'djFind', ...w }, 120_000) : [];
+  }
   /** The open shared collection's clashes waiting (GLUE Home syncs it, ADR 0162). */
   async clashes(): Promise<Clash[]> {
     const w = this.where();
@@ -227,6 +250,7 @@ lib.beforeClose = () => engineClient.flush();
 // A collection opened: attached at once (not a change saved from here meanwhile).
 const prevOpened = lib.onCollectionOpened;
 lib.homeFind = (id, name, sample) => engineClient.findFolder(id, name, sample);
+lib.homeDjFind = () => engineClient.djFind();
 lib.homeFindFile = (name, size, roots) => homeMode() ? engineClient.findFile(name, size, roots) : Promise.resolve({ path: null });
 lib.onCollectionOpened = (pid, cid) => { prevOpened?.(pid, cid); void engineClient.check(); };
 if (typeof window !== 'undefined') {

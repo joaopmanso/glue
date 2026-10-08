@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 glue-audio = { path = "../glue-audio" }
 glue-store = { path = "../glue-store" }
+glue-interop = { path = "../glue-interop" }
 indexmap = "2"
 # The cover look-up (covers.rs, names.rs): names compared as the website does.
 regex = "1"

@@ -6,18 +6,19 @@ import { isAppleLibrary, parseAppleLibrary } from '../core/interop/apple';
 import { buildSeratoLibrary, isSeratoDatabase } from '../core/interop/serato';
 import { combineEngine, isSqlite, parseEngineDb } from '../core/interop/engine';
 import { parseM3u } from '../core/interop/m3u';
+import type { SqlJsStatic } from 'sql.js';
 
 export const IMPORT_ACCEPT = '.xml,.nml,.db,.m3u,.m3u8,.crate,*';
 
-async function engine(bytes: Uint8Array, name: string) {
-  // sql.js (SQLite in WebAssembly) is only loaded when an Engine library is imported.
+// sql.js (SQLite in WebAssembly) is only loaded when an Engine library is imported.
+async function loadSql(): Promise<SqlJsStatic> {
   const [{ default: initSqlJs }, { default: wasmUrl }] = await Promise.all([import('sql.js'), import('sql.js/dist/sql-wasm.wasm?url')]);
-  const SQL = await initSqlJs({ locateFile: () => wasmUrl });
-  return parseEngineDb(bytes, SQL, name);
+  return initSqlJs({ locateFile: () => wasmUrl });
 }
 
-/** Parse whatever library files were chosen. A Serato "database V2" takes any .crate files alongside. */
-export async function parseLibraryFiles(files: File[]): Promise<{ libs: { lib: ImportedLibrary; fileName: string }[]; skipped: string[] }> {
+/** Parse whatever library files were chosen. A Serato "database V2" takes any .crate files alongside. `sql`: how
+    SQLite is loaded (the tests' own, in Node). GLUE Home's is `glue_interop::parse_library_files` (ADR 0167). */
+export async function parseLibraryFiles(files: File[], sql: () => Promise<SqlJsStatic> = loadSql): Promise<{ libs: { lib: ImportedLibrary; fileName: string }[]; skipped: string[] }> {
   const libs: { lib: ImportedLibrary; fileName: string }[] = [], skipped: string[] = [];
   const engines: ImportedLibrary[] = [];   // Engine DJ libraries chosen together are one set
   const crates = files.filter(f => /\.crate$/i.test(f.name));
@@ -27,7 +28,7 @@ export async function parseLibraryFiles(files: File[]): Promise<{ libs: { lib: I
     const head = new TextDecoder().decode(bytes.subarray(0, 4096));
     try {
       const add = (l: ImportedLibrary) => libs.push({ lib: l, fileName: f.name });
-      if (isSqlite(bytes)) engines.push(await engine(bytes, f.name));
+      if (isSqlite(bytes)) engines.push(parseEngineDb(bytes, await sql(), f.name));
       else if (isSeratoDatabase(bytes)) add(buildSeratoLibrary(bytes, await Promise.all(crates.map(async c => ({ fileName: c.name, bytes: new Uint8Array(await c.arrayBuffer()) })))));
       else if (isRekordboxXml(head)) add(parseRekordboxXml(new TextDecoder().decode(bytes), f.name));
       else if (isTraktorNml(head)) add(parseTraktorNml(new TextDecoder().decode(bytes), f.name));

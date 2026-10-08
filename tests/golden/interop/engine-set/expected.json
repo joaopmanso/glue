@@ -1,0 +1,207 @@
+{
+ "libs": [
+  {
+   "lib": {
+    "app": "engine",
+    "name": "Engine DJ (2 libraries)",
+    "tracks": [
+     {
+      "externalId": "pc-uuid/1",
+      "path": "../Music/a.mp3",
+      "title": "A",
+      "artist": "X",
+      "album": "Al",
+      "genre": "Techno",
+      "label": "la",
+      "comment": "co",
+      "year": "2024",
+      "grouping": "",
+      "duration": 300.5,
+      "bpm": 127.98,
+      "key": "8A",
+      "rating": 4,
+      "playCount": null,
+      "dateAdded": "2026-01-01",
+      "cues": 0,
+      "cueList": [],
+      "size": 1000
+     },
+     {
+      "externalId": "pc-uuid/2",
+      "path": "../Music/b.mp3",
+      "title": "B",
+      "artist": "Y",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": 200,
+      "bpm": 120,
+      "key": "7B",
+      "rating": 0,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": 2000
+     },
+     {
+      "externalId": "pc-uuid/3",
+      "path": "c.mp3",
+      "title": "C",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     },
+     {
+      "externalId": "pc-uuid/5",
+      "path": "../Music/e.mp3",
+      "title": "E",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "1999",
+      "grouping": "",
+      "duration": null,
+      "bpm": 128.5,
+      "key": null,
+      "rating": 3,
+      "playCount": null,
+      "dateAdded": "2023-11-14",
+      "cues": 0,
+      "cueList": [],
+      "size": 3000
+     },
+     {
+      "externalId": "drive-uuid/5",
+      "path": "../Music Collection/e.mp3",
+      "title": "E on the drive",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     }
+    ],
+    "lists": [
+     {
+      "externalId": "11",
+      "kind": "folder",
+      "name": "First",
+      "parent": null,
+      "items": [
+       "pc-uuid/1"
+      ]
+     },
+     {
+      "externalId": "12",
+      "kind": "playlist",
+      "name": "Child",
+      "parent": "11",
+      "items": [
+       "pc-uuid/3"
+      ]
+     },
+     {
+      "externalId": "13",
+      "kind": "playlist",
+      "name": "Child",
+      "parent": "11",
+      "items": [
+       "drive-uuid/5"
+      ]
+     },
+     {
+      "externalId": "10",
+      "kind": "playlist",
+      "name": "Second",
+      "parent": null,
+      "items": [
+       "pc-uuid/2",
+       "pc-uuid/1",
+       "drive-uuid/5"
+      ]
+     },
+     {
+      "externalId": "20",
+      "kind": "playlist",
+      "name": "Loop A",
+      "parent": null,
+      "items": []
+     },
+     {
+      "externalId": "21",
+      "kind": "playlist",
+      "name": "Loop B",
+      "parent": null,
+      "items": []
+     }
+    ],
+    "engine": {
+     "uuids": [
+      "pc-uuid",
+      "drive-uuid"
+     ],
+     "entries": {
+      "10": [
+       "pc-uuid/2",
+       "pc-uuid/1",
+       "drive-uuid/5",
+       "stick-uuid/9",
+       "pc-uuid/77"
+      ],
+      "11": [
+       "pc-uuid/1"
+      ],
+      "12": [
+       "pc-uuid/3"
+      ],
+      "13": [
+       "drive-uuid/5"
+      ],
+      "20": [],
+      "21": []
+     }
+    },
+    "stats": {
+     "entries": 8,
+     "matched": 6,
+     "otherLibraries": 1,
+     "missingLibraries": 1,
+     "gone": 1,
+     "libraries": 2
+    }
+   },
+   "fileName": "m.db"
+  }
+ ],
+ "skipped": []
+}

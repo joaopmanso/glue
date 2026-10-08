@@ -48,6 +48,17 @@ pub struct LoadOpts { pub me: Option<String>, pub name: Option<String>, pub show
 
 /// The time, for the bin's names: ms since 1970 and its ISO form (`Date.now()`, `toISOString()`).
 pub type Clock = Box<dyn Fn() -> (i64, String) + Send + Sync>;
+/// Where new ids come from (`newId`): random, or given in order by a test.
+pub type Ids = Box<dyn FnMut() -> String + Send + Sync>;
+
+/// `newId`: a random UUID's first 16 hex digits (its 13th says version 4).
+pub fn random_id() -> String {
+  let mut b = [0u8; 8];
+  getrandom::fill(&mut b).expect("no randomness");
+  let mut s: String = b.iter().map(|x| format!("{x:02x}")).collect();
+  s.replace_range(12..13, "4");
+  s
+}
 
 struct BinEntry { name: String, deleted_at: String, lists: Vec<Value> }
 
@@ -69,6 +80,7 @@ pub struct Store<D: Dir> {
   deleted: IndexSet<String>,
   binned: Vec<BinEntry>,
   clock: Clock,
+  ids: Ids,
 }
 
 fn get<'a>(o: &'a Value, k: &str) -> Option<&'a Value> { o.as_object().and_then(|o| o.get(k)) }
@@ -93,7 +105,7 @@ impl<D: Dir> Store<D> {
     }
     let meta = migrate(match &shared { Some(m) => collection_here(&raw, &m.here.me), None => raw.clone() })?;
     let mut s = Store { root, base, meta, tracks: IndexMap::new(), analysis: IndexMap::new(), lists: IndexMap::new(), sources: IndexMap::new(), events: IndexMap::new(),
-      damaged: vec![], shared, dirty: IndexSet::new(), deleted: IndexSet::new(), binned: vec![], clock };
+      damaged: vec![], shared, dirty: IndexSet::new(), deleted: IndexSet::new(), binned: vec![], clock, ids: Box::new(random_id) };
     // The songs and analyses taken after the sources: a song's computer (`with_copies`).
     let mut shards: Vec<(&str, Value)> = vec![];
     for dir in ["tracks", "analysis", "lists", "sources"] {
@@ -217,6 +229,16 @@ impl<D: Dir> Store<D> {
   fn mark(&mut self, path: String) { self.deleted.shift_remove(&path); self.dirty.insert(path); }
 
   pub fn save_meta(&mut self) { self.mark("collection.json".into()); }
+  /// A library this computer can read (`ownSource`): its own, or any outside a shared collection.
+  pub fn own_source(&self, s: &Value) -> bool {
+    match &self.shared { None => true, Some(m) => !truthy(get(s, "computer")) || get(s, "computer").and_then(Value::as_str) == Some(m.here.me.as_str()) }
+  }
+  /// A new id (`newId`).
+  pub fn new_id(&mut self) -> String { (self.ids)() }
+  /// New ids from elsewhere (a test gives them in order).
+  pub fn set_ids(&mut self, ids: Ids) { self.ids = ids; }
+  /// Now: milliseconds, and as `toISOString` writes it.
+  pub fn now(&self) -> (i64, String) { (self.clock)() }
   pub fn put_track(&mut self, t: Value) { let id = id_of(&t); self.tracks.insert(id.clone(), t); self.mark(format!("tracks/{}.json", shard_of(&id))); }
   pub fn put_tracks(&mut self, ts: Vec<Value>) { for t in ts { self.put_track(t); } }
 

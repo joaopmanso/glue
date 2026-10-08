@@ -1,0 +1,194 @@
+{
+ "libs": [
+  {
+   "lib": {
+    "app": "m3u",
+    "name": "Playlist (Set One.m3u8)",
+    "tracks": [
+     {
+      "externalId": "c:/music/song.flac",
+      "path": "C:/Music/Song.flac",
+      "title": "Song",
+      "artist": "Band",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": 245,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     },
+     {
+      "externalId": "/users/j/b c.mp3",
+      "path": "/Users/j/b c.mp3",
+      "title": "Just a title",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     },
+     {
+      "externalId": "/music/ünï.mp3",
+      "path": "/Music/Ünï.mp3",
+      "title": "B - C",
+      "artist": "A",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": 12.5,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     },
+     {
+      "externalId": "rel/x.mp3",
+      "path": "rel/x.mp3",
+      "title": "",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     }
+    ],
+    "lists": [
+     {
+      "externalId": "m3u:Set One.m3u8",
+      "kind": "playlist",
+      "name": "Set One",
+      "parent": null,
+      "items": [
+       "c:/music/song.flac",
+       "/users/j/b c.mp3",
+       "/music/ünï.mp3",
+       "rel/x.mp3"
+      ]
+     }
+    ]
+   },
+   "fileName": "Set One.m3u8"
+  },
+  {
+   "lib": {
+    "app": "m3u",
+    "name": "Playlist (old.m3u)",
+    "tracks": [
+     {
+      "externalId": "c:/m/café.mp3",
+      "path": "C:/M/café.mp3",
+      "title": "Euro €",
+      "artist": "Café",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": 100,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     }
+    ],
+    "lists": [
+     {
+      "externalId": "m3u:old.m3u",
+      "kind": "playlist",
+      "name": "old",
+      "parent": null,
+      "items": [
+       "c:/m/café.mp3"
+      ]
+     }
+    ]
+   },
+   "fileName": "old.m3u"
+  },
+  {
+   "lib": {
+    "app": "m3u",
+    "name": "Playlist (plain.M3U)",
+    "tracks": [
+     {
+      "externalId": "c:/a.mp3",
+      "path": "C:/a.mp3",
+      "title": "",
+      "artist": "",
+      "album": "",
+      "genre": "",
+      "label": "",
+      "comment": "",
+      "year": "",
+      "grouping": "",
+      "duration": null,
+      "bpm": null,
+      "key": null,
+      "rating": null,
+      "playCount": null,
+      "dateAdded": null,
+      "cues": 0,
+      "cueList": [],
+      "size": null
+     }
+    ],
+    "lists": [
+     {
+      "externalId": "m3u:plain.M3U",
+      "kind": "playlist",
+      "name": "plain",
+      "parent": null,
+      "items": [
+       "c:/a.mp3"
+      ]
+     }
+    ]
+   },
+   "fileName": "plain.M3U"
+  }
+ ],
+ "skipped": []
+}
