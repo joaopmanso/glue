@@ -5,6 +5,23 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · GLUE Home 0.70.0: Engine DJ's playlists lost other drives' songs; fixed (ADR 0173)
+- **What happened:** with 0.68–0.69 the playlist sync removed from Engine DJ's playlists the songs of drives GLUE
+  hadn't read (not plugged in). The first sync put them last and recorded that as agreed; the next took them for songs
+  removed in GLUE. Found while looking into what the user took for a loop (three syncs, three 163 MB backups in 20 s).
+  When Engine DJ reopened, it put back what the C: and G: copies of the tree had. About 3,400 entries of four drives in
+  17 playlists are still missing. The user switched the sync off and closed Engine DJ.
+- **Now:** only the entries GLUE knows are merged; the others stay where they are (`glue_interop::sync::splice`): a
+  removal leaves its own place, an addition goes after its neighbour, and playlists GLUE has no copy of keep their place
+  among their siblings. One backup per database each time Engine DJ has been closed (`DjWatch.backed`), not per sync.
+- **Recovery:** `crates/glue-interop/examples/restore_lists.rs` puts the songs of databases GLUE doesn't read back into
+  the library's playlists from another copy of the tree (a drive's database, or the user's copy of F:'s from
+  2026-09-26, read entry by entry where it's damaged). Reports first; writes with a backup, Engine DJ closed, on the
+  user's go-ahead. Tried on a copy: the September copy gives 3,414 entries into 17 playlists, integrity ok, nothing more
+  on a second run.
+- Tests: the splice's cases; an engine test (a stick's songs in a playlist through syncs, a reorder and a removal in
+  GLUE, in step in one round, one backup while Engine DJ stays closed and a new one after it opened).
+
 ## 2026-10-09 · GLUE Home 0.69.0: Engine DJ's playlist order, and songs pointed at the copy kept (ADR 0172)
 - **Why:** the user, after making a playlist in GLUE that showed up in Engine DJ (confirmed): "because of the duplicate
   clean up the engine DJ now points to songs that no longer exist… update those references with the best copy chosen.

@@ -13,7 +13,7 @@
 //! Written into the database the library is read from (Engine DJ's settings' library; F: on the user's desktop).
 use crate::{get, text, truthy, Engine, Host};
 use glue_interop::enginedb::{self, EList, NewTrack};
-use glue_interop::sync::{merge_items, pick};
+use glue_interop::sync::{merge_items, pick, splice};
 use rusqlite::Connection;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -132,7 +132,12 @@ impl<H: Host> Engine<H> {
       let (b_name, b_parent, b_items) = (b.as_ref().map(|b| text(b, "name")), b.as_ref().map(|b| text(b, "parent")), b.as_ref().map(|b| b["items"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect::<Vec<_>>()));
       let name = pick(&text(l, "name"), &e.title, b_name.as_ref());
       let parent = pick(&g_parent, &e.parent.to_string(), b_parent.as_ref());
-      let items = merge_items(&g_items, &e.items, b_items.as_deref());
+      // Only the songs GLUE knows are merged; the others (another drive's database GLUE hasn't read) stay where they
+      // are in Engine DJ's list (ADR 0173).
+      let known = |x: &str| track_of.contains_key(x) || songs.added.values().any(|v| v == x) || ext_of.values().any(|v| v == x) || g_items.iter().any(|v| v == x);
+      let l_known: Vec<String> = e.items.iter().filter(|x| known(x)).cloned().collect();
+      let b_known: Option<Vec<String>> = b_items.map(|b| b.into_iter().filter(|x| known(x)).collect());
+      let items = splice(&e.items, known, &merge_items(&g_items, &l_known, b_known.as_deref()));
       // To Engine DJ.
       let id = e.id;
       if name != e.title { enginedb::rename_list(&tx, id, &name)?; done.written += 1; }
@@ -172,9 +177,13 @@ impl<H: Host> Engine<H> {
         if kids.is_empty() { continue; }
         kids.sort_by(|a, b| a["position"].as_f64().unwrap_or(f64::MAX).partial_cmp(&b["position"].as_f64().unwrap_or(f64::MAX)).unwrap_or(std::cmp::Ordering::Equal));
         let g_order: Vec<String> = kids.iter().filter_map(|x| origin(x, "externalId").map(String::from)).filter(|e| l_order.contains(e)).collect();
-        let b_order: Option<Vec<String>> = orders.get(&par).and_then(Value::as_array).map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect());
-        let mut merged: Vec<String> = merge_items(&g_order, &l_order, b_order.as_deref()).into_iter().filter(|e| l_order.contains(e)).collect();
-        for e in &l_order { if !merged.contains(e) { merged.push(e.clone()); } }
+        // Only GLUE's copies are merged; a playlist it hasn't a copy of stays where it is (ADR 0173).
+        let known = |x: &str| g_order.iter().any(|g| g == x);
+        let l_known: Vec<String> = l_order.iter().filter(|x| known(x)).cloned().collect();
+        let b_order: Option<Vec<String>> = orders.get(&par).and_then(Value::as_array).map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).filter(|x| known(x)).collect());
+        let mut merged: Vec<String> = merge_items(&g_order, &l_known, b_order.as_deref()).into_iter().filter(|e| l_known.contains(e)).collect();
+        for e in &l_known { if !merged.contains(e) { merged.push(e.clone()); } }
+        let merged = splice(&l_order, known, &merged);
         if merged != l_order { enginedb::set_order(&tx, par.parse().unwrap_or(0), &merged.iter().filter_map(|x| x.parse().ok()).collect::<Vec<i64>>())?; done.written += 1; }
         // GLUE: the same order (its own lists among them after).
         for (i, e) in merged.iter().enumerate() {

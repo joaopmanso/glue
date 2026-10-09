@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-10-09
-adrs: [0009, 0022, 0079, 0171]
+adrs: [0009, 0022, 0079, 0171, 0172, 0173]
 ---
 # Playlists, folders & smart lists
 
@@ -136,4 +136,6 @@ With the main Engine DJ library kept in step both ways, the playlists in its fol
 moved, songs added or removed, or made new (or dragged in) there, they change in Engine DJ when it's closed, and Engine
 DJ's changes come here. A song Engine DJ lacks is added to its collection. A playlist deleted on one side is asked about
 in the sidebar. Since 0.69 ([ADR 0172](../adr/0172-engine-dj-order-and-songs-kept.md)) the order of playlists among
-their siblings follows both ways too, and songs whose file the duplicates' clean-up took point at the copy kept.
+their siblings follows both ways too, and songs whose file the duplicates' clean-up took point at the copy kept. Since
+0.70 ([ADR 0173](../adr/0173-engine-dj-what-glue-cant-see-stays.md)) songs of drives GLUE hasn't read (not plugged in)
+stay in Engine DJ's playlists where they are: 0.68–0.69 removed them.

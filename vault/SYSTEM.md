@@ -203,7 +203,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     `djsync.rs` (after each look, when GLUE's library or a database changed) merges each song's hot cues, saved loops
     and grid three ways (`glue_interop::sync`; pads are its hot cues, memory loops its saved loops) against what they
     last agreed on (GLUE Home's cache `dj/…`), writes Engine DJ's `PerformanceData` only while Engine DJ and its
-    analyser aren't running (`Host::apps_running`), after a copy (`dj-backups/`), and takes Engine DJ's changes into
+    analyser aren't running (`Host::apps_running`), after a copy (`dj-backups/`, one a database each time Engine DJ has
+    been closed, the last 3 kept, ADR 0173), and takes Engine DJ's changes into
     `prep` as its own edit; clashes are settled in Prepare (`djClashes`, `djResolve`).
   - **And its playlists** (0.68, ADR 0171; `djlists.rs`, `glue_interop::enginedb`): the ones in GLUE's folder of the
     library, merged three ways (names and places, songs) in the database the library is read from, new ones made
@@ -211,6 +212,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     sidebar (`djQuestions`, `djListResolve`); the website's removal of a gone list's copy (ADR 0090) is off for it.
     Also (0.69, ADR 0172) the order of playlists among siblings, merged the same way (the website's re-sort is off for
     it), and Engine DJ's songs whose file the duplicates' clean-up took pointed at the copy kept (`dj_relink`).
+    Only the entries GLUE knows are merged (0.70, ADR 0173): another drive's songs (a database it hasn't read) and
+    playlists it has no copy of stay where they are (`glue_interop::sync::splice`). A damaged library's entries are put
+    back by hand with `crates/glue-interop/examples/restore_lists.rs`.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
     socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again

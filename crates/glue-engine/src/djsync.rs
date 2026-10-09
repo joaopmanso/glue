@@ -77,7 +77,7 @@ impl<H: Host> Engine<H> {
     };
     let sid = text(&src, "id");
     // Engine DJ open: GLUE's changes wait for it to close.
-    if self.host.apps_running(&ENGINE_APPS) { self.dj.lock().unwrap().syncing.insert(sid, "waiting"); return Ok(Synced { waiting: true, ..Default::default() }); }
+    if self.host.apps_running(&ENGINE_APPS) { let mut w = self.dj.lock().unwrap(); w.syncing.insert(sid, "waiting"); w.backed.clear(); return Ok(Synced { waiting: true, ..Default::default() }); }
     let cfg = self.host.config();
     let dbs = self.engine_dbs(&src, &cfg);
     // Not again unless something changed: GLUE's library, or a database.
@@ -92,7 +92,7 @@ impl<H: Host> Engine<H> {
     let mut done = Synced::default();
     let mut edits: Vec<(String, Value)> = vec![];
     let (_, at) = self.host.now();
-    let mut backed: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut backed = self.dj.lock().unwrap().backed.clone();
     let mut by_db: HashMap<String, Vec<&Song>> = HashMap::new();
     for x in &songs { if let Some((u, _)) = x.ext.split_once('/') { by_db.entry(u.to_string()).or_default().push(x); } }
     for (uuid, list) in by_db {
@@ -175,6 +175,7 @@ impl<H: Host> Engine<H> {
       self.flush_edit(&mut st, p, c)?;
       done.taken = edits.len();
     }
+    self.dj.lock().unwrap().backed.extend(backed);
     done.clashes = kept["clashes"].as_object().map_or(0, Map::len);
     write_json(&self.cache_dir(), &cache_rel, &kept)?;
     // What it is now (after its own writes, which change the databases' dates).
@@ -186,7 +187,8 @@ impl<H: Host> Engine<H> {
     Ok(done)
   }
 
-  /// A copy of a database before GLUE writes into it, in GLUE Home's cache (the last 3 of each).
+  /// A copy of a database before GLUE writes into it, in GLUE Home's cache (the last 3 of each: once each time Engine DJ
+  /// has been closed, ADR 0173).
   pub(crate) fn dj_backup(&self, uuid: &str, db: &Path, at: &str) -> Result<(), String> {
     let dir = self.cache.join("dj-backups").join(uuid);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;

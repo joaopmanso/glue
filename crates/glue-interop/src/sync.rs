@@ -11,6 +11,7 @@
 use crate::perf::{Hot, Loop, SLOTS};
 use crate::types::Grid;
 use serde_json::{json, Map, Value};
+use std::collections::HashSet;
 
 /// GLUE's default hot cue colours, A–H (`HOT_COLORS`).
 pub const HOT_COLORS: [&str; 8] = ["#28e214", "#fb1ab0", "#1566f6", "#ffe800", "#fb6b15", "#a51afa", "#0cc9f5", "#e91a2d"];
@@ -271,5 +272,49 @@ mod list_tests {
     assert_eq!(pick(&"New".to_string(), &"Old".to_string(), Some(&"Old".to_string())), "New");
     assert_eq!(pick(&"Old".to_string(), &"Theirs".to_string(), Some(&"Old".to_string())), "Theirs");
     assert_eq!(pick(&"Mine".to_string(), &"Theirs".to_string(), Some(&"Old".to_string())), "Mine", "both: GLUE's");
+  }
+}
+
+/// The library's list (`app`) with the entries GLUE knows (`known`) put in the merged order (`merged`, GLUE's view),
+/// every entry GLUE doesn't know (a song of a database it hasn't read: another drive's) left where it is (ADR 0173: GLUE
+/// never removes or moves what it can't see). An entry the merge removed leaves its place; the ones kept take the
+/// places of the kept, in the merged order; one new to the list goes after the entry before it in the merge (first: before
+/// the first kept, or last when none is).
+pub fn splice(app: &[String], known: impl Fn(&str) -> bool, merged: &[String]) -> Vec<String> {
+  let had: HashSet<&str> = app.iter().map(String::as_str).collect();
+  let mut kept = merged.iter().filter(|m| had.contains(m.as_str()));
+  let wanted: HashSet<&str> = merged.iter().map(String::as_str).collect();
+  let mut out: Vec<String> = vec![];
+  for x in app {
+    if !known(x) { out.push(x.clone()); continue; }
+    if !wanted.contains(x.as_str()) { continue; }
+    if let Some(m) = kept.next() { out.push(m.clone()); }
+  }
+  for (k, m) in merged.iter().enumerate() {
+    if had.contains(m.as_str()) { continue; }
+    let at = match k.checked_sub(1).map(|p| &merged[p]) {
+      Some(prev) => out.iter().position(|x| x == prev).map_or(out.len(), |p| p + 1),
+      None => out.iter().position(|x| known(x)).unwrap_or(out.len()),
+    };
+    out.insert(at, m.clone());
+  }
+  out
+}
+
+#[cfg(test)]
+mod splice_tests {
+  use super::*;
+  fn v(s: &str) -> Vec<String> { s.split_whitespace().map(String::from).collect() }
+  #[test]
+  fn what_glue_cant_see_stays_where_it_is() {
+    // x and y are another drive's songs.
+    let known = |e: &str| !e.starts_with(['x', 'y']);
+    assert_eq!(splice(&v("a x b c y"), known, &v("b a")), v("b x a y"), "b moved first, c removed");
+    assert_eq!(splice(&v("x b y a"), known, &v("a")), v("x y a"), "a removal leaves its place");
+    assert_eq!(splice(&v("x a"), known, &v("a d e")), v("x a d e"), "additions after their neighbour");
+    assert_eq!(splice(&v("x a y b"), known, &v("a n b")), v("x a n y b"));
+    assert_eq!(splice(&v("x a"), known, &v("n a")), v("x n a"), "first: before the first kept");
+    assert_eq!(splice(&v("x y"), known, &v("")), v("x y"), "nothing GLUE knows: as it was");
+    assert_eq!(splice(&v("x y"), known, &v("n")), v("x y n"));
   }
 }

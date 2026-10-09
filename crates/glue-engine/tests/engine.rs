@@ -703,3 +703,74 @@ fn songs_the_clean_up_took_point_at_the_copy_kept_and_the_order_is_kept_in_step(
   let pos = |n: &str| glue_list(n)["position"].as_f64().unwrap();
   assert!(pos("Sets") < pos("Middle") && pos("Middle") < pos("Warm"), "{} {} {}", pos("Sets"), pos("Middle"), pos("Warm"));
 }
+
+#[test]
+fn songs_of_a_database_glue_hasnt_read_stay_in_engine_djs_playlists() {
+  // 2026-10-09: Engine DJ's playlists hold songs of every drive the user ever plugged in; GLUE reads only the ones
+  // there now. Its playlist sync took the others for songs GLUE removed and deleted them (ADR 0173).
+  let (glue, libs) = (temp("djunknown"), temp("djunknown-libs"));
+  let db = engine_library(&libs);
+  let ids = {
+    let c = rusqlite::Connection::open(&db).unwrap();
+    let fri = engine_lists(&db).into_iter().find(|l| l.title == "Friday").unwrap();
+    let mut items = vec!["stick-uuid/5".to_string(), fri.items[0].clone(), "stick-uuid/6".into(), fri.items[1].clone()];
+    glue_interop::enginedb::set_items(&c, fri.id, &items).unwrap();
+    items.retain(|x| x.starts_with("lib-uuid"));
+    items
+  };
+  std::fs::create_dir_all(libs.join("Music")).unwrap();
+  for f in ["one.mp3", "two.mp3"] { std::fs::write(libs.join("Music").join(f), b"song").unwrap(); }
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Music" }] }));
+  let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
+  put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3") } }));
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() } });
+  let cache = temp("djunknown-cache");
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
+  let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
+  {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    glue_interop::merge::set_main_source(&mut st, Some(&sid));
+    glue_interop::merge::set_source_sync(&mut st, &sid, true);
+    let src = st.sources[&sid].clone();
+    glue_interop::linked::import_lists(&mut st, &src, &[String::new()]);
+    st.flush().unwrap();
+  }
+  let friday = || engine_lists(&db).into_iter().find(|l| l.title == "Friday").unwrap().items;
+  let first = friday();
+  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  // One backup while Engine DJ stays closed, not one a sync (the test's clock stands still: the same file each time).
+  let backup = std::fs::read_dir(cache.join("dj-backups").join("lib-uuid")).unwrap().flatten().next().unwrap().path();
+  std::fs::write(&backup, b"first").unwrap();
+  for _ in 0..2 { e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap(); }
+  assert_eq!(friday(), first, "synced as it is, nothing moved or removed");
+  // In GLUE: Friday reversed, then its first song taken out. The stick's songs stay where they are.
+  let glue_friday = || { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.lists.values().find(|l| l["name"] == "Friday").cloned().unwrap() };
+  let edit = |l: Value| { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); st.put_list(l); st.flush().unwrap(); };
+  let mut l = glue_friday();
+  let mut items = l["items"].as_array().cloned().unwrap();
+  assert_eq!(items.len(), 2, "GLUE's copy holds the songs it knows");
+  items.reverse();
+  l["items"] = json!(items);
+  edit(l);
+  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  assert_eq!(friday(), ["stick-uuid/5".to_string(), ids[1].clone(), "stick-uuid/6".into(), ids[0].clone()]);
+  let again = e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  assert_eq!((again["lists"].as_u64(), again["written"].as_u64()), (Some(0), Some(0)), "in step in one round: {again}");
+  let mut l = glue_friday();
+  l["items"] = json!([items[1]]);
+  edit(l);
+  for _ in 0..2 { e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap(); }
+  assert_eq!(friday(), ["stick-uuid/5".to_string(), "stick-uuid/6".into(), ids[0].clone()]);
+  assert_eq!(std::fs::read(&backup).unwrap(), b"first", "not backed up again while Engine DJ stayed closed");
+  // Engine DJ opened and closed again: a new backup.
+  h.0.lock().unwrap().engine_open = true;
+  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  h.0.lock().unwrap().engine_open = false;
+  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  assert_ne!(std::fs::read(&backup).unwrap(), b"first");
+}

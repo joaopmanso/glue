@@ -23,11 +23,12 @@ Right-click a DJ library › **Make it the main DJ library** (or **Make it main*
 ## Kept in step both ways (Engine DJ)
 With GLUE Home running, right-click your main Engine DJ library › **Keep in step both ways…**. The hot cues, saved loops and beat grids you set in GLUE are written into Engine DJ, and what you change in Engine DJ comes into GLUE.
 - GLUE Home writes only while **Engine DJ is closed**: a few seconds after you quit it. The ⇄ by the library turns amber while changes wait.
-- It backs Engine DJ's library up before each write.
+- It backs Engine DJ's library up before it writes, once each time Engine DJ has been closed (the last three are kept).
 - GLUE's pads A–H are Engine DJ's hot cues (a loop on a pad goes as a hot cue at its start); GLUE's memory loops are its saved loops. Memory cues and Engine DJ's main cue stay where they are.
 - A song changed in both since they were last in step: its Prepare tab asks which to keep.
 - **Playlists too:** all of Engine DJ's playlists come into GLUE's **Engine DJ** folder. Rename one, add or remove songs, or make a new playlist (or drag one) into that folder, and it's done in Engine DJ; what you change in Engine DJ comes here. A song Engine DJ doesn't have yet is added to its collection (Engine DJ analyses it).
 - The order of playlists in a folder follows too: put a new playlist where you want it.
+- Songs on drives that aren't plugged in stay in Engine DJ's playlists, where they are: GLUE only changes the songs it can see.
 - After a duplicates clean-up, Engine DJ's playlists play the copy GLUE kept: its song points at that file (with its cues), or the song Engine DJ already has for it takes its places.
 - A playlist deleted on one side isn't deleted on the other by itself: the sidebar asks, under the library: **Delete it in … too** or **Keep it**.
 

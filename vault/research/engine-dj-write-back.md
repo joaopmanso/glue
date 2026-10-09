@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 # Engine DJ: what writing back to it involves
 
@@ -15,6 +15,11 @@ G:; Engine DJ closed, journals empty), nothing written; and from libdjinterop's 
   entries naming the database their song is in (`databaseUuid`; 8 databases, 5 of them not connected now: other
   drives or sticks). Engine DJ copies the tree into every database. How it reconciles them (which one wins, what a
   drive that isn't plugged in gets later) is **[UNVERIFIED]**: it has to be watched in Engine DJ itself.
+- **Observed on 2026-10-09 (ADR 0173):** after GLUE Home 0.68–0.69 had removed the songs of five unplugged databases
+  from F:'s lists (13,013 entries left), Engine DJ, reopened, brought F:, C: and G: to the same 21,580. Lists GLUE hadn't
+  edited came back from C:/G:; lists it had edited (their `lastEditTime` the newest) went to C:/G: as they were. So it
+  seems to reconcile each list to its latest edit, across the databases that are there **[UNVERIFIED: inferred from the
+  counts, not from Engine DJ's documentation]**. A drive plugged in later would take the latest lists in the same way.
 - `Playlist.isPersisted` differs by database (C: 105 of 763, F: 510, G: 90): its meaning is **[UNVERIFIED]** (perhaps the
   lists holding songs of that database, kept when it's alone on a player).
 - Engine's own triggers keep the linked lists in order: inserting a `Playlist` with `nextListId` = the list it goes

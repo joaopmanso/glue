@@ -22,6 +22,8 @@ pub(crate) struct DjWatch {
   pub(crate) syncing: HashMap<String, &'static str>,
   /// What a collection was when it was last synced (its feed's revision, its databases' dates).
   pub(crate) synced_at: HashMap<String, String>,
+  /// The databases backed up since Engine DJ was last open (ADR 0173): one copy each while it's closed, not one a write.
+  pub(crate) backed: HashSet<String>,
 }
 
 const APPS: [(&str, &str); 6] = [("rekordbox", "rekordbox"), ("engine", "Engine DJ"), ("serato", "Serato"), ("traktor", "Traktor"), ("apple", "Apple Music"), ("m3u", "M3U")];

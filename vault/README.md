@@ -246,6 +246,7 @@ Planned (GLUE):
 | [0170](adr/0170-engine-dj-kept-in-step-both-ways.md) | Engine DJ kept in step both ways (hot cues, saved loops, grid): three-way merge per slot, written by GLUE Home only while Engine DJ is closed, backed up, clashes asked | accepted |
 | [0171](adr/0171-engine-dj-playlists-kept-in-step.md) | Engine DJ's playlists kept in step both ways: the ones in GLUE's folder of the library, merged three ways, songs it lacks added to its collection, deletes asked | accepted |
 | [0172](adr/0172-engine-dj-order-and-songs-kept.md) | Engine DJ: the order of playlists in step both ways; songs whose file the duplicates' clean-up took pointed at the copy kept | accepted |
+| [0173](adr/0173-engine-dj-what-glue-cant-see-stays.md) | Engine DJ: entries GLUE can't see (other drives' songs) never removed or moved by the sync; one backup each time Engine DJ closes; the restore tool | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

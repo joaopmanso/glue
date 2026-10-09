@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 # Handoff: where things stand
 
@@ -24,8 +24,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## State (2026-10-08)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.69.0**.
+## State (2026-10-09)
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.70.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,23 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **URGENT: Engine DJ's playlists lost about 3,400 entries** (2026-10-09, GLUE Home 0.68–0.69, ADR 0173). These are
+  songs of four drives that aren't plugged in, in 17 playlists of 2022, 2023 and 2024 (most in "2022": 2,474; "2022 /
+  140": 494).
+  - **Done:** the user switched the sync off and closed Engine DJ. 0.70 fixes the cause and backs up once per database
+    each time Engine DJ closes.
+  - **Their choice:** where to restore from, with `crates/glue-interop/examples/restore_lists.rs` (a dry run first,
+    then `--write --backup`, Engine DJ closed):
+    - **(a) the drives:** plug them in **with Engine DJ closed** and run it with each drive's `m.db` as `--from`
+      (their tree as of when each was last in);
+    - **(b) their copy** `F:\Engine Library\Database2\m - Copy.backup` (2026-09-26): partly damaged (10,193 of 24,857
+      entries unreadable); it still gives 3,414 entries back, some removed on purpose since.
+  - **After the restore:** switch the sync back on (0.70). Then plug the drives in, Engine DJ open, so they take the
+    restored lists.
+  - **The database ids:** `--known` takes F: 103a4d6b-51e1-4711-9aa4-5609054d1ea6, C: c8666559-81e8-45a2-ab62-5f32e81691b9
+    and G: 76ca4274-62fa-455b-8d1b-c2815a2572e7.
+  - **GLUE Home's backups** (`%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\dj-backups\103a4d6b…`) are all from
+    after the damage.
 - **Confirmed by the user, 2026-10-09** (GLUE Home 0.68.0, ADR 0171): a playlist made in GLUE and moved into its Engine DJ
   folder showed up in Engine DJ, its songs cue and play.
 - **GLUE Home 0.69.0** (ADR 0172): with Engine DJ closed, GLUE Home points the songs the duplicates' clean-up took at the
@@ -169,7 +186,7 @@ every write, only while the app is closed; Engine DJ first; clashes asked; the g
 cues, loops and grid shown in Prepare) shipped in 0.65. Next:
 2. ~~Cues, loops and the grid written into the main DJ library~~: done in 0.67 (ADR 0170; `djsync.rs`, `glue_interop::sync`).
 3. ~~Playlists both ways with Engine DJ~~: done in 0.68 (ADR 0171; `djlists.rs`, `glue_interop::enginedb`). Order and songs pointed at
-   the copy kept: 0.69 (ADR 0172). Left: smart lists, songs on a drive without an Engine DJ library, removing the
+   the copy kept: 0.69 (ADR 0172). Other drives' songs left alone, the restore: 0.70 (ADR 0173). Left: smart lists, songs on a drive without an Engine DJ library, removing the
    gone records from Engine DJ's collection (asked).
 4. rekordbox (`master.db`, SQLCipher), then Traktor and Serato. Smaller leftovers of the page's library work with GLUE Home:
 - a file chosen in the browser with + Import is still parsed by the page (its bytes are the browser's);
@@ -177,6 +194,12 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
   `place:` library (only the browser can reach it).
 - (Browser alone: a published duplicates file still forces a full sync, `dupes.onPublished` → `sync(true)`; give the
   sync the file instead.)
+
+### Next: the tags filter (the user, 2026-10-09)
+"it's a filter, so If I choose a tag I should now only see the songs that have that tag, and any other tag those songs
+may have. so I can filter more, for example lossless -> dubstep --> chill. the left side should keep the additive tag
+way… the column filter should filter by chosen tag." The column's tag filter narrows (every tag chosen) and offers only
+the tags of the songs left; the sidebar's tags stay additive.
 
 ### Working notes (GLUE Home in Rust)
 - **How a batch is held to the website:** recorded goldens, replayed in Rust byte for byte:
