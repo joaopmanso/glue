@@ -208,11 +208,9 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
 - **More frequent under a full local run (2 of the last 3, 2026-10-09):** `library.spec.ts` "the local link…" stays at
   "Sending to Desktop… 100%" (the receiving GLUE Home doesn't confirm in 60 s); alone it passes every time. Look at what the
   receiving side waits on under load (the room's answer, the incoming write) before raising the wait again.
-- **A release half published (2026-10-08, 0.64.0):** the Windows build uploaded its installer, the macOS build then failed
-  a test, and the next push's build saw the release there and published nothing (no macOS files, no `latest.json`: the
-  updater and the website's macOS link had nothing). Put right by deleting that release and its tag and running the
-  build again. Real fix: in `.github/workflows/home.yml`, each build uploads its files as artifacts, and one job after
-  both (the `manifest` one) makes the release with all of them, so it's all or nothing.
+- **GLUE Home's release is all or nothing** (2026-10-09, after 0.64.0 and 0.68.0 were half published): `home.yml`'s
+  builds keep their files as artifacts; the `publish` job, after both passed, makes the release and `latest.json`. Watch
+  the first release made this way (0.68.0) has its six files.
 - **Edge 154.0.4258.62 (updated 2026-10-07):** its automatic tab freeze is now off for test browsers (2026-10-08, it
   froze background pages under load); `e2e/shared.spec.ts` "cloud sync…" passed in the full runs since. Before: it failed locally in Edge since (the desktop's
   song loses its play button after the laptop's rating) and passes in Chrome (`PW_CHANNEL=chrome`); the website and the

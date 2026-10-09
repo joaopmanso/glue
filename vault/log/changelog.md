@@ -17,6 +17,11 @@ Newest first. Each entry: date, milestone, what changed, links.
   drive's database, and asks about a playlist gone from one side (in the sidebar). The website no longer removes a gone
   list's copy for a library kept in step (import goldens). A playlist failure is logged and doesn't stop the cues' sync.
 - A library kept in step since 0.67 (before its playlists came in with it) gets all of them at GLUE Home's next sync.
+- **Deploy:** the first macOS build failed `enginedb` 's path test (Windows paths, read as one part on macOS): `rel_path`
+  now reads a path as text with either separator, and knows macOS's drives (`/Volumes/<name>`, the start disk). The
+  Windows build had published its files: half a release again (as 0.64.0). **GLUE Home's release is all or nothing
+  now** (`.github/workflows/home.yml`): each build keeps its files as an artifact, and one job after both passed makes
+  the release with every file and `latest.json`. 0.68.0's half release deleted, published whole with the next push.
 - Tests: Engine DJ's writes against its schema and triggers (made, moved, renamed, deleted, songs in order, a song
   added), the playlist merge, an engine test both ways (a song added, a rename each way, a new playlist, a delete each
   way asked and answered), `e2e/homemode.spec.ts` (a playlist renamed in GLUE's sidebar is renamed in Engine DJ).

@@ -127,35 +127,44 @@ jobs:
             cp "$(ls "$d"/macos/*.app.tar.gz.sig | head -1)" out/GLUE-Home.app.tar.gz.sig
           fi
           ls -la out
-      - name: Publish (a new version only)
+      # A new version's files, for the release once every build passed (a release is all or nothing: 0.64.0 and 0.68.0
+      # were half published when the macOS build failed after the Windows one had uploaded).
+      - name: Keep the files for the release (a new version only)
         if: steps.rel.outputs.release == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${{ steps.rel.outputs.tag }}"
-          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --target "$GITHUB_SHA" --title "GLUE Home ${tag#home-v}" --notes-file home/RELEASE.md || true
-          gh release upload "$tag" out/* --clobber
+        uses: actions/upload-artifact@v5
+        with:
+          name: home-${{ runner.os }}
+          path: out/
+          retention-days: 3
 
-  # The updater's manifest: this version, and where each platform's signed update is.
-  manifest:
+  # The release, once both builds passed: every installer and update file, then the updater's manifest (this version,
+  # and where each platform's signed update is).
+  publish:
     needs: build
     if: needs.build.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: latest.json
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: home-*
+          merge-multiple: true
+          path: out
+      - name: The release, with every file
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           tag="${{ needs.build.outputs.tag }}"
+          ls -la out
+          for f in GLUE-Home-Setup.exe GLUE-Home-Setup.exe.sig GLUE-Home.dmg GLUE-Home.app.tar.gz GLUE-Home.app.tar.gz.sig; do test -f "out/$f" || { echo "missing $f"; exit 1; }; done
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag"
-          gh release download "$tag" -p '*.sig' -D sigs
           jq -n --arg v "${tag#home-v}" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg base "$base" \
-            --rawfile w sigs/GLUE-Home-Setup.exe.sig --rawfile m sigs/GLUE-Home.app.tar.gz.sig \
+            --rawfile w out/GLUE-Home-Setup.exe.sig --rawfile m out/GLUE-Home.app.tar.gz.sig \
             '{ version: $v, notes: "See the release on GitHub.", pub_date: $d, platforms: {
                 "windows-x86_64": { signature: ($w | rtrimstr("\n")), url: ($base + "/GLUE-Home-Setup.exe") },
                 "darwin-aarch64": { signature: ($m | rtrimstr("\n")), url: ($base + "/GLUE-Home.app.tar.gz") },
-                "darwin-x86_64": { signature: ($m | rtrimstr("\n")), url: ($base + "/GLUE-Home.app.tar.gz") } } }' > latest.json
-          cat latest.json
-          gh release upload "$tag" latest.json --clobber
+                "darwin-x86_64": { signature: ($m | rtrimstr("\n")), url: ($base + "/GLUE-Home.app.tar.gz") } } }' > out/latest.json
+          cat out/latest.json
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --target "$GITHUB_SHA" --title "GLUE Home ${tag#home-v}" --notes-file home/RELEASE.md
+          gh release upload "$tag" out/* --clobber

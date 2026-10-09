@@ -130,13 +130,22 @@ pub fn track_at(db: &Connection, path: &str) -> R<Option<i64>> {
 
 /// A file's path from an `Engine Library` folder, as Engine DJ keeps it ("../Music/a.mp3"); None on another drive.
 pub fn rel_path(library: &std::path::Path, file: &std::path::Path) -> Option<String> {
-  let parts = |p: &std::path::Path| p.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>();
+  // As text (a Windows path reads the same on any system), its parts by either separator.
+  let parts = |p: &std::path::Path| p.to_string_lossy().split(['/', '\\']).filter(|x| !x.is_empty()).map(String::from).collect::<Vec<_>>();
   let (a, b) = (parts(library), parts(file));
-  if a.first().map(|x| x.to_lowercase()) != b.first().map(|x| x.to_lowercase()) { return None; }
+  if drive(&a) != drive(&b) { return None; }
   let common = a.iter().zip(&b).take_while(|(x, y)| x.eq_ignore_ascii_case(y)).count();
   let mut out: Vec<String> = std::iter::repeat_n("..".to_string(), a.len() - common).collect();
   out.extend(b[common..].iter().cloned());
   Some(out.join("/"))
+}
+/// The drive a path's parts are on: Windows its letter ("f:"), macOS its volume ("volumes/f"), else the start disk.
+fn drive(parts: &[String]) -> String {
+  match parts {
+    [d, ..] if d.len() == 2 && d.ends_with(':') => d.to_lowercase(),
+    [v, name, ..] if v == "Volumes" => format!("volumes/{}", name.to_lowercase()),
+    _ => "/".into(),
+  }
 }
 
 #[cfg(test)]
@@ -199,5 +208,10 @@ mod tests {
     assert_eq!(rel_path(p("F:\\Engine Library"), p("F:\\Music Collection\\a.mp3")).as_deref(), Some("../Music Collection/a.mp3"));
     assert_eq!(rel_path(p("C:\\Users\\dj\\Music\\Engine Library"), p("C:\\Users\\dj\\Music\\Sets\\b.wav")).as_deref(), Some("../Sets/b.wav"));
     assert_eq!(rel_path(p("F:\\Engine Library"), p("G:\\x.mp3")), None);
+    // macOS: a drive is a volume; the start disk is one too.
+    assert_eq!(rel_path(p("/Volumes/F/Engine Library"), p("/Volumes/F/Music Collection/a.mp3")).as_deref(), Some("../Music Collection/a.mp3"));
+    assert_eq!(rel_path(p("/Users/dj/Music/Engine Library"), p("/Users/dj/Music/Sets/b.wav")).as_deref(), Some("../Sets/b.wav"));
+    assert_eq!(rel_path(p("/Volumes/F/Engine Library"), p("/Volumes/G/x.mp3")), None);
+    assert_eq!(rel_path(p("/Users/dj/Music/Engine Library"), p("/Volumes/G/x.mp3")), None);
   }
 }
