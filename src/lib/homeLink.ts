@@ -66,6 +66,8 @@ export async function connectHome(home: string, label: 'files' | 'stream', opts:
     void (async () => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      // The room reconnecting (the phone just woke, ADR 0175): the handshake waits for it a moment.
+      await account.roomOpen(8000);
       if (!account.signal(home, { app: 'glue-send', t: 'offer', id, sdp: offer.sdp ?? '', ...opts.session } satisfies Handshake)) fail('Not connected to GLUE Cloud.');
     })().catch(e => fail((e as Error).message));
   });

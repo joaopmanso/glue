@@ -174,6 +174,11 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   expect(fetched.src).toContain('/__stream/');
   expect(fetched.whole).toEqual({ status: 206, range: 'bytes 0-' + (flac.length - 1) + '/' + flac.length, size: flac.length, sha: sha(flac) });
   expect(fetched.rest).toEqual({ status: 206, range: 'bytes 300000-' + (flac.length - 1) + '/' + flac.length, size: flac.length - 300000, sha: sha(flac.subarray(300000)) });
+  // Back from the background (ADR 0175, as a phone's page comes back from its page cache): the room and the sessions
+  // are made again at once, and the next song plays through them.
+  const roomBefore = socks.ph;
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+  await expect.poll(() => socks.ph !== roomBefore, { timeout: 10_000 }).toBe(true);
   // An AIFF (this browser doesn't play AIFF) streams too, as WAV worked out a piece at a time (ADR 0088):
   // it plays with no whole-song download first.
   const aiffRow = page.locator('#phone-songs .row', { hasText: 'Aiffy' });

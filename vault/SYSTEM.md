@@ -219,7 +219,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     The other device's player gets the bytes as they arrive (ADR 0174): the streaming service worker answers a range
     as a stream, the page fetching it in pieces (256 KB, then 2 MB) when the player has room; the song's start (a new
     connection, the first answer, the first music, the first sound, and the route: direct, through the router or the
-    relay) is the player line's tooltip and a console line.
+    relay) is the player line's tooltip and a console line, and a line under the artist in the phone's player sheet.
+    Back from the background after more than 10 s (a phone kills its sockets there), the room is connected again and
+    the sessions made again at once; a handshake waits up to 8 s for the room (ADR 0175).
     **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
     socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again
     after 1, 2, 4… 60 s, removed (4001) and replaced (4000); offers answered through glue-rtc (`rtc::Conns`), early

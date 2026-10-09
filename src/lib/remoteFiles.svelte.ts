@@ -163,6 +163,12 @@ class RemoteFiles {
     const k = await this.link(home, true);
     return k.session ? k.ch.open('files') : null;
   }
+  /** After the background (ADR 0175): every session made again, as soon as the room is back (not waited on first). */
+  restart() {
+    for (const home of [...this.links.keys()]) this.closeLink(home);
+    this.failed.clear();
+    void account.roomOpen(10_000).then(ok => { if (ok) this.tend(); });
+  }
   private closeLink(home: string) { const l = this.links.get(home); this.links.delete(home); this.sessions.delete(home); void l?.then(k => { k.ch.close(); for (const w of k.waiting.values()) w.gone(); }); }
 
   /** One request to a GLUE Home: its answer's `data`, and the bytes that came with it. Several run at
@@ -466,6 +472,25 @@ export const remoteFiles = new RemoteFiles();
 // Sessions with the account's other GLUE Homes (ADR 0133): looked after every 15 s (the heartbeat), and soon after
 // the page opens.
 if (typeof window !== 'undefined') { window.setInterval(() => remoteFiles.tend(), 15_000); window.setTimeout(() => remoteFiles.tend(), 2_000); }
+/* Back from the background (ADR 0175): a phone freezes the page there and its connections die, often without saying;
+   a song played next went to the dead session and waited for it to time out (about 10 s on 5G, against Plexamp's
+   instant start, 2026-10-09). After more than 10 s away the room is connected again at once, the sessions made again
+   (not waited on), and they're ready, usually, before a song is chosen. */
+const WAKE_AFTER = 10_000;
+if (typeof document !== 'undefined') {
+  let hiddenAt = 0;
+  const wake = (away: number) => {
+    if (away < WAKE_AFTER) return;
+    account.wake();
+    remoteFiles.restart();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (hiddenAt) { const away = Date.now() - hiddenAt; hiddenAt = 0; wake(away); }
+  });
+  // Back from the browser's page cache (a phone's Back, or the home-screen app reopened).
+  window.addEventListener('pageshow', e => { if (e.persisted) wake(Infinity); });
+}
 // A GLUE Home says songs were analysed there (ADR 0133): their rows' spectrograms and waveforms come at once, instead
 // of being asked for again in a while.
 thumbs.told = waves.told = t => remoteFiles.tellsFor(t);

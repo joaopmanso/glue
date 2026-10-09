@@ -62,14 +62,14 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **Songs from another computer start at once? (ADR 0174, 2026-10-09)** The user: a WAV on the desktop's network folder
-  took well over 20 s to start on the iPhone and over 5 s on the laptop, where Plexamp and Plex start at once. The
-  streaming service worker now answers as a stream (the first bytes as soon as GLUE Home sends them). To check: the
-  same song on the iPhone and on the laptop. On the laptop, the tooltip of the line under the song's title (and the
-  console) says where the start's time went: a new connection or not, the first answer, the first music and sound, and
-  the route (direct on the same network, through the router, or through GLUE Cloud's relay). If it's still slow, ask
-  for that line: a relay or a new connection each time points at the connection; the Plex-like next step (plain HTTPS
-  on the network, a certificate per computer) is in ADR 0174's alternatives.
+- **Songs from another computer start at once? (ADR 0174, 0175, 2026-10-09)** The user: a WAV on the desktop's
+  network folder took over 20 s to start on the iPhone and over 5 s on the laptop, where Plexamp and Plex start at
+  once. With ADR 0174 (the stream answered as it arrives): "better" on Wi-Fi on both; on 5G the iPhone still took about
+  10 s. ADR 0175: after the background the room and the sessions are made again at once. To check: the iPhone on 5G,
+  coming back to GLUE and playing a song. Its player sheet (and the computer's tooltip) says where the start's time went:
+  a new connection or not, the first answer, the first music and sound, the route (direct, through the router, or
+  through GLUE Cloud's relay). Ask for that line if it's still slow: the handshake or the relay point at the next step
+  (plain HTTPS to GLUE Home as Plex does, ADR 0174/0175's alternatives).
 - **No file linked, 2026-10-09** (the website): Engine DJ's records of files removed as duplicates before GLUE read the
   library are songs with no file. "Ruff House" (J_Kenzo/09) now matches "Ruffhouse (feat. Rod Azlan)" (about 65 %);
   any one can be linked by hand (**Choose…**, or right-click › Link to a song in your library…). With the sync on and
@@ -247,6 +247,9 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
   with the Write tool, or use the Edit tool for such lines.
 
 ### Other work
+- **Flaky on the laptop, 2026-10-09:** `library.spec.ts` "a main music folder…" (ADR 0121) waits 60 s for the Duplicates
+  group and misses it about 1 run in 2, on `main` as it is too (alone or two at once); CI passes it. Look at what the
+  group waits on (the fingerprints after "All analysed"?) before raising the wait.
 - **`tests/interop.golden.test.ts` fails on the laptop only** (2026-10-09; CI passes it on `main`): "m3u/expected.json is
   stale". Not the inputs' line endings (they're kept as they are, `-text`); look at what this computer reads differently
   (a code page for `old.m3u`'s extended characters?) before making the golden again.

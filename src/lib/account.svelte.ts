@@ -238,6 +238,24 @@ class Account {
     return true;
   }
 
+  /** The room open now, or within `ms` (a handshake waits for it, rather than failing while it reconnects). */
+  roomOpen(ms: number): Promise<boolean> {
+    if (this.ws?.readyState === 1) return Promise.resolve(true);
+    return new Promise(res => {
+      const t0 = Date.now(), tick = () => { if (this.ws?.readyState === 1) res(true); else if (Date.now() - t0 > ms) res(false); else setTimeout(tick, 100); };
+      tick();
+    });
+  }
+  /** Back from a while in the background (ADR 0175): a phone kills its sockets there, often without saying, and the
+      room's retries grow meanwhile. Connected again at once: a new socket, not one that only looks open. */
+  wake() {
+    if (this.phase !== 'signed-in' || !this.refreshToken) return;
+    const old = this.ws;
+    if (old) { old.onclose = null; old.onmessage = null; try { old.close(); } catch { /* gone */ } this.ws = null; this.connected = false; clearInterval(this.pingTimer); }
+    this.retry = 0;
+    this.connect();
+  }
+
   /** The signaling room: presence now, WebRTC offers / answers later (ADR 0037). Reconnects with backoff. */
   private connect() {
     if (this.ws) return;

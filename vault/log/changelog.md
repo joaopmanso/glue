@@ -5,6 +5,17 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · Back from the background, connected at once (ADR 0175)
+- **The user, after ADR 0174:** on Wi-Fi the iPhone and the desktop start much faster; on 5G the iPhone still took
+  about 10 s, where Plexamp starts the same song at once.
+- **Why:** nothing reacted to the page coming back from the background. The room's socket could look open while dead
+  (a handshake on it waited out 20 s), or reconnect after a back-off grown meanwhile; a song went first to the session
+  that had died, and a new one was made only after that timed out.
+- **Now** ([ADR 0175](../adr/0175-back-from-the-background-connected-at-once.md)): after more than 10 s away, the room
+  is connected again and the sessions made again at once; a handshake waits for the room up to 8 s.
+- **The phone's player sheet** shows where a song's start went (under the artist), as the computer's tooltip does: on
+  5G, it says whether the time is the handshake, the relay or the first music.
+
 ## 2026-10-09 · Another computer's songs stream as they arrive (ADR 0174)
 - **The user:** a WAV on a network folder took well over 20 s to start on the iPhone and over 5 s on the laptop, and
   Plexamp or Plex played it at once from the same computer.
