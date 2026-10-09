@@ -127,7 +127,8 @@ export function syncLinkedLists(store: CollectionStore, src: Source, prev?: Sour
     have.set(s.externalId, l);
     r.added++;
   }
-  order(store, src, have);
+  // A library kept in step both ways: GLUE Home keeps the order both ways (ADR 0172), not the library's over GLUE's.
+  if (!src.sync) order(store, src, have);
   // What's waiting to go, kept with the library for its next read.
   const cur = store.sources.get(src.id);
   if (cur && JSON.stringify(cur.pendingGone ?? {}) !== JSON.stringify(nextPending)) {

@@ -617,3 +617,89 @@ fn the_main_dj_librarys_playlists_are_kept_in_step_both_ways() {
   assert!(by_name("New").is_none());
   assert_eq!(e.rpc(&json!({ "op": "djQuestions", "p": "p1", "c": "c1" })).unwrap().as_array().map(Vec::len), Some(0));
 }
+
+#[test]
+fn songs_the_clean_up_took_point_at_the_copy_kept_and_the_order_is_kept_in_step() {
+  let (glue, libs) = (temp("djrelink"), temp("djrelink-libs"));
+  let db = engine_library(&libs);
+  // Two songs whose files the duplicates' clean-up moved aside (ADR 0070): one's kept copy Engine DJ has (one.mp3),
+  // the other's it hasn't (three.mp3). Both in Warm.
+  let (gone1, gone3) = {
+    let c = rusqlite::Connection::open(&db).unwrap();
+    let t = |p: &str| glue_interop::enginedb::add_track(&c, &glue_interop::enginedb::NewTrack { path: p.into(), ..Default::default() }, 1_790_000_000).unwrap();
+    let (a, b) = (t("../Music/one (2).mp3"), t("../Old/three.mp3"));
+    let warm = glue_interop::enginedb::read_lists(&c, "lib-uuid").unwrap().into_iter().find(|l| l.title == "Warm").unwrap();
+    let mut items = warm.items.clone();
+    items.extend([format!("lib-uuid/{a}"), format!("lib-uuid/{b}")]);
+    glue_interop::enginedb::set_items(&c, warm.id, &items).unwrap();
+    (a, b)
+  };
+  std::fs::create_dir_all(libs.join("Music")).unwrap();
+  for f in ["one.mp3", "two.mp3", "three.mp3"] { std::fs::write(libs.join("Music").join(f), b"song").unwrap(); }
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Music" }] }));
+  let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
+  put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3"), "s1thr": song("s1thr", "three.mp3") } }));
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() } });
+  let e = Engine::new(glue.clone(), temp("djrelink-cache"), h.clone());
+  let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
+  let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
+  {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    // In GLUE the clean-up folded each into the copy kept: their records are those songs now.
+    let rec = |st: &glue_store::store::Store<glue_store::dir::FsDir>, id: i64| st.sources[&sid]["tracks"].as_array().unwrap().iter().find(|t| t["externalId"] == format!("lib-uuid/{id}")).unwrap()["trackId"].as_str().unwrap().to_string();
+    let mut into = indexmap::IndexMap::new();
+    // (Each not already that song: a record can have matched it by name when it was read.)
+    for (gone, kept) in [(gone1, "s1one"), (gone3, "s1thr")] { let from = rec(&st, gone); if from != kept { into.insert(from, st.tracks[kept].clone()); } }
+    st.absorb_tracks(&into);
+    glue_interop::merge::set_main_source(&mut st, Some(&sid));
+    glue_interop::merge::set_source_sync(&mut st, &sid, true);
+    let src = st.sources[&sid].clone();
+    glue_interop::linked::import_lists(&mut st, &src, &[String::new()]);
+    st.flush().unwrap();
+  }
+  let sync = || e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  let r = sync();
+  assert_eq!(r["relinked"].as_u64(), Some(2), "{r}");
+  let c = rusqlite::Connection::open(&db).unwrap();
+  let path = |id: i64| c.query_row("SELECT path FROM Track WHERE id = ?1", [id], |r| r.get::<_, String>(0)).unwrap();
+  assert_eq!(path(gone3), "../Music/three.mp3", "named the copy kept, its id (cues, history) kept");
+  let lists = glue_interop::enginedb::read_lists(&c, "lib-uuid").unwrap();
+  let one = c.query_row("SELECT id FROM Track WHERE path = '../Music/one.mp3'", [], |r| r.get::<_, i64>(0)).unwrap();
+  let warm = lists.iter().find(|l| l.title == "Warm").unwrap();
+  assert!(warm.items.contains(&format!("lib-uuid/{one}")) && !warm.items.contains(&format!("lib-uuid/{gone1}")), "the song kept took its entry: {:?}", warm.items);
+  assert!(warm.items.contains(&format!("lib-uuid/{gone3}")));
+  drop(c);
+  // The order: Sets then Warm in both. Reordered in GLUE: Warm first, in Engine DJ too.
+  let top_order = || { let c = rusqlite::Connection::open(&db).unwrap(); let l = glue_interop::enginedb::read_lists(&c, "lib-uuid").unwrap(); glue_interop::enginedb::order_of(&l, 0).iter().map(|id| l.iter().find(|x| x.id == *id).unwrap().title.clone()).collect::<Vec<_>>() };
+  assert_eq!(top_order(), ["Sets", "Warm"]);
+  let glue_list = |name: &str| -> Value { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.lists.values().find(|l| l["name"] == name).cloned().unwrap() };
+  let edit = |l: Value| { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); st.put_list(l); st.flush().unwrap(); };
+  let (mut sets, mut warm) = (glue_list("Sets"), glue_list("Warm"));
+  sets["position"] = json!(1); warm["position"] = json!(0);
+  edit(sets); edit(warm);
+  sync();
+  assert_eq!(top_order(), ["Warm", "Sets"]);
+  // A new playlist put between them in GLUE: there in Engine DJ too, not last.
+  let top = glue_list("Engine DJ");
+  let mut sets = glue_list("Sets");
+  sets["position"] = json!(2);
+  edit(sets);
+  edit(json!({ "schemaVersion": 1, "id": "mid", "kind": "playlist", "name": "Middle", "parentId": top["id"], "position": 1, "notes": "", "items": ["s1two"], "origin": null }));
+  sync();
+  assert_eq!(top_order(), ["Warm", "Middle", "Sets"]);
+  // Reordered in Engine DJ: GLUE follows.
+  {
+    let c = rusqlite::Connection::open(&db).unwrap();
+    let l = glue_interop::enginedb::read_lists(&c, "lib-uuid").unwrap();
+    let mut o = glue_interop::enginedb::order_of(&l, 0);
+    o.reverse();
+    glue_interop::enginedb::set_order(&c, 0, &o).unwrap();
+  }
+  sync();
+  let pos = |n: &str| glue_list(n)["position"].as_f64().unwrap();
+  assert!(pos("Sets") < pos("Middle") && pos("Middle") < pos("Warm"), "{} {} {}", pos("Sets"), pos("Middle"), pos("Warm"));
+}

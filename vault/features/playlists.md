@@ -135,4 +135,5 @@ track is used.
 With the main Engine DJ library kept in step both ways, the playlists in its folder in GLUE are Engine DJ's: renamed,
 moved, songs added or removed, or made new (or dragged in) there, they change in Engine DJ when it's closed, and Engine
 DJ's changes come here. A song Engine DJ lacks is added to its collection. A playlist deleted on one side is asked about
-in the sidebar.
+in the sidebar. Since 0.69 ([ADR 0172](../adr/0172-engine-dj-order-and-songs-kept.md)) the order of playlists among
+their siblings follows both ways too, and songs whose file the duplicates' clean-up took point at the copy kept.

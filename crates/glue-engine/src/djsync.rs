@@ -24,7 +24,7 @@ const ENGINE_APPS: [&str; 2] = ["Engine DJ", "OfflineAnalyzer"];
 
 /// What a sync did.
 #[derive(Debug, Default, PartialEq)]
-pub struct Synced { pub written: usize, pub taken: usize, pub clashes: usize, pub waiting: bool, pub lists: usize, pub questions: usize }
+pub struct Synced { pub written: usize, pub taken: usize, pub clashes: usize, pub waiting: bool, pub lists: usize, pub questions: usize, pub relinked: usize }
 
 /// A song's fields to write: its id, its packed hot cues, loops and grid where they changed, and the grid's BPM.
 type Write = (i64, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>, Option<f64>);
@@ -147,7 +147,12 @@ impl<H: Host> Engine<H> {
     if let Some(lib_db) = lib_db.filter(|p| p.is_file()) {
       if busy(&lib_db) { done.waiting = true; }
       else {
-        match self.dj_sync_lists(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed) {
+        // Songs whose file the duplicates' clean-up took, pointed at the copy kept (ADR 0172), before the playlists.
+        let remap = match self.dj_relink(p, c, &src, &lib_db, &dbs, &at, &mut backed) {
+          Ok((n, remap)) => { if n > 0 { done.relinked = n; self.event(&format!("Engine DJ: {n} song{} pointed at the copy GLUE kept", if n == 1 { "" } else { "s" })); } remap }
+          Err(x) => { eprintln!("GLUE Home: couldn’t point Engine DJ’s songs at the copies kept: {x}"); HashMap::new() }
+        };
+        match self.dj_sync_lists(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed, &remap) {
           Ok(l) => {
             done.lists = l.written + l.taken;
             done.questions = l.questions;

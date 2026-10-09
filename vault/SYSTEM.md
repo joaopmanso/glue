@@ -209,6 +209,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     library, merged three ways (names and places, songs) in the database the library is read from, new ones made
     there (songs it lacks added to the collection of their drive's database), one gone from a side asked about in the
     sidebar (`djQuestions`, `djListResolve`); the website's removal of a gone list's copy (ADR 0090) is off for it.
+    Also (0.69, ADR 0172) the order of playlists among siblings, merged the same way (the website's re-sort is off for
+    it), and Engine DJ's songs whose file the duplicates' clean-up took pointed at the copy kept (`dj_relink`).
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
     socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again

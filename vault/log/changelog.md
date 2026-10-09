@@ -5,6 +5,18 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · GLUE Home 0.69.0: Engine DJ's playlist order, and songs pointed at the copy kept (ADR 0172)
+- **Why:** the user, after making a playlist in GLUE that showed up in Engine DJ (confirmed): "because of the duplicate
+  clean up the engine DJ now points to songs that no longer exist… update those references with the best copy chosen.
+  also… playlist is always added to the end."
+- **Now:** before the playlists, GLUE Home points each Engine DJ song whose file is gone at the copy GLUE kept: the record
+  names the kept file (same drive, Engine DJ not having it yet: id, cues and history kept), or the song Engine DJ has for
+  it takes the playlist entries (and the cues, where it has none), or another drive's song does. The order of playlists
+  among their siblings is merged both ways like their songs (`enginedb::set_order`; the website's re-sort is off for a
+  library kept in step): a new playlist goes where it was put.
+- Tests: Engine DJ's order written and read on its schema; an engine test (the two kinds of song pointed at the copy
+  kept, without the playlist sync putting the gone one back; a reorder each way; a new playlist in the middle).
+
 ## 2026-10-09 · GLUE Home 0.68.0: Engine DJ's playlists kept in step both ways (ADR 0171, phase 3 of ADR 0168)
 - **Why:** the user: "add songs to a playlist or create new playlists on Glue and be able to move them into … engine
   dj … without the drag box". Their choices: songs Engine DJ lacks added to its collection; deletes asked; the playlists

@@ -184,7 +184,8 @@ pub fn sync_linked_lists<D: Dir>(store: &mut Store<D>, src: &Value, prev: Option
     have.insert(e.to_string(), l);
     r.added += 1;
   }
-  order(store, src, &have);
+  // A library kept in step both ways: GLUE Home keeps the order both ways (ADR 0172), not the library's over GLUE's.
+  if !truthy(get(src, "sync")) { order(store, src, &have); }
   // What's waiting to go, kept with the library for its next read.
   if let Some(cur) = store.sources.get(&src_id).cloned() {
     let was_pending = get(&cur, "pendingGone").cloned().unwrap_or(json!({}));

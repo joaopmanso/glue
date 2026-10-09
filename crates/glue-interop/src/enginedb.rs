@@ -6,7 +6,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 
 /// A playlist of Engine DJ's: its title, parent (0: the top), and its songs in order ("uuid/trackId").
 #[derive(Clone, Debug, PartialEq)]
-pub struct EList { pub id: i64, pub title: String, pub parent: i64, pub items: Vec<String> }
+pub struct EList { pub id: i64, pub title: String, pub parent: i64, pub items: Vec<String>, pub next: i64 }
 
 type R<T> = Result<T, String>;
 fn e(x: rusqlite::Error) -> String { x.to_string() }
@@ -19,8 +19,8 @@ fn touched(db: &Connection) -> &'static str { if has(db, "Playlist", "lastEditTi
 
 /// Every playlist, with its songs in order (an entry naming no library is this database's, `own`).
 pub fn read_lists(db: &Connection, own: &str) -> R<Vec<EList>> {
-  let mut lists: Vec<EList> = db.prepare("SELECT id, title, parentListId FROM Playlist ORDER BY id").map_err(e)?
-    .query_map([], |r| Ok(EList { id: r.get(0)?, title: r.get::<_, Option<String>>(1)?.unwrap_or_default(), parent: r.get::<_, Option<i64>>(2)?.unwrap_or(0), items: vec![] })).map_err(e)?
+  let mut lists: Vec<EList> = db.prepare("SELECT id, title, parentListId, nextListId FROM Playlist ORDER BY id").map_err(e)?
+    .query_map([], |r| Ok(EList { id: r.get(0)?, title: r.get::<_, Option<String>>(1)?.unwrap_or_default(), parent: r.get::<_, Option<i64>>(2)?.unwrap_or(0), items: vec![], next: r.get::<_, Option<i64>>(3)?.unwrap_or(0) })).map_err(e)?
     .collect::<Result<_, _>>().map_err(e)?;
   let mut ents: std::collections::HashMap<i64, Vec<(i64, i64, String)>> = std::collections::HashMap::new();
   let mut q = db.prepare("SELECT id, listId, trackId, databaseUuid, nextEntityId FROM PlaylistEntity").map_err(e)?;
@@ -45,6 +45,26 @@ pub fn read_lists(db: &Connection, own: &str) -> R<Vec<EList>> {
   Ok(lists)
 }
 
+/// A parent's playlists in Engine DJ's order (from the one nothing points at; a broken chain's rest after, by id).
+pub fn order_of(lists: &[EList], parent: i64) -> Vec<i64> {
+  let kids: Vec<&EList> = lists.iter().filter(|l| l.parent == parent).collect();
+  let pointed: std::collections::HashSet<i64> = kids.iter().map(|l| l.next).collect();
+  let mut out = vec![];
+  let mut seen = std::collections::HashSet::new();
+  for head in kids.iter().filter(|l| !pointed.contains(&l.id)) {
+    let mut cur = Some(*head);
+    while let Some(c) = cur { if !seen.insert(c.id) { break; } out.push(c.id); cur = kids.iter().find(|x| x.id == c.next).copied(); }
+  }
+  for l in &kids { if !seen.contains(&l.id) { out.push(l.id); } }
+  out
+}
+/// A parent's playlists put in this order (each links to the next, the last to 0; others of it after, as they were).
+pub fn set_order(db: &Connection, parent: i64, ids: &[i64]) -> R<()> {
+  // Each link is unique among siblings: first a value no row has, then the order.
+  db.execute("UPDATE Playlist SET nextListId = -1000000000000 - id WHERE parentListId = ?1", [parent]).map_err(e)?;
+  for (i, id) in ids.iter().enumerate() { db.execute("UPDATE Playlist SET nextListId = ?1 WHERE id = ?2 AND parentListId = ?3", params![ids.get(i + 1).copied().unwrap_or(0), id, parent]).map_err(e)?; }
+  Ok(())
+}
 /// A title free among a parent's playlists: as it is, else "Title (2)", "(3)"…
 fn free_title(db: &Connection, parent: i64, title: &str, but: i64) -> R<String> {
   let taken = |t: &str| -> R<bool> { db.query_row("SELECT 1 FROM Playlist WHERE parentListId = ?1 AND title = ?2 AND id <> ?3", params![parent, t, but], |_| Ok(())).optional().map(|x| x.is_some()).map_err(e) };
@@ -182,6 +202,12 @@ mod tests {
     move_list(&db, a, f).unwrap();
     assert_eq!(order(&db, 0), ["Bee", "Folder", "B (2)"]);
     assert_eq!(order(&db, f), ["A", "A (2)"], "moved in last, its title free there");
+    // Put in another order.
+    let top: Vec<i64> = order_of(&read_lists(&db, "u1").unwrap(), 0);
+    let mut back = top.clone(); back.reverse();
+    set_order(&db, 0, &back).unwrap();
+    assert_eq!(order(&db, 0), ["B (2)", "Folder", "Bee"]);
+    assert_eq!(order_of(&read_lists(&db, "u1").unwrap(), 0), back);
     let _ = c;
     // Songs in order, each once.
     let t1 = add_track(&db, &NewTrack { path: "../Music/one.mp3".into(), title: "One".into(), length: Some(300.4), size: Some(1000.0), ..Default::default() }, 1_790_000_000).unwrap();
@@ -198,7 +224,7 @@ mod tests {
     // A folder deleted: what's in it too; its siblings re-linked.
     set_items(&db, a, &[format!("u1/{t1}")]).unwrap();
     delete_list(&db, f).unwrap();
-    assert_eq!(order(&db, 0), ["Bee", "B (2)"]);
+    assert_eq!(order(&db, 0), ["B (2)", "Bee"]);
     assert_eq!(db.query_row("SELECT COUNT(*) FROM PlaylistEntity WHERE listId = ?1", [a], |r| r.get::<_, i64>(0)).unwrap(), 0);
     assert_eq!(db.query_row("SELECT COUNT(*) FROM Track", [], |r| r.get::<_, i64>(0)).unwrap(), 2, "the songs stay");
   }

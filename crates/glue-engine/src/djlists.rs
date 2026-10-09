@@ -30,7 +30,7 @@ impl<H: Host> Engine<H> {
   /// The playlists of the main library `src`, in `db` (its library database). `backed`: databases already copied this
   /// sync.
   #[allow(clippy::too_many_arguments)]
-  pub(crate) fn dj_sync_lists(&self, p: &str, c: &str, src: &Value, db_path: &Path, dbs: &HashMap<String, PathBuf>, kept: &mut Value, at: &str, backed: &mut HashSet<String>) -> Result<ListsDone, String> {
+  pub(crate) fn dj_sync_lists(&self, p: &str, c: &str, src: &Value, db_path: &Path, dbs: &HashMap<String, PathBuf>, kept: &mut Value, at: &str, backed: &mut HashSet<String>, remap: &HashMap<String, String>) -> Result<ListsDone, String> {
     let sid = text(src, "id");
     let mut done = ListsDone::default();
     let s = self.store(p, c)?;
@@ -47,7 +47,9 @@ impl<H: Host> Engine<H> {
     }
     // GLUE's side: its lists, which are in the library's folder, its songs as the library's.
     let (lists, recs, tracks) = { let st = s.lock().unwrap(); (st.lists.clone(), src["tracks"].as_array().cloned().unwrap_or_default(), st.tracks.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<HashMap<String, Value>>()) };
-    let ext_of: HashMap<String, String> = recs.iter().map(|t| (text(t, "trackId"), text(t, "externalId"))).collect();
+    // A GLUE song as Engine DJ's record: the one a gone record was pointed at (ADR 0172), not the gone one.
+    let mut ext_of: HashMap<String, String> = HashMap::new();
+    for t in &recs { let x = text(t, "externalId"); if !remap.contains_key(&x) || !ext_of.contains_key(&text(t, "trackId")) { ext_of.insert(text(t, "trackId"), remap.get(&x).cloned().unwrap_or(x)); } }
     let track_of: HashMap<String, String> = recs.iter().map(|t| (text(t, "externalId"), text(t, "trackId"))).collect();
     let Some(top) = lists.values().find(|l| origin(l, "sourceId") == Some(&sid) && origin(l, "externalId") == Some("")).cloned() else { return Ok(done) };
     let top_id = text(&top, "id");
@@ -147,6 +149,42 @@ impl<H: Host> Engine<H> {
       if changed { glue_edits.push(u); done.taken += 1; }
       base.insert(ext.clone(), json!({ "name": name, "parent": parent, "items": items }));
       questions.retain(|q| text(q, "ext") != ext);
+    }
+    // The order of playlists among their siblings (ADR 0172), merged as their songs are: the side that changed it;
+    // both, GLUE's (with what each added).
+    {
+      let now_lists = enginedb::read_lists(&tx, &own)?;
+      // GLUE's lists as they are now (with this sync's edits).
+      let latest = |id: &str| -> Option<Value> { glue_edits.iter().rev().find(|u| text(u, "id") == id).cloned().or_else(|| lists.get(id).cloned()) };
+      let ids: Vec<String> = lists.keys().cloned().chain(glue_edits.iter().map(|u| text(u, "id"))).collect::<indexmap::IndexSet<_>>().into_iter().collect();
+      let view: Vec<Value> = ids.iter().filter_map(|id| latest(id)).collect();
+      let ext_parent = |l: &Value| -> Option<String> {
+        let pid = parent_id(l)?;
+        if pid == top_id { return Some("0".into()); }
+        view.iter().find(|x| text(x, "id") == pid).filter(|x| origin(x, "sourceId") == Some(&sid)).and_then(|x| origin(x, "externalId")).map(String::from)
+      };
+      let mut orders = kept["orders"].as_object().cloned().unwrap_or_default();
+      let mut parents: Vec<String> = vec!["0".into()];
+      for l in &now_lists { if now_lists.iter().any(|k| k.parent == l.id) { parents.push(l.id.to_string()); } }
+      for par in parents {
+        let l_order: Vec<String> = enginedb::order_of(&now_lists, par.parse().unwrap_or(0)).into_iter().map(|i| i.to_string()).collect();
+        let mut kids: Vec<&Value> = view.iter().filter(|x| origin(x, "sourceId") == Some(&sid) && origin(x, "externalId").is_some_and(|e| !e.is_empty()) && ext_parent(x).as_deref() == Some(par.as_str())).collect();
+        if kids.is_empty() { continue; }
+        kids.sort_by(|a, b| a["position"].as_f64().unwrap_or(f64::MAX).partial_cmp(&b["position"].as_f64().unwrap_or(f64::MAX)).unwrap_or(std::cmp::Ordering::Equal));
+        let g_order: Vec<String> = kids.iter().filter_map(|x| origin(x, "externalId").map(String::from)).filter(|e| l_order.contains(e)).collect();
+        let b_order: Option<Vec<String>> = orders.get(&par).and_then(Value::as_array).map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect());
+        let mut merged: Vec<String> = merge_items(&g_order, &l_order, b_order.as_deref()).into_iter().filter(|e| l_order.contains(e)).collect();
+        for e in &l_order { if !merged.contains(e) { merged.push(e.clone()); } }
+        if merged != l_order { enginedb::set_order(&tx, par.parse().unwrap_or(0), &merged.iter().filter_map(|x| x.parse().ok()).collect::<Vec<i64>>())?; done.written += 1; }
+        // GLUE: the same order (its own lists among them after).
+        for (i, e) in merged.iter().enumerate() {
+          if let Some(x) = kids.iter().find(|x| origin(x, "externalId") == Some(e.as_str())) {
+            if x["position"].as_f64() != Some(i as f64) { let mut u = (*x).clone(); u["position"] = json!(i); glue_edits.push(u); }
+          }
+        }
+        orders.insert(par, json!(merged));
+      }
+      kept["orders"] = Value::Object(orders);
     }
     // Agreed on before, gone from GLUE's folder now (deleted there): asked; the answer applied.
     for (ext, _) in base.clone() {
@@ -255,4 +293,97 @@ impl Songs<'_> {
     self.added.insert(tid.to_string(), x.clone());
     Some(x)
   }
+}
+
+impl<H: Host> Engine<H> {
+  /// Engine DJ's songs whose file is gone, pointed at the copy GLUE kept (ADR 0172): a duplicate GLUE Home cleaned up
+  /// (ADR 0070) went into the copy that stays, in GLUE; in Engine DJ its record still names the file that went. The
+  /// kept copy on the same drive: the record names it now (keeping its id, cues, playlists and history), unless Engine
+  /// DJ has it already as another song, whose playlist entries it then takes (and the cues, where it has none); on
+  /// another drive: that drive's song (added where needed) takes the playlist entries. How many.
+  #[allow(clippy::too_many_arguments)]
+  pub(crate) fn dj_relink(&self, p: &str, c: &str, src: &Value, lib_db: &Path, dbs: &HashMap<String, PathBuf>, at: &str, backed: &mut HashSet<String>) -> Result<(usize, HashMap<String, String>), String> {
+    let s = self.store(p, c)?;
+    let mut remap: HashMap<String, String> = HashMap::new();
+    let (recs, tracks) = { let st = s.lock().unwrap(); (src["tracks"].as_array().cloned().unwrap_or_default(), st.tracks.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<HashMap<String, Value>>()) };
+    let cfg = self.host.config();
+    let file_of = |tid: &str| -> Option<PathBuf> {
+      let t = tracks.get(tid)?;
+      let root = cfg["folders"][text(t, "rootId")].as_str()?;
+      if text(t, "relPath").is_empty() { return None; }
+      let mut f = PathBuf::from(root);
+      for part in text(t, "relPath").split('/') { f.push(part); }
+      f.is_file().then_some(f)
+    };
+    let lib = Connection::open(lib_db).map_err(|e| e.to_string())?;
+    let own: String = lib.query_row("SELECT uuid FROM Information LIMIT 1", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let mut fixed = 0;
+    let mut songs = Songs { ext_of: &HashMap::new(), tracks: &tracks, added: HashMap::new(), dbs, lib: lib_db, cfg: cfg.clone(), at, now: self.host.now().0 / 1000 };
+    for (uuid, dbp) in dbs {
+      let Some(folder) = dbp.parent().and_then(|d| d.parent()) else { continue };
+      let same = dbp == lib_db;
+      let other = if same { None } else { Some(Connection::open(dbp).map_err(|e| e.to_string())?) };
+      let db = other.as_ref().unwrap_or(&lib);
+      let paths: HashMap<i64, String> = db.prepare("SELECT id, path FROM Track").map_err(|e| e.to_string())?
+        .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default()))).map_err(|e| e.to_string())?.filter_map(Result::ok).collect();
+      for rec in &recs {
+        let ext = text(rec, "externalId");
+        let Some((u, id)) = ext.split_once('/') else { continue };
+        let Ok(id) = id.parse::<i64>() else { continue };
+        if u != uuid { continue; }
+        let Some(path) = paths.get(&id).filter(|x| !x.is_empty()) else { continue };
+        let mut was = folder.to_path_buf();
+        for part in path.split('/') { was.push(part); }
+        if was.exists() { continue; }
+        let Some(kept) = file_of(&text(rec, "trackId")) else { continue };
+        match enginedb::rel_path(folder, &kept) {
+          Some(rel) => match enginedb::track_at(db, &rel)? {
+            None => {
+              if backed.insert(uuid.clone()) { self.dj_backup(uuid, dbp, at)?; }
+              let name = kept.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+              let size = std::fs::metadata(&kept).map(|m| m.len() as i64).ok();
+              db.execute("UPDATE Track SET path = ?1, filename = ?2, fileBytes = COALESCE(?3, fileBytes), isAvailable = 1 WHERE id = ?4", rusqlite::params![rel, name, size, id]).map_err(|e| e.to_string())?;
+              fixed += 1;
+            }
+            Some(e) if e != id => {
+              if backed.insert(uuid.clone()) { self.dj_backup(uuid, dbp, at)?; }
+              // Its cues, where the song kept has none.
+              let hot = |t: i64| -> Option<Vec<u8>> { db.query_row("SELECT quickCues FROM PerformanceData WHERE trackId = ?1", [t], |r| r.get::<_, Option<Vec<u8>>>(0)).ok().flatten() };
+              let has = |q: Option<Vec<u8>>| q.as_deref().and_then(|b| glue_interop::perf::unq(Some(b))).is_some_and(|raw| glue_interop::perf::hot_slots(Some(&raw), 44100.0).iter().any(Option::is_some));
+              if !has(hot(e)) && has(hot(id)) {
+                db.execute("UPDATE PerformanceData SET quickCues = (SELECT quickCues FROM PerformanceData WHERE trackId = ?1), loops = (SELECT loops FROM PerformanceData WHERE trackId = ?1) WHERE trackId = ?2", rusqlite::params![id, e]).map_err(|e| e.to_string())?;
+              }
+              if backed.insert(own.clone()) { self.dj_backup(&own, lib_db, at)?; }
+              if repoint(&lib, &own, uuid, id, uuid, e)? > 0 { fixed += 1; }
+              remap.insert(ext.clone(), format!("{uuid}/{e}"));
+            }
+            _ => {}
+          },
+          None => {
+            // On another drive: that drive's song takes the playlist entries.
+            let Some(x) = songs.song(self, &text(rec, "trackId"), &lib, backed) else { continue };
+            let Some((u2, e2)) = x.split_once('/').and_then(|(u, i)| i.parse::<i64>().ok().map(|i| (u.to_string(), i))) else { continue };
+            if backed.insert(own.clone()) { self.dj_backup(&own, lib_db, at)?; }
+            if repoint(&lib, &own, uuid, id, &u2, e2)? > 0 { fixed += 1; }
+            remap.insert(ext.clone(), format!("{u2}/{e2}"));
+          }
+        }
+      }
+    }
+    Ok((fixed, remap))
+  }
+}
+
+/// The library's playlist entries of one song (`from_uuid/from`) given to another; an entry of a playlist that has the
+/// other already goes (Engine DJ's trigger re-links the rest).
+fn repoint(lib: &Connection, own: &str, from_uuid: &str, from: i64, to_uuid: &str, to: i64) -> Result<usize, String> {
+  let entries: Vec<(i64, i64)> = lib.prepare("SELECT id, listId FROM PlaylistEntity WHERE trackId = ?1 AND (databaseUuid = ?2 OR (?2 = ?3 AND (databaseUuid IS NULL OR databaseUuid = '')))").map_err(|e| e.to_string())?
+    .query_map(rusqlite::params![from, from_uuid, own], |r| Ok((r.get(0)?, r.get(1)?))).map_err(|e| e.to_string())?.filter_map(Result::ok).collect();
+  let n = entries.len();
+  for (id, list) in entries {
+    let there: bool = lib.query_row("SELECT 1 FROM PlaylistEntity WHERE listId = ?1 AND trackId = ?2 AND databaseUuid = ?3", rusqlite::params![list, to, to_uuid], |_| Ok(())).is_ok();
+    if there { lib.execute("DELETE FROM PlaylistEntity WHERE id = ?1", [id]).map_err(|e| e.to_string())?; }
+    else { lib.execute("UPDATE PlaylistEntity SET trackId = ?1, databaseUuid = ?2 WHERE id = ?3", rusqlite::params![to, to_uuid, id]).map_err(|e| e.to_string())?; }
+  }
+  Ok(n)
 }
