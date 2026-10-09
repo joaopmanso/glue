@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-26
+updated: 2026-10-09
 adrs: [0032, 0029]
 ---
 # Tags
@@ -24,6 +24,11 @@ your files or DJ library count straight away; new ones are made by typing them.
 - **Playlists**: ⋯ › Tags…, or "+ Playlist tags" in the playlist's insights.
 - **Filters**: Filter › Tags / Genre, or ▾ in the Tags, Genre, Format and Quality headers, which
   also sorts. "No tags" / "No genre" are values too. Search matches tags.
+- **Tags narrow (2026-10-09, the user: "lossless -> dubstep --> chill"):** in the Tags column's filter and Filter ›
+  Tags, the songs shown have every tag ticked, and only the tags those songs have are offered (`view.tagAny` false,
+  `FilterList` counts over the songs left). **Any of them** (shown once two are ticked) switches to the songs with any.
+  The sidebar's tag › **Show only it here** adds tags the old way (any of them, every tag offered:
+  `view.toggleAnyTag`). The chips above the table join tags with "and" / "or".
 - **Playlist insights** (Insights button on a playlist, remembered): length, tempo flow, keys and
   harmonic mixes, quality, and a Venn diagram of up to three tags (click tags to choose them).
 - **Playlist builder**: see [automatic playlists](auto-playlists.md).

@@ -297,7 +297,7 @@
     const only = view.filters.tag.some(x => x.toLowerCase() === t.name.toLowerCase());
     return tidy([
       { label: 'Show its songs', run: () => view.select({ kind: 'tag', name: t.name }) },
-      { label: only ? 'Stop showing only it here' : 'Show only it here', title: 'Filter the songs on screen by this tag', run: () => view.toggleFilter('tag', t.name) },
+      { label: only ? 'Stop showing only it here' : 'Show only it here', title: 'Add this tag to what the songs on screen are filtered by (songs with any of them)', attrs: { 'data-m': 'only-tag' }, run: () => view.toggleAnyTag(t.name) },
       { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: t.name, sel: { kind: 'tag', name: t.name } }) },
       sel.length > having && { label: 'Put it on the ' + plural(sel.length - having, 'selected song'), attrs: { 'data-m': 'tag-on' }, run: () => lib.tagTracks(sel, [t.name]) },
       having > 0 && { label: 'Take it off the ' + plural(having, 'selected song'), attrs: { 'data-m': 'tag-off' }, run: () => lib.tagTracks(sel, [], [t.name]) },

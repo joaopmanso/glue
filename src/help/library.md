@@ -22,7 +22,7 @@ Each view has its own address (`#/duplicates`, `#/recently-added`, `#/playlist/â
 
 ## Finding songs
 - **Search** finds songs by title, artist, album, genre, label or tag.
-- **Filter** narrows by any column's values.
+- **Filter** narrows by any column's values. Tags narrow step by step: tick one and only its songs show, and only the tags those songs have are offered, so you can go on (lossless, then dubstep, then chill). **Any of them** shows the songs with any of the tags ticked instead.
 - Click a column's header to sort; drag its edge to resize it; right-click it for more.
 
 ## Collections

@@ -10,11 +10,13 @@
 
   let { group, title = '', search = false }: { group: FilterGroup; title?: string; search?: boolean } = $props();
   let q = $state('');
-  // Counted over the view with the other groups' filters, so every option of this group stays visible.
+  // Counted over the view with the other groups' filters, so every option of this group stays visible. Tags narrowing
+  // (every one chosen): over the songs left, so only the tags those songs have are offered.
+  const narrow = $derived(group === 'tag' && !view.tagAny);
   const counts = $derived.by(() => {
     void lib.version; void view.filters;
     const m = new Map<string, number>();
-    for (const r of view.rows(app.keyNotation, { except: group })) for (const v of valuesOf(group, r)) m.set(v, (m.get(v) ?? 0) + 1);
+    for (const r of view.rows(app.keyNotation, narrow ? {} : { except: group })) for (const v of valuesOf(group, r)) m.set(v, (m.get(v) ?? 0) + 1);
     for (const v of view.filters[group]) if (!m.has(v)) m.set(v, 0);   // a ticked value stays untickable
     return [...m].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
   });
@@ -27,6 +29,12 @@
   {#if title}<legend>{title}</legend>{/if}
   {#if search && counts.length > 8}<input class="fq" type="search" placeholder="Find…" bind:value={q} aria-label={'Find ' + (title || group)}>{/if}
   <label class="all"><input type="checkbox" checked={!chosen.length} disabled={!chosen.length} onchange={() => view.clearFilters(group)}> <span>All</span><small>{group === 'tag' ? '' : total}</small></label>
+  {#if group === 'tag' && chosen.length > 1}
+    <div class="match" role="radiogroup" aria-label="Songs with">Songs with
+      <button type="button" role="radio" aria-checked={!view.tagAny} class:on={!view.tagAny} data-match="all" onclick={() => (view.tagAny = false)}>all of them</button>
+      <button type="button" role="radio" aria-checked={view.tagAny} class:on={view.tagAny} data-match="any" onclick={() => (view.tagAny = true)}>any of them</button>
+    </div>
+  {/if}
   <div class="vals">
     {#each shown as [value, count] (value)}
       <label data-v={value}><input type="checkbox" checked={chosen.includes(value)} onchange={() => view.toggleFilter(group, value)}>
@@ -48,4 +56,7 @@
   .dot.sq { border-radius: 2px; }
   .fq { background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; font-size: 12.5px; margin-bottom: 4px; }
   .none { color: var(--muted); font-size: 12.5px; padding: 3px 4px; }
+  .match { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); padding: 2px 4px 4px; }
+  .match button { background: none; border: 1px solid var(--line-2); border-radius: 10px; padding: 1px 8px; color: var(--ink-2); cursor: pointer; font-size: 11.5px; }
+  .match button.on { border-color: var(--accent); color: var(--accent); }
 </style>

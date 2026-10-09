@@ -79,6 +79,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     and G: 76ca4274-62fa-455b-8d1b-c2815a2572e7.
   - **GLUE Home's backups** (`%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\dj-backups\103a4d6b…`) are all from
     after the damage.
+- **The tags filter narrows** (2026-10-09, the website): tick a tag in the Tags column's ▾ (or Filter › Tags): only its
+  songs, and only their tags offered; tick another to narrow again. **Any of them** goes back to either. The sidebar's
+  tag › Show only it here still adds (any of them).
 - **Confirmed by the user, 2026-10-09** (GLUE Home 0.68.0, ADR 0171): a playlist made in GLUE and moved into its Engine DJ
   folder showed up in Engine DJ, its songs cue and play.
 - **GLUE Home 0.69.0** (ADR 0172): with Engine DJ closed, GLUE Home points the songs the duplicates' clean-up took at the
@@ -194,12 +197,6 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
   `place:` library (only the browser can reach it).
 - (Browser alone: a published duplicates file still forces a full sync, `dupes.onPublished` → `sync(true)`; give the
   sync the file instead.)
-
-### Next: the tags filter (the user, 2026-10-09)
-"it's a filter, so If I choose a tag I should now only see the songs that have that tag, and any other tag those songs
-may have. so I can filter more, for example lossless -> dubstep --> chill. the left side should keep the additive tag
-way… the column filter should filter by chosen tag." The column's tag filter narrows (every tag chosen) and offers only
-the tags of the songs left; the sidebar's tags stay additive.
 
 ### Working notes (GLUE Home in Rust)
 - **How a batch is held to the website:** recorded goldens, replayed in Rust byte for byte:

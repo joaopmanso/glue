@@ -26,7 +26,7 @@
       {#each FILTER_GROUPS.filter(x => (x.g !== 'device' || manyDevices()) && !view.hiddenFilters.includes(x.g)) as { g, title } (g)}<FilterList group={g} {title} search />{/each}
       {#if hidden.length === FILTER_GROUPS.length}<p class="none">All the filters are hidden.</p>{/if}
       <div class="foot">
-        <span>Show only the ticked. Any of them within a group; all groups together. Right-click a filter to hide it.</span>
+        <span>Show only the ticked. Any of them within a group (tags: songs with all of them); all groups together. Right-click a filter to hide it.</span>
         <button type="button" disabled={!n} onclick={() => view.clearFilters()}>Clear all</button>
       </div>
       {#if hidden.length}

@@ -246,7 +246,8 @@
             <button type="button" class="mini" onclick={() => (view.selected = new Set())}>Clear</button>
           {:else if view.filtering}
             <span class="hint">Showing only</span>
-            {#each FILTER_GROUPS as { g } (g)}{#each view.filters[g] as v (v)}
+            {#each FILTER_GROUPS as { g } (g)}{#each view.filters[g] as v, i (v)}
+              {#if g === 'tag' && i > 0}<span class="join" title={view.tagAny ? 'Songs with any of these tags' : 'Songs with all of these tags'}>{view.tagAny ? 'or' : 'and'}</span>{/if}
               <button type="button" class="chip" data-chip={g} title="Click to stop filtering by this; right-click for more" onclick={() => view.toggleFilter(g, v)}
                 oncontextmenu={e => menu.context(e, () => filterMenu(g, v), 'Filter')}>{v}<span aria-hidden="true">×</span></button>
             {/each}{/each}
@@ -370,6 +371,7 @@
   .hint { color: var(--muted); font-size: 12.5px; }
   .more { font-size: 13px; line-height: 1; padding: 1px 8px 4px; }
   .chip { display: inline-flex; align-items: center; gap: 6px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 12px; color: var(--ink); font-size: 12px; padding: 1px 8px 1px 10px; cursor: pointer; }
+  .join { color: var(--muted); font-size: 11.5px; }
   .chip span { color: var(--muted); }
   .chip:hover span { color: var(--accent); }
   /* Narrow windows: the sidebar on top (at most a third of the height, scrolling), the songs below. The page

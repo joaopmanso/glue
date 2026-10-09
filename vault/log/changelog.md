@@ -5,6 +5,14 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · The tags filter narrows
+- **Why:** the user: "it's a filter, so If I choose a tag I should now only see the songs that have that tag, and any
+  other tag those songs may have. so I can filter more, for example lossless -> dubstep --> chill. the left side should
+  keep the additive tag way… the column filter should filter by chosen tag."
+- **Now:** the Tags column's filter (and Filter › Tags) keeps the songs with every tag ticked and offers only the tags
+  of the songs left; **Any of them** switches back to any. The sidebar's **Show only it here** still adds (any of them).
+  Chips joined by "and" / "or". Help: library, playlists. Test: `library.spec.ts` "tags: …".
+
 ## 2026-10-09 · GLUE Home 0.70.0: Engine DJ's playlists lost other drives' songs; fixed (ADR 0173)
 - **What happened:** with 0.68–0.69 the playlist sync removed from Engine DJ's playlists the songs of drives GLUE
   hadn't read (not plugged in). The first sync put them last and recorded that as agreed; the next took them for songs

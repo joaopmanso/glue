@@ -84,16 +84,25 @@ class View {
   }
 
   /** The rows for the current selection (depends on lib.version). */
-  /** Quality and format filters: any of the chosen within a group, all groups together. */
+  /** Quality and format filters: any of the chosen within a group, all groups together. Tags narrow instead: songs
+      with every tag chosen (lossless, then dubstep, then chill), unless `tagAny` (the sidebar's "Show only it here",
+      which adds: songs with any of them). */
   filters = $state<Record<FilterGroup, string[]>>(NO_FILTERS());
+  tagAny = $state(false);
   get filtering() { return FILTER_GROUPS.some(({ g }) => this.filters[g].length > 0); }
   get filterValues() { return FILTER_GROUPS.flatMap(({ g }) => this.filters[g]); }
   toggleFilter(group: FilterGroup, value: string) {
     const cur = this.filters[group];
-    this.filters = { ...this.filters, [group]: cur.includes(value) ? cur.filter(x => x !== value) : [...cur, value] };
+    this.setFilter(group, cur.includes(value) ? cur.filter(x => x !== value) : [...cur, value]);
   }
-  setFilter(group: FilterGroup, values: string[]) { this.filters = { ...this.filters, [group]: values }; }
-  clearFilters(group?: FilterGroup) { this.filters = group ? { ...this.filters, [group]: [] } : NO_FILTERS(); }
+  /** The sidebar's way: a tag added to what's shown (songs with any of the tags chosen). */
+  toggleAnyTag(value: string) {
+    if (!this.filters.tag.length) this.tagAny = true;
+    else if (!this.tagAny && !this.filters.tag.includes(value)) this.tagAny = true;
+    this.toggleFilter('tag', value);
+  }
+  setFilter(group: FilterGroup, values: string[]) { this.filters = { ...this.filters, [group]: values }; if (group === 'tag' && !values.length) this.tagAny = false; }
+  clearFilters(group?: FilterGroup) { this.filters = group ? { ...this.filters, [group]: [] } : NO_FILTERS(); if (!group || group === 'tag') this.tagAny = false; }
   /** Groups taken out of the Filter menu (right-click › Hide; ADR 0067), remembered in this browser.
       Hiding one stops filtering by it: a filter that can't be seen mustn't hide songs. */
   hiddenFilters = $state<FilterGroup[]>(((): FilterGroup[] => { try { const v = JSON.parse(readPref('hiddenFilters', '[]')); return Array.isArray(v) ? v.filter(g => FILTER_GROUPS.some(x => x.g === g)) : []; } catch { return []; } })());
@@ -113,7 +122,8 @@ class View {
     let rows: Row[] = tracks.map(rowOf);
     if (!opts.unfiltered && this.filtering) {
       const active = FILTER_GROUPS.filter(({ g }) => g !== opts.except && this.filters[g].length);
-      rows = rows.filter(r => active.every(({ g }) => { const want = this.filters[g]; return valuesOf(g, r).some(v => want.includes(v)); }));
+      const all = (g: FilterGroup) => g === 'tag' && !this.tagAny;
+      rows = rows.filter(r => active.every(({ g }) => { const want = this.filters[g], has = valuesOf(g, r); return all(g) ? want.every(v => has.includes(v)) : has.some(v => want.includes(v)); }));
     }
     const q = this.search.trim().toLowerCase();
     if (q) {

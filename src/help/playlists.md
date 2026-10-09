@@ -11,6 +11,8 @@ order: 8
 ## Tags
 Tag songs from the Tags column, or drag songs onto a tag in the sidebar. A tag is a quick list of its own.
 
+To filter by tags, use the Tags column's header (or Filter): each tag you tick narrows the songs (the songs with all of them). Right-click tags in the sidebar › **Show only it here** to add tags instead (the songs with any of them).
+
 ## Building a playlist
 **Build playlist from this** (with a song selected) makes a playlist that flows from it: tempo, key and energy. **+ Auto** builds one from rules.
 

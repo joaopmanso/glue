@@ -1620,7 +1620,28 @@ test('tags: on tracks and playlists, in the sidebar, filters, insights and the p
   await hf.locator('label', { hasText: 'vocal' }).click();
   await expect(page.locator('.tr')).toHaveCount(2);
   await expect(page.locator('[data-hf="tags"]')).toHaveClass(/active/);
+  // A tag narrows (the user, 2026-10-09: "lossless -> dubstep --> chill"): only the tags of the songs left are offered,
+  // and a second one keeps the songs with both.
+  await expect(hf).not.toContainText('No tags');
+  await expect(hf.locator('label', { hasText: 'Peak' }).locator('small')).toHaveText('1');
+  await hf.locator('label', { hasText: 'Peak' }).click();
+  await expect(page.locator('.tr')).toHaveCount(1);
+  await expect(page.locator('.tr')).toContainText('Fixture FLAC');
+  await expect(page.locator('.selbar .join')).toHaveText('and');
+  // "Any of them": the songs with either, every tag offered again.
+  await hf.locator('[data-match="any"]').click();
+  await expect(page.locator('.tr')).toHaveCount(3);
+  await expect(hf).toContainText('No tags');
+  await expect(page.locator('.selbar .join')).toHaveText('or');
   await page.keyboard.press('Escape');
+  await page.click('#clear-filters');
+  await expect(page.locator('.tr')).toHaveCount(4);
+  // The sidebar's tags add instead: Peak, then vocal: the songs with either.
+  for (const [t, n] of [['Peak', 2], ['vocal', 3]] as const) {
+    await side(t).click({ button: 'right' });
+    await page.click('.cmenu [data-m="only-tag"]');
+    await expect(page.locator('.tr')).toHaveCount(n);
+  }
   await page.click('#clear-filters');
   await expect(page.locator('.tr')).toHaveCount(4);
 
