@@ -431,6 +431,40 @@ test('a deleted playlist or folder goes to Recently deleted, and Restore puts it
   await opened();
 });
 
+test('a long playlist name deep in folders keeps its count and ⋯ in the sidebar', async ({ page }) => {
+  // The user, 2026-10-09: three or four folders down, the counts and ⋯ went past the sidebar's edge, out of reach.
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  const long = 'Deep liquid rollers for the late warm-up before the headliner comes on';
+  for (const n of ['2022', '130', 'Vocal']) { await page.click('#new-folder'); await page.keyboard.type(n); await page.keyboard.press('Enter'); }
+  await page.click('#new-playlist'); await page.keyboard.type(long); await page.keyboard.press('Enter');
+  const node = (n: string) => page.locator('.lside .tree .name', { hasText: n }).first();
+  const into = async (what: string, where: string) => {
+    await node(what).click({ button: 'right' });
+    await page.locator('.cmenu [data-m="move-to"]').click();
+    await page.locator('.cmenu .citem', { hasText: where }).first().click();
+  };
+  await into('130', '2022'); await into('Vocal', '130'); await into(long, 'Vocal');
+  const row = (n: string) => page.locator('.lside .tree .item', { has: page.locator('.name', { hasText: n }) }).first();
+  for (const f of ['2022', '130', 'Vocal']) if (await row(f).locator('.twist').getAttribute('aria-label') === 'Expand') await row(f).locator('.twist').click();
+  await expect(node(long)).toBeVisible();
+  const side = (await page.locator('.lside').boundingBox())!;
+  await row(long).hover();
+  for (const sel of ['.n', '.more']) {
+    const b = (await row(long).locator(sel).boundingBox())!;
+    expect(b.x + b.width, sel + ' inside the sidebar').toBeLessThanOrEqual(side.x + side.width);
+  }
+  await expect(row(long).locator('.n')).toHaveText('0');
+  await expect(node(long)).toHaveAttribute('title', long);   // the whole name on hover
+  if (process.env.SHOTS) await page.locator('.lside').screenshot({ path: process.env.SHOTS + '/sidebar-deep.png' });
+});
+
 test('organises playlists (drag, menu, colours) and rates tracks in half stars', async ({ page }) => {
   await seed(page);
   await page.goto('./');

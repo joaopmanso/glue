@@ -5,6 +5,17 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · The sidebar's counts and ⋯ stay in reach; Engine DJ's lost entries restored
+- **Why:** the user: "the right hand side "..." and counters disappear if left side is not wide enough… I have to go
+  over 3 or 4 folders so by the time I choose a playlist it's much larger than the left view… missing a horizontal
+  scroll bar". The sidebar and its sections are grids: their column took the longest name's width (deep in folders),
+  and the sidebar clipped the rest, counts and ⋯ included.
+- **Now:** one column no wider than the sidebar (`minmax(0, 1fr)`); a long name ends in "…" (its whole name on hover),
+  its count, ✓ and ⋯ never shrink. Test: `library.spec.ts` "a long playlist name deep in folders…".
+- **The restore (ADR 0173), on the user's go-ahead** ("use the m copy backup"): Engine DJ closed, F:'s `m.db` copied to
+  `m - before GLUE restore.backup` next to it, then 3,414 entries of the four unplugged drives put back into 17
+  playlists from `m - Copy.backup` (2026-09-26): 21,580 → 24,994 entries, integrity ok, a second run finds nothing.
+
 ## 2026-10-09 · The tags filter narrows
 - **Why:** the user: "it's a filter, so If I choose a tag I should now only see the songs that have that tag, and any
   other tag those songs may have. so I can filter more, for example lossless -> dubstep --> chill. the left side should

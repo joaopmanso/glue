@@ -62,9 +62,14 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **URGENT: Engine DJ's playlists lost about 3,400 entries** (2026-10-09, GLUE Home 0.68–0.69, ADR 0173). These are
-  songs of four drives that aren't plugged in, in 17 playlists of 2022, 2023 and 2024 (most in "2022": 2,474; "2022 /
-  140": 494).
+- **Restored, 2026-10-09** (the user chose the September copy): 3,414 entries back in F:'s 17 playlists (21,580 → 24,994),
+  the state before in `F:\Engine Library\Database2\m - before GLUE restore.backup`. Waiting on the user: open Engine DJ
+  and look at "2022" and "2022 / 140"; switch the sync back on (0.70); plug in a USB drive later to check (run
+  `restore_lists` with its `m.db` as `--from`: only what's still missing is added). The user's idea: many of those
+  songs have equivalents in this computer's folders (map them, a later step).
+- **What happened (for the record):** Engine DJ's playlists lost about 3,400 entries (2026-10-09, GLUE Home 0.68–0.69,
+  ADR 0173). These are songs of four drives that aren't plugged in, in 17 playlists of 2022, 2023 and 2024 (most in
+  "2022": 2,474; "2022 / 140": 494).
   - **Done:** the user switched the sync off and closed Engine DJ. 0.70 fixes the cause and backs up once per database
     each time Engine DJ closes.
   - **Their choice:** where to restore from, with `crates/glue-interop/examples/restore_lists.rs` (a dry run first,

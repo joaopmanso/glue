@@ -396,7 +396,7 @@
       {#if kids.length}<button type="button" class="twist" aria-label={djOpen[key] ? 'Collapse' : 'Expand'} onclick={() => (djOpen[key] = !djOpen[key])}>{djOpen[key] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
       {#if l.kind === 'folder'}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" fill="currentColor"/></svg>
       {:else}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5v8.2a2.3 2.3 0 1 0 1.5 2.1V5.5l5-1.3v5.4a2.3 2.3 0 1 0 1.5 2.1V1.2z" fill="currentColor"/></svg>{/if}
-      <button type="button" class="name" title={l.name + ' in ' + (APP_NAMES[src.app] ?? src.app)} onclick={() => { view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }); if (kids.length) djOpen[key] = true; }}>{l.name}</button>
+      <button type="button" class="name" title={l.name + ' in ' + (APP_NAMES[src.app] ?? src.app)} onclick={() => { view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }); if (kids.length) djOpen[key] = true; }}><span class="nm">{l.name}</span></button>
       {#if whole}<button type="button" class="ingl" title="In GLUE, kept in step: open GLUE's copy" onclick={() => view.select({ kind: 'list', id: copy!.id })}>✓</button>{/if}
       <span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>
       <span class="tools" class:open={menued('dj:' + key)}>
@@ -434,8 +434,8 @@
         <input class="rename" value={l.name} use:focus onblur={e => rename(l, e.currentTarget.value)}
           onkeydown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') view.editing = null; }}>
       {:else}
-        <button type="button" class="name" onclick={e => nameClick(e, l)} ondblclick={() => { clearTimeout(slow); view.editing = l.id; }}>
-          {l.name}{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', kept in step with it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}
+        <button type="button" class="name" title={l.name} onclick={e => nameClick(e, l)} ondblclick={() => { clearTimeout(slow); view.editing = l.id; }}>
+          <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', kept in step with it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}
         </button>
         {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>{/if}
         <span class="tools" class:open={menued('l:' + l.id)}>
@@ -517,7 +517,7 @@
           <div class="item tagitem" class:sel={view.sel.kind === 'tag' && view.sel.name.toLowerCase() === t.name.toLowerCase()} class:drop-add={hot} data-drop="tag" data-tag={t.name} style:--tc={tagColorOf(t.name)}
             class:menued={menued('t:' + t.name)} oncontextmenu={e => onMenu(e, 't:' + t.name, () => tagMenu(t), t.name)}>
             <i class="tdot" aria-hidden="true"></i>
-            <button type="button" class="name" onclick={() => view.select({ kind: 'tag', name: t.name })}>{t.name}</button>
+            <button type="button" class="name" title={t.name} onclick={() => view.select({ kind: 'tag', name: t.name })}><span class="nm">{t.name}</span></button>
             {#if hot}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n" title={t.lists ? 'On ' + t.lists + ' playlist' + (t.lists === 1 ? '' : 's') + ' too' : ''}>{t.tracks}</span>{/if}
             <span class="tools" class:open={menued('t:' + t.name)}>
               <button type="button" class="more" title="More (or right-click)" aria-haspopup="menu" aria-expanded={menued('t:' + t.name)} onclick={e => onMore(e.currentTarget, 't:' + t.name, () => tagMenu(t), t.name)}>⋯</button>
@@ -660,8 +660,10 @@
 </nav>
 
 <style>
-  .lside { display: grid; gap: 18px; align-content: start; font-size: 13.5px; overflow-y: auto; overflow-x: hidden; padding-right: 4px; min-width: 0; }
-  section { display: grid; gap: 4px; }
+  /* One column no wider than the sidebar (a grid's column is otherwise as wide as its longest name, deep in folders):
+     a long name ends in "…", its count and ⋯ stay in reach (the user, 2026-10-09). */
+  .lside { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; font-size: 13.5px; overflow-y: auto; overflow-x: hidden; padding-right: 4px; min-width: 0; }
+  section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
   ul { list-style: none; margin: 0; padding: 0; }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .sechead { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
@@ -721,12 +723,13 @@
   .add button.hot { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); }
   .name { flex: 1; min-width: 0; background: none; border: 0; text-align: left; cursor: pointer; padding: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; justify-content: space-between; gap: 6px; }
   div.item > .name { padding-left: 2px; }
+  .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   section > ul > li > div.item { padding-left: 8px; }
   .name small, .found small { color: var(--muted); }
   .imp { color: var(--muted); font-size: 11px; margin-left: 4px; display: inline-flex; align-items: center; flex: none; }
-  .n { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; }
+  .n { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; flex: none; }
   .twist { width: 16px; flex: none; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; font-size: 11px; text-align: center; }
-  .tools { display: none; gap: 2px; }
+  .tools { display: none; gap: 2px; flex: none; }
   .item:hover .tools, .item:focus-within .tools { display: flex; }
   .rename, .path input { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--accent); border-radius: 3px; padding: 2px 6px; font-size: 13px; }
   .path { display: flex; gap: 4px; padding: 4px 4px 6px 8px; }
@@ -747,7 +750,7 @@
   .live.reading { color: var(--accent); animation: blink 1s infinite alternate; }
   @keyframes blink { to { opacity: .35; } }
   .refresh { font-size: 11px; padding: 1px 6px; }
-  .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; }
+  .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; flex: none; }
   .djq { list-style: none; margin: 2px 0 6px 26px; padding: 0; font-size: 12px; display: grid; gap: 4px; }
   .djq li { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; color: var(--warn, #e0a030); }
   .djq li span { color: var(--text); }
