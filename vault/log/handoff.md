@@ -62,12 +62,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **GLUE Home 0.67.0** (ADR 0170): the first write into the user's own Engine DJ library is theirs to start. Before
-  switching it on: quit Engine DJ, make a copy of `Music/Engine Library` (and the drives' ones) by hand too. Then:
-  right-click the main Engine DJ library › **Keep in step both ways…**; set a cue on one song in GLUE (Prepare); with
-  Engine DJ closed it's written within ~5 s (GLUE Home's Activity says so; a copy goes to GLUE Home's cache
-  `dj-backups/`); open Engine DJ: the cue is there. Then move a cue in Engine DJ, quit it: GLUE shows the move. Check
-  that Engine DJ's BPM column follows a grid changed in GLUE (`bpmAnalyzed`, unverified).
+- **Confirmed by the user, 2026-10-09** (GLUE Home 0.67.0, ADR 0170): on their own Engine DJ library, cues added
+  and moved in GLUE were in Engine DJ when reopened, and moved in Engine DJ were in GLUE. Not checked yet: whether
+  Engine DJ's BPM column follows a grid changed in GLUE (`bpmAnalyzed`).
 - **GLUE Home 0.66.0** (ADR 0169): right-click your Engine DJ library › **Make it the main DJ library** (marked
   "main"). Songs then show its grid's BPM in the lists, and its grid and cues in Prepare without a click.
 - **GLUE Home 0.65.0** (ADR 0168, phase 1): open a song that's in Engine DJ (or rekordbox, Traktor) and its **Prepare**
