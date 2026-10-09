@@ -62,14 +62,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **Songs from another computer start at once? (ADR 0174, 0175, 2026-10-09)** The user: a WAV on the desktop's
-  network folder took over 20 s to start on the iPhone and over 5 s on the laptop, where Plexamp and Plex start at
-  once. With ADR 0174 (the stream answered as it arrives): "better" on Wi-Fi on both; on 5G the iPhone still took about
-  10 s. ADR 0175: after the background the room and the sessions are made again at once. To check: the iPhone on 5G,
-  coming back to GLUE and playing a song. Its player sheet (and the computer's tooltip) says where the start's time went:
-  a new connection or not, the first answer, the first music and sound, the route (direct, through the router, or
-  through GLUE Cloud's relay). Ask for that line if it's still slow: the handshake or the relay point at the next step
-  (plain HTTPS to GLUE Home as Plex does, ADR 0174/0175's alternatives).
+- **Songs from another computer: confirmed by the user, 2026-10-09** (ADR 0174–0176): "it's working great … around 1
+  second to start now" (the iPhone on 5G took about 10 s, and over 20 s before ADR 0174). The start's timing is only in
+  the console now (`GLUE: Started in …`, with the route): ask for it if a start is slow again.
 - **No file linked, 2026-10-09** (the website): Engine DJ's records of files removed as duplicates before GLUE read the
   library are songs with no file. "Ruff House" (J_Kenzo/09) now matches "Ruffhouse (feat. Rod Azlan)" (about 65 %);
   any one can be linked by hand (**Choose…**, or right-click › Link to a song in your library…). With the sync on and

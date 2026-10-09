@@ -48,7 +48,7 @@ interface Link {
 }
 
 /** Where a streamed song's start went (ADR 0174): a new connection, the first answer, the first bytes of the music,
-    the first sound; and the connection's route. The player line's tooltip and the console say it. */
+    the first sound; and the connection's route. The console says it (ADR 0176: not on the player). */
 export interface StartTiming { trackId: string; at: number; connect: number | null; probe: number; firstBytes: number | null; sound: number | null; route: string }
 export function describeStart(t: StartTiming): string {
   const s = (ms: number) => (ms / 1000).toFixed(1) + ' s';

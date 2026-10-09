@@ -5,7 +5,7 @@
   import { phone } from '../../lib/phone.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { player } from '../../lib/player.svelte';
-  import { describeStart, remoteFiles } from '../../lib/remoteFiles.svelte';
+  import { remoteFiles } from '../../lib/remoteFiles.svelte';
   import { router, trackHref } from '../../lib/route.svelte';
   import { trackMenu } from '../../lib/trackMenu';
   import { fmtTime } from '../../core/format';
@@ -51,8 +51,6 @@
           <a href={trackHref(t.id)} onclick={() => (phone.full = false)}><b>{t.title || t.fileName}</b></a>
           <span>{t.artist}</span>
           {#if status}<small>{status}</small>{/if}
-          <!-- Where another computer's song's start went (ADR 0174): a new connection, the first music, the route. -->
-          {#if remoteFiles.lastStart?.trackId === t.id}<small class="start" id="phone-start">{describeStart(remoteFiles.lastStart)}</small>{/if}
         </div>
       {/if}
       <div class="seek">

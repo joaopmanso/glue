@@ -5,6 +5,13 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · Songs from another computer start in about a second; the timing off the player (ADR 0176)
+- **The user, after ADR 0174 and 0175:** "it's working great … it's taking around 1 second to start now" (the iPhone on
+  5G, where it took about 10 s, and over 20 s before ADR 0174).
+- **"That debug info on the player needs to be hidden":** the start's timing is off the phone's player sheet and the
+  computer's tooltip, and out of the help ([ADR 0176](../adr/0176-a-songs-start-timing-in-the-console-only.md)); the
+  console still says it once a song plays.
+
 ## 2026-10-09 · Back from the background, connected at once (ADR 0175)
 - **The user, after ADR 0174:** on Wi-Fi the iPhone and the desktop start much faster; on 5G the iPhone still took
   about 10 s, where Plexamp starts the same song at once.
