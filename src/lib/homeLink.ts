@@ -7,8 +7,25 @@ import { hasRelay, iceServers } from './ice';
 
 /** `play`: a second channel on the same connection for what's playing, so a big answer on `dc` (an
     analysis, covers) never holds up the music's bytes (ADR 0084). `open`: another channel on the same connection (a
-    session's 'files', ADR 0133), with no new handshake. */
-export interface HomeChannel { dc: RTCDataChannel; play?: RTCDataChannel; close: () => void; open: (label: string) => RTCDataChannel }
+    session's 'files', ADR 0133), with no new handshake. `route`: how the bytes go now (ADR 0174). */
+export interface HomeChannel { dc: RTCDataChannel; play?: RTCDataChannel; close: () => void; open: (label: string) => RTCDataChannel; route: () => Promise<string> }
+
+/** How a connection's bytes go, from the browser's own numbers for the pair of addresses in use: directly on the same
+    network, directly through the router (an address it gave the outside), or through GLUE Cloud's relay; and how long
+    a message takes there and back. */
+async function routeOf(pc: RTCPeerConnection): Promise<string> {
+  const stats = await pc.getStats(), all = new Map<string, Record<string, unknown>>();
+  stats.forEach((r: Record<string, unknown>) => all.set(r.id as string, r));
+  let pair: Record<string, unknown> | undefined;
+  for (const r of all.values()) if (r.type === 'transport' && r.selectedCandidatePairId) pair = all.get(r.selectedCandidatePairId as string);
+  // Safari and Firefox don't name the selected pair on the transport: the nominated one that works.
+  if (!pair) for (const r of all.values()) if (!pair && r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r;
+  if (!pair) return 'its route isn’t known';
+  const kinds = [all.get(pair.localCandidateId as string)?.candidateType, all.get(pair.remoteCandidateId as string)?.candidateType];
+  const how = kinds.includes('relay') ? 'through GLUE Cloud’s relay' : kinds.every(k => k === 'host') ? 'direct, on the same network' : 'direct, through the router';
+  const rtt = typeof pair.currentRoundTripTime === 'number' ? ', ' + Math.round(pair.currentRoundTripTime * 1000) + ' ms there and back' : '';
+  return how + rtt;
+}
 
 /** Open a channel (`label`: 'files' to send songs, 'stream' to get them) to an online GLUE Home. */
 /** `session` (ADR 0133): this tab's id and who it is, so GLUE Home keeps one session per tab and lists it. */
@@ -41,7 +58,7 @@ export async function connectHome(home: string, label: 'files' | 'stream', opts:
     pc.onicecandidate = e => { const k = candidateType(e.candidate?.candidate); if (k) mine.add(k); say({ app: 'glue-send', t: 'ice', id, candidate: e.candidate?.toJSON() ?? null }); };
     pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed') fail(open ? 'The connection to ' + name + ' dropped.' : 'Couldn’t connect to ' + name + seen() + '.'); };
     const more = (l: string) => { const c = pc.createDataChannel(l, { ordered: true }); c.binaryType = 'arraybuffer'; return c; };
-    const opened = () => { if (dc.readyState !== 'open' || (play && play.readyState !== 'open')) return; open = true; clearTimeout(timer); resolve({ dc, play, close, open: more }); };
+    const opened = () => { if (dc.readyState !== 'open' || (play && play.readyState !== 'open')) return; open = true; clearTimeout(timer); resolve({ dc, play, close, open: more, route: () => routeOf(pc) }); };
     dc.onopen = opened;
     if (play) play.onopen = opened;
     dc.onclose = () => { if (!closed) fail(name + ' closed the connection.'); };

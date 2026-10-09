@@ -62,6 +62,14 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Songs from another computer start at once? (ADR 0174, 2026-10-09)** The user: a WAV on the desktop's network folder
+  took well over 20 s to start on the iPhone and over 5 s on the laptop, where Plexamp and Plex start at once. The
+  streaming service worker now answers as a stream (the first bytes as soon as GLUE Home sends them). To check: the
+  same song on the iPhone and on the laptop. On the laptop, the tooltip of the line under the song's title (and the
+  console) says where the start's time went: a new connection or not, the first answer, the first music and sound, and
+  the route (direct on the same network, through the router, or through GLUE Cloud's relay). If it's still slow, ask
+  for that line: a relay or a new connection each time points at the connection; the Plex-like next step (plain HTTPS
+  on the network, a certificate per computer) is in ADR 0174's alternatives.
 - **No file linked, 2026-10-09** (the website): Engine DJ's records of files removed as duplicates before GLUE read the
   library are songs with no file. "Ruff House" (J_Kenzo/09) now matches "Ruffhouse (feat. Rod Azlan)" (about 65 %);
   any one can be linked by hand (**Choose…**, or right-click › Link to a song in your library…). With the sync on and
@@ -239,6 +247,9 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
   with the Write tool, or use the Edit tool for such lines.
 
 ### Other work
+- **`tests/interop.golden.test.ts` fails on the laptop only** (2026-10-09; CI passes it on `main`): "m3u/expected.json is
+  stale". Not the inputs' line endings (they're kept as they are, `-text`); look at what this computer reads differently
+  (a code page for `old.m3u`'s extended characters?) before making the golden again.
 - **More frequent under a full local run (2 of the last 3, 2026-10-09):** `library.spec.ts` "the local link…" stays at
   "Sending to Desktop… 100%" (the receiving GLUE Home doesn't confirm in 60 s); alone it passes every time. Look at what the
   receiving side waits on under load (the room's answer, the incoming write) before raising the wait again.

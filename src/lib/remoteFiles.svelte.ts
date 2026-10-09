@@ -30,6 +30,8 @@ const FIRST_WAIT = 40_000, IDLE_WAIT = 20_000;
 /** At most this many at once per GLUE Home (whole songs: 2). Covers, waveforms and analyses never take
     the last two places: those are kept for what's playing (ADR 0084). */
 const MAX_AT_ONCE = 6, MAX_FILES = 2, MAX_BACKGROUND = MAX_AT_ONCE - 2;
+/** A stream's pieces (ADR 0174): a small first one, so the player starts at once, then bigger ones. */
+const FIRST_PIECE = 256 * 1024, PIECE = 2 * 1024 * 1024;
 let seq = 1;
 
 /** One channel to a GLUE Home, shared by requests that run at once: answers come back by number. A GLUE Home
@@ -41,9 +43,25 @@ interface Link {
   waiting: Map<number, { text: (c: StreamReply) => void; bytes: (b: Uint8Array) => void; gone: () => void }>;
   running: number; files: number; timeouts: number;
   queue: { file: boolean; play: boolean; go: () => void }[];
+  /** How long the connection took to open, ms (ADR 0174: a song's start says it). */
+  connectMs: number;
+}
+
+/** Where a streamed song's start went (ADR 0174): a new connection, the first answer, the first bytes of the music,
+    the first sound; and the connection's route. The player line's tooltip and the console say it. */
+export interface StartTiming { trackId: string; at: number; connect: number | null; probe: number; firstBytes: number | null; sound: number | null; route: string }
+export function describeStart(t: StartTiming): string {
+  const s = (ms: number) => (ms / 1000).toFixed(1) + ' s';
+  const total = t.sound ?? t.firstBytes;
+  const bits = [t.connect != null ? 'a new connection ' + s(t.connect) : 'the connection was open', 'first answer ' + s(t.probe)];
+  if (t.firstBytes != null) bits.push('first music ' + s(t.firstBytes));
+  if (t.sound != null) bits.push('playing at ' + s(t.sound));
+  return (total != null ? 'Started in ' + s(total) + ': ' : 'Starting: ') + bits.join(', ') + ' · ' + t.route;
 }
 
 class RemoteFiles {
+  /** The last streamed song's start (ADR 0174). */
+  lastStart = $state<StartTiming | null>(null);
   /** The song being fetched (the player and its track page show it). */
   loading = $state<{ trackId: string; name: string; device: string; got: number; size: number } | null>(null);
   private links = new Map<string, Promise<Link>>();
@@ -90,8 +108,9 @@ class RemoteFiles {
       if (wait > 0) return Promise.reject(new Error('it couldn’t be reached just now (trying again in ' + Math.ceil(wait / 1000) + ' s)'));
       const drop = () => { if (this.links.get(home) === l) { this.links.delete(home); this.sessions.delete(home); } };
       const me = account.devices.find(d => d.id === account.thisDevice)?.name ?? browserName();
+      const t0 = performance.now();
       l = connectHome(home, 'stream', { session: { tab: tabConn, name: me }, onFail: () => { drop(); void l?.then(k => { for (const w of k.waiting.values()) w.gone(); }); } }).then(ch => {
-        const k: Link = { ch, session: null, waiting: new Map(), running: 0, files: 0, timeouts: 0, queue: [] };
+        const k: Link = { ch, session: null, waiting: new Map(), running: 0, files: 0, timeouts: 0, queue: [], connectMs: performance.now() - t0 };
         const onmessage = (e: MessageEvent) => {
           if (typeof e.data === 'string') {
             let c: StreamReply; try { c = JSON.parse(e.data); } catch { return; }
@@ -147,8 +166,9 @@ class RemoteFiles {
   private closeLink(home: string) { const l = this.links.get(home); this.links.delete(home); this.sessions.delete(home); void l?.then(k => { k.ch.close(); for (const w of k.waiting.values()) w.gone(); }); }
 
   /** One request to a GLUE Home: its answer's `data`, and the bytes that came with it. Several run at
-      once; each gives up if its answer doesn't come. `upload`: bytes sent after the request. */
-  async ask(home: string, req: Req, opts: { onBytes?: (got: number, size: number) => void; upload?: Uint8Array; firstWait?: number } = {}): Promise<Answer> {
+      once; each gives up if its answer doesn't come. `upload`: bytes sent after the request. `onChunk`: each piece of
+      the bytes as it arrives, not kept (the answer's `bytes` then empty). */
+  async ask(home: string, req: Req, opts: { onBytes?: (got: number, size: number) => void; onChunk?: (b: Uint8Array) => void; upload?: Uint8Array; firstWait?: number } = {}): Promise<Answer> {
     const file = req.t === 'get' || req.t === 'get-incoming', play = file || req.t === 'range';
     const k = await this.link(home, play || req.t === 'details');
     // Wait for a free place: what's playing goes first, and background asks leave it room.
@@ -173,12 +193,12 @@ class RemoteFiles {
             else if (c.t === 'eof') {
               finish(); k.timeouts = 0;
               if (got !== size) return reject(new Error('it arrived incomplete'));
-              const bytes = new Uint8Array(size); let at = 0;
+              const bytes = new Uint8Array(opts.onChunk ? 0 : size); let at = 0;
               for (const p of parts) { bytes.set(p, at); at += p.length; }
               resolve({ data: head?.data, bytes, name: head?.name, type: c.type || head?.type });
             } else if (c.t === 'error') { finish(); k.timeouts = 0; reject(Object.assign(new Error(c.error), { pending: c.error === PENDING })); }
           },
-          bytes: b => { if (!head) return; parts.push(b.slice()); got += b.length; opts.onBytes?.(got, size); wait(IDLE_WAIT); },
+          bytes: b => { if (!head) return; if (opts.onChunk) opts.onChunk(b); else parts.push(b.slice()); got += b.length; opts.onBytes?.(got, size); wait(IDLE_WAIT); },
           gone: () => { finish(); reject(new Error('the connection closed')); },
         });
         wait(opts.firstWait ?? FIRST_WAIT);
@@ -224,7 +244,7 @@ class RemoteFiles {
 
   // ─── Streaming (ADR 0076) ───────────────────────────────────────────────────────────────────────
   /** `wav`: an AIFF played as WAV, its bytes worked out a piece at a time (ADR 0088). */
-  private streams = new Map<string, { home: string; req: RangeReq; type: string; total: number; wav?: WavView }>();
+  private streams = new Map<string, { home: string; req: RangeReq; type: string; total: number; wav?: WavView; at: number }>();
   /** A song as an address that streams: this computer's GLUE Home's local link for its incoming folder,
       or another computer's GLUE Home through the streaming service worker, when this browser plays the
       format by itself. Null: take the whole file (get). */
@@ -239,6 +259,8 @@ class RemoteFiles {
     if (src.incoming && localHome.for(home)) return aiff ? null : localHome.playUrl('/incoming/file?name=' + encodeURIComponent(src.incoming));
     if (!(await streamsReady())) return null;
     const req: RangeReq = src.incoming ? { incoming: src.incoming } : { profile: r.profile!, collection: r.collection!, track: r.id! };
+    // Where the start's time goes (ADR 0174): a connection made for it, the first answer.
+    const t0 = performance.now(), fresh = !this.links.has(home);
     // One small ask first: the file's size and type. A connection that went bad is made again once;
     // after that the player says why (no silent download of the whole song instead, ADR 0084).
     // An AIFF's first 64 kB: its chunk headers, to make the WAV header from.
@@ -252,14 +274,65 @@ class RemoteFiles {
     }
     const d = head.data as { total: number; type: string } | null;
     if (!d?.total) return null;
+    const k = await this.links.get(home)?.catch(() => null);
+    const timing: StartTiming = { trackId: t.id, at: t0, connect: fresh && k ? k.connectMs : null, probe: performance.now() - t0, firstBytes: null, sound: null, route: '…' };
+    this.lastStart = timing;
+    void k?.ch.route().then(route => { if (this.lastStart?.at === t0) this.lastStart = { ...this.lastStart, route }; }).catch(() => {});
     const wav = aiff ? wavView(head.bytes, d.total) : undefined;
     if (aiff && !wav) return null;   // not PCM that can be rewrapped: it comes whole
     const token = crypto.randomUUID();
-    this.streams.set(token, wav ? { home, req, type: 'audio/wav', total: wav.total, wav } : { home, req, type: d.type || typeOfName(name), total: d.total });
+    this.streams.set(token, wav ? { home, req, type: 'audio/wav', total: wav.total, wav, at: t0 } : { home, req, type: d.type || typeOfName(name), total: d.total, at: t0 });
     while (this.streams.size > 8) this.streams.delete(this.streams.keys().next().value!);
     return new URL('__stream/' + token, document.baseURI).href;
   }
-  /** The service worker asks for bytes of a stream: from its GLUE Home, a piece at a time. */
+  /** The service worker asks for a range of a stream (ADR 0174): its bytes passed on as they arrive from GLUE Home,
+      as an HTTP server sends a file, a piece at a time (a small first one, so the player starts at once); the next
+      piece when the worker says the player has room (`more`); stopped when the player lets go (`cancel`). */
+  streamTo(q: { token: string; start: number; end: number | null }, port: MessagePort) {
+    const s = this.streams.get(q.token);
+    if (!s) { port.postMessage({ unknown: true }); return; }
+    const last = Math.min(s.total - 1, q.end ?? s.total - 1);
+    if (q.start > last) { port.postMessage({ total: s.total, type: s.type, len: 0 }); port.postMessage({ done: true }); return; }
+    let at = q.start, busy = false, stopped = false, told = false;
+    const send = (b: Uint8Array) => {
+      if (stopped) return;
+      const c = b.slice();
+      // The first bytes go with the answer's head: the player has its headers and something to play at once.
+      if (!told && this.lastStart?.at === s.at && this.lastStart.firstBytes == null) this.lastStart = { ...this.lastStart, firstBytes: performance.now() - s.at };
+      if (!told) { told = true; port.postMessage({ total: s.total, type: s.type, len: last - q.start + 1, first: c.buffer }, [c.buffer]); }
+      else port.postMessage({ chunk: c.buffer }, [c.buffer]);
+    };
+    const piece = async () => {
+      if (busy || stopped || at > last) return;
+      busy = true;
+      const want = Math.min(last - at + 1, at === q.start ? FIRST_PIECE : PIECE);
+      try {
+        await this.ask(s.home, { t: 'range', ...s.req, start: at, len: want }, { onChunk: b => { at += b.length; send(b); } });
+        busy = false;
+        if (stopped) return;
+        if (at > last) port.postMessage({ done: true }); else port.postMessage({ piece: true });
+      } catch (e) {
+        busy = false;
+        const why = (e as Error).message;
+        if (!told) port.postMessage({ error: why }); else port.postMessage({ fail: why });
+        stopped = true;
+      }
+    };
+    port.onmessage = e => { const d = e.data as { more?: boolean; cancel?: boolean } | null; if (d?.cancel) stopped = true; else if (d?.more) void piece(); };
+    void piece();
+  }
+  /** The player started making sound (ADR 0174): the start's time is complete, and said in the console. */
+  played(trackId: string) {
+    const t = this.lastStart;
+    if (!t || t.trackId !== trackId || t.sound != null) return;
+    this.lastStart = { ...t, sound: performance.now() - t.at };
+    // The route is asked for when the stream starts: told once it's known.
+    setTimeout(() => { if (this.lastStart) console.info('GLUE: ' + describeStart(this.lastStart)); }, 300);
+  }
+  /** An AIFF played as WAV: its bytes are worked out a piece at a time, not passed on as they come. */
+  rewrapped(token: string) { return !!this.streams.get(token)?.wav; }
+  /** The service worker asks for bytes of a stream: from its GLUE Home, a piece at a time (a worker from before ADR
+      0174: each answer whole; also an AIFF played as WAV, its bytes worked out a piece at a time). */
   async answerStream(q: { token: string; start: number; end: number | null }): Promise<{ bytes: ArrayBuffer; total: number; type: string } | { unknown: true } | { error: string }> {
     const s = this.streams.get(q.token);
     if (!s) return { unknown: true };
@@ -424,8 +497,10 @@ function streamsReady(): Promise<boolean> {
 }
 if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
   navigator.serviceWorker.addEventListener('message', e => {
-    const q = (e.data as { glueStream?: { token: string; start: number; end: number | null } } | null)?.glueStream, port = e.ports[0];
+    const q = (e.data as { glueStream?: { token: string; start: number; end: number | null; stream?: boolean } } | null)?.glueStream, port = e.ports[0];
     if (!q || !port) return;
+    // A worker that takes the bytes as they come (ADR 0174), except for an AIFF played as WAV (worked out a piece at a time).
+    if (q.stream && !remoteFiles.rewrapped(q.token)) { remoteFiles.streamTo(q, port); return; }
     void remoteFiles.answerStream(q).then(a => port.postMessage(a, 'bytes' in a ? [a.bytes] : []));
   });
 }

@@ -5,6 +5,7 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { launch } from './launch';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -150,6 +151,29 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   expect(turnAsked).toContain('phone');
   expect(turnAsked).toContain('home');
   await page.click('#phone-play');
+  // A song's bytes come as they arrive (ADR 0174), in several pieces behind one answer: asked as Safari does (the
+  // whole song at once) and as Chrome does (from a place to the end), they're the file's, byte for byte.
+  const flacRow = page.locator('#phone-songs .row', { hasText: 'Genorale' });
+  // Its stream's address, as the player asks for it (the answer stays open while it plays, as an HTTP stream's does).
+  const streamAsked: string[] = [];
+  page.on('request', r => { if (r.url().includes('/__stream/')) streamAsked.push(r.url()); });
+  await flacRow.click();
+  await expect(page.locator('#phone-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 30_000 });
+  await expect.poll(() => streamAsked.length, { timeout: 30_000 }).toBeGreaterThan(0);
+  await page.click('#phone-play');
+  const flac = readFileSync(fixture('flac-96k-24.flac'));
+  const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+  const fetched = await page.evaluate(async ([total, src]) => {
+    const get = async (range: string) => {
+      const r = await fetch(src, { headers: { Range: range } });
+      const b = new Uint8Array(await r.arrayBuffer());
+      return { status: r.status, range: r.headers.get('content-range'), size: b.length, sha: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', b)), x => x.toString(16).padStart(2, '0')).join('') };
+    };
+    return { src, whole: await get('bytes=0-' + (total - 1)), rest: await get('bytes=300000-') };
+  }, [flac.length, streamAsked[streamAsked.length - 1]] as const);
+  expect(fetched.src).toContain('/__stream/');
+  expect(fetched.whole).toEqual({ status: 206, range: 'bytes 0-' + (flac.length - 1) + '/' + flac.length, size: flac.length, sha: sha(flac) });
+  expect(fetched.rest).toEqual({ status: 206, range: 'bytes 300000-' + (flac.length - 1) + '/' + flac.length, size: flac.length - 300000, sha: sha(flac.subarray(300000)) });
   // An AIFF (this browser doesn't play AIFF) streams too, as WAV worked out a piece at a time (ADR 0088):
   // it plays with no whole-song download first.
   const aiffRow = page.locator('#phone-songs .row', { hasText: 'Aiffy' });
