@@ -62,6 +62,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Confirmed by the user, 2026-10-09:** "it's working fine now", after the Engine DJ restore and the sidebar fix (long
+  names deep in folders keep their counts and ⋯).
 - **Restored, 2026-10-09** (the user chose the September copy): 3,414 entries back in F:'s 17 playlists (21,580 → 24,994),
   the state before in `F:\Engine Library\Database2\m - before GLUE restore.backup`. Waiting on the user: open Engine DJ
   and look at "2022" and "2022 / 140"; switch the sync back on (0.70); plug in a USB drive later to check (run
