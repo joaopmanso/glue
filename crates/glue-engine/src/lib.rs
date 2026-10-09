@@ -18,6 +18,9 @@ pub mod analyse;
 pub mod answers;
 pub mod covers;
 pub mod dj;
+pub mod djedit;
+pub mod djinfo;
+pub mod djmirror;
 pub mod djlists;
 pub mod djsync;
 pub mod dupes;
@@ -555,6 +558,8 @@ impl<H: Host> Engine<H> {
       "djQuestions" => Ok(self.dj_questions(&p, &c)),
       "djListResolve" => self.dj_list_resolve(&p, &c, &text(b, "ext"), b["delete"].as_bool().unwrap_or(false)),
       "djRefresh" => self.dj_refresh(&p, &c, &text(b, "id")),
+      // Engine DJ's own playlists edited in the DJ collection (ADR 0179).
+      "djEdit" => self.dj_edit(&p, &c, &text(b, "source"), &b["edit"]),
       "djFind" => self.dj_find_all(&p, &c),
       "djImport" => {
         let also: Vec<(String, String)> = b["also"].as_array().into_iter().flatten().map(|x| (text(x, "place"), text(x, "relPath"))).collect();

@@ -31,6 +31,22 @@ export const edits = {
   },
   deleteList(this: Library, id: string) { this.store?.deleteList(id); },
   setListColor(this: Library, id: string, color: string | null) { const l = this.store?.lists.get(id); if (l) this.store!.putList({ ...l, color }); },
+  /** Kept in a DJ app's "GLUE" folder, or not (ADR 0180): this list, and for a folder everything in it. */
+  setListApp(this: Library, id: string, app: string, on: boolean) {
+    const l = this.store?.lists.get(id);
+    if (!l || l.origin || this.readOnly) return;
+    const apps = (l.apps ?? []).filter(a => a !== app).concat(on ? [app] : []);
+    const next: List = { ...l, apps };
+    if (!apps.length) delete next.apps;
+    this.store!.putList(next);
+  },
+  /** The list (or folder it's in) that keeps it in a DJ app's "GLUE" folder (ADR 0180); null: not kept. */
+  keptBy(this: Library, id: string, app: string): List | null {
+    for (let l = this.store?.lists.get(id), n = 0; l && !l.origin && n < 100; l = l.parentId ? this.store?.lists.get(l.parentId) : undefined, n++) if (l.apps?.includes(app)) return l;
+    return null;
+  },
+  /** GLUE's playlists can be kept in Engine DJ (ADR 0180): its main library is kept in step. */
+  engineKept(this: Library): boolean { return [...this.store?.sources.values() ?? []].some(s => s.app === 'engine' && s.main && s.sync); },
   /** Put a list at `index` among the children of `parentId` (moving it into / out of folders too). */
   placeList(this: Library, id: string, parentId: string | null, index: number) {
     const s = this.store, l = s?.lists.get(id);

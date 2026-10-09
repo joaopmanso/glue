@@ -138,6 +138,8 @@ impl<H: Host> Engine<H> {
       return Ok(if asked || first { say } else { String::new() });
     }
     self.dj.lock().unwrap().warned.remove(&id);
+    // Edits made in the DJ collection and not written yet (ADR 0179): on the tree read, until they are.
+    self.dj_overlay_pending(p, c, &mut st, &id);
     if let Some(cur) = st.sources.get(&rep.source_id).cloned() {
       let mut origin = cur["origin"].as_object().cloned().unwrap_or_default();
       origin.insert("modified".into(), json!(found.modified));

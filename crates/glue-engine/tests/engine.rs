@@ -495,7 +495,7 @@ fn the_main_dj_library_is_kept_in_step_both_ways() {
   assert_eq!(bpm, 128.0);
   drop(c);
   assert_eq!(std::fs::read_dir(cache.join("dj-backups").join("pc-uuid")).unwrap().count(), 1, "backed up first");
-  assert!(h.0.lock().unwrap().events.iter().any(|x| x.starts_with("Engine DJ: GLUE’s cues and grids written for 1 song")));
+  assert!(h.0.lock().unwrap().events.iter().any(|x| x.starts_with("Engine DJ: GLUE’s cues, grids and song info written for 1 song")));
   // In step now: nothing more.
   assert_eq!(sync()["written"].as_u64(), Some(0));
   // Moved in Engine DJ: taken into GLUE.
@@ -595,9 +595,9 @@ fn engine_djs_playlists_are_taken_out_of_glues_once_and_an_import_stays() {
 }
 
 #[test]
-#[ignore = "ADR 0178: the playlists' sync comes back as Engine DJ's GLUE folder (its next step)"]
-fn the_main_dj_librarys_playlists_are_kept_in_step_both_ways() {
-  let (glue, libs) = (temp("djlists"), temp("djlists-libs"));
+fn engine_djs_playlists_and_songs_info_are_edited_in_the_dj_collection() {
+  // ADR 0179: the user edits Engine DJ's own playlists in GLUE's DJ collection (no import), and a song's info both ways.
+  let (glue, libs) = (temp("djedit"), temp("djedit-libs"));
   let db = engine_library(&libs);
   std::fs::create_dir_all(libs.join("Music")).unwrap();
   for f in ["one.mp3", "two.mp3", "three.mp3"] { std::fs::write(libs.join("Music").join(f), b"song").unwrap(); }
@@ -608,71 +608,188 @@ fn the_main_dj_librarys_playlists_are_kept_in_step_both_ways() {
   put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3"), "s1thr": song("s1thr", "three.mp3") } }));
   let h = H::default();
   h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() } });
-  let e = Engine::new(glue.clone(), temp("djlists-cache"), h.clone());
+  let e = Engine::new(glue.clone(), temp("djedit-cache"), h.clone());
   let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
   let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
-  // The main library, kept in step, its playlists all in GLUE.
-  let glue_list = |name: &str| -> Option<Value> { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.lists.values().find(|l| l["name"] == name).cloned() };
-  let edit_list = |l: Value| { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); st.put_list(l); st.flush().unwrap(); };
+  let edit = |op: Value| e.rpc(&json!({ "op": "djEdit", "p": "p1", "c": "c1", "source": sid, "edit": op }));
+  assert!(edit(json!({ "t": "rename", "list": "1", "name": "X" })).is_err(), "only once it's kept in step");
   {
     let s = e.store("p1", "c1").unwrap();
     let mut st = s.lock().unwrap();
     glue_interop::merge::set_main_source(&mut st, Some(&sid));
     glue_interop::merge::set_source_sync(&mut st, &sid, true);
-    let src = st.sources[&sid].clone();
-    glue_interop::linked::import_lists(&mut st, &src, &[String::new()]);
     st.flush().unwrap();
   }
   let sync = || e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
-  assert_eq!(sync()["lists"].as_u64(), Some(0), "in step");
+  sync();
+  let tree = || -> Vec<Value> { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.sources[&sid]["tree"].as_array().cloned().unwrap() };
+  let in_tree = |name: &str| tree().into_iter().find(|l| l["name"] == name);
   let by_name = |n: &str| engine_lists(&db).into_iter().find(|l| l.title == n);
-  // In GLUE: three (a song Engine DJ hasn't) added to Friday, Warm renamed, a new playlist in the library's folder.
-  let mut fri = glue_list("Friday").unwrap();
-  fri["items"].as_array_mut().unwrap().push(json!("s1thr"));
-  edit_list(fri);
-  let mut warm = glue_list("Warm").unwrap();
-  warm["name"] = json!("Warm up");
-  edit_list(warm);
-  let top = glue_list("Engine DJ").unwrap();
-  edit_list(json!({ "schemaVersion": 1, "id": "newlist", "kind": "playlist", "name": "New", "parentId": top["id"], "position": 9, "notes": "", "items": ["s1one", "s1thr"], "origin": null }));
+  let (sets, fri, warm) = (by_name("Sets").unwrap(), by_name("Friday").unwrap(), by_name("Warm").unwrap());
+  let (one, two) = (fri.items[0].clone(), fri.items[1].clone());
+  // Engine DJ open: the edits show in GLUE at once, and wait.
+  h.0.lock().unwrap().engine_open = true;
+  let made = edit(json!({ "t": "new", "name": "Saturday", "parent": sets.id.to_string(), "before": fri.id.to_string() })).unwrap();
+  let tmp = made["id"].as_str().unwrap().to_string();
+  edit(json!({ "t": "add", "list": tmp, "songs": ["s1thr", "s1one"] })).unwrap();
+  edit(json!({ "t": "rename", "list": warm.id.to_string(), "name": "Warm up" })).unwrap();
+  edit(json!({ "t": "shift", "list": fri.id.to_string(), "items": [two], "before": one })).unwrap();
+  edit(json!({ "t": "remove", "list": warm.id.to_string(), "items": [two] })).unwrap();
+  let sat = in_tree("Saturday").unwrap();
+  assert_eq!((sat["parent"].clone(), sat["wait"].clone(), sat["items"].clone()), (json!(sets.id.to_string()), json!(true), json!(["glue:s1thr", one])));
+  assert!(in_tree("Warm up").is_some());
+  assert!(sync()["waiting"].as_bool().unwrap());
+  assert!(by_name("Saturday").is_none() && by_name("Warm up").is_none(), "nothing written while it's open");
+  // A read of the library meanwhile: the edits still show.
+  e.rpc(&json!({ "op": "djRefresh", "p": "p1", "c": "c1", "id": sid })).unwrap();
+  assert!(in_tree("Saturday").is_some_and(|l| l["wait"] == true));
+  // Closed: written.
+  h.0.lock().unwrap().engine_open = false;
   let r = sync();
-  assert!(r["lists"].as_u64().unwrap() >= 3, "{r}");
-  let three = rusqlite::Connection::open(&db).unwrap().query_row("SELECT id FROM Track WHERE path = '../Music/three.mp3'", [], |r| r.get::<_, i64>(0)).unwrap();
-  assert_eq!(by_name("Friday").unwrap().items.last().map(String::as_str), Some(format!("lib-uuid/{three}").as_str()), "three added to Engine DJ's collection and to Friday");
-  assert!(by_name("Warm up").is_some() && by_name("Warm").is_none());
-  let new = by_name("New").unwrap();
-  assert_eq!((new.parent, new.items.len()), (0, 2));
-  assert_eq!(glue_list("New").unwrap()["origin"]["externalId"], new.id.to_string(), "GLUE's playlist is Engine DJ's now");
+  assert_eq!(r["lists"].as_u64(), Some(5), "{r}");
+  let c = rusqlite::Connection::open(&db).unwrap();
+  let three = c.query_row("SELECT id FROM Track WHERE path = '../Music/three.mp3'", [], |r| r.get::<_, i64>(0)).unwrap();
+  drop(c);
+  let sat = by_name("Saturday").unwrap();
+  assert_eq!((sat.parent, sat.items.clone()), (sets.id, vec![format!("lib-uuid/{three}"), one.clone()]), "three added to Engine DJ's collection");
+  assert_eq!(in_tree("Saturday").unwrap()["externalId"], sat.id.to_string(), "Engine DJ's id in the tree at once");
+  let lists = engine_lists(&db);
+  assert_eq!(glue_interop::enginedb::order_of(&lists, sets.id), vec![sat.id, fri.id], "before Friday");
+  assert_eq!(by_name("Friday").unwrap().items, vec![two.clone(), one.clone()]);
+  assert!(by_name("Warm up").unwrap().items.is_empty());
+  // The next read: Engine DJ's own, nothing waiting.
+  e.rpc(&json!({ "op": "djRefresh", "p": "p1", "c": "c1", "id": sid })).unwrap();
+  assert!(tree().iter().all(|l| l.get("wait").is_none()), "{:?}", tree());
+  assert_eq!(in_tree("Saturday").unwrap()["externalId"], sat.id.to_string());
+  // An edit naming the new one by its old id (a page that hadn't seen it written): it goes to it.
+  edit(json!({ "t": "add", "list": tmp, "songs": ["s1two"] })).unwrap();
+  sync();
+  assert_eq!(by_name("Saturday").unwrap().items.last(), Some(&two));
+  // Deleted, then gone in Engine DJ too.
+  edit(json!({ "t": "delete", "list": sat.id.to_string() })).unwrap();
+  assert!(in_tree("Saturday").is_none());
+  sync();
+  assert!(by_name("Saturday").is_none());
+
+  // Song info both ways: renamed in GLUE, written; an artist set in Engine DJ, taken (marked edited).
+  {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    let mut t = st.tracks["s1one"].clone();
+    t["title"] = json!("One!");
+    st.put_track(t);
+    st.flush().unwrap();
+  }
+  sync();
+  let c = rusqlite::Connection::open(&db).unwrap();
+  let id_of = |x: &str| x.split_once('/').unwrap().1.parse::<i64>().unwrap();
+  assert_eq!(c.query_row("SELECT title FROM Track WHERE id = ?1", [id_of(&one)], |r| r.get::<_, String>(0)).unwrap(), "One!");
+  c.execute("UPDATE Track SET artist = 'DJ X', rating = 80 WHERE id = ?1", [id_of(&two)]).unwrap();
+  drop(c);
+  sync();
+  let t = { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.tracks["s1two"].clone() };
+  assert_eq!((t["artist"].clone(), t["rating"].clone()), (json!("DJ X"), json!(4.0)));
+  assert!(t["edited"].as_array().unwrap().contains(&json!("artist")));
+}
+
+#[test]
+fn glues_own_playlists_are_kept_in_engine_djs_glue_folder_both_ways() {
+  // ADR 0180: the user's playlists made in GLUE, in Engine DJ's "GLUE" folder, GLUE's folders down to them; both ways.
+  let (glue, libs) = (temp("djmirror"), temp("djmirror-libs"));
+  let db = engine_library(&libs);
+  std::fs::create_dir_all(libs.join("Music")).unwrap();
+  for f in ["one.mp3", "two.mp3", "three.mp3"] { std::fs::write(libs.join("Music").join(f), b"song").unwrap(); }
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Music" }] }));
+  let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
+  put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3"), "s1thr": song("s1thr", "three.mp3") } }));
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() } });
+  let e = Engine::new(glue.clone(), temp("djmirror-cache"), h.clone());
+  let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
+  let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
+  let list = |id: &str, kind: &str, name: &str, parent: Option<&str>, pos: i64, items: &[&str], apps: bool| {
+    let mut l = json!({ "schemaVersion": 1, "id": id, "kind": kind, "name": name, "parentId": parent, "position": pos, "notes": "", "items": items, "origin": null });
+    if apps { l["apps"] = json!(["engine"]); }
+    l
+  };
+  let edit = |f: &dyn Fn(&mut glue_store::store::Store<glue_store::dir::FsDir>)| { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); f(&mut st); st.flush().unwrap(); };
+  edit(&|st| {
+    glue_interop::merge::set_main_source(st, Some(&sid));
+    glue_interop::merge::set_source_sync(st, &sid, true);
+    // Gigs (kept in Engine DJ) with Fri gig in it; Crates (not kept) with Deep (kept); Loose (not kept).
+    st.put_list(list("gigs", "folder", "Gigs", None, 0, &[], true));
+    st.put_list(list("frigig", "playlist", "Fri gig", Some("gigs"), 0, &["s1one", "s1thr"], false));
+    st.put_list(list("crates", "folder", "Crates", None, 1, &["s1two"], false));
+    st.put_list(list("deep", "playlist", "Deep", Some("crates"), 0, &["s1two"], true));
+    st.put_list(list("loose", "playlist", "Loose", None, 2, &["s1one"], false));
+  });
+  let before = engine_lists(&db);
+  let sync = || e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  sync();
+  let eng = |name: &str| engine_lists(&db).into_iter().find(|l| l.title == name);
+  let gl = |name: &str| -> Option<Value> { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.lists.values().find(|l| l["name"] == name).cloned() };
+  let track = |path: &str| { let c = rusqlite::Connection::open(&db).unwrap(); format!("lib-uuid/{}", c.query_row("SELECT id FROM Track WHERE path = ?1", [path], |r| r.get::<_, i64>(0)).unwrap()) };
+  let gf = eng("GLUE").expect("the GLUE folder");
+  assert_eq!(gf.parent, 0);
+  let gigs = eng("Gigs").unwrap();
+  let fri = eng("Fri gig").unwrap();
+  assert_eq!((gigs.parent, fri.parent), (gf.id, gigs.id));
+  assert_eq!(fri.items, vec![track("../Music/one.mp3"), track("../Music/three.mp3")], "three added to Engine DJ's collection");
+  let crates = eng("Crates").unwrap();
+  assert_eq!((crates.parent, crates.items.len()), (gf.id, 0), "a folder it's in, without its own songs");
+  assert_eq!(eng("Deep").unwrap().parent, crates.id);
+  assert!(eng("Loose").is_none(), "not kept");
+  for b in &before { assert!(engine_lists(&db).iter().any(|l| l.id == b.id && l.title == b.title && l.items == b.items), "Engine DJ's own as they were: {}", b.title); }
+  assert_eq!(sync()["lists"].as_u64(), Some(0), "in step");
+
+  // GLUE: renamed, a song added; Engine DJ's song of a drive GLUE hasn't read stays where it is (ADR 0173).
+  { let c = rusqlite::Connection::open(&db).unwrap(); let mut it = fri.items.clone(); it.insert(1, "stick-uuid/5".into()); glue_interop::enginedb::set_items(&c, fri.id, &it).unwrap(); }
+  sync();
+  edit(&|st| { let mut l = st.lists["frigig"].clone(); l["name"] = json!("Friday gig"); l["items"].as_array_mut().unwrap().push(json!("s1two")); st.put_list(l); });
+  sync();
+  let f2 = eng("Friday gig").unwrap();
+  assert_eq!(f2.items, vec![track("../Music/one.mp3"), "stick-uuid/5".to_string(), track("../Music/three.mp3"), track("../Music/two.mp3")]);
+  // Engine DJ: Deep renamed, a playlist made in the GLUE folder; GLUE follows.
+  {
+    let c = rusqlite::Connection::open(&db).unwrap();
+    glue_interop::enginedb::rename_list(&c, eng("Deep").unwrap().id, "Deeper").unwrap();
+    let n = glue_interop::enginedb::create_list(&c, "From Engine", gf.id).unwrap();
+    glue_interop::enginedb::set_items(&c, n, &[track("../Music/one.mp3")]).unwrap();
+  }
+  e.rpc(&json!({ "op": "djRefresh", "p": "p1", "c": "c1", "id": sid })).unwrap();
+  sync();
+  assert!(gl("Deeper").is_some() && gl("Deep").is_none());
+  let from = gl("From Engine").expect("made in GLUE");
+  assert_eq!((from["parentId"].clone(), from["items"].clone(), from["apps"].clone(), from["origin"].clone()), (Value::Null, json!(["s1one"]), json!(["engine"]), Value::Null));
   assert_eq!(sync()["lists"].as_u64(), Some(0), "in step again");
-  // In Engine DJ: Sets renamed; GLUE follows.
-  let c = rusqlite::Connection::open(&db).unwrap();
-  glue_interop::enginedb::rename_list(&c, by_name("Sets").unwrap().id, "Gigs").unwrap();
-  drop(c);
-  e.rpc(&json!({ "op": "djRefresh", "p": "p1", "c": "c1", "id": sid })).unwrap();
+  // The order: GLUE's top reordered (Crates first), in Engine DJ's GLUE folder too.
+  edit(&|st| { let mut c = st.lists["crates"].clone(); c["position"] = json!(-1); st.put_list(c); });
   sync();
-  assert!(glue_list("Gigs").is_some() && glue_list("Sets").is_none());
-  // Deleted in Engine DJ: asked; deleted in GLUE too.
-  let c = rusqlite::Connection::open(&db).unwrap();
-  glue_interop::enginedb::delete_list(&c, by_name("Warm up").unwrap().id).unwrap();
-  drop(c);
-  e.rpc(&json!({ "op": "djRefresh", "p": "p1", "c": "c1", "id": sid })).unwrap();
-  assert!(sync()["questions"].as_u64().unwrap() >= 1);
-  assert!(glue_list("Warm up").is_some(), "not deleted without asking");
-  let q = e.rpc(&json!({ "op": "djQuestions", "p": "p1", "c": "c1" })).unwrap();
-  let warm_q = q.as_array().unwrap().iter().find(|x| x["name"] == "Warm up").unwrap().clone();
-  assert_eq!(warm_q["deletedIn"], "app");
-  e.rpc(&json!({ "op": "djListResolve", "p": "p1", "c": "c1", "ext": warm_q["ext"], "delete": true })).unwrap();
-  assert!(glue_list("Warm up").is_none());
-  // Deleted in GLUE: asked; deleted in Engine DJ too.
-  { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); st.delete_list("newlist"); st.flush().unwrap(); }
+  let order = |par: i64| { let l = engine_lists(&db); glue_interop::enginedb::order_of(&l, par).iter().map(|id| l.iter().find(|x| x.id == *id).unwrap().title.clone()).collect::<Vec<_>>() };
+  assert_eq!(order(gf.id)[0], "Crates");
+  // Turned off: out of the GLUE folder; GLUE's stays.
+  edit(&|st| { let mut g = st.lists["gigs"].clone(); g.as_object_mut().unwrap().shift_remove("apps"); st.put_list(g); });
   sync();
+  assert!(eng("Gigs").is_none() && eng("Friday gig").is_none());
+  assert!(gl("Gigs").is_some() && gl("Friday gig").is_some());
+  // Deleted in GLUE: asked; "delete": gone from Engine DJ too.
+  edit(&|st| st.delete_list("deep"));
+  let r = sync();
+  assert_eq!(r["questions"].as_u64(), Some(1), "{r}");
+  let deeper = eng("Deeper").unwrap();
+  e.rpc(&json!({ "op": "djListResolve", "p": "p1", "c": "c1", "ext": deeper.id.to_string(), "delete": true })).unwrap();
+  assert!(eng("Deeper").is_none());
+  // Deleted in Engine DJ: asked; "keep": made again there.
+  { let c = rusqlite::Connection::open(&db).unwrap(); glue_interop::enginedb::delete_list(&c, eng("From Engine").unwrap().id).unwrap(); }
+  let r = sync();
+  assert_eq!(r["questions"].as_u64(), Some(1), "{r}");
   let q = e.rpc(&json!({ "op": "djQuestions", "p": "p1", "c": "c1" })).unwrap();
-  let new_q = q.as_array().unwrap().iter().find(|x| x["name"] == "New").unwrap().clone();
-  assert_eq!(new_q["deletedIn"], "glue");
-  assert!(by_name("New").is_some(), "not deleted without asking");
-  e.rpc(&json!({ "op": "djListResolve", "p": "p1", "c": "c1", "ext": new_q["ext"], "delete": true })).unwrap();
-  assert!(by_name("New").is_none());
-  assert_eq!(e.rpc(&json!({ "op": "djQuestions", "p": "p1", "c": "c1" })).unwrap().as_array().map(Vec::len), Some(0));
+  assert_eq!(q[0]["deletedIn"], "app");
+  e.rpc(&json!({ "op": "djListResolve", "p": "p1", "c": "c1", "ext": q[0]["ext"], "delete": false })).unwrap();
+  let made = eng("From Engine").expect("made again");
+  assert_eq!((made.parent, made.items.clone()), (gf.id, vec![track("../Music/one.mp3")]));
 }
 
 #[test]
@@ -730,74 +847,3 @@ fn songs_the_clean_up_took_point_at_the_copy_kept() {
   drop(c);
 }
 
-#[test]
-#[ignore = "ADR 0178: the playlists' sync comes back as Engine DJ's GLUE folder (its next step)"]
-fn songs_of_a_database_glue_hasnt_read_stay_in_engine_djs_playlists() {
-  // 2026-10-09: Engine DJ's playlists hold songs of every drive the user ever plugged in; GLUE reads only the ones
-  // there now. Its playlist sync took the others for songs GLUE removed and deleted them (ADR 0173).
-  let (glue, libs) = (temp("djunknown"), temp("djunknown-libs"));
-  let db = engine_library(&libs);
-  let ids = {
-    let c = rusqlite::Connection::open(&db).unwrap();
-    let fri = engine_lists(&db).into_iter().find(|l| l.title == "Friday").unwrap();
-    let mut items = vec!["stick-uuid/5".to_string(), fri.items[0].clone(), "stick-uuid/6".into(), fri.items[1].clone()];
-    glue_interop::enginedb::set_items(&c, fri.id, &items).unwrap();
-    items.retain(|x| x.starts_with("lib-uuid"));
-    items
-  };
-  std::fs::create_dir_all(libs.join("Music")).unwrap();
-  for f in ["one.mp3", "two.mp3"] { std::fs::write(libs.join("Music").join(f), b"song").unwrap(); }
-  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
-  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
-  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Music" }] }));
-  let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
-  put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3") } }));
-  let h = H::default();
-  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() } });
-  let cache = temp("djunknown-cache");
-  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
-  let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
-  let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
-  {
-    let s = e.store("p1", "c1").unwrap();
-    let mut st = s.lock().unwrap();
-    glue_interop::merge::set_main_source(&mut st, Some(&sid));
-    glue_interop::merge::set_source_sync(&mut st, &sid, true);
-    let src = st.sources[&sid].clone();
-    glue_interop::linked::import_lists(&mut st, &src, &[String::new()]);
-    st.flush().unwrap();
-  }
-  let friday = || engine_lists(&db).into_iter().find(|l| l.title == "Friday").unwrap().items;
-  let first = friday();
-  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
-  // One backup while Engine DJ stays closed, not one a sync (the test's clock stands still: the same file each time).
-  let backup = std::fs::read_dir(cache.join("dj-backups").join("lib-uuid")).unwrap().flatten().next().unwrap().path();
-  std::fs::write(&backup, b"first").unwrap();
-  for _ in 0..2 { e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap(); }
-  assert_eq!(friday(), first, "synced as it is, nothing moved or removed");
-  // In GLUE: Friday reversed, then its first song taken out. The stick's songs stay where they are.
-  let glue_friday = || { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.lists.values().find(|l| l["name"] == "Friday").cloned().unwrap() };
-  let edit = |l: Value| { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); st.put_list(l); st.flush().unwrap(); };
-  let mut l = glue_friday();
-  let mut items = l["items"].as_array().cloned().unwrap();
-  assert_eq!(items.len(), 2, "GLUE's copy holds the songs it knows");
-  items.reverse();
-  l["items"] = json!(items);
-  edit(l);
-  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
-  assert_eq!(friday(), ["stick-uuid/5".to_string(), ids[1].clone(), "stick-uuid/6".into(), ids[0].clone()]);
-  let again = e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
-  assert_eq!((again["lists"].as_u64(), again["written"].as_u64()), (Some(0), Some(0)), "in step in one round: {again}");
-  let mut l = glue_friday();
-  l["items"] = json!([items[1]]);
-  edit(l);
-  for _ in 0..2 { e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap(); }
-  assert_eq!(friday(), ["stick-uuid/5".to_string(), "stick-uuid/6".into(), ids[0].clone()]);
-  assert_eq!(std::fs::read(&backup).unwrap(), b"first", "not backed up again while Engine DJ stayed closed");
-  // Engine DJ opened and closed again: a new backup.
-  h.0.lock().unwrap().engine_open = true;
-  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
-  h.0.lock().unwrap().engine_open = false;
-  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
-  assert_ne!(std::fs::read(&backup).unwrap(), b"first");
-}

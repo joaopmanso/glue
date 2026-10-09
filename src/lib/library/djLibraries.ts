@@ -2,9 +2,10 @@
    Part of `lib` (src/lib/library.svelte.ts): its methods, `this` being the library. */
 import { importLists as importListsInto } from '../../store/linked';
 import { applyImport, setMainSource, setSourceSync, type ImportReport } from '../../store/merge';
-import type { List, Track } from '../../store/types';
+import type { DjEdit, List, Source, Track } from '../../store/types';
 import type { ImportedLibrary } from '../../core/interop/types';
 import { findLibraries, libraryAt, type Detected } from '../../core/library/detect';
+import { djEntries } from '../../core/library/djEntries';
 import * as platform from '../../platform';
 import type { Library } from '../library.svelte';
 
@@ -135,6 +136,24 @@ export const djLibraries = {
     const s = this.store;
     if (!s || this.readOnly) return;
     setSourceSync(s, id, on);
+  },
+  /** Engine DJ's own playlists editable in the DJ collection (ADR 0179): its main library kept in step, with GLUE Home
+      (it writes them, ADR 0168). */
+  djEditable(this: Library, src: Source | undefined): boolean {
+    return !!src && !this.readOnly && src.app === 'engine' && !!src.main && !!src.sync && this.homeRuns() && !!this.djWrite;
+  },
+  /** An edit of its playlists: on its tree at once (marked waiting), written into Engine DJ while it's closed. A new
+      list's id; null if GLUE Home couldn't take it (said in a notice). */
+  async djEdit(this: Library, sourceId: string, edit: DjEdit): Promise<{ id: string | null } | null> {
+    if (!this.djWrite) return null;
+    try { return { id: (await this.djWrite(sourceId, edit)).id ?? null }; }
+    catch (e) { this.notice = 'Couldn’t change Engine DJ’s playlists: ' + (e as Error).message; return null; }
+  },
+  /** Songs taken out of a DJ app's own playlist (ADR 0179). How many entries. */
+  djRemove(this: Library, sourceId: string, ext: string, songs: string[]): number {
+    const items = djEntries(this.store?.sources.get(sourceId), ext, songs);
+    if (items.length) void this.djEdit(sourceId, { t: 'remove', list: ext, items });
+    return items.length;
   },
   /** Bring a DJ library's lists into GLUE, linked to it (ADR 0063); '' = all of them. */
   importLists(this: Library, sourceId: string, ids: string[]): number {

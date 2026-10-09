@@ -286,6 +286,15 @@
       dock.available && { label: 'Add to drag dock', attrs: { 'data-dock-list': l.id }, run: () => void dock.add(dock.tracksOf(l.id), l.name) },
       l.kind === 'playlist' && { label: 'Save as a playlist file (.m3u8)', run: () => saveM3u8(l) },
       !!src && !!src.tree?.some(x => x.externalId === ext) && { label: 'Show in ' + (APP_NAMES[src.app] ?? src.app) + '’s library', run: () => showInDj(src, ext) },
+      // GLUE's own, kept in Engine DJ's "GLUE" folder (ADR 0180).
+      !l.origin && lib.engineKept() && SEP,
+      !l.origin && lib.engineKept() && (() => {
+        const by = lib.keptBy(l.id, 'engine');
+        if (by && by.id !== l.id) return { label: 'In Engine DJ, with “' + by.name + '”', attrs: { 'data-m': 'dj-keep' }, disabled: true, title: 'Everything in a folder kept in Engine DJ is kept there too' };
+        return by
+          ? { label: 'Stop keeping it in Engine DJ', attrs: { 'data-m': 'dj-unkeep' }, run: () => { if (confirm('Take “' + l.name + '”' + (l.kind === 'folder' ? ' and what’s in it' : '') + ' out of Engine DJ’s GLUE folder?\n\nIt stays in GLUE. GLUE Home takes it out when Engine DJ is closed.')) lib.setListApp(l.id, 'engine', false); } }
+          : { label: 'Keep in Engine DJ', title: 'In Engine DJ’s “GLUE” folder, with GLUE’s folders: kept in step both ways (written when Engine DJ is closed)', attrs: { 'data-m': 'dj-keep' }, run: () => lib.setListApp(l.id, 'engine', true) };
+      })(),
       SEP,
       { label: 'Delete…', danger: true, attrs: { 'data-m': 'delete' }, run: () => remove(l) },
       ...whatsThis(l.event ? 'calendar' : 'playlists'),
@@ -366,20 +375,66 @@
         : { label: 'Keep in step both ways…', attrs: { 'data-m': 'sync-dj' }, title: 'GLUE’s cues, loops and grids written into Engine DJ, and Engine DJ’s changes taken into GLUE', run: () => {
           if (confirm('Keep Engine DJ in step with GLUE both ways?\n\nGLUE Home writes the cues, loops and beat grids you set in GLUE into Engine DJ’s library, and takes Engine DJ’s changes into GLUE. Its playlists stay in its DJ collection here; import one to have GLUE’s own copy under Playlists. It writes only while Engine DJ is closed (a few seconds after you quit it), backs up the library first, and asks you when a song was changed on both sides.')) lib.setDjSync(s.id, true);
         } }),
+      lib.djEditable(s) && SEP,
+      lib.djEditable(s) && { label: 'New playlist in ' + (APP_NAMES[s.app] ?? s.app) + '…', attrs: { 'data-m': 'dj-new' }, run: () => void djNew(s, '', 'playlist') },
+      lib.djEditable(s) && { label: 'New folder in ' + (APP_NAMES[s.app] ?? s.app) + '…', attrs: { 'data-m': 'dj-new-folder' }, run: () => void djNew(s, '', 'folder') },
       SEP,
       { label: 'Remove this import…', danger: true, run: () => removeSource(s) },
       ...whatsThis('dj-libraries'),
     ]);
   }
   function djMenuOf(src: Source, l: SourceList): MenuEntry[] {
-    const copy = lib.linkedCopy(src.id, l.externalId), whole = !!copy && !copy.origin?.chain;
+    const copy = lib.linkedCopy(src.id, l.externalId), whole = !!copy && !copy.origin?.chain, ed = lib.djEditable(src), app = APP_NAMES[src.app] ?? src.app;
     return tidy([
       { label: 'Show its songs', run: () => view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }) },
       { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: l.name, sel: { kind: 'dj', sourceId: src.id, id: l.externalId } }) },
       { label: whole ? 'Import again (brings back what’s missing)' : 'Import to GLUE', attrs: { 'data-dj-import': l.externalId }, run: () => importDj(src, l.externalId, l.name) },
       !!copy && { label: 'Open GLUE’s copy', run: () => view.select({ kind: 'list', id: copy!.id }) },
+      // Edited in its own library (ADR 0179): written by GLUE Home while it's closed.
+      ed && SEP,
+      ed && { label: 'New playlist inside…', attrs: { 'data-m': 'dj-new' }, run: () => void djNew(src, l.externalId, 'playlist') },
+      ed && { label: 'New folder inside…', attrs: { 'data-m': 'dj-new-folder' }, run: () => void djNew(src, l.externalId, 'folder') },
+      ed && { label: 'Rename…', attrs: { 'data-m': 'dj-rename' }, run: () => djRename(src, l) },
+      ed && { label: 'Move to', find: 'Find a folder', attrs: { 'data-m': 'dj-move' }, sub: () => djMoveTo(src, l) },
+      ed && { label: 'Delete in ' + app + '…', danger: true, attrs: { 'data-m': 'dj-delete' }, run: () => djDelete(src, l) },
       ...whatsThis('dj-libraries'),
     ]);
+  }
+  // Engine DJ's own playlists edited here (ADR 0179).
+  async function djNew(src: Source, parent: string, kind: 'playlist' | 'folder') {
+    const app = APP_NAMES[src.app] ?? src.app, name = prompt(kind === 'folder' ? 'Name of the new folder in ' + app : 'Name of the new playlist in ' + app)?.trim();
+    if (!name) return;
+    const id = (await lib.djEdit(src.id, { t: 'new', name, parent, kind }))?.id;
+    if (!id) return;
+    djOpen[src.id] = true;
+    if (parent) djOpen[src.id + ':' + parent] = true;
+    view.select({ kind: 'dj', sourceId: src.id, id });
+  }
+  function djRename(src: Source, l: SourceList) {
+    const name = prompt('Rename “' + l.name + '” in ' + (APP_NAMES[src.app] ?? src.app), l.name)?.trim();
+    if (name && name !== l.name) void lib.djEdit(src.id, { t: 'rename', list: l.externalId, name });
+  }
+  function djDelete(src: Source, l: SourceList) {
+    const app = APP_NAMES[src.app] ?? src.app, inside = (src.tree ?? []).some(x => x.parent === l.externalId);
+    if (!confirm('Delete “' + l.name + '”' + (inside ? ' and everything in it' : '') + ' in ' + app + '?\n\nIts songs stay in ' + app + '’s collection. GLUE Home deletes it when ' + app + ' is closed, after a backup of its library.')) return;
+    if (view.sel.kind === 'dj' && view.sel.id === l.externalId) view.select({ kind: 'source', id: src.id });
+    void lib.djEdit(src.id, { t: 'delete', list: l.externalId });
+  }
+  /** Where a DJ list can go: the top, or a folder of the library that isn't it or in it. */
+  function djMoveTo(src: Source, l: SourceList): MenuEntry[] {
+    const tree = src.tree ?? [], gone = new Set([l.externalId]);
+    for (let more = true; more;) { more = false; for (const x of tree) if (x.parent && gone.has(x.parent) && !gone.has(x.externalId)) { gone.add(x.externalId); more = true; } }
+    const depth = (x: SourceList) => { let d = 0; for (let p = x.parent; p; p = tree.find(y => y.externalId === p)?.parent ?? null) d++; return d; };
+    const move = (parent: string) => void lib.djEdit(src.id, { t: 'move', list: l.externalId, parent });
+    const out: MenuEntry[] = [{ label: 'The top level', attrs: { 'data-dj-to': '' }, disabled: !l.parent, run: () => move('') }];
+    const walk = (parent: string | null) => {
+      for (const x of tree.filter(y => (y.parent ?? null) === parent && !gone.has(y.externalId) && (y.kind === 'folder' || tree.some(k => k.parent === y.externalId)))) {
+        out.push({ label: x.name, depth: depth(x), hint: 'folder', attrs: { 'data-dj-to': x.externalId }, disabled: l.parent === x.externalId, run: () => move(x.externalId) });
+        walk(x.externalId);
+      }
+    };
+    walk(null);
+    return out;
   }
 </script>
 
@@ -392,11 +447,14 @@
   <li>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="item dj" class:sel={isSel({ kind: 'dj', sourceId: src.id, id: l.externalId })} class:menued={menued('dj:' + key)} style:padding-left={8 + depth * 14 + 'px'} data-dj={l.externalId}
+      class:drop-add={drag.active && drag.target?.type === 'dj' && drag.target.sourceId === src.id && drag.target.ext === l.externalId}
+      data-drop={lib.djEditable(src) ? 'dj' : undefined} data-dj-source={src.id} data-ext={l.externalId}
       oncontextmenu={e => onMenu(e, 'dj:' + key, () => djMenuOf(src, l), l.name)}>
       {#if kids.length}<button type="button" class="twist" aria-label={djOpen[key] ? 'Collapse' : 'Expand'} onclick={() => (djOpen[key] = !djOpen[key])}>{djOpen[key] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
       {#if l.kind === 'folder'}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" fill="currentColor"/></svg>
       {:else}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5v8.2a2.3 2.3 0 1 0 1.5 2.1V5.5l5-1.3v5.4a2.3 2.3 0 1 0 1.5 2.1V1.2z" fill="currentColor"/></svg>{/if}
       <button type="button" class="name" title={l.name + ' in ' + (APP_NAMES[src.app] ?? src.app)} onclick={() => { view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }); if (kids.length) djOpen[key] = true; }}><span class="nm">{l.name}</span></button>
+      {#if l.wait}<span class="djwait" data-dj-wait={l.externalId} title={'Changed in GLUE: written into ' + (APP_NAMES[src.app] ?? src.app) + ' when it’s closed'}>●</span>{/if}
       {#if whole}<button type="button" class="ingl" title="In GLUE (following it): open GLUE's copy" onclick={() => view.select({ kind: 'list', id: copy!.id })}>✓</button>{/if}
       <span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>
       <span class="tools" class:open={menued('dj:' + key)}>
@@ -435,7 +493,7 @@
           onkeydown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') view.editing = null; }}>
       {:else}
         <button type="button" class="name" title={l.name} onclick={e => nameClick(e, l)} ondblclick={() => { clearTimeout(slow); view.editing = l.id; }}>
-          <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', following it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}
+          <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', following it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}{#if !l.origin && lib.engineKept()}{@const by = lib.keptBy(l.id, 'engine')}{#if by}<span class="kept" class:own={by.id === l.id} data-kept="engine" title={by.id === l.id ? 'Kept in Engine DJ, in its GLUE folder (both ways)' : 'Kept in Engine DJ with “' + by.name + '”'}><AppIcon app="engine" size={13} /></span>{/if}{/if}
         </button>
         {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>{/if}
         <span class="tools" class:open={menued('l:' + l.id)}>
@@ -727,6 +785,8 @@
   section > ul > li > div.item { padding-left: 8px; }
   .name small, .found small { color: var(--muted); }
   .imp { color: var(--muted); font-size: 11px; margin-left: 4px; display: inline-flex; align-items: center; flex: none; }
+  .kept { margin-left: 4px; display: inline-flex; align-items: center; flex: none; opacity: .45; }
+  .kept.own { opacity: 1; }
   .n { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; flex: none; }
   .twist { width: 16px; flex: none; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; font-size: 11px; text-align: center; }
   .tools { display: none; gap: 2px; flex: none; }
@@ -750,6 +810,7 @@
   .live.reading { color: var(--accent); animation: blink 1s infinite alternate; }
   @keyframes blink { to { opacity: .35; } }
   .refresh { font-size: 11px; padding: 1px 6px; }
+  .djwait { color: var(--warn, #e0a030); font-size: 9px; flex: none; padding: 0 2px; }
   .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; flex: none; }
   .djq { list-style: none; margin: 2px 0 6px 26px; padding: 0; font-size: 12px; display: grid; gap: 4px; }
   .djq li { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; color: var(--warn, #e0a030); }

@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-09)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.70.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.72.0** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,13 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE's playlists in Engine DJ's "GLUE" folder, 2026-10-09** (ADR 0180, GLUE Home 0.72): right-click one of GLUE's
+  playlists › Keep in Engine DJ; with Engine DJ closed it appears in a GLUE folder there (inside GLUE's folders), and
+  changes in either go to the other.
+- **Engine DJ edited from the DJ collection, 2026-10-09** (ADR 0179, GLUE Home 0.72): to check on the desktop, Engine DJ
+  closed: rename one of its playlists in the sidebar's DJ tree, make one, drop songs on it, reorder and remove in its
+  view; then open Engine DJ. Also a song's title edited in GLUE shows in Engine DJ, and a rating set in Engine DJ comes
+  into GLUE. The backups of Engine DJ's library are in GLUE Home's cache (`dj-backups/`).
 - **Engine DJ's playlists back in its DJ collection, 2026-10-09** (ADR 0178, GLUE Home 0.71): once the desktop's GLUE
   Home updates, it takes every Engine DJ copy out of Playlists (the user chose all, even the 147 imported before the
   sync), after a backup (`backups/pre-engine-playlists-…zip`), into Recently deleted. To check: Playlists holds only
@@ -206,10 +213,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 
 ## Next
 - **ADR 0178's next steps (the user's plan, 2026-10-09):**
-  1. edit Engine DJ's own playlists and folders, their songs and the songs' info in the DJ collection (an op queue in
-     GLUE Home, shown at once, written with Engine DJ closed after a backup);
-  2. GLUE's own playlists mirrored both ways in Engine DJ's "GLUE" folder (a per-list toggle, the app's icon), reusing
-     the parked `dj_sync_lists` and the two `#[ignore]`d tests in `crates/glue-engine/tests/engine.rs`;
+  1. done: Engine DJ edited from the DJ collection, song info both ways (ADR 0179, 0.72);
+  2. done: GLUE's own playlists in Engine DJ's "GLUE" folder, both ways (ADR 0180, 0.72);
   3. rekordbox (`master.db`) later, its own step.
 ### Next: the rest of the library's work into GLUE Home (ADR 0162, the user's rule: "GLUE Home IS THE APP")
 The user (2026-10-08): "I want to get all of these moved to Rust so that we can move on to the DJ library cue points

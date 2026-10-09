@@ -218,6 +218,18 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     step: GLUE's own playlists mirrored in the app's "GLUE" folder. Engine DJ's songs whose file the duplicates'
     clean-up took are still pointed at the copy kept (`dj_relink`, ADR 0172). A damaged library's entries are put back
     by hand with `crates/glue-interop/examples/restore_lists.rs` (ADR 0173).
+  - **Edited from its DJ collection** (0.72, ADR 0179; `djedit.rs`): the page's `djEdit` operations (new, rename, move,
+    delete; songs add, remove, shift) wait in GLUE Home's cache (`ops`), are put on `Source.tree` at once (`wait`) and
+    again after each read, and are written by the sync while Engine DJ is closed (a backup, one transaction, a
+    savepoint each; a new list's `n:` id becomes Engine DJ's, remembered in `made`). The cache is written one at a time
+    (`dj_keep`). With the cues, each song's info both ways (`djinfo.rs`: title, artist, album, genre, comment, label,
+    year, rating; each side against its own last-agreed value; both changed: GLUE's; taken in as edited fields).
+  - **GLUE's own playlists in its "GLUE" folder** (0.72, ADR 0180; `djmirror.rs`): a list without `origin` whose
+    `apps` (or a folder's it's in) has "engine", with the folders it's in, under a top-level "GLUE" folder in Engine DJ;
+    which is which in GLUE Home's cache (`mirror`, `glueFolder`), merged three ways as ADR 0171–0173 did (`mirrorBase`,
+    `mirrorOrders`, `splice`); one made in the GLUE folder in Engine DJ comes into GLUE; gone from a side, asked
+    (`djQuestions`, `djListResolve`); turned off, taken out. The page sets it (**Keep in Engine DJ**) and shows the
+    app's icon.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     The other device's player gets the bytes as they arrive (ADR 0174): the streaming service worker answers a range
     as a stream, the page fetching it in pieces (256 KB, then 2 MB) when the player has room; the song's start (a new

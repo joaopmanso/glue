@@ -67,6 +67,14 @@
   const NBSP = String.fromCharCode(160);   // an option keeps no-break spaces (ordinary ones collapse)
   const pad = (depth: number, folder: boolean) => NBSP.repeat(3 * depth) + (folder ? '📁' + NBSP : '');
   const current = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
+  // A DJ app's own playlist (not a folder), edited in GLUE (ADR 0179).
+  const djCurrent = $derived.by(() => {
+    void lib.version;
+    const s = view.sel;
+    if (s.kind !== 'dj') return null;
+    const src = lib.store?.sources.get(s.sourceId), l = src?.tree?.find(x => x.externalId === s.id);
+    return src && l && lib.djEditable(src) && !src.tree!.some(x => x.parent === l.externalId) ? { src, l } : null;
+  });
   const sel = $derived([...view.selected]);
   // Playlist insights (length, tempo, keys, tags): shown under a playlist's header; hideable.
   let showInsights = $state(readPref('insights', '1') === '1');
@@ -278,6 +286,7 @@
             {/each}
           </select>
           {#if current}<button type="button" class="mini" disabled={!sel.some(id => current.items.includes(id))} onclick={() => { lib.removeFromList(current.id, sel); view.selected = new Set(); }}>Remove from {current.kind === 'folder' ? 'folder' : 'playlist'}</button>{/if}
+          {#if djCurrent}<button type="button" class="mini" id="dj-remove" disabled={!sel.length} onclick={() => { lib.djRemove(djCurrent.src.id, djCurrent.l.externalId, sel); view.selected = new Set(); }}>Remove from playlist</button>{/if}
           {#if dock.available}
             <button type="button" class="mini opt" id="dock-add" disabled={!sel.length} title="Add the selected songs to GLUE Home's drag dock, to drag them into Engine DJ, Rekordbox or a folder" onclick={() => { const s = lib.store; if (s) void dock.add(sel.map(id => s.tracks.get(id)).filter(t => !!t)); }}>+ Dock{sel.length ? ' (' + sel.length + ')' : ''}</button>
           {/if}

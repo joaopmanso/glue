@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-10-09
-adrs: [0009, 0022, 0079, 0171, 0172, 0173, 0178]
+adrs: [0009, 0022, 0079, 0171, 0172, 0173, 0178, 0179, 0180]
 ---
 # Playlists, folders & smart lists
 
@@ -146,3 +146,15 @@ Home 0.71) a DJ app's playlists stay in its DJ collection; an imported copy foll
 takes GLUE's copy away. GLUE Home took every Engine DJ copy out once (a backup first, into Recently deleted), the
 user's choice. Next: editing Engine DJ's playlists, their songs and the songs' info in the DJ collection; then GLUE's
 own playlists in Engine DJ's "GLUE" folder, both ways, with the app's icon by each one synced.
+
+## Engine DJ's playlists edited in the DJ collection (2026-10-09, [ADR 0179](../adr/0179-engine-dj-edited-in-the-dj-collection.md))
+With the main Engine DJ library kept in step and GLUE Home running (0.72): right-click its playlists for new, rename,
+move and delete; drop songs on one (or a song's "Add to Engine DJ playlist"); reorder and remove songs in a playlist's
+view. It shows at once with an amber ●, and GLUE Home writes it into Engine DJ when it's closed, after a backup. Songs'
+info (title, artist, album, genre, comment, label, year, rating) goes both ways with the cues.
+
+## GLUE's playlists in Engine DJ's "GLUE" folder (2026-10-09, [ADR 0180](../adr/0180-glues-playlists-in-engine-djs-glue-folder.md))
+Right-click one of GLUE's own playlists or folders › **Keep in Engine DJ** (once the main Engine DJ library is kept in
+step): it goes into a "GLUE" folder in Engine DJ, inside the same folders as in GLUE, with the Engine DJ icon by it
+here (fainter for what's kept with its folder). Both ways: names, places, songs and order; one made in Engine DJ's
+GLUE folder comes into GLUE; deleted on one side, asked; **Stop keeping it in Engine DJ** takes it out there.

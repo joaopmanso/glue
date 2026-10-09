@@ -6,6 +6,15 @@
 import { lib } from './library.svelte';
 import { view } from './view.svelte';
 import { columns, type ColKey } from './columns.svelte';
+import { djEntries } from '../core/library/djEntries';
+
+/** Songs added to a DJ app's own playlist (ADR 0179), before an entry (else at its end); each once. */
+async function djAdd(sourceId: string, ext: string, ids: string[], before: string | null) {
+  const src = lib.store?.sources.get(sourceId), name = src?.tree?.find(l => l.externalId === ext)?.name ?? 'the playlist';
+  const had = djEntries(src, ext, ids).length, n = ids.length - had;
+  if (!n) { lib.notice = 'Already in “' + name + '”.'; return; }
+  if (await lib.djEdit(sourceId, { t: 'add', list: ext, songs: ids, ...(before ? { before } : {}) })) lib.notice = 'Added ' + n + ' song' + (n === 1 ? '' : 's') + ' to “' + name + '”: written into Engine DJ when it’s closed.';
+}
 
 export type Payload = { kind: 'tracks'; ids: string[]; label: string } | { kind: 'list'; id: string; label: string } | { kind: 'column'; key: ColKey; label: string };
 /** Where a drop would land. */
@@ -20,6 +29,8 @@ export type Target =
   | { type: 'top' }                                         // the end of the top level
   | { type: 'home'; home: string }                          // send the tracks' files to a GLUE Home (ADR 0046)
   | { type: 'dock' }                                        // the "Drag dock" button: onto GLUE Home's dock (ADR 0061)
+  | { type: 'dj'; sourceId: string; ext: string }           // add the tracks to a DJ app's own playlist (ADR 0179)
+  | { type: 'djrow'; sourceId: string; ext: string; before: string | null }   // reorder / insert inside the open DJ playlist
   | { type: 'queue'; which: 'upNext' | 'later'; index: number | null };   // the player's queue: a place in Next up or Next from, or Next up's end (ADR 0068)
 
 const THRESHOLD = 5;   // px of movement before a press becomes a drag
@@ -132,6 +143,7 @@ class Drag {
     if (kind === 'top') return p.kind === 'list' ? { type: 'top' } : null;
     if (kind === 'home') return p.kind === 'tracks' && el.dataset.home ? { type: 'home', home: el.dataset.home } : null;
     if (kind === 'dock') return { type: 'dock' };
+    if (kind === 'dj') return p.kind === 'tracks' && el.dataset.djSource && el.dataset.ext ? { type: 'dj', sourceId: el.dataset.djSource, ext: el.dataset.ext } : null;
     if (kind === 'queue') {
       if (p.kind !== 'tracks' && p.kind !== 'list') return null;
       const which = el.dataset.which === 'later' ? 'later' : 'upNext';
@@ -143,6 +155,11 @@ class Drag {
       if (p.kind !== 'tracks' || !el.dataset.list) return null;
       const r = el.getBoundingClientRect(), i = Number(el.dataset.index);
       return { type: 'row', listId: el.dataset.list, index: y < r.top + r.height / 2 ? i : i + 1 };
+    }
+    if (kind === 'djrow') {
+      if (p.kind !== 'tracks' || !el.dataset.djSource || !el.dataset.ext) return null;
+      const r = el.getBoundingClientRect(), up = y < r.top + r.height / 2;
+      return { type: 'djrow', sourceId: el.dataset.djSource, ext: el.dataset.ext, before: (up ? el.dataset.entry : el.dataset.next) || null };
     }
     if (kind !== 'list') return null;
     const l = lib.store?.lists.get(id);
@@ -179,6 +196,14 @@ class Drag {
       if (t.type === 'tag') {
         lib.tagTracks(p.ids, [t.name]);
         lib.notice = 'Tagged ' + (p.ids.length === 1 ? '1 track' : p.ids.length + ' tracks') + ' “' + t.name + '”.';
+        return;
+      }
+      if (t.type === 'dj') { void djAdd(t.sourceId, t.ext, p.ids, null); return; }
+      if (t.type === 'djrow') {
+        // Its own songs moved there; songs from elsewhere added there.
+        const here = djEntries(lib.store?.sources.get(t.sourceId), t.ext, p.ids);
+        if (here.length) void lib.djEdit(t.sourceId, { t: 'shift', list: t.ext, items: here, ...(t.before ? { before: t.before } : {}) });
+        else void djAdd(t.sourceId, t.ext, p.ids, t.before);
         return;
       }
       if (t.type === 'playlist') {

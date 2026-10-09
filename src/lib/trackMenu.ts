@@ -17,7 +17,25 @@ import { menu, SEP, tidy, type MenuAction, type MenuEntry } from './menu.svelte'
 import { phone } from './phone.svelte';
 import { relink } from './relink.svelte';
 import { listTree } from '../core/library/listTree';
-import type { List, Track } from '../store/types';
+import type { List, Source, SourceList, Track } from '../store/types';
+import { djEntries } from '../core/library/djEntries';
+
+/** The DJ app's own playlists GLUE can change (ADR 0179), as a picker: its main Engine DJ library kept in step. */
+function djPicker(pick: (src: Source, l: SourceList) => void): MenuEntry[] {
+  const src = [...lib.store?.sources.values() ?? []].find(x => lib.djEditable(x));
+  const tree = src?.tree ?? [];
+  if (!src) return [];
+  const out: MenuEntry[] = [];
+  const walk = (parent: string | null, depth: number) => {
+    for (const l of tree.filter(x => (x.parent ?? null) === parent)) {
+      const folder = tree.some(x => x.parent === l.externalId);
+      out.push(folder ? { label: l.name, depth, hint: 'folder', disabled: true } : { label: l.name, depth, attrs: { 'data-dj-add': l.externalId }, run: () => pick(src, l) });
+      walk(l.externalId, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return out;
+}
 
 const plural = (n: number, one: string, many = one + 's') => n + ' ' + (n === 1 ? one : many);
 /** The playlists most recently added to, offered first. */
@@ -73,6 +91,11 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
   const one = ts.length === 1 ? ts[0] : null, n = ts.length;
   const cur = view.sel.kind === 'list' ? s.lists.get(view.sel.id) ?? null : null;
   const inCur = cur ? ids.filter(id => cur.items.includes(id)).length : 0;
+  // A DJ app's own playlist shown (ADR 0179): its songs taken out there.
+  const djSel = view.sel.kind === 'dj' ? view.sel : null, djSrc = djSel ? s.sources.get(djSel.sourceId) : undefined;
+  const djCur = djSel && lib.djEditable(djSrc) ? djSrc?.tree?.find(l => l.externalId === djSel.id) ?? null : null;
+  const inDj = djCur ? djEntries(djSrc, djCur.externalId, ids).length : 0;
+  const djAdd = [...s.sources.values()].some(x => lib.djEditable(x));
   const playable = ts.filter(t => lib.playsHere(t));
   const order = opts.order ?? ids;
   // The playlists these songs are in (a folder's own songs count: folders are playlists too).
@@ -126,6 +149,18 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
           ...listPicker(l => addTo(l, ids), { mark: l => ids.every(id => l.items.includes(id)) }),
         ]);
       },
+    },
+    djAdd && {
+      label: 'Add to Engine DJ playlist', find: 'Find a playlist', attrs: { 'data-m': 'dj-add' },
+      sub: () => djPicker((src, l) => {
+        const had = djEntries(src, l.externalId, ids).length;
+        if (had === ids.length) { lib.notice = 'Already in “' + l.name + '”.'; return; }
+        void lib.djEdit(src.id, { t: 'add', list: l.externalId, songs: ids }).then(r => { if (r) lib.notice = 'Added ' + plural(ids.length - had, 'song') + ' to “' + l.name + '”: written into Engine DJ when it’s closed.'; });
+      }),
+    },
+    djCur && djSrc && inDj > 0 && {
+      label: 'Remove from ' + djCur.name, hint: 'Del', attrs: { 'data-m': 'remove-here' },
+      run: () => { const n = lib.djRemove(djSrc.id, djCur.externalId, ids); view.selected = new Set(); lib.notice = 'Removed ' + plural(n, 'song') + ' from “' + djCur.name + '”: written into Engine DJ when it’s closed.'; },
     },
     cur && inCur > 0 && {
       label: 'Remove from ' + cur.name, hint: cur.kind === 'playlist' ? 'Del' : undefined, attrs: { 'data-m': 'remove-here' },

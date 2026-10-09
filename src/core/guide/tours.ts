@@ -81,7 +81,7 @@ export const TOURS: Tour[] = [
     id: 'dj-libraries', title: 'DJ libraries', summary: 'Importing, followed live, their playlists.',
     steps: [
       { target: 'dj-libs', go: { route: '#/' }, title: 'Your DJ apps', place: 'right', body: 'rekordbox, Engine DJ, Serato, Traktor and Apple Music. An imported library is followed: when the app changes it, GLUE reads it again. Your main Engine DJ library can also be kept in step both ways (right-click it).' },
-      { target: 'playlists', title: 'Their playlists', place: 'right', body: 'A DJ library’s playlists are browsed under it, and brought in here when you want them.' },
+      { target: 'playlists', title: 'Their playlists', place: 'right', body: 'A DJ library’s playlists are browsed under it, and brought in here when you want them. With your main Engine DJ library kept in step, you change its own playlists there too: right-click one, or drop songs on it. Yours go into Engine DJ’s GLUE folder with Keep in Engine DJ.' },
       { target: 'view-unlinked', optional: true, title: 'Songs with no file', place: 'right', body: 'Songs a DJ library lists whose files are gone show here; I can find most of them in your library.' },
     ],
   },

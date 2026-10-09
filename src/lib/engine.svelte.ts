@@ -12,7 +12,7 @@ import { thumbs, waves } from './thumbs.svelte';
 import { homeSocket, localHome } from './localHome.svelte';
 import { cacheDir, homeMode, setLeaseHeld } from '../platform';
 import { decodeFingerprint, writeFingerprint } from '../store/fingerprints';
-import { shardOf } from '../store/types';
+import { shardOf, type DjEdit } from '../store/types';
 import type { CollectionStore, StoreOp } from '../store/collection';
 import type { Analysed } from '../core/library/analysed';
 import type { DetailsHeader } from '../store/details';
@@ -230,6 +230,13 @@ class EngineClient {
     if (!w) throw new Error('No collection open');
     return this.rpc({ op: 'djResolve', ...w, track, keep }, 120_000);
   }
+  /** An edit of the main Engine DJ library's own playlists (ADR 0179): on its tree at once, written with Engine DJ
+      closed. A new list's id (GLUE Home's until it's written). */
+  async djEdit(source: string, edit: DjEdit): Promise<{ id?: string | null }> {
+    const w = this.where();
+    if (!w) throw new Error('No collection open');
+    return this.rpc({ op: 'djEdit', ...w, source, edit }, 30_000);
+  }
   /** A library read again now by GLUE Home (Refresh). ok false: it can't reach its file. */
   async djRefresh(id: string): Promise<{ ok: boolean; notice?: string }> {
     const w = this.where();
@@ -278,6 +285,7 @@ lib.beforeClose = () => engineClient.flush();
 const prevOpened = lib.onCollectionOpened;
 lib.homeFind = (id, name, sample) => engineClient.findFolder(id, name, sample);
 lib.homeDjFind = () => engineClient.djFind();
+lib.djWrite = (source, edit) => engineClient.djEdit(source, edit);
 lib.homeFindFile = (name, size, roots) => homeMode() ? engineClient.findFile(name, size, roots) : Promise.resolve({ path: null });
 lib.onCollectionOpened = (pid, cid) => { prevOpened?.(pid, cid); void engineClient.check(); };
 if (typeof window !== 'undefined') {

@@ -4,7 +4,7 @@
 import { HomeStore } from '../store/home';
 import { time } from '../core/perf';
 import { CollectionStore, type LoadOpts } from '../store/collection';
-import type { Alias, Profile, Root, Track } from '../store/types';
+import type { Alias, DjEdit, Profile, Root, Track } from '../store/types';
 import type { FoundLibrary } from '../core/library/scan';
 import type { Detected } from '../core/library/detect';
 import type { DetailsHeader } from '../store/details';
@@ -173,6 +173,8 @@ export class Library {
   /** GLUE Home is the app here (ADR 0162, lib/engine): its engine runs this library, known before it opens; the
       page starts none of the library's work then (sync, analysis, backups, repairs, looking for libraries). */
   homeRuns: () => boolean = () => false;
+  /** An edit of Engine DJ's own playlists sent to GLUE Home (ADR 0179, lib/engine): a new list's id. */
+  djWrite: ((source: string, edit: DjEdit) => Promise<{ id?: string | null }>) | null = null;
   /** The DJ libraries GLUE Home finds in the music folders and the GLUE folder (ADR 0167; lib/engine). */
   homeDjFind: (() => Promise<(Omit<Detected, 'handle'> & { place: string; placeName: string })[]>) | null = null;
   /** This computer's GLUE Home analyses its songs (ADR 0103, 0104): lib/engine says so, and takes the asks. */

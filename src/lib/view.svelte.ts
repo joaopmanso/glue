@@ -13,6 +13,7 @@ import { keyLabel, type KeyNotation } from '../core/audio/keys';
 import { hasTag, tagsOf } from '../core/library/tagging';
 import { readPref, writePref } from './prefs';
 import { router } from './route.svelte';
+import { glueSong } from '../core/library/djEntries';
 
 export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'failed' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string }
   /** Browsing (2026-09-28): a field's values (Artists…), and one value's songs. */
@@ -35,10 +36,11 @@ export function djTracks(src: Source | undefined, id: string): string[] {
   const byExt = new Map(src.tree.map(l => [l.externalId, l]));
   for (const l of src.tree) if (l.parent) (kids.get(l.parent) ?? kids.set(l.parent, []).get(l.parent)!).push(l.externalId);
   const out = new Set<string>();
-  const walk = (ext: string) => { for (const x of byExt.get(ext)?.items ?? []) { const t = trackOf.get(x); if (t) out.add(t); } for (const k of kids.get(ext) ?? []) walk(k); };
+  const walk = (ext: string) => { for (const x of byExt.get(ext)?.items ?? []) { const t = trackOf.get(x) ?? glueSong(x); if (t) out.add(t); } for (const k of kids.get(ext) ?? []) walk(k); };
   walk(id);
   return [...out];
 }
+
 
 class View {
   sel = $state<ViewSel>({ kind: 'all' });

@@ -125,6 +125,9 @@ export interface List {
   tags?: string[];                                         // the playlist's own tags
   /** An event's folder (its id), or the Events folder that holds them ('*') (ADR 0074). */
   event?: string;
+  /** The DJ apps this list (and, for a folder, everything in it) is kept in, under their "GLUE" folder (ADR 0180):
+      'engine'. Only GLUE's own lists (no origin). */
+  apps?: string[];
   createdAt: string;
 }
 
@@ -134,7 +137,20 @@ export type SourceApp = 'rekordbox' | 'engine' | 'serato' | 'traktor' | 'apple' 
 /** Where a detected library was imported from (place: a music folder id, 'home', or a remembered place), for Update. */
 export interface SourceOrigin { place: string; relPath: string; modified: number }
 /** A DJ library's playlist or folder as the library has it (ADR 0063). items: its tracks' externalIds. */
-export interface SourceList { externalId: string; kind: 'folder' | 'playlist'; name: string; parent: string | null; items: string[] }
+export interface SourceList { externalId: string; kind: 'folder' | 'playlist'; name: string; parent: string | null; items: string[];
+  /** Edited in GLUE and not written into the app yet (ADR 0179). An item `glue:<song>` is a song it doesn't have yet. */
+  wait?: boolean }
+/** An edit of the main Engine DJ library's own playlists, in GLUE's DJ collection (ADR 0179; GLUE Home's `djEdit`):
+    lists by their `externalId` (a new one's id is GLUE Home's until it's written); `parent` '' is the top; `before` the
+    list or entry it goes before (none: last); `songs` GLUE's songs, `items` the list's entries. */
+export type DjEdit =
+  | { t: 'new'; name: string; parent: string; kind: 'playlist' | 'folder'; before?: string }
+  | { t: 'rename'; list: string; name: string }
+  | { t: 'move'; list: string; parent: string; before?: string }
+  | { t: 'delete'; list: string }
+  | { t: 'add'; list: string; songs: string[]; before?: string }
+  | { t: 'remove'; list: string; items: string[] }
+  | { t: 'shift'; list: string; items: string[]; before?: string };
 /** tree: the library's playlists as last read, browsed in the sidebar; they come into GLUE on demand. */
 export interface Source { schemaVersion: number; id: string; app: SourceApp; name: string; fileName: string; importedAt: string; tracks: SourceTrack[]; lists: number; origin?: SourceOrigin; tree?: SourceList[];
   /** Lists the library's last read didn't have, with when that was first seen: GLUE's copies go only when

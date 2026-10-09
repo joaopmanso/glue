@@ -531,7 +531,7 @@ test('with GLUE Home running, it finds a DJ library in the music folder, imports
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 
-test('with GLUE Home running, the main Engine DJ library is kept in step both ways: a cue set in GLUE is written into it once Engine DJ is closed; its playlists stay in its DJ collection (ADR 0169, 0170, 0178)', async ({ page }) => {
+test('with GLUE Home running, the main Engine DJ library is kept in step both ways: a cue set in GLUE is written into it once Engine DJ is closed; its playlists stay in its DJ collection and are edited there; GLUE’s own kept in its GLUE folder (ADR 0169, 0170, 0178, 0179, 0180)', async ({ page }) => {
   test.setTimeout(180_000);
   const tmp = mkdtempSync(join(tmpdir(), 'glue-home-djsync-'));
   const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } }, { engine: true });
@@ -610,6 +610,56 @@ test('with GLUE Home running, the main Engine DJ library is kept in step both wa
       return t;
     };
     expect(await titles()).toContain('Second');
+
+    // Edited in its DJ collection (ADR 0179): shown at once, waiting while Engine DJ runs, written once it's closed.
+    page.removeAllListeners('dialog');
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: true } });
+    const second = page.locator('.lside .djtree [data-dj]', { hasText: 'Second' });
+    page.once('dialog', d => void d.accept('Second set'));
+    await second.click({ button: 'right' });
+    await page.locator('.cmenu [data-m="dj-rename"]').click();
+    await expect(page.locator('.lside .djtree [data-dj]', { hasText: 'Second set' }).locator('[data-dj-wait]')).toBeVisible({ timeout: 20_000 });
+    expect(await titles()).not.toContain('Second set');
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false } });
+    await expect.poll(titles, { timeout: 40_000 }).toContain('Second set');
+    // A new playlist, a song added to it from the song's menu, then taken out in its view.
+    page.once('dialog', d => void d.accept('Fresh'));
+    await src.click({ button: 'right' });
+    await page.locator('.cmenu [data-m="dj-new"]').click();
+    const fresh = page.locator('.lside .djtree [data-dj]', { hasText: 'Fresh' });
+    await expect(fresh).toHaveCount(1, { timeout: 20_000 });
+    await expect.poll(titles, { timeout: 40_000 }).toContain('Fresh');
+    const entries = async () => {
+      const initSqlJs = (await import('sql.js')).default, SQL = await initSqlJs(), d = new SQL.Database(readFileSync(db));
+      const n = d.exec("SELECT COUNT(*) FROM PlaylistEntity e JOIN Playlist p ON p.id = e.listId WHERE p.title = 'Fresh'")[0].values[0][0] as number;
+      d.close();
+      return n;
+    };
+    await src.locator('.name').click();
+    await page.locator('.tr').first().click({ button: 'right' });
+    await page.locator('.cmenu [data-m="dj-add"]').hover();
+    await page.locator('.cmenu [data-dj-add]', { hasText: 'Fresh' }).click();
+    await expect.poll(entries, { timeout: 40_000 }).toBe(1);
+    await fresh.locator('.name').click();
+    await expect(page.locator('.tr')).toHaveCount(1, { timeout: 20_000 });
+    await page.locator('.tr').first().click();
+    await page.click('#dj-remove');
+    await expect.poll(entries, { timeout: 40_000 }).toBe(0);
+
+    // A playlist of GLUE's own kept in Engine DJ (ADR 0180): in its "GLUE" folder, the app's icon by it.
+    await page.click('#new-playlist'); await page.keyboard.type('Mix'); await page.keyboard.press('Enter');
+    const mix = page.locator('.lside .tree .item', { has: page.locator('.nm', { hasText: /^Mix$/ }) });
+    await expect(mix).toHaveCount(1);
+    await mix.click({ button: 'right' });
+    await page.locator('.cmenu [data-m="dj-keep"]').click();
+    await expect(mix.locator('[data-kept="engine"]')).toBeVisible();
+    const inGlue = async () => {
+      const initSqlJs = (await import('sql.js')).default, SQL = await initSqlJs(), d = new SQL.Database(readFileSync(db));
+      const r = d.exec("SELECT c.title FROM Playlist c JOIN Playlist g ON g.id = c.parentListId WHERE g.title = 'GLUE' AND g.parentListId = 0");
+      d.close();
+      return r[0]?.values.map(v => v[0] as string) ?? [];
+    };
+    await expect.poll(inGlue, { timeout: 40_000 }).toContain('Mix');
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 

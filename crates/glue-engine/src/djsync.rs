@@ -10,10 +10,10 @@
 //!   next sync takes only what's on one side, and removes nothing.
 //!
 //! It runs when something changed since the last time (GLUE's library, or a database's date).
-use crate::{get, key, text, truthy, Engine, Host};
+use crate::{djinfo, get, key, text, truthy, Engine, Host};
 use glue_interop::perf::{self, Hot, Loop};
 use glue_interop::sync::{self, Side};
-use glue_store::dir::{read_json, write_json};
+use glue_store::dir::read_json;
 use rusqlite::{params, Connection, OpenFlags};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -33,6 +33,10 @@ type Write = (i64, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>, Option<f64
 struct Song { ext: String, id: i64, track: String }
 
 fn mtime(p: &Path) -> f64 { std::fs::metadata(p).and_then(|m| m.modified()).ok().and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0.0, |d| d.as_millis() as f64) }
+/// A table has this column (older libraries lack some of Engine DJ 4's).
+fn has_col(db: &Connection, table: &str, col: &str) -> bool {
+  db.prepare(&format!("PRAGMA table_info({table})")).and_then(|mut q| q.query_map([], |r| r.get::<_, String>(1))?.collect::<Result<Vec<_>, _>>()).is_ok_and(|c| c.iter().any(|x| x == col))
+}
 /// A database Engine DJ is saving (its journal or write-ahead log not empty): not now.
 fn busy(db: &Path) -> bool {
   ["-journal", "-wal"].iter().any(|s| { let mut j = db.as_os_str().to_owned(); j.push(s); std::fs::metadata(&j).is_ok_and(|m| m.len() > 0) })
@@ -95,6 +99,9 @@ impl<H: Host> Engine<H> {
     let mut edits: Vec<(String, Value)> = vec![];
     let (_, at) = self.host.now();
     let mut backed = self.dj.lock().unwrap().backed.clone();
+    // Songs' info into GLUE (ADR 0179): by song, the fields.
+    let mut info_edits: Vec<(String, Map<String, Value>)> = vec![];
+    if !kept["info"].is_object() { kept["info"] = json!({}); }
     let mut by_db: HashMap<String, Vec<&Song>> = HashMap::new();
     for x in &songs { if let Some((u, _)) = x.ext.split_once('/') { by_db.entry(u.to_string()).or_default().push(x); } }
     for (uuid, list) in by_db {
@@ -130,6 +137,33 @@ impl<H: Host> Engine<H> {
           else { kept["clashes"][&x.track] = Value::Array(m.clashes.iter().map(|w| sync::clash_json(w, &glue, &app)).collect()); }
         }
       }
+      // The songs' info (ADR 0179).
+      let mut info_writes: Vec<(i64, Map<String, Value>)> = vec![];
+      {
+        let cols = djinfo::FIELDS.join(", ");
+        let mut q = db.prepare(&format!("SELECT {cols} FROM Track WHERE id = ?1")).map_err(|e| e.to_string())?;
+        for x in &list {
+          let Ok(row) = q.query_row(params![x.id], |r| djinfo::FIELDS.iter().enumerate().map(|(i, f)| Ok((*f, r.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Text(s) => Some(s), rusqlite::types::Value::Integer(n) => Some(n.to_string()), rusqlite::types::Value::Real(n) => Some(n.to_string()), _ => None })?))).collect::<rusqlite::Result<Vec<_>>>()) else { continue };
+          let Some(t) = ({ let st = s.lock().unwrap(); st.tracks.get(&x.track).cloned() }) else { continue };
+          let m = djinfo::merge_info(&djinfo::glue_info(&t), &djinfo::app_info(&row), kept["info"].get(&x.ext));
+          if !m.to_app.is_empty() { info_writes.push((x.id, m.to_app)); }
+          if !m.to_glue.is_empty() { info_edits.push((x.track.clone(), m.to_glue)); }
+          kept["info"][&x.ext] = m.base;
+        }
+      }
+      if !info_writes.is_empty() {
+        if backed.insert(uuid.clone()) { self.dj_backup(&uuid, path, &at)?; }
+        let tx = db.transaction().map_err(|e| e.to_string())?;
+        let edited = if has_col(&tx, "Track", "lastEditTime") { ", lastEditTime = strftime('%s', 'now')" } else { "" };
+        for (id, fields) in &info_writes {
+          let sets: Vec<String> = fields.keys().enumerate().map(|(i, f)| format!("{f} = ?{}", i + 2)).collect();
+          let mut vals: Vec<rusqlite::types::Value> = vec![rusqlite::types::Value::Integer(*id)];
+          vals.extend(fields.iter().map(|(f, v)| djinfo::app_value(f, v)));
+          tx.execute(&format!("UPDATE Track SET {}{edited} WHERE id = ?1", sets.join(", ")), rusqlite::params_from_iter(vals)).map_err(|e| e.to_string())?;
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        done.written += info_writes.len();
+      }
       if !writes.is_empty() {
         if backed.insert(uuid.clone()) { self.dj_backup(&uuid, path, &at)?; }
         let tx = db.transaction().map_err(|e| e.to_string())?;
@@ -150,32 +184,54 @@ impl<H: Host> Engine<H> {
     if let Some(lib_db) = lib_db.filter(|p| p.is_file()) {
       if busy(&lib_db) { done.waiting = true; }
       else {
-        match self.dj_relink(p, c, &src, &lib_db, &dbs, &at, &mut backed) {
-          Ok((n, _)) => { if n > 0 { done.relinked = n; self.event(&format!("Engine DJ: {n} song{} pointed at the copy GLUE kept", if n == 1 { "" } else { "s" })); } }
-          Err(x) => eprintln!("GLUE Home: couldn’t point Engine DJ’s songs at the copies kept: {x}"),
+        let remap = match self.dj_relink(p, c, &src, &lib_db, &dbs, &at, &mut backed) {
+          Ok((n, remap)) => { if n > 0 { done.relinked = n; self.event(&format!("Engine DJ: {n} song{} pointed at the copy GLUE kept", if n == 1 { "" } else { "s" })); } remap }
+          Err(x) => { eprintln!("GLUE Home: couldn’t point Engine DJ’s songs at the copies kept: {x}"); HashMap::new() }
+        };
+        // The edits made in its DJ collection (ADR 0179).
+        match self.dj_write_ops(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed) {
+          Ok(n) => { done.lists = n; if n > 0 { self.event(&format!("Engine DJ: {n} playlist edit{} from GLUE written", if n == 1 { "" } else { "s" })); } }
+          // (Rolled back: they wait for the next sync.)
+          Err(x) => { eprintln!("GLUE Home: couldn’t write the playlist edits into Engine DJ: {x}"); self.event(&format!("Couldn’t write the playlist edits into Engine DJ: {x}")); }
+        }
+        // GLUE's own playlists in its GLUE folder (ADR 0180).
+        match self.dj_sync_mirror(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed, &remap) {
+          Ok(m) => {
+            done.lists += m.written + m.taken;
+            done.questions = m.questions;
+            if m.written > 0 { self.event(&format!("Engine DJ’s GLUE folder: GLUE’s playlist changes written ({})", m.written)); }
+            if m.taken > 0 { self.event(&format!("Engine DJ’s GLUE folder: its changes taken into GLUE ({})", m.taken)); }
+          }
+          // (Rolled back: nothing of the playlists written; the rest of the sync carries on.)
+          Err(x) => { eprintln!("GLUE Home: couldn’t keep Engine DJ’s GLUE folder in step: {x}"); self.event(&format!("Couldn’t keep Engine DJ’s GLUE folder in step: {x}")); }
         }
       }
     }
     // GLUE's songs: GLUE Home's own edit.
-    if !edits.is_empty() {
+    if !edits.is_empty() || !info_edits.is_empty() {
       let mut st = s.lock().unwrap();
       for (id, prep) in &edits {
         let Some(mut t) = st.tracks.get(id).cloned() else { continue };
         if prep.as_object().is_some_and(|o| o.is_empty()) { t.as_object_mut().unwrap().shift_remove("prep"); } else { t["prep"] = prep.clone(); }
         st.put_track(t);
       }
+      for (id, fields) in &info_edits {
+        let Some(mut t) = st.tracks.get(id).cloned() else { continue };
+        djinfo::into_glue(&mut t, fields);
+        st.put_track(t);
+      }
       self.flush_edit(&mut st, p, c)?;
-      done.taken = edits.len();
+      done.taken = edits.len() + info_edits.len();
     }
     self.dj.lock().unwrap().backed.extend(backed);
     done.clashes = kept["clashes"].as_object().map_or(0, Map::len);
-    write_json(&self.cache_dir(), &cache_rel, &kept)?;
+    self.dj_keep(&cache_rel, &mut kept)?;
     // What it is now (after its own writes, which change the databases' dates).
     let mut sig2: Vec<String> = dbs.iter().map(|(u, p)| format!("{u}:{}", mtime(p))).collect();
     sig2.sort();
     { let mut w = self.dj.lock().unwrap(); if !done.waiting { w.synced_at.insert(k, format!("{}|{}", self.rev(), sig2.join(","))); } w.syncing.insert(text(&src, "id"), if done.waiting { "waiting" } else { "synced" }); }
-    if done.written > 0 { self.event(&format!("Engine DJ: GLUE’s cues and grids written for {} song{}", done.written, if done.written == 1 { "" } else { "s" })); }
-    if done.taken > 0 { self.event(&format!("Engine DJ’s cue and grid changes taken into GLUE for {} song{}", done.taken, if done.taken == 1 { "" } else { "s" })); }
+    if done.written > 0 { self.event(&format!("Engine DJ: GLUE’s cues, grids and song info written for {} song{}", done.written, if done.written == 1 { "" } else { "s" })); }
+    if done.taken > 0 { self.event(&format!("Engine DJ’s cue, grid and song info changes taken into GLUE for {} song{}", done.taken, if done.taken == 1 { "" } else { "s" })); }
     Ok(done)
   }
 
@@ -224,7 +280,7 @@ impl<H: Host> Engine<H> {
     }
     kept["base"][&ext] = base.to_json();
     if let Some(o) = kept["clashes"].as_object_mut() { o.remove(track); }
-    write_json(&self.cache_dir(), &rel, &kept)?;
+    self.dj_keep(&rel, &mut kept)?;
     let r = self.dj_sync_collection(p, c, true)?;
     Ok(json!({ "written": r.written, "taken": r.taken, "waiting": r.waiting }))
   }

@@ -28,6 +28,7 @@
   import { dupes } from '../../lib/dupes.svelte';
   import { canDragOut, prepareTrack, startTrackDrag } from '../../lib/dragout';
   import { dock } from '../../lib/dock.svelte';
+  import { djEntryOf } from '../../core/library/djEntries';
   const dragOut = canDragOut();
   /** The handle's drag also carries the songs for GLUE Home's dock (ADR 0061): the selection when the
       row is in it, else that song. */
@@ -63,6 +64,15 @@
   const order = $derived(rows.map(r => r.t.id));
   const list = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   const isPlaylist = $derived(list?.kind === 'playlist');
+  // A DJ app's own playlist (not a folder), edited here (ADR 0179): its songs removed and moved by their entries.
+  const djList = $derived.by(() => {
+    void lib.version;
+    const s = view.sel;
+    if (s.kind !== 'dj') return null;
+    const src = lib.store?.sources.get(s.sourceId), l = src?.tree?.find(x => x.externalId === s.id);
+    return src && l && lib.djEditable(src) && !src.tree!.some(x => x.parent === l.externalId) ? { src, l } : null;
+  });
+  const djEntry = $derived(djList ? djEntryOf(djList.src, djList.l.externalId) : new Map<string, string>());
   // The Device column only while more than one device's songs are on screen.
   const cols = $derived(manyDevices() ? columns.visible : columns.visible.filter(k => k !== 'device'));
   // Plays here: this computer's file, or another computer's through its GLUE Home.
@@ -313,6 +323,7 @@
       if (ids.length === 1 && ids[0] !== nowPlaying.trackId) play(ids[0]); else nowPlaying.toggle(ids[0], order);
     }
     else if ((e.key === 'Delete' || e.key === 'Backspace') && isPlaylist && ids.length && list) { e.preventDefault(); lib.removeFromList(list.id, ids); view.selected = new Set(); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && djList && ids.length) { e.preventDefault(); lib.djRemove(djList.src.id, djList.l.externalId, ids); view.selected = new Set(); }
     else if (e.key === 'a' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); view.selected = new Set(order); }
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -334,7 +345,13 @@
   }
   // Reordering a playlist by dragging works in its own order ("#"), without a search filter.
   const canReorder = $derived(isPlaylist && view.sort.key === 'order' && !view.search.trim());
-  const dropAt = $derived(drag.target?.type === 'row' ? drag.target.index : null);
+  const canDjReorder = $derived(!!djList && view.sort.key === 'order' && !view.search.trim());
+  const dropAt = $derived.by(() => {
+    const t = drag.target;
+    if (t?.type === 'row') return t.index;
+    if (t?.type !== 'djrow') return null;
+    return t.before ? rows.findIndex(r => djEntry.get(r.t.id) === t.before) : rows.length;
+  });
   const dragging = $derived(drag.active && drag.payload?.kind === 'tracks' ? new Set(drag.payload.ids) : null);
   const colDrop = $derived(drag.active && drag.target?.type === 'col' ? drag.target : null);
   function openNote(e: MouseEvent, id: string) {
@@ -467,7 +484,9 @@
           class:drop-before={dropAt === i} class:drop-after={dropAt === i + 1 && i === rows.length - 1}
           style:transform={'translateY(' + i * ROW + 'px)'} tabindex="-1"
           class:playing={nowPlaying.trackId === r.t.id} class:lifted={dragging?.has(r.t.id)}
-          data-drop={canReorder ? 'row' : undefined} data-list={canReorder ? list?.id : undefined} data-index={i}
+          data-drop={canReorder ? 'row' : canDjReorder ? 'djrow' : undefined} data-list={canReorder ? list?.id : undefined} data-index={i}
+          data-dj-source={canDjReorder ? djList?.src.id : undefined} data-ext={canDjReorder ? djList?.l.externalId : undefined}
+          data-entry={canDjReorder ? djEntry.get(r.t.id) : undefined} data-next={canDjReorder ? djEntry.get(rows[i + 1]?.t.id ?? '') ?? '' : undefined}
           onpointerdown={e => press(e, r.t.id)}
           onclick={e => { if (!drag.suppressClick) rowClick(e, r.t.id); }} ondblclick={() => open(r.t.id)}>
           <span class="c-play">
