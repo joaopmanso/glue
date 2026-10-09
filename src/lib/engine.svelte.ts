@@ -20,6 +20,8 @@ import type { Clash } from '../core/shared/merge3';
 import type { DupGroup, Match } from '../core/library/duplicates';
 import type { ImportReport } from '../store/merge';
 /** A clash of the two-way sync (ADR 0170): what ("hot 2", "loop 0", "grid") and each side's. */
+/** A playlist gone from one side of the two-way sync (ADR 0171): its Engine DJ id and name, and where it went. */
+export interface DjQuestion { ext: string; name: string; deletedIn: 'glue' | 'app' }
 export interface DjClash { what: string; glue: { t?: number; a?: number; b?: number; name?: string; bpm?: number } | null; app: { t?: number; a?: number; b?: number; name?: string; bpm?: number } | null }
 
 interface EngineState { rev: number; jobs: { kind: string; left: number; total: number }[]; analysis: { paused: boolean; running: number; current: string[]; left: number; done: number; failed: number; waiting: number } }
@@ -210,6 +212,17 @@ class EngineClient {
   async djClashes(): Promise<Record<string, DjClash[]>> {
     const w = this.where();
     return w ? this.rpc<Record<string, DjClash[]>>({ op: 'djClashes', ...w }, 10_000) : {};
+  }
+  /** Its playlists gone from one side (ADR 0171), asked about. */
+  async djQuestions(): Promise<DjQuestion[]> {
+    const w = this.where();
+    return w ? this.rpc<DjQuestion[]>({ op: 'djQuestions', ...w }, 10_000) : [];
+  }
+  /** A playlist's question answered: deleted on the other side too, or kept (made again where it went). */
+  async djListResolve(ext: string, del: boolean): Promise<{ written: number; waiting: boolean }> {
+    const w = this.where();
+    if (!w) throw new Error('No collection open');
+    return this.rpc({ op: 'djListResolve', ...w, ext, delete: del }, 120_000);
   }
   /** A clash settled: GLUE's kept (written into the library) or the library's (taken into GLUE). */
   async djResolve(track: string, keep: 'glue' | 'app'): Promise<{ written: number; taken: number; waiting: boolean }> {

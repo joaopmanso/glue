@@ -13,7 +13,7 @@
 import { lib } from './library.svelte';
 import * as platform from '../platform';
 import { syncSource } from './importActions';
-import { engineClient, type DjClash } from './engine.svelte';
+import { engineClient, type DjClash, type DjQuestion } from './engine.svelte';
 import type { Source, SourceOrigin } from '../store/types';
 
 const EVERY = 5000, AT_MOST = 10_000;
@@ -60,6 +60,8 @@ class DjWatch {
   sync = $state<Record<string, 'waiting' | 'synced'>>({});
   /** Its clashes, by GLUE song. */
   clashes = $state<Record<string, DjClash[]>>({});
+  /** Its playlists gone from one side, asked about (ADR 0171). */
+  questions = $state<DjQuestion[]>([]);
 
   start() {
     if (this.timer) return;
@@ -104,7 +106,17 @@ class DjWatch {
     try { return await this.check(src, true, true); } catch (e) { console.warn('Couldn’t read ' + src.fileName, e); return false; }
   }
 
-  async loadClashes() { const c = await engineClient.djClashes().catch(() => null); if (c && JSON.stringify(c) !== JSON.stringify(this.clashes)) this.clashes = c; }
+  async loadClashes() {
+    const [c, q] = await Promise.all([engineClient.djClashes().catch(() => null), engineClient.djQuestions().catch(() => null)]);
+    if (c && JSON.stringify(c) !== JSON.stringify(this.clashes)) this.clashes = c;
+    if (q && JSON.stringify(q) !== JSON.stringify(this.questions)) this.questions = q;
+  }
+  /** A playlist's question answered (ADR 0171). */
+  async answer(q: DjQuestion, del: boolean) {
+    try { const r = await engineClient.djListResolve(q.ext, del); if (r.waiting) lib.notice = 'Answered: Engine DJ follows when you close it.'; }
+    catch (e) { lib.notice = 'GLUE Home couldn’t do it: ' + ((e as Error).message || e); }
+    await this.loadClashes();
+  }
   /** A clash settled (ADR 0170). */
   async resolve(track: string, keep: 'glue' | 'app') {
     try { const r = await engineClient.djResolve(track, keep); if (r.waiting) lib.notice = 'Settled: it goes to Engine DJ when you close it.'; }

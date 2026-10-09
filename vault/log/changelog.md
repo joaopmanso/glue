@@ -5,6 +5,22 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · GLUE Home 0.68.0: Engine DJ's playlists kept in step both ways (ADR 0171, phase 3 of ADR 0168)
+- **Why:** the user: "add songs to a playlist or create new playlists on Glue and be able to move them into … engine
+  dj … without the drag box". Their choices: songs Engine DJ lacks added to its collection; deletes asked; the playlists
+  in GLUE's Engine DJ folder are the synced ones. No experiment: Engine DJ's settings name the library database (F: on
+  the desktop), which GLUE already follows.
+- **Now:** turning the sync on brings all of Engine DJ's playlists into GLUE's Engine DJ folder. GLUE Home merges each
+  playlist three ways (name and place: the side that changed them, both GLUE's; songs: the side that changed them, both
+  merged), makes new GLUE playlists of that folder in Engine DJ (as Engine DJ writes them: `glue_interop::enginedb`,
+  tested on Engine DJ's own schema, `tests/fixtures/engine-schema.sql`), adds songs it lacks to the collection of their
+  drive's database, and asks about a playlist gone from one side (in the sidebar). The website no longer removes a gone
+  list's copy for a library kept in step (import goldens). A playlist failure is logged and doesn't stop the cues' sync.
+- A library kept in step since 0.67 (before its playlists came in with it) gets all of them at GLUE Home's next sync.
+- Tests: Engine DJ's writes against its schema and triggers (made, moved, renamed, deleted, songs in order, a song
+  added), the playlist merge, an engine test both ways (a song added, a rename each way, a new playlist, a delete each
+  way asked and answered), `e2e/homemode.spec.ts` (a playlist renamed in GLUE's sidebar is renamed in Engine DJ).
+
 ## 2026-10-09 · GLUE Home 0.67.0: Engine DJ kept in step both ways (ADR 0170, phase 2 of ADR 0168)
 - **Why:** the user's goal (2026-10-08): prepare songs in GLUE, and have Engine DJ follow (and the other way round).
 - **Now:** "Keep in step both ways…" on the main Engine DJ library (`Source.sync`). GLUE Home merges each song's hot

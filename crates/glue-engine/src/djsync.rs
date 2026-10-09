@@ -24,7 +24,7 @@ const ENGINE_APPS: [&str; 2] = ["Engine DJ", "OfflineAnalyzer"];
 
 /// What a sync did.
 #[derive(Debug, Default, PartialEq)]
-pub struct Synced { pub written: usize, pub taken: usize, pub clashes: usize, pub waiting: bool }
+pub struct Synced { pub written: usize, pub taken: usize, pub clashes: usize, pub waiting: bool, pub lists: usize, pub questions: usize }
 
 /// A song's fields to write: its id, its packed hot cues, loops and grid where they changed, and the grid's BPM.
 type Write = (i64, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>, Option<f64>);
@@ -92,6 +92,7 @@ impl<H: Host> Engine<H> {
     let mut done = Synced::default();
     let mut edits: Vec<(String, Value)> = vec![];
     let (_, at) = self.host.now();
+    let mut backed: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut by_db: HashMap<String, Vec<&Song>> = HashMap::new();
     for x in &songs { if let Some((u, _)) = x.ext.split_once('/') { by_db.entry(u.to_string()).or_default().push(x); } }
     for (uuid, list) in by_db {
@@ -128,7 +129,7 @@ impl<H: Host> Engine<H> {
         }
       }
       if !writes.is_empty() {
-        self.dj_backup(&uuid, path, &at)?;
+        if backed.insert(uuid.clone()) { self.dj_backup(&uuid, path, &at)?; }
         let tx = db.transaction().map_err(|e| e.to_string())?;
         for (id, hot, lp, grid, bpm) in &writes {
           if let Some(b) = hot { tx.execute("UPDATE PerformanceData SET quickCues = ?1 WHERE trackId = ?2", params![b, id]).map_err(|e| e.to_string())?; }
@@ -139,6 +140,23 @@ impl<H: Host> Engine<H> {
         }
         tx.commit().map_err(|e| e.to_string())?;
         done.written += writes.len();
+      }
+    }
+    // The playlists (ADR 0171), in the database the library is read from.
+    let lib_db = self.dj_place(&text(&src["origin"], "place"), &cfg).map(|mut p| { for part in text(&src["origin"], "relPath").split('/').filter(|x| !x.is_empty()) { p.push(part); } p });
+    if let Some(lib_db) = lib_db.filter(|p| p.is_file()) {
+      if busy(&lib_db) { done.waiting = true; }
+      else {
+        match self.dj_sync_lists(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed) {
+          Ok(l) => {
+            done.lists = l.written + l.taken;
+            done.questions = l.questions;
+            if l.written > 0 { self.event(&format!("Engine DJ: GLUE’s playlist changes written ({})", l.written)); }
+            if l.taken > 0 { self.event(&format!("Engine DJ’s playlist changes taken into GLUE ({})", l.taken)); }
+          }
+          // (Rolled back: nothing of the playlists written; the cues' sync carries on.)
+          Err(x) => { eprintln!("GLUE Home: couldn’t keep Engine DJ’s playlists in step: {x}"); self.event(&format!("Couldn’t keep Engine DJ’s playlists in step: {x}")); }
+        }
       }
     }
     // GLUE's songs: GLUE Home's own edit.
@@ -164,7 +182,7 @@ impl<H: Host> Engine<H> {
   }
 
   /// A copy of a database before GLUE writes into it, in GLUE Home's cache (the last 3 of each).
-  fn dj_backup(&self, uuid: &str, db: &Path, at: &str) -> Result<(), String> {
+  pub(crate) fn dj_backup(&self, uuid: &str, db: &Path, at: &str) -> Result<(), String> {
     let dir = self.cache.join("dj-backups").join(uuid);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     std::fs::copy(db, dir.join(format!("{}.db", at.replace([':', '.'], "-")))).map_err(|e| format!("couldn’t back up {}: {e}", db.display()))?;

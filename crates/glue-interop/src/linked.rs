@@ -135,6 +135,8 @@ pub fn sync_linked_lists<D: Dir>(store: &mut Store<D>, src: &Value, prev: Option
   for (ext, l) in have.clone() {
     let id = st(&l, "id").to_string();
     if ext.is_empty() || by_ext.contains_key(&ext) || !store.lists.contains_key(&id) { continue; }
+    // Kept in step both ways (ADR 0171): GLUE Home asks the user whether it goes from GLUE too.
+    if truthy(get(src, "sync")) { continue; }
     let waiting = pending.get(&ext);
     if !was.contains_key(&ext) && waiting.is_none() { store.put_list(with(&l, "origin", Value::Null)); r.removed += 1; continue; }
     if incomplete { r.mark_incomplete(); if let Some(w) = waiting { next_pending.insert(ext.clone(), w.clone()); } continue; }

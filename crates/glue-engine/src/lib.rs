@@ -18,6 +18,7 @@ pub mod analyse;
 pub mod answers;
 pub mod covers;
 pub mod dj;
+pub mod djlists;
 pub mod djsync;
 pub mod dupes;
 pub mod ice;
@@ -549,7 +550,10 @@ impl<H: Host> Engine<H> {
       // The main DJ library kept in step both ways (ADR 0170): its clashes by song, one settled, a sync now.
       "djClashes" => Ok(self.dj_clashes(&p, &c)),
       "djResolve" => self.dj_resolve(&p, &c, &text(b, "track"), text(b, "keep") == "glue"),
-      "djSyncNow" => self.dj_sync_collection(&p, &c, true).map(|r| json!({ "written": r.written, "taken": r.taken, "clashes": r.clashes, "waiting": r.waiting })),
+      "djSyncNow" => self.dj_sync_collection(&p, &c, true).map(|r| json!({ "written": r.written, "taken": r.taken, "clashes": r.clashes, "waiting": r.waiting, "lists": r.lists, "questions": r.questions })),
+      // Its playlists (ADR 0171): the ones gone from one side, asked about, and an answer.
+      "djQuestions" => Ok(self.dj_questions(&p, &c)),
+      "djListResolve" => self.dj_list_resolve(&p, &c, &text(b, "ext"), b["delete"].as_bool().unwrap_or(false)),
       "djRefresh" => self.dj_refresh(&p, &c, &text(b, "id")),
       "djFind" => self.dj_find_all(&p, &c),
       "djImport" => {

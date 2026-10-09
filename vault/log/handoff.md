@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-08)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.67.0**.
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.68.0**.
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.68.0** (ADR 0171): with Engine DJ closed, the main Engine DJ library's ⇄ on (it was already): GLUE's
+  Engine DJ folder gets all of Engine DJ's playlists at GLUE Home's first sync (Engine DJ closed). Try: rename one in GLUE, add a song to one, make a new
+  playlist in that folder; open Engine DJ (all there), close and reopen it (still there: Engine DJ doesn't put the
+  C:/G: copies' tree back). Then rename one in Engine DJ, quit: GLUE follows. Delete one on either side: the sidebar
+  asks. A song GLUE has that Engine DJ hasn't: added to its collection, analysed by Engine DJ.
 - **Confirmed by the user, 2026-10-09** (GLUE Home 0.67.0, ADR 0170): on their own Engine DJ library, cues added
   and moved in GLUE were in Engine DJ when reopened, and moved in Engine DJ were in GLUE. Not checked yet: whether
   Engine DJ's BPM column follows a grid changed in GLUE (`bpmAnalyzed`).
@@ -162,9 +167,8 @@ of their DJ native apps": playlists, cues, loops and the grid, both ways; write-
 every write, only while the app is closed; Engine DJ first; clashes asked; the grid included). Phase 1 (every app's
 cues, loops and grid shown in Prepare) shipped in 0.65. Next:
 2. ~~Cues, loops and the grid written into the main DJ library~~: done in 0.67 (ADR 0170; `djsync.rs`, `glue_interop::sync`).
-3. **Playlists both ways with Engine DJ**: first an experiment, with the user, on how Engine DJ reconciles the playlist
-   tree it copies into every database (C:, F:, G: hold the same 763 lists; drives not connected?). Its own triggers
-   keep the linked lists (inserting before a list, deleting).
+3. ~~Playlists both ways with Engine DJ~~: done in 0.68 (ADR 0171; `djlists.rs`, `glue_interop::enginedb`). Left: the order
+   of playlists among siblings, smart lists, songs on a drive without an Engine DJ library.
 4. rekordbox (`master.db`, SQLCipher), then Traktor and Serato. Smaller leftovers of the page's library work with GLUE Home:
 - a file chosen in the browser with + Import is still parsed by the page (its bytes are the browser's);
 - the page still sets `origin` on a library it finds that was imported by hand (`detectLibraries`), and follows a
@@ -201,6 +205,9 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
   with the Write tool, or use the Edit tool for such lines.
 
 ### Other work
+- **More frequent under a full local run (2 of the last 3, 2026-10-09):** `library.spec.ts` "the local link…" stays at
+  "Sending to Desktop… 100%" (the receiving GLUE Home doesn't confirm in 60 s); alone it passes every time. Look at what the
+  receiving side waits on under load (the room's answer, the incoming write) before raising the wait again.
 - **A release half published (2026-10-08, 0.64.0):** the Windows build uploaded its installer, the macOS build then failed
   a test, and the next push's build saw the release there and published nothing (no macOS files, no `latest.json`: the
   updater and the website's macOS link had nothing). Put right by deleting that release and its tag and running the

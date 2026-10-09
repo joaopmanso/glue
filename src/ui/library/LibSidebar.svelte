@@ -364,7 +364,7 @@
       !lib.readOnly && s.main && s.app === 'engine' && lib.homeRuns() && (s.sync
         ? { label: 'Stop writing GLUE’s changes into Engine DJ', attrs: { 'data-m': 'unsync-dj' }, run: () => lib.setDjSync(s.id, false) }
         : { label: 'Keep in step both ways…', attrs: { 'data-m': 'sync-dj' }, title: 'GLUE’s cues, loops and grids written into Engine DJ, and Engine DJ’s changes taken into GLUE', run: () => {
-          if (confirm('Keep Engine DJ in step with GLUE both ways?\n\nGLUE Home writes the cues, loops and beat grids you set in GLUE into Engine DJ’s library, and takes Engine DJ’s changes into GLUE. It writes only while Engine DJ is closed (a few seconds after you quit it), backs up the library first, and asks you when a song was changed on both sides.')) lib.setDjSync(s.id, true);
+          if (confirm('Keep Engine DJ in step with GLUE both ways?\n\nGLUE Home writes the cues, loops, beat grids and playlists you set in GLUE into Engine DJ’s library, and takes Engine DJ’s changes into GLUE (all its playlists come into GLUE’s Engine DJ folder; a playlist you add there is made in Engine DJ, with any song it lacks added to its collection). It writes only while Engine DJ is closed (a few seconds after you quit it), backs up the library first, and asks you when a song was changed on both sides.')) { lib.setDjSync(s.id, true); lib.importLists(s.id, ['']); }
         } }),
       SEP,
       { label: 'Remove this import…', danger: true, run: () => removeSource(s) },
@@ -609,6 +609,17 @@
             {:else}<button type="button" class="refresh" class:update={changed} data-dj-refresh={s.id} title={changed ? 'Changed since GLUE read it (' + new Date(d!.modified).toLocaleString() + '): read it again' : 'Read this library again (with GLUE Home running, GLUE follows it live)'} onclick={() => void refresh(s)}>{changed ? 'Update' : 'Refresh'}</button>{/if}
             {#if !elsewhere(s)}<span class="tools keep"><button type="button" title="Remove this import" onclick={() => removeSource(s)}>×</button></span>{/if}
           </div>
+          {#if s.main && s.sync && djWatch.questions.length}
+            <ul class="djq" id="dj-questions" aria-label="Playlists to settle">
+              {#each djWatch.questions as q (q.ext)}
+                <li data-question={q.ext}>
+                  <span>“{q.name}” was {q.deletedIn === 'app' ? 'deleted in ' + (APP_NAMES[s.app] ?? s.app) : 'deleted (or moved out of its folder) in GLUE'}.</span>
+                  <button type="button" class="inline" data-answer="delete" onclick={() => djWatch.answer(q, true)}>Delete it in {q.deletedIn === 'app' ? 'GLUE' : APP_NAMES[s.app] ?? s.app} too</button>
+                  <button type="button" class="inline" data-answer="keep" onclick={() => djWatch.answer(q, false)}>Keep it</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
           {#if djOpen[s.id] && s.tree?.length}
             <ul class="djtree" aria-label={(APP_NAMES[s.app] ?? s.app) + ' playlists'}>
               <li class="djall"><button type="button" class="inline" data-dj-all={s.id} onclick={() => importDj(s, '', APP_NAMES[s.app] ?? s.app)}>Import all {s.tree.length} into GLUE</button></li>
@@ -737,6 +748,9 @@
   @keyframes blink { to { opacity: .35; } }
   .refresh { font-size: 11px; padding: 1px 6px; }
   .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; }
+  .djq { list-style: none; margin: 2px 0 6px 26px; padding: 0; font-size: 12px; display: grid; gap: 4px; }
+  .djq li { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; color: var(--warn, #e0a030); }
+  .djq li span { color: var(--text); }
   .syncf { margin-left: 4px; color: var(--ok); font-size: 11px; }
   .syncf[data-dj-sync="waiting"] { color: var(--warn, #e0a030); }
   .mainf { margin-left: 6px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; vertical-align: 1px; }

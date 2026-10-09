@@ -231,3 +231,45 @@ mod tests {
     assert_eq!((g.hot, g.loops), (app.hot.clone(), app.loops.clone()));
   }
 }
+
+// ---- playlists (ADR 0171) ------------------------------------------------------------------------------------------
+
+/// A playlist's name or place: the side that changed it since they agreed; changed on both, GLUE's (it's where the
+/// user prepares); nothing agreed yet, GLUE's.
+pub fn pick<T: PartialEq + Clone>(glue: &T, app: &T, base: Option<&T>) -> T {
+  if glue == app || base == Some(glue) { app.clone() } else { glue.clone() }
+}
+/// A playlist's songs (in order): the side that changed them since they agreed; changed on both, GLUE's order without
+/// what the library removed, with what it added after, in its order. Nothing agreed yet: GLUE's, with the library's
+/// others after.
+pub fn merge_items(glue: &[String], app: &[String], base: Option<&[String]>) -> Vec<String> {
+  if glue == app { return app.to_vec(); }
+  let Some(base) = base else {
+    let have: std::collections::HashSet<&String> = glue.iter().collect();
+    return glue.iter().chain(app.iter().filter(|x| !have.contains(x))).cloned().collect();
+  };
+  if glue == base { return app.to_vec(); }
+  if app == base { return glue.to_vec(); }
+  let (was, now): (std::collections::HashSet<&String>, std::collections::HashSet<&String>) = (base.iter().collect(), app.iter().collect());
+  let mine: std::collections::HashSet<&String> = glue.iter().collect();
+  glue.iter().filter(|x| !(was.contains(x) && !now.contains(x)))
+    .chain(app.iter().filter(|x| !was.contains(x) && !mine.contains(x))).cloned().collect()
+}
+
+#[cfg(test)]
+mod list_tests {
+  use super::*;
+  fn v(s: &str) -> Vec<String> { s.split_whitespace().map(String::from).collect() }
+  #[test]
+  fn playlists_songs_merged_both_ways() {
+    let b = v("a b c");
+    assert_eq!(merge_items(&v("a c b"), &b, Some(&b)), v("a c b"), "GLUE reordered");
+    assert_eq!(merge_items(&b, &v("a b c d"), Some(&b)), v("a b c d"), "Engine DJ added");
+    // Both: GLUE moved c first and added e; Engine DJ removed a and added d.
+    assert_eq!(merge_items(&v("c a b e"), &v("b c d"), Some(&b)), v("c b e d"));
+    assert_eq!(merge_items(&v("x y"), &v("y z"), None), v("x y z"));
+    assert_eq!(pick(&"New".to_string(), &"Old".to_string(), Some(&"Old".to_string())), "New");
+    assert_eq!(pick(&"Old".to_string(), &"Theirs".to_string(), Some(&"Old".to_string())), "Theirs");
+    assert_eq!(pick(&"Mine".to_string(), &"Theirs".to_string(), Some(&"Old".to_string())), "Mine", "both: GLUE's");
+  }
+}

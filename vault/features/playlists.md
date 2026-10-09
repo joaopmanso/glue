@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-28
-adrs: [0009, 0022, 0079]
+updated: 2026-10-09
+adrs: [0009, 0022, 0079, 0171]
 ---
 # Playlists, folders & smart lists
 
@@ -130,3 +130,9 @@ track is used.
 - **Names and "delete?" questions** come in a sheet, not the browser's prompt.
 - **In a cloud library,** all of it goes to the computer that has the library (ADR 0077).
 - **Recently deleted (2026-09-28, [ADR 0090](../adr/0090-bin-guarded-re-reads-daily-backups.md)):** deleted playlists and folders kept 30 days with their contents; Restore. DJ-library copies leave only after two reads a minute apart, never after an incomplete read.
+
+## Kept in step with Engine DJ (2026-10-09, [ADR 0171](../adr/0171-engine-dj-playlists-kept-in-step.md))
+With the main Engine DJ library kept in step both ways, the playlists in its folder in GLUE are Engine DJ's: renamed,
+moved, songs added or removed, or made new (or dragged in) there, they change in Engine DJ when it's closed, and Engine
+DJ's changes come here. A song Engine DJ lacks is added to its collection. A playlist deleted on one side is asked about
+in the sidebar.

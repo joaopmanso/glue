@@ -209,13 +209,6 @@
    }
   },
   {
-   "sync": {
-    "app": "rekordbox",
-    "fileName": "rekordbox.xml",
-    "on": true
-   }
-  },
-  {
    "flush": true
   },
   {
@@ -745,6 +738,382 @@
        "items": [
         "1"
        ]
+      },
+      {
+       "externalId": "/Warm",
+       "kind": "playlist",
+       "name": "Warm",
+       "parent": null,
+       "items": [
+        "2",
+        "4"
+       ]
+      },
+      {
+       "externalId": "/New",
+       "kind": "playlist",
+       "name": "New",
+       "parent": null,
+       "items": [
+        "3"
+       ]
+      }
+     ]
+    },
+    "fileName": "rekordbox.xml"
+   }
+  },
+  {
+   "flush": true
+  },
+  {
+   "sync": {
+    "app": "rekordbox",
+    "fileName": "rekordbox.xml",
+    "on": true
+   }
+  },
+  {
+   "advance": 1000
+  },
+  {
+   "import": {
+    "lib": {
+     "app": "rekordbox",
+     "name": "Rekordbox (rekordbox.xml)",
+     "tracks": [
+      {
+       "externalId": "1",
+       "path": "D:/Music Collection/House/One.mp3",
+       "title": "One",
+       "artist": "A1",
+       "album": "",
+       "genre": "",
+       "label": "Lab",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": 124,
+       "key": "8A",
+       "rating": 4,
+       "playCount": 3,
+       "dateAdded": "2024-01-01",
+       "cues": 1,
+       "cueList": [
+        {
+         "t": 64.5,
+         "kind": "cue",
+         "num": 0,
+         "name": "Drop",
+         "color": "#28e214",
+         "end": null
+        }
+       ],
+       "size": 1000,
+       "grid": null
+      },
+      {
+       "externalId": "2",
+       "path": "D:/Music Collection/House/Two.mp3",
+       "title": "Theirs",
+       "artist": "A2",
+       "album": "",
+       "genre": "",
+       "label": "L2",
+       "comment": "c",
+       "year": "",
+       "grouping": "warm",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": 5,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 2000,
+       "grid": null
+      },
+      {
+       "externalId": "3",
+       "path": "E:/preparation/Three.mp3",
+       "title": "",
+       "artist": "",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": null,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 3000,
+       "grid": null
+      },
+      {
+       "externalId": "4",
+       "path": "C:/Old/Four.mp3",
+       "title": "Four",
+       "artist": "",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": null,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 4000,
+       "grid": null
+      },
+      {
+       "externalId": "5",
+       "path": "D:/Elsewhere/Five.mp3",
+       "title": "Five",
+       "artist": "A5",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": 200,
+       "bpm": null,
+       "key": null,
+       "rating": 3,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 5000,
+       "grid": null
+      },
+      {
+       "externalId": "6",
+       "path": "F:/Copies/One.mp3",
+       "title": "",
+       "artist": "",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": null,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 1500,
+       "grid": null
+      }
+     ],
+     "lists": [
+      {
+       "externalId": "/Gigs",
+       "kind": "folder",
+       "name": "Gigs",
+       "parent": null,
+       "items": []
+      },
+      {
+       "externalId": "/Warm",
+       "kind": "playlist",
+       "name": "Warm",
+       "parent": null,
+       "items": [
+        "2",
+        "4"
+       ]
+      },
+      {
+       "externalId": "/New",
+       "kind": "playlist",
+       "name": "New",
+       "parent": null,
+       "items": [
+        "3"
+       ]
+      }
+     ]
+    },
+    "fileName": "rekordbox.xml"
+   }
+  },
+  {
+   "advance": 61000
+  },
+  {
+   "import": {
+    "lib": {
+     "app": "rekordbox",
+     "name": "Rekordbox (rekordbox.xml)",
+     "tracks": [
+      {
+       "externalId": "1",
+       "path": "D:/Music Collection/House/One.mp3",
+       "title": "One",
+       "artist": "A1",
+       "album": "",
+       "genre": "",
+       "label": "Lab",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": 124,
+       "key": "8A",
+       "rating": 4,
+       "playCount": 3,
+       "dateAdded": "2024-01-01",
+       "cues": 1,
+       "cueList": [
+        {
+         "t": 64.5,
+         "kind": "cue",
+         "num": 0,
+         "name": "Drop",
+         "color": "#28e214",
+         "end": null
+        }
+       ],
+       "size": 1000,
+       "grid": null
+      },
+      {
+       "externalId": "2",
+       "path": "D:/Music Collection/House/Two.mp3",
+       "title": "Theirs",
+       "artist": "A2",
+       "album": "",
+       "genre": "",
+       "label": "L2",
+       "comment": "c",
+       "year": "",
+       "grouping": "warm",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": 5,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 2000,
+       "grid": null
+      },
+      {
+       "externalId": "3",
+       "path": "E:/preparation/Three.mp3",
+       "title": "",
+       "artist": "",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": null,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 3000,
+       "grid": null
+      },
+      {
+       "externalId": "4",
+       "path": "C:/Old/Four.mp3",
+       "title": "Four",
+       "artist": "",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": null,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 4000,
+       "grid": null
+      },
+      {
+       "externalId": "5",
+       "path": "D:/Elsewhere/Five.mp3",
+       "title": "Five",
+       "artist": "A5",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": 200,
+       "bpm": null,
+       "key": null,
+       "rating": 3,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 5000,
+       "grid": null
+      },
+      {
+       "externalId": "6",
+       "path": "F:/Copies/One.mp3",
+       "title": "",
+       "artist": "",
+       "album": "",
+       "genre": "",
+       "label": "",
+       "comment": "",
+       "year": "",
+       "grouping": "",
+       "duration": null,
+       "bpm": null,
+       "key": null,
+       "rating": null,
+       "playCount": null,
+       "dateAdded": null,
+       "cues": 0,
+       "cueList": [],
+       "size": 1500,
+       "grid": null
+      }
+     ],
+     "lists": [
+      {
+       "externalId": "/Gigs",
+       "kind": "folder",
+       "name": "Gigs",
+       "parent": null,
+       "items": []
       },
       {
        "externalId": "/Warm",

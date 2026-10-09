@@ -2,6 +2,7 @@
 //! read as the website reads them (`src/core/interop`, `src/lib/imports.ts`), held to it by tests/golden/interop.
 pub mod apple;
 pub mod engine;
+pub mod enginedb;
 pub mod linked;
 pub mod m3u;
 pub mod merge;

@@ -282,7 +282,6 @@ const rbImport: Scenario = {
     { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Gigs/Fri', 'Fri', '/Gigs', ['1', '5', '6']), pl('/Warm', 'Warm', null, ['2', '4'])]), fileName: 'rekordbox.xml' } },
     { importLists: { app: 'rekordbox', fileName: 'rekordbox.xml', ids: ['/Gigs'] } },
     { main: { app: 'rekordbox', fileName: 'rekordbox.xml' } },
-    { sync: { app: 'rekordbox', fileName: 'rekordbox.xml', on: true } },
     { flush: true },
     // Fri renamed Friday (in its place), Sat new in a folder brought in whole; Five gone from the library.
     { advance: 1000 },
@@ -294,6 +293,13 @@ const rbImport: Scenario = {
     { flush: true },
     { advance: 61_000 },
     { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Gigs/Friday', 'Friday', '/Gigs', ['1']), pl('/Warm', 'Warm', null, ['2', '4']), pl('/New', 'New', null, ['3'])]), fileName: 'rekordbox.xml' } },
+    { flush: true },
+    // Kept in step both ways (ADR 0171): Friday gone from the library stays in GLUE (GLUE Home asks), a minute later too.
+    { sync: { app: 'rekordbox', fileName: 'rekordbox.xml', on: true } },
+    { advance: 1000 },
+    { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Warm', 'Warm', null, ['2', '4']), pl('/New', 'New', null, ['3'])]), fileName: 'rekordbox.xml' } },
+    { advance: 61_000 },
+    { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Warm', 'Warm', null, ['2', '4']), pl('/New', 'New', null, ['3'])]), fileName: 'rekordbox.xml' } },
     { flush: true },
     // A read with less than half the lists: ignored whole.
     { import: { lib: rb(rbTracks.slice(0, 1), [pl('/Warm', 'Warm', null, ['1'])]), fileName: 'rekordbox.xml' } },
