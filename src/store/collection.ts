@@ -1,6 +1,6 @@
 /* One collection in memory, persisted as sharded JSON files (ADR 0009 / 0018).
    Mutations mark files dirty; flush() writes only those, debounced by the caller. */
-import { DamagedFile, type Dir, listNames, readJSON, removePath, writeJSON, writeText } from './fsx';
+import { DamagedFile, type Dir, listFiles, listNames, parseJSON, readJSON, removePath, writeJSON, writeText } from './fsx';
 import { type AnalysisSummary, type Collection, type List, type Source, type Track, SCHEMA, shardOf } from './types';
 import type { GlueEvent } from '../core/library/events';
 import { migrate } from './migrations';
@@ -23,16 +23,16 @@ export type StoreOp =
 export interface SharedMode { here: Here; own: boolean; shownOnly?: boolean; member: { profile: string; name: string }; meta: SharedCollection; tracks: Map<string, SharedTrack>; analysis: Map<string, Record<string, AnalysisSummary>> }
 /** me: this computer (GLUE Home's computer, this browser's device, the GLUE folder's own); `shownOnly`: write
     none of this computer's parts whatever (GLUE Home before it knows its computer). */
-export interface LoadOpts { me?: string | null; name?: string; shownOnly?: boolean }
+export interface LoadOpts { me?: string | null; name?: string; shownOnly?: boolean; onProgress?: (done: number, total: number) => void }
 
 type Shard<T> = { schemaVersion: number; items: Record<string, T> };
 /** A deleted playlist or folder with everything that was in it, in the bin (ADR 0090). */
 export interface BinEntry { name: string; deletedAt: string; lists: List[] }
 const BIN_DAYS = 30;
 
-/** Read files a few at a time, answers in the files' order (GLUE Home's disk answers over HTTP, where
-    one at a time is slow; a local folder doesn't mind). */
-async function readAll<T>(paths: string[], read: (p: string) => Promise<T>, atOnce = 12): Promise<T[]> {
+/** Read files several at a time, answers in the files' order (GLUE Home's disk answers over HTTP, where one at a time
+    is slow; a local folder reads 32 at a time a little faster than 12, ADR 0177). */
+async function readAll<P, T>(paths: P[], read: (p: P) => Promise<T>, atOnce = 32): Promise<T[]> {
   const out = new Array<T>(paths.length);
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(atOnce, paths.length) }, async () => {
@@ -87,8 +87,9 @@ export class CollectionStore {
     const s = new CollectionStore(root, base, migrate('collection', mode ? collectionHere(raw as SharedCollection, mode.here.me) : raw as Collection));
     s.shared = mode;
     // One unreadable file must not lock the user out of the rest: keep a copy aside and go on.
-    const read = async <T>(path: string): Promise<T | null> => {
-      try { return await readJSON<T>(root, path); }
+    // `text`: the file's own reader, from its folder's list (listFiles).
+    const read = async <T>(path: string, text?: () => Promise<string | null>): Promise<T | null> => {
+      try { return text ? parseJSON<T>(path, await text()) : await readJSON<T>(root, path); }
       catch (e) {
         if (!(e instanceof DamagedFile)) throw e;
         s.damaged.push(path.slice(base.length + 1));
@@ -96,11 +97,15 @@ export class CollectionStore {
         return null;
       }
     };
-    const each = async <T>(dir: string) => {
-      const names = jsonFiles(await listNames(root, `${base}/${dir}`, 'file'));
-      return readAll(names, f => read<T>(`${base}/${dir}/${f}`));
-    };
-    const [tracks, analysis, lists, sources, events] = await Promise.all([each<Shard<Track>>('tracks'), each<Shard<AnalysisSummary>>('analysis'), each<List>('lists'), each<Source>('sources'), read<Shard<GlueEvent>>(`${base}/events.json`)]);
+    // Every folder listed first, so the files to read are known and counted (the loading bar, ADR 0177).
+    const dirs = ['tracks', 'analysis', 'lists', 'sources'];
+    const files = await Promise.all(dirs.map(async d => (await listFiles(root, `${base}/${d}`)).filter(f => f.name.endsWith('.json'))));
+    const total = files.reduce((n, a) => n + a.length, 1);
+    let done = 0;
+    opts.onProgress?.(0, total);
+    const counted = async <T>(path: string, text?: () => Promise<string | null>) => { const v = await read<T>(path, text); opts.onProgress?.(++done, total); return v; };
+    const each = <T>(i: number) => readAll(files[i], f => counted<T>(`${base}/${dirs[i]}/${f.name}`, f.text));
+    const [tracks, analysis, lists, sources, events] = await Promise.all([each<Shard<Track>>(0), each<Shard<AnalysisSummary>>(1), each<List>(2), each<Source>(3), counted<Shard<GlueEvent>>(`${base}/events.json`)]);
     for (const src of sources) if (src) s.sources.set(src.id, migrate('source', src));   // first: a song's computer (withCopies)
     for (const sh of tracks) if (sh) s.takeTracks(migrate('tracks', sh).items);
     for (const sh of analysis) if (sh) s.takeAnalysis(migrate('analysis', sh).items);

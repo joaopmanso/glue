@@ -39,6 +39,7 @@
   import { events } from './lib/events.svelte';
   import ContextMenu from './ui/ContextMenu.svelte';
   import GlueStick from './ui/GlueStick.svelte';
+  import TopLoading from './ui/TopLoading.svelte';
   import AccountButton from './ui/AccountButton.svelte';
   import AdminView from './ui/AdminView.svelte';
   import PerfHud from './ui/PerfHud.svelte';
@@ -63,7 +64,7 @@
   // GLUE Home's own window (ADR 0151): noted before anything reads the address.
   inWindow();
   // Opened from GLUE Home's tray icon while a GLUE tab is open: that one comes forward instead.
-  onMount(() => { incoming.start(); djWatch.start(); void account.init(); void tabs.fromHome().then(async other => { if (!other) { await localHome.find(); void lib.boot(); } }); });
+  onMount(() => { incoming.start(); djWatch.start(); void account.init(); void tabs.fromHome().then(async other => { if (other) { lib.loading = null; return; } lib.loadStep('Looking for GLUE Home on this computer…'); await localHome.find(); void lib.boot(); }); });
   // The admin panel is for admins only: anyone else is sent back to the library (the API checks too).
   $effect(() => { if (route.name === 'admin' && account.ready && account.phase !== 'working' && !account.isAdmin) router.go('#/'); });
 
@@ -230,6 +231,7 @@
 </div>
 {#if inLibrary && !phone.active && (route.name === 'library' || route.name === 'track' || route.name === 'events' || route.name === 'event') && lib.onboarding !== 'music'}<LibPlayer />{/if}
 <DragTag />
+<TopLoading />
 {#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
 {#if inLibrary}<TagEditor /><GenreEditor /><NoteEditor /><SendPanel />{/if}

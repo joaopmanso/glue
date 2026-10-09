@@ -102,10 +102,12 @@ class LocalHome {
     // GLUE Home's own window (ADR 0151) knows GLUE Home is here: asked at once, so it opens on the library, not on the
     // start page waiting for a sign-in to look (2026-10-07).
     if (!known) { if (inWindow()) await this.findHere(); return; }
+    // An older GLUE Home (no /connect): the link it gave this browser before, if it's still the one answering. Asked
+    // meanwhile: on Windows a port nobody answers on takes about 2 s to say so, and the library waits (ADR 0177).
+    const old = hello(known.port);
     // GLUE Home hands a GLUE page its link itself (ADR 0115): the current one, even if it restarted elsewhere.
     if (await this.findHere(known.port)) return;
-    // An older GLUE Home (no /connect): the link it gave this browser before, if it's still the one answering.
-    const h = await hello(known.port);
+    const h = await old;
     if (h?.app === 'glue-home' && h.device === known.home) { this.setLink({ ...known, version: h.version, ...ports(h) }); this.problem = ''; }
   }
   /** The GLUE Home on this computer, asked for its link directly (ADR 0115): any browser here gets it, so Edge
@@ -113,8 +115,14 @@ class LocalHome {
       Home): asking 127.0.0.1 makes the browser ask a visitor about "apps on this device". */
   async findHere(port?: number): Promise<boolean> {
     if (!homeOs()) return false;   // a phone: no GLUE Home on it
-    let c = port ? await connect(port) : null;
-    if (!c) { const d = await discover(); if (d) c = await connect(d.port); }
+    // Its last port first; when that hasn't answered within 0.3 s, all its ports meanwhile (not after: on Windows a port
+    // nobody answers on takes about 2 s to say so, and the library waited for each in turn, ADR 0177). A GLUE Home
+    // running there answers at once, so the other ports aren't asked (each would be an error in the console, ADR 0143).
+    const near = port ? connect(port) : null;
+    const quick = near && await Promise.race([near, new Promise<undefined>(r => setTimeout(r, 300))]);
+    const far = quick === null || quick === undefined ? discover() : null;
+    let c = quick ?? (near ? await near : null);
+    if (!c && far) { const d = await far; if (d) c = await connect(d.port); }
     if (!c) return false;
     this.setLink(c); this.problem = '';
     writePref(PREF, JSON.stringify({ home: c.home, port: c.port, token: c.token }));

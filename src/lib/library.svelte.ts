@@ -26,6 +26,9 @@ import { analysis } from './library/analysis';
 type Phase = 'boot' | 'welcome' | 'reconnect' | 'profiles' | 'collections' | 'library' | 'error';
 export interface RootState { root: Root; dir: FileSystemDirectoryHandle | null; granted: boolean }
 export interface Job { text: string; done: number; total: number | null }
+/** What's being opened now (ADR 0177): the GLUE folder or a collection, shown as a card with a bar and a line at the top
+    of the page. `cid`: the collection being opened (the collection list shows it meanwhile). */
+export interface Loading { title: string; text: string; done: number; total: number; cid?: string }
 
 /* The fields are its state; its methods are in src/lib/library/, by concern (ADR 0146): glueFolder, profiles,
    collections, folders, djLibraries, edits, files, analysis. A new method goes in its concern's part. */
@@ -52,6 +55,8 @@ export class Library {
   places = $state.raw<{ key: string; name: string; granted: boolean }[]>([]);
   version = $state(0);
   job = $state<Job | null>(null);
+  /** Opening, from the page's start (ADR 0177): cleared when the library or the start page is there. */
+  loading = $state<Loading | null>({ title: 'Opening your library', text: 'Starting…', done: 0, total: 0 });
   noticeText = $state('');
   noticeTimer = 0;
   /** A short message; clears itself after a while. */
@@ -184,7 +189,7 @@ export class Library {
   /** Bumped by every stop: an analysis that was running then is dropped, never stored as failed. */
   stops = 0;
 
-  fail(e: unknown) { console.error(e); this.error = String((e as Error)?.message || e); this.phase = 'error'; }
+  fail(e: unknown) { console.error(e); this.loading = null; this.error = String((e as Error)?.message || e); this.phase = 'error'; }
 }
 
 /* Its methods, by concern, in src/lib/library/: glueFolder, profiles, collections, folders, djLibraries, edits, files, analysis. */

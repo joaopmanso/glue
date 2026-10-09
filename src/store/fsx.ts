@@ -37,8 +37,8 @@ export class DamagedFile extends Error {
 
 /** A file's JSON. An empty file counts as missing: the browser creates the file before the first
     write commits, so a crash during that first write leaves it empty. */
-export async function readJSON<T>(root: Dir, path: string): Promise<T | null> {
-  const t = await readText(root, path);
+export async function readJSON<T>(root: Dir, path: string): Promise<T | null> { return parseJSON<T>(path, await readText(root, path)); }
+export function parseJSON<T>(path: string, t: string | null): T | null {
   if (t == null || !t.trim()) return null;
   try { return JSON.parse(t) as T; } catch { throw new DamagedFile(path, t); }
 }
@@ -86,6 +86,24 @@ export async function listNames(root: Dir, path: string, kind: 'file' | 'directo
   const out: string[] = [];
   for await (const [name, h] of (d as unknown as { entries(): AsyncIterable<[string, FileSystemHandle]> }).entries()) if (h.kind === kind) out.push(name);
   return out.sort();
+}
+
+/** A folder's files, each readable without finding it again (ADR 0177): reading a file by its path asks the browser for
+    each folder on the way, then the file (eight calls a file in a collection's folders, two this way). */
+export async function listFiles(root: Dir, path: string): Promise<{ name: string; text(): Promise<string | null> }[]> {
+  const fast = direct(root);
+  if (fast) return (await fast.listAt(path, 'file')).map(name => ({ name, text: () => fast.readAt(path + '/' + name) }));
+  const d = await subdir(root, path.split('/').filter(Boolean), false);
+  if (!d) return [];
+  const out: { name: string; text(): Promise<string | null> }[] = [];
+  for await (const [name, h] of (d as unknown as { entries(): AsyncIterable<[string, FileSystemHandle]> }).entries()) {
+    if (h.kind !== 'file') continue;
+    out.push({ name, text: async () => {
+      try { return await (await (h as FileSystemFileHandle).getFile()).text(); }
+      catch (e) { if ((e as DOMException).name === 'NotFoundError') return null; throw e; }
+    } });
+  }
+  return out.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 }
 
 /** A file inside a granted folder, by '/'-separated relative path. */

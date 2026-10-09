@@ -1395,6 +1395,54 @@ test('background analysis can be switched off per collection; chosen tracks can 
   await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
 });
 
+test('opening the library and switching collections show what’s loading, with a bar, not “0 songs” (ADR 0177)', async ({ page }) => {
+  // Every file read slowed down (sessionStorage: across the reload too), so the opening is seen.
+  await page.addInitScript(() => {
+    const get = FileSystemFileHandle.prototype.getFile;
+    FileSystemFileHandle.prototype.getFile = async function (this: FileSystemFileHandle) {
+      const ms = Number(sessionStorage.getItem('slowReads') || 0);
+      if (ms) await new Promise(r => setTimeout(r, ms));
+      return get.call(this);
+    };
+  });
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  const first = await page.locator('#collection-pick').inputValue();
+  page.once('dialog', d => void d.accept('Second'));
+  await page.selectOption('#collection-pick', '__new');
+  await expect(page.locator('#collection-pick option:checked')).toHaveText('Second', { timeout: 20_000 });
+  await expect(page.locator('#loading-card')).toBeHidden();
+  await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+
+  // Back to the first: its card and bar meanwhile, the collection list naming it (not empty), no count of songs.
+  await page.evaluate(() => sessionStorage.setItem('slowReads', '1500'));
+  await page.selectOption('#collection-pick', first);
+  await expect(page.locator('#loading-card')).toBeVisible();
+  await expect(page.locator('#loading-card h2')).toHaveText('Opening “My collection”');
+  await expect(page.locator('#top-loading')).toBeVisible();
+  await expect(page.locator('#collection-pick')).toHaveValue(first);
+  await expect(page.locator('#collection-pick')).toBeDisabled();
+  await expect(page.locator('.headbar h2 small')).toHaveCount(0);
+  await expect(page.locator('#loading-count')).toContainText(/\d+ of \d+ files/);
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('#loading-card')).toBeHidden();
+  await expect(page.locator('#top-loading')).toBeHidden();
+  await expect(page.locator('#collection-pick')).toBeEnabled();
+
+  // A reload: the same card from the page's start, then the library.
+  await page.reload();
+  await expect(page.locator('#loading-card')).toBeVisible();
+  await expect(page.locator('#loading-count')).toContainText(/\d+ of \d+ files/, { timeout: 20_000 });
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(page.locator('#loading-card')).toBeHidden();
+});
+
 test('the playlist builder fits smaller windows: nothing cut off, everything reachable', async ({ page }) => {
   await seed(page);
   await page.goto('./');
@@ -2808,6 +2856,9 @@ test('a music folder that comes back empty (a network folder not connected) keep
   await page.click('#onb-folder');
   await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+  // Analysed first: a song analysed while its folder is half-removed (some files still there) is missing, rightly; this
+  // is about the scan (failed under the full suite's load, 2026-10-09).
+  await expect(page.locator('.an')).toContainText('All analysed', { timeout: 60_000 });
   // What a Mac leaves where a network share was mounted: the folder, empty.
   await page.evaluate(async () => { const m = await (await navigator.storage.getDirectory()).getDirectoryHandle('Music'); await m.removeEntry('Sets', { recursive: true }); });
   await page.locator('[data-root] .name', { hasText: 'Music' }).first().hover();

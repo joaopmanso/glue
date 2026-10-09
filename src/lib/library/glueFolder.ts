@@ -9,12 +9,14 @@ export const glueFolder = {
 
   async boot(this: Library) {
     try {
+      this.loadStep('Finding your GLUE folder…', 'Opening your library');
       const h = await platform.restoreHome();
       if (!h) { this.phase = 'welcome'; return; }
       this.homeKind = h.kind; this.homeName = h.dir.name;
       if (!h.granted) { this.homeDir = h.dir; this.phase = 'reconnect'; return; }
       await this.openHome(h.dir, h.kind);
     } catch (e) { this.fail(e); }
+    finally { if (!this.loading?.cid) this.loading = null; }
   },
   async chooseHome(this: Library) {
     try { await this.openHome(await platform.pickHome(), 'folder'); }
@@ -42,6 +44,7 @@ export const glueFolder = {
   async openHome(this: Library, dir: FileSystemDirectoryHandle, kind: 'folder' | 'private') {
     this.homeDir = dir; this.homeKind = kind; this.homeName = kind === 'private' ? 'browser storage' : dir.name;
     await this.takeLock();
+    this.loadStep('Reading your profile…');
     this.home = await HomeStore.open(dir);
     // The newer look wins: the GLUE folder's (another computer chose it) or this browser's (chosen here, perhaps just
     // before a reload, while the folder's copy was still being saved: the mode came back, 2026-10-01).

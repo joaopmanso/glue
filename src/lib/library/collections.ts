@@ -38,29 +38,63 @@ export const collections = {
     this.profile = { ...this.profile };
     await this.openCollection(c.id);
   },
+  /** A step of opening (ADR 0177): what the loading card and the top line say. */
+  loadStep(this: Library, text: string, title?: string) {
+    const l = this.loading;
+    this.loading = { title: title ?? l?.title ?? 'Opening your library', text, done: 0, total: 0, ...(l?.cid ? { cid: l.cid } : {}) };
+  },
   async openCollection(this: Library, cid: string) {
     if (!this.home || !this.profile || !this.homeDir) return;
+    const name = this.profile.collections.find(c => c.id === cid)?.name;
+    this.loading = { title: name ? 'Opening “' + name + '”' : 'Opening your collection', text: 'Saving what’s open…', done: 0, total: 0, cid };
+    try { await this.openCollectionNow(cid); }
+    finally { if (this.loading?.cid === cid) this.loading = null; }
+  },
+  async openCollectionNow(this: Library, cid: string) {
+    if (!this.home || !this.profile || !this.homeDir) return;
+    let at = performance.now();
+    // Each step's time (?perf, ADR 0058): where an open's seconds go.
+    const step = (name: string) => { const now = performance.now(); record('open.' + name, now - at); at = now; };
     await this.closeCollection();
+    step('close');
+    this.loadStep('Reading songs, playlists and analysis…');
     const t0 = performance.now();
-    const s = await CollectionStore.load(this.homeDir, this.profile.id, cid, await this.loadOpts?.() ?? {});
+    // The files read so far, a few times a second (not once a file: 1,800 files redrew the page 1,800 times).
+    let shown = 0;
+    const onProgress = (done: number, total: number) => {
+      const now = performance.now(), l = this.loading;
+      if (!l || (done < total && now - shown < 80)) return;
+      shown = now;
+      this.loading = { ...l, done, total };
+    };
+    const s = await CollectionStore.load(this.homeDir, this.profile.id, cid, { ...await this.loadOpts?.() ?? {}, onProgress });
     s.onChange = () => { this.version++; };
     // A sync brought files in (a shared collection, ADR 0094): redraw, nothing to save or send.
     // A sync brought songs: one another computer has may be one this computer has too (ADR 0130).
     s.onReloaded = () => { this.version++; void this.joinCopies(); };
     s.onDirty = () => this.scheduleFlush();
+    step('store');
     this.store = s;
     if (this.profile.lastCollection !== cid) { this.profile = { ...this.profile, lastCollection: cid }; await this.home.saveProfile(this.profile); }
     this.found = [];
     this.analysis = { ...this.analysis, paused: s.meta.autoAnalyse === false };
     if (s.damaged.length) this.notice = 'Some files in your GLUE folder couldn’t be read and were set aside (' + s.damaged.join(', ') + ', saved as .damaged). Anything they held may need re-importing or re-scanning.';
+    step('profile');
+    this.loadStep('Finding your music folders…');
     await this.loadRoots();
+    step('roots');
     // Tracks naming imports that are gone, and tracks without a file whose file is here after all
     // (music folders' places known by now).
     // With GLUE Home, it's the app (ADR 0162): none of this here.
     if (!this.readOnly && !this.homeRuns()) { const t = tidyTracks(s); if (t.dropped || t.relinked) console.info('Tidied: ' + t.dropped + ' leftover tracks of removed imports, ' + t.relinked + ' tracks linked to their file'); }
+    step('tidy');
+    this.loadStep('Almost there…');
     await this.joinCopies();
+    step('copies');
     await this.loadLoose();
+    step('loose');
     await this.adoptIncoming();
+    step('incoming');
     this.onQueue?.(cid);
     this.phase = 'library';
     this.version++;

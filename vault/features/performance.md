@@ -1,8 +1,8 @@
 ---
 status: in-progress
 milestone: M7
-updated: 2026-10-01
-adrs: [0057, 0058, 0131]
+updated: 2026-10-09
+adrs: [0057, 0058, 0131, 0177]
 ---
 # Performance
 
@@ -12,6 +12,9 @@ adrs: [0057, 0058, 0131]
   request first. A row that scrolls away drops its requests.
 - **From another computer, asked until answered** (ADR 0131): `src/lib/onScreen.ts` (`OnScreen`, `Retries`), shared
   by thumbnails, waveforms and covers.
+- **Opening shows its progress** (ADR 0177): a card with a bar (the step, the files read) at the start and while a
+  collection opens, a line along the top of the page; the collection's files read through their folder's listing, 32
+  at a time; GLUE Home looked for on all its ports at once after 0.3 s. `?perf` records each step (`open.<step>`).
 - The sections below are the history.
 
 ## What it does

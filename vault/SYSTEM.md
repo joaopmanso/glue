@@ -45,7 +45,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **The store** (`src/store/collection.ts`, `CollectionStore`): one per open collection. It loads the files and
   keeps maps (tracks, analysis, lists, sources). It writes only the files that changed, marked per shard and
   debounced; `#saving` shows while writing. `store/home.ts` handles `mco.json` and `profile.json`;
-  `store/fsx.ts` does atomic writes through a swap file.
+  `store/fsx.ts` does atomic writes through a swap file. Loading lists every folder first, then reads the files through
+  the handles the listing gave (`fsx.listFiles`), 32 at a time, counting them for the loading bar (`onProgress`,
+  ADR 0177).
 - **A song (`Track`):**
   - `status` is `linked`, `missing` or `unlinked`;
   - `rootId` + `relPath` place it in a music folder; `importPath` is where a DJ library had it; `fileKey` is used
@@ -147,7 +149,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - `/hello` (who it is);
   - `/connect`: hands the link's token to the live website's origin, so any browser on the computer gets it
     (ADR 0115). The website looks for it (ten ports) every 15 s only while one of the account's GLUE Homes may be on
-    this computer; otherwise once, and when which are online changes (ADR 0143);
+    this computer; otherwise once, and when which are online changes (ADR 0143). At the page's start, a browser that
+    met one asks its last port; not answered within 0.3 s, the ten ports meanwhile (on Windows a port nobody answers on
+    takes about 2 s to say so, ADR 0177);
   - `/fs/*` (GLUE Home's disk: `roots`, `list`, `file` with byte ranges, `write`, `mkdir`, `remove`, `stat`,
     `tags`, `dupes`, `pick`);
   - `/cache` (its analyses), `/rpc` (the engine, every request answered in Rust, ADR 0153, 0154), `/lease`, `/attach`,
@@ -397,6 +401,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - `shared.svelte.ts`, `profiles.svelte.ts`, `account.svelte.ts`, `anywhere.svelte.ts` (the account);
   - `engine.svelte.ts`, `localHome.svelte.ts` (GLUE Home);
   - `player.svelte.ts`, `thumbs.svelte.ts`, `dupes.svelte.ts`.
+- **Opening** (ADR 0177): `lib.loading` (the step, files read of how many, the collection being opened) from the page's
+  start until the library or the start page is there; `Opening.svelte` shows it as a card with a bar (the start, and
+  the library while a collection opens: the collection list keeps naming it), `TopLoading.svelte` as a line along the
+  top of every page (also while `lib.job` runs).
 - **UI** (`src/ui/`, `src/ui/library/` for the library): `Welcome.svelte` (start, "Who's using GLUE?"),
   `LibraryView.svelte`, `LibSidebar.svelte`, `TrackDetail.svelte`, `CloudPanel.svelte`, and `src/ui/phone/` for
   the phone layout (ADR 0078).

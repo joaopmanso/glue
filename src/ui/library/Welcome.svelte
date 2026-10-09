@@ -1,5 +1,6 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
+  import Opening from './Opening.svelte';
   import { canKeepFiles, canPickFolders, pickAudioFiles, type FolderLook } from '../../platform';
   import { importFiles } from '../../lib/importActions';
   import { IMPORT_ACCEPT } from '../../lib/imports';
@@ -170,7 +171,7 @@
 
 <section class="welcome">
   {#if lib.phase === 'boot'}
-    <p class="muted">Opening your library…</p>
+    <Opening />
 
   {:else if lib.phase === 'welcome'}
     {#if anywhere.opening}<p class="opening" id="cloud-opening" role="status"><span class="spin"></span>{anywhere.opening}</p>{/if}

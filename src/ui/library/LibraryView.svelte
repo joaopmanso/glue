@@ -1,6 +1,7 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
   import NeedsMusic from '../events/NeedsMusic.svelte';
+  import Opening from './Opening.svelte';
   import BrowseView from './BrowseView.svelte';
   import { facetInfo } from '../../core/library/browse';
   import { removeNote, view, viewTitle, withCopies, FILTER_GROUPS } from '../../lib/view.svelte';
@@ -158,7 +159,7 @@
 <div class="lib">
   <NeedsMusic />
   <div class="colbar">
-    <select aria-label="Collection" id="collection-pick" data-guide="collections" value={lib.store?.meta.id} onchange={e => { const v = e.currentTarget.value; if (v === '__new') { e.currentTarget.value = lib.store?.meta.id ?? ''; newCollection(); } else if (v.startsWith('__join:')) { e.currentTarget.value = lib.store?.meta.id ?? ''; void shared.join(v.slice(7)); } else void lib.openCollection(v); }}>
+    <select aria-label="Collection" id="collection-pick" data-guide="collections" value={lib.loading?.cid ?? lib.store?.meta.id} disabled={!!lib.loading?.cid} onchange={e => { const v = e.currentTarget.value; if (v === '__new') { e.currentTarget.value = lib.store?.meta.id ?? ''; newCollection(); } else if (v.startsWith('__join:')) { e.currentTarget.value = lib.store?.meta.id ?? ''; void shared.join(v.slice(7)); } else void lib.openCollection(v); }}>
       {#each lib.profile?.collections ?? [] as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
       <!-- The account's collections this computer doesn't have yet (ADR 0101). -->
       {#each shared.missing() as c (c.id)}<option value={'__join:' + c.id}>Add “{c.name}” (your account{c.stats?.tracks ? ', ' + c.stats.tracks.toLocaleString() + ' songs' : ''})</option>{/each}
@@ -174,7 +175,7 @@
     <button type="button" class="sidetog" id="side-toggle" aria-pressed={folded} title={folded ? 'Show the sidebar (Ctrl+B)' : 'Hide the sidebar, for more columns (Ctrl+B)'} aria-label={folded ? 'Show the sidebar' : 'Hide the sidebar'} onclick={() => fold()}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.5v11" stroke="currentColor" stroke-width="1.3"/>{#if !folded}<path d="M2.8 5h1.9M2.8 7h1.9M2.8 9h1.9" stroke="currentColor" stroke-width="1.1"/>{/if}</svg>
     </button>
-    <h2>{#if view.sel.kind === 'facet'}{@const by = view.sel.by}<button type="button" class="crumb" id="browse-back" title="Back to the list" onclick={() => view.select({ kind: 'browse', by })}>{facetInfo(by).name} ›</button>{/if}{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}{#if view.sel.kind !== 'browse'}<small>{count} track{count === 1 ? '' : 's'}</small>{/if}</h2>
+    <h2>{#if view.sel.kind === 'facet'}{@const by = view.sel.by}<button type="button" class="crumb" id="browse-back" title="Back to the list" onclick={() => view.select({ kind: 'browse', by })}>{facetInfo(by).name} ›</button>{/if}{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}{#if view.sel.kind !== 'browse' && lib.store}<small>{count} track{count === 1 ? '' : 's'}</small>{/if}</h2>
     {#if view.sel.kind !== 'browse'}
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks" data-guide="search">
     <FilterMenu />
@@ -224,6 +225,10 @@
     <div class="notice warn">GLUE is open in another tab, so this one is read-only. Close the other tab and reload to make changes here.</div>
   {/if}
 
+  {#if !lib.store && lib.loading}
+    <!-- Another collection opening (ADR 0177): how far it is, not "0 songs" and an empty library. -->
+    <Opening />
+  {:else}
   <div class="main" class:folded style:--sidew={sideW + 'px'}>
     {#if folded}
       <button type="button" class="sidestrip" id="side-show" title="Show the sidebar (Ctrl+B)" aria-label="Show the sidebar" onclick={() => fold(false)}>»</button>
@@ -295,6 +300,7 @@
         <TrackTable />{/if}
     </div>
   </div>
+  {/if}
 </div>
 
 <style>

@@ -5,6 +5,19 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · Opening shows its progress, and waits less (ADR 0177)
+- **The user, on the laptop:** 5–10 s of a dark page saying "Opening your library…" at the start, and when changing
+  collection a library saying 0 songs with nothing chosen in the collection list; "it should display some sort of
+  loading bar whenever things are happening in the background".
+- **Why (a copy of the laptop's GLUE folder, 1,813 files):** about 5 s looking for GLUE Home before anything opened
+  (three tries one after another, each about 2 s on Windows when nothing answers), then 2.0–2.6 s reading the
+  collection (eight browser calls a file); a switch showed the library with no collection meanwhile.
+- **Now** ([ADR 0177](../adr/0177-opening-shows-its-progress.md)):
+  - a card with a bar (each step, the files read of how many) at the start and while a collection opens; the collection
+    list keeps naming it; a line along the top of every page while something opens or a job runs;
+  - GLUE Home looked for on all its ports at once after 0.3 s (about 2 s at worst, not 5);
+  - the collection's files read through their folder's listing, 32 at a time: 1.2–1.5 s instead of 2.3–2.6 s.
+
 ## 2026-10-09 · Songs from another computer start in about a second; the timing off the player (ADR 0176)
 - **The user, after ADR 0174 and 0175:** "it's working great … it's taking around 1 second to start now" (the iPhone on
   5G, where it took about 10 s, and over 20 s before ADR 0174).

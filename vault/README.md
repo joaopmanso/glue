@@ -250,6 +250,7 @@ Planned (GLUE):
 | [0174](adr/0174-songs-stream-as-they-arrive.md) | Another computer's songs stream as they arrive (the service worker answers as a stream), and their start says where its time went | accepted |
 | [0175](adr/0175-back-from-the-background-connected-at-once.md) | Back from the background, the room and the sessions are made again at once; the phone shows where a song's start went | accepted |
 | [0176](adr/0176-a-songs-start-timing-in-the-console-only.md) | A streamed song's start timing in the console only (not on the player; supersedes that part of 0174, 0175) | accepted |
+| [0177](adr/0177-opening-shows-its-progress.md) | Opening the library or a collection shows its progress (a card with a bar, a top line), and waits less | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

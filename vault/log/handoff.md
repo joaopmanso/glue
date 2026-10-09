@@ -62,6 +62,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Opening shows its progress, 2026-10-09** (ADR 0177, the website only): the start and a collection's switch show a
+  card with a bar (each step, the files read) instead of the dark "Opening your library…" and a library with 0 songs; a
+  line along the top of the page while anything opens or a job runs. On the laptop the start should be about 3 s
+  quicker (GLUE Home looked for on all its ports at once) and a collection about a second quicker. To check on the
+  laptop: reload, and switch collections. If it's still slow, `?perf` before the `#` and the perf panel's Copy give
+  each step's time (`open.<step>`, `store.load`).
 - **Songs from another computer: confirmed by the user, 2026-10-09** (ADR 0174–0176): "it's working great … around 1
   second to start now" (the iPhone on 5G took about 10 s, and over 20 s before ADR 0174). The start's timing is only in
   the console now (`GLUE: Started in …`, with the route): ask for it if a start is slow again.
