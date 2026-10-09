@@ -36,10 +36,12 @@ function overlap(a: string, b: string): number {
 
 /** What a song is compared by, worked out once per song (2026-10-07: worked out again for every pair, "No file
     linked" took seconds on a library of 13,000 songs, and froze the page as the library kept changing). */
-interface Keyed { s: Songish; title: string; titleWords: Set<string>; file: string; artist: string; artists: Set<string>; album: string; version: string }
+interface Keyed { s: Songish; title: string; titleWords: Set<string>; joined: string; file: string; artist: string; artists: Set<string>; album: string; version: string }
+/** A title without its spaces: "Ruff House" is "Ruffhouse" (the user's Engine DJ record and the copy kept, 2026-10-09). */
+const joinedOf = (title: string) => title.replace(/ /g, '');
 function keyed(t: Songish): Keyed {
   const title = titleOf(t), artist = nameOf(t).artist;
-  return { s: t, title, titleWords: words(title), file: fileStem(t.fileName), artist: songName(artist), artists: artistsOf(artist), album: songName(t.album), version: versionOf(t.title || t.fileName, t.album) };
+  return { s: t, title, titleWords: words(title), joined: joinedOf(title), file: fileStem(t.fileName), artist: songName(artist), artists: artistsOf(artist), album: songName(t.album), version: versionOf(t.title || t.fileName, t.album) };
 }
 function overlapWords(x: Set<string>, y: Set<string>): number {
   if (!x.size || !y.size) return 0;
@@ -56,7 +58,7 @@ function scoreKeyed(ko: Keyed, kc: Keyed): RelinkMatch {
   let s = 0;
   const ta = ko.title, tb = kc.title, fa = ko.file, fb = kc.file;
   const sameFile = !!fa && fa === fb;
-  if (ta && ta === tb) { s += 45; why.push('same title'); }
+  if (ta && (ta === tb || (ko.joined.length >= 4 && ko.joined === kc.joined))) { s += 45; why.push('same title'); }
   else if (ta && tb && Math.min(ta.length, tb.length) >= 4 && (ta.includes(tb) || tb.includes(ta))) { s += 30; why.push('similar title'); }
   else { const j = overlapWords(ko.titleWords, kc.titleWords); if (j >= 0.6) { s += Math.round(25 * j); why.push('similar title'); } else if (!sameFile) return { id: c.id, sure: 0, why: [] }; }
   if (sameFile) { s += 20; why.push('same file name'); }
@@ -91,12 +93,12 @@ export function relinkMatches(orphans: Songish[], pool: Songish[], opts: RelinkO
 /** `relinkMatches` with the library's songs indexed once: the songs with no file can then be matched a few at a time
     (the page keeps answering meanwhile). */
 export function relinkIndex(pool: Songish[]): (orphans: Songish[], opts?: RelinkOpts) => Map<string, RelinkMatch[]> {
-  const byWord = new Map<string, Keyed[]>(), byFile = new Map<string, Keyed[]>();
+  const byWord = new Map<string, Keyed[]>(), byFile = new Map<string, Keyed[]>(), byJoined = new Map<string, Keyed[]>();
   const add = (m: Map<string, Keyed[]>, k: string, t: Keyed) => { if (k) (m.get(k) ?? m.set(k, []).get(k)!).push(t); };
-  for (const p of pool) { const t = keyed(p); for (const w of t.titleWords) add(byWord, w, t); add(byFile, t.file, t); }
-  return (orphans, opts = {}) => matchAgainst(orphans, byWord, byFile, opts);
+  for (const p of pool) { const t = keyed(p); for (const w of t.titleWords) add(byWord, w, t); add(byFile, t.file, t); add(byJoined, t.joined, t); }
+  return (orphans, opts = {}) => matchAgainst(orphans, byWord, byFile, byJoined, opts);
 }
-function matchAgainst(orphans: Songish[], byWord: Map<string, Keyed[]>, byFile: Map<string, Keyed[]>, opts: RelinkOpts): Map<string, RelinkMatch[]> {
+function matchAgainst(orphans: Songish[], byWord: Map<string, Keyed[]>, byFile: Map<string, Keyed[]>, byJoined: Map<string, Keyed[]>, opts: RelinkOpts): Map<string, RelinkMatch[]> {
   const max = opts.max ?? 3, min = opts.min ?? 50;
   const out = new Map<string, RelinkMatch[]>();
   for (const s of orphans) {
@@ -104,7 +106,7 @@ function matchAgainst(orphans: Songish[], byWord: Map<string, Keyed[]>, byFile: 
     // The rarest title word some other song has: few songs to compare, and every true match has it. A word no other
     // song has ("INGOT_HM": "hm") left the song with nothing to compare at all.
     const ws = [...o.titleWords].filter(w => byWord.has(w)).sort((a, b) => byWord.get(a)!.length - byWord.get(b)!.length);
-    for (const t of [...(byWord.get(ws[0] ?? '') ?? []), ...(byFile.get(o.file) ?? [])]) if (t.s.id !== s.id && !seen.has(t.s.id)) { seen.add(t.s.id); cands.push(t); }
+    for (const t of [...(byWord.get(ws[0] ?? '') ?? []), ...(byFile.get(o.file) ?? []), ...(byJoined.get(o.joined) ?? [])]) if (t.s.id !== s.id && !seen.has(t.s.id)) { seen.add(t.s.id); cands.push(t); }
     const ms = cands.map(c => scoreKeyed(o, c)).filter(m => m.sure >= min && !opts.not?.has(s.id + '>' + m.id)).sort((a, b) => b.sure - a.sure).slice(0, max);
     if (ms.length > 1 && ms[0].sure - ms[1].sure <= 3) { ms[0] = { ...ms[0], sure: Math.max(0, ms[0].sure - 10), why: [...ms[0].why, 'another song matches as well'] }; }
     if (ms.length) out.set(s.id, ms);

@@ -4,7 +4,8 @@
      playlists named duplicates removed since; most are in the library). */
   import { untrack } from 'svelte';
   import { lib } from '../../lib/library.svelte';
-  import { relink, type Orphan } from '../../lib/relink.svelte';
+  import { relink, songish, type Orphan } from '../../lib/relink.svelte';
+  import { relinkScore } from '../../core/library/relink';
   import { dupes } from '../../lib/dupes.svelte';
   import { fmtTime } from '../../core/format';
   import { router, trackHref } from '../../lib/route.svelte';
@@ -50,6 +51,33 @@
   }
   const lists = (id: string) => { void lib.version; return lib.listsContaining(id).filter(l => l.kind === 'playlist').length; };
 
+  // Chosen by hand: the song with no file, and the library's songs a search finds, the likeliest first.
+  const chosen = $derived.by(() => { void lib.version; const id = relink.choosing; const t = id ? lib.store?.tracks.get(id) : undefined; return t && lib.analysisState(t) === 'nofile' ? t : null; });
+  let q = $state('');
+  $effect(() => { const t = chosen; untrack(() => { q = t ? (t.title || t.fileName).replace(/\.[^.]+$/, '') : ''; }); });
+  const found = $derived.by(() => {
+    const t = chosen, s = lib.store;
+    void lib.version;
+    if (!t || !s) return [];
+    const ws = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!ws.length) return [];
+    const hidden = dupes.hidden, o = songish(t), out: { t: Track; sure: number }[] = [];
+    for (const c of s.tracks.values()) {
+      if (c.id === t.id || c.status !== 'linked' || c.remote || hidden.has(c.id)) continue;
+      const hay = (c.title + ' ' + c.artist + ' ' + c.album + ' ' + c.fileName).toLowerCase(), joined = hay.replace(/ /g, '');
+      if (ws.every(w => hay.includes(w) || joined.includes(w))) out.push({ t: c, sure: relinkScore(o, songish(c)).sure });
+    }
+    return out.sort((a, b) => b.sure - a.sure || (a.t.artist + a.t.title).localeCompare(b.t.artist + b.t.title)).slice(0, 12);
+  });
+  function linkChosen(t: Track) {
+    const o = chosen;
+    if (!o || !relink.link([[o.id, t.id]])) return;
+    relink.choose(null);
+    lib.notice = 'Linked “' + (o.title || o.fileName) + '” to “' + (t.title || t.fileName) + '”: its playlist places, rating, notes and cues are there now, and the DJ library’s record stays with it.';
+  }
+  const pickFocus = (el: HTMLInputElement) => { el.focus(); el.select(); };
+  function chooseFor(id: string) { relink.choose(id); document.getElementById('relink')?.scrollIntoView({ block: 'start' }); }
+
   // Drawn a part at a time (thousands of songs), more as the end comes near.
   let limit = $state(60), more = $state<HTMLElement>();
   const shown = $derived(matched.slice(0, limit));
@@ -72,6 +100,21 @@
     </p>
     <button type="button" class="mini" id="relink-list" data-guide="relink-list" onclick={() => (relink.asList = true)}>Show them as a list</button>
   </div>
+  {#if chosen}
+    <div class="choose" id="relink-choose" role="group" aria-label="Choose the song">
+      <p>Which song in your library is <b>{chosen.artist ? chosen.artist + ' – ' : ''}{chosen.title || chosen.fileName}</b>{chosen.duration ? ' (' + fmtTime(chosen.duration) + ')' : ''}? <small title={from(chosen)}>{from(chosen)}</small></p>
+      <div class="qrow">
+        <input id="relink-q" type="search" placeholder="Search your library: title, artist, album, file name" aria-label="Search your library" bind:value={q} use:pickFocus onkeydown={e => { if (e.key === 'Escape') relink.choose(null); }}>
+        <button type="button" class="mini" onclick={() => relink.choose(null)}>Cancel</button>
+      </div>
+      <ul class="found">
+        {#each found as f (f.t.id)}
+          <li><button type="button" class="pickbtn" data-pick={f.t.id} disabled={lib.readOnly} onclick={() => linkChosen(f.t)}><b>{f.t.artist ? f.t.artist + ' – ' : ''}{f.t.title || f.t.fileName}</b><small title={where(f.t)}>{where(f.t)}</small></button>
+            <span class="mono">{f.t.duration ? fmtTime(f.t.duration) : ''}</span>{#if f.sure}<span class="sure" data-sure={f.sure}>{f.sure}%</span>{/if}</li>
+        {:else}<li class="note">{q.trim() ? 'No song in your library matches.' : 'Type to search.'}</li>{/each}
+      </ul>
+    </div>
+  {/if}
   {#if relink.busy}<p class="note" id="relink-busy" role="status">Looking for these songs in your library… {relink.busy.done.toLocaleString()} of {relink.busy.of.toLocaleString()}</p>{/if}
   {#if all.length}
     <div class="bulk" id="relink-bulk" data-guide="relink-bulk">
@@ -115,6 +158,7 @@
           <span class="act">
             <button type="button" class="mini" data-link={o.t.id} disabled={lib.readOnly} onclick={() => linkNow([o])}>Link</button>
             <button type="button" class="mini" data-not={o.t.id} disabled={lib.readOnly} title="It isn't this song: not offered again" onclick={() => relink.notThis(o.t.id, m.id)}>Not this one</button>
+            <button type="button" class="mini" data-choose-own={o.t.id} disabled={lib.readOnly} title="Search your library for the song it is" onclick={() => chooseFor(o.t.id)}>Choose…</button>
           </span>
           <small class="why">{m.why.join(' · ')}</small>
         </li>
@@ -125,7 +169,8 @@
   {#if unmatched.length && matched.length <= limit}
     <h3 class="label">No match found ({unmatched.length.toLocaleString()})</h3>
     <ul class="none" id="relink-none">
-      {#each unmatched.slice(0, 300) as o (o.t.id)}<li><b>{o.t.artist ? o.t.artist + ' – ' : ''}{o.t.title || o.t.fileName}</b><small title={from(o.t)}>{from(o.t)}</small></li>{/each}
+      {#each unmatched.slice(0, 300) as o (o.t.id)}<li><b>{o.t.artist ? o.t.artist + ' – ' : ''}{o.t.title || o.t.fileName}</b><small title={from(o.t)}>{from(o.t)}</small>
+        <button type="button" class="mini" data-choose-own={o.t.id} disabled={lib.readOnly} title="Search your library for the song it is" onclick={() => chooseFor(o.t.id)}>Choose…</button></li>{/each}
       {#if unmatched.length > 300}<li class="note">…and {(unmatched.length - 300).toLocaleString()} more (see them as a list)</li>{/if}
     </ul>
   {/if}
@@ -157,6 +202,17 @@
   .intro { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; color: var(--ink-2); font-size: 13px; }
   .intro p { max-width: 900px; margin: 0; }
   .note, .empty { color: var(--muted); font-size: 13px; }
+  .choose { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 6px; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  .choose p { margin: 0; font-size: 13px; color: var(--ink-2); }
+  .choose p small { display: block; color: var(--muted); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qrow { display: flex; gap: 8px; }
+  .qrow input { flex: 1; min-width: 0; background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); padding: 5px 9px; font-size: 13px; }
+  .found { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 320px; overflow-y: auto; }
+  .found li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; }
+  .pickbtn { display: grid; min-width: 0; text-align: left; background: none; border: 0; border-radius: 4px; padding: 4px 6px; cursor: pointer; color: var(--ink); line-height: 1.35; }
+  .pickbtn:hover:not(:disabled) { background: var(--raised); }
+  .pickbtn b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pickbtn small { color: var(--muted); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .empty { text-align: center; padding: 40px 0; }
   ul { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   ul:empty { display: none; }

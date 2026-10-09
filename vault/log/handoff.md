@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **No file linked, 2026-10-09** (the website): Engine DJ's records of files removed as duplicates before GLUE read the
+  library are songs with no file. "Ruff House" (J_Kenzo/09) now matches "Ruffhouse (feat. Rod Azlan)" (about 65 %);
+  any one can be linked by hand (**Choose…**, or right-click › Link to a song in your library…). With the sync on and
+  Engine DJ closed, GLUE Home then moves Engine DJ's playlist entries to the kept copy (ADR 0172's relink). To check:
+  link Ruff House, sync, open Engine DJ: "2023" and "2023 / 140 / To Sort" hold the Rod Azlan file only.
 - **Confirmed by the user, 2026-10-09:** "it's working fine now", after the Engine DJ restore and the sidebar fix (long
   names deep in folders keep their counts and ⋯).
 - **Restored, 2026-10-09** (the user chose the September copy): 3,414 entries back in F:'s 17 playlists (21,580 → 24,994),
@@ -268,6 +273,8 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
 - **The native check test** (`home.spec.ts` "GLUE Home checks its native engine", flaky on CI since 0.60, failed twice
   on 0.62): a song's cached result was written again after the test edited it; the test now waits for "Put 2
   analyses" and "Analysis done". No path found in GLUE Home that analyses a song twice; watch for it.
+- **Flaky under a full local run (once, 2026-10-09):** `library.spec.ts` "duplicates by hand…": a click in the middle
+  of a group member's waveform left the player at 0:00 (expected 0:02–0:04); 3 of 3 alone.
 - **Flaky under a full local run:** `library.spec.ts` "the player…": after the reload the player shows the queue's next song
   (Fixture AAC) though the saved queue had Fixture MP3 current (checked just before the reload). 0 in 10 with five at once;
   about 1 full run in 3. Not yet understood.

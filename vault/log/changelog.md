@@ -5,6 +5,18 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · No file linked: "Ruff House" is "Ruffhouse", and a match chosen by hand
+- **Why:** the user: Engine DJ still pointed at `../Music Collection/J_Kenzo/09 Ruff House.aiff` (removed as a duplicate)
+  while GLUE's copy kept is `J_Kenzo, Rod Azlan/05 Ruffhouse (feat. Rod Azlan).aiff`; Engine DJ's record was a greyed
+  song with no file. "They should be removed if correctly updated, or if no match can be made I should be able to
+  match it manually somehow." The file was gone before Engine DJ's library was read (2026-10-03), so GLUE never knew
+  they were one song, and the matcher scored the pair 0 ("ruff house" and "ruffhouse" share no word).
+- **Now:** titles equal but for their spaces match (and are compared: indexed that way too); the pair is offered at
+  about 65 %. **Choose…** on any song in No file linked (matched or not), or right-click a song with no file ›
+  **Link to a song in your library…**, searches the library and links the one picked. Linked, the DJ library's record
+  goes with it; GLUE Home's sync (ADR 0172) then points Engine DJ's playlists at the kept copy.
+- Tests: `noFileMatch.test.ts` (the user's pair); `library.spec.ts` "No file linked…" (Choose…, the menu entry).
+
 ## 2026-10-09 · The sidebar's counts and ⋯ stay in reach; Engine DJ's lost entries restored
 - **Why:** the user: "the right hand side "..." and counters disappear if left side is not wide enough… I have to go
   over 3 or 4 folders so by the time I choose a playlist it's much larger than the left view… missing a horizontal

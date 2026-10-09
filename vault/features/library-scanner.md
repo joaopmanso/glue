@@ -1,7 +1,7 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-30
+updated: 2026-10-09
 adrs: [0007, 0009, 0012, 0014, 0021, 0111]
 ---
 # Library & scanner
@@ -53,7 +53,9 @@ a fast, sortable, searchable table. It notices added, changed and removed files.
 - A music folder that can't be reached (network, drive) is away: a rescan that finds it empty keeps its songs, and
   the analysis doesn't mark them missing (ADR 0123).
 - "No file linked" matches imported songs whose files are gone to the library's songs, with a certainty, and links
-  them one at a time or in bulk (ADR 0124). Quick tags come from the first 512 KB of each new file; the background
+  them one at a time or in bulk (ADR 0124). Since 2026-10-09 a title the same but for its spaces is the same title
+  ("Ruff House", "Ruffhouse"), and a song's match can be chosen by hand: **Choose…** (also right-click › **Link to a
+  song in your library…**) searches the library, the likeliest first (`RelinkView` `relink.choosing`). Quick tags come from the first 512 KB of each new file; the background
   analysis fills in the rest from the whole file. Vanished files are marked missing.
 - Track table: virtualised rows, sort by every column, word search, click / Ctrl / Shift selection,
   keyboard (arrows, Enter opens, Delete removes from playlist, Ctrl+A), drag to playlists. BPM and key

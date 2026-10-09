@@ -12,6 +12,8 @@ For each one GLUE looks in your library by title, artist, length, file name and 
 - **Link** makes the song with no file that song: its playlist places, rating, notes and cues move over, and the DJ library's record stays with it, so it doesn't come back.
 - **Not this one** means it isn't: that match isn't offered again.
 - Another candidate can be picked from the list.
+- **Choose…** searches your library for the song yourself, when GLUE found no match or the wrong one; pick it and it's linked. A song with no file in any list also has **Link to a song in your library…** when you right-click it.
+- With your main Engine DJ library kept in step, GLUE Home then points Engine DJ's playlists at the song you linked (with Engine DJ closed): the record of the file that's gone leaves them.
 
 ## Many at once
 Set **Certainty at least** (95 % is a good start), **Tick all shown**, then **Link**. Matches that may be wrong (another version, another artist) are left out unless you include them.

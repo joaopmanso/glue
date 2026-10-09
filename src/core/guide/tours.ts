@@ -132,7 +132,7 @@ export const TOURS: Tour[] = [
     id: 'no-file', title: 'No file linked', summary: 'Finding songs whose files are gone, and linking them.',
     steps: [
       { target: 'view-unlinked', go: { view: 'unlinked' }, title: 'No file linked', place: 'right', body: 'Songs a DJ library lists whose files aren’t in your music folders: moved, renamed, or removed as duplicates.' },
-      { target: 'relink-row', optional: true, title: 'Its match', place: 'bottom', pose: 'think', body: 'For each one I look for the song in your library, and say how sure I am and why. Link it, or say “Not this one”.' },
+      { target: 'relink-row', optional: true, title: 'Its match', place: 'bottom', pose: 'think', body: 'For each one I look for the song in your library, and say how sure I am and why. Link it, say “Not this one”, or Choose… the song yourself.' },
       { target: 'relink-bulk', optional: true, title: 'Many at once', place: 'bottom', body: 'Set Certainty at least (95 % is a good start), Tick all shown, then Link. Doubtful matches are set aside.' },
       { target: 'relink-list', optional: true, title: 'The plain list', place: 'left', body: 'Shows these songs as the usual table instead.' },
     ],

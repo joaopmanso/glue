@@ -8,7 +8,7 @@ import { relinkIndex, type RelinkMatch, type Songish } from '../core/library/rel
 import { linkRecords } from '../store/merge';
 import type { Track } from '../store/types';
 
-const songish = (t: Track): Songish => ({ id: t.id, title: t.title, artist: t.artist, album: t.album, duration: t.duration, fileName: t.fileName, size: t.size });
+export const songish = (t: Track): Songish => ({ id: t.id, title: t.title, artist: t.artist, album: t.album, duration: t.duration, fileName: t.fileName, size: t.size });
 /** What the matching depends on: the songs with no file, the songs to match them to, the pairs refused. */
 const said = (t: Track) => t.id + '\u0001' + t.title + '\u0001' + t.artist + '\u0001' + t.album + '\u0001' + (t.duration ?? '') + '\u0001' + t.fileName + '\u0001' + (t.size ?? '');
 /** Songs matched between breaths. */
@@ -19,6 +19,10 @@ export interface Orphan { t: Track; matches: RelinkMatch[] }
 class Relink {
   /** The plain list of these songs instead (the usual table). */
   asList = $state(false);
+  /** The song with no file whose match is being chosen by hand (the user, 2026-10-09: "if no match can be made I
+      should be able to match it manually"). */
+  choosing = $state<string | null>(null);
+  choose(id: string | null) { this.choosing = id; if (id) this.asList = false; }
   /** This computer's songs with no file, each with its likely matches (best first; none: no match found). */
   list = $state.raw<Orphan[]>([]);
   /** Matching now: how far (songs looked at, of how many). */

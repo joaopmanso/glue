@@ -15,6 +15,7 @@ import { sendTargets, sendTracks } from './sendToHome.svelte';
 import { absolutePath } from './dragout';
 import { menu, SEP, tidy, type MenuAction, type MenuEntry } from './menu.svelte';
 import { phone } from './phone.svelte';
+import { relink } from './relink.svelte';
 import { listTree } from '../core/library/listTree';
 import type { List, Track } from '../store/types';
 
@@ -109,6 +110,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     !opts.inQueue && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(ids, 'end') },
     SEP,
     one && { label: 'Open details', hint: 'Enter', attrs: { 'data-m': 'details' }, run: () => router.go(trackHref(one.id, 'details')) },
+    one && !one.remote && lib.analysisState(one) === 'nofile' && { label: 'Link to a song in your library…', title: 'Its file is gone: choose the song it is in your library (its playlist places and the DJ library’s record go there)', attrs: { 'data-m': 'link-song' }, run: () => { relink.choose(one.id); view.select({ kind: 'unlinked' }); } },
     one && { label: 'Prepare (grid, cues, loops)', attrs: { 'data-m': 'prepare' }, disabled: one.status !== 'linked', title: one.status !== 'linked' ? 'Needs its file' : undefined, run: () => router.go(trackHref(one.id, 'prepare')) },
     SEP,
     {

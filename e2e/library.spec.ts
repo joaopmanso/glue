@@ -2875,6 +2875,26 @@ test('No file linked: songs an Engine DJ library lists whose files are gone are 
   await expect(page.locator('.tr')).toHaveCount(6);   // the 4 with files and the 2 left without (it was 8)
   await page.locator('.lside .name', { hasText: 'No file linked' }).click();
   await expect(page.locator('#relink-none li')).toHaveCount(2);
+  // Chosen by hand (the user, 2026-10-09: "if no match can be made I should be able to match it manually"): a search of
+  // the library, starting from its title.
+  await page.locator('#relink-none li', { hasText: 'Nothing Like It' }).locator('[data-choose-own]').click();
+  await expect(page.locator('#relink-choose')).toContainText('Nothing Like It');
+  await expect(page.locator('#relink-q')).toHaveValue('Nothing Like It');
+  await expect(page.locator('#relink-choose .found')).toContainText('No song in your library matches.');
+  await page.fill('#relink-q', 'aiff');
+  if (process.env.SHOTS) await page.locator('#relink').screenshot({ path: process.env.SHOTS + '/relink-choose.png' });
+  await page.locator('#relink-choose [data-pick]').first().click();
+  await expect(page.locator('.notice')).toContainText('Linked “Nothing Like It”');
+  await expect(page.locator('#relink-choose')).toHaveCount(0);
+  await expect(page.locator('#relink-none li')).toHaveCount(1);
+  // From the song itself: right-click › Link to a song in your library…
+  await page.click('#relink-list');
+  await expect(page.locator('.tr')).toHaveCount(1);
+  await page.locator('.tr').first().click({ button: 'right' });
+  await page.click('.cmenu [data-m="link-song"]');
+  await expect(page.locator('#relink-q')).toHaveValue('Fixture AAC');
+  await page.locator('#relink-choose [data-pick]').first().click();
+  await expect(page.locator('#relink .empty')).toHaveText('Every song has its file.');
 });
 
 test('each view has its address: the browser’s Back and Forward go through them, a reload or a link opens one, and back from a song’s page to the view it came from (the user, 2026-10-08)', async ({ page }) => {

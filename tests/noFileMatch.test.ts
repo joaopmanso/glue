@@ -39,6 +39,20 @@ describe('a song with no file, matched to the library’s (ADR 0124)', () => {
   });
 });
 
+describe('a title written with or without a space', () => {
+  it('"Ruff House" is "Ruffhouse (feat. Rod Azlan)": offered, though not sure (the user’s Engine DJ record, 2026-10-09)', () => {
+    const o = song({ id: 'o', title: 'Ruff House', artist: 'J:Kenzo', duration: 337, fileName: '09 Ruff House.aiff', size: 59441388 });
+    const c = song({ id: 'c', title: 'Ruffhouse (feat. Rod Azlan)', artist: 'J:Kenzo, Rod Azlan', duration: 333.17, fileName: '05 Ruffhouse (feat. Rod Azlan).aiff', size: 58806588 });
+    const m = relinkScore(o, c);
+    expect(m.why).toContain('same title');
+    expect(m.sure).toBeGreaterThanOrEqual(50);
+    expect(m.sure).toBeLessThan(80);
+    // Found among other songs, though they share no title word.
+    const found = relinkMatches([o], [c, song({ id: 'x', title: 'House Arrest', artist: 'Someone', duration: 300 })]);
+    expect(found.get('o')?.[0].id).toBe('c');
+  });
+});
+
 describe('linking a song with no file (ADR 0124)', () => {
   it('its playlist places go to the song, and the next read of the DJ library takes its record for that song', async () => {
     const mem = new MemDir(), home = await HomeStore.open(asDir(mem));
