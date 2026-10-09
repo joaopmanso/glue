@@ -1885,7 +1885,7 @@ dependencies = [
 
 [[package]]
 name = "glue-home"
-version = "0.72.0"
+version = "0.72.1"
 dependencies = [
  "getrandom 0.3.4",
  "glue-audio",

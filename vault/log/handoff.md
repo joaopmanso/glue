@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-09)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.72.0** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.72.1** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.72.1, 2026-10-09:** with 0.72, keeping a GLUE playlist in Engine DJ made copies on both sides (two
+  syncs at once). 0.72.1 runs one at a time and, once, empties the GLUE folders it made in Engine DJ and puts GLUE's
+  copies into Recently deleted (backups: `backups/pre-engine-glue-folder-…zip`, and Engine DJ's in GLUE Home's cache
+  `dj-backups/`), then makes the playlist again, once. To check on the desktop after the update, Engine DJ closed:
+  one copy of the playlist in GLUE and in Engine DJ's GLUE folder; and the Activity list says it was put right.
 - **GLUE's playlists in Engine DJ's "GLUE" folder, 2026-10-09** (ADR 0180, GLUE Home 0.72): right-click one of GLUE's
   playlists › Keep in Engine DJ; with Engine DJ closed it appears in a GLUE folder there (inside GLUE's folders), and
   changes in either go to the other.

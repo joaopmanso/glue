@@ -68,6 +68,11 @@ impl<H: Host> Engine<H> {
 
   /// A collection's main DJ library, kept in step (`now`: whether anything changed or not).
   pub fn dj_sync_collection(&self, p: &str, c: &str, now: bool) -> Result<Synced, String> {
+    let _one = self.dj_one.lock().unwrap_or_else(|e| e.into_inner());
+    self.dj_sync_held(p, c, now)
+  }
+  /// The sync, with `dj_one` held by the caller.
+  pub(crate) fn dj_sync_held(&self, p: &str, c: &str, now: bool) -> Result<Synced, String> {
     let s = self.store(p, c)?;
     let (src, songs) = {
       let st = s.lock().unwrap();
@@ -194,6 +199,10 @@ impl<H: Host> Engine<H> {
           // (Rolled back: they wait for the next sync.)
           Err(x) => { eprintln!("GLUE Home: couldn’t write the playlist edits into Engine DJ: {x}"); self.event(&format!("Couldn’t write the playlist edits into Engine DJ: {x}")); }
         }
+        // What was written so far, kept at once: a failure below mustn't lose which Engine DJ playlist is which.
+        self.dj_keep(&cache_rel, &mut kept)?;
+        // 0.72's copies put right, once.
+        if let Err(x) = self.dj_mirror_repair(p, c, &lib_db, &mut kept, &at, &mut backed) { eprintln!("GLUE Home: couldn’t put Engine DJ’s GLUE folder right: {x}"); }
         // GLUE's own playlists in its GLUE folder (ADR 0180).
         match self.dj_sync_mirror(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed, &remap) {
           Ok(m) => {
@@ -205,6 +214,7 @@ impl<H: Host> Engine<H> {
           // (Rolled back: nothing of the playlists written; the rest of the sync carries on.)
           Err(x) => { eprintln!("GLUE Home: couldn’t keep Engine DJ’s GLUE folder in step: {x}"); self.event(&format!("Couldn’t keep Engine DJ’s GLUE folder in step: {x}")); }
         }
+        self.dj_keep(&cache_rel, &mut kept)?;
       }
     }
     // GLUE's songs: GLUE Home's own edit.
@@ -257,6 +267,7 @@ impl<H: Host> Engine<H> {
   /// A clash settled (`djResolve`): GLUE's kept (written into the library) or the library's (taken into GLUE), by
   /// what they're taken to have agreed on; then a sync.
   pub fn dj_resolve(&self, p: &str, c: &str, track: &str, keep_glue: bool) -> Result<Value, String> {
+    let _one = self.dj_one.lock().unwrap_or_else(|e| e.into_inner());
     let s = self.store(p, c)?;
     let (sid, ext) = {
       let st = s.lock().unwrap();
@@ -281,7 +292,7 @@ impl<H: Host> Engine<H> {
     kept["base"][&ext] = base.to_json();
     if let Some(o) = kept["clashes"].as_object_mut() { o.remove(track); }
     self.dj_keep(&rel, &mut kept)?;
-    let r = self.dj_sync_collection(p, c, true)?;
+    let r = self.dj_sync_held(p, c, true)?;
     Ok(json!({ "written": r.written, "taken": r.taken, "waiting": r.waiting }))
   }
 }

@@ -847,3 +847,89 @@ fn songs_the_clean_up_took_point_at_the_copy_kept() {
   drop(c);
 }
 
+
+/// A library kept in step, with GLUE's playlist "Mix" kept in Engine DJ (ADR 0180): the engine, Engine DJ's database,
+/// the source's id and the cache folder.
+fn mirrored(name: &str) -> (Arc<Engine<H>>, std::path::PathBuf, String, std::path::PathBuf, std::path::PathBuf) {
+  let (glue, libs, cache) = (temp(name), temp(&format!("{name}-libs")), temp(&format!("{name}-cache")));
+  let db = engine_library(&libs);
+  std::fs::create_dir_all(libs.join("Music")).unwrap();
+  for f in ["one.mp3", "two.mp3"] { std::fs::write(libs.join("Music").join(f), b"song").unwrap(); }
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Music" }] }));
+  let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
+  put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3") } }));
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() } });
+  let e = Engine::new(glue.clone(), cache.clone(), h);
+  let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
+  let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
+  {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    glue_interop::merge::set_main_source(&mut st, Some(&sid));
+    glue_interop::merge::set_source_sync(&mut st, &sid, true);
+    st.put_list(json!({ "schemaVersion": 1, "id": "mix", "kind": "playlist", "name": "Mix", "parentId": null, "position": 0, "notes": "", "items": ["s1one"], "origin": null, "apps": ["engine"], "createdAt": "2026-01-01T00:00:00.000Z" }));
+    st.flush().unwrap();
+  }
+  (e, db, sid, glue, cache)
+}
+
+#[test]
+fn two_syncs_at_once_make_glues_playlist_once() {
+  // 2026-10-09: the DJ timer started a sync every 5 s, a new one while the last still ran; two at once each made Mix in
+  // Engine DJ's GLUE folder and brought the other's back as new, again and again.
+  let (e, db, _, _, _) = mirrored("djonce");
+  let ts: Vec<_> = (0..4).map(|_| { let e = e.clone(); std::thread::spawn(move || e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap()) }).collect();
+  for t in ts { t.join().unwrap(); }
+  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  let mixes = engine_lists(&db).into_iter().filter(|l| l.title.starts_with("Mix")).count();
+  assert_eq!(mixes, 1, "{:?}", engine_lists(&db).iter().map(|l| l.title.clone()).collect::<Vec<_>>());
+  let s = e.store("p1", "c1").unwrap();
+  assert_eq!(s.lock().unwrap().lists.values().filter(|l| l["name"].as_str().unwrap_or("").starts_with("Mix")).count(), 1);
+}
+
+#[test]
+fn copies_0_72_made_are_put_right_once() {
+  // As 0.72 left it: Mix twice in Engine DJ's GLUE folder (and once more inside), its copy "Mix (2)" in GLUE.
+  let (e, db, sid, glue, cache) = mirrored("djfix");
+  let gf = {
+    let c = rusqlite::Connection::open(&db).unwrap();
+    let gf = glue_interop::enginedb::create_list(&c, "GLUE", 0).unwrap();
+    for t in ["Mix", "Mix (2)"] { glue_interop::enginedb::create_list(&c, t, gf).unwrap(); }
+    // Another made beside it by a sync at the same time; and a playlist of the user's that's called that.
+    let gf2 = glue_interop::enginedb::create_list(&c, "GLUE", 0).unwrap();
+    glue_interop::enginedb::create_list(&c, "Mix (3)", gf2).unwrap();
+    let mine = glue_interop::enginedb::create_list(&c, "GLUE", 0).unwrap();
+    glue_interop::enginedb::create_list(&c, "Old set", mine).unwrap();
+    gf
+  };
+  put(&cache, &format!("dj/p1/c1/{sid}.json"), json!({ "base": {}, "clashes": {}, "listsOut": true, "glueFolder": gf, "mirror": { "mix": gf + 1 } }));
+  {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    st.put_list(json!({ "schemaVersion": 1, "id": "copy", "kind": "playlist", "name": "Mix (2)", "parentId": null, "position": 1, "notes": "", "items": [], "origin": null, "apps": ["engine"], "createdAt": "2026-10-09T20:00:00.000Z" }));
+    st.flush().unwrap();
+  }
+  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  let tops: Vec<String> = engine_lists(&db).iter().filter(|x| x.parent == 0).map(|x| x.title.clone()).collect();
+  assert!(tops.contains(&"GLUE (3)".to_string()), "the user's own stays: {tops:?}");
+  assert!(engine_lists(&db).iter().any(|x| x.title == "Old set"));
+  assert!(!tops.contains(&"GLUE (2)".to_string()), "{tops:?}");
+  let in_glue_folder: Vec<String> = { let l = engine_lists(&db); let g = l.iter().find(|x| x.parent == 0 && x.title == "GLUE").unwrap().id; l.iter().filter(|x| x.parent == g).map(|x| x.title.clone()).collect() };
+  assert_eq!(in_glue_folder, ["Mix"]);
+  let s = e.store("p1", "c1").unwrap();
+  let names: Vec<String> = s.lock().unwrap().lists.values().map(|l| l["name"].as_str().unwrap().to_string()).collect();
+  assert_eq!(names, ["Mix"], "the user's stays, the copy goes");
+  assert!(std::fs::read_dir(glue.join("backups")).unwrap().any(|f| f.unwrap().file_name().to_string_lossy().starts_with("pre-engine-glue-folder-")));
+  // Once: a later sync leaves it alone.
+  let c = rusqlite::Connection::open(&db).unwrap();
+  let g = engine_lists(&db).into_iter().find(|x| x.parent == 0 && x.title == "GLUE").unwrap().id;
+  glue_interop::enginedb::create_list(&c, "Made in Engine DJ", g).unwrap();
+  drop(c);
+  e.rpc(&json!({ "op": "djRefresh", "p": "p1", "c": "c1", "id": sid })).unwrap();
+  e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  assert!(engine_lists(&db).iter().any(|l| l.title == "Made in Engine DJ"));
+}

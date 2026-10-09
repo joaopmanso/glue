@@ -58,7 +58,63 @@ pub fn kept_lists(lists: &indexmap::IndexMap<String, Value>, app: &str) -> (Hash
   (scope, all)
 }
 
+/// A name without the " (2)" Engine DJ adds to one already there among its siblings (as often as it was added).
+fn base_name(name: &str) -> &str {
+  let mut n = name.trim_end();
+  while let Some(open) = n.rfind(" (") {
+    let num = &n[open + 2..];
+    if num.len() > 1 && num.ends_with(')') && num[..num.len() - 1].chars().all(|c| c.is_ascii_digit()) { n = n[..open].trim_end(); } else { break; }
+  }
+  n
+}
+
 impl<H: Host> Engine<H> {
+  /// 0.72's copies put right, once (2026-10-09): two syncs ran at once, each made GLUE's playlist in Engine DJ's GLUE
+  /// folder and brought the other's back into GLUE as new, again and again. Engine DJ's GLUE folder (all GLUE's making)
+  /// is emptied, after a backup of its library; in GLUE, the lists kept in Engine DJ with the same name (but for the
+  /// " (2)"s) in the same place are one: the oldest stays (the user's), the others go into the bin, after a backup of
+  /// the profile. The next sync makes GLUE's again in the GLUE folder, once.
+  pub(crate) fn dj_mirror_repair(&self, p: &str, c: &str, db_path: &Path, kept: &mut Value, at: &str, backed: &mut HashSet<String>) -> Result<(), String> {
+    if kept.get("mirrorFixed").and_then(Value::as_bool) == Some(true) { return Ok(()); }
+    let mut db = Connection::open(db_path).map_err(|e| format!("{}: {e}", db_path.display()))?;
+    let own_uuid: String = db.query_row("SELECT uuid FROM Information LIMIT 1", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let app = enginedb::read_lists(&db, &own_uuid)?;
+    // Only where 0.72's sync ran (it kept its folder's id). Its folder, and the others two syncs at once made beside it
+    // ("GLUE (2)"…) whose every playlist is named as one of GLUE's kept in Engine DJ: never a playlist of the user's.
+    let s = self.store(p, c)?;
+    let names: HashSet<String> = { let st = s.lock().unwrap(); let (_, all) = kept_lists(&st.lists, "engine"); all.iter().map(|id| base_name(&text(&st.lists[id], "name")).to_lowercase()).collect() };
+    let gf = kept["glueFolder"].as_i64().filter(|id| app.iter().any(|l| l.id == *id && l.parent == 0));
+    let inside = |top: i64| { let mut u: HashSet<i64> = HashSet::new(); let mut more = true; while more { more = false; for l in &app { if (l.parent == top || u.contains(&l.parent)) && u.insert(l.id) { more = true; } } } u };
+    let made: Vec<i64> = app.iter().filter(|l| l.parent == 0 && base_name(&l.title) == GLUE_FOLDER && (Some(l.id) == gf || (l.title != GLUE_FOLDER && app.iter().filter(|k| inside(l.id).contains(&k.id)).all(|k| names.contains(&base_name(&k.title).to_lowercase()))))).map(|l| l.id).collect();
+    if gf.is_some() && made.iter().any(|g| app.iter().any(|l| l.parent == *g) || Some(*g) != gf) {
+      if backed.insert(own_uuid.clone()) { self.dj_backup(&own_uuid, db_path, at)?; }
+      let tx = db.transaction().map_err(|e| e.to_string())?;
+      for g in &made { enginedb::delete_list(&tx, *g)?; }
+      tx.commit().map_err(|e| e.to_string())?;
+      // GLUE's copies.
+      let mut st = s.lock().unwrap();
+      let (scope, _) = kept_lists(&st.lists, "engine");
+      let mut groups: HashMap<(String, String), Vec<Value>> = HashMap::new();
+      for id in &scope { let l = &st.lists[id]; groups.entry((parent_id(l).unwrap_or("").to_string(), base_name(&text(l, "name")).to_lowercase())).or_default().push(l.clone()); }
+      let mut extra: Vec<String> = vec![];
+      for (_, mut ls) in groups { if ls.len() < 2 { continue; } ls.sort_by_key(|l| (text(l, "createdAt"), text(l, "id"))); extra.extend(ls.iter().skip(1).map(|l| text(l, "id"))); }
+      if !extra.is_empty() {
+        let profile = glue_store::dir::read_json(&self.dir(), &format!("profiles/{p}/profile.json")).ok().flatten().ok_or("no profile")?;
+        let zip = glue_store::backup::build_backup(&self.dir(), &profile, false, at)?;
+        glue_store::dir::Dir::write_bytes(&self.dir(), &format!("backups/pre-engine-glue-folder-{}-{p}-{c}.zip", &at[..10]), &zip)?;
+        for id in &extra { if st.lists.contains_key(id) { st.delete_list(id); } }
+        self.flush_edit(&mut st, p, c)?;
+      }
+      drop(st);
+      let n = extra.len();
+      self.event(&format!("Engine DJ’s GLUE folder put right: made again from GLUE’s playlists{}", if n > 0 { format!("; {n} copie{} in GLUE into Recently deleted", if n == 1 { "" } else { "s" }) } else { String::new() }));
+      for k in ["mirror", "mirrorBase", "mirrorOrders", "glueFolder", "decided"] { kept.as_object_mut().map(|o| o.shift_remove(k)); }
+      kept["questions"] = json!([]);
+    }
+    kept["mirrorFixed"] = json!(true);
+    Ok(())
+  }
+
   /// GLUE's playlists kept in the main library's GLUE folder, in `db_path` (its library database), Engine DJ closed.
   #[allow(clippy::too_many_arguments)]
   pub(crate) fn dj_sync_mirror(&self, p: &str, c: &str, src: &Value, db_path: &Path, dbs: &HashMap<String, PathBuf>, kept: &mut Value, at: &str, backed: &mut HashSet<String>, remap: &HashMap<String, String>) -> Result<MirrorDone, String> {
@@ -262,6 +318,13 @@ impl<H: Host> Engine<H> {
       }
     }
     tx.commit().map_err(|e| e.to_string())?;
+    // Which is which, kept before GLUE's side is saved (one that fails mustn't lose it: Engine DJ's are written).
+    let answered: Vec<String> = decided.keys().filter(|k| !questions.iter().any(|q| text(q, "ext") == **k)).cloned().collect();
+    if let Some(d) = kept["decided"].as_object_mut() { for k in answered { d.remove(&k); } }
+    kept["mirror"] = json!(map);
+    kept["mirrorBase"] = Value::Object(base);
+    done.questions = questions.len();
+    kept["questions"] = Value::Array(questions);
     // GLUE's side: GLUE Home's own edit.
     if !glue_edits.is_empty() || !glue_new.is_empty() {
       let mut st = s.lock().unwrap();
@@ -276,18 +339,13 @@ impl<H: Host> Engine<H> {
       }
       self.flush_edit(&mut st, p, c)?;
     }
-    let answered: Vec<String> = decided.keys().filter(|k| !questions.iter().any(|q| text(q, "ext") == **k)).cloned().collect();
-    if let Some(d) = kept["decided"].as_object_mut() { for k in answered { d.remove(&k); } }
-    kept["mirror"] = json!(map);
-    kept["mirrorBase"] = Value::Object(base);
-    done.questions = questions.len();
-    kept["questions"] = Value::Array(questions);
     Ok(done)
   }
 
   /// A playlist's question answered (`djListResolve`): `delete` it on the other side too, or keep it (made again on the
   /// side it went from, at the next sync). GLUE's side at once; Engine DJ's at the next sync, Engine DJ closed.
   pub fn dj_list_resolve(&self, p: &str, c: &str, ext: &str, delete: bool) -> Result<Value, String> {
+    let _one = self.dj_one.lock().unwrap_or_else(|e| e.into_inner());
     let s = self.store(p, c)?;
     let src = { let st = s.lock().unwrap(); st.sources.values().find(|x| st.own_source(x) && crate::truthy(crate::get(x, "main")) && crate::truthy(crate::get(x, "sync"))).cloned().ok_or("No main DJ library kept in step")? };
     let sid = text(&src, "id");
@@ -315,7 +373,7 @@ impl<H: Host> Engine<H> {
       kept["decided"][ext] = json!("delete");
     }
     self.dj_keep(&rel, &mut kept)?;
-    let r = self.dj_sync_collection(p, c, true)?;
+    let r = self.dj_sync_held(p, c, true)?;
     Ok(json!({ "written": r.written, "waiting": r.waiting }))
   }
 }
@@ -334,5 +392,12 @@ mod tests {
     let mut a: Vec<&String> = all.iter().collect(); a.sort();
     assert_eq!(s, ["fri", "gigs", "in"]);
     assert_eq!(a, ["fri", "gigs", "in", "sets"], "Sets as the folder Friday is in; an import never");
+  }
+  #[test]
+  fn engine_djs_added_numbers_come_off() {
+    assert_eq!(base_name("Mix (2) (3)"), "Mix");
+    assert_eq!(base_name("Mix (Live)"), "Mix (Live)");
+    assert_eq!(base_name("2024 (1)"), "2024");
+    assert_eq!(base_name("Mix ()"), "Mix ()");
   }
 }

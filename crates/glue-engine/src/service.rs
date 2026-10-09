@@ -220,7 +220,14 @@ impl<H: Host> Engine<H> {
       "reminders" => self.check_reminders(false),
       "computer" => self.learn_computer(),
       // The DJ libraries followed live (ADR 0167).
-      "dj" if on => { self.dj_look(); self.dj_sync(); }
+      // One turn at a time: a turn can take longer than the timer (a big library's backup, its first look at every song).
+      "dj" if on => {
+        if self.dj_ticking.swap(true, Ordering::SeqCst) { return; }
+        struct Done<'a>(&'a AtomicBool);
+        impl Drop for Done<'_> { fn drop(&mut self) { self.0.store(false, Ordering::SeqCst); } }
+        let _done = Done(&self.dj_ticking);
+        self.dj_look(); self.dj_sync();
+      }
       "update" if cfg["autoUpdate"] != false && !self.busy() => self.host.auto_update(&|t| self.say(t)),
       _ => {}
     }

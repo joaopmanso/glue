@@ -207,6 +207,11 @@ pub struct Engine<H: Host> {
   pub(crate) rechecked: Mutex<std::collections::HashSet<Key>>,
   pub(crate) tidied: Mutex<std::collections::HashSet<Key>>,
   pub(crate) dj: Mutex<dj::DjWatch>,
+  /// One sync with the DJ libraries at a time, and the answers that change what it keeps (djsync.rs): two at once both
+  /// made GLUE's playlist in Engine DJ's GLUE folder, and each brought the other's back as new (2026-10-09).
+  pub(crate) dj_one: Mutex<()>,
+  /// The DJ timer's turn running (a turn longer than the timer's 5 s isn't run twice).
+  pub(crate) dj_ticking: std::sync::atomic::AtomicBool,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -229,7 +234,7 @@ pub fn changed_over(cur: Option<&Value>, mine: &Value, was: Option<&Value>) -> V
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default(), dj: Default::default() });
+    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default(), dj: Default::default(), dj_one: Mutex::new(()), dj_ticking: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }

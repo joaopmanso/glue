@@ -230,6 +230,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     `mirrorOrders`, `splice`); one made in the GLUE folder in Engine DJ comes into GLUE; gone from a side, asked
     (`djQuestions`, `djListResolve`); turned off, taken out. The page sets it (**Keep in Engine DJ**) and shows the
     app's icon.
+  - **One DJ sync at a time** (0.72.1): the timer's turn isn't started again while one runs (`dj_ticking`), and every
+    sync and the answers that change what it keeps hold `dj_one`; what it wrote into Engine DJ is kept in the cache at
+    once (`dj_keep`), before anything else can fail. Two at once made GLUE's playlist again and again (2026-10-09);
+    0.72.1 puts that right once (`dj_mirror_repair`: the GLUE folders 0.72 made emptied, GLUE's copies into the bin,
+    backups first, `mirrorFixed`).
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     The other device's player gets the bytes as they arrive (ADR 0174): the streaming service worker answers a range
     as a stream, the page fetching it in pieces (256 KB, then 2 MB) when the player has room; the song's start (a new

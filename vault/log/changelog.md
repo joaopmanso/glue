@@ -5,6 +5,19 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · One DJ sync at a time; 0.72's copies put right (GLUE Home 0.72.1)
+- **The user:** keeping a GLUE playlist in Engine DJ "just started creating multiple copies of it on both glue and
+  engine dj".
+- **Why:** GLUE Home's DJ timer started a sync every 5 s on a new thread, also while the last one still ran (on the
+  user's library a sync can take longer: the 163 MB backup, the first look at 13,000 songs' info). Two at once both
+  read that GLUE's playlist wasn't in Engine DJ yet, both made it, and each brought the other's back into GLUE as new;
+  the next round again. A test with four syncs at once makes copies (even a "GLUE (2)" folder) without the fix.
+- **Now:** one turn of the timer at a time, and every sync (and the answers to its questions and clashes) one at a
+  time; which Engine DJ playlist is which is kept the moment it's written. Once, GLUE Home puts it right: the GLUE
+  folders 0.72 made in Engine DJ are emptied (only where everything in them is named as GLUE's), GLUE's copies (the
+  same name but for " (2)"s, in the same place, the oldest kept) go into Recently deleted, backups of both first; the
+  next sync makes GLUE's again, once.
+
 ## 2026-10-09 · GLUE's playlists in Engine DJ's "GLUE" folder, both ways (ADR 0180, GLUE Home 0.72)
 - **The user:** GLUE's own playlists synced into the DJ apps under a "GLUE" folder repeating GLUE's structure, the apps'
   icons showing which are synced; both ways; Engine DJ first.
