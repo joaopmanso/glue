@@ -7,7 +7,7 @@
   import { router, trackHref } from '../../lib/route.svelte';
   import { view } from '../../lib/view.svelte';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
-  import { remoteFiles } from '../../lib/remoteFiles.svelte';
+  import { describeStart, remoteFiles } from '../../lib/remoteFiles.svelte';
   import { player } from '../../lib/player.svelte';
   import { nowPlaying } from '../../lib/nowPlaying.svelte';
   import { lib } from '../../lib/library.svelte';
@@ -81,7 +81,7 @@
     {#if t}
       <span class="line"><a class="title" href={trackHref(t.id)} title="Open the track page" id="lib-now">{t.title || t.fileName}</a>
       <button type="button" class="locate" id="lib-locate" title="Show it in the list" aria-label="Show the playing track in the list" onclick={() => { view.reveal = t.id; if (router.current.name !== 'library') router.go('#/'); }}>⌖</button></span>
-      <span class="who">{t.artist}{#if remoteFiles.loading}<span> · getting it from {remoteFiles.loading.device}… {remoteFiles.loading.size ? Math.round(remoteFiles.loading.got / remoteFiles.loading.size * 100) + '%' : ''}</span>{:else if nowPlaying.error}<span class="err"> · {nowPlaying.error}</span>{:else if player.message}<span class="err"> · {player.message}</span>{/if}</span>
+      <span class="who" title={remoteFiles.lastStart?.trackId === t.id ? describeStart(remoteFiles.lastStart) : undefined}>{t.artist}{#if remoteFiles.loading}<span> · getting it from {remoteFiles.loading.device}… {remoteFiles.loading.size ? Math.round(remoteFiles.loading.got / remoteFiles.loading.size * 100) + '%' : ''}</span>{:else if nowPlaying.error}<span class="err"> · {nowPlaying.error}</span>{:else if player.message}<span class="err"> · {player.message}</span>{/if}</span>
     {:else if hot}
       <span class="who drop">Drop to queue them</span>
     {:else if queued}

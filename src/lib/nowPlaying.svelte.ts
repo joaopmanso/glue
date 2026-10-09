@@ -4,6 +4,7 @@
    in the song. Shares the one audio element with the track page (lib/player). */
 import { lib, remoteFileMessage } from './library.svelte';
 import { player } from './player.svelte';
+import { remoteFiles } from './remoteFiles.svelte';
 import { router } from './route.svelte';
 import { view, viewTitle } from './view.svelte';
 import { readPref, writePref } from './prefs';
@@ -50,6 +51,8 @@ class NowPlaying {
       const src = await lib.mediaFor(t);
       if (this.trackId !== id) return;
       player.setSource(src, { duration: t.duration ?? undefined, sampleRate: t.format?.sampleRate || undefined, key: 'track:' + id });
+      // Another computer's song: when it starts making sound, its start's time is complete (ADR 0174).
+      if (t.remote) player.el.addEventListener('playing', () => remoteFiles.played(id), { once: true });
       if (startAt > 0) { const a = player.el, go = () => player.seek(startAt); if (a.readyState >= 1) go(); else a.addEventListener('loadedmetadata', go, { once: true }); }
       player.toggle();
     } catch (e) { if (this.trackId === id) { this.error = (e as Error).message || String(e); player.setSource(null); } }

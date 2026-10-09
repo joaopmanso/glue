@@ -5,6 +5,20 @@ updated: 2026-10-08
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · Another computer's songs stream as they arrive (ADR 0174; branch `stream-like-plexamp`)
+- **The user:** a WAV on a network folder took well over 20 s to start on the iPhone and over 5 s on the laptop, and
+  Plexamp or Plex played it at once from the same computer.
+- **Why:** the streaming service worker answered each range with a piece fetched whole, up to 8 MB when the player
+  named the range's end (Safari does), then waited for the player to ask again. GLUE Home's channel wasn't the limit
+  (9 MB/s to Edge over loopback).
+- **Now:** the worker answers as a stream, the first bytes as soon as GLUE Home sends them and the rest as it comes,
+  a piece at a time while the player has room ([ADR 0174](../adr/0174-songs-stream-as-they-arrive.md)).
+- **And a song's start says where its time went** (the player line's tooltip, and the console): a new connection or
+  not, the first answer, the first music, the first sound, and the route (direct on the same network, through the
+  router, or through GLUE Cloud's relay).
+- `e2e/phone.spec.ts` fetches a stream as Safari and Chrome ask for it: the file's bytes. The first try stalled after
+  its first piece (the stream doesn't always ask for more by itself); the test caught it.
+
 ## 2026-10-09 · GLUE Home 0.70.0: Engine DJ's playlists lost other drives' songs; fixed (ADR 0173)
 - **What happened:** with 0.68–0.69 the playlist sync removed from Engine DJ's playlists the songs of drives GLUE
   hadn't read (not plugged in). The first sync put them last and recorded that as agreed; the next took them for songs
