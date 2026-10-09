@@ -254,6 +254,7 @@ Planned (GLUE):
 | [0178](adr/0178-dj-playlists-stay-in-the-dj-collection.md) | A DJ app's playlists stay in its DJ collection (copies are imports again, taken out once); GLUE's own go to its "GLUE" folder | accepted |
 | [0179](adr/0179-engine-dj-edited-in-the-dj-collection.md) | Engine DJ's own playlists edited from GLUE's DJ collection (an operation queue in GLUE Home, shown at once, written closed); song info both ways | accepted |
 | [0180](adr/0180-glues-playlists-in-engine-djs-glue-folder.md) | GLUE's own playlists kept in Engine DJ's "GLUE" folder both ways (`List.apps`, the app's icon; GLUE Home's map, not `origin`) | accepted |
+| [0181](adr/0181-engine-dj-libraries-made-where-a-drive-has-none.md) | An Engine DJ library found in the Music folder; made where a song's drive has none only once known safe (held) | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

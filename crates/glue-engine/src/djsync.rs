@@ -58,6 +58,8 @@ impl<H: Host> Engine<H> {
     let mut at: Vec<PathBuf> = vec![];
     if let Some(mut p) = self.dj_place(&text(&src["origin"], "place"), cfg) { for part in text(&src["origin"], "relPath").split('/').filter(|x| !x.is_empty()) { p.push(part); } at.push(p); }
     for d in self.host.drives() { at.push(d.join("Engine Library").join("Database2").join("m.db")); }
+    // The start disk's is in the Music folder (Engine DJ's own place for it), not at the drive's top.
+    if let Some(m) = self.host.known_folders().music { at.push(PathBuf::from(m).join("Engine Library").join("Database2").join("m.db")); }
     let mut out = HashMap::new();
     for p in at.into_iter().filter(|p| p.is_file()) {
       let Ok(db) = Connection::open_with_flags(&p, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX) else { continue };
@@ -193,18 +195,22 @@ impl<H: Host> Engine<H> {
           Ok((n, remap)) => { if n > 0 { done.relinked = n; self.event(&format!("Engine DJ: {n} song{} pointed at the copy GLUE kept", if n == 1 { "" } else { "s" })); } remap }
           Err(x) => { eprintln!("GLUE Home: couldn’t point Engine DJ’s songs at the copies kept: {x}"); HashMap::new() }
         };
+        // Playlists written into Engine DJ: paused (2026-10-10) unless the settings say so (`djPlaylists`). GLUE wrote
+        // them into F:'s database only; Engine DJ shows C:'s tree (the computer's), each change made in both with the
+        // same ids, so GLUE's were hidden and took ids C: had given others. Back once written as Engine DJ writes them.
+        let lists_on = cfg["djPlaylists"] == json!(true);
         // The edits made in its DJ collection (ADR 0179).
-        match self.dj_write_ops(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed) {
+        if lists_on { match self.dj_write_ops(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed) {
           Ok(n) => { done.lists = n; if n > 0 { self.event(&format!("Engine DJ: {n} playlist edit{} from GLUE written", if n == 1 { "" } else { "s" })); } }
           // (Rolled back: they wait for the next sync.)
           Err(x) => { eprintln!("GLUE Home: couldn’t write the playlist edits into Engine DJ: {x}"); self.event(&format!("Couldn’t write the playlist edits into Engine DJ: {x}")); }
-        }
+        } }
         // What was written so far, kept at once: a failure below mustn't lose which Engine DJ playlist is which.
         self.dj_keep(&cache_rel, &mut kept)?;
         // 0.72's copies put right, once.
-        if let Err(x) = self.dj_mirror_repair(p, c, &lib_db, &mut kept, &at, &mut backed) { eprintln!("GLUE Home: couldn’t put Engine DJ’s GLUE folder right: {x}"); }
+        if lists_on { if let Err(x) = self.dj_mirror_repair(p, c, &lib_db, &mut kept, &at, &mut backed) { eprintln!("GLUE Home: couldn’t put Engine DJ’s GLUE folder right: {x}"); } }
         // GLUE's own playlists in its GLUE folder (ADR 0180).
-        match self.dj_sync_mirror(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed, &remap) {
+        if lists_on { match self.dj_sync_mirror(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed, &remap) {
           Ok(m) => {
             done.lists += m.written + m.taken;
             done.questions = m.questions;
@@ -213,7 +219,7 @@ impl<H: Host> Engine<H> {
           }
           // (Rolled back: nothing of the playlists written; the rest of the sync carries on.)
           Err(x) => { eprintln!("GLUE Home: couldn’t keep Engine DJ’s GLUE folder in step: {x}"); self.event(&format!("Couldn’t keep Engine DJ’s GLUE folder in step: {x}")); }
-        }
+        } }
         self.dj_keep(&cache_rel, &mut kept)?;
       }
     }

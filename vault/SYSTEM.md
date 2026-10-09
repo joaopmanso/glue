@@ -218,6 +218,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     step: GLUE's own playlists mirrored in the app's "GLUE" folder. Engine DJ's songs whose file the duplicates'
     clean-up took are still pointed at the copy kept (`dj_relink`, ADR 0172). A damaged library's entries are put back
     by hand with `crates/glue-interop/examples/restore_lists.rs` (ADR 0173).
+  - **Playlist writes paused** (0.72.3, 2026-10-10): GLUE Home wrote playlists into F:'s database only; Engine DJ shows
+    C:'s (the computer's), each change in both with the same id, so GLUE's were hidden and one took an id C: had given
+    another (`vault/research/engine-dj-write-back.md`). The DJ collection's edits (`djEdit`) and the GLUE folder
+    (`dj_sync_mirror`, its repair) run only with `djPlaylists` on in GLUE Home's settings (the tests); cues, grids and
+    song info still sync.
   - **Edited from its DJ collection** (0.72, ADR 0179; `djedit.rs`): the page's `djEdit` operations (new, rename, move,
     delete; songs add, remove, shift) wait in GLUE Home's cache (`ops`), are put on `Source.tree` at once (`wait`) and
     again after each read, and are written by the sync while Engine DJ is closed (a backup, one transaction, a
@@ -239,6 +244,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     no Engine DJ library on its drive…); the GLUE folder's merge keeps it in GLUE's list where it was (`keep_unsent`),
     and GLUE Home keeps the reasons by list (`unsent`, `djUnsent`): a **!** by the list's icon and a line in its view;
     the activity says it when it changes. An edit of Engine DJ's own playlists says it in the activity.
+  - **Its drive's Engine DJ library** (0.72.3, ADR 0181): the start disk's found in the Music folder too; a file's real
+    place (links followed); none on its drive: said (making one, `enginedb::create_like`, is held until it's known
+    what Engine DJ does with what GLUE writes: the GLUE folder isn't shown in Engine DJ, 2026-10-10). The page's **Move to music folder** (TO BE SORTED) lists only the collection's
+    music folders (GLUE Home's `/folders` has every one it was ever told of).
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     The other device's player gets the bytes as they arrive (ADR 0174): the streaming service worker answers a range
     as a stream, the page fetching it in pieces (256 KB, then 2 MB) when the player has room; the song's start (a new

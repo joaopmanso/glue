@@ -27,6 +27,7 @@ With GLUE Home running, right-click your main Engine DJ library › **Keep in st
 - GLUE's pads A–H are Engine DJ's hot cues (a loop on a pad goes as a hot cue at its start); GLUE's memory loops are its saved loops. Memory cues and Engine DJ's main cue stay where they are.
 - A song changed in both since they were last in step: its Prepare tab asks which to keep.
 - **Its playlists stay in its DJ collection** (under the library in the sidebar). Import one to have GLUE's own copy under **Playlists**: it follows Engine DJ, and deleting it only takes GLUE's copy away.
+- **Paused for now:** changing Engine DJ's playlists from GLUE (below, and Keep in Engine DJ) waits while GLUE is made to write them as Engine DJ does: Engine DJ didn't show the ones GLUE made. Cues, grids and song info still go both ways.
 - **Change Engine DJ's own playlists there**, without importing them:
   - right-click a playlist or folder: **New playlist inside…**, **New folder inside…**, **Rename…**, **Move to**, **Delete in Engine DJ…**; right-click the library for a new one at the top;
   - drop songs on a playlist, or use a song's **Add to Engine DJ playlist**; a song Engine DJ doesn't have yet is added to its collection;

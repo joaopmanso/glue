@@ -61,14 +61,37 @@ impl<H: Host> Engine<H> {
 }
 
 /// GLUE's songs as Engine DJ's: their record, or added to the collection of their drive's database.
-pub(crate) struct Songs<'a> { pub(crate) ext_of: &'a HashMap<String, String>, pub(crate) tracks: &'a HashMap<String, Value>, pub(crate) added: HashMap<String, String>, pub(crate) dbs: &'a HashMap<String, PathBuf>, pub(crate) lib: &'a Path, pub(crate) cfg: Value, pub(crate) at: &'a str, pub(crate) now: i64,
+pub(crate) struct Songs<'a> { pub(crate) ext_of: &'a HashMap<String, String>, pub(crate) tracks: &'a HashMap<String, Value>, pub(crate) added: HashMap<String, String>, pub(crate) dbs: HashMap<String, PathBuf>, pub(crate) lib: &'a Path, pub(crate) cfg: Value, pub(crate) at: &'a str, pub(crate) now: i64,
   /// Why a song couldn't go (by GLUE's song), said to the user (2026-10-09: one left out without a word).
   pub(crate) missed: HashMap<String, String> }
 impl<'a> Songs<'a> {
   pub(crate) fn new(ext_of: &'a HashMap<String, String>, tracks: &'a HashMap<String, Value>, dbs: &'a HashMap<String, PathBuf>, lib: &'a Path, cfg: Value, at: &'a str, now: i64) -> Self {
-    Songs { ext_of, tracks, added: HashMap::new(), dbs, lib, cfg, at, now, missed: HashMap::new() }
+    Songs { ext_of, tracks, added: HashMap::new(), dbs: dbs.clone(), lib, cfg, at, now, missed: HashMap::new() }
   }
   fn miss(&mut self, tid: &str, why: String) -> Option<String> { self.missed.insert(tid.to_string(), why); None }
+  /// An Engine DJ library for `file`'s drive, made where Engine DJ makes one: the Music folder's for the start disk,
+  /// the drive's top for another (its tables as the main library's, `like`). Its id, database and the file's path.
+  fn make_library<H: Host>(&mut self, eng: &Engine<H>, file: &Path, like: &Connection) -> Result<(String, PathBuf, String), String> {
+    let drive = file.components().next().map(|c| c.as_os_str().to_string_lossy().to_string()).unwrap_or_default();
+    let music = eng.host.known_folders().music.map(PathBuf::from).filter(|m| enginedb::same_drive(m, file));
+    let top = eng.host.drives().into_iter().find(|d| enginedb::same_drive(d, file));
+    let Some(lib_dir) = music.or(top).map(|d| d.join("Engine Library")) else { return Err(format!("GLUE Home can’t reach its drive ({drive}) to make an Engine DJ library there")) };
+    let db = lib_dir.join("Database2").join("m.db");
+    // Not made yet (ADR 0181): whether Engine DJ shows what GLUE writes into its databases is being checked first
+    // (2026-10-10: the GLUE folder GLUE made in F:'s library isn't shown). `create_like` is ready for then.
+    let _ = like;
+    if !db.is_file() { return Err(format!("its drive ({drive}) has no Engine DJ library yet: move it into one of this collection’s music folders on the drive Engine DJ’s library is on")); }
+    let uuid = Connection::open(&db).and_then(|c| c.query_row("SELECT uuid FROM Information LIMIT 1", [], |r| r.get::<_, String>(0))).map_err(|x| format!("Engine DJ’s library on its drive couldn’t be read ({x})"))?;
+    self.dbs.insert(uuid.clone(), db.clone());
+    let rel = enginedb::rel_path(&real_path(&lib_dir), file).ok_or_else(|| format!("its path from {} can’t be written", lib_dir.display()))?;
+    Ok((uuid, db, rel))
+  }
+}
+/// A file's real place (links and junctions followed), without Windows' `\\?\` in front.
+fn real_path(p: &Path) -> PathBuf {
+  let Ok(r) = std::fs::canonicalize(p) else { return p.to_path_buf() };
+  let s = r.to_string_lossy().to_string();
+  match s.strip_prefix(r"\\?\") { Some(x) if !x.starts_with("UNC\\") => PathBuf::from(x), _ => r }
 }
 impl Songs<'_> {
   /// A GLUE song's record in Engine DJ ("uuid/id"); added where it's missing. None: it can't be (no file here, or no
@@ -82,11 +105,13 @@ impl Songs<'_> {
     let mut file = PathBuf::from(root);
     for part in text(t, "relPath").split('/') { file.push(part); }
     if !file.is_file() { return self.miss(tid, format!("its file isn’t there ({})", file.display())); }
-    // The database on the file's drive (of several there, the one whose Engine Library is nearest).
-    let Some((uuid, dbp, rel)) = self.dbs.iter().filter_map(|(u, d)| { let lib = d.parent()?.parent()?; enginedb::rel_path(lib, &file).map(|r| (u.clone(), d.clone(), r)) }).min_by_key(|x| x.2.matches("../").count()) else {
-      let drive = file.components().next().map(|c| c.as_os_str().to_string_lossy().to_string()).unwrap_or_default();
-      return self.miss(tid, format!("its drive ({drive}) has no Engine DJ library: add one song from it in Engine DJ once, and GLUE adds the rest"));
-    };
+    // Where it really is (a link or a junction to another drive: that drive's).
+    let file = real_path(&file);
+    // The database on the file's drive (of several there, the one whose Engine Library is nearest); none: one made
+    // where Engine DJ would make it (2026-10-09: a song in the incoming folder, on C:, the library on F:).
+    // (Each library's folder as it really is too: the same way of writing both paths, or the path between is wrong.)
+    let near = self.dbs.iter().filter_map(|(u, d)| { let lib = real_path(d.parent()?.parent()?); enginedb::rel_path(&lib, &file).map(|r| (u.clone(), d.clone(), r)) }).min_by_key(|x| x.2.matches("../").count());
+    let (uuid, dbp, rel) = match near { Some(x) => x, None => match self.make_library(eng, &file, lib) { Ok(x) => x, Err(why) => return self.miss(tid, why) } };
     let other = if dbp == self.lib { None } else { match Connection::open(&dbp) { Ok(c) => Some(c), Err(e) => return self.miss(tid, format!("Engine DJ’s library on its drive couldn’t be opened ({e})")) } };
     let db = other.as_ref().unwrap_or(lib);
     let id = match enginedb::track_at(db, &rel) {

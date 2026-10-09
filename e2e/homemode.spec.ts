@@ -85,6 +85,7 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     const profiles = join(home.dirs.glue, 'profiles'), pid = readdirSync(profiles)[0], cid = readdirSync(join(profiles, pid, 'collections'))[0];
     const meta = JSON.parse(readFileSync(join(profiles, pid, 'collections', cid, 'collection.json'), 'utf8')) as { roots: { id: string }[] };
     home.dirs.folders[meta.roots[0].id] = join(tmp, 'Music');
+    home.dirs.folders['gone-root'] = join(tmp, 'An old collection');   // GLUE Home remembers it; this collection hasn't it
     mkdirSync(home.dirs.incoming, { recursive: true });
     copyFileSync(fixture('mp3-128k.mp3'), join(home.dirs.incoming, 'Sent song.mp3'));
     await home.start();
@@ -96,6 +97,12 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     await expect(page.locator('.tr', { hasText: 'Fixture MP3' })).toBeVisible({ timeout: 20_000 });
     expect(home.calls).toContain('/fs/roots');
     await expect(page.locator('.lside')).not.toContainText('📁 TO BE SORTED');   // not a music folder
+    // "Move to music folder": this collection's music folders only, not every one GLUE Home was ever told of.
+    await page.locator('.tr', { hasText: 'Fixture MP3' }).click({ button: 'right' });
+    await page.locator('.cmenu [data-m="move"]').hover();
+    await expect(page.locator('.cmenu [data-move-folder]')).toHaveCount(1);
+    await expect(page.locator('.cmenu [data-move-folder]')).toContainText('Music');
+    await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
 
     // The drag dock (ADR 0054), a queue: the selected songs (music folder + path), then a whole music
     // folder; a song already in it isn't added twice.
@@ -550,7 +557,7 @@ test('with GLUE Home running, the main Engine DJ library is kept in step both wa
     for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
     await fake.start();
     // Engine DJ open, as far as GLUE Home can tell.
-    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: true } });
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: true, djPlaylists: true } });
     await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
       const u = new URL(r.request().url());
       if (u.port !== '47400') return r.abort('connectionrefused');
@@ -595,7 +602,7 @@ test('with GLUE Home running, the main Engine DJ library is kept in step both wa
     await expect(src.locator('.syncf')).toHaveAttribute('data-dj-sync', 'waiting', { timeout: 40_000 });
     expect(await slotB()).toBe(-1);
     // Engine DJ closed: written within seconds.
-    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false } });
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false, djPlaylists: true } });
     await expect.poll(slotB, { timeout: 40_000 }).toBeGreaterThanOrEqual(0);
     await expect(src.locator('.syncf')).toHaveAttribute('data-dj-sync', 'synced', { timeout: 20_000 });
     // Its playlists stay in its DJ collection (ADR 0178): none copied into GLUE's playlists, Engine DJ's left as they are.
@@ -613,14 +620,14 @@ test('with GLUE Home running, the main Engine DJ library is kept in step both wa
 
     // Edited in its DJ collection (ADR 0179): shown at once, waiting while Engine DJ runs, written once it's closed.
     page.removeAllListeners('dialog');
-    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: true } });
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: true, djPlaylists: true } });
     const second = page.locator('.lside .djtree [data-dj]', { hasText: 'Second' });
     page.once('dialog', d => void d.accept('Second set'));
     await second.click({ button: 'right' });
     await page.locator('.cmenu [data-m="dj-rename"]').click();
     await expect(page.locator('.lside .djtree [data-dj]', { hasText: 'Second set' }).locator('[data-dj-wait]')).toBeVisible({ timeout: 20_000 });
     expect(await titles()).not.toContain('Second set');
-    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false } });
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false, djPlaylists: true } });
     await expect.poll(titles, { timeout: 40_000 }).toContain('Second set');
     // A new playlist, a song added to it from the song's menu, then taken out in its view.
     page.once('dialog', d => void d.accept('Fresh'));

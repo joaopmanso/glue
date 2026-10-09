@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-09
+updated: 2026-10-10
 ---
 # Engine DJ: what writing back to it involves
 
@@ -30,6 +30,36 @@ G:; Engine DJ closed, journals empty), nothing written; and from libdjinterop's 
 - Engine DJ's rules for third-party tools: don't open the database while Engine DJ runs; never change the schema;
   identify songs by `(originDatabaseUuid, originTrackId)`.
   [Engine KB](https://support.enginedj.com/support/solutions/articles/69000834165)
+
+## What GLUE's playlist writes did (copies of C:'s and F:'s `m.db`, 2026-10-10, Engine DJ closed, read only)
+The user: the playlists GLUE Home 0.72 made (its "GLUE" folder, ones made from GLUE's DJ collection) show in GLUE but
+not in Engine DJ, though Engine DJ names a new "Glue" "Glue 2".
+- **Measured:**
+  - C: (`C:\Users\…\Music\Engine Library`, uuid `c8666559…`): 764 playlists, 24,873 entries, 16 songs. F: (uuid
+    `103a4d6b…`): 628 playlists, 24,358 entries, 6,879 songs.
+  - **A playlist has the same id in both.** 623 ids are in both; the user's playlists made in Engine DJ on 2026-10-09
+    ("cenas" 9044, "Teste GLUE 123" 9046) are in both with those ids, their entries the same (naming F:'s songs).
+  - Only in C: 141, all empty with `isPersisted` 0 (Engine DJ doesn't copy those to F:).
+  - **Only in F: 5, all GLUE's:** the GLUE folder (9052), two "Auto · Life Round Here (Gisaza Remix)" (9056, 9059), and
+    two "Playlist" made from GLUE's DJ collection (9058, 9060).
+  - **An id clash:** 9047 is the user's "Playlist" in C: and GLUE's "Auto · WONDA" in F: (F:'s ids ran on by GLUE's
+    writes: C:'s sequence 9047, F:'s 9060).
+  - **114 playlists' songs differ** between C: and F:: e.g. "2022" has 3,792 entries in C: and 5,214 in F:, "140" 3,662
+    and 3,194. The restore of 2026-10-09 (ADR 0173) went into F: only; Engine DJ, opened since (the user made "cenas"
+    after it), didn't take F:'s into C:.
+  - `membershipReference`: in F:, its own songs' entries mostly 0 (13,293) and 1 (344); other databases' 0. In C:,
+    values 0–5. Its meaning is **[UNVERIFIED]**.
+- **Inferred [UNVERIFIED]:**
+  - Engine DJ shows (and keeps as the master) the computer's database's tree (C:), and makes each change in every
+    database that carries it with the same id. Then a playlist GLUE wrote only into F: isn't shown, and Engine DJ's own
+    next new playlist on C: can take the id GLUE used on F:.
+  - Engine DJ doesn't bring F:'s newer lists into C: on opening: the inference above (that it reconciles each list to
+    its latest edit across databases) doesn't hold for C:, so ADR 0173's restore may not be what Engine DJ shows.
+  - To be checked in Engine DJ: whether F: shows as a drive of its own in Engine DJ's sidebar (with its own playlists,
+    the GLUE folder among them), and how many songs "2022" has there (3,792: C:'s; 5,214: F:'s).
+- **What follows:** GLUE's playlist writes are paused (GLUE Home 0.72.3) until they're made as Engine DJ makes them:
+  into C:'s database (the master) and every other carrying the tree, with the same id (one free in all of them), and
+  GLUE's DJ collection read from C:'s tree. And F:'s 5 GLUE-made playlists and the clash at 9047 put right.
 
 ## Cues, loops and the grid (`PerformanceData`, one row per song, in the database that holds the song)
 From the bytes of the user's songs, matching libdjinterop's encoders (`src/djinterop/engine/v2/*_blob.cpp`):

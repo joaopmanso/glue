@@ -5,6 +5,23 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · Engine DJ's library on a song's drive found or made; Move to music folder lists this collection's (GLUE Home 0.72.3)
+- **The user:** the song that couldn't go said "its drive (C:) has no Engine DJ library", but everything is on F:
+  (it was in TO BE SORTED, GLUE Home's incoming folder on C:); "I want it to be added automatically".
+- **Now** ([ADR 0181](../adr/0181-engine-dj-libraries-made-where-a-drive-has-none.md)): GLUE Home looks for the start
+  disk's Engine DJ library in the Music folder too, and follows links to a file's real place. Making a library where a
+  song's drive has none is ready but held: the user then found the GLUE folder isn't shown in Engine DJ (below). The
+  user sorted the song into the collection meanwhile, and it went in.
+- **The user, 2026-10-10:** the playlists GLUE made show under Engine DJ in GLUE but not in Engine DJ, though Engine DJ
+  names a new "Glue" "Glue 2". The user's databases (copies, read only) show why
+  (`vault/research/engine-dj-write-back.md`): a playlist has the same id in C:'s (the computer's) and F:'s databases,
+  Engine DJ's own new ones are in both, GLUE's 5 are in F: only (hidden), and F:'s ids ran on so that id 9047 is the
+  user's "Playlist" in C: and GLUE's "Auto · WONDA" in F:. Also 114 playlists' songs differ (the 2026-10-09 restore is in
+  F: only). **GLUE Home 0.72.3 pauses GLUE's playlist writes into Engine DJ** (the DJ collection's edits and the GLUE
+  folder) until they're written as Engine DJ writes them; cues, grids and song info still sync.
+- **The user:** "Move to music folder" on TO BE SORTED showed old folders. GLUE Home's list is every folder it was ever
+  told of; the menu now shows only the open collection's music folders, by their names.
+
 ## 2026-10-09 · A song that can't go to Engine DJ stays in GLUE's playlist, and says why (GLUE Home 0.72.2)
 - **The user:** a playlist kept in Engine DJ with a song Engine DJ didn't have was made there without the song, and
   then the song was taken out of GLUE's playlist too.

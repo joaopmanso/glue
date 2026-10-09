@@ -159,6 +159,39 @@ pub fn rel_path(library: &std::path::Path, file: &std::path::Path) -> Option<Str
   out.extend(b[common..].iter().cloned());
   Some(out.join("/"))
 }
+/// Two paths on the same drive (or volume).
+pub fn same_drive(a: &std::path::Path, b: &std::path::Path) -> bool {
+  let parts = |p: &std::path::Path| p.to_string_lossy().split(['/', '\\']).filter(|x| !x.is_empty()).map(String::from).collect::<Vec<_>>();
+  drive(&parts(a)) == drive(&parts(b))
+}
+
+/// A new Engine DJ library database at `path` (`…/Engine Library/Database2/m.db`), made as `like` is (its tables,
+/// indexes, views and triggers, its version), with its own id. Engine DJ keeps one per drive with music on it; GLUE
+/// makes one only where a song it adds has none. Its id.
+pub fn create_like(like: &Connection, path: &std::path::Path) -> R<String> {
+  if path.exists() { return Err(format!("{} is there already", path.display())); }
+  std::fs::create_dir_all(path.parent().ok_or("no folder")?).map_err(|x| x.to_string())?;
+  // A version 4 UUID, as Engine DJ's own.
+  let hex: String = like.query_row("SELECT lower(hex(randomblob(16)))", [], |r| r.get(0)).map_err(e)?;
+  let v = |i: usize| &hex[i..];
+  let variant = ["8", "9", "a", "b"][usize::from_str_radix(&hex[16..17], 16).unwrap_or(0) % 4];
+  let uuid = format!("{}-{}-4{}-{}{}-{}", &hex[0..8], &hex[8..12], &v(13)[..3], variant, &v(17)[..3], &hex[20..32]);
+  let mut db = Connection::open(path).map_err(e)?;
+  let schema: Vec<String> = like.prepare("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY CASE type WHEN 'table' THEN 0 WHEN 'index' THEN 1 WHEN 'view' THEN 2 ELSE 3 END, rowid").map_err(e)?
+    .query_map([], |r| r.get(0)).map_err(e)?.collect::<Result<_, _>>().map_err(e)?;
+  let version: i64 = like.query_row("PRAGMA user_version", [], |r| r.get(0)).map_err(e)?;
+  let cols: Vec<String> = like.prepare("PRAGMA table_info(Information)").map_err(e)?.query_map([], |r| r.get::<_, String>(1)).map_err(e)?.collect::<Result<_, _>>().map_err(e)?;
+  let row: Vec<rusqlite::types::Value> = like.query_row(&format!("SELECT {} FROM Information LIMIT 1", cols.join(", ")), [], |r| (0..cols.len()).map(|i| r.get(i)).collect()).map_err(e)?;
+  let tx = db.transaction().map_err(e)?;
+  for sql in &schema { tx.execute_batch(sql).map_err(e)?; }
+  let vals: Vec<rusqlite::types::Value> = cols.iter().zip(row).map(|(c, v)| if c == "uuid" { rusqlite::types::Value::Text(uuid.clone()) } else { v }).collect();
+  let marks: Vec<String> = (1..=cols.len()).map(|i| format!("?{i}")).collect();
+  tx.execute(&format!("INSERT INTO Information ({}) VALUES ({})", cols.join(", "), marks.join(", ")), rusqlite::params_from_iter(vals)).map_err(e)?;
+  tx.execute_batch(&format!("PRAGMA user_version = {version}")).map_err(e)?;
+  tx.commit().map_err(e)?;
+  Ok(uuid)
+}
+
 /// The drive a path's parts are on: Windows its letter ("f:"), macOS its volume ("volumes/f"), else the start disk.
 fn drive(parts: &[String]) -> String {
   match parts {
@@ -177,6 +210,28 @@ mod tests {
     db.execute_batch(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/engine-schema.sql")).unwrap()).unwrap();
     db.execute("INSERT INTO Information (uuid, schemaVersionMajor, schemaVersionMinor, schemaVersionPatch) VALUES (?1, 3, 0, 2)", [uuid]).unwrap();
     db
+  }
+  #[test]
+  fn a_library_made_like_another_takes_songs_as_engine_dj_does() {
+    // 2026-10-09: a song on a drive with no Engine DJ library (C:, the library on F:): one made there, as Engine DJ would.
+    let main = empty("main-uuid");
+    main.execute_batch("PRAGMA user_version = 7").unwrap();
+    let dir = std::env::temp_dir().join(format!("glue-create-like-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = dir.join("Engine Library").join("Database2").join("m.db");
+    let uuid = create_like(&main, &path).unwrap();
+    assert_eq!((uuid.len(), &uuid[14..15]), (36, "4"), "{uuid}");
+    let db = Connection::open(&path).unwrap();
+    let (u, major): (String, i64) = db.query_row("SELECT uuid, schemaVersionMajor FROM Information", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    assert_eq!((u, major), (uuid.clone(), 3), "its own id, the main one's version");
+    assert_eq!(db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 7);
+    let id = add_track(&db, &NewTrack { path: "../Music/a.mp3".into(), ..Default::default() }, 1_790_000_000).unwrap();
+    assert_eq!(db.query_row("SELECT COUNT(*) FROM PerformanceData WHERE trackId = ?1", [id], |r| r.get::<_, i64>(0)).unwrap(), 1, "Engine DJ's triggers came too");
+    assert!(create_like(&main, &path).is_err(), "never over one that's there");
+    drop(db);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(same_drive(std::path::Path::new("F:\\Music\\a.mp3"), std::path::Path::new("f:/Engine Library")));
+    assert!(!same_drive(std::path::Path::new("C:\\Users\\x\\Music"), std::path::Path::new("F:\\Engine Library")));
   }
   fn order(db: &Connection, parent: i64) -> Vec<String> {
     // Siblings in Engine DJ's order: from the one nothing points at.

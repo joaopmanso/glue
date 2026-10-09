@@ -17,7 +17,7 @@ import { menu, SEP, tidy, type MenuAction, type MenuEntry } from './menu.svelte'
 import { phone } from './phone.svelte';
 import { relink } from './relink.svelte';
 import { listTree } from '../core/library/listTree';
-import type { List, Source, SourceList, Track } from '../store/types';
+import { INCOMING_ROOT, type List, type Source, type SourceList, type Track } from '../store/types';
 import { djEntries } from '../core/library/djEntries';
 
 /** The DJ app's own playlists GLUE can change (ADR 0179), as a picker: its main Engine DJ library kept in step. */
@@ -205,13 +205,21 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     ...homes.map(h => ({ label: 'Send to ' + h.name, title: 'Copy ' + (one ? 'its file' : 'their files') + ' into ' + h.name + '’s incoming folder', attrs: { 'data-send-home': h.id }, run: () => void sendTracks(h.id, ids) })),
     sortable && {
       label: 'Move to music folder', attrs: { 'data-m': 'move' },
-      sub: async () => (await incoming.folders(sortHome!)).map(f => ({
-        label: f.name, detail: f.collection, hint: f.collection,
-        run: () => void incoming.move(ids, f.id).then(({ moved, elsewhere }) => {
-          view.selected = new Set();
-          lib.notice = 'Moved ' + plural(moved, 'song') + '.' + (elsewhere ? ' GLUE on that computer adds ' + (elsewhere === 1 ? 'it' : 'them') + ' to the library on its next scan of the folder.' : '');
-        }, e => (lib.notice = (e as Error).message)),
-      })),
+      // Only this collection's music folders (on any of its computers): GLUE Home knows every folder it was ever told
+      // of, other collections' and removed ones too (2026-10-09).
+      sub: async () => {
+        const mine = new Map<string, string>();
+        for (const r of [...s.meta.roots, ...Object.values(s.shared?.here.rootsBy ?? {}).flat()]) if (r.id !== INCOMING_ROOT) mine.set(r.id, r.name);
+        const found = (await incoming.folders(sortHome!)).filter(f => mine.has(f.id));
+        if (!found.length) return [{ label: 'No music folder of this collection there', disabled: true }];
+        return found.map(f => ({
+          label: mine.get(f.id) || f.name, detail: f.collection, hint: f.collection, attrs: { 'data-move-folder': f.id },
+          run: () => void incoming.move(ids, f.id).then(({ moved, elsewhere }) => {
+            view.selected = new Set();
+            lib.notice = 'Moved ' + plural(moved, 'song') + '.' + (elsewhere ? ' GLUE on that computer adds ' + (elsewhere === 1 ? 'it' : 'them') + ' to the library on its next scan of the folder.' : '');
+          }, e => (lib.notice = (e as Error).message)),
+        }));
+      },
     },
     {
       label: 'Copy', attrs: { 'data-m': 'copy' },
