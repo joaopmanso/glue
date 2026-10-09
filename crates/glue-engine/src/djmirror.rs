@@ -58,6 +58,18 @@ pub fn kept_lists(lists: &indexmap::IndexMap<String, Value>, app: &str) -> (Hash
   (scope, all)
 }
 
+/// GLUE's list as merged, with the songs that couldn't go to Engine DJ (`missed`) kept where they were: each after the
+/// song before it in GLUE's list that's still there (else first).
+fn keep_unsent(original: &[String], merged: Vec<String>, missed: &HashMap<String, String>) -> Vec<String> {
+  let mut out = merged;
+  for (i, t) in original.iter().enumerate() {
+    if !missed.contains_key(t) || out.contains(t) { continue; }
+    let at = original[..i].iter().rev().find_map(|p| out.iter().position(|x| x == p)).map_or(0, |k| k + 1);
+    out.insert(at, t.clone());
+  }
+  out
+}
+
 /// A name without the " (2)" Engine DJ adds to one already there among its siblings (as often as it was added).
 fn base_name(name: &str) -> &str {
   let mut n = name.trim_end();
@@ -149,7 +161,7 @@ impl<H: Host> Engine<H> {
     let mut base = kept["mirrorBase"].as_object().cloned().unwrap_or_default();
     let mut questions: Vec<Value> = kept["questions"].as_array().cloned().unwrap_or_default();
     let decided = kept["decided"].as_object().cloned().unwrap_or_default();
-    let mut songs = Songs { ext_of: &ext_of, tracks: &tracks, added: HashMap::new(), dbs, lib: db_path, cfg: self.host.config(), at, now: self.host.now().0 / 1000 };
+    let mut songs = Songs::new(&ext_of, &tracks, dbs, db_path, self.host.config(), at, self.host.now().0 / 1000);
     let mut glue_edits: Vec<Value> = vec![];
     let mut glue_new: Vec<Value> = vec![];
     let depth = |id: &str| { let mut d = 0; let mut cur = lists.get(id).and_then(parent_id).map(String::from); while let Some(x) = cur { d += 1; if d > lists.len() { break; } cur = lists.get(&x).and_then(parent_id).map(String::from); } d };
@@ -218,7 +230,9 @@ impl<H: Host> Engine<H> {
       let mut changed = false;
       if name != text(l, "name") { u["name"] = json!(name); changed = true; }
       if in_scope {
-        let glue_items: Vec<Value> = items.iter().filter_map(|x| track_of.get(x).cloned().or_else(|| songs.added.iter().find(|(_, v)| *v == x).map(|(k, _)| k.clone()))).map(|t| json!(t)).collect();
+        let merged: Vec<String> = items.iter().filter_map(|x| track_of.get(x).cloned().or_else(|| songs.added.iter().find(|(_, v)| *v == x).map(|(k, _)| k.clone()))).collect();
+        // The songs that couldn't go to Engine DJ stay in GLUE's, where they were (2026-10-09: one was taken out).
+        let glue_items: Vec<Value> = keep_unsent(&items_of(l), merged, &songs.missed).into_iter().map(|t| json!(t)).collect();
         if glue_items != l["items"].as_array().cloned().unwrap_or_default() { u["items"] = Value::Array(glue_items); changed = true; }
       }
       if parent != g_parent {
@@ -318,6 +332,25 @@ impl<H: Host> Engine<H> {
       }
     }
     tx.commit().map_err(|e| e.to_string())?;
+    // The songs that couldn't go, by GLUE list, and why: shown by the list in GLUE, and said once when they change.
+    {
+      let mut unsent = serde_json::Map::new();
+      for id in &scope {
+        let Some(l) = lists.get(id) else { continue };
+        let songs_out: Vec<String> = items_of(l).into_iter().filter(|t| songs.missed.contains_key(t)).collect();
+        if songs_out.is_empty() { continue; }
+        let mut why: Vec<String> = songs_out.iter().filter_map(|t| songs.missed.get(t).cloned()).collect(); why.sort(); why.dedup();
+        unsent.insert(id.clone(), json!({ "songs": songs_out, "why": why }));
+      }
+      if kept["unsent"] != Value::Object(unsent.clone()) {
+        for (id, u) in &unsent {
+          if kept["unsent"].get(id) == Some(u) { continue; }
+          let n = u["songs"].as_array().map_or(0, Vec::len);
+          self.event(&format!("Engine DJ: {n} song{} of “{}” couldn’t go to its GLUE folder: {}", if n == 1 { "" } else { "s" }, text(&lists[id], "name"), u["why"].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>().join("; ")));
+        }
+        kept["unsent"] = Value::Object(unsent);
+      }
+    }
     // Which is which, kept before GLUE's side is saved (one that fails mustn't lose it: Engine DJ's are written).
     let answered: Vec<String> = decided.keys().filter(|k| !questions.iter().any(|q| text(q, "ext") == **k)).cloned().collect();
     if let Some(d) = kept["decided"].as_object_mut() { for k in answered { d.remove(&k); } }
@@ -392,6 +425,14 @@ mod tests {
     let mut a: Vec<&String> = all.iter().collect(); a.sort();
     assert_eq!(s, ["fri", "gigs", "in"]);
     assert_eq!(a, ["fri", "gigs", "in", "sets"], "Sets as the folder Friday is in; an import never");
+  }
+  #[test]
+  fn songs_that_couldnt_go_stay_where_they_were() {
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let missed: HashMap<String, String> = HashMap::from([("b".into(), "why".into()), ("e".into(), "why".into())]);
+    assert_eq!(keep_unsent(&s(&["a", "b", "c", "d", "e"]), s(&["a", "c", "d"]), &missed), s(&["a", "b", "c", "d", "e"]));
+    assert_eq!(keep_unsent(&s(&["b", "a"]), s(&["a"]), &missed), s(&["b", "a"]), "first, when nothing's before it");
+    assert_eq!(keep_unsent(&s(&["a", "b", "c"]), s(&["c", "a"]), &missed), s(&["c", "a", "b"]), "after the one before it, wherever that went");
   }
   #[test]
   fn engine_djs_added_numbers_come_off() {

@@ -5,6 +5,16 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · A song that can't go to Engine DJ stays in GLUE's playlist, and says why (GLUE Home 0.72.2)
+- **The user:** a playlist kept in Engine DJ with a song Engine DJ didn't have was made there without the song, and
+  then the song was taken out of GLUE's playlist too.
+- **Why:** a song GLUE Home can't add to Engine DJ's collection (its file isn't on this computer, it's another
+  computer's, its drive has no Engine DJ library…) was left out without a word; the next sync took Engine DJ's list
+  (without it) as a change and wrote it into GLUE's.
+- **Now:** such a song stays in GLUE's playlist where it was, the reason is kept by list (`djUnsent`), shown as a **!**
+  by the playlist's Engine DJ icon and a line in its view, and said in GLUE Home's activity. A song already taken out
+  needs adding again.
+
 ## 2026-10-09 · One DJ sync at a time; 0.72's copies put right (GLUE Home 0.72.1)
 - **The user:** keeping a GLUE playlist in Engine DJ "just started creating multiple copies of it on both glue and
   engine dj".

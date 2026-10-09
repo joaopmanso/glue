@@ -561,6 +561,7 @@ impl<H: Host> Engine<H> {
       "djSyncNow" => self.dj_sync_collection(&p, &c, true).map(|r| json!({ "written": r.written, "taken": r.taken, "clashes": r.clashes, "waiting": r.waiting, "lists": r.lists, "questions": r.questions, "relinked": r.relinked })),
       // Its playlists (ADR 0171): the ones gone from one side, asked about, and an answer.
       "djQuestions" => Ok(self.dj_questions(&p, &c)),
+      "djUnsent" => Ok(self.dj_unsent(&p, &c)),
       "djListResolve" => self.dj_list_resolve(&p, &c, &text(b, "ext"), b["delete"].as_bool().unwrap_or(false)),
       "djRefresh" => self.dj_refresh(&p, &c, &text(b, "id")),
       // Engine DJ's own playlists edited in the DJ collection (ADR 0179).

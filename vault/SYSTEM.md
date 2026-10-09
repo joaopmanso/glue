@@ -235,6 +235,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     once (`dj_keep`), before anything else can fail. Two at once made GLUE's playlist again and again (2026-10-09);
     0.72.1 puts that right once (`dj_mirror_repair`: the GLUE folders 0.72 made emptied, GLUE's copies into the bin,
     backups first, `mirrorFixed`).
+  - **A song that can't go to Engine DJ** (0.72.2): `Songs::song` says why (`missed`: not here, another computer's,
+    no Engine DJ library on its drive…); the GLUE folder's merge keeps it in GLUE's list where it was (`keep_unsent`),
+    and GLUE Home keeps the reasons by list (`unsent`, `djUnsent`): a **!** by the list's icon and a line in its view;
+    the activity says it when it changes. An edit of Engine DJ's own playlists says it in the activity.
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     The other device's player gets the bytes as they arrive (ADR 0174): the streaming service worker answers a range
     as a stream, the page fetching it in pieces (256 KB, then 2 MB) when the player has room; the song's start (a new

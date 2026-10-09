@@ -28,3 +28,4 @@ With your main Engine DJ library kept in step (see [DJ libraries](#/help/dj-libr
 - **Stop keeping it in Engine DJ** takes it out of the GLUE folder; it stays here.
 - A playlist deleted on one side is asked about in the sidebar, under the library.
 - GLUE Home writes into Engine DJ only while it's closed, after a backup.
+- A song Engine DJ doesn't have is added to its collection. One that can't be (its file isn't on this computer, or its drive has no Engine DJ library yet) stays in GLUE's playlist: a **!** by the Engine DJ icon, and the playlist says why.

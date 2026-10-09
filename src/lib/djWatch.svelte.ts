@@ -13,7 +13,7 @@
 import { lib } from './library.svelte';
 import * as platform from '../platform';
 import { syncSource } from './importActions';
-import { engineClient, type DjClash, type DjQuestion } from './engine.svelte';
+import { engineClient, type DjClash, type DjQuestion, type DjUnsent } from './engine.svelte';
 import type { Source, SourceOrigin } from '../store/types';
 
 const EVERY = 5000, AT_MOST = 10_000;
@@ -62,6 +62,8 @@ class DjWatch {
   clashes = $state<Record<string, DjClash[]>>({});
   /** Its playlists gone from one side, asked about (ADR 0171). */
   questions = $state<DjQuestion[]>([]);
+  /** GLUE's playlists kept in Engine DJ with songs that couldn't go there, and why, by list (ADR 0180). */
+  unsent = $state<Record<string, DjUnsent>>({});
 
   start() {
     if (this.timer) return;
@@ -107,9 +109,10 @@ class DjWatch {
   }
 
   async loadClashes() {
-    const [c, q] = await Promise.all([engineClient.djClashes().catch(() => null), engineClient.djQuestions().catch(() => null)]);
+    const [c, q, u] = await Promise.all([engineClient.djClashes().catch(() => null), engineClient.djQuestions().catch(() => null), engineClient.djUnsent().catch(() => null)]);
     if (c && JSON.stringify(c) !== JSON.stringify(this.clashes)) this.clashes = c;
     if (q && JSON.stringify(q) !== JSON.stringify(this.questions)) this.questions = q;
+    if (u && JSON.stringify(u) !== JSON.stringify(this.unsent)) this.unsent = u;
   }
   /** A playlist's question answered (ADR 0171). */
   async answer(q: DjQuestion, del: boolean) {

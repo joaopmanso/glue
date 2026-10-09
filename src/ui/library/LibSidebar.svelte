@@ -493,7 +493,7 @@
           onkeydown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') view.editing = null; }}>
       {:else}
         <button type="button" class="name" title={l.name} onclick={e => nameClick(e, l)} ondblclick={() => { clearTimeout(slow); view.editing = l.id; }}>
-          <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', following it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}{#if !l.origin && lib.engineKept()}{@const by = lib.keptBy(l.id, 'engine')}{#if by}<span class="kept" class:own={by.id === l.id} data-kept="engine" title={by.id === l.id ? 'Kept in Engine DJ, in its GLUE folder (both ways)' : 'Kept in Engine DJ with “' + by.name + '”'}><AppIcon app="engine" size={13} /></span>{/if}{/if}
+          <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', following it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}{#if !l.origin && lib.engineKept()}{@const by = lib.keptBy(l.id, 'engine')}{#if by}{@const out = djWatch.unsent[l.id]}<span class="kept" class:own={by.id === l.id} class:out={!!out} data-kept="engine" data-unsent={out ? out.songs.length : undefined} title={(by.id === l.id ? 'Kept in Engine DJ, in its GLUE folder (both ways)' : 'Kept in Engine DJ with “' + by.name + '”') + (out ? '. ' + out.songs.length + ' song' + (out.songs.length === 1 ? '' : 's') + ' couldn’t go there: ' + out.why.join('; ') : '')}><AppIcon app="engine" size={13} />{#if out}<b>!</b>{/if}</span>{/if}{/if}
         </button>
         {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>{/if}
         <span class="tools" class:open={menued('l:' + l.id)}>
@@ -787,6 +787,8 @@
   .imp { color: var(--muted); font-size: 11px; margin-left: 4px; display: inline-flex; align-items: center; flex: none; }
   .kept { margin-left: 4px; display: inline-flex; align-items: center; flex: none; opacity: .45; }
   .kept.own { opacity: 1; }
+  .kept.out { opacity: 1; }
+  .kept b { color: var(--warn, #e0a030); font-size: 11px; margin-left: 1px; }
   .n { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; flex: none; }
   .twist { width: 16px; flex: none; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; font-size: 11px; text-align: center; }
   .tools { display: none; gap: 2px; flex: none; }

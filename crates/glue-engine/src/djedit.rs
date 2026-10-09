@@ -185,7 +185,7 @@ impl<H: Host> Engine<H> {
     let mut db = Connection::open(db_path).map_err(|e| format!("{}: {e}", db_path.display()))?;
     let own: String = db.query_row("SELECT uuid FROM Information LIMIT 1", [], |r| r.get(0)).map_err(|e| e.to_string())?;
     if backed.insert(own.clone()) { self.dj_backup(&own, db_path, at)?; }
-    let mut songs = Songs { ext_of: &ext_of, tracks: &tracks, added: HashMap::new(), dbs, lib: db_path, cfg: self.host.config(), at, now: self.host.now().0 / 1000 };
+    let mut songs = Songs::new(&ext_of, &tracks, dbs, db_path, self.host.config(), at, self.host.now().0 / 1000);
     let mut ids: HashMap<String, i64> = kept["made"].as_object().map(|m| m.iter().filter_map(|(k, v)| Some((k.clone(), v.as_i64()?))).collect()).unwrap_or_default();
     let mut done = 0;
     let mut tx = db.transaction().map_err(|e| e.to_string())?;
@@ -199,6 +199,12 @@ impl<H: Host> Engine<H> {
     }
     tx.commit().map_err(|e| e.to_string())?;
     kept["opsDone"] = json!(ops.len());
+    // Songs that couldn't go, and why.
+    if !songs.missed.is_empty() {
+      let mut why: Vec<&String> = songs.missed.values().collect(); why.sort(); why.dedup();
+      let n = songs.missed.len();
+      self.event(&format!("Engine DJ: {n} song{} couldn’t be added to its playlists: {}", if n == 1 { "" } else { "s" }, why.iter().map(|s| s.as_str()).collect::<Vec<_>>().join("; ")));
+    }
     // The new ones by Engine DJ's id: remembered, and in the tree now.
     if !kept["made"].is_object() { kept["made"] = json!({}); }
     let fresh: HashMap<String, String> = ids.iter().filter(|(k, _)| k.starts_with("n:") && kept["made"].get(k.as_str()).is_none()).map(|(k, v)| (k.clone(), v.to_string())).collect();

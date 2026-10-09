@@ -1,6 +1,7 @@
 <script lang="ts">
   import { lib } from '../../lib/library.svelte';
   import NeedsMusic from '../events/NeedsMusic.svelte';
+  import { djWatch } from '../../lib/djWatch.svelte';
   import Opening from './Opening.svelte';
   import BrowseView from './BrowseView.svelte';
   import { facetInfo } from '../../core/library/browse';
@@ -228,6 +229,11 @@
     <!-- Songs whose music folder was removed before removing a folder took its songs (ADR 0111): asked once. -->
     <div class="notice warn" id="orphans"><span>{orphanList.length.toLocaleString()} song{orphanList.length === 1 ? '' : 's'} here {orphanList.length === 1 ? 'has' : 'have'} no file: {orphanList.length === 1 ? 'its' : 'their'} music folder was removed from this collection ({describeRemoval(removalImpact(orphanList, lib.store?.lists.values() ?? []))}). Remove {orphanList.length === 1 ? 'it' : 'them'} too? A backup is made first.</span>
       <span class="acts"><button type="button" class="btn" id="orphans-remove" disabled={removingOrphans} onclick={removeOrphans}>{removingOrphans ? 'Removing…' : 'Remove them'}</button><button type="button" class="mini" id="orphans-keep" onclick={keepOrphans}>Keep</button></span></div>
+  {/if}
+  {#if current && djWatch.unsent[current.id]}
+    {@const out = djWatch.unsent[current.id]}
+    <!-- Songs of a playlist kept in Engine DJ that couldn't go there (ADR 0180): they stay here, and why. -->
+    <div class="notice warn" id="dj-unsent">{out.songs.length} song{out.songs.length === 1 ? '' : 's'} of this playlist {out.songs.length === 1 ? 'isn’t' : 'aren’t'} in Engine DJ: {out.why.join('; ')}. {out.songs.length === 1 ? 'It stays' : 'They stay'} here.</div>
   {/if}
   {#if lib.readOnly}
     <div class="notice warn">GLUE is open in another tab, so this one is read-only. Close the other tab and reload to make changes here.</div>

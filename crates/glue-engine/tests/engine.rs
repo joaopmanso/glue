@@ -933,3 +933,29 @@ fn copies_0_72_made_are_put_right_once() {
   e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
   assert!(engine_lists(&db).iter().any(|l| l.title == "Made in Engine DJ"));
 }
+
+#[test]
+fn a_song_that_cant_go_to_engine_dj_stays_in_glues_playlist_and_says_why() {
+  // 2026-10-09: a song Engine DJ couldn't take was left out of its playlist, then taken out of GLUE's too.
+  let (e, db, _, _, _) = mirrored("djunsent");
+  {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    let mut t = st.tracks["s1one"].clone();
+    t["id"] = json!("s1gone"); t["relPath"] = json!("gone.mp3"); t["fileName"] = json!("gone.mp3");
+    st.put_track(t);
+    let mut mix = st.lists["mix"].clone();
+    mix["items"] = json!(["s1one", "s1gone", "s1two"]);
+    st.put_list(mix);
+    st.flush().unwrap();
+  }
+  let sync = || e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  sync(); sync();
+  let mix = { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.lists["mix"].clone() };
+  assert_eq!(mix["items"], json!(["s1one", "s1gone", "s1two"]), "GLUE's keeps it, where it was");
+  let eng = engine_lists(&db).into_iter().find(|l| l.title == "Mix").unwrap();
+  assert_eq!(eng.items.len(), 2, "Engine DJ has the two it could take");
+  let u = e.rpc(&json!({ "op": "djUnsent", "p": "p1", "c": "c1" })).unwrap();
+  assert_eq!(u["mix"]["songs"], json!(["s1gone"]));
+  assert!(u["mix"]["why"][0].as_str().unwrap().starts_with("its file isn’t there"), "{u}");
+}

@@ -22,6 +22,8 @@ import type { ImportReport } from '../store/merge';
 /** A clash of the two-way sync (ADR 0170): what ("hot 2", "loop 0", "grid") and each side's. */
 /** A playlist gone from one side of the two-way sync (ADR 0171): its Engine DJ id and name, and where it went. */
 export interface DjQuestion { ext: string; name: string; deletedIn: 'glue' | 'app' }
+/** A GLUE playlist's songs that couldn't go to Engine DJ's GLUE folder, and why (2026-10-09). */
+export interface DjUnsent { songs: string[]; why: string[] }
 export interface DjClash { what: string; glue: { t?: number; a?: number; b?: number; name?: string; bpm?: number } | null; app: { t?: number; a?: number; b?: number; name?: string; bpm?: number } | null }
 
 interface EngineState { rev: number; jobs: { kind: string; left: number; total: number }[]; analysis: { paused: boolean; running: number; current: string[]; left: number; done: number; failed: number; waiting: number } }
@@ -217,6 +219,11 @@ class EngineClient {
   async djQuestions(): Promise<DjQuestion[]> {
     const w = this.where();
     return w ? this.rpc<DjQuestion[]>({ op: 'djQuestions', ...w }, 10_000) : [];
+  }
+  /** GLUE's playlists kept in Engine DJ with songs that couldn't go there, and why (ADR 0180), by list. */
+  async djUnsent(): Promise<Record<string, DjUnsent>> {
+    const w = this.where();
+    return w ? this.rpc<Record<string, DjUnsent>>({ op: 'djUnsent', ...w }, 10_000) : {};
   }
   /** A playlist's question answered: deleted on the other side too, or kept (made again where it went). */
   async djListResolve(ext: string, del: boolean): Promise<{ written: number; waiting: boolean }> {
