@@ -539,6 +539,63 @@ fn engine_library(dir: &std::path::Path) -> std::path::PathBuf {
 fn engine_lists(db: &std::path::Path) -> Vec<glue_interop::enginedb::EList> { glue_interop::enginedb::read_lists(&rusqlite::Connection::open(db).unwrap(), "lib-uuid").unwrap() }
 
 #[test]
+fn engine_djs_playlists_are_taken_out_of_glues_once_and_an_import_stays() {
+  // 2026-10-09: 0.68–0.70 brought every Engine DJ playlist into GLUE's playlists when the sync was turned on, and the
+  // folder back when it was deleted. Now they stay in its DJ collection; a copy is the user's import (ADR 0178).
+  let (glue, libs) = (temp("djout"), temp("djout-libs"));
+  let db = engine_library(&libs);
+  std::fs::create_dir_all(libs.join("Music")).unwrap();
+  for f in ["one.mp3", "two.mp3"] { std::fs::write(libs.join("Music").join(f), b"song").unwrap(); }
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Music" }] }));
+  let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
+  put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3") } }));
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() } });
+  let e = Engine::new(glue.clone(), temp("djout-cache"), h.clone());
+  let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
+  let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
+  let lists = || -> Vec<Value> { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.lists.values().cloned().collect() };
+  let before = engine_lists(&db);
+  // As 0.70 left it: kept in step, every playlist in GLUE's Engine DJ folder, one of the user's own in there.
+  {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    glue_interop::merge::set_main_source(&mut st, Some(&sid));
+    glue_interop::merge::set_source_sync(&mut st, &sid, true);
+    let src = st.sources[&sid].clone();
+    glue_interop::linked::import_lists(&mut st, &src, &[String::new()]);
+    let top = st.lists.values().find(|l| l["origin"]["sourceId"] == sid.as_str() && l["origin"]["externalId"] == "").unwrap()["id"].clone();
+    st.put_list(json!({ "schemaVersion": 1, "id": "mine", "kind": "playlist", "name": "Mine", "parentId": top, "position": 9, "notes": "", "items": ["s1one"], "origin": null }));
+    st.flush().unwrap();
+  }
+  assert!(lists().iter().filter(|l| l["origin"]["sourceId"] == sid.as_str()).count() > 3);
+  let sync = || e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  sync();
+  let now = lists();
+  assert_eq!(now.iter().filter(|l| l["origin"]["sourceId"] == sid.as_str()).count(), 0, "no copies left");
+  let mine = now.iter().find(|l| l["name"] == "Mine").expect("the user's own playlist kept");
+  assert_eq!(mine["parentId"], Value::Null, "moved to the top");
+  assert!(std::fs::read_dir(glue.join("backups")).unwrap().any(|f| f.unwrap().file_name().to_string_lossy().starts_with("pre-engine-playlists-")), "a backup first");
+  assert!(std::fs::read_dir(glue.join("bin/p1/c1")).unwrap().count() > 0, "the copies in Recently deleted");
+  let titles = |ls: &[glue_interop::enginedb::EList]| { let mut t: Vec<(String, usize)> = ls.iter().map(|l| (l.title.clone(), l.items.len())).collect(); t.sort(); t };
+  assert_eq!(titles(&engine_lists(&db)), titles(&before), "Engine DJ untouched");
+  // Imported again by the user (Friday): an import, kept, and following the library.
+  {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    let src = st.sources[&sid].clone();
+    let fri = src["tree"].as_array().unwrap().iter().find(|l| l["name"] == "Friday").unwrap()["externalId"].as_str().unwrap().to_string();
+    glue_interop::linked::import_lists(&mut st, &src, &[fri]);
+    st.flush().unwrap();
+  }
+  sync();
+  assert!(lists().iter().any(|l| l["name"] == "Friday" && l["origin"]["sourceId"] == sid.as_str()), "the import stays");
+}
+
+#[test]
+#[ignore = "ADR 0178: the playlists' sync comes back as Engine DJ's GLUE folder (its next step)"]
 fn the_main_dj_librarys_playlists_are_kept_in_step_both_ways() {
   let (glue, libs) = (temp("djlists"), temp("djlists-libs"));
   let db = engine_library(&libs);
@@ -619,7 +676,7 @@ fn the_main_dj_librarys_playlists_are_kept_in_step_both_ways() {
 }
 
 #[test]
-fn songs_the_clean_up_took_point_at_the_copy_kept_and_the_order_is_kept_in_step() {
+fn songs_the_clean_up_took_point_at_the_copy_kept() {
   let (glue, libs) = (temp("djrelink"), temp("djrelink-libs"));
   let db = engine_library(&libs);
   // Two songs whose files the duplicates' clean-up moved aside (ADR 0070): one's kept copy Engine DJ has (one.mp3),
@@ -657,8 +714,6 @@ fn songs_the_clean_up_took_point_at_the_copy_kept_and_the_order_is_kept_in_step(
     st.absorb_tracks(&into);
     glue_interop::merge::set_main_source(&mut st, Some(&sid));
     glue_interop::merge::set_source_sync(&mut st, &sid, true);
-    let src = st.sources[&sid].clone();
-    glue_interop::linked::import_lists(&mut st, &src, &[String::new()]);
     st.flush().unwrap();
   }
   let sync = || e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
@@ -673,38 +728,10 @@ fn songs_the_clean_up_took_point_at_the_copy_kept_and_the_order_is_kept_in_step(
   assert!(warm.items.contains(&format!("lib-uuid/{one}")) && !warm.items.contains(&format!("lib-uuid/{gone1}")), "the song kept took its entry: {:?}", warm.items);
   assert!(warm.items.contains(&format!("lib-uuid/{gone3}")));
   drop(c);
-  // The order: Sets then Warm in both. Reordered in GLUE: Warm first, in Engine DJ too.
-  let top_order = || { let c = rusqlite::Connection::open(&db).unwrap(); let l = glue_interop::enginedb::read_lists(&c, "lib-uuid").unwrap(); glue_interop::enginedb::order_of(&l, 0).iter().map(|id| l.iter().find(|x| x.id == *id).unwrap().title.clone()).collect::<Vec<_>>() };
-  assert_eq!(top_order(), ["Sets", "Warm"]);
-  let glue_list = |name: &str| -> Value { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.lists.values().find(|l| l["name"] == name).cloned().unwrap() };
-  let edit = |l: Value| { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); st.put_list(l); st.flush().unwrap(); };
-  let (mut sets, mut warm) = (glue_list("Sets"), glue_list("Warm"));
-  sets["position"] = json!(1); warm["position"] = json!(0);
-  edit(sets); edit(warm);
-  sync();
-  assert_eq!(top_order(), ["Warm", "Sets"]);
-  // A new playlist put between them in GLUE: there in Engine DJ too, not last.
-  let top = glue_list("Engine DJ");
-  let mut sets = glue_list("Sets");
-  sets["position"] = json!(2);
-  edit(sets);
-  edit(json!({ "schemaVersion": 1, "id": "mid", "kind": "playlist", "name": "Middle", "parentId": top["id"], "position": 1, "notes": "", "items": ["s1two"], "origin": null }));
-  sync();
-  assert_eq!(top_order(), ["Warm", "Middle", "Sets"]);
-  // Reordered in Engine DJ: GLUE follows.
-  {
-    let c = rusqlite::Connection::open(&db).unwrap();
-    let l = glue_interop::enginedb::read_lists(&c, "lib-uuid").unwrap();
-    let mut o = glue_interop::enginedb::order_of(&l, 0);
-    o.reverse();
-    glue_interop::enginedb::set_order(&c, 0, &o).unwrap();
-  }
-  sync();
-  let pos = |n: &str| glue_list(n)["position"].as_f64().unwrap();
-  assert!(pos("Sets") < pos("Middle") && pos("Middle") < pos("Warm"), "{} {} {}", pos("Sets"), pos("Middle"), pos("Warm"));
 }
 
 #[test]
+#[ignore = "ADR 0178: the playlists' sync comes back as Engine DJ's GLUE folder (its next step)"]
 fn songs_of_a_database_glue_hasnt_read_stay_in_engine_djs_playlists() {
   // 2026-10-09: Engine DJ's playlists hold songs of every drive the user ever plugged in; GLUE reads only the ones
   // there now. Its playlist sync took the others for songs GLUE removed and deleted them (ADR 0173).

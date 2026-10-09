@@ -210,15 +210,14 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     analyser aren't running (`Host::apps_running`), after a copy (`dj-backups/`, one a database each time Engine DJ has
     been closed, the last 3 kept, ADR 0173), and takes Engine DJ's changes into
     `prep` as its own edit; clashes are settled in Prepare (`djClashes`, `djResolve`).
-  - **And its playlists** (0.68, ADR 0171; `djlists.rs`, `glue_interop::enginedb`): the ones in GLUE's folder of the
-    library, merged three ways (names and places, songs) in the database the library is read from, new ones made
-    there (songs it lacks added to the collection of their drive's database), one gone from a side asked about in the
-    sidebar (`djQuestions`, `djListResolve`); the website's removal of a gone list's copy (ADR 0090) is off for it.
-    Also (0.69, ADR 0172) the order of playlists among siblings, merged the same way (the website's re-sort is off for
-    it), and Engine DJ's songs whose file the duplicates' clean-up took pointed at the copy kept (`dj_relink`).
-    Only the entries GLUE knows are merged (0.70, ADR 0173): another drive's songs (a database it hasn't read) and
-    playlists it has no copy of stay where they are (`glue_interop::sync::splice`). A damaged library's entries are put
-    back by hand with `crates/glue-interop/examples/restore_lists.rs`.
+  - **Its playlists stay in its DJ collection** (0.71, ADR 0178): GLUE's copies are imports, following the library one
+    way (`syncLinkedLists`, the gone-list removal and the library's order as for any library). 0.68–0.70 kept every
+    playlist in GLUE's folder of the library in step both ways (ADR 0171–0173); 0.71 takes those copies out once
+    (`djlists.rs` `dj_clear_copies`: a backup, the bin, `listsOut` in the cache) and doesn't merge playlists. Its
+    three-way merge (`dj_sync_lists`, `glue_interop::enginedb`, `glue_interop::sync::splice`) is parked for the next
+    step: GLUE's own playlists mirrored in the app's "GLUE" folder. Engine DJ's songs whose file the duplicates'
+    clean-up took are still pointed at the copy kept (`dj_relink`, ADR 0172). A damaged library's entries are put back
+    by hand with `crates/glue-interop/examples/restore_lists.rs` (ADR 0173).
   - streaming to other devices over WebRTC, signaled through GLUE Cloud (ICE servers: `src/core/ice.ts`, asked with each one's credential; the site's `remoteFiles.svelte.ts`).
     The other device's player gets the bytes as they arrive (ADR 0174): the streaming service worker answers a range
     as a stream, the page fetching it in pieces (256 KB, then 2 MB) when the player has room; the song's start (a new

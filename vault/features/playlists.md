@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-10-09
-adrs: [0009, 0022, 0079, 0171, 0172, 0173]
+adrs: [0009, 0022, 0079, 0171, 0172, 0173, 0178]
 ---
 # Playlists, folders & smart lists
 
@@ -139,3 +139,10 @@ in the sidebar. Since 0.69 ([ADR 0172](../adr/0172-engine-dj-order-and-songs-kep
 their siblings follows both ways too, and songs whose file the duplicates' clean-up took point at the copy kept. Since
 0.70 ([ADR 0173](../adr/0173-engine-dj-what-glue-cant-see-stays.md)) songs of drives GLUE hasn't read (not plugged in)
 stay in Engine DJ's playlists where they are: 0.68–0.69 removed them.
+
+## Engine DJ's playlists back in its DJ collection (2026-10-09, [ADR 0178](../adr/0178-dj-playlists-stay-in-the-dj-collection.md))
+The user: all of Engine DJ's playlists had come under Playlists with the sync, and a deleted one came back. Now (GLUE
+Home 0.71) a DJ app's playlists stay in its DJ collection; an imported copy follows it one way, and deleting it only
+takes GLUE's copy away. GLUE Home took every Engine DJ copy out once (a backup first, into Recently deleted), the
+user's choice. Next: editing Engine DJ's playlists, their songs and the songs' info in the DJ collection; then GLUE's
+own playlists in Engine DJ's "GLUE" folder, both ways, with the app's icon by each one synced.

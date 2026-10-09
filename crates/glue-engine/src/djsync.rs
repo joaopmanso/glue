@@ -76,6 +76,8 @@ impl<H: Host> Engine<H> {
       (src, songs)
     };
     let sid = text(&src, "id");
+    // The copies of its playlists 0.68–0.70 brought into GLUE's playlists, gone once (ADR 0178).
+    if let Err(x) = self.dj_clear_copies(p, c, &sid) { eprintln!("GLUE Home: couldn’t take Engine DJ’s playlists out of GLUE’s: {x}"); }
     // Engine DJ open: GLUE's changes wait for it to close.
     if self.host.apps_running(&ENGINE_APPS) { let mut w = self.dj.lock().unwrap(); w.syncing.insert(sid, "waiting"); w.backed.clear(); return Ok(Synced { waiting: true, ..Default::default() }); }
     let cfg = self.host.config();
@@ -142,25 +144,15 @@ impl<H: Host> Engine<H> {
         done.written += writes.len();
       }
     }
-    // The playlists (ADR 0171), in the database the library is read from.
+    // Songs pointed at the copy the duplicates' clean-up kept (ADR 0172), in the database the library is read from. Its
+    // playlists aren't GLUE's own any more (ADR 0178): they stay in its DJ collection, a copy is an import.
     let lib_db = self.dj_place(&text(&src["origin"], "place"), &cfg).map(|mut p| { for part in text(&src["origin"], "relPath").split('/').filter(|x| !x.is_empty()) { p.push(part); } p });
     if let Some(lib_db) = lib_db.filter(|p| p.is_file()) {
       if busy(&lib_db) { done.waiting = true; }
       else {
-        // Songs whose file the duplicates' clean-up took, pointed at the copy kept (ADR 0172), before the playlists.
-        let remap = match self.dj_relink(p, c, &src, &lib_db, &dbs, &at, &mut backed) {
-          Ok((n, remap)) => { if n > 0 { done.relinked = n; self.event(&format!("Engine DJ: {n} song{} pointed at the copy GLUE kept", if n == 1 { "" } else { "s" })); } remap }
-          Err(x) => { eprintln!("GLUE Home: couldn’t point Engine DJ’s songs at the copies kept: {x}"); HashMap::new() }
-        };
-        match self.dj_sync_lists(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed, &remap) {
-          Ok(l) => {
-            done.lists = l.written + l.taken;
-            done.questions = l.questions;
-            if l.written > 0 { self.event(&format!("Engine DJ: GLUE’s playlist changes written ({})", l.written)); }
-            if l.taken > 0 { self.event(&format!("Engine DJ’s playlist changes taken into GLUE ({})", l.taken)); }
-          }
-          // (Rolled back: nothing of the playlists written; the cues' sync carries on.)
-          Err(x) => { eprintln!("GLUE Home: couldn’t keep Engine DJ’s playlists in step: {x}"); self.event(&format!("Couldn’t keep Engine DJ’s playlists in step: {x}")); }
+        match self.dj_relink(p, c, &src, &lib_db, &dbs, &at, &mut backed) {
+          Ok((n, _)) => { if n > 0 { done.relinked = n; self.event(&format!("Engine DJ: {n} song{} pointed at the copy GLUE kept", if n == 1 { "" } else { "s" })); } }
+          Err(x) => eprintln!("GLUE Home: couldn’t point Engine DJ’s songs at the copies kept: {x}"),
         }
       }
     }

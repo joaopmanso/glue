@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; the order of GLUE's copies superseded by 0178 (copies follow the library one way)
 date: 2026-10-09
 ---
 # 0172. Engine DJ: the playlists' order in step, and songs pointed at the copy kept

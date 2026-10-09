@@ -5,6 +5,20 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-09 · Engine DJ's playlists back in its DJ collection (ADR 0178, GLUE Home 0.71)
+- **The user:** with the Engine DJ sync, all of its playlists were under Playlists, not only the imported ones, and a
+  deleted one came back. "If I import the playlist it shows under playlists, if not it keeps under the DJ Collection."
+- **Why:** turning the sync on imported the whole tree (ADR 0171), and GLUE Home imported it again whenever GLUE's
+  Engine DJ folder was missing.
+- **Now** ([ADR 0178](../adr/0178-dj-playlists-stay-in-the-dj-collection.md)): a DJ app's playlists stay in its DJ
+  collection; a copy is an import, following the library one way (gone ones leave a minute later, as for any library);
+  turning the sync on brings none in. GLUE Home 0.71 takes every Engine DJ copy out of GLUE's playlists once (the
+  user's choice; a backup first, `backups/pre-engine-playlists-…zip`, and each into Recently deleted). Cues, loops and
+  grids still sync; playlists aren't changed in Engine DJ until the next steps.
+- **Next (planned with the user):** edit Engine DJ's playlists, their songs and the songs' info in the DJ collection;
+  GLUE's own playlists mirrored both ways in Engine DJ's "GLUE" folder, the app's icon by each synced one; rekordbox
+  later.
+
 ## 2026-10-09 · Opening shows its progress, and waits less (ADR 0177)
 - **The user, on the laptop:** 5–10 s of a dark page saying "Opening your library…" at the start, and when changing
   collection a library saying 0 songs with nothing chosen in the collection list; "it should display some sort of

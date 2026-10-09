@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0178 (the app's playlists stay in its DJ collection; GLUE's own go to its "GLUE" folder)
 date: 2026-10-09
 ---
 # 0171. Engine DJ's playlists kept in step both ways

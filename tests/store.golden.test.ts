@@ -294,7 +294,7 @@ const rbImport: Scenario = {
     { advance: 61_000 },
     { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Gigs/Friday', 'Friday', '/Gigs', ['1']), pl('/Warm', 'Warm', null, ['2', '4']), pl('/New', 'New', null, ['3'])]), fileName: 'rekordbox.xml' } },
     { flush: true },
-    // Kept in step both ways (ADR 0171): Friday gone from the library stays in GLUE (GLUE Home asks), a minute later too.
+    // Kept in step both ways: its copies are imports all the same (ADR 0178), Friday gone from the library goes a minute later.
     { sync: { app: 'rekordbox', fileName: 'rekordbox.xml', on: true } },
     { advance: 1000 },
     { import: { lib: rb(rbTracks, [pl('/Gigs', 'Gigs', null, [], 'folder'), pl('/Warm', 'Warm', null, ['2', '4']), pl('/New', 'New', null, ['3'])]), fileName: 'rekordbox.xml' } },

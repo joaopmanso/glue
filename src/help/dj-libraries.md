@@ -26,11 +26,8 @@ With GLUE Home running, right-click your main Engine DJ library › **Keep in st
 - It backs Engine DJ's library up before it writes, once each time Engine DJ has been closed (the last three are kept).
 - GLUE's pads A–H are Engine DJ's hot cues (a loop on a pad goes as a hot cue at its start); GLUE's memory loops are its saved loops. Memory cues and Engine DJ's main cue stay where they are.
 - A song changed in both since they were last in step: its Prepare tab asks which to keep.
-- **Playlists too:** all of Engine DJ's playlists come into GLUE's **Engine DJ** folder. Rename one, add or remove songs, or make a new playlist (or drag one) into that folder, and it's done in Engine DJ; what you change in Engine DJ comes here. A song Engine DJ doesn't have yet is added to its collection (Engine DJ analyses it).
-- The order of playlists in a folder follows too: put a new playlist where you want it.
-- Songs on drives that aren't plugged in stay in Engine DJ's playlists, where they are: GLUE only changes the songs it can see.
+- **Its playlists stay in its DJ collection** (under the library in the sidebar). Import one to have GLUE's own copy under **Playlists**: it follows Engine DJ, and deleting it only takes GLUE's copy away.
 - After a duplicates clean-up, Engine DJ's playlists play the copy GLUE kept: its song points at that file (with its cues), or the song Engine DJ already has for it takes its places.
-- A playlist deleted on one side isn't deleted on the other by itself: the sidebar asks, under the library: **Delete it in … too** or **Keep it**.
 
 ## Songs with no file
 A DJ library can list files that aren't in your music folders (moved, or removed as duplicates). They show under **No file linked**, where GLUE finds most of them in your library. See [No file linked](#/help/no-file).

@@ -244,13 +244,14 @@ Planned (GLUE):
 | [0168](adr/0168-dj-apps-synced-both-ways.md) | DJ apps synced both ways (playlists, cues, loops, grids) through GLUE Home: opt-in, backed up, the app closed; Engine DJ first; phase 1, every app's cues and grid shown | accepted |
 | [0169](adr/0169-the-main-dj-library.md) | The main DJ library (one per computer, on its record): its grids and cues are a song's by default after GLUE's own; the two-way sync is with it | accepted |
 | [0170](adr/0170-engine-dj-kept-in-step-both-ways.md) | Engine DJ kept in step both ways (hot cues, saved loops, grid): three-way merge per slot, written by GLUE Home only while Engine DJ is closed, backed up, clashes asked | accepted |
-| [0171](adr/0171-engine-dj-playlists-kept-in-step.md) | Engine DJ's playlists kept in step both ways: the ones in GLUE's folder of the library, merged three ways, songs it lacks added to its collection, deletes asked | accepted |
-| [0172](adr/0172-engine-dj-order-and-songs-kept.md) | Engine DJ: the order of playlists in step both ways; songs whose file the duplicates' clean-up took pointed at the copy kept | accepted |
+| [0171](adr/0171-engine-dj-playlists-kept-in-step.md) | Engine DJ's playlists kept in step both ways: the ones in GLUE's folder of the library, merged three ways, songs it lacks added to its collection, deletes asked | superseded by 0178 |
+| [0172](adr/0172-engine-dj-order-and-songs-kept.md) | Engine DJ: the order of playlists in step both ways; songs whose file the duplicates' clean-up took pointed at the copy kept | accepted (order: superseded by 0178) |
 | [0173](adr/0173-engine-dj-what-glue-cant-see-stays.md) | Engine DJ: entries GLUE can't see (other drives' songs) never removed or moved by the sync; one backup each time Engine DJ closes; the restore tool | accepted |
 | [0174](adr/0174-songs-stream-as-they-arrive.md) | Another computer's songs stream as they arrive (the service worker answers as a stream), and their start says where its time went | accepted |
 | [0175](adr/0175-back-from-the-background-connected-at-once.md) | Back from the background, the room and the sessions are made again at once; the phone shows where a song's start went | accepted |
 | [0176](adr/0176-a-songs-start-timing-in-the-console-only.md) | A streamed song's start timing in the console only (not on the player; supersedes that part of 0174, 0175) | accepted |
 | [0177](adr/0177-opening-shows-its-progress.md) | Opening the library or a collection shows its progress (a card with a bar, a top line), and waits less | accepted |
+| [0178](adr/0178-dj-playlists-stay-in-the-dj-collection.md) | A DJ app's playlists stay in its DJ collection (copies are imports again, taken out once); GLUE's own go to its "GLUE" folder | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

@@ -127,7 +127,7 @@
   /** Bring a DJ library's list (a folder with everything in it; '' = all) into GLUE, and show it. */
   function importDj(src: Source, ext: string, name: string) {
     const n = lib.importLists(src.id, [ext]), copy = lib.linkedCopy(src.id, ext);
-    lib.notice = n ? 'Imported ' + (ext ? '“' + name + '”' : 'all of ' + name) + ' into GLUE: ' + n + ' playlist' + (n === 1 ? '' : 's') + ' or folder' + (n === 1 ? '' : 's') + ', kept in step with ' + (APP_NAMES[src.app] ?? src.app) + '.' : '“' + name + '” is in GLUE already.';
+    lib.notice = n ? 'Imported ' + (ext ? '“' + name + '”' : 'all of ' + name) + ' into GLUE: ' + n + ' playlist' + (n === 1 ? '' : 's') + ' or folder' + (n === 1 ? '' : 's') + ', following ' + (APP_NAMES[src.app] ?? src.app) + '.' : '“' + name + '” is in GLUE already.';
     if (!copy) return;
     for (let q = copy.parentId; q; q = lib.store?.lists.get(q)?.parentId ?? null) open[q] = true;
     view.select({ kind: 'list', id: copy.id });
@@ -364,7 +364,7 @@
       !lib.readOnly && s.main && s.app === 'engine' && lib.homeRuns() && (s.sync
         ? { label: 'Stop writing GLUE’s changes into Engine DJ', attrs: { 'data-m': 'unsync-dj' }, run: () => lib.setDjSync(s.id, false) }
         : { label: 'Keep in step both ways…', attrs: { 'data-m': 'sync-dj' }, title: 'GLUE’s cues, loops and grids written into Engine DJ, and Engine DJ’s changes taken into GLUE', run: () => {
-          if (confirm('Keep Engine DJ in step with GLUE both ways?\n\nGLUE Home writes the cues, loops, beat grids and playlists you set in GLUE into Engine DJ’s library, and takes Engine DJ’s changes into GLUE (all its playlists come into GLUE’s Engine DJ folder; a playlist you add there is made in Engine DJ, with any song it lacks added to its collection). It writes only while Engine DJ is closed (a few seconds after you quit it), backs up the library first, and asks you when a song was changed on both sides.')) { lib.setDjSync(s.id, true); lib.importLists(s.id, ['']); }
+          if (confirm('Keep Engine DJ in step with GLUE both ways?\n\nGLUE Home writes the cues, loops and beat grids you set in GLUE into Engine DJ’s library, and takes Engine DJ’s changes into GLUE. Its playlists stay in its DJ collection here; import one to have GLUE’s own copy under Playlists. It writes only while Engine DJ is closed (a few seconds after you quit it), backs up the library first, and asks you when a song was changed on both sides.')) lib.setDjSync(s.id, true);
         } }),
       SEP,
       { label: 'Remove this import…', danger: true, run: () => removeSource(s) },
@@ -397,7 +397,7 @@
       {#if l.kind === 'folder'}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" fill="currentColor"/></svg>
       {:else}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5v8.2a2.3 2.3 0 1 0 1.5 2.1V5.5l5-1.3v5.4a2.3 2.3 0 1 0 1.5 2.1V1.2z" fill="currentColor"/></svg>{/if}
       <button type="button" class="name" title={l.name + ' in ' + (APP_NAMES[src.app] ?? src.app)} onclick={() => { view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }); if (kids.length) djOpen[key] = true; }}><span class="nm">{l.name}</span></button>
-      {#if whole}<button type="button" class="ingl" title="In GLUE, kept in step: open GLUE's copy" onclick={() => view.select({ kind: 'list', id: copy!.id })}>✓</button>{/if}
+      {#if whole}<button type="button" class="ingl" title="In GLUE (following it): open GLUE's copy" onclick={() => view.select({ kind: 'list', id: copy!.id })}>✓</button>{/if}
       <span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>
       <span class="tools" class:open={menued('dj:' + key)}>
         <button type="button" class="more" title="More (or right-click)" aria-haspopup="menu" aria-expanded={menued('dj:' + key)} onclick={e => onMore(e.currentTarget, 'dj:' + key, () => djMenuOf(src, l), l.name)}>⋯</button>
@@ -435,7 +435,7 @@
           onkeydown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') view.editing = null; }}>
       {:else}
         <button type="button" class="name" title={l.name} onclick={e => nameClick(e, l)} ondblclick={() => { clearTimeout(slow); view.editing = l.id; }}>
-          <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', kept in step with it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}
+          <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', following it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}
         </button>
         {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>{/if}
         <span class="tools" class:open={menued('l:' + l.id)}>

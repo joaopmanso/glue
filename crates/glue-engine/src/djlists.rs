@@ -12,6 +12,7 @@
 //!
 //! Written into the database the library is read from (Engine DJ's settings' library; F: on the user's desktop).
 use crate::{get, text, truthy, Engine, Host};
+use glue_store::dir::{read_json, write_json, Dir};
 use glue_interop::enginedb::{self, EList, NewTrack};
 use glue_interop::sync::{merge_items, pick, splice};
 use rusqlite::Connection;
@@ -22,6 +23,40 @@ use std::path::{Path, PathBuf};
 fn origin<'a>(l: &'a Value, k: &str) -> Option<&'a str> { l.get("origin").and_then(|o| o.get(k)).and_then(Value::as_str) }
 fn parent_id(l: &Value) -> Option<&str> { l.get("parentId").and_then(Value::as_str).filter(|x| !x.is_empty()) }
 
+impl<H: Host> Engine<H> {
+  /// The copies of the main library's playlists in GLUE's playlists, taken out once (ADR 0178): 0.68–0.70 brought all of
+  /// them in when the sync was turned on, and brought the folder back when it was deleted. They stay in the library's DJ
+  /// collection; one imported again is an import, following it. A backup of the profile first
+  /// (`backups/pre-engine-playlists-…zip`), and each copy into the bin (Recently deleted). The user's own playlists in
+  /// there move to the top. Marked done in GLUE Home's cache (`listsOut`), with the old sync's state let go.
+  pub(crate) fn dj_clear_copies(&self, p: &str, c: &str, sid: &str) -> Result<usize, String> {
+    let rel = format!("dj/{p}/{c}/{sid}.json");
+    let mut kept = read_json(&self.cache_dir(), &rel).ok().flatten().unwrap_or_else(|| json!({ "base": {}, "clashes": {} }));
+    if truthy(kept.get("listsOut")) { return Ok(0); }
+    let s = self.store(p, c)?;
+    let mut st = s.lock().unwrap();
+    let copies: HashSet<String> = st.lists.values().filter(|l| origin(l, "sourceId") == Some(sid)).map(|l| text(l, "id")).collect();
+    if !copies.is_empty() {
+      let profile = read_json(&self.dir(), &format!("profiles/{p}/profile.json")).ok().flatten().ok_or("no profile")?;
+      let (_, at) = self.host.now();
+      let zip = glue_store::backup::build_backup(&self.dir(), &profile, false, &at)?;
+      self.dir().write_bytes(&format!("backups/pre-engine-playlists-{}-{p}-{c}.zip", &at[..10]), &zip)?;
+      let mine: Vec<Value> = st.lists.values().filter(|l| !copies.contains(&text(l, "id")) && parent_id(l).is_some_and(|x| copies.contains(x))).cloned().collect();
+      for mut l in mine { l["parentId"] = Value::Null; st.put_list(l); }
+      // Top first: deleting a folder takes what's in it.
+      for id in &copies { if st.lists.contains_key(id) { st.delete_list(id); } }
+      self.flush_edit(&mut st, p, c)?;
+      let n = copies.len();
+      self.event(&format!("Engine DJ’s {n} playlist{} taken out of GLUE’s playlists: they’re in its DJ collection (a backup first)", if n == 1 { "" } else { "s" }));
+    }
+    drop(st);
+    for k in ["lists", "orders", "questions", "decided"] { kept.as_object_mut().map(|o| o.shift_remove(k)); }
+    kept["listsOut"] = json!(true);
+    write_json(&self.cache_dir(), &rel, &kept)?;
+    Ok(copies.len())
+  }
+}
+
 /// What a sync of the playlists did.
 #[derive(Default)]
 pub struct ListsDone { pub written: usize, pub taken: usize, pub questions: usize }
@@ -30,6 +65,7 @@ impl<H: Host> Engine<H> {
   /// The playlists of the main library `src`, in `db` (its library database). `backed`: databases already copied this
   /// sync.
   #[allow(clippy::too_many_arguments)]
+  #[allow(dead_code)] // ADR 0178: back as the sync of the playlists in Engine DJ's GLUE folder (its next step).
   pub(crate) fn dj_sync_lists(&self, p: &str, c: &str, src: &Value, db_path: &Path, dbs: &HashMap<String, PathBuf>, kept: &mut Value, at: &str, backed: &mut HashSet<String>, remap: &HashMap<String, String>) -> Result<ListsDone, String> {
     let sid = text(src, "id");
     let mut done = ListsDone::default();

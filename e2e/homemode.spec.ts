@@ -531,7 +531,7 @@ test('with GLUE Home running, it finds a DJ library in the music folder, imports
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 
-test('with GLUE Home running, the main Engine DJ library is kept in step both ways: a cue set in GLUE is written into it once Engine DJ is closed (ADR 0169, 0170)', async ({ page }) => {
+test('with GLUE Home running, the main Engine DJ library is kept in step both ways: a cue set in GLUE is written into it once Engine DJ is closed; its playlists stay in its DJ collection (ADR 0169, 0170, 0178)', async ({ page }) => {
   test.setTimeout(180_000);
   const tmp = mkdtempSync(join(tmpdir(), 'glue-home-djsync-'));
   const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Music') } }, { engine: true });
@@ -598,22 +598,18 @@ test('with GLUE Home running, the main Engine DJ library is kept in step both wa
     fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false } });
     await expect.poll(slotB, { timeout: 40_000 }).toBeGreaterThanOrEqual(0);
     await expect(src.locator('.syncf')).toHaveAttribute('data-dj-sync', 'synced', { timeout: 20_000 });
-    // Its playlists too (ADR 0171): all of them in GLUE's Engine DJ folder; one renamed here is renamed there.
+    // Its playlists stay in its DJ collection (ADR 0178): none copied into GLUE's playlists, Engine DJ's left as they are.
     await page.click('#sheet-close');
-    await page.locator('.lside .tree .item', { hasText: 'Engine DJ' }).first().locator('.twist').click();
-    const second = page.locator('.lside .tree .item', { hasText: 'Second' });
-    await expect(second).toHaveCount(1, { timeout: 30_000 });
-    await second.click({ button: 'right' });
-    await page.locator('.cmenu [data-m="rename"]').click();
-    await page.keyboard.press('Control+A'); await page.keyboard.type('Second set'); await page.keyboard.press('Enter');
-    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+    await expect(page.locator('.lside .tree .item', { hasText: 'Engine DJ' })).toHaveCount(0);
+    await src.locator('[data-dj-open]').click();
+    await expect(page.locator('.lside .djtree [data-dj]', { hasText: 'Second' })).toHaveCount(1);
     const titles = async () => {
       const initSqlJs = (await import('sql.js')).default, SQL = await initSqlJs(), d = new SQL.Database(readFileSync(db));
       const t = d.exec('SELECT title FROM Playlist')[0].values.map(v => v[0] as string);
       d.close();
       return t;
     };
-    await expect.poll(titles, { timeout: 40_000 }).toContain('Second set');
+    expect(await titles()).toContain('Second');
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
 

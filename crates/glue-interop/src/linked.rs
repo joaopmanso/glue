@@ -135,8 +135,6 @@ pub fn sync_linked_lists<D: Dir>(store: &mut Store<D>, src: &Value, prev: Option
   for (ext, l) in have.clone() {
     let id = st(&l, "id").to_string();
     if ext.is_empty() || by_ext.contains_key(&ext) || !store.lists.contains_key(&id) { continue; }
-    // Kept in step both ways (ADR 0171): GLUE Home asks the user whether it goes from GLUE too.
-    if truthy(get(src, "sync")) { continue; }
     let waiting = pending.get(&ext);
     if !was.contains_key(&ext) && waiting.is_none() { store.put_list(with(&l, "origin", Value::Null)); r.removed += 1; continue; }
     if incomplete { r.mark_incomplete(); if let Some(w) = waiting { next_pending.insert(ext.clone(), w.clone()); } continue; }
@@ -184,8 +182,8 @@ pub fn sync_linked_lists<D: Dir>(store: &mut Store<D>, src: &Value, prev: Option
     have.insert(e.to_string(), l);
     r.added += 1;
   }
-  // A library kept in step both ways: GLUE Home keeps the order both ways (ADR 0172), not the library's over GLUE's.
-  if !truthy(get(src, "sync")) { order(store, src, &have); }
+  // Also for a library kept in step both ways: its copies are imports, following it (ADR 0178, not ADR 0171-0172's).
+  order(store, src, &have);
   // What's waiting to go, kept with the library for its next read.
   if let Some(cur) = store.sources.get(&src_id).cloned() {
     let was_pending = get(&cur, "pendingGone").cloned().unwrap_or(json!({}));

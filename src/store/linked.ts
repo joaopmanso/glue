@@ -91,8 +91,6 @@ export function syncLinkedLists(store: CollectionStore, src: Source, prev?: Sour
   const nextPending: Record<string, number> = {};
   for (const [ext, l] of have) {
     if (!ext || byExt.has(ext) || !store.lists.has(l.id)) continue;
-    // Kept in step both ways (ADR 0171): GLUE Home asks the user whether it goes from GLUE too.
-    if (src.sync) continue;
     if (!was.has(ext) && pending[ext] === undefined) { store.putList({ ...l, origin: null }); r.removed++; continue; }
     if (incomplete) { r.incomplete = true; if (pending[ext] !== undefined) nextPending[ext] = pending[ext]; continue; }
     if (pending[ext] === undefined || at - pending[ext] < GONE_AFTER) { nextPending[ext] = pending[ext] ?? at; r.held = (r.held ?? 0) + 1; continue; }
@@ -127,8 +125,8 @@ export function syncLinkedLists(store: CollectionStore, src: Source, prev?: Sour
     have.set(s.externalId, l);
     r.added++;
   }
-  // A library kept in step both ways: GLUE Home keeps the order both ways (ADR 0172), not the library's over GLUE's.
-  if (!src.sync) order(store, src, have);
+  // Also for a library kept in step both ways: its copies are imports, following it (ADR 0178, not ADR 0171-0172's).
+  order(store, src, have);
   // What's waiting to go, kept with the library for its next read.
   const cur = store.sources.get(src.id);
   if (cur && JSON.stringify(cur.pendingGone ?? {}) !== JSON.stringify(nextPending)) {

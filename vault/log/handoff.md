@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Engine DJ's playlists back in its DJ collection, 2026-10-09** (ADR 0178, GLUE Home 0.71): once the desktop's GLUE
+  Home updates, it takes every Engine DJ copy out of Playlists (the user chose all, even the 147 imported before the
+  sync), after a backup (`backups/pre-engine-playlists-…zip`), into Recently deleted. To check: Playlists holds only
+  GLUE's own; Engine DJ's are under the library in the sidebar; one imported stays, and deleting it doesn't bring it
+  back. Engine DJ's own playlists aren't changed by GLUE meanwhile.
 - **Opening shows its progress, 2026-10-09** (ADR 0177, the website only): the start and a collection's switch show a
   card with a bar (each step, the files read) instead of the dark "Opening your library…" and a library with 0 songs; a
   line along the top of the page while anything opens or a job runs. On the laptop the start should be about 3 s
@@ -200,6 +205,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     Stop/Start handing the library over, "No file linked" in bulk, a dropped song analysed by GLUE Home).
 
 ## Next
+- **ADR 0178's next steps (the user's plan, 2026-10-09):**
+  1. edit Engine DJ's own playlists and folders, their songs and the songs' info in the DJ collection (an op queue in
+     GLUE Home, shown at once, written with Engine DJ closed after a backup);
+  2. GLUE's own playlists mirrored both ways in Engine DJ's "GLUE" folder (a per-list toggle, the app's icon), reusing
+     the parked `dj_sync_lists` and the two `#[ignore]`d tests in `crates/glue-engine/tests/engine.rs`;
+  3. rekordbox (`master.db`) later, its own step.
 ### Next: the rest of the library's work into GLUE Home (ADR 0162, the user's rule: "GLUE Home IS THE APP")
 The user (2026-10-08): "I want to get all of these moved to Rust so that we can move on to the DJ library cue points
 and real-time integrations." Done: the clashes (0.60, ADR 0163), the duplicates' matching (0.61, ADR 0164) and groups
