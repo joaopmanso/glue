@@ -55,9 +55,10 @@ not in Engine DJ, though Engine DJ names a new "Glue" "Glue 2".
     next new playlist on C: can take the id GLUE used on F:.
   - Engine DJ doesn't bring F:'s newer lists into C: on opening: the inference above (that it reconciles each list to
     its latest edit across databases) doesn't hold for C:, so ADR 0173's restore may not be what Engine DJ shows.
-  - To be checked in Engine DJ: whether F: shows as a drive of its own in Engine DJ's sidebar (with its own playlists,
-    the GLUE folder among them), and how many songs "2022" has there (3,792: C:'s; 5,214: F:'s).
-- **What follows:** GLUE's playlist writes are paused (GLUE Home 0.72.3) until they're made as Engine DJ makes them:
+  - **Confirmed by the user in Engine DJ (2026-10-10):** F: shows under Drives as "Shared", apart from the Collection.
+    "2022" shows 1,007 songs in the Collection and 985 under the drive: C:'s entries for F:'s songs that exist (1,006,
+    and one of another database) and F:'s own (985). So the Collection is C:'s tree, and a drive shows its own copy.
+- **What followed:** ADR 0182 (GLUE Home 0.73). GLUE's playlist writes were paused (0.72.3) until made as Engine DJ makes them:
   into C:'s database (the master) and every other carrying the tree, with the same id (one free in all of them), and
   GLUE's DJ collection read from C:'s tree. And F:'s 5 GLUE-made playlists and the clash at 9047 put right.
 

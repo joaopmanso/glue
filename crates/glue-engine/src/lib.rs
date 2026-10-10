@@ -18,6 +18,7 @@ pub mod analyse;
 pub mod answers;
 pub mod covers;
 pub mod dj;
+pub mod djdrives;
 pub mod djedit;
 pub mod djinfo;
 pub mod djmirror;

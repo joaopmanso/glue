@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-09)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.72.3** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.73.0** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,15 +62,16 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
-- **Engine DJ doesn't show what GLUE made, 2026-10-10 (open):** the user's copies of C:'s and F:'s databases (in the
-  repo's `DatabaseC/`, `DatabaseF/`: the user's, ignored locally in `.git/info/exclude`, never commit or graph them)
-  show it (`vault/research/engine-dj-write-back.md`): a playlist has the same id in C: and F:, Engine DJ's are in both,
-  GLUE's 5 in F: only; an id clash at 9047; 114 playlists' songs differ (the 2026-10-09 restore is F:'s only).
-  GLUE's playlist writes are **paused** in 0.72.3 (`djPlaylists` off). **Waiting on the user:** in Engine DJ, does F:
-  show as a drive of its own (with the GLUE folder in its playlists)? How many songs has "2022" (3,792 = C:'s, 5,214 =
-  F:'s)? **Next:** write playlists as Engine DJ does (C: the master, every database carrying the tree, the same free
-  id in all), read GLUE's DJ collection from C:'s tree, put F:'s 5 and the clash right, and decide with the user what
-  to do about the restore's entries that are F:'s only.
+- **Engine DJ's Collection, GLUE Home 0.73.0, 2026-10-10 (ADR 0182):** GLUE Home now reads and writes Engine DJ's
+  Collection (C:'s database in the Music folder, the tree Engine DJ shows) and copies what changed into the drive's
+  copy (F:, "Shared"), as Engine DJ does; once, after a backup, F:'s 5 GLUE-only lists go and 9047 is the user's
+  "Playlist" again. Checked on copies (`real_engine_databases_dry_run`, run with `GLUE_REAL_C`/`GLUE_REAL_F` and
+  `--ignored`). **Waiting on the user** (Engine DJ closed, then opened): GLUE's DJ collection shows the Collection's
+  playlists (RAQUEL…); a playlist made or changed from GLUE shows in Engine DJ's Collection (and under the F drive when
+  it has F:'s songs); Keep in Engine DJ puts a GLUE folder in the Collection. [UNVERIFIED] until then. **Open:** 114
+  lists' songs differ between C: and F: (the 2026-10-09 restore is F:'s only): ask the user what to do. The copies
+  are in the repo's `DatabaseC/`, `DatabaseF/` (the user's, ignored locally in `.git/info/exclude`, never commit or
+  graph them).
 - **GLUE Home 0.72.3, 2026-10-10:** the start disk's Engine DJ library looked for in the Music folder; a file's real
   place; "Move to music folder" on TO BE SORTED lists only the collection's music folders.
 - **GLUE Home 0.72.2, 2026-10-09:** a song Engine DJ couldn't take had been left out and then taken out of GLUE's

@@ -45,6 +45,23 @@ pub fn read_lists(db: &Connection, own: &str) -> R<Vec<EList>> {
   Ok(lists)
 }
 
+/// One playlist, with its songs in order (None: it isn't there).
+pub fn read_list(db: &Connection, own: &str, id: i64) -> R<Option<EList>> {
+  let Some(mut l) = db.query_row("SELECT id, title, parentListId, nextListId FROM Playlist WHERE id = ?1", [id], |r| Ok(EList { id: r.get(0)?, title: r.get::<_, Option<String>>(1)?.unwrap_or_default(), parent: r.get::<_, Option<i64>>(2)?.unwrap_or(0), items: vec![], next: r.get::<_, Option<i64>>(3)?.unwrap_or(0) })).optional().map_err(e)? else { return Ok(None) };
+  let es: Vec<(i64, i64, String)> = db.prepare("SELECT id, nextEntityId, trackId, databaseUuid FROM PlaylistEntity WHERE listId = ?1").map_err(e)?
+    .query_map([id], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<i64>>(1)?.unwrap_or(0), r.get::<_, i64>(2)?, r.get::<_, Option<String>>(3)?))).map_err(e)?
+    .map(|x| x.map(|(i, n, t, u)| (i, n, format!("{}/{t}", u.filter(|u| !u.is_empty()).unwrap_or_else(|| own.to_string()))))).collect::<Result<_, _>>().map_err(e)?;
+  let pointed: std::collections::HashSet<i64> = es.iter().map(|x| x.1).collect();
+  let by_id: std::collections::HashMap<i64, &(i64, i64, String)> = es.iter().map(|x| (x.0, x)).collect();
+  let mut seen = std::collections::HashSet::new();
+  for head in es.iter().filter(|x| !pointed.contains(&x.0)) {
+    let mut cur = Some(head);
+    while let Some(c) = cur { if !seen.insert(c.0) { break; } l.items.push(c.2.clone()); cur = by_id.get(&c.1).copied(); }
+  }
+  for x in &es { if !seen.contains(&x.0) { l.items.push(x.2.clone()); } }
+  Ok(Some(l))
+}
+
 /// A parent's playlists in Engine DJ's order (from the one nothing points at; a broken chain's rest after, by id).
 pub fn order_of(lists: &[EList], parent: i64) -> Vec<i64> {
   let kids: Vec<&EList> = lists.iter().filter(|l| l.parent == parent).collect();

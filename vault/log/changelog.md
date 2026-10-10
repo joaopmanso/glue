@@ -5,6 +5,18 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-10 · Engine DJ's playlists written as Engine DJ writes them (ADR 0182, GLUE Home 0.73)
+- **The user, in Engine DJ:** F: shows under Drives ("Shared"), apart from the Collection; "2022" shows 1,007 songs in
+  the Collection and 985 under the drive: the Collection is C:'s tree, the drive its own copy (same ids).
+- **Now** ([ADR 0182](../adr/0182-engine-dj-collection-and-its-drive-copies.md)): GLUE Home reads Engine DJ's tree from
+  the Collection's database (the Music folder's), writes playlists there with an id free in every database, and makes
+  what changed in each drive's copy (only what changed, only lists with that drive's songs or already there). Once,
+  after a backup, F:'s 5 GLUE-only lists go and 9047 is the user's "Playlist" again. Writes are on again.
+- **Checked on copies of the user's databases** (`real_engine_databases_dry_run`): the repair took out exactly GLUE's 5
+  and put 9047 back; a new empty list went into the Collection only; every other list unchanged (764/764, 623/623). A
+  first try copied a list's songs from C: into F: when only its place in the order changed: caught and fixed (only what
+  changed in the Collection is copied).
+
 ## 2026-10-09 · Engine DJ's library on a song's drive found or made; Move to music folder lists this collection's (GLUE Home 0.72.3)
 - **The user:** the song that couldn't go said "its drive (C:) has no Engine DJ library", but everything is on F:
   (it was in TO BE SORTED, GLUE Home's incoming folder on C:); "I want it to be added automatically".

@@ -68,6 +68,12 @@ impl<H: Host> Engine<H> {
     Some(Found { files: vec![(name, at.clone())], modified, main: at })
   }
   fn dj_set(&self, id: &str, st: &'static str) { self.dj.lock().unwrap().status.insert(id.to_string(), st); }
+  /// Engine DJ's Collection on this computer (ADR 0182): the database in the Music folder (`Engine Library`), whose
+  /// playlist tree Engine DJ shows; a drive's database (F:) is that drive's copy. None: there's none here.
+  pub(crate) fn engine_collection(&self) -> Option<PathBuf> {
+    let db = PathBuf::from(self.host.known_folders().music?).join("Engine Library").join("Database2").join("m.db");
+    db.is_file().then_some(db)
+  }
 
   /// The look, every few seconds (the service's timer): every collection's libraries GLUE Home can reach. Not while a
   /// tab is the writer (it follows them itself).
@@ -98,19 +104,29 @@ impl<H: Host> Engine<H> {
     let origin = &src["origin"];
     let place = text(origin, "place");
     if self.dj_place(&place, cfg).is_none() { return Ok(None); }
-    let Some(found) = self.dj_find(&text(src, "app"), &place, &text(origin, "relPath"), cfg) else { self.dj_set(&id, "lost"); return Ok(None) };
+    let Some(mut found) = self.dj_find(&text(src, "app"), &place, &text(origin, "relPath"), cfg) else { self.dj_set(&id, "lost"); return Ok(None) };
+    // Engine DJ: its Collection's database read with it, for the tree it shows (ADR 0182); a change in either is read.
+    let coll = if text(src, "app") == "engine" { self.engine_collection().filter(|c| *c != found.main) } else { None };
+    if let Some(c) = &coll {
+      found.modified = found.modified.max(mtime(c).unwrap_or(0.0));
+      found.files.push(("collection m.db".into(), c.clone()));
+    }
+    let tree_from = coll.as_ref().map(|c| c.to_string_lossy().to_string()).unwrap_or_default();
     self.dj_set(&id, "live");
     // Up to date, unless GLUE hasn't kept its tree yet (a library imported before ADR 0063).
     let known = origin["modified"].as_f64().unwrap_or(0.0);
     // Read before records kept their grids (ADR 0168): read once more, once a run, for its cues and grids.
     let gridless = !get(src, "tracks").and_then(Value::as_array).is_some_and(|ts| ts.iter().any(|t| t.get("grid").is_some()));
     let again = gridless && matches!(text(src, "app").as_str(), "engine" | "rekordbox" | "traktor") && self.dj.lock().unwrap().reread.insert(id.clone());
-    if !force && !again && truthy(get(src, "tree")) && found.modified <= known + 1000.0 { return Ok(Some(String::new())); }
+    let tree_moved = text(src, "app") == "engine" && text(origin, "tree") != tree_from;
+    if !force && !again && !tree_moved && truthy(get(src, "tree")) && found.modified <= known + 1000.0 { return Ok(Some(String::new())); }
     if !force && self.dj.lock().unwrap().last_read.get(&id).is_some_and(|t| t.elapsed() < AT_MOST) { return Ok(Some(String::new())); }
     if text(src, "app") == "engine" {
-      let mut j = found.main.clone().into_os_string();
-      j.push("-journal");
-      if std::fs::metadata(&j).is_ok_and(|m| m.len() > 0) { return Ok(Some(String::new())); }
+      for f in std::iter::once(&found.main).chain(coll.iter()) {
+        let mut j = f.clone().into_os_string();
+        j.push("-journal");
+        if std::fs::metadata(&j).is_ok_and(|m| m.len() > 0) { return Ok(Some(String::new())); }
+      }
     }
     self.dj.lock().unwrap().last_read.insert(id.clone(), Instant::now());
     self.dj_set(&id, "reading");
@@ -121,9 +137,19 @@ impl<H: Host> Engine<H> {
   /// `syncSource`: read again, and GLUE's songs, the library's tree and GLUE's copies of its playlists brought up to date.
   fn dj_read(&self, p: &str, c: &str, src: &Value, found: &Found, asked: bool) -> Result<String, String> {
     let files: Vec<(String, Vec<u8>)> = found.files.iter().map(|(n, path)| std::fs::read(path).map(|b| (n.clone(), b)).map_err(|e| e.to_string())).collect::<Result<_, _>>()?;
-    let (libs, _) = glue_interop::parse_library_files(&files);
     let app = text(src, "app");
-    let Some((lib, _)) = libs.into_iter().find(|l| l.0.app == app) else { return Ok(String::new()) };
+    // Engine DJ with its Collection (ADR 0182): the tree the Collection's, the songs every database's.
+    let coll_at = found.files.iter().position(|f| f.0 == "collection m.db");
+    let lib = if let (true, Some(at)) = (app == "engine", coll_at) {
+      let libs: Vec<glue_interop::types::ImportedLibrary> = files.iter().map(|(n, b)| glue_interop::engine::parse_engine_db(b, n)).collect::<Result<_, _>>()?;
+      let mut l = glue_interop::engine::combine_engine_with_tree(libs, at);
+      l.name = text(src, "name");
+      l
+    } else {
+      let (libs, _) = glue_interop::parse_library_files(&files);
+      let Some((lib, _)) = libs.into_iter().find(|l| l.0.app == app) else { return Ok(String::new()) };
+      lib
+    };
     let id = text(src, "id");
     let s = self.store(p, c)?;
     let mut st = s.lock().unwrap();
@@ -143,6 +169,8 @@ impl<H: Host> Engine<H> {
     if let Some(cur) = st.sources.get(&rep.source_id).cloned() {
       let mut origin = cur["origin"].as_object().cloned().unwrap_or_default();
       origin.insert("modified".into(), json!(found.modified));
+      // Where its tree was read from (the Collection's database, or none: its own), to read it again when that changes.
+      if app == "engine" { origin.insert("tree".into(), json!(found.files.iter().find(|f| f.0 == "collection m.db").map(|f| f.1.to_string_lossy().to_string()).unwrap_or_default())); }
       let mut next = cur.as_object().cloned().unwrap_or_default();
       next.insert("origin".into(), Value::Object(origin));
       st.put_source(Value::Object(next));

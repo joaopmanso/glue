@@ -183,6 +183,18 @@ pub fn resolve_engine(mut lib: ImportedLibrary, carried: &[ImportedTrack]) -> Im
   lib
 }
 
+/// Several Engine libraries read together, the playlist tree the one at `tree`'s (the computer's Collection, which
+/// Engine DJ shows; ADR 0182), its entries resolved across all of them (GLUE Home's; `combine_engine` takes the one with
+/// the most songs, as the website does).
+pub fn combine_engine_with_tree(libs: Vec<ImportedLibrary>, tree: usize) -> ImportedLibrary {
+  if tree >= libs.len() { return combine_engine(libs); }
+  let count = libs.len();
+  let carried: Vec<ImportedTrack> = libs.iter().enumerate().filter(|(i, _)| *i != tree).flat_map(|(_, l)| l.tracks.iter().cloned()).collect();
+  let mut r = resolve_engine(libs.into_iter().nth(tree).unwrap(), &carried);
+  if count > 1 { r.name = format!("Engine DJ ({} libraries)", r.stats.as_ref().map_or(count, |s| s.libraries)); }
+  r
+}
+
 /// Several Engine libraries chosen together: one, with the playlist tree of the one with the most songs (Engine
 /// keeps the same tree in each), its entries resolved across all of them (`combineEngine`).
 pub fn combine_engine(libs: Vec<ImportedLibrary>) -> ImportedLibrary {

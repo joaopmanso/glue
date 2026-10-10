@@ -127,7 +127,7 @@ impl<H: Host> Engine<H> {
     let t = text(op, "t");
     if !OPS.contains(&t.as_str()) { return Err(format!("not an edit GLUE Home knows: {t}")); }
     // Paused (2026-10-10, djsync.rs): Engine DJ didn't show the playlists GLUE wrote.
-    if self.host.config()["djPlaylists"] != json!(true) { return Err("changing Engine DJ’s playlists from GLUE is paused while it’s made to work as Engine DJ does (Engine DJ didn’t show what GLUE wrote)".into()); }
+    if self.host.config()["djPlaylists"] == json!(false) { return Err("changing Engine DJ’s playlists from GLUE is paused while it’s made to work as Engine DJ does (Engine DJ didn’t show what GLUE wrote)".into()); }
     let s = self.store(p, c)?;
     let mut st = s.lock().unwrap();
     let src = self.dj_editable(&st, sid).ok_or("Engine DJ’s playlists are edited in GLUE once its main library is kept in step both ways, with GLUE Home")?;

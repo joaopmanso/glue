@@ -154,6 +154,8 @@ impl<H: Host> Engine<H> {
       f.is_file().then_some(f)
     };
     let lib = Connection::open(lib_db).map_err(|e| e.to_string())?;
+    // Each entry handed over (from's database and id, to's), for the other databases that carry the tree.
+    let mut moves: Vec<(String, i64, String, i64)> = vec![];
     let own: String = lib.query_row("SELECT uuid FROM Information LIMIT 1", [], |r| r.get(0)).map_err(|e| e.to_string())?;
     let mut fixed = 0;
     let none = HashMap::new();
@@ -194,6 +196,7 @@ impl<H: Host> Engine<H> {
               }
               if backed.insert(own.clone()) { self.dj_backup(&own, lib_db, at)?; }
               if repoint(&lib, &own, uuid, id, uuid, e)? > 0 { fixed += 1; }
+              moves.push((uuid.to_string(), id, uuid.to_string(), e));
               remap.insert(ext.clone(), format!("{uuid}/{e}"));
             }
             _ => {}
@@ -204,9 +207,22 @@ impl<H: Host> Engine<H> {
             let Some((u2, e2)) = x.split_once('/').and_then(|(u, i)| i.parse::<i64>().ok().map(|i| (u.to_string(), i))) else { continue };
             if backed.insert(own.clone()) { self.dj_backup(&own, lib_db, at)?; }
             if repoint(&lib, &own, uuid, id, &u2, e2)? > 0 { fixed += 1; }
+            moves.push((uuid.to_string(), id, u2.clone(), e2));
             remap.insert(ext.clone(), format!("{u2}/{e2}"));
           }
         }
+      }
+    }
+    // The same in every other database that carries the tree (the Collection's, each drive's: ADR 0182).
+    if !moves.is_empty() {
+      let mut others: Vec<PathBuf> = dbs.values().filter(|p| p.as_path() != lib_db).cloned().collect();
+      if let Some(c) = self.engine_collection() { if c != lib_db { others.push(c); } }
+      others.sort(); others.dedup();
+      for path in others {
+        let Ok(db) = Connection::open(&path) else { continue };
+        let Ok(o) = db.query_row("SELECT uuid FROM Information LIMIT 1", [], |r| r.get::<_, String>(0)) else { continue };
+        let mut n = 0;
+        for (fu, f, tu, t) in &moves { if db.query_row("SELECT 1 FROM PlaylistEntity WHERE trackId = ?1 AND (databaseUuid = ?2 OR (?2 = ?3 AND (databaseUuid IS NULL OR databaseUuid = ''))) LIMIT 1", rusqlite::params![f, fu, o], |_| Ok(())).is_ok() { if n == 0 && backed.insert(o.clone()) { self.dj_backup(&o, &path, at)?; } n += repoint(&db, &o, fu, *f, tu, *t)?; } }
       }
     }
     Ok((fixed, remap))

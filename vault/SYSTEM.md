@@ -218,11 +218,13 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     step: GLUE's own playlists mirrored in the app's "GLUE" folder. Engine DJ's songs whose file the duplicates'
     clean-up took are still pointed at the copy kept (`dj_relink`, ADR 0172). A damaged library's entries are put back
     by hand with `crates/glue-interop/examples/restore_lists.rs` (ADR 0173).
-  - **Playlist writes paused** (0.72.3, 2026-10-10): GLUE Home wrote playlists into F:'s database only; Engine DJ shows
-    C:'s (the computer's), each change in both with the same id, so GLUE's were hidden and one took an id C: had given
-    another (`vault/research/engine-dj-write-back.md`). The DJ collection's edits (`djEdit`) and the GLUE folder
-    (`dj_sync_mirror`, its repair) run only with `djPlaylists` on in GLUE Home's settings (the tests); cues, grids and
-    song info still sync.
+  - **Its Collection and its drives' copies** (0.73, ADR 0182; `djdrives.rs`): Engine DJ shows the computer's Collection
+    (the database in the Music folder, `engine_collection`); a drive's database holds a copy of the lists with its
+    songs, the same ids. GLUE Home reads the tree from the Collection (`combine_engine_with_tree`, `origin.tree`),
+    writes every playlist change there (a new id free in every database, `make_room`), then makes what changed (the
+    tree before and after) in each drive's copy (`dj_to_drives`: only what changed; a list there only if it holds that
+    drive's songs or is there already). Once, F:'s GLUE-only lists and clashes put right (`dj_tree_repair`,
+    `treeFixed`). `djPlaylists: false` turns GLUE's playlist writes off.
   - **Edited from its DJ collection** (0.72, ADR 0179; `djedit.rs`): the page's `djEdit` operations (new, rename, move,
     delete; songs add, remove, shift) wait in GLUE Home's cache (`ops`), are put on `Source.tree` at once (`wait`) and
     again after each read, and are written by the sync while Engine DJ is closed (a backup, one transaction, a

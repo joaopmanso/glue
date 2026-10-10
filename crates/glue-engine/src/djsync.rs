@@ -195,12 +195,21 @@ impl<H: Host> Engine<H> {
           Ok((n, remap)) => { if n > 0 { done.relinked = n; self.event(&format!("Engine DJ: {n} song{} pointed at the copy GLUE kept", if n == 1 { "" } else { "s" })); } remap }
           Err(x) => { eprintln!("GLUE Home: couldn’t point Engine DJ’s songs at the copies kept: {x}"); HashMap::new() }
         };
-        // Playlists written into Engine DJ: paused (2026-10-10) unless the settings say so (`djPlaylists`). GLUE wrote
-        // them into F:'s database only; Engine DJ shows C:'s tree (the computer's), each change made in both with the
-        // same ids, so GLUE's were hidden and took ids C: had given others. Back once written as Engine DJ writes them.
-        let lists_on = cfg["djPlaylists"] == json!(true);
+        // Playlists written as Engine DJ writes them (ADR 0182): into its Collection's database (the tree it shows; the
+        // library's own where there's none), then what changed there into each drive's copy. Off with `djPlaylists`
+        // false (2026-10-10: GLUE wrote into F:'s alone, and Engine DJ didn't show them).
+        let coll = self.engine_collection();
+        // (Engine DJ saving its Collection: the playlists wait for the next sync.)
+        let coll_busy = coll.as_ref().is_some_and(|t| busy(t));
+        if coll_busy { done.waiting = true; }
+        let lists_on = cfg["djPlaylists"] != json!(false) && !coll_busy;
+        let tree_db = coll.unwrap_or_else(|| lib_db.clone());
+        // Once: what GLUE wrote into a drive's database alone, put right.
+        if tree_db != lib_db && !coll_busy { if let Err(x) = self.dj_tree_repair(&tree_db, &dbs, &mut kept, &at, &mut backed) { eprintln!("GLUE Home: couldn’t put Engine DJ’s drive copies right: {x}"); } }
+        let before = crate::djdrives::tree_at(&tree_db);
+        if lists_on { if let Err(x) = self.make_room(&tree_db, &dbs) { eprintln!("GLUE Home: couldn’t find free playlist ids in Engine DJ: {x}"); } }
         // The edits made in its DJ collection (ADR 0179).
-        if lists_on { match self.dj_write_ops(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed) {
+        if lists_on { match self.dj_write_ops(p, c, &src, &tree_db, &dbs, &mut kept, &at, &mut backed) {
           Ok(n) => { done.lists = n; if n > 0 { self.event(&format!("Engine DJ: {n} playlist edit{} from GLUE written", if n == 1 { "" } else { "s" })); } }
           // (Rolled back: they wait for the next sync.)
           Err(x) => { eprintln!("GLUE Home: couldn’t write the playlist edits into Engine DJ: {x}"); self.event(&format!("Couldn’t write the playlist edits into Engine DJ: {x}")); }
@@ -208,9 +217,9 @@ impl<H: Host> Engine<H> {
         // What was written so far, kept at once: a failure below mustn't lose which Engine DJ playlist is which.
         self.dj_keep(&cache_rel, &mut kept)?;
         // 0.72's copies put right, once.
-        if lists_on { if let Err(x) = self.dj_mirror_repair(p, c, &lib_db, &mut kept, &at, &mut backed) { eprintln!("GLUE Home: couldn’t put Engine DJ’s GLUE folder right: {x}"); } }
+        if lists_on { if let Err(x) = self.dj_mirror_repair(p, c, &tree_db, &mut kept, &at, &mut backed) { eprintln!("GLUE Home: couldn’t put Engine DJ’s GLUE folder right: {x}"); } }
         // GLUE's own playlists in its GLUE folder (ADR 0180).
-        if lists_on { match self.dj_sync_mirror(p, c, &src, &lib_db, &dbs, &mut kept, &at, &mut backed, &remap) {
+        if lists_on { match self.dj_sync_mirror(p, c, &src, &tree_db, &dbs, &mut kept, &at, &mut backed, &remap) {
           Ok(m) => {
             done.lists += m.written + m.taken;
             done.questions = m.questions;
@@ -219,6 +228,11 @@ impl<H: Host> Engine<H> {
           }
           // (Rolled back: nothing of the playlists written; the rest of the sync carries on.)
           Err(x) => { eprintln!("GLUE Home: couldn’t keep Engine DJ’s GLUE folder in step: {x}"); self.event(&format!("Couldn’t keep Engine DJ’s GLUE folder in step: {x}")); }
+        } }
+        // What changed in the Collection's tree, into each drive's copy (as Engine DJ does).
+        if let Some(b) = before.filter(|_| !coll_busy) { match self.dj_to_drives(&tree_db, &dbs, &b, &at, &mut backed) {
+          Ok(n) => { if n > 0 { done.lists += n; } }
+          Err(x) => { eprintln!("GLUE Home: couldn’t copy the playlists into Engine DJ’s drives: {x}"); self.event(&format!("Couldn’t copy the playlists into Engine DJ’s drives: {x}")); }
         } }
         self.dj_keep(&cache_rel, &mut kept)?;
       }
