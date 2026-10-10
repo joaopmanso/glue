@@ -5,6 +5,19 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-10 · The Collection caught up with the songs GLUE had put into the drive only (GLUE Home 0.73.1)
+- **The user, on 0.73:** the RAQUEL lists and the GLUE folder show; but songs added from GLUE (with 0.72.x) show only in
+  the drive's playlists, not the Collection's; and GLUE's playlists inside its GLUE folder were read-only in Engine DJ.
+- **Their databases after 0.73 (copies):** the GLUE folder made in both (same id), empty (the one list kept in it had
+  been deleted from GLUE); no other change. In 53 lists the drive's copy had entries the Collection's hadn't: 106 of the
+  drive's own songs (added from GLUE with 0.72.x, in 15 lists, "cenas" 19 of them) and 3,034 of drives not plugged in
+  (the 2026-10-09 restore's); the Collection has 3,503 the drive hasn't.
+- **Now (the user's choice):** once, after a backup, the 106 go into the same lists in the Collection, in the drive's
+  order, one entry at a time (the others' entries, and their `membershipReference`, kept). Checked on the copies:
+  exactly 106 added, nothing taken out, every other list unchanged (765/765, 624/624).
+- **Read-only in Engine DJ:** not seen in the copies (nothing was inside the GLUE folder by then); the user checks
+  whether Engine DJ's own playlists are read-only under the drive too (a drive's copy may be Engine DJ's to manage).
+
 ## 2026-10-10 · Engine DJ's playlists written as Engine DJ writes them (ADR 0182, GLUE Home 0.73)
 - **The user, in Engine DJ:** F: shows under Drives ("Shared"), apart from the Collection; "2022" shows 1,007 songs in
   the Collection and 985 under the drive: the Collection is C:'s tree, the drive its own copy (same ids).

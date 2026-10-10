@@ -1069,8 +1069,22 @@ fn real_engine_databases_dry_run() {
   println!("F: taken out {gone:?}; changed {changed:?}");
   assert!(gone.iter().all(|(id, _)| *id > c_top && !c0.contains_key(id)), "only lists past the Collection's ids go");
   assert!(changed.iter().all(|(id, _, _)| c0.get(id).is_some_and(|cl| { let fl = &f0[id]; cl.title != fl.title || cl.parent != fl.parent })), "only clashes change");
-  assert_eq!(c1.len(), c0.len(), "the Collection untouched by the repair");
-  assert!(c0.iter().all(|(id, l)| c1.get(id).is_some_and(|n| n.title == l.title && n.items == l.items && n.parent == l.parent)));
+  assert_eq!(c1.len(), c0.len(), "no list made or taken out of the Collection by the repair");
+  // The catch-up: the drive's own songs its copy had and the Collection's didn't, added there; nothing taken out.
+  let f_uuid: String = rusqlite::Connection::open(&f).unwrap().query_row("SELECT uuid FROM Information", [], |r| r.get(0)).unwrap();
+  let mut added = 0;
+  for (id, l) in &c0 {
+    let n = &c1[id];
+    assert!(n.title == l.title && n.parent == l.parent, "{}", l.title);
+    assert!(l.items.iter().all(|x| n.items.contains(x)), "nothing taken out of “{}”", l.title);
+    let new: Vec<&String> = n.items.iter().filter(|x| !l.items.contains(x)).collect();
+    assert!(new.iter().all(|x| x.starts_with(&f_uuid) && f0.get(id).is_some_and(|fl| fl.items.contains(x))), "only the drive's songs its copy had, in “{}”", l.title);
+    // In the drive's order, among the Collection's.
+    let order = |v: &Vec<String>| v.iter().filter(|x| n.items.contains(x)).cloned().collect::<Vec<_>>();
+    if !new.is_empty() { assert_eq!(order(&f0[id].items).iter().filter(|x| new.contains(x)).collect::<Vec<_>>(), n.items.iter().filter(|x| new.contains(x)).collect::<Vec<_>>(), "“{}”", l.title); }
+    added += new.len();
+  }
+  println!("the Collection caught up: {added} songs");
   // GLUE's DJ collection: the Collection's tree.
   e.rpc(&json!({ "op": "djRefresh", "p": "p1", "c": "c1", "id": sid })).unwrap();
   let tree = { let s = e.store("p1", "c1").unwrap(); let st = s.lock().unwrap(); st.sources[&sid]["tree"].as_array().cloned().unwrap() };

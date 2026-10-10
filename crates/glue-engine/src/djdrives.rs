@@ -124,6 +124,45 @@ impl<H: Host> Engine<H> {
     Ok(done)
   }
 
+  /// Once (`caughtUp`, the user's choice 2026-10-10): the songs of a drive GLUE 0.71–0.72.3 put into its playlists there
+  /// alone (the drive's own songs, still there) put into the same playlists in the Collection, each before the next
+  /// one the drive's list has that the Collection's has too (its entries left as they are). Other drives' entries (the
+  /// 2026-10-09 restore's, drives not plugged in) aren't. How many.
+  pub(crate) fn dj_catch_up(&self, tree_db: &Path, dbs: &HashMap<String, PathBuf>, kept: &mut Value, at: &str, backed: &mut HashSet<String>) -> Result<usize, String> {
+    if kept.get("caughtUp").and_then(Value::as_bool) == Some(true) { return Ok(0); }
+    let mut c = Connection::open(tree_db).map_err(|e| e.to_string())?;
+    let c_uuid = uuid_of(&c)?;
+    let coll: Tree = enginedb::read_lists(&c, &c_uuid)?.into_iter().map(|l| (l.id, l)).collect();
+    let mut n = 0;
+    for path in Self::drive_dbs(tree_db, dbs) {
+      let db = Connection::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+      let own = uuid_of(&db)?;
+      let tracks: HashSet<i64> = db.prepare("SELECT id FROM Track").and_then(|mut q| q.query_map([], |r| r.get::<_, i64>(0))?.collect::<Result<_, _>>()).map_err(|e| e.to_string())?;
+      let mine = enginedb::read_lists(&db, &own)?;
+      let mut todo: Vec<(i64, String, Option<String>)> = vec![];
+      for l in &mine {
+        let Some(cl) = coll.get(&l.id) else { continue };
+        let mut have: HashSet<&str> = cl.items.iter().map(String::as_str).collect();
+        for (i, x) in l.items.iter().enumerate() {
+          let Some((u, t)) = x.split_once('/') else { continue };
+          if u != own || have.contains(x.as_str()) || !t.parse::<i64>().is_ok_and(|t| tracks.contains(&t)) { continue; }
+          let before = l.items[i + 1..].iter().find(|y| have.contains(y.as_str())).cloned();
+          todo.push((l.id, x.clone(), before));
+          have.insert(x);
+        }
+      }
+      if todo.is_empty() { continue; }
+      if backed.insert(c_uuid.clone()) { self.dj_backup(&c_uuid, tree_db, at)?; }
+      let tx = c.transaction().map_err(|e| e.to_string())?;
+      // In the drive's order (two before the same one keep theirs).
+      for (list, item, before) in &todo { if enginedb::insert_entry(&tx, *list, item, before.as_deref())? { n += 1; } }
+      tx.commit().map_err(|e| e.to_string())?;
+      self.event(&format!("Engine DJ: {n} song{} GLUE had put into the drive’s playlists only, put into the Collection’s too (a backup first)", if n == 1 { "" } else { "s" }));
+    }
+    kept["caughtUp"] = json!(true);
+    Ok(n)
+  }
+
   /// Once (`treeFixed`): what GLUE 0.71–0.72.3 wrote into a drive's database alone, put right (see the top). GLUE's
   /// memory of the old tree (its GLUE folder, its new lists' ids, the edits waiting) let go: it's the Collection's now.
   pub(crate) fn dj_tree_repair(&self, tree_db: &Path, dbs: &HashMap<String, PathBuf>, kept: &mut Value, at: &str, backed: &mut HashSet<String>) -> Result<usize, String> {

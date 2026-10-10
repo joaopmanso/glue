@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-09)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.73.0** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.73.1** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.73.1, 2026-10-10:** the 106 drive songs GLUE had put into F:'s copies only (with 0.72.x) go into the
+  Collection's lists, once (the user's choice; the 3,034 entries of unplugged drives left). **Open: GLUE's playlists
+  inside the GLUE folder read-only in Engine DJ.** Not in the copies (the folder was empty by then). Asked: is it in the
+  Collection or under Drives → Shared, and are Engine DJ's own playlists (e.g. "cenas") read-only under the drive
+  too? If only GLUE's in the Collection: copies before and after Engine DJ opens (a "Keep in Engine DJ" list, and an
+  "Engine ref" made in Engine DJ beside it) to compare the rows.
 - **Engine DJ's Collection, GLUE Home 0.73.0, 2026-10-10 (ADR 0182):** GLUE Home now reads and writes Engine DJ's
   Collection (C:'s database in the Music folder, the tree Engine DJ shows) and copies what changed into the drive's
   copy (F:, "Shared"), as Engine DJ does; once, after a backup, F:'s 5 GLUE-only lists go and 9047 is the user's

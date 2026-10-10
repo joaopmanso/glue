@@ -146,6 +146,24 @@ pub fn set_items(db: &Connection, list: i64, items: &[String]) -> R<()> {
   Ok(())
 }
 
+/// One song ("uuid/trackId") put into a playlist before the entry of `before` (another "uuid/trackId"; none or not
+/// there: at the end), the others' entries left as they are (their ids, `membershipReference`). False: it's there.
+pub fn insert_entry(db: &Connection, list: i64, item: &str, before: Option<&str>) -> R<bool> {
+  let Some((uuid, track)) = item.split_once('/').and_then(|(u, t)| t.parse::<i64>().ok().map(|t| (u.to_string(), t))) else { return Ok(false) };
+  if db.query_row("SELECT 1 FROM PlaylistEntity WHERE listId = ?1 AND trackId = ?2 AND databaseUuid = ?3", params![list, track, uuid], |_| Ok(())).optional().map_err(e)?.is_some() { return Ok(false); }
+  // The entry it goes before (its id), and the one before that (pointing at it, or the last).
+  let next: i64 = match before.and_then(|b| b.split_once('/').and_then(|(u, t)| t.parse::<i64>().ok().map(|t| (u.to_string(), t)))) {
+    Some((bu, bt)) => db.query_row("SELECT id FROM PlaylistEntity WHERE listId = ?1 AND trackId = ?2 AND databaseUuid = ?3", params![list, bt, bu], |r| r.get(0)).optional().map_err(e)?.unwrap_or(0),
+    None => 0,
+  };
+  let prev: Option<i64> = db.query_row("SELECT id FROM PlaylistEntity WHERE listId = ?1 AND nextEntityId = ?2", params![list, next], |r| r.get(0)).optional().map_err(e)?;
+  db.execute(if has(db, "PlaylistEntity", "membershipReference") { "INSERT INTO PlaylistEntity (listId, trackId, databaseUuid, nextEntityId, membershipReference) VALUES (?1, ?2, ?3, ?4, 0)" } else { "INSERT INTO PlaylistEntity (listId, trackId, databaseUuid, nextEntityId) VALUES (?1, ?2, ?3, ?4)" }, params![list, track, uuid, next]).map_err(e)?;
+  let id = db.last_insert_rowid();
+  if let Some(p) = prev { db.execute("UPDATE PlaylistEntity SET nextEntityId = ?1 WHERE id = ?2", params![id, p]).map_err(e)?; }
+  if has(db, "Playlist", "lastEditTime") { db.execute("UPDATE Playlist SET lastEditTime = strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE id = ?1", [list]).map_err(e)?; }
+  Ok(true)
+}
+
 /// A song for Engine DJ's collection: its path from the database's `Engine Library` folder ("../Music/a.mp3"), its
 /// tags, length (s), size, and the file's date (s). Engine DJ analyses it when it next sees it.
 #[derive(Clone, Debug, Default)]
@@ -227,6 +245,22 @@ mod tests {
     db.execute_batch(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/engine-schema.sql")).unwrap()).unwrap();
     db.execute("INSERT INTO Information (uuid, schemaVersionMajor, schemaVersionMinor, schemaVersionPatch) VALUES (?1, 3, 0, 2)", [uuid]).unwrap();
     db
+  }
+  #[test]
+  fn one_song_goes_in_where_it_was_the_others_left_as_they_are() {
+    let db = empty("u");
+    let l = create_list(&db, "L", 0).unwrap();
+    set_items(&db, l, &["u/1".into(), "u/2".into(), "u/3".into()]).unwrap();
+    db.execute("UPDATE PlaylistEntity SET membershipReference = 4 WHERE trackId = 3", []).unwrap();
+    let ids = |db: &Connection| db.prepare("SELECT id FROM PlaylistEntity ORDER BY id").unwrap().query_map([], |r| r.get::<_, i64>(0)).unwrap().map(Result::unwrap).collect::<Vec<_>>();
+    let was = ids(&db);
+    assert!(insert_entry(&db, l, "f/9", Some("u/2")).unwrap());
+    assert!(insert_entry(&db, l, "f/8", None).unwrap());
+    assert!(insert_entry(&db, l, "f/7", Some("u/1")).unwrap(), "first");
+    assert!(!insert_entry(&db, l, "u/2", None).unwrap(), "there already");
+    assert_eq!(read_list(&db, "u", l).unwrap().unwrap().items, ["f/7", "u/1", "f/9", "u/2", "u/3", "f/8"]);
+    assert!(was.iter().all(|i| ids(&db).contains(i)), "the others' entries kept");
+    assert_eq!(db.query_row("SELECT membershipReference FROM PlaylistEntity WHERE trackId = 3", [], |r| r.get::<_, i64>(0)).unwrap(), 4);
   }
   #[test]
   fn a_library_made_like_another_takes_songs_as_engine_dj_does() {
