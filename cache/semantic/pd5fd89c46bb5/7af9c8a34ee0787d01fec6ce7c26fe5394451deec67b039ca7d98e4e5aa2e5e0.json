@@ -1,0 +1,1 @@
+{"nodes": [{"id": "vault_readme_document", "label": "vault/README.md: Vault structure and conventions", "file_type": "document", "source_file": "vault/README.md"}], "edges": [{"source": "vault_readme_document", "target": "vault_as_source_of_truth", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "vault/README.md"}], "hyperedges": []}
