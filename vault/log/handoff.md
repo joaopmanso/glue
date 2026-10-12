@@ -65,8 +65,21 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **Engine DJ's new playlists stuck, 2026-10-12 (open, waiting on the user):** with GLUE Home quit, playlists made in
   Engine DJ can only be renamed; renaming the playlist before one frees it (the GLUE folder freed "Engine Ref").
   Hypothesis in `vault/research/engine-dj-write-back.md` (F:'s copies drifted from the Collection). **Waiting:** Engine
-  DJ's log (a PowerShell search for .log/.txt changed in the last 15 minutes was given); the user declined aligning F:
-  with the Collection for now ("not yet"). Next: read the log; then align F: (all, or "2022" first) if it confirms.
+  DJ's log; the user declined aligning F: with the Collection for now ("not yet"). Next: read the log; then align F:
+  (all, or "2022" first) if it confirms.
+  - Where the log is isn't known. Make Engine DJ fail (add a song to "test123"), then at once list the log and text
+    files changed in the last 15 minutes (PowerShell, on the desktop):
+    ```powershell
+    $since = (Get-Date).AddMinutes(-15)
+    Get-ChildItem $env:LOCALAPPDATA, $env:APPDATA, $env:PROGRAMDATA, "$env:USERPROFILE\Music\Engine Library", "$env:USERPROFILE\Documents" -Recurse -Include *.log,*.txt -ErrorAction SilentlyContinue |
+      Where-Object { $_.LastWriteTime -gt $since } |
+      Sort-Object LastWriteTime -Descending |
+      Select-Object LastWriteTime, Length, FullName -First 30
+    ```
+    Look under an "Engine DJ" or "inMusic" folder for the error behind the refused change.
+  - The databases: the Collection `C:\Users\joaop\Music\Engine Library\Database2\m.db`, the drive's
+    `F:\Engine Library\Database2\m.db`. Read-only (copy them first while Engine DJ is open); GLUE Home's backups of them
+    are in its cache, `dj-backups/`.
 - **GLUE Home 0.73.2, 2026-10-12 (open):** Engine DJ: songs added from GLUE removable but not movable; GLUE's playlists
   read-only; "Engine Ref" (made in Engine DJ) couldn't be moved or given a song. The copies (`DatabaseC3/F3` before,
   `C4/F4` after Engine DJ opened; the user's, ignored locally) show only GLUE's song rows differ (`isMetadataImported`
