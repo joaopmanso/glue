@@ -206,6 +206,8 @@ impl<H: Host> Engine<H> {
         let tree_db = coll.unwrap_or_else(|| lib_db.clone());
         // Once: what GLUE wrote into a drive's database alone, put right.
         if tree_db != lib_db && !coll_busy { if let Err(x) = self.dj_tree_repair(&tree_db, &dbs, &mut kept, &at, &mut backed) { eprintln!("GLUE Home: couldn’t put Engine DJ’s drive copies right: {x}"); } }
+        // Once: the songs GLUE had added, made as Engine DJ's own are.
+        if !coll_busy { if let Err(x) = self.dj_fix_tracks(&tree_db, &dbs, &mut kept, &at, &mut backed) { eprintln!("GLUE Home: couldn’t put the songs GLUE added to Engine DJ right: {x}"); } }
         // Once (the user's choice): the drive's songs GLUE had put into its copy only, into the Collection's too.
         if tree_db != lib_db && !coll_busy { if let Err(x) = self.dj_catch_up(&tree_db, &dbs, &mut kept, &at, &mut backed) { eprintln!("GLUE Home: couldn’t catch Engine DJ’s Collection up: {x}"); } }
         let before = crate::djdrives::tree_at(&tree_db);

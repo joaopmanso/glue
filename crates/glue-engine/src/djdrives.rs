@@ -163,6 +163,27 @@ impl<H: Host> Engine<H> {
     Ok(n)
   }
 
+  /// Once (`tracksFixed`, 2026-10-12): songs GLUE added to Engine DJ's databases before they were made as Engine DJ's
+  /// own (no "no artwork" row, details not marked read) put as Engine DJ's own are, in every database (a backup first).
+  pub(crate) fn dj_fix_tracks(&self, tree_db: &Path, dbs: &HashMap<String, PathBuf>, kept: &mut Value, at: &str, backed: &mut HashSet<String>) -> Result<usize, String> {
+    if kept.get("tracksFixed").and_then(Value::as_bool) == Some(true) { return Ok(0); }
+    let mut all: Vec<PathBuf> = dbs.values().cloned().chain(std::iter::once(tree_db.to_path_buf())).filter(|p| p.is_file()).collect();
+    all.sort(); all.dedup();
+    let mut n = 0;
+    for path in all {
+      let db = Connection::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+      let waiting: bool = db.query_row("SELECT 1 FROM Track WHERE albumArtId IS NULL AND isMetadataImported = 0 LIMIT 1", [], |_| Ok(())).optional().map_err(|e| e.to_string())?.is_some();
+      if !waiting { continue; }
+      let own = uuid_of(&db)?;
+      if backed.insert(own.clone()) { self.dj_backup(&own, &path, at)?; }
+      let k = enginedb::fix_added_tracks(&db)?;
+      if k > 0 { self.event(&format!("Engine DJ: {k} song{} GLUE had added put as Engine DJ’s own ({})", if k == 1 { "" } else { "s" }, path.display())); }
+      n += k;
+    }
+    kept["tracksFixed"] = json!(true);
+    Ok(n)
+  }
+
   /// Once (`treeFixed`): what GLUE 0.71–0.72.3 wrote into a drive's database alone, put right (see the top). GLUE's
   /// memory of the old tree (its GLUE folder, its new lists' ids, the edits waiting) let go: it's the Collection's now.
   pub(crate) fn dj_tree_repair(&self, tree_db: &Path, dbs: &HashMap<String, PathBuf>, kept: &mut Value, at: &str, backed: &mut HashSet<String>) -> Result<usize, String> {

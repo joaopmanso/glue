@@ -87,6 +87,15 @@ impl<'a> Songs<'a> {
     Ok((uuid, db, rel))
   }
 }
+/// A song's bitrate as Engine DJ keeps it (kbps): a lossless file's from its rate, bits and channels (1,411 a CD's),
+/// a lossy one's as read.
+fn kbps(f: &Value) -> Option<i64> {
+  let n = |k: &str| f.get(k).and_then(Value::as_f64).filter(|x| *x > 0.0);
+  if f.get("lossless").and_then(Value::as_bool) == Some(true) || matches!(f.get("codec").and_then(Value::as_str), Some("pcm")) {
+    if let (Some(sr), Some(b), Some(c)) = (n("sampleRate"), n("bits"), n("channels")) { return Some((sr * b * c / 1000.0).round() as i64); }
+  }
+  n("bitrate").map(|b| if b > 10_000.0 { (b / 1000.0).round() as i64 } else { b.round() as i64 })
+}
 /// A file's real place (links and junctions followed), without Windows' `\\?\` in front.
 fn real_path(p: &Path) -> PathBuf {
   let Ok(r) = std::fs::canonicalize(p) else { return p.to_path_buf() };
@@ -120,7 +129,7 @@ impl Songs<'_> {
         if backed.insert(uuid.clone()) { if let Err(e) = eng.dj_backup(&uuid, &dbp, self.at) { return self.miss(tid, format!("Engine DJ’s library couldn’t be backed up first ({e})")); } }
         let n = |k: &str| t.get(k).and_then(Value::as_f64);
         match enginedb::add_track(db, &NewTrack { path: rel, title: text(t, "title"), artist: text(t, "artist"), album: text(t, "album"), genre: text(t, "genre"), comment: text(t, "comment"), label: text(t, "label"),
-          year: text(t, "year").parse().ok(), length: n("duration"), size: n("size"), created: n("mtime").map(|m| m / 1000.0) }, self.now) {
+          year: text(t, "year").parse().ok(), length: n("duration"), size: n("size"), created: n("mtime").map(|m| m / 1000.0), bitrate: kbps(&t["format"]) }, self.now) {
           Ok(id) => id,
           Err(e) => return self.miss(tid, format!("Engine DJ’s library didn’t take it ({e})")),
         }

@@ -58,6 +58,14 @@ not in Engine DJ, though Engine DJ names a new "Glue" "Glue 2".
   - **Confirmed by the user in Engine DJ (2026-10-10):** F: shows under Drives as "Shared", apart from the Collection.
     "2022" shows 1,007 songs in the Collection and 985 under the drive: C:'s entries for F:'s songs that exist (1,006,
     and one of another database) and F:'s own (985). So the Collection is C:'s tree, and a drive shows its own copy.
+- **2026-10-12, copies before and after Engine DJ opened** (a song added from GLUE; "Engine Ref" and "Test" made in
+  Engine DJ): Engine DJ makes a new list in both databases with the same id (`isPersisted`/`isExplicitlyExported` 1
+  in C:, 0 in the drive's while it has no songs of it). Chains, ids and the shared lists' order are consistent. The
+  songs GLUE added differ from Engine DJ's own in two columns only: `isMetadataImported` 0 (Engine DJ's: 1) and no
+  `bitrate` (Engine DJ's: kbps, 1,411 a CD-quality WAV/AIFF, 2,117 a 24-bit one, 320 an MP3). A missing `albumArtId`
+  isn't it (Engine DJ's own new songs have none too). Whether those two columns are why Engine DJ wouldn't move those
+  songs (the user: removable, not movable) is **[UNVERIFIED]**; the user couldn't move a playlist or add a song to
+  "Engine Ref" either.
 - **What followed:** ADR 0182 (GLUE Home 0.73). GLUE's playlist writes were paused (0.72.3) until made as Engine DJ makes them:
   into C:'s database (the master) and every other carrying the tree, with the same id (one free in all of them), and
   GLUE's DJ collection read from C:'s tree. And F:'s 5 GLUE-made playlists and the clash at 9047 put right.

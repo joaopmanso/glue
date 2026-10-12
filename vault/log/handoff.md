@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-09)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.73.1** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.73.2** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.73.2, 2026-10-12 (open):** Engine DJ: songs added from GLUE removable but not movable; GLUE's playlists
+  read-only; "Engine Ref" (made in Engine DJ) couldn't be moved or given a song. The copies (`DatabaseC3/F3` before,
+  `C4/F4` after Engine DJ opened; the user's, ignored locally) show only GLUE's song rows differ (`isMetadataImported`
+  0, no `bitrate`): fixed in 0.73.2 for new and old. **Waiting on the user:** does it help? Can an old Engine DJ
+  playlist (RAQUEL) be moved at all, and which song was tried in "Engine Ref"? If still read-only: watch Engine DJ's own
+  log (`%LOCALAPPDATA%\Engine DJ` or its Settings › About › logs) for the error on a failed move.
 - **GLUE Home 0.73.1, 2026-10-10:** the 106 drive songs GLUE had put into F:'s copies only (with 0.72.x) go into the
   Collection's lists, once (the user's choice; the 3,034 entries of unplugged drives left). **Open: GLUE's playlists
   inside the GLUE folder read-only in Engine DJ.** Not in the copies (the folder was empty by then). Asked: is it in the

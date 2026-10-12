@@ -5,6 +5,16 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-12 · Songs GLUE adds to Engine DJ made as Engine DJ's own (GLUE Home 0.73.2)
+- **The user, on 0.73.1:** Engine DJ's own playlists editable again; but songs added from GLUE can be removed from a
+  playlist in Engine DJ, not moved; GLUE's playlists show right but are read-only; a playlist made in Engine DJ ("Engine
+  Ref") couldn't be moved or given a song.
+- **Copies before and after Engine DJ opened:** chains, ids and order consistent; Engine DJ makes its lists as GLUE
+  does. The songs GLUE added differ from Engine DJ's own in `isMetadataImported` (0, Engine DJ's 1) and `bitrate`
+  (none). Now they're made as Engine DJ's own (and the 62 added before put so, once, after a backup; checked on the
+  copies: exactly those, Engine DJ's own rows untouched). Whether it's the cause is the user's check, with whether an
+  old playlist of Engine DJ's (RAQUEL) can be moved at all.
+
 ## 2026-10-10 · The Collection caught up with the songs GLUE had put into the drive only (GLUE Home 0.73.1)
 - **The user, on 0.73:** the RAQUEL lists and the GLUE folder show; but songs added from GLUE (with 0.72.x) show only in
   the drive's playlists, not the Collection's; and GLUE's playlists inside its GLUE folder were read-only in Engine DJ.

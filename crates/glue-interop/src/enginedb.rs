@@ -167,16 +167,34 @@ pub fn insert_entry(db: &Connection, list: i64, item: &str, before: Option<&str>
 /// A song for Engine DJ's collection: its path from the database's `Engine Library` folder ("../Music/a.mp3"), its
 /// tags, length (s), size, and the file's date (s). Engine DJ analyses it when it next sees it.
 #[derive(Clone, Debug, Default)]
-pub struct NewTrack { pub path: String, pub title: String, pub artist: String, pub album: String, pub genre: String, pub comment: String, pub label: String, pub year: Option<i64>, pub length: Option<f64>, pub size: Option<f64>, pub created: Option<f64> }
-/// Into the collection (Engine DJ's triggers give it its origin and an empty `PerformanceData`). Its id.
+pub struct NewTrack { pub path: String, pub title: String, pub artist: String, pub album: String, pub genre: String, pub comment: String, pub label: String, pub year: Option<i64>, pub length: Option<f64>, pub size: Option<f64>, pub created: Option<f64>,
+  /// kbps, as Engine DJ keeps it (1,411 a CD-quality WAV or AIFF, 320 an MP3).
+  pub bitrate: Option<i64> }
+/// The database's "no artwork" row (Engine DJ's songs without art point at it; made if it has none).
+pub fn no_art(db: &Connection) -> R<i64> {
+  if let Some(id) = db.query_row("SELECT id FROM AlbumArt WHERE hash IS NULL AND albumArt IS NULL ORDER BY id LIMIT 1", [], |r| r.get(0)).optional().map_err(e)? { return Ok(id); }
+  db.execute("INSERT INTO AlbumArt (hash, albumArt) VALUES (NULL, NULL)", []).map_err(e)?;
+  Ok(db.last_insert_rowid())
+}
+/// Into the collection as Engine DJ's own import makes a song: its details read (`isMetadataImported`), the "no
+/// artwork" row, its bitrate (2026-10-12: songs GLUE added without them could be removed from a playlist in Engine DJ
+/// but not moved). Engine DJ's triggers give it its origin and an empty `PerformanceData`. Its id.
 pub fn add_track(db: &Connection, t: &NewTrack, now: i64) -> R<i64> {
   let file = t.path.rsplit('/').next().unwrap_or(&t.path).to_string();
   let ext = file.rsplit_once('.').map(|x| x.1.to_lowercase()).unwrap_or_default();
   let nz = |s: &str| (!s.is_empty()).then(|| s.to_string());
-  db.execute("INSERT INTO Track (path, filename, title, artist, album, genre, comment, label, year, length, fileBytes, fileType, rating, isPlayed, isAnalyzed, dateCreated, dateAdded, isAvailable, isMetadataOfPackedTrackChanged, isPerfomanceDataOfPackedTrackChanged, isMetadataImported, pdbImportKey, isBeatGridLocked, streamingFlags, explicitLyrics, lastEditTime)
-              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, 0, 0, ?13, ?14, 1, 0, 0, 0, 0, 0, 0, 0, ?14)",
-    params![t.path, file, nz(&t.title).unwrap_or_else(|| file.clone()), nz(&t.artist), nz(&t.album), nz(&t.genre), nz(&t.comment), nz(&t.label), t.year, t.length.map(|l| l.round() as i64), t.size.map(|s| s as i64), ext, t.created.map(|c| c as i64).unwrap_or(now), now]).map_err(e)?;
+  let art = no_art(db)?;
+  db.execute("INSERT INTO Track (path, filename, title, artist, album, genre, comment, label, year, length, fileBytes, fileType, rating, isPlayed, isAnalyzed, dateCreated, dateAdded, isAvailable, isMetadataOfPackedTrackChanged, isPerfomanceDataOfPackedTrackChanged, isMetadataImported, pdbImportKey, isBeatGridLocked, streamingFlags, explicitLyrics, lastEditTime, albumArtId, bitrate)
+              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, 0, 0, ?13, ?14, 1, 0, 0, 1, 0, 0, 0, 0, ?14, ?15, ?16)",
+    params![t.path, file, nz(&t.title).unwrap_or_else(|| file.clone()), nz(&t.artist), nz(&t.album), nz(&t.genre), nz(&t.comment), nz(&t.label), t.year, t.length.map(|l| l.round() as i64), t.size.map(|s| s as i64), ext, t.created.map(|c| c as i64).unwrap_or(now), now, art, t.bitrate]).map_err(e)?;
   Ok(db.last_insert_rowid())
+}
+/// Songs GLUE added before they were made as Engine DJ's own (no "no artwork" row, details not marked read): put as
+/// Engine DJ's own are. How many.
+pub fn fix_added_tracks(db: &Connection) -> R<usize> {
+  if db.query_row("SELECT 1 FROM Track WHERE albumArtId IS NULL AND isMetadataImported = 0 LIMIT 1", [], |_| Ok(())).optional().map_err(e)?.is_none() { return Ok(0); }
+  let art = no_art(db)?;
+  db.execute("UPDATE Track SET albumArtId = ?1, isMetadataImported = 1 WHERE albumArtId IS NULL AND isMetadataImported = 0", [art]).map_err(e)
 }
 /// The song at this path in the collection, if it has it.
 pub fn track_at(db: &Connection, path: &str) -> R<Option<i64>> {
@@ -316,7 +334,9 @@ mod tests {
     assert_eq!(order_of(&read_lists(&db, "u1").unwrap(), 0), back);
     let _ = c;
     // Songs in order, each once.
-    let t1 = add_track(&db, &NewTrack { path: "../Music/one.mp3".into(), title: "One".into(), length: Some(300.4), size: Some(1000.0), ..Default::default() }, 1_790_000_000).unwrap();
+    let t1 = add_track(&db, &NewTrack { path: "../Music/one.mp3".into(), title: "One".into(), length: Some(300.4), size: Some(1000.0), bitrate: Some(320), ..Default::default() }, 1_790_000_000).unwrap();
+    let (art, imported, kbps): (Option<i64>, i64, Option<i64>) = db.query_row("SELECT albumArtId, isMetadataImported, bitrate FROM Track WHERE id = ?1", [t1], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+    assert_eq!((art, imported, kbps), (Some(no_art(&db).unwrap()), 1, Some(320)), "as Engine DJ's own import makes one");
     let t2 = add_track(&db, &NewTrack { path: "../Music/two.flac".into(), ..Default::default() }, 1_790_000_000).unwrap();
     assert_eq!(db.query_row("SELECT COUNT(*) FROM PerformanceData", [], |r| r.get::<_, i64>(0)).unwrap(), 2, "Engine DJ's trigger made their rows");
     assert_eq!(db.query_row("SELECT originDatabaseUuid FROM Track WHERE id = ?1", [t1], |r| r.get::<_, String>(0)).unwrap(), "u1");
