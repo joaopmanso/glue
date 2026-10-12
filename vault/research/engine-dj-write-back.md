@@ -66,6 +66,17 @@ not in Engine DJ, though Engine DJ names a new "Glue" "Glue 2".
   isn't it (Engine DJ's own new songs have none too). Whether those two columns are why Engine DJ wouldn't move those
   songs (the user: removable, not movable) is **[UNVERIFIED]**; the user couldn't move a playlist or add a song to
   "Engine Ref" either.
+- **2026-10-12, on 0.73.2, GLUE Home quit the whole time:** Engine DJ's own new playlists (top level, or inside
+  "2022") can only be renamed: no songs added, not moved, not deleted, across restarts. Existing playlists (and GLUE's
+  in its folder) work. Renaming the GLUE folder (the playlist before "Engine Ref") and back freed "Engine Ref"; "test123"
+  (inside "2022") stayed stuck. The databases have nothing else that names a playlist (Pack, Smartlist,
+  PreparelistEntity empty), no empty column, consistent chains, views and ids: what's stuck is in Engine DJ itself.
+  **Hypothesis [UNVERIFIED]:** Engine DJ keeps a drive's copy in step with the Collection and expects them to match;
+  since 2026-10-08 (identical then) they've drifted through GLUE (0.68–0.72 F:-only writes, the restore into F:, the
+  0.73.1 catch-up into C:): 114 lists differ, "2022" by thousands of entries. A change it can't make in the drive's copy
+  may leave the new list locked. Next: Engine DJ's log (asked of the user); the fix would be F:'s copies of shared lists
+  made the Collection's (F: would get back 3,503 entries GLUE 0.68 took and drop 3,034 the restore added that the
+  Collection hasn't): the user said "not yet".
 - **What followed:** ADR 0182 (GLUE Home 0.73). GLUE's playlist writes were paused (0.72.3) until made as Engine DJ makes them:
   into C:'s database (the master) and every other carrying the tree, with the same id (one free in all of them), and
   GLUE's DJ collection read from C:'s tree. And F:'s 5 GLUE-made playlists and the clash at 9047 put right.

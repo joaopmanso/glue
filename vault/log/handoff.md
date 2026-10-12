@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Engine DJ's new playlists stuck, 2026-10-12 (open, waiting on the user):** with GLUE Home quit, playlists made in
+  Engine DJ can only be renamed; renaming the playlist before one frees it (the GLUE folder freed "Engine Ref").
+  Hypothesis in `vault/research/engine-dj-write-back.md` (F:'s copies drifted from the Collection). **Waiting:** Engine
+  DJ's log (a PowerShell search for .log/.txt changed in the last 15 minutes was given); the user declined aligning F:
+  with the Collection for now ("not yet"). Next: read the log; then align F: (all, or "2022" first) if it confirms.
 - **GLUE Home 0.73.2, 2026-10-12 (open):** Engine DJ: songs added from GLUE removable but not movable; GLUE's playlists
   read-only; "Engine Ref" (made in Engine DJ) couldn't be moved or given a song. The copies (`DatabaseC3/F3` before,
   `C4/F4` after Engine DJ opened; the user's, ignored locally) show only GLUE's song rows differ (`isMetadataImported`
