@@ -19,6 +19,9 @@ const BIN_DAYS = 30, DAY = 864e5;
 /** One log entry (base64 characters; D1 rows are at most 2 MB), and the entries after which the device
     that pushed is asked to fold the log into the snapshot. */
 export const MAX_ENTRY = 1_800_000, MAX_ENTRY_PATHS = 2000, COMPACT_AFTER = 300;
+/** The log folded in sooner when it's this big (2026-10-13: entries of a whole DJ library's record each, every 10 s,
+    made one account's log 80 MB before its 300 entries were reached); looked at from `COMPACT_LOOK` entries on. */
+export const COMPACT_BYTES = 8_000_000, COMPACT_LOOK = 20;
 
 interface Row { path: string; rev: number; hash: string; size: number; data: string | null; deleted_at: number | null; updated_by: string | null; updated_at: number }
 
@@ -165,7 +168,12 @@ export async function append(env: Env, a: Access, cid: string, text: string, now
   if (!(res[0] as { meta: { changes: number } }).meta.changes) return { stale: true, seq: c.seq };
   const rev = base + 1;
   await notify?.(rev).catch(() => {});
-  return { rev, compact: rev - c.floor >= COMPACT_AFTER };
+  let compact = rev - c.floor >= COMPACT_AFTER;
+  if (!compact && rev - c.floor >= COMPACT_LOOK) {
+    const big = await env.DB.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM shared_log WHERE user_id = ? AND collection_id = ?').bind(a.sub, cid).first<{ n: number }>();
+    compact = (big?.n ?? 0) >= COMPACT_BYTES;
+  }
+  return { rev, compact };
 }
 
 /** The files the log changed after the floor, up to `to` (what a checkpoint at `to` must write). */

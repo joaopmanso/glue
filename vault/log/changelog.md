@@ -5,6 +5,17 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-13 · The account's cloud storage at 100 MB (GLUE Home 0.73.4, GLUE Cloud)
+- **The user:** the account's storage near 100 MB for about 20,000 songs; it used to be under 20 MB.
+- **Why:** GLUE Home follows Engine DJ's database by its date, reading it again at most every 10 s, and Engine DJ open
+  changes that date all the time. Each read wrote the library's record anew (`importedAt`, `origin.modified`), and
+  the record (every song of the library, its tree) went to GLUE Cloud's log whole, up to 300 entries before the log
+  was folded into the snapshot.
+- **Now:** a read that finds nothing new leaves the record as it was (the date it read kept in GLUE Home's memory);
+  GLUE Cloud asks for the log to be folded in at 8 MB too (from 20 entries on). The account's number drops at the next
+  fold, which the next change brings. Tests: `dj_libraries_are_imported_and_followed_by_glue_home` (failed without
+  it), `tests/cloud.test.ts`.
+
 ## 2026-10-13 · Streaming stuck on a room gone silent (GLUE Home 0.73.3, GLUE Cloud)
 - **The user:** remote streaming stopped on the laptop and the iPhone, twice: mid-song "stopped sending", then every
   song "Couldn't connect to Desktop, even through the relay (…Desktop: no addresses; new)", with the Desktop shown

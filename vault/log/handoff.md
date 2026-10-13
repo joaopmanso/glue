@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-09)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.73.3** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.73.4** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Cloud storage at 100 MB, 2026-10-13 (0.73.4 + GLUE Cloud):** the DJ library's record rewritten at every read of
+  Engine DJ's database, each copy whole in GLUE Cloud's log. Waiting: the user's number in Account after 0.73.4 is on
+  the desktop (it drops at the next fold of the log; the admin page's "changes in the log" shows it).
 - **Streaming stuck, 2026-10-13 (0.73.3 + GLUE Cloud):** a room socket that died without closing is now replaced
   (75 s without a pong) and let go by GLUE Cloud (150 s). Waiting: the user's word that streaming recovers by itself
   (the desktop needs 0.73.3; until then Stop/Start in GLUE Home brings it back).

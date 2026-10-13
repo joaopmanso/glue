@@ -120,7 +120,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - **Sync** (`src/store/shared/engine.ts`, ADRs 0106, 0107; GLUE Home's is its Rust port, `crates/glue-engine/src/sync.rs`,
     held to it by `tests/golden/sync`, ADR 0155):
     - GLUE Cloud keeps a snapshot (`shared_files`) and a log (`shared_log`); a push is one log entry on the
-      latest revision, otherwise the device pulls, merges and pushes again;
+      latest revision, otherwise the device pulls, merges and pushes again; each entry holds its files whole, and the
+      pushing device is asked to fold the log into the snapshot at 300 entries or 8 MB (`COMPACT_BYTES`, looked at from
+      20 entries on); the account's storage is the snapshot and the log;
     - only files marked changed are looked at, and every file every 30 minutes;
     - `merge3` merges per field; for per-computer parts, a computer's own side wins;
     - clashes wait in a box (ADR 0095); a computer never clashes with itself (`Place.own`: its GLUE Home, its
@@ -194,7 +196,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     brings them in as its `applyImport` and `syncLinkedLists` do (held to it byte for byte: `tests/golden/interop`,
     `tests/golden/import`). The engine's `dj.rs` follows every collection's libraries it can reach (a music folder,
     the GLUE folder, `hl:` a file chosen with its dialog) every 5 s, by date, and reads a changed one again as its own
-    edit; it finds new ones in the music folders and the GLUE folder (`djFind`), and imports the one the page adds
+    edit (a read that finds nothing new but its date leaves the record as it was, the date kept in memory: Engine DJ
+    open changes its database's date all the time, and each record went to GLUE Cloud's log whole); it finds new ones in the music folders and the GLUE folder (`djFind`), and imports the one the page adds
     (`djImport`). The page only shows each one's state (`dj`) and asks for Refresh (`djRefresh`).
   - **Cues, loops and beat grids from every app** (0.65, ADR 0168): each record keeps them (`SourceTrack.cueList`,
     `grid`), Engine DJ's from `PerformanceData` (`enginePerf.ts`, `glue_interop::perf`); Prepare shows each app's and

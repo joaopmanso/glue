@@ -18,6 +18,8 @@ const AT_MOST: Duration = Duration::from_secs(10);
 #[derive(Default)]
 pub(crate) struct DjWatch {
   looking: bool, status: HashMap<String, &'static str>, last_read: HashMap<String, Instant>, warned: HashSet<String>, reread: HashSet<String>,
+  /// The date a library was last read at when that read found nothing new (its record isn't written for it).
+  read_at: HashMap<String, f64>,
   /// The main library's two-way sync (ADR 0170), by source: "waiting" (for Engine DJ to close) or "synced".
   pub(crate) syncing: HashMap<String, &'static str>,
   /// What a collection was when it was last synced (its feed's revision, its databases' dates).
@@ -114,7 +116,7 @@ impl<H: Host> Engine<H> {
     let tree_from = coll.as_ref().map(|c| c.to_string_lossy().to_string()).unwrap_or_default();
     self.dj_set(&id, "live");
     // Up to date, unless GLUE hasn't kept its tree yet (a library imported before ADR 0063).
-    let known = origin["modified"].as_f64().unwrap_or(0.0);
+    let known = origin["modified"].as_f64().unwrap_or(0.0).max(self.dj.lock().unwrap().read_at.get(&id).copied().unwrap_or(0.0));
     // Read before records kept their grids (ADR 0168): read once more, once a run, for its cues and grids.
     let gridless = !get(src, "tracks").and_then(Value::as_array).is_some_and(|ts| ts.iter().any(|t| t.get("grid").is_some()));
     let again = gridless && matches!(text(src, "app").as_str(), "engine" | "rekordbox" | "traktor") && self.dj.lock().unwrap().reread.insert(id.clone());
@@ -173,7 +175,13 @@ impl<H: Host> Engine<H> {
       if app == "engine" { origin.insert("tree".into(), json!(found.files.iter().find(|f| f.0 == "collection m.db").map(|f| f.1.to_string_lossy().to_string()).unwrap_or_default())); }
       let mut next = cur.as_object().cloned().unwrap_or_default();
       next.insert("origin".into(), Value::Object(origin));
-      st.put_source(Value::Object(next));
+      let next = Value::Object(next);
+      // Nothing new but when it was read (2026-10-13: Engine DJ open changes its database's date all the time, and each
+      // read, every 10 s, wrote the whole record anew; each went to GLUE Cloud's log whole, 100 MB for the account):
+      // the record kept as it was, the date it was read at remembered here.
+      let bare = |v: &Value| { let mut o = v.as_object().cloned().unwrap_or_default(); o.shift_remove("importedAt"); if let Some(Value::Object(g)) = o.get_mut("origin") { g.shift_remove("modified"); } o };
+      if bare(&next) == bare(src) { st.put_source(src.clone()); self.dj.lock().unwrap().read_at.insert(id.clone(), found.modified); }
+      else { st.put_source(next); self.dj.lock().unwrap().read_at.remove(&id); }
     }
     self.flush_edit(&mut st, p, c)?;
     drop(st);

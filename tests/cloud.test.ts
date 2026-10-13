@@ -445,6 +445,21 @@ describe('the shared collection (ADR 0094, 0106)', () => {
     for (let n = 0; n < 300; n++) last = (await call('POST', '/v1/shared/long/append', entry(n, ['lists/a.json']), t)).json;
     expect(last).toEqual({ rev: 300, compact: true });
   }, 30_000);
+  it('… or once it’s big: big entries (a DJ library’s whole record each) fold it in sooner', async () => {
+    const t = (await signIn()).json.access;
+    await call('POST', '/v1/shared', { id: 'big' }, t);
+    const said: boolean[] = [];
+    for (let n = 0; n < 12; n++) said.push((await call('POST', '/v1/shared/big/append', entry(n, ['sources/s1.json'], 'A'.repeat(1_000_000)), t)).json.compact);
+    // From COMPACT_LOOK (20) entries on only: a short log of big entries isn't asked yet.
+    expect(said.every(c => c === false)).toBe(true);
+    for (let n = 12; n < 25; n++) said.push((await call('POST', '/v1/shared/big/append', entry(n, ['sources/s1.json'], 'A'.repeat(1_000_000)), t)).json.compact);
+    expect(said.indexOf(true)).toBe(19);
+    // Small entries: not before 300.
+    await call('POST', '/v1/shared', { id: 'small' }, t);
+    let last: unknown = null;
+    for (let n = 0; n < 25; n++) last = (await call('POST', '/v1/shared/small/append', entry(n, ['lists/a.json']), t)).json;
+    expect(last).toEqual({ rev: 25, compact: false });
+  }, 30_000);
   it('another account can’t read or write it; bad entries, big ones and old pushes are refused', async () => {
     const a = await signIn();
     await call('POST', '/v1/shared', { id: 'mine' }, a.json.access);

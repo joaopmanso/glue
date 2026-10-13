@@ -391,6 +391,14 @@ fn dj_libraries_are_imported_and_followed_by_glue_home() {
   let src = read(&glue, &format!("{C}/sources/{sid}.json"));
   assert_eq!(src["tree"].as_array().map(Vec::len), Some(3));
   assert!(src["origin"]["modified"].as_f64().unwrap() > 0.0, "marked as read");
+  // Read again with nothing new in it (its date changed, as Engine DJ's does all the time while it's open): its record
+  // as it was, byte for byte (each change of it went to GLUE Cloud's log whole, 2026-10-13).
+  let path = glue.join(format!("{C}/sources/{sid}.json"));
+  let before = std::fs::read(&path).unwrap();
+  std::thread::sleep(std::time::Duration::from_millis(1100));
+  std::fs::write(libs.join("rekordbox.xml"), rekordbox(r#"<NODE Name="Sat" Type="1" KeyType="0"><TRACK Key="1"/></NODE>"#)).unwrap();
+  assert_eq!(e.rpc(&json!({ "op": "djRefresh", "p": "p1", "c": "c1", "id": sid })).unwrap()["ok"], true);
+  assert_eq!(String::from_utf8(std::fs::read(&path).unwrap()).unwrap(), String::from_utf8(before).unwrap());
   // Not while a tab is the writer.
   h.0.lock().unwrap().lease = true;
   std::fs::write(libs.join("rekordbox.xml"), rekordbox("")).unwrap();
