@@ -21,7 +21,7 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-const OPS: [&str; 7] = ["new", "rename", "move", "delete", "add", "remove", "shift"];
+const OPS: [&str; 8] = ["new", "rename", "move", "delete", "add", "remove", "shift", "align"];
 
 /// The list `ext` in the tree.
 fn find(tree: &[Value], ext: &str) -> Option<usize> { tree.iter().position(|l| text(l, "externalId") == ext) }
@@ -191,7 +191,10 @@ impl<H: Host> Engine<H> {
     let mut ids: HashMap<String, i64> = kept["made"].as_object().map(|m| m.iter().filter_map(|(k, v)| Some((k.clone(), v.as_i64()?))).collect()).unwrap_or_default();
     let mut done = 0;
     let mut tx = db.transaction().map_err(|e| e.to_string())?;
+    // The drives' copies asked to match the Collection (the list's id, '' all): after the edits, by the sync.
+    let mut align: Vec<String> = vec![];
     for op in &ops {
+      if text(op, "t") == "align" { let l = text(op, "list"); align.push(ids.get(&l).map_or(l, |i| i.to_string())); }
       let sp = tx.savepoint().map_err(|e| e.to_string())?;
       match self.dj_write_op(&sp, &own, op, &mut ids, &mut songs, backed) {
         Ok(()) => { sp.commit().map_err(|e| e.to_string())?; done += 1; }
@@ -201,6 +204,7 @@ impl<H: Host> Engine<H> {
     }
     tx.commit().map_err(|e| e.to_string())?;
     kept["opsDone"] = json!(ops.len());
+    if !align.is_empty() { kept["alignNow"] = json!(align); }
     // Songs that couldn't go, and why.
     if !songs.missed.is_empty() {
       let mut why: Vec<&String> = songs.missed.values().collect(); why.sort(); why.dedup();
@@ -278,6 +282,8 @@ impl<H: Host> Engine<H> {
         for (k, x) in moved.into_iter().enumerate() { items.insert(at + k, x); }
         enginedb::set_items(db, id, &items)
       }
+      // A drive's copy made the Collection's (2026-10-13): nothing in the Collection; done after the edits (`dj_align`).
+      "align" => Ok(()),
       t => Err(format!("not an edit GLUE Home knows: {t}")),
     }
   }

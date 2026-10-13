@@ -5,6 +5,26 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-13 · Streaming stuck on a room gone silent (GLUE Home 0.73.3, GLUE Cloud)
+- **The user:** remote streaming stopped on the laptop and the iPhone, twice: mid-song "stopped sending", then every
+  song "Couldn't connect to Desktop, even through the relay (…Desktop: no addresses; new)", with the Desktop shown
+  online. A reboot of the desktop fixed it the first time; the laptop needed a reload.
+- **Why:** the Desktop GLUE Home's socket to GLUE Cloud's room died without closing (asleep, a network change). GLUE
+  Cloud still listed it online and passed the offers into it; nobody answered. The pings every 30 s were sent, their
+  pongs never checked, on either side.
+- **Now:** GLUE Home and the website open a new socket after 75 s without a word (once the room has ponged: the tests'
+  stand-in rooms never do); GLUE Cloud lets go of a socket silent for 150 s, checked on each message, so an offer to a
+  computer asleep finds it offline; the website tries a GLUE Home that comes back online at once. Tests:
+  `tests/room.test.ts`, `tests/signal.test.ts`, `crates/glue-engine/tests/room.rs`.
+
+## 2026-10-13 · Make the drives' copies match the Collection (GLUE Home 0.73.3)
+- **The user, testing:** with GLUE Home quit, playlists made in Engine DJ can only be renamed; renaming the one before
+  freed "Engine Ref"; "test123" inside "2022" stayed stuck. Engine DJ keeps no log of it. The hypothesis: F:'s copies
+  have drifted from the Collection (identical on 2026-10-08) and Engine DJ stalls on new lists beside them.
+- **Now:** **Make the drives' copies match…** on an Engine DJ playlist or folder in GLUE's DJ collection (or the library
+  for all): with Engine DJ closed, after a backup, its drive copies get the Collection's songs, order, name and place.
+  The user's test: on "2022" (on the copies: 26 of 31 lists changed in F:, 3,050 songs in, 3,020 out, nothing else).
+
 ## 2026-10-13 · The nightly e2e run without stem separation
 - **The user:** the e2e pipeline failed. It was the nightly run, failing every night since 2026-10-02 on one test:
   stem separation needs a GPU and CI's machine has none, so it never finished in its 14 minutes (the runs on each push,

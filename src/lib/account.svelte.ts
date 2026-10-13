@@ -29,6 +29,9 @@ export function browserName(ua = navigator.userAgent): string {
   return os ? b + ' on ' + os : b;
 }
 
+/** The room silent this long (two missed pongs and a margin): its socket is gone. */
+const SILENT = 75_000;
+
 class Account {
   user = $state<CloudUser | null>(null);
   devices = $state<CloudDevice[]>([]);
@@ -44,6 +47,10 @@ class Account {
   available = $state(false);
   private access = ''; private accessExp = 0;
   private ws: WebSocket | null = null; private retry = 0; private pingTimer = 0; private closing = false;
+  /** When the room last said anything (its pong answers each ping, every 30 s). Silent for longer than `SILENT`: the
+      socket died without closing (2026-10-13: the Desktop shown online, offers to it never answered, until a reload),
+      and a new one is opened. Counted once the room has answered a ping (`ponged`): one that never does is left be. */
+  private heard = 0; private ponged = false;
   private gis: Promise<GoogleId> | null = null;
 
   get signedIn() { return this.phase === 'signed-in' && !!this.user; }
@@ -264,10 +271,19 @@ class Account {
       try { if (!this.access || Date.now() > this.accessExp) await this.renew(); } catch { return this.later(); }
       const ws = new WebSocket(API_BASE.replace(/^http/, 'ws') + '/v1/signal?token=' + encodeURIComponent(this.access) + '&conn=' + encodeURIComponent(tabConn));
       this.ws = ws;
-      ws.onopen = () => { this.retry = 0; this.connected = true; clearInterval(this.pingTimer); this.pingTimer = window.setInterval(() => ws.readyState === 1 && ws.send('{"type":"ping"}'), 30_000); };
+      ws.onopen = () => {
+        this.retry = 0; this.connected = true; this.heard = Date.now(); this.ponged = false; clearInterval(this.pingTimer);
+        this.pingTimer = window.setInterval(() => {
+          if (this.ws !== ws) return;
+          if (this.ponged && Date.now() - this.heard > SILENT) { this.wake(); return; }
+          if (ws.readyState === 1) ws.send('{"type":"ping"}');
+        }, 30_000);
+      };
       ws.onmessage = e => {
+        if (this.ws === ws) this.heard = Date.now();
         let m: { type: string; online?: string[] };
         try { m = JSON.parse(String(e.data)); } catch { return; }
+        if (m.type === 'pong') { if (this.ws === ws) this.ponged = true; return; }
         if (m.type === 'removed') { this.forget(); this.error = 'This browser was removed from your GLUE account.'; return; }
         // Another tab of this browser took over. Act now: the close handshake may never complete.
         if (m.type === 'replaced') { this.closing = true; ws.onclose = null; ws.close(); this.ws = null; this.connected = false; clearInterval(this.pingTimer); return; }

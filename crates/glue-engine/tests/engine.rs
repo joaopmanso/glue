@@ -1037,6 +1037,17 @@ fn engine_djs_collection_holds_the_tree_and_each_change_goes_to_its_drive_too() 
   edit(json!({ "t": "delete", "list": cs.id.to_string() }));
   sync();
   assert!(named(&c, "Saturday").is_none() && named(&f, "Saturday").is_none());
+  // The drive's copies drifted (Friday night under Sets, and Warm): Sets made the Collection's, Warm left.
+  {
+    let db = rusqlite::Connection::open(&f).unwrap();
+    glue_interop::enginedb::set_items(&db, fri.id, &["other-uuid/99".to_string(), fri.items[0].clone()]).unwrap();
+    glue_interop::enginedb::set_items(&db, warm.id, &["other-uuid/98".to_string()]).unwrap();
+  }
+  edit(json!({ "t": "align", "list": sets.id.to_string() }));
+  sync();
+  assert_eq!(named(&f, "Friday night").unwrap().items, named(&c, "Friday night").unwrap().items, "under Sets: the Collection's");
+  assert_eq!(named(&f, "Warm").unwrap().items, vec!["other-uuid/98".to_string()], "outside it: left");
+  assert!(h.0.lock().unwrap().events.iter().any(|x| x.contains("made as the Collection has them")));
 }
 
 /// Copies of a user's real Engine DJ databases (`GLUE_REAL_C`: the Collection's m.db, `GLUE_REAL_F`: a drive's), put
@@ -1098,4 +1109,20 @@ fn real_engine_databases_dry_run() {
   assert!(!f2.contains_key(&made[0].id) && f2.len() == f1.len(), "no drive song: the drive's copy unchanged");
   let still = |a: &std::collections::HashMap<i64, glue_interop::enginedb::EList>, b: &std::collections::HashMap<i64, glue_interop::enginedb::EList>| a.iter().filter(|(id, l)| b.get(id).is_some_and(|n| n.title == l.title && n.items == l.items && n.parent == l.parent)).count();
   println!("unchanged lists: Collection {}/{}, drive {}/{}", still(&c1, &c2), c1.len(), still(&f1, &f2), f1.len());
+  // A folder's drive copies made the Collection's (GLUE_REAL_ALIGN: its title at the top, e.g. "2022").
+  if let Ok(name) = std::env::var("GLUE_REAL_ALIGN") {
+    let root = c2.values().find(|l| l.parent == 0 && l.title == name).expect("that folder").id;
+    let mut under: std::collections::HashSet<i64> = std::collections::HashSet::from([root]);
+    loop { let more: Vec<i64> = c2.values().filter(|l| under.contains(&l.parent) && !under.contains(&l.id)).map(|l| l.id).collect(); if more.is_empty() { break; } under.extend(more); }
+    e.rpc(&json!({ "op": "djEdit", "p": "p1", "c": "c1", "source": sid, "edit": { "t": "align", "list": root.to_string() } })).unwrap();
+    sync();
+    let (c3, f3) = (lists(&c), lists(&f));
+    assert!(c2.iter().all(|(id, l)| c3.get(id).is_some_and(|n| n.items == l.items && n.title == l.title)), "the Collection untouched");
+    let changed: Vec<i64> = f2.keys().copied().filter(|id| f3.get(id).is_some_and(|n| n.items != f2[id].items)).collect();
+    assert!(changed.iter().all(|id| under.contains(id)), "only lists under it change in the drive");
+    assert!(under.iter().filter(|id| f3.contains_key(id)).all(|id| f3[id].items == c3[id].items), "and they're the Collection's");
+    let (mut put, mut out) = (0, 0);
+    for id in &changed { let (a, b) = (&c3[id].items, &f2[id].items); put += a.iter().filter(|x| !b.contains(x)).count(); out += b.iter().filter(|x| !a.contains(x)).count(); }
+    println!("“{name}”: {} lists under it, {} in the drive, {} changed: {put} songs put in, {out} taken out", under.len(), under.iter().filter(|id| f2.contains_key(id)).count(), changed.len());
+  }
 }

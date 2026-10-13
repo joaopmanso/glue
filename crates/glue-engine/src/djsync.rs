@@ -233,6 +233,16 @@ impl<H: Host> Engine<H> {
           // (Rolled back: nothing of the playlists written; the rest of the sync carries on.)
           Err(x) => { eprintln!("GLUE Home: couldn’t keep Engine DJ’s GLUE folder in step: {x}"); self.event(&format!("Couldn’t keep Engine DJ’s GLUE folder in step: {x}")); }
         } }
+        // The drives' copies asked to match the Collection (after the edits, before what they changed goes out).
+        if let Some(asked) = kept.as_object_mut().and_then(|o| o.shift_remove("alignNow")).and_then(|v| v.as_array().cloned()) {
+          for r in asked {
+            let root = r.as_str().filter(|x| !x.is_empty()).and_then(|x| x.parse::<i64>().ok());
+            match self.dj_align(&tree_db, &dbs, root, &at, &mut backed) {
+              Ok((n, _, _)) => done.lists += n,
+              Err(x) => { eprintln!("GLUE Home: couldn’t make the drives’ copies match the Collection: {x}"); self.event(&format!("Couldn’t make Engine DJ’s drive copies match the Collection: {x}")); }
+            }
+          }
+        }
         // What changed in the Collection's tree, into each drive's copy (as Engine DJ does).
         if let Some(b) = before.filter(|_| !coll_busy) { match self.dj_to_drives(&tree_db, &dbs, &b, &at, &mut backed) {
           Ok(n) => { if n > 0 { done.lists += n; } }

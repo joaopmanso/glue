@@ -15,6 +15,11 @@ export type ClientMsg = { type: 'signal'; to: string; data: unknown } | { type: 
 export type RoomMsg = { type: 'shared'; collection: string; seq: number; from: string } | { type: 'presence'; online: string[] } | { type: 'removed' } | { type: 'replaced' } | { type: 'signal'; from: string; data: unknown } | { type: 'pong' } | { type: 'error'; error: string };
 
 const MAX_MSG = 64 * 1024;
+/** Every device pings every 30 s (a background tab's timers, slowed to once a minute, too). A socket silent this long
+    died without closing (a computer asleep, a network gone, 2026-10-13: its GLUE Home stayed "online" and every offer
+    to it went nowhere): it's let go, and everyone hears it's offline. */
+export const STALE = 150_000;
+type Att = { device: string; conn?: string; heard?: number };
 
 export class Signal {
   constructor(private state: State, private env: Env) {}
@@ -41,14 +46,16 @@ export class Signal {
     for (const o of old) { try { o.send(JSON.stringify({ type: 'replaced' } satisfies RoomMsg)); } catch { /* closing */ } o.close(4000, 'replaced'); }
     const pair = new WebSocketPair(), client = pair[0], server = pair[1];
     this.state.acceptWebSocket(server, [device]);
-    server.serializeAttachment({ device, conn });
+    server.serializeAttachment({ device, conn, heard: Date.now() } satisfies Att);
     this.seen(device);
     this.presence(...old);
     return new Response(null, { status: 101, webSocket: client } as ResponseInit);
   }
 
   webSocketMessage(ws: WS, raw: string | ArrayBuffer) {
-    const from = (ws.deserializeAttachment() as { device: string }).device;
+    const att = ws.deserializeAttachment() as Att, from = att.device;
+    ws.serializeAttachment({ ...att, heard: Date.now() } satisfies Att);
+    this.prune();
     if (typeof raw !== 'string' || raw.length > MAX_MSG) return ws.send(JSON.stringify({ type: 'error', error: 'message too large' } satisfies RoomMsg));
     let m: ClientMsg;
     try { m = JSON.parse(raw) as ClientMsg; } catch { return ws.send(JSON.stringify({ type: 'error', error: 'not JSON' } satisfies RoomMsg)); }
@@ -66,6 +73,13 @@ export class Signal {
   }
   webSocketError(ws: WS) { this.webSocketClose(ws); }
 
+  /** The sockets gone silent (`STALE`) let go; the rest told. */
+  private prune() {
+    const now = Date.now(), gone = this.state.getWebSockets().filter(w => now - ((w.deserializeAttachment() as Att | null)?.heard ?? now) > STALE);
+    if (!gone.length) return;
+    for (const w of gone) { try { w.close(1011, 'silent'); } catch { /* closing */ } }
+    this.presence(...gone);
+  }
   /** Everyone in the room learns who's online. */
   private presence(...leaving: WS[]) {
     const socks = this.state.getWebSockets().filter(w => !leaving.includes(w));

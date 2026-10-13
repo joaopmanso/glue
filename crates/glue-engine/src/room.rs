@@ -2,7 +2,8 @@
 //! 0150), home/ui/cloud.ts `stayOnline` and service.ts's signaling in Rust (ADR 0158).
 //! - **The room:** a WebSocket the host opens (`Host::open_socket`) to GLUE Cloud's `/v1/signal`, with an access token
 //!   for this GLUE Home's credential; a ping every 30 s, a new token before the old one ends (closed with 4002 at 50
-//!   minutes), again after 1, 2, 4… up to 60 s when it drops; 4000: replaced (GLUE Home started elsewhere with this
+//!   minutes), again after 1, 2, 4… up to 60 s when it drops, or when nothing came for 75 s after a pong (the pongs
+//!   stopped: a socket that died without closing, 2026-10-13, offers sent into it never answered); 4000: replaced (GLUE Home started elsewhere with this
 //!   device), 4001: removed from the account.
 //! - **Offers** from other devices' tabs: one session per device's tab, at most "Most at once" (`sessions.rs`), the
 //!   connection answered by the host's peers (`Host::peers`: crates/glue-rtc in GLUE Home), candidates relayed both
@@ -71,7 +72,12 @@ pub struct Room {
   pub(crate) ice: crate::ice::IceCache,
   made: Mutex<(Made, bool)>,
   sync_soon: Mutex<Option<Instant>>,
+  /// How long the room may stay silent before its socket counts as gone (ms; 0: `SILENT`). Tests shorten it.
+  silent_ms: AtomicU64,
 }
+
+/// The room answers each ping (every 30 s): nothing for this long and the socket died without closing.
+const SILENT: Duration = Duration::from_secs(75);
 
 fn now() -> i64 { crate::now().0 }
 fn enc(s: &str) -> String { s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect() }
@@ -94,6 +100,9 @@ impl<H: Host> Engine<H> {
 
   /// Online in the room (or say why not), until `room_stop` or another start, every connection made anew (the account
   /// may have changed). Settings without a credential: not connected; Stop: stopped.
+  /// How long the room may stay silent before it's connected again (tests).
+  pub fn room_silence(&self, d: Duration) { self.room.silent_ms.store(d.as_millis() as u64, Ordering::SeqCst); }
+
   pub fn room_start(self: &Arc<Self>) {
     self.close_all();
     let gen = self.room.gen.fetch_add(1, Ordering::SeqCst) + 1;
@@ -368,22 +377,30 @@ fn room_loop<H: Host>(me: Weak<Engine<H>>, gen: u64) {
     { let e2 = e.clone(); std::thread::spawn(move || { e2.learn_computer(); let _ = e2.room.ice.get(now(), || e2.host.cloud("GET", "/v1/turn", None, None).map_err(|x| x.message)); }); }
     let (tx, rx) = mpsc::channel();
     *e.room.out.lock().unwrap() = Some(tx);
-    let (opened, mut pinged) = (Instant::now(), Instant::now());
+    let (opened, mut pinged, mut heard) = (Instant::now(), Instant::now(), Instant::now());
+    // Counted only once the room has answered a ping (a room that never does, as the tests' own, is left be).
+    let mut ponged = false;
+    let silent = match e.room.silent_ms.load(Ordering::SeqCst) { 0 => SILENT, ms => Duration::from_millis(ms) };
     // Why it ended: None stopped (or removed, replaced: said), Some(true) to renew the token at once, Some(false) lost.
     let end: Option<bool> = loop {
       if !e.live(gen) { sock.close(1000); break None; }
       while let Ok(t) = rx.try_recv() { if sock.send(&t).is_err() { break; } }
-      if pinged.elapsed() >= Duration::from_secs(30) { let _ = sock.send(r#"{"type":"ping"}"#); pinged = Instant::now(); }
+      if pinged.elapsed() >= Duration::from_secs(30).min(silent / 2) { let _ = sock.send(r#"{"type":"ping"}"#); pinged = Instant::now(); }
+      // No pong: the socket is gone though it never closed (the other devices see this GLUE Home online, and their
+      // offers go nowhere): a new one.
+      if ponged && heard.elapsed() >= silent { sock.close(1000); break Some(false); }
       // Access tokens last an hour: a new one before then.
       if opened.elapsed() >= Duration::from_secs(50 * 60) { sock.close(4002); break Some(true); }
       match sock.recv(Duration::from_millis(200)) {
         Received::Nothing => {}
         Received::Text(t) => {
+          heard = Instant::now();
           let Ok(m) = serde_json::from_str::<Value>(&t) else { continue };
           match m["type"].as_str().unwrap_or("") {
             // Acted on at once: the close handshake may never arrive.
             "removed" => { sock.close(1000); e.room_removed(&device); break None; }
             "replaced" => { sock.close(1000); e.room_say(gen, "stopped", "Stopped: GLUE Home started on another computer with this account’s same device"); break None; }
+            "pong" => ponged = true,
             "signal" => { let from = text(&m, "from"); if !from.is_empty() { e.on_signal(&from, &m["data"]); } }
             // A shared collection changed on another device (ADR 0097): taken in here.
             "shared" if m["from"].as_str() != Some(device.as_str()) => e.sync_soon(1500),

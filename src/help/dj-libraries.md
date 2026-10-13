@@ -33,6 +33,7 @@ With GLUE Home running, right-click your main Engine DJ library › **Keep in st
   - drop songs on a playlist, or use a song's **Add to Engine DJ playlist**; a song Engine DJ doesn't have yet is added to its collection;
   - in a playlist's view, drag its songs to reorder them, and **Remove from playlist** (or Delete) takes them out.
   - It shows at once, with an amber ● while it waits: GLUE Home writes it into Engine DJ when Engine DJ is closed, after a backup.
+  - **Make the drives' copies match…** (right-click a playlist or folder, or the library for all): a drive's copy of it (a drive Engine DJ keeps playlists on) is made as the Collection has it, after a backup. Use it if Engine DJ won't let you change a new playlist there.
 - **GLUE's own playlists in Engine DJ:** right-click one of yours under Playlists › **Keep in Engine DJ**: it goes into a **GLUE** folder there, both ways. See [Playlists](#/help/playlists).
 - **Song info both ways:** a song's title, artist, album, genre, comment, label, year and rating, edited in GLUE, are written into Engine DJ; changed in Engine DJ, they come into GLUE. Changed on both sides since they were last in step, GLUE's is kept.
 - After a duplicates clean-up, Engine DJ's playlists play the copy GLUE kept: its song points at that file (with its cues), or the song Engine DJ already has for it takes its places.

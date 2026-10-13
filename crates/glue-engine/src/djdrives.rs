@@ -124,6 +124,44 @@ impl<H: Host> Engine<H> {
     Ok(done)
   }
 
+  /// A drive's copy made the Collection's (`djEdit` "align", 2026-10-13; the user's test: a playlist made in Engine DJ
+  /// inside "2022", whose copies in F: had drifted from the Collection's, stayed locked): each list under `root` (all,
+  /// none) that a drive has gets the Collection's songs in its order, and its name and place. A backup of each drive's
+  /// database first; the Collection isn't changed; lists only one side has are left. How many lists, songs put in and
+  /// taken out.
+  pub(crate) fn dj_align(&self, tree_db: &Path, dbs: &HashMap<String, PathBuf>, root: Option<i64>, at: &str, backed: &mut HashSet<String>) -> Result<(usize, usize, usize), String> {
+    let Some(coll) = tree_at(tree_db) else { return Ok((0, 0, 0)) };
+    let scope: HashSet<i64> = match root {
+      None => coll.keys().copied().collect(),
+      Some(r) => { let mut s: HashSet<i64> = HashSet::from([r]); loop { let more: Vec<i64> = coll.values().filter(|l| s.contains(&l.parent) && !s.contains(&l.id)).map(|l| l.id).collect(); if more.is_empty() { break s; } s.extend(more); } }
+    };
+    let (mut lists, mut put, mut out) = (0, 0, 0);
+    for path in Self::drive_dbs(tree_db, dbs) {
+      let mut db = Connection::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+      let own = uuid_of(&db)?;
+      let mine: Tree = enginedb::read_lists(&db, &own)?.into_iter().map(|l| (l.id, l)).collect();
+      let mut todo: Vec<i64> = scope.iter().copied().filter(|id| mine.get(id).is_some_and(|m| { let c = &coll[id]; m.items != c.items || m.title != c.title || m.parent != c.parent })).collect();
+      if todo.is_empty() { continue; }
+      todo.sort_by_key(|id| (depth(&coll, *id), *id));
+      if backed.insert(own.clone()) { self.dj_backup(&own, &path, at)?; }
+      let tx = db.transaction().map_err(|e| e.to_string())?;
+      for id in &todo {
+        let (c, m) = (&coll[id], &mine[id]);
+        if m.parent != c.parent && (c.parent == 0 || mine.contains_key(&c.parent)) { enginedb::move_list(&tx, *id, c.parent)?; }
+        if m.title != c.title { enginedb::rename_list(&tx, *id, &c.title)?; }
+        if m.items != c.items {
+          let (a, b): (HashSet<&String>, HashSet<&String>) = (c.items.iter().collect(), m.items.iter().collect());
+          put += a.difference(&b).count(); out += b.difference(&a).count();
+          enginedb::set_items(&tx, *id, &c.items)?;
+        }
+        lists += 1;
+      }
+      tx.commit().map_err(|e| e.to_string())?;
+      self.event(&format!("Engine DJ: {} lists in {} made as the Collection has them ({put} songs put in, {out} taken out; a backup first)", todo.len(), path.display()));
+    }
+    Ok((lists, put, out))
+  }
+
   /// Once (`caughtUp`, the user's choice 2026-10-10): the songs of a drive GLUE 0.71–0.72.3 put into its playlists there
   /// alone (the drive's own songs, still there) put into the same playlists in the Collection, each before the next
   /// one the drive's list has that the Collection's has too (its entries left as they are). Other drives' entries (the

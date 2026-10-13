@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-09)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.73.2** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.73.3** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Streaming stuck, 2026-10-13 (0.73.3 + GLUE Cloud):** a room socket that died without closing is now replaced
+  (75 s without a pong) and let go by GLUE Cloud (150 s). Waiting: the user's word that streaming recovers by itself
+  (the desktop needs 0.73.3; until then Stop/Start in GLUE Home brings it back).
+- **The test, GLUE Home 0.73.3 (2026-10-13):** right-click "2022" in GLUE's DJ collection › Make the drives' copies
+  match…, close Engine DJ for a few seconds, open it: does "test123" work now? If yes: the same on the library (all).
 - **Engine DJ's new playlists stuck, 2026-10-12 (open, waiting on the user):** with GLUE Home quit, playlists made in
   Engine DJ can only be renamed; renaming the playlist before one frees it (the GLUE folder freed "Engine Ref").
   Hypothesis in `vault/research/engine-dj-write-back.md` (F:'s copies drifted from the Collection). **Waiting:** Engine

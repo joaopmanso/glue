@@ -228,7 +228,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     into the Collection's same lists, one entry at a time (`enginedb::insert_entry`: the others' entries kept). A song
     GLUE adds to Engine DJ's collection is made as Engine DJ's own import makes one (0.73.2: details read,
     `isMetadataImported` 1, its bitrate in kbps, the "no artwork" row); the ones added before, put so once
-    (`dj_fix_tracks`, `tracksFixed`). `djPlaylists: false` turns GLUE's playlist writes off.
+    (`dj_fix_tracks`, `tracksFixed`). On request (`djEdit` "align", 0.73.3: **Make the drives' copies match…**), a
+    list's (and what's in it, or all) copies in the drives' databases made the Collection's (`dj_align`, a backup first). `djPlaylists: false` turns GLUE's playlist writes off.
   - **Edited from its DJ collection** (0.72, ADR 0179; `djedit.rs`): the page's `djEdit` operations (new, rename, move,
     delete; songs add, remove, shift) wait in GLUE Home's cache (`ops`), are put on `Source.tree` at once (`wait`) and
     again after each read, and are written by the sync while Engine DJ is closed (a backup, one transaction, a
@@ -260,10 +261,14 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     connection, the first answer, the first music, the first sound, and the route: direct, through the router or the
     relay) is a console line once the song plays (`GLUE: Started in …`; not on the player, ADR 0176).
     Back from the background after more than 10 s (a phone kills its sockets there), the room is connected again and
-    the sessions made again at once; a handshake waits up to 8 s for the room (ADR 0175).
+    the sessions made again at once; a handshake waits up to 8 s for the room (ADR 0175). **A room gone silent**
+    (2026-10-13): each side pings every 30 s and GLUE Cloud pongs; once a socket has had a pong, nothing for 75 s means
+    it died without closing, and a new one is opened (`account.svelte.ts` `SILENT`, `room.rs` `SILENT`). GLUE Cloud lets
+    go of a socket silent for 150 s (`signal.ts` `STALE`, checked on each message), so a computer asleep shows offline.
+    A GLUE Home back online is tried again at once (`remoteFiles.tend`, not after its failures' wait).
     **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
     socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again
-    after 1, 2, 4… 60 s, removed (4001) and replaced (4000); offers answered through glue-rtc (`rtc::Conns`), early
+    after 1, 2, 4… 60 s (and after 75 s without a word, once it has ponged), removed (4001) and replaced (4000); offers answered through glue-rtc (`rtc::Conns`), early
     candidates held; a `shared` message starts a sync; ICE servers `ice.rs`.
     Bounded (ADR 0132): a connection not open within 30 s is let go, and an offer it can't take is answered
     "bye". The website says "bye" when it gives up, and waits 5 to 60 s before connecting again for background asks.
@@ -409,7 +414,7 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   session; a GLUE Home is `home`, the companion of its computer's browser. Pairing is by code.
 - **Collections:** `shared_collections`, `shared_files`, `shared_log` (§4). **Profiles:** `profiles` (§3). The old
   `sync_*` tables are unused, and kept until the user says otherwise.
-- **Signaling Durable Object:** presence, and broadcasts to the account's devices (`shared`, including `gone`, and
+- **Signaling Durable Object:** presence (a socket silent for 150 s let go: `STALE`), and broadcasts to the account's devices (`shared`, including `gone`, and
   `profiles`), plus WebRTC signals; TURN relay credentials come from `/v1/turn`.
 - **Operations:** a daily cron purges deleted collections; there's an admin panel (`#/admin`).
 - **Gluey's "seen"** (`users.guide`, ADR 0126): `/v1/me` returns it, `PATCH /v1/me/guide` merges it.

@@ -69,6 +69,8 @@ class RemoteFiles {
       (5, 10, 20… up to 60 s), so rows asking again can't make a new connection every few seconds (ADR 0132). What
       the user asked for (playing, a song's page) tries at once. */
   private failed = new Map<string, { at: number; n: number }>();
+  /** The GLUE Homes online at the last `tend`. */
+  private wanted = new Set<string>();
   private kept = new Map<string, File>();
 
   /** A GLUE Home that can answer now: this computer's over the local link (ADR 0048), or online. */
@@ -147,6 +149,9 @@ class RemoteFiles {
     const own = (d: CloudDevice) => d.id === local || (!!account.thisDevice && d.companionOf === account.thisDevice);
     const want = account.signedIn && lib.store ? account.devices.filter(d => d.kind === 'home' && account.online.has(d.id) && !own(d)).map(d => d.id) : [];
     for (const home of [...this.links.keys()]) if (!want.includes(home)) { this.closeLink(home); this.sessions.delete(home); }
+    // Back online (it restarted, or its room reconnected): tried again at once, not after the last failures' wait.
+    for (const home of want) if (!this.wanted.has(home)) this.failed.delete(home);
+    this.wanted = new Set(want);
     for (const home of want) {
       const open = this.links.get(home);
       if (!open) { void this.link(home).then(k => { if (k.session) this.sessions.add(home); }).catch(() => this.sessions.delete(home)); continue; }

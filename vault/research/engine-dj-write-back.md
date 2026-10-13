@@ -76,7 +76,10 @@ not in Engine DJ, though Engine DJ names a new "Glue" "Glue 2".
   0.73.1 catch-up into C:): 114 lists differ, "2022" by thousands of entries. A change it can't make in the drive's copy
   may leave the new list locked. Next: Engine DJ's log (asked of the user); the fix would be F:'s copies of shared lists
   made the Collection's (F: would get back 3,503 entries GLUE 0.68 took and drop 3,034 the restore added that the
-  Collection hasn't): the user said "not yet".
+  Collection hasn't): the user said "not yet". Engine DJ keeps no log of it (only its licence file under
+  `%LOCALAPPDATA%\inMusicBrands`). **2026-10-13, the test:** 0.73.3's **Make the drives' copies match…** on "2022" (on
+  the copies: 31 lists, 26 changed, 3,050 songs in and 3,020 out of F:'s, nothing else changed); then whether
+  "test123" (inside "2022") works.
 - **What followed:** ADR 0182 (GLUE Home 0.73). GLUE's playlist writes were paused (0.72.3) until made as Engine DJ makes them:
   into C:'s database (the master) and every other carrying the tree, with the same id (one free in all of them), and
   GLUE's DJ collection read from C:'s tree. And F:'s 5 GLUE-made playlists and the clash at 9047 put right.

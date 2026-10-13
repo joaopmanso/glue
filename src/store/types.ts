@@ -150,7 +150,9 @@ export type DjEdit =
   | { t: 'delete'; list: string }
   | { t: 'add'; list: string; songs: string[]; before?: string }
   | { t: 'remove'; list: string; items: string[] }
-  | { t: 'shift'; list: string; items: string[]; before?: string };
+  | { t: 'shift'; list: string; items: string[]; before?: string }
+  /** The drives' copies of a list (and what's in it; '' all) made as the Collection has them (2026-10-13). */
+  | { t: 'align'; list: string };
 /** tree: the library's playlists as last read, browsed in the sidebar; they come into GLUE on demand. */
 export interface Source { schemaVersion: number; id: string; app: SourceApp; name: string; fileName: string; importedAt: string; tracks: SourceTrack[]; lists: number; origin?: SourceOrigin; tree?: SourceList[];
   /** Lists the library's last read didn't have, with when that was first seen: GLUE's copies go only when

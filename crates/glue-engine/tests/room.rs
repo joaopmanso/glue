@@ -171,6 +171,27 @@ fn removed_from_the_account_or_replaced() {
   assert_eq!(command(&e, &json!({ "cmd": "roomState" })).unwrap()["state"], "removed");
 }
 
+/// A room that went silent (no pong) though its socket never closed (2026-10-13: the other devices saw GLUE Home
+/// online, their offers went nowhere): connected again, and while it answers, kept.
+#[test]
+fn a_silent_room_is_connected_again() {
+  let (e, h) = setup(5);
+  e.room_silence(Duration::from_millis(400));
+  e.room_start();
+  until(|| h.0.lock().unwrap().room["state"] == "online");
+  let first = h.0.lock().unwrap().url.len();
+  // Answering (a pong now and then): the same socket.
+  for _ in 0..6 {
+    std::thread::sleep(Duration::from_millis(100));
+    h.0.lock().unwrap().wires.last().unwrap().to.send(Received::Text(r#"{"type":"pong"}"#.into())).unwrap();
+  }
+  assert_eq!(h.0.lock().unwrap().url.len(), first);
+  // Silent: a new socket (after the first retry's second).
+  until(|| h.0.lock().unwrap().url.len() > first);
+  until(|| h.0.lock().unwrap().room["state"] == "online");
+  e.room_stop();
+}
+
 /// Stopped while a start still waits for its token (2026-10-07): that start says nothing, and opens nothing.
 #[test]
 fn a_start_overtaken_by_stop_says_nothing() {

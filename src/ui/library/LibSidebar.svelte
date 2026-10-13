@@ -378,6 +378,7 @@
       lib.djEditable(s) && SEP,
       lib.djEditable(s) && { label: 'New playlist in ' + (APP_NAMES[s.app] ?? s.app) + '…', attrs: { 'data-m': 'dj-new' }, run: () => void djNew(s, '', 'playlist') },
       lib.djEditable(s) && { label: 'New folder in ' + (APP_NAMES[s.app] ?? s.app) + '…', attrs: { 'data-m': 'dj-new-folder' }, run: () => void djNew(s, '', 'folder') },
+      lib.djEditable(s) && { label: 'Make the drives’ copies match…', attrs: { 'data-m': 'dj-align' }, title: 'Every playlist’s copies in the drives’ libraries made as the Collection has them', run: () => djAlign(s, null) },
       SEP,
       { label: 'Remove this import…', danger: true, run: () => removeSource(s) },
       ...whatsThis('dj-libraries'),
@@ -397,6 +398,7 @@
       ed && { label: 'Rename…', attrs: { 'data-m': 'dj-rename' }, run: () => djRename(src, l) },
       ed && { label: 'Move to', find: 'Find a folder', attrs: { 'data-m': 'dj-move' }, sub: () => djMoveTo(src, l) },
       ed && { label: 'Delete in ' + app + '…', danger: true, attrs: { 'data-m': 'dj-delete' }, run: () => djDelete(src, l) },
+      ed && { label: 'Make the drives’ copies match…', attrs: { 'data-m': 'dj-align' }, title: 'Its copies in the drives’ libraries made as the Collection has them', run: () => djAlign(src, l) },
       ...whatsThis('dj-libraries'),
     ]);
   }
@@ -409,6 +411,13 @@
     djOpen[src.id] = true;
     if (parent) djOpen[src.id + ':' + parent] = true;
     view.select({ kind: 'dj', sourceId: src.id, id });
+  }
+  /** A drive's copies made as the Collection has them (2026-10-13): Engine DJ keeps them so, and stalls on new lists
+      beside ones that have drifted. */
+  function djAlign(src: Source, l: SourceList | null) {
+    const app = APP_NAMES[src.app] ?? src.app, what = l ? '“' + l.name + '”' + (l.kind === 'folder' || (src.tree ?? []).some(x => x.parent === l.externalId) ? ' and everything in it' : '') : 'every playlist';
+    if (!confirm('Make the copies of ' + what + ' in the drives’ ' + app + ' libraries match ' + app + '’s Collection?\n\nEach copy gets the Collection’s songs, in its order: songs only the drive’s copy has are taken out of it, the Collection’s missing ones put in. The Collection isn’t changed. GLUE Home does it when ' + app + ' is closed, after a backup of each drive’s library.')) return;
+    void lib.djEdit(src.id, { t: 'align', list: l?.externalId ?? '' }).then(r => { if (r) lib.notice = 'The drives’ copies of ' + what + ' are made to match when ' + app + ' is closed.'; });
   }
   function djRename(src: Source, l: SourceList) {
     const name = prompt('Rename “' + l.name + '” in ' + (APP_NAMES[src.app] ?? src.app), l.name)?.trim();
