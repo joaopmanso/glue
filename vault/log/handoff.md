@@ -330,9 +330,10 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
   froze background pages under load); `e2e/shared.spec.ts` "cloud sync…" passed in the full runs since. Before: it failed locally in Edge since (the desktop's
   song loses its play button after the laptop's rating) and passes in Chrome (`PW_CHANNEL=chrome`); the website and the
   test were unchanged. Find what Edge does differently there. ("The account's collections" is the older flaky one below.)
-- **The nightly e2e run fails since 2026-10-03:** `stems.spec.ts` (stem separation) runs out of its 14 minutes on CI's
-  machine (and `library.spec.ts` "No file linked" failed once on 2026-10-04). Not from the engine work; look at the
-  stems test's time on CI (`STEMS=1`).
+- **The nightly e2e run** failed every night from 2026-10-02: `stems.spec.ts` (stem separation) ran out of its 14
+  minutes on CI's machine, which has no GPU (the separation falls back to two CPU cores). Since 2026-10-13 (the user's
+  go-ahead) the nightly run leaves it out; it runs when asked for (Run workflow › slow) or locally on a computer with a
+  GPU (`STEMS=1 npx playwright test e2e/stems.spec.ts`).
 - **After the desktop's second check:** fix what its named fields show (suspected: the stored `d/` headers are older
   than their results); the Deftones MP3 (a shifted decode: ask for the file if it's still there).
 - **DSD verdicts:** tune a DSD rule on the user's 91 songs once they're analysed (ADR 0149).

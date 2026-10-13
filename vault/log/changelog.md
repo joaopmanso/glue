@@ -5,6 +5,12 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-13 · The nightly e2e run without stem separation
+- **The user:** the e2e pipeline failed. It was the nightly run, failing every night since 2026-10-02 on one test:
+  stem separation needs a GPU and CI's machine has none, so it never finished in its 14 minutes (the runs on each push,
+  which leave it out, pass). With the user's go-ahead it runs only when asked for (Run workflow › slow) or locally
+  with a GPU (`STEMS=1`).
+
 ## 2026-10-12 · Songs GLUE adds to Engine DJ made as Engine DJ's own (GLUE Home 0.73.2)
 - **The user, on 0.73.1:** Engine DJ's own playlists editable again; but songs added from GLUE can be removed from a
   playlist in Engine DJ, not moved; GLUE's playlists show right but are read-only; a playlist made in Engine DJ ("Engine

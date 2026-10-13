@@ -1,8 +1,10 @@
 name: End-to-end tests
 
 # The browser tests in Edge on Windows (the laptop runs them before each deploy; this checks a deploy
-# on another machine too). Every push to main, and once a day with stem separation too (slow). It
-# doesn't hold the deploy up. The performance budgets (PERF=1) are this laptop's, so they stay local.
+# on another machine too). Every push to main, and once a day. It doesn't hold the deploy up. The
+# performance budgets (PERF=1) are this laptop's, so they stay local. Stem separation needs a GPU: on
+# this machine (none) it ran out of its 14 minutes every night from 2026-10-02, so it runs only when
+# asked for (Run workflow › slow) or on a computer with one (STEMS=1 npx playwright test e2e/stems.spec.ts).
 on:
   push:
     branches: [main]
@@ -28,7 +30,7 @@ jobs:
     timeout-minutes: 90
     env:
       CI: '1'
-      STEMS: ${{ (github.event_name == 'schedule' || inputs.slow) && '1' || '' }}
+      STEMS: ${{ inputs.slow && '1' || '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
