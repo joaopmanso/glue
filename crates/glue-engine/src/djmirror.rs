@@ -214,7 +214,8 @@ impl<H: Host> Engine<H> {
       let parent = pick(&g_parent, &e.parent.to_string(), b_parent.as_ref());
       // A place outside the GLUE folder: GLUE's.
       let parent = if parent == gf.to_string() || under.contains(&parent.parse().unwrap_or(-1)) || map.values().any(|v| v.to_string() == parent) { parent } else { g_parent.clone() };
-      let in_scope = scope.contains(id);
+      // A folder's songs are Engine DJ's to keep (its playlists', `enginedb::fix_folders`): neither side's to send.
+      let in_scope = scope.contains(id) && text(l, "kind") != "folder";
       let items = if in_scope {
         let known = |x: &str| track_of.contains_key(x) || songs.added.values().any(|v| v == x) || ext_of.values().any(|v| v == x) || g_items.iter().any(|v| v == x);
         let l_known: Vec<String> = e.items.iter().filter(|x| known(x)).cloned().collect();
@@ -254,7 +255,7 @@ impl<H: Host> Engine<H> {
       for e in theirs {
         let parent = if e.parent == gf { Value::Null } else { match glue_of(e.parent, &map) { Some(g) => json!(g), None => continue } };
         let folder = app.values().any(|k| k.parent == e.id);
-        let items: Vec<Value> = e.items.iter().filter_map(|x| track_of.get(x)).map(|t| json!(t)).collect();
+        let items: Vec<Value> = if folder { vec![] } else { e.items.iter().filter_map(|x| track_of.get(x)).map(|t| json!(t)).collect() };
         let id = st.new_id();
         let mut l = json!({ "schemaVersion": 1, "id": id, "kind": if folder { "folder" } else { "playlist" }, "name": e.title, "parentId": parent, "position": 1_000_000, "notes": "", "items": items, "origin": null, "createdAt": st.now().1 });
         // Kept in Engine DJ: by its folder's setting, or its own.

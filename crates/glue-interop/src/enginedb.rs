@@ -1,7 +1,9 @@
 //! Engine DJ's playlists and songs written as Engine DJ writes them (ADR 0171; its schema in
 //! tests/fixtures/engine-schema.sql): a playlist is a row of `Playlist`, its siblings a linked list (`nextListId`, 0 the
 //! last), its songs a linked list of `PlaylistEntity` (`nextEntityId`); Engine DJ's own triggers re-link siblings on
-//! an insert and a delete; a title is unique among its siblings, a song once per playlist.
+//! an insert and a delete; a title is unique among its siblings, a song once per playlist. A playlist with playlists in
+//! it (a folder) holds each of their songs once, `membershipReference` the number of them that hold it (Engine DJ keeps
+//! it so as they change; `fix_folders`).
 use rusqlite::{params, Connection, OptionalExtension};
 
 /// A playlist of Engine DJ's: its title, parent (0: the top), and its songs in order ("uuid/trackId").
@@ -164,6 +166,127 @@ pub fn insert_entry(db: &Connection, list: i64, item: &str, before: Option<&str>
   Ok(true)
 }
 
+/// A song in a playlist: its library and its id there.
+type Key = (String, i64);
+/// The playlists and their songs: each list's entries in their order (id, song, `membershipReference`), each list's
+/// playlists in their order, and the lists deepest first.
+struct Folders { ents: std::collections::HashMap<i64, Vec<(i64, Key, i64)>>, kids: std::collections::HashMap<i64, Vec<i64>>, order: Vec<i64> }
+fn folders(db: &Connection) -> R<Folders> {
+  use std::collections::{HashMap, HashSet};
+  let lists: Vec<(i64, i64, i64)> = db.prepare("SELECT id, parentListId, nextListId FROM Playlist").map_err(e)?.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(e)?.collect::<Result<_, _>>().map_err(e)?;
+  let mut ents: HashMap<i64, Vec<(i64, Key, i64)>> = HashMap::new();
+  {
+    let mut rows: HashMap<i64, Vec<(i64, Key, i64, i64)>> = HashMap::new();
+    let mut q = db.prepare("SELECT id, listId, databaseUuid, trackId, nextEntityId, COALESCE(membershipReference, 0) FROM PlaylistEntity").map_err(e)?;
+    let all = q.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, Option<String>>(2)?.unwrap_or_default(), r.get::<_, i64>(3)?, r.get::<_, i64>(4)?, r.get::<_, i64>(5)?))).map_err(e)?;
+    for r in all {
+      let (id, list, uuid, track, next, refs) = r.map_err(e)?;
+      rows.entry(list).or_default().push((id, (uuid, track), next, refs));
+    }
+    for (list, mut es) in rows {
+      es.sort_by_key(|x| x.0);
+      let at: HashMap<i64, usize> = es.iter().enumerate().map(|(i, x)| (x.0, i)).collect();
+      let pointed: HashSet<i64> = es.iter().map(|x| x.2).collect();
+      let mut seen = vec![false; es.len()];
+      let mut out = vec![];
+      let mut cur = es.iter().position(|x| !pointed.contains(&x.0));
+      while let Some(i) = cur { if seen[i] { break; } seen[i] = true; out.push((es[i].0, es[i].1.clone(), es[i].3)); cur = at.get(&es[i].2).copied(); }
+      // (A chain that doesn't reach them all: the rest after it, by id.)
+      for (i, x) in es.iter().enumerate() { if !seen[i] { out.push((x.0, x.1.clone(), x.3)); } }
+      ents.insert(list, out);
+    }
+  }
+  let ids: HashSet<i64> = lists.iter().map(|l| l.0).collect();
+  let mut kids: HashMap<i64, Vec<i64>> = HashMap::new();
+  for parent in lists.iter().map(|l| l.1).collect::<HashSet<_>>() {
+    let by: HashMap<i64, i64> = lists.iter().filter(|l| l.1 == parent).map(|l| (l.0, l.2)).collect();
+    let pointed: HashSet<i64> = by.values().copied().collect();
+    let mut out: Vec<i64> = vec![];
+    let mut cur = by.keys().copied().filter(|i| !pointed.contains(i)).min();
+    while let Some(i) = cur { if out.contains(&i) { break; } out.push(i); cur = by.get(&i).copied().filter(|n| by.contains_key(n)); }
+    let mut rest: Vec<i64> = by.keys().copied().filter(|i| !out.contains(i)).collect();
+    rest.sort();
+    out.extend(rest);
+    kids.insert(parent, out);
+  }
+  let mut order = vec![];
+  let mut stack: Vec<(i64, bool)> = kids.get(&0).cloned().unwrap_or_default().into_iter().rev().map(|i| (i, false)).collect();
+  // (Lists under a parent that isn't there: looked at too.)
+  for (p, ks) in &kids { if *p != 0 && !ids.contains(p) { stack.extend(ks.iter().map(|i| (*i, false))); } }
+  let mut done: HashSet<i64> = HashSet::new();
+  while let Some((i, after)) = stack.pop() {
+    if after { order.push(i); continue; }
+    if !done.insert(i) { continue; }
+    stack.push((i, true));
+    for k in kids.get(&i).into_iter().flatten().rev() { stack.push((*k, false)); }
+  }
+  Ok(Folders { ents, kids, order })
+}
+
+/// Each folder's own songs (put into it, not there through one of its playlists), by list: what a drive's copy of the
+/// folder may hold of its own (`fix_folders`).
+pub fn folders_own(db: &Connection) -> R<std::collections::HashMap<i64, std::collections::HashSet<Key>>> {
+  let f = folders(db)?;
+  let mut out = std::collections::HashMap::new();
+  for (l, ks) in f.kids.iter().filter(|(l, k)| **l != 0 && !k.is_empty()) {
+    let held: std::collections::HashSet<&Key> = ks.iter().flat_map(|k| f.ents.get(k).into_iter().flatten().map(|x| &x.1)).collect();
+    out.insert(*l, f.ents.get(l).into_iter().flatten().filter(|x| !held.contains(&x.1)).map(|x| x.1.clone()).collect());
+  }
+  Ok(out)
+}
+
+/// Every folder's songs as Engine DJ keeps them (2026-10-13, seen in the user's Collection: of its 15,627 folder entries,
+/// all but GLUE's 208 so): a playlist with playlists in it holds each song of theirs once, its `membershipReference`
+/// the number of them that hold it, and songs of its own (0, none of them holds it). Kept in its order; an entry that
+/// should be there and isn't put at its end (in its playlists' order); the deepest first. `own`: a drive's copy, the
+/// folder's own songs the Collection's folder has (`folders_own`); others its playlists don't hold are taken out (GLUE
+/// copied the Collection's folders' songs into a drive's, all with 0). GLUE wrote every entry with 0 and never a
+/// folder's, and Engine DJ then wouldn't change a playlist in that folder. How many entries it changed (0: none).
+pub fn fix_folders(db: &Connection, own: Option<&std::collections::HashMap<i64, std::collections::HashSet<Key>>>) -> R<usize> {
+  use std::collections::{HashMap, HashSet};
+  if !has(db, "PlaylistEntity", "membershipReference") { return Ok(0); }
+  let Folders { mut ents, kids, order } = folders(db)?;
+  let mut holds: HashMap<i64, Vec<Key>> = HashMap::new();
+  let mut changed = 0;
+  for l in order {
+    let cur = ents.remove(&l).unwrap_or_default();
+    let Some(ks) = kids.get(&l).filter(|k| !k.is_empty()) else { holds.insert(l, cur.into_iter().map(|x| x.1).collect()); continue };
+    // Its playlists' songs: each once, in their order, and how many of them hold it.
+    let mut want: Vec<Key> = vec![];
+    let mut count: HashMap<Key, i64> = HashMap::new();
+    for k in ks { for s in holds.get(k).into_iter().flatten() { let n = count.entry(s.clone()).or_insert(0); if *n == 0 { want.push(s.clone()); } *n += 1; } }
+    let mine = |s: &Key| own.is_none_or(|o| o.get(&l).is_none_or(|x| x.contains(s)));
+    let before = changed;
+    let mut kept: Vec<Key> = vec![];
+    let mut last: Option<i64> = None;
+    let mut have: HashSet<Key> = HashSet::new();
+    for (id, s, refs) in cur {
+      let n = count.get(&s).copied().unwrap_or(0);
+      if (n > 0 || mine(&s)) && have.insert(s.clone()) {
+        if refs != n { db.execute("UPDATE PlaylistEntity SET membershipReference = ?1 WHERE id = ?2", params![n, id]).map_err(e)?; changed += 1; }
+        kept.push(s);
+        last = Some(id);
+        continue;
+      }
+      // Out: the one before it pointed past it (Engine DJ's trigger does that only for a song id above 0).
+      db.execute("UPDATE PlaylistEntity SET nextEntityId = (SELECT nextEntityId FROM PlaylistEntity WHERE id = ?1) WHERE nextEntityId = ?1 AND listId = ?2", params![id, l]).map_err(e)?;
+      db.execute("DELETE FROM PlaylistEntity WHERE id = ?1", [id]).map_err(e)?;
+      changed += 1;
+    }
+    for s in want.iter().filter(|s| !have.contains(*s)) {
+      db.execute("INSERT INTO PlaylistEntity (listId, trackId, databaseUuid, nextEntityId, membershipReference) VALUES (?1, ?2, ?3, 0, ?4)", params![l, s.1, s.0, count[s]]).map_err(e)?;
+      let id = db.last_insert_rowid();
+      if let Some(p) = last { db.execute("UPDATE PlaylistEntity SET nextEntityId = ?1 WHERE id = ?2", params![id, p]).map_err(e)?; }
+      last = Some(id);
+      kept.push(s.clone());
+      changed += 1;
+    }
+    if changed > before && has(db, "Playlist", "lastEditTime") { db.execute("UPDATE Playlist SET lastEditTime = strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE id = ?1", [l]).map_err(e)?; }
+    holds.insert(l, kept);
+  }
+  Ok(changed)
+}
+
 /// A song for Engine DJ's collection: its path from the database's `Engine Library` folder ("../Music/a.mp3"), its
 /// tags, length (s), size, and the file's date (s). Engine DJ analyses it when it next sees it.
 #[derive(Clone, Debug, Default)]
@@ -279,6 +402,67 @@ mod tests {
     assert_eq!(read_list(&db, "u", l).unwrap().unwrap().items, ["f/7", "u/1", "f/9", "u/2", "u/3", "f/8"]);
     assert!(was.iter().all(|i| ids(&db).contains(i)), "the others' entries kept");
     assert_eq!(db.query_row("SELECT membershipReference FROM PlaylistEntity WHERE trackId = 3", [], |r| r.get::<_, i64>(0)).unwrap(), 4);
+  }
+  #[test]
+  fn a_folder_holds_its_playlists_songs_once_each_counted_as_engine_dj_keeps_them() {
+    // A tree as GLUE left it: the folders' entries all 0, one of 130's playlists' songs missing from it; "u/9" 130's own.
+    let make = || {
+      let db = empty("u");
+      let top = create_list(&db, "2022", 0).unwrap();
+      let mid = create_list(&db, "130", top).unwrap();
+      let (a, b) = (create_list(&db, "Bassy", mid).unwrap(), create_list(&db, "Dub", mid).unwrap());
+      let c = create_list(&db, "140", top).unwrap();
+      set_items(&db, a, &["u/1".into(), "u/2".into()]).unwrap();
+      set_items(&db, b, &["u/2".into(), "u/3".into()]).unwrap();
+      set_items(&db, c, &["u/3".into(), "x/-7".into()]).unwrap();
+      set_items(&db, mid, &["u/9".into(), "u/2".into(), "u/1".into()]).unwrap();
+      set_items(&db, top, &["u/3".into()]).unwrap();
+      (db, top, mid, a)
+    };
+    let refs = |db: &Connection, l: i64| -> Vec<(String, i64)> {
+      read_list(db, "u", l).unwrap().unwrap().items.iter().map(|it| {
+        let (u, t) = it.split_once('/').unwrap();
+        (it.clone(), db.query_row("SELECT membershipReference FROM PlaylistEntity WHERE listId = ?1 AND databaseUuid = ?2 AND trackId = ?3", params![l, u, t.parse::<i64>().unwrap()], |r| r.get(0)).unwrap())
+      }).collect()
+    };
+    let s = |x: &str, n: i64| (x.to_string(), n);
+    let (db, top, mid, a) = make();
+    let ids = |l: i64| db.prepare("SELECT id FROM PlaylistEntity WHERE listId = ?1 ORDER BY id").unwrap().query_map([l], |r| r.get::<_, i64>(0)).unwrap().map(Result::unwrap).collect::<Vec<_>>();
+    let was = ids(mid);
+    assert!(fix_folders(&db, None).unwrap() > 0);
+    // Its order kept, its own song kept (0), the missing one at its end; the entries the same rows.
+    assert_eq!(refs(&db, mid), [s("u/9", 0), s("u/2", 2), s("u/1", 1), s("u/3", 1)]);
+    assert!(was.iter().all(|i| ids(mid).contains(i)));
+    // The top: its two playlists' songs (130's four, 140's two), "u/3" in both.
+    assert_eq!(refs(&db, top), [s("u/3", 2), s("u/9", 1), s("u/2", 1), s("u/1", 1), s("x/-7", 1)]);
+    // The playlists themselves untouched; done again, nothing to do.
+    assert_eq!(refs(&db, a), [s("u/1", 0), s("u/2", 0)]);
+    assert_eq!(fix_folders(&db, None).unwrap(), 0);
+    assert_eq!(folders_own(&db).unwrap().get(&mid).map(|x| x.len()), Some(1));
+    // A drive's copy, whose Collection's 130 has no song of its own: "u/9" a copy GLUE made, taken out.
+    let (drive, _, mid, _) = make();
+    let none = std::collections::HashMap::from([(mid, std::collections::HashSet::new())]);
+    fix_folders(&drive, Some(&none)).unwrap();
+    assert_eq!(refs(&drive, mid), [s("u/2", 2), s("u/1", 1), s("u/3", 1)]);
+  }
+  /// On copies of real databases (`GLUE_REAL_C` the Collection's, `GLUE_REAL_F` a drive's; the copies beside them,
+  /// `.fixed`): the folders put right, then nothing more to do. `cargo test … real_folders -- --ignored --nocapture`.
+  #[test]
+  #[ignore]
+  fn real_folders() {
+    let Ok(c) = std::env::var("GLUE_REAL_C") else { return };
+    let fix = |path: &str, own: Option<&std::collections::HashMap<i64, std::collections::HashSet<Key>>>| {
+      let copy = format!("{path}.fixed");
+      std::fs::copy(path, &copy).unwrap();
+      let mut db = Connection::open(&copy).unwrap();
+      let tx = db.transaction().unwrap();
+      let n = fix_folders(&tx, own).unwrap();
+      tx.commit().unwrap();
+      println!("{path}: {n} folder entries changed; again: {}", fix_folders(&db, own).unwrap());
+      db
+    };
+    let own = folders_own(&fix(&c, None)).unwrap();
+    if let Ok(f) = std::env::var("GLUE_REAL_F") { fix(&f, Some(&own)); }
   }
   #[test]
   fn a_library_made_like_another_takes_songs_as_engine_dj_does() {

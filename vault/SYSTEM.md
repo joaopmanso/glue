@@ -232,7 +232,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     GLUE adds to Engine DJ's collection is made as Engine DJ's own import makes one (0.73.2: details read,
     `isMetadataImported` 1, its bitrate in kbps, the "no artwork" row); the ones added before, put so once
     (`dj_fix_tracks`, `tracksFixed`). On request (`djEdit` "align", 0.73.3: **Make the drives' copies match…**), a
-    list's (and what's in it, or all) copies in the drives' databases made the Collection's (`dj_align`, a backup first). `djPlaylists: false` turns GLUE's playlist writes off.
+    list's (and what's in it, or all) copies in the drives' databases made the Collection's (`dj_align`, a backup first).
+    After every sync, every folder as Engine DJ keeps it (0.74, ADR 0183, `dj_fix_folders`, `enginedb::fix_folders`):
+    each of its lists' songs once, `membershipReference` how many of them hold it, its own songs 0 (a drive's: only
+    those the Collection's folder has); written only where off, a backup first. The mirror leaves folders' songs alone.
+    `djPlaylists: false` turns GLUE's playlist writes off.
   - **Edited from its DJ collection** (0.72, ADR 0179; `djedit.rs`): the page's `djEdit` operations (new, rename, move,
     delete; songs add, remove, shift) wait in GLUE Home's cache (`ops`), are put on `Source.tree` at once (`wait`) and
     again after each read, and are written by the sync while Engine DJ is closed (a backup, one transaction, a

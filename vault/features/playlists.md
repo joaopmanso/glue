@@ -2,7 +2,7 @@
 status: shipped
 milestone: M2
 updated: 2026-10-09
-adrs: [0009, 0022, 0079, 0171, 0172, 0173, 0178, 0179, 0180]
+adrs: [0009, 0022, 0079, 0171, 0172, 0173, 0178, 0179, 0180, 0183]
 ---
 # Playlists, folders & smart lists
 
@@ -158,3 +158,9 @@ Right-click one of GLUE's own playlists or folders › **Keep in Engine DJ** (on
 step): it goes into a "GLUE" folder in Engine DJ, inside the same folders as in GLUE, with the Engine DJ icon by it
 here (fainter for what's kept with its folder). Both ways: names, places, songs and order; one made in Engine DJ's
 GLUE folder comes into GLUE; deleted on one side, asked; **Stop keeping it in Engine DJ** takes it out there.
+
+## Engine DJ's folders kept as Engine DJ keeps them (2026-10-13, [ADR 0183](../adr/0183-engine-dj-folders-kept-as-engine-dj-keeps-them.md))
+GLUE Home 0.74: after every sync with Engine DJ, each folder in Engine DJ's Collection and its drives holds its
+playlists' songs once, each counted by how many of them hold it, plus its own songs, as Engine DJ keeps them. GLUE had
+written every song with no count. A GLUE folder kept in Engine DJ now shows its playlists' songs there, as Engine DJ's
+folders do. The first sync after updating repairs what GLUE left, after a backup.

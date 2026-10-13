@@ -222,6 +222,32 @@ impl<H: Host> Engine<H> {
     Ok(n)
   }
 
+  /// Every folder's songs as Engine DJ keeps them (`enginedb::fix_folders`, 2026-10-13), in the Collection's database
+  /// and then each drive's (a drive's folders keep only the songs of their own the Collection's have): after GLUE's
+  /// writes, at every sync, written only where something is off (a backup first). GLUE's writes never kept them, and
+  /// Engine DJ then wouldn't change a new playlist in "2022". How many entries changed.
+  pub(crate) fn dj_fix_folders(&self, tree_db: &Path, dbs: &HashMap<String, PathBuf>, at: &str, backed: &mut HashSet<String>) -> Result<usize, String> {
+    let mut n = 0;
+    let mut own = None;
+    for path in std::iter::once(tree_db.to_path_buf()).chain(Self::drive_dbs(tree_db, dbs)) {
+      if !path.is_file() { continue; }
+      let mut db = Connection::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+      // Looked at first (rolled back): the backup only when something is to be written.
+      let off = { let tx = db.transaction().map_err(|e| e.to_string())?; enginedb::fix_folders(&tx, own.as_ref())? };
+      if off > 0 {
+        let uuid = uuid_of(&db)?;
+        if backed.insert(uuid.clone()) { self.dj_backup(&uuid, &path, at)?; }
+        let tx = db.transaction().map_err(|e| e.to_string())?;
+        let k = enginedb::fix_folders(&tx, own.as_ref())?;
+        tx.commit().map_err(|e| e.to_string())?;
+        self.event(&format!("Engine DJ: {k} folder entr{} put as Engine DJ keeps them ({})", if k == 1 { "y" } else { "ies" }, path.display()));
+        n += k;
+      }
+      if own.is_none() { own = Some(enginedb::folders_own(&db)?); }
+    }
+    Ok(n)
+  }
+
   /// Once (`treeFixed`): what GLUE 0.71–0.72.3 wrote into a drive's database alone, put right (see the top). GLUE's
   /// memory of the old tree (its GLUE folder, its new lists' ids, the edits waiting) let go: it's the Collection's now.
   pub(crate) fn dj_tree_repair(&self, tree_db: &Path, dbs: &HashMap<String, PathBuf>, kept: &mut Value, at: &str, backed: &mut HashSet<String>) -> Result<usize, String> {

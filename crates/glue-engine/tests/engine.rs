@@ -544,6 +544,8 @@ fn engine_library(dir: &std::path::Path) -> std::path::PathBuf {
   let warm = glue_interop::enginedb::create_list(&c, "Warm", 0).unwrap();
   glue_interop::enginedb::set_items(&c, fri, &[format!("lib-uuid/{one}"), format!("lib-uuid/{two}")]).unwrap();
   glue_interop::enginedb::set_items(&c, warm, &[format!("lib-uuid/{two}")]).unwrap();
+  // Its folder holding its playlists' songs, as Engine DJ's own do.
+  glue_interop::enginedb::fix_folders(&c, None).unwrap();
   db
 }
 fn engine_lists(db: &std::path::Path) -> Vec<glue_interop::enginedb::EList> { glue_interop::enginedb::read_lists(&rusqlite::Connection::open(db).unwrap(), "lib-uuid").unwrap() }
@@ -748,7 +750,7 @@ fn glues_own_playlists_are_kept_in_engine_djs_glue_folder_both_ways() {
   assert_eq!((gigs.parent, fri.parent), (gf.id, gigs.id));
   assert_eq!(fri.items, vec![track("../Music/one.mp3"), track("../Music/three.mp3")], "three added to Engine DJ's collection");
   let crates = eng("Crates").unwrap();
-  assert_eq!((crates.parent, crates.items.len()), (gf.id, 0), "a folder it's in, without its own songs");
+  assert_eq!((crates.parent, crates.items), (gf.id, eng("Deep").unwrap().items), "a folder it's in, holding its playlists' songs (as Engine DJ's folders do)");
   assert_eq!(eng("Deep").unwrap().parent, crates.id);
   assert!(eng("Loose").is_none(), "not kept");
   for b in &before { assert!(engine_lists(&db).iter().any(|l| l.id == b.id && l.title == b.title && l.items == b.items), "Engine DJ's own as they were: {}", b.title); }
@@ -1032,6 +1034,22 @@ fn engine_djs_collection_holds_the_tree_and_each_change_goes_to_its_drive_too() 
   let (cs, fs) = (named(&c, "Saturday").expect("in the Collection"), named(&f, "Saturday").expect("in the drive's"));
   assert_eq!((cs.id, cs.parent, cs.items.len()), (fs.id, fs.parent, 2), "the same id, place and songs");
   assert_ne!(cs.id, leftover, "an id free in both (the leftover was taken out)");
+  // Its folder (Sets) holds its playlists' songs, each counted by how many of them hold it, as Engine DJ keeps them
+  // (2026-10-13), in both.
+  let folder = |db: &std::path::Path, id: i64| -> Vec<(String, i64, usize)> {
+    let all = lists(db);
+    let kids: Vec<&glue_interop::enginedb::EList> = all.iter().filter(|l| l.parent == id).collect();
+    let conn = rusqlite::Connection::open(db).unwrap();
+    let mut q = conn.prepare("SELECT databaseUuid || '/' || trackId, membershipReference FROM PlaylistEntity WHERE listId = ?1").unwrap();
+    let mut v: Vec<(String, i64, usize)> = q.query_map([id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))).unwrap().map(Result::unwrap)
+      .map(|(k, n)| { let held = kids.iter().filter(|l| l.items.iter().any(|i| i.ends_with(&format!("/{}", k.rsplit('/').next().unwrap())))).count(); (k, n, held) }).collect();
+    v.sort();
+    v
+  };
+  for db in [&c, &f] {
+    let got = folder(db, sets.id);
+    assert!(got.len() >= 3 && got.iter().all(|(_, n, held)| *n as usize == *held), "{got:?}");
+  }
   assert!(named(&c, "Empty").is_some() && named(&f, "Empty").is_none(), "no drive song: the Collection only");
   assert!(named(&c, "Friday night").is_some() && named(&f, "Friday night").is_some());
   assert!(named(&f, "Only here").is_none(), "the drive's copy otherwise untouched");

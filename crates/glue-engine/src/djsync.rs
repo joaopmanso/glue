@@ -248,6 +248,8 @@ impl<H: Host> Engine<H> {
           Ok(n) => { if n > 0 { done.lists += n; } }
           Err(x) => { eprintln!("GLUE Home: couldn’t copy the playlists into Engine DJ’s drives: {x}"); self.event(&format!("Couldn’t copy the playlists into Engine DJ’s drives: {x}")); }
         } }
+        // Every folder's songs as Engine DJ keeps them, after all of GLUE's writes (the first time: what they left).
+        if lists_on { if let Err(x) = self.dj_fix_folders(&tree_db, &dbs, &at, &mut backed) { eprintln!("GLUE Home: couldn’t put Engine DJ’s folders right: {x}"); self.event(&format!("Couldn’t put Engine DJ’s folders right: {x}")); } }
         self.dj_keep(&cache_rel, &mut kept)?;
       }
     }

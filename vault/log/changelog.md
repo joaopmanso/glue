@@ -5,6 +5,19 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-13 · Engine DJ's folders kept as Engine DJ keeps them (GLUE Home 0.74.0, ADR 0183)
+- **The user (0.73.4):** "Engine Ref" no longer shows in GLUE but is still in Engine DJ; a playlist inside "2022" still
+  can't be changed; nothing can be moved below the last playlist of a list.
+- **Found (copies of 2026-10-12):** an Engine DJ folder holds each song of its playlists once, `membershipReference`
+  how many of them hold it, and songs of its own (0). The Collection follows this rule except for GLUE's 614 entries.
+  F:'s folders don't (12,261 of 16,331 entries wrong), plus 3,020 entries pointing at a database that's gone. GLUE
+  wrote every entry with 0 and never a folder's. The lists' and the songs' chains are intact in both.
+- **Now:** after every sync, each folder in the Collection and each drive is put as Engine DJ keeps it (written only
+  where off, after a backup). The mirror leaves folders' songs alone. On the copies: the Collection 614 entries, F:
+  15,244; again: none. Lists, their order and their songs untouched; SQLite's integrity check clean.
+- **Open:** "Engine Ref" missing in GLUE, and the last-of-a-list moves: fresh copies asked of the user (DatabaseC5,
+  DatabaseF5).
+
 ## 2026-10-13 · The account's cloud storage at 100 MB (GLUE Home 0.73.4, GLUE Cloud)
 - **The user:** the account's storage near 100 MB for about 20,000 songs; it used to be under 20 MB.
 - **Why:** GLUE Home follows Engine DJ's database by its date, reading it again at most every 10 s, and Engine DJ open
