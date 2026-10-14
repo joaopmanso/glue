@@ -233,9 +233,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     `isMetadataImported` 1, its bitrate in kbps, the "no artwork" row); the ones added before, put so once
     (`dj_fix_tracks`, `tracksFixed`). On request (`djEdit` "align", 0.73.3: **Make the drives' copies match…**), a
     list's (and what's in it, or all) copies in the drives' databases made the Collection's (`dj_align`, a backup first).
-    After every sync, every folder as Engine DJ keeps it (0.74, ADR 0183, `dj_fix_folders`, `enginedb::fix_folders`):
-    each of its lists' songs once, `membershipReference` how many of them hold it, its own songs 0 (a drive's: only
-    those the Collection's folder has); written only where off, a backup first. The mirror leaves folders' songs alone.
+    A folder repair (0.74.0, ADR 0183, `enginedb::fix_folders`) is off since 0.74.1 (ADR 0184): after it Engine DJ
+    locked every playlist. The mirror leaves folders' songs alone.
     `djPlaylists: false` turns GLUE's playlist writes off.
   - **Edited from its DJ collection** (0.72, ADR 0179; `djedit.rs`): the page's `djEdit` operations (new, rename, move,
     delete; songs add, remove, shift) wait in GLUE Home's cache (`ops`), are put on `Source.tree` at once (`wait`) and

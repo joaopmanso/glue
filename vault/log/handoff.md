@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-09)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.74.0** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.74.1** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **URGENT, 2026-10-14: 0.74.0's folder repair locked every Engine DJ playlist** (ADR 0184; off in 0.74.1). Asked of
+  the user: quit GLUE Home, copy the broken databases (`DatabaseC5`, `DatabaseF5`), restore the first backup after
+  updating from `%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\dj-backups\<uuid>\` (c8666559… the Collection,
+  103a4d6b… F:). Next: compare C5/F5 with the backups to learn what Engine DJ checks; don't write folders again until
+  a repaired copy is tried in Engine DJ by the user.
 - **Engine DJ's folders, 2026-10-13 (0.74.0, ADR 0183):** each folder put as Engine DJ keeps it after every sync.
   Waiting on the user: after 0.74.0 runs one sync with Engine DJ closed, does "test123" (in "2022") work, and can a
   playlist be moved to the bottom? Also asked: fresh copies (`DatabaseC5`, `DatabaseF5`, Engine DJ closed) and whether

@@ -5,6 +5,13 @@ updated: 2026-10-09
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-14 · The folder repair turned off (GLUE Home 0.74.1, ADR 0184)
+- **The user:** after 0.74.0, every playlist in Engine DJ is locked (a new one can be made and named, nothing more);
+  GLUE works.
+- **Now:** 0.74.1 no longer runs the repair. The user is asked to quit GLUE Home, copy the databases as they are
+  (`DatabaseC5`, `DatabaseF5`), and restore GLUE Home's backups from before the repair
+  (`%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\dj-backups\<uuid>\`, the first one after updating).
+
 ## 2026-10-13 · Engine DJ's folders kept as Engine DJ keeps them (GLUE Home 0.74.0, ADR 0183)
 - **The user (0.73.4):** "Engine Ref" no longer shows in GLUE but is still in Engine DJ; a playlist inside "2022" still
   can't be changed; nothing can be moved below the last playlist of a list.

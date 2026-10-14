@@ -164,3 +164,6 @@ GLUE Home 0.74: after every sync with Engine DJ, each folder in Engine DJ's Coll
 playlists' songs once, each counted by how many of them hold it, plus its own songs, as Engine DJ keeps them. GLUE had
 written every song with no count. A GLUE folder kept in Engine DJ now shows its playlists' songs there, as Engine DJ's
 folders do. The first sync after updating repairs what GLUE left, after a backup.
+
+**2026-10-14 ([ADR 0184](../adr/0184-engine-dj-folder-repair-turned-off.md)):** turned off in 0.74.1. After it, Engine
+DJ locked every playlist; the user restores GLUE Home's backups.

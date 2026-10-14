@@ -226,6 +226,7 @@ impl<H: Host> Engine<H> {
   /// and then each drive's (a drive's folders keep only the songs of their own the Collection's have): after GLUE's
   /// writes, at every sync, written only where something is off (a backup first). GLUE's writes never kept them, and
   /// Engine DJ then wouldn't change a new playlist in "2022". How many entries changed.
+  #[allow(dead_code)]
   pub(crate) fn dj_fix_folders(&self, tree_db: &Path, dbs: &HashMap<String, PathBuf>, at: &str, backed: &mut HashSet<String>) -> Result<usize, String> {
     let mut n = 0;
     let mut own = None;
