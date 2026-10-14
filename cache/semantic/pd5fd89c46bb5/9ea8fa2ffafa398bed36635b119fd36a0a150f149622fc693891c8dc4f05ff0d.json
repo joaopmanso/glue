@@ -1,0 +1,1 @@
+{"nodes": [{"id": "vault_system_document", "label": "GLUE: how it works now", "file_type": "document", "source_file": "vault/SYSTEM.md"}], "edges": [{"source": "vault_system_document", "target": "fingerprint_mechanism", "relation": "references", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "vault/SYSTEM.md", "weight": 1.0}], "hyperedges": []}
