@@ -1149,3 +1149,39 @@ fn real_engine_databases_dry_run() {
     println!("“{name}”: {} lists under it, {} in the drive, {} changed: {put} songs put in, {out} taken out", under.len(), under.iter().filter(|id| f2.contains_key(id)).count(), changed.len());
   }
 }
+
+#[test]
+fn the_cache_of_songs_that_left_is_tidied() {
+  // 2026-10-20: the user's cache was 33 GB, 24 GB of it songs no longer in GLUE and a moved collection's copy (ADR 0185).
+  let (glue, cache) = (temp("tidy"), temp("tidy-cache"));
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main" }));
+  put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1here": { "id": "s1here" } } }));
+  // Moved into c1, its files followed (`follow_moves` done).
+  put(&glue, "profiles/p1/collections/c0/collection.json", json!({ "schemaVersion": 1, "id": "c0", "movedTo": "c1" }));
+  put(&cache, "m/p1/c0.done", json!(1));
+  // A shard that can't be read: that collection is left alone.
+  put(&glue, "profiles/p1/collections/c2/collection.json", json!({ "schemaVersion": 1, "id": "c2" }));
+  std::fs::create_dir_all(glue.join("profiles/p1/collections/c2/tracks")).unwrap();
+  std::fs::write(glue.join("profiles/p1/collections/c2/tracks/s1.json"), "{ half").unwrap();
+  let file = |rel: &str, old: bool| {
+    let p = cache.join(rel);
+    std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+    std::fs::write(&p, vec![7u8; 1000]).unwrap();
+    if old { std::fs::File::options().write(true).open(&p).unwrap().set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(5 * 24 * 3600)).unwrap(); }
+  };
+  for k in ["s/p1/c1/s1/s1here.json", "d/p1/c1/s1/s1here.json", "d/p1/c1/s1/s1here.bin", "t/p1/c1/s1/s1here.bin"] { file(k, true); }
+  for k in ["s/p1/c1/go/gone.json", "d/p1/c1/go/gone.json", "d/p1/c1/go/gone.bin", "w/p1/c1/go/gone.bin", "p/p1/c1/go/gone.bin", "c/p1/c1/go/gone.txt"] { file(k, true); }
+  file("d/p1/c1/ne/new.bin", false);                                  // just analysed, its record not saved yet
+  for k in ["t/p1/c0/s1/s1here.bin", "d/p1/c0/aa/x.bin"] { file(k, false); }   // the moved collection's
+  file("d/p1/c2/aa/x.bin", true);                                     // the unreadable collection's
+  file("d/p9/c9/aa/x.bin", true);                                     // another GLUE folder's
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy() });
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  assert_eq!(e.tidy_cache(), (8, 8000));
+  let there = |rel: &str| cache.join(rel).exists();
+  for k in ["s/p1/c1/s1/s1here.json", "d/p1/c1/s1/s1here.json", "d/p1/c1/s1/s1here.bin", "t/p1/c1/s1/s1here.bin", "d/p1/c1/ne/new.bin", "d/p1/c2/aa/x.bin", "d/p9/c9/aa/x.bin"] { assert!(there(k), "{k} kept"); }
+  for k in ["d/p1/c1/go/gone.bin", "c/p1/c1/go/gone.txt", "t/p1/c0/s1/s1here.bin", "d/p1/c0/aa/x.bin"] { assert!(!there(k), "{k} removed"); }
+  assert_eq!(e.tidy_cache(), (0, 0), "nothing more");
+}

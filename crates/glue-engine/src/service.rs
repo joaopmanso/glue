@@ -12,7 +12,7 @@
 use crate::{text, truthy, Engine, Host};
 use glue_store::dir::{read_json, Dir};
 use serde_json::{json, Map, Value};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -195,7 +195,7 @@ impl<H: Host> Engine<H> {
       let t0 = Instant::now();
       let s = Duration::from_secs;
       // (what, first after, then every): the service page's, as it had them.
-      let mut due: Vec<(&str, Duration, Duration)> = vec![("sync", s(25), s(60)), ("moves", s(30), s(3600)), ("backups", s(45), s(3600)), ("update", s(60), s(6 * 3600)), ("reminders", s(90), s(3600)), ("computer", s(3600), s(3600)), ("dj", s(20), s(5))];
+      let mut due: Vec<(&str, Duration, Duration)> = vec![("sync", s(25), s(60)), ("moves", s(30), s(3600)), ("backups", s(45), s(3600)), ("update", s(60), s(6 * 3600)), ("reminders", s(90), s(3600)), ("computer", s(3600), s(3600)), ("dj", s(20), s(5)), ("cache", s(300), s(24 * 3600))];
       loop {
         std::thread::sleep(s(1));
         let Some(e) = me.upgrade() else { return };
@@ -217,6 +217,10 @@ impl<H: Host> Engine<H> {
       "sync" if on => self.sync_soon(0),
       "moves" if on => { let n = self.follow_moves(); if n > 0 { eprintln!("GLUE Home: {n} cache files followed their moved collections"); } }
       "backups" if on => { self.backups_daily(); }
+      "cache" if on => {
+        let (n, b) = self.tidy_cache();
+        if n > 0 { self.event(&format!("Cache tidied: {} of songs no longer in GLUE removed ({n} files)", size_text(b))); }
+      }
       "reminders" => self.check_reminders(false),
       "computer" => self.learn_computer(),
       // The DJ libraries followed live (ADR 0167).
@@ -290,6 +294,41 @@ impl<H: Host> Engine<H> {
     moved
   }
 
+  // ---- the cache of songs that left (ADR 0185) ------------------------------------------------------------------------
+  /// What GLUE Home keeps of each song (`CACHED`: its analysis, mini spectrogram, waveform, details, fingerprint, cover)
+  /// for the songs no longer in their collection, and the whole of a collection moved into another once its files
+  /// followed it (`follow_moves`): removed. Nothing ever removed them: 2026-10-20, the user's cache was 33 GB, 24 GB of
+  /// it songs gone (a song re-added is a new song, re-analysed) and a moved collection's copy. A collection whose songs
+  /// can't all be read, or that has none, is left alone, and so is a file written in the last two days (a song just
+  /// added whose record isn't saved yet). The files and bytes removed.
+  pub fn tidy_cache(&self) -> (usize, u64) {
+    if self.host.config()["glue"].as_str().is_none_or(|g| g.is_empty()) { return (0, 0); }
+    let (dir, cache) = (self.dir(), self.cache_dir());
+    let now = ms();
+    let mut pairs: std::collections::BTreeSet<(String, String)> = Default::default();
+    for k in CACHED { for pid in cache.list(k, true).unwrap_or_default() { for cid in cache.list(&format!("{k}/{pid}"), true).unwrap_or_default() { pairs.insert((pid.clone(), cid)); } } }
+    let (mut files, mut bytes) = (0usize, 0u64);
+    for (pid, cid) in pairs {
+      let base = format!("profiles/{pid}/collections/{cid}");
+      // Another GLUE folder's, or not readable now: not this one's to judge.
+      let Ok(Some(meta)) = read_json(&dir, &format!("{base}/collection.json")) else { continue };
+      let moved = meta["movedTo"].as_str().is_some_and(|t| !t.is_empty()) && cache.read_bytes(&format!("m/{pid}/{cid}.done")).ok().flatten().is_some();
+      let keep = if moved { HashSet::new() } else {
+        match song_ids(&dir, &base) { Some(ids) if !ids.is_empty() => ids, _ => continue }
+      };
+      for k in CACHED { for sh in cache.list(&format!("{k}/{pid}/{cid}"), true).unwrap_or_default() {
+        for n in cache.list(&format!("{k}/{pid}/{cid}/{sh}"), false).unwrap_or_default() {
+          if keep.contains(n.split('.').next().unwrap_or_default()) { continue; }
+          let path = format!("{k}/{pid}/{cid}/{sh}/{n}");
+          if !moved && cache.mtime(&path).is_some_and(|t| now - t < TIDY_GRACE_MS) { continue; }
+          let size = std::fs::metadata(self.cache.join(&path)).map(|m| m.len()).unwrap_or(0);
+          if cache.remove(&path).is_ok() { files += 1; bytes += size; }
+        }
+      } }
+    }
+    (files, bytes)
+  }
+
   // ---- reminders of events that need music (ADR 0074) -----------------------------------------------------------------
   /// A look at the events (hourly, and the window's Check now: `again`, notified even if reminded today).
   pub fn check_reminders(&self, again: bool) {
@@ -334,6 +373,25 @@ impl<H: Host> Engine<H> {
 const AUTO_DIR: &str = "backups/auto";
 const AUTO_KEEP: usize = 14;
 const HEX: &[u8] = b"0123456789abcdef";
+/// The cache's kinds kept per song, under `<kind>/<profile>/<collection>/<shard>/<song id>.<ext>`.
+const CACHED: [&str; 6] = ["s", "t", "w", "d", "p", "c"];
+/// A cache file younger than this stays, its song's record or not (2 days).
+const TIDY_GRACE_MS: i64 = 2 * 24 * 3600 * 1000;
+/// "1.2 GB", "340 MB".
+fn size_text(b: u64) -> String {
+  let gb = b as f64 / 1e9;
+  if gb >= 1.0 { format!("{gb:.1} GB") } else { format!("{} MB", (b as f64 / 1e6).round()) }
+}
+/// Every song id of a collection, from its files (`None`: one of them couldn't be read).
+fn song_ids(dir: &dyn Dir, base: &str) -> Option<HashSet<String>> {
+  let mut ids = HashSet::new();
+  for f in dir.list(&format!("{base}/tracks"), false).ok()? {
+    if !f.ends_with(".json") { continue; }
+    let shard = read_json(dir, &format!("{base}/tracks/{f}")).ok()??;
+    ids.extend(shard["items"].as_object()?.keys().cloned());
+  }
+  Some(ids)
+}
 
 #[cfg(test)]
 mod tests {

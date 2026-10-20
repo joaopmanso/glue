@@ -70,7 +70,10 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **Caches** are not in the GLUE folder:
   - in the browser (OPFS `cache/`): details (the full analysis), thumbs (mini spectrograms), waveforms,
     fingerprints, covers, kept per collection;
-  - in GLUE Home: `t/ w/ d/ p/ s/` keyed by profile, collection and song, plus `j/jobs.json` and `s/pending.json`.
+  - in GLUE Home: `t/ w/ d/ p/ s/ c/` keyed by profile, collection and song, plus `j/jobs.json` and `s/pending.json`.
+    Tidied 5 minutes after start, then daily (ADR 0185, `service.rs` `tidy_cache`): the files of songs no longer in
+    their collection, and a moved collection's once its files followed it, go. A collection it can't read is left
+    alone, and so is a file younger than two days. About 500 KB a song stays, mostly the details' spectrogram.
 
 ## 3. Profiles and the library (ADRs 0113, 0114)
 - **A profile is an artist alias:** id, name, colour, BPM range. The user sees these on "Who's using GLUE?".

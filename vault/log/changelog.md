@@ -1,9 +1,21 @@
 ---
-updated: 2026-10-09
+updated: 2026-10-20
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-10-20 · GLUE Home 0.75.0: its cache tidied (ADR 0185)
+- **Why:** the user: "why is my appdata library around 30Gb? we need to optimize this asap". Measured: 33 GB, 31 GB of it
+  songs' details (`d/`). 20.2 GB were for 41,648 songs no longer in "Electronic", written 2026-09-28 to 10-03 while the
+  collection was set up (some files under 25 ids). 4.0 GB were "My collection"'s copy, left by `follow_moves`.
+- **Now:** GLUE Home removes the cache files (`s t w d p c`) of songs no longer in their collection, and all of a moved
+  collection's once followed. It runs 5 minutes after it starts, then daily, and says so in Activity. A collection it
+  can't read is left alone, and so is a file younger than two days. Expected on the desktop: about 33 → 9 GB.
+- **Left for the user to choose:** the remaining ~500 KB a song (the 1600 × 512 spectrogram), which the song page and
+  the verdict re-check use.
+- Test: `tests/engine.rs` "the cache of songs that left is tidied" (songs kept, gone, just analysed; a moved, an
+  unreadable and another folder's collection).
 
 ## 2026-10-14 · The folder repair turned off (GLUE Home 0.74.1, ADR 0184)
 - **The user:** after 0.74.0, every playlist in Engine DJ is locked (a new one can be made and named, nothing more);

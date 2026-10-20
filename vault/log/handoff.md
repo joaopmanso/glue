@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-09
+updated: 2026-10-20
 ---
 # Handoff: where things stand
 
@@ -24,8 +24,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## State (2026-10-09)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.74.1** (0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+## State (2026-10-20)
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.75.0** (0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.75.0, its cache tidied (2026-10-20, ADR 0185):** the desktop's cache was 33 GB (24 GB of songs no longer
+  in GLUE and a moved collection's copy). About 5 minutes after 0.75 starts, Activity should say "Cache tidied: … removed",
+  and `%LOCALAPPDATA%\io.github.joaopmanso.gluehome` drop to about 9 GB. Asked of the user: shrink the remaining ~500 KB a
+  song (a coarser spectrogram, or details kept only for songs recently opened), which changes the song page and the
+  verdict re-check.
 - **URGENT, 2026-10-14: 0.74.0's folder repair locked every Engine DJ playlist** (ADR 0184; off in 0.74.1). Asked of
   the user: quit GLUE Home, copy the broken databases (`DatabaseC5`, `DatabaseF5`), restore the first backup after
   updating from `%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\dj-backups\<uuid>\` (c8666559… the Collection,

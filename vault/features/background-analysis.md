@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-10-06
-adrs: [0006, 0009, 0019, 0024, 0103, 0109, 0110, 0147, 0154, 0157]
+updated: 2026-10-20
+adrs: [0006, 0009, 0019, 0024, 0103, 0109, 0110, 0147, 0154, 0157, 0185]
 ---
 # Background analysis
 
@@ -90,6 +90,11 @@ the UI stuttering.
 - Now an edit that adds songs new to the collection (`engine.edit` → `added`) makes GLUE Home look again at
   once (`analysis.added`), and during a run the new songs join its queue (those running or queued aren't
   queued twice). Ratings and other edits don't cause a look (it reads every file of the collection).
+
+## GLUE Home's cache tidied (2026-10-20, [ADR 0185](../adr/0185-the-cache-of-songs-that-left-is-tidied.md))
+- The user's cache was 33 GB: 24 GB of it the analyses of songs no longer in GLUE (made again under new ids while the
+  collection was set up, 2026-09-28 to 10-03) and the copy left by a moved collection. GLUE Home 0.75 removes those
+  files 5 minutes after it starts, then daily, and says so in Activity. About 9 GB stays for the user's 17,500 songs.
 
 ## GLUE Home's native engine (2026-10-02, [ADR 0147](../adr/0147-glue-home-analyses-natively.md))
 - `crates/glue-audio`: the same analysis in Rust, every stored file (0.44 lossless, 0.45 the rest and lossy decoders).
