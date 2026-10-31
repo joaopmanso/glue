@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-31)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.77.0** (0.77: the Discogs collection, ADR 0187; 0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.78.0** (0.78: Discogs matched track by track, ADR 0188; 0.77: the Discogs collection, ADR 0187; 0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.78.0, Discogs records matched track by track (2026-10-31, ADR 0188):** after its covers, GLUE Home reads
+  each record's tracklist (a second each, once); rows say "In GLUE: 3 of 4 tracks"; **Choose…** adds songs it missed or
+  takes off wrong ones. The user misread 0.77 as writing to Discogs: told nothing is written there. To check: the
+  matches on records the user knows; Choose… on one it missed.
 - **GLUE Home 0.77.0, your Discogs collection (2026-10-31, ADR 0187):** with the token set, GLUE Home reads the collection
   and wantlist; **Discogs** under Music in the sidebar lists them with covers (they come a second each, after the list),
   "In GLUE: N songs" or "Not in GLUE". To check: the counts look right, records you know as in GLUE say so, Refresh.

@@ -3,7 +3,9 @@
    (`discogsMatch.ts`). Records' covers come from GLUE Home's cache by their hash. */
 import { engineClient, type DiscogsState } from './engine.svelte';
 import { lib } from './library.svelte';
-import { discogsMatcher, type DiscogsRecord } from '../core/library/discogsMatch';
+import { discogsMatcher, type DiscogsRecord, type RecordMatch } from '../core/library/discogsMatch';
+
+const NONE: RecordMatch = { songs: [], found: 0, tracks: 0, chosen: [], byTrack: [] };
 
 class Discogs {
   state = $state.raw<DiscogsState | null>(null);
@@ -47,18 +49,21 @@ class Discogs {
 
   /** Each record's songs in the open collection (by release id), worked out again when the library changes. */
   private matchKey = '';
-  private matched = new Map<number, string[]>();
-  songsOf(r: DiscogsRecord): string[] {
+  /** The record being matched by hand (its release id). */
+  choosing = $state<number | null>(null);
+  private matched = new Map<number, RecordMatch>();
+  songsOf(r: DiscogsRecord): string[] { return this.matchOf(r).songs; }
+  matchOf(r: DiscogsRecord): RecordMatch {
     const s = lib.store;
-    if (!s) return [];
+    if (!s) return NONE;
     const k = this.state?.kept, key = lib.version + ':' + (k?.readAt ?? 0) + ':' + (k?.records.length ?? 0) + ':' + (k?.wants.length ?? 0);
     if (this.matchKey !== key) {
       this.matchKey = key;
       this.matched = new Map();
-      const match = discogsMatcher([...s.tracks.values()].map(t => ({ id: t.id, title: t.title, artist: t.artist, album: t.album, label: t.label })));
+      const match = discogsMatcher([...s.tracks.values()].filter(t => !t.remote).map(t => ({ id: t.id, title: t.title, artist: t.artist, album: t.album, label: t.label, duration: t.duration, discogs: t.discogs, discogsNo: t.discogsNo })));
       for (const x of [...k?.records ?? [], ...k?.wants ?? []]) this.matched.set(x.id, match(x));
     }
-    return this.matched.get(r.id) ?? [];
+    return this.matched.get(r.id) ?? NONE;
   }
 }
 

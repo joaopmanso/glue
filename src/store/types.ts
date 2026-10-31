@@ -82,6 +82,9 @@ export interface Track {
   unwritten?: string[];
   /** The verdict label the user marked as fine (a false positive): shown as fine while it's GLUE's verdict. */
   markedFine?: string;
+  /** The Discogs record (release id) the user chose this song for, and the ones they took it off (ADR 0188). */
+  discogs?: number;
+  discogsNo?: number[];
   art?: string;                 // the cover's hash (ADR 0072): '' none; absent: not looked for yet
   prep?: Prep;                  // the Prepare tab: corrected tempo and grid, display flip, cues (ADR 0052)
   onDevices?: string[];         // cloud views and merged collections: the devices that have this track (never saved)

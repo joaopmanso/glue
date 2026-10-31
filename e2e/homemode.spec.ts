@@ -1402,6 +1402,7 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
   try {
     mkdirSync(fake.dirs.incoming, { recursive: true }); mkdirSync(join(tmp, 'Music'), { recursive: true });
     copyFileSync(fixture('mp3-128k.mp3'), join(tmp, 'Music', 'night.mp3'));
+    copyFileSync(fixture('aac-128k.m4a'), join(tmp, 'Music', 'other.m4a'));
     const col = 'profiles/p1/collections/c1';
     const song = { id: 't1', status: 'linked', rootId: 'r1', relPath: 'night.mp3', importPath: null, fileName: 'night.mp3', size: 1, mtime: 1000, title: 'Night Drive', artist: 'Test Artist', album: 'Night Drive EP', genre: '', label: 'Test Label', comment: '', year: '', duration: null, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] };
     const files: Record<string, string> = {
@@ -1409,6 +1410,8 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
       'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
       [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
       [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1: song } }),
+      // (Its shard is its id's first two characters.)
+      [col + '/tracks/t2.json']: JSON.stringify({ schemaVersion: 1, items: { t2: { ...song, id: 't2', size: 2, mtime: 2000, relPath: 'other.m4a', fileName: 'other.m4a', title: 'Something Else', artist: 'Another', album: 'Elsewhere' } } }),
     };
     for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
     // Discogs, as its API answers (research/discogs-api.md).
@@ -1421,6 +1424,9 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
       'https://api.discogs.com/users/djtest/collection/folders/0/releases': page1('releases', [item(1, 'Test Artist', 'Night Drive', 'https://i.discogs.com/1.png'), item(2, 'Someone (2)', 'Vinyl Only', '')]),
       'https://api.discogs.com/users/djtest/wants': page1('wants', [item(3, 'Kloudmen', 'Wanted EP', 'https://i.discogs.com/3.png')]),
       'https://i.discogs.com/': [...png],
+      // Tracklists (ADR 0188): "Night Drive" has the song; "Vinyl Only" a track GLUE hasn't; the wanted one none (404).
+      'https://api.discogs.com/releases/1': JSON.stringify({ id: 1, tracklist: [{ position: 'A', type_: 'track', title: 'Night Drive', duration: '' }, { position: 'B', type_: 'track', title: 'Dawn', duration: '5:00' }] }),
+      'https://api.discogs.com/releases/2': JSON.stringify({ id: 2, tracklist: [{ position: 'A', type_: 'track', title: 'Lost Track', duration: '' }] }),
     });
     await fake.start();
     fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, discogsToken: 'tok' } });
@@ -1433,7 +1439,7 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
     await page.goto('./#/analyze');
     await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), fake.pref);
     await page.goto('./');
-    await expect(page.locator('.tr')).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.locator('.tr')).toHaveCount(2, { timeout: 30_000 });
     // GLUE Home checks the token and reads the lists (the file in the GLUE folder); the sidebar counts the records.
     await expect.poll(() => existsSync(join(fake.dirs.glue, 'profiles/p1/discogs.json')), { timeout: 30_000 }).toBe(true);
     await page.click('#discogs-side');
@@ -1447,7 +1453,7 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
     await expect(night).toContainText('Test Label · TL001');
     await expect(night).toContainText('Vinyl · 12" · EP');
     await expect(night.locator('.cov img')).toBeVisible({ timeout: 20_000 });
-    await expect(night.locator('.in')).toHaveText('In GLUE: 1 song');
+    await expect(night.locator('.in')).toHaveText('In GLUE: 1 of 2 tracks', { timeout: 30_000 });
     if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/discogs.png' });
     await expect(rows.filter({ hasText: 'Vinyl Only' }).locator('.out')).toHaveText('Not in GLUE');
     await page.click('[data-show="out"]');
@@ -1461,6 +1467,30 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
     await expect(rows).toHaveCount(1);
     await expect(rows).toContainText('Wanted EP');
     await page.click('#discogs-records');
+    // Matched by hand (ADR 0188): its tracks, a song added from a search; one taken off another record stays off.
+    const vinyl = rows.filter({ hasText: 'Vinyl Only' });
+    await vinyl.locator('[data-choose]').click();
+    const ch = page.locator('#discogs-choose');
+    await expect(ch).toContainText('Lost Track');
+    await expect(ch.locator('.tl')).toContainText('not found');
+    await page.fill('#discogs-q', 'something');
+    await ch.locator('[data-on="t2"]').click();
+    await expect(ch.locator('#discogs-songs')).toContainText('Something Else');
+    await expect(ch.locator('#discogs-songs')).toContainText('chosen');
+    if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/discogs-choose.png' });
+    await expect(vinyl.locator('.in')).toHaveText('In GLUE: 1 song');
+    await page.click('#discogs-done');
+    await night.locator('[data-choose]').click();
+    await expect(ch.locator('.tl')).toContainText('✓ Test Artist – Night Drive');
+    await ch.locator('[data-off="t1"]').click();
+    await expect(night.locator('.out')).toHaveText('Not in GLUE');
+    // Kept on the songs (GLUE Home writes them), and so after a reload.
+    const saved = () => { const r = (sh: string) => { try { return JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', sh + '.json'), 'utf8')).items; } catch { return {}; } }; return { ...r('t1'), ...r('t2') }; };
+    await expect.poll(() => [saved().t2?.discogs, saved().t1?.discogsNo], { timeout: 30_000 }).toEqual([2, [1]]);
+    await page.fill('#discogs-q', 'night');
+    await ch.locator('[data-on="t1"]').click();
+    await expect(night.locator('.in')).toHaveText('In GLUE: 1 of 2 tracks');
+    await page.click('#discogs-done');
     // Its songs: their album.
     await night.locator('.in').click();
     await expect(page.locator('.lib h2')).toContainText('Night Drive EP');

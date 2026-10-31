@@ -182,6 +182,23 @@ export const edits = {
     }
     if (out.length) s.putTracks(out);
   },
+  /** Songs chosen for a Discogs record (`on`), or taken off it: remembered on each song, so the automatic match follows
+      the user (ADR 0188). */
+  linkDiscogs(this: Library, ids: string[], record: number, on: boolean) {
+    const s = this.store;
+    if (!s || this.readOnly) return;
+    const out: Track[] = [];
+    for (const id of ids) {
+      const t = s.tracks.get(id);
+      if (!t || t.remote) continue;
+      const next: Track = { ...t };
+      if (on) { next.discogs = record; next.discogsNo = t.discogsNo?.filter(x => x !== record); }
+      else { if (t.discogs === record) delete next.discogs; next.discogsNo = [...new Set([...t.discogsNo ?? [], record])]; }
+      if (!next.discogsNo?.length) delete next.discogsNo;
+      if (next.discogs !== t.discogs || JSON.stringify(next.discogsNo ?? []) !== JSON.stringify(t.discogsNo ?? [])) out.push(next);
+    }
+    if (out.length) s.putTracks(out);
+  },
   /** Songs whose edited info isn't in their file yet. */
   unwrittenCount(this: Library) { let n = 0; for (const t of this.store?.tracks.values() ?? []) if (t.unwritten?.length) n++; return n; },
   /** Edited info into the files, through GLUE Home (Home mode only; the rest waits for it). */

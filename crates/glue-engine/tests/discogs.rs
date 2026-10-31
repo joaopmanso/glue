@@ -132,6 +132,11 @@ fn the_collection_and_wantlist_are_read_into_the_profiles_file_with_their_covers
     g.web.insert("https://api.discogs.com/users/dj%20test/collection/folders/0/releases?sort=added&sort_order=desc&per_page=100&page=2".into(), page(vec![item(3, "Bruce", "Not Stochastic", "https://i.discogs.com/3.jpeg")], "releases", 2, 2));
     g.web.insert("https://api.discogs.com/users/dj%20test/wants?sort=added&sort_order=desc&per_page=100&page=1".into(), page(vec![item(9, "Kloudmen", "White Label 01", "https://i.discogs.com/9.jpeg")], "wants", 1, 1));
     for n in [1, 3, 9] { g.web.insert(format!("https://i.discogs.com/{n}.jpeg"), png()); }
+    // A tracklist (the others answer 404: none to match by).
+    g.web.insert("https://api.discogs.com/releases/1".into(), json!({ "id": 1, "tracklist": [
+      { "position": "", "type_": "heading", "title": "Side A", "duration": "" },
+      { "position": "A1", "type_": "track", "title": "Inner Space", "duration": "6:05" },
+      { "position": "B1", "type_": "track", "title": "Release", "duration": "", "artists": [{ "name": "Pangaea & Pearson Sound" }] } ] }).to_string().into_bytes());
   }
   assert_eq!(e.discogs_read(true), Ok(3));
   let f: Value = serde_json::from_str(&std::fs::read_to_string(glue.join("profiles/p1/discogs.json")).unwrap()).unwrap();
@@ -145,13 +150,17 @@ fn the_collection_and_wantlist_are_read_into_the_profiles_file_with_their_covers
   assert!(r["art"].as_str().is_some_and(|a| !a.is_empty()), "its cover fetched");
   assert_eq!(f["records"][1]["art"], "", "no cover on Discogs");
   assert_eq!(f["wants"][0]["title"], "White Label 01");
+  assert_eq!(f["records"][0]["tracks"], json!([{ "p": "A1", "title": "Inner Space", "artists": [], "d": 365 }, { "p": "B1", "title": "Release", "artists": ["Pangaea & Pearson Sound"], "d": null }]), "headings left out");
+  assert_eq!(f["records"][1]["tracks"], json!([]), "none on Discogs");
   assert_eq!(e.discogs_state("p1")["kept"]["records"].as_array().map(Vec::len), Some(3));
   let g = h.0.lock().unwrap();
   for (u, hs) in &g.asked { assert_eq!(hs.iter().any(|(k, _)| k == "Authorization"), u.starts_with("https://api.discogs.com/"), "{u}"); }
   let images = g.asked.iter().filter(|(u, _)| u.starts_with("https://i.discogs.com/")).count();
+  let lists = g.asked.iter().filter(|(u, _)| u.starts_with("https://api.discogs.com/releases/")).count();
   drop(g);
   // Read again within the day: not asked; asked now (Refresh): the covers it has aren't fetched again.
   assert_eq!(e.discogs_read(false), Ok(0));
   assert_eq!(e.discogs_read(true), Ok(3));
   assert_eq!(h.0.lock().unwrap().asked.iter().filter(|(u, _)| u.starts_with("https://i.discogs.com/")).count(), images);
+  assert_eq!(h.0.lock().unwrap().asked.iter().filter(|(u, _)| u.starts_with("https://api.discogs.com/releases/")).count(), lists, "tracklists read once");
 }

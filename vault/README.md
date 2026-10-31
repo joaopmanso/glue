@@ -262,6 +262,7 @@ Planned (GLUE):
 | [0185](adr/0185-the-cache-of-songs-that-left-is-tidied.md) | GLUE Home tidies its cache: the files of songs no longer in their collection, and a moved collection's, removed daily (two days' grace; a collection it can't read left alone) | accepted |
 | [0186](adr/0186-discogs-covers-with-the-users-token.md) | Discogs covers, with the user's personal token in GLUE Home's settings: the fourth cover service, the token sent to Discogs' API only (supersedes 0086's Discogs line) | accepted |
 | [0187](adr/0187-discogs-collection-read-by-glue-home.md) | The Discogs collection and wantlist: read by GLUE Home, kept in the profile (`discogs.json`), matched to the songs on the page, shown as a view | accepted |
+| [0188](adr/0188-discogs-records-matched-track-by-track.md) | Discogs records matched track by track (GLUE Home reads each tracklist once); matched by hand on the songs (`discogs`, `discogsNo`) | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

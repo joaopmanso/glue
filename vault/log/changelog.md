@@ -5,6 +5,16 @@ updated: 2026-10-31
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-31 · GLUE Home 0.78.0: Discogs records matched track by track, and by hand (ADR 0188)
+- **Why:** the user: "I want to see my discogs collection on Glue to match it on Glue … we should be able to easily match
+  them automatically." (They took 0.77's "Connect Discogs" for writing to Discogs: nothing is written there.)
+- **Now:** GLUE Home reads each record's tracklist once. Each track matches a song by title and version, the track's or
+  the record's artist, and length within 8 s ("In GLUE: 3 of 4 tracks"). **Choose…** on a record shows its tracks with
+  their songs, takes one off ("Not on it") or adds one from a library search; kept on the songs (`discogs`,
+  `discogsNo`), the automatic match following.
+- Tests: `tests/discogs.rs` (tracklists read once, headings left out), `discogsMatch.test.ts` (tracks, remixes,
+  compilations, the user's say), `homemode.spec.ts` (partial matches, Add, Not on it, kept on the songs).
+
 ## 2026-10-31 · GLUE Home 0.77.0: your Discogs collection in GLUE (ADR 0187)
 - **Why:** the user's second Discogs choice (after covers, 0.76): their Discogs collection and wantlist, and which
   records they also have digitally.

@@ -10,6 +10,8 @@
   import { readPref, writePref } from '../../lib/prefs';
   import { facetKey } from '../../core/library/browse';
   import type { DiscogsRecord } from '../../core/library/discogsMatch';
+  import type { Track } from '../../store/types';
+  import { untrack } from 'svelte';
 
   const ROW = 58;
   $effect(() => discogs.watch());
@@ -62,10 +64,36 @@
     return tidy([
       ids.length > 0 && { label: 'Show its songs', attrs: { 'data-m': 'songs' }, run: () => openSongs(r) },
       playable.length > 0 && { label: 'Play', hint: String(playable.length), attrs: { 'data-m': 'play' }, run: () => void nowPlaying.play(playable[0], playable, 0, r.title) },
-      ids.length > 0 && SEP,
+      { label: 'Choose its songs…', attrs: { 'data-m': 'choose' }, run: () => choose(r) },
+      SEP,
       { label: 'Open on Discogs', attrs: { 'data-m': 'discogs' }, run: () => { window.open(page(r), '_blank', 'noopener'); } },
     ]);
   }
+  // Matched by hand (ADR 0188): the record's tracks with the songs found for them, the songs it has (each can be taken
+  // off), and the library searched for more.
+  const chosen = $derived(discogs.choosing == null ? null : [...kept?.records ?? [], ...kept?.wants ?? []].find(r => r.id === discogs.choosing) ?? null);
+  let pq = $state('');
+  $effect(() => { const r = chosen; untrack(() => { pq = r ? r.title : ''; }); });
+  const chosenMatch = $derived.by(() => { void lib.version; return chosen ? discogs.matchOf(chosen) : null; });
+  const songOf = (id: string | null) => (id ? lib.store?.tracks.get(id) : undefined);
+  const nameOf = (t: Track) => (t.artist ? t.artist + ' – ' : '') + (t.title || t.fileName);
+  const found = $derived.by(() => {
+    void lib.version;
+    const r = chosen, st = lib.store;
+    if (!r || !st) return [];
+    const ws = pq.trim().toLowerCase().split(/s+/).filter(Boolean);
+    if (!ws.length) return [];
+    const have = new Set(chosenMatch?.songs ?? []), out: Track[] = [];
+    for (const t of st.tracks.values()) {
+      if (t.remote || have.has(t.id)) continue;
+      const hay = (t.title + ' ' + t.artist + ' ' + t.album + ' ' + t.label + ' ' + t.fileName).toLowerCase();
+      if (ws.every(w => hay.includes(w))) { out.push(t); if (out.length >= 30) break; }
+    }
+    return out;
+  });
+  const choose = (r: DiscogsRecord) => { discogs.choosing = r.id; document.getElementById('discogs')?.scrollIntoView({ block: 'start' }); };
+  const link = (ids: string[], on: boolean) => { if (chosen) lib.linkDiscogs(ids, chosen.id, on); };
+  const pickFocus = (el: HTMLInputElement) => { el.focus(); el.select(); };
   function when(ms: number) { return new Date(ms).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); }
 </script>
 
@@ -93,8 +121,36 @@
       </select>
       <button type="button" class="mini" id="discogs-refresh" disabled={!!reading} onclick={() => void discogs.load(true)}>Refresh</button>
     </div>
+    {#if chosen && chosenMatch}
+      <div class="choose" id="discogs-choose" role="group" aria-label="Its songs">
+        <div class="ch-head"><b>{chosen.title}</b><span>{artistOf(chosen)}</span><button type="button" class="mini" id="discogs-done" onclick={() => (discogs.choosing = null)}>Done</button></div>
+        {#if chosen.tracks?.length}
+          <ol class="tl">
+            {#each chosen.tracks as tr, i (i)}
+              {@const t = songOf(chosenMatch.byTrack[i] ?? null)}
+              <li><span class="pos">{tr.p}</span><span class="tt">{tr.title}</span><span class="ts" class:no={!t}>{t ? '✓ ' + nameOf(t) : 'not found'}</span></li>
+            {/each}
+          </ol>
+        {:else if !chosen.tracks}<p class="fine">Its tracklist comes with GLUE Home’s next read.</p>{/if}
+        <p class="sub">Its songs in GLUE ({chosenMatch.songs.length})</p>
+        <ul class="songs" id="discogs-songs">
+          {#each chosenMatch.songs as id (id)}
+            {@const t = songOf(id)}
+            {#if t}<li data-song={id}><span>{nameOf(t)}{#if chosenMatch.chosen.includes(id)}<small>chosen</small>{/if}</span>
+              <button type="button" class="mini" data-off={id} disabled={lib.readOnly} title="Not on this record: not matched to it again" onclick={() => link([id], false)}>Not on it</button></li>{/if}
+          {:else}<li class="fine">None yet: search below.</li>{/each}
+        </ul>
+        <input id="discogs-q" type="search" placeholder="Search your library for its songs" aria-label="Search your library" bind:value={pq} use:pickFocus>
+        <ul class="songs" id="discogs-found">
+          {#each found as t (t.id)}
+            <li data-song={t.id}><span>{nameOf(t)}<small>{t.album}</small></span>
+              <button type="button" class="mini" data-on={t.id} disabled={lib.readOnly} onclick={() => link([t.id], true)}>Add</button></li>
+          {:else}{#if pq.trim()}<li class="fine">No other song in your library matches.</li>{/if}{/each}
+        </ul>
+      </div>
+    {/if}
     <p class="status" id="discogs-status" role="status">
-      {#if reading}Reading your Discogs {reading.what === 'covers' ? 'covers' : reading.what}… {reading.of ? reading.done + ' of ' + reading.of + (reading.what === 'covers' ? '' : ' pages') : ''}
+      {#if reading}Reading your Discogs {reading.what}… {reading.of ? reading.done + ' of ' + reading.of + (reading.what === 'collection' || reading.what === 'wantlist' ? ' pages' : '') : ''}
       {:else if st?.now?.error}<span class="bad">Couldn’t read Discogs: {st.now.error}</span>
       {:else if st?.tokenError}<span class="bad">{st.tokenError}</span>
       {:else if kept}{kept.user} on Discogs · read {when(kept.readAt)} · {items.length.toLocaleString()} shown
@@ -103,15 +159,19 @@
     <div class="list" bind:this={box} bind:clientHeight={height} onscroll={() => (top = box!.scrollTop)}>
       <div class="spacer" style:height={items.length * ROW + 'px'}>
         {#each shown as r, j (r.id + ':' + (r.instance ?? j))}
-          {@const ids = discogs.songsOf(r)}
+          {@const m = discogs.matchOf(r)}
+          {@const ids = m.songs}
           {@const src = (void discogs.version, discogs.art(r.art))}
           <div class="rec" role="listitem" data-record={r.id} style:transform={'translateY(' + (first + j) * ROW + 'px)'} oncontextmenu={e => menu.context(e, () => recordMenu(r), r.title)}>
             <span class="cov">{#if src}<img src={src} alt="" loading="lazy">{/if}</span>
             <span class="nm"><b title={r.title}>{r.title}</b><small>{artistOf(r)}</small></span>
             <span class="lab"><span>{labelOf(r)}</span><small>{r.year ?? ''}{r.styles.length ? (r.year ? ' · ' : '') + r.styles.slice(0, 3).join(', ') : ''}</small></span>
             <span class="fmt">{r.formats.slice(0, 3).join(' · ')}</span>
-            {#if ids.length}<button type="button" class="in" data-in={ids.length} title="Show its songs" onclick={() => openSongs(r)}>In GLUE: {ids.length} song{ids.length === 1 ? '' : 's'}</button>
-            {:else}<span class="out">Not in GLUE</span>{/if}
+            <span class="act">
+              {#if ids.length}<button type="button" class="in" data-in={ids.length} title="Show its songs" onclick={() => openSongs(r)}>In GLUE: {m.found ? m.found + ' of ' + m.tracks + ' tracks' : ids.length + ' song' + (ids.length === 1 ? '' : 's')}</button>
+              {:else}<span class="out">Not in GLUE</span>{/if}
+              <button type="button" class="pick" data-choose={r.id} title="Choose its songs" onclick={() => choose(r)}>Choose…</button>
+            </span>
           </div>
         {/each}
       </div>
@@ -137,7 +197,7 @@
   .bad { color: var(--warn); }
   .list { position: relative; flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); }
   .spacer { position: relative; }
-  .rec { position: absolute; left: 0; right: 0; height: 58px; display: grid; grid-template-columns: 44px minmax(0, 1.4fr) minmax(0, 1fr) 140px 130px; gap: 12px; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--line); }
+  .rec { position: absolute; left: 0; right: 0; height: 58px; display: grid; grid-template-columns: 44px minmax(0, 1.4fr) minmax(0, 1fr) 140px 220px; gap: 12px; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--line); }
   .rec:hover { background: var(--raised); }
   .cov { width: 44px; height: 44px; border-radius: 3px; background: var(--surface); overflow: hidden; }
   .cov img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -148,6 +208,26 @@
   .fmt { color: var(--ink-2); font: 11.5px var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .in { background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 12px; font-size: 12px; padding: 2px 9px; cursor: pointer; justify-self: start; }
   .out { color: var(--muted); font-size: 12px; }
+  .act { display: flex; align-items: center; gap: 8px; }
+  .pick { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0; }
+  .pick:hover { color: var(--accent); }
+  .choose { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 6px; background: color-mix(in srgb, var(--accent) 6%, transparent); max-height: 50vh; overflow-y: auto; }
+  .ch-head { display: flex; align-items: baseline; gap: 10px; }
+  .ch-head b { font-size: 14px; }
+  .ch-head span { color: var(--muted); font-size: 12.5px; flex: 1; }
+  .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; font-size: 12.5px; }
+  .tl li { display: grid; grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; }
+  .pos { color: var(--muted); font-family: var(--font-mono); }
+  .tt, .ts { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ts { color: var(--ink-2); }
+  .ts.no { color: var(--muted); }
+  .sub { margin: 4px 0 0; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .songs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .songs li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .songs li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .songs small { color: var(--muted); margin-left: 6px; font-size: 11.5px; }
+  .fine { color: var(--muted); font-size: 12.5px; margin: 0; }
+  #discogs-q { background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); padding: 5px 9px; font-size: 13px; }
   .empty { max-width: 640px; color: var(--ink-2); font-size: 13.5px; padding: 16px; }
   .empty p { color: var(--muted); }
   .none { color: var(--muted); padding: 20px; text-align: center; }

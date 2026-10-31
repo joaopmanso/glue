@@ -73,11 +73,28 @@ pub fn record_of(item: &Value, had: Option<&Value>) -> Option<Value> {
   let cover = b["cover_image"].as_str().filter(|c| !c.is_empty() && !c.ends_with("spacer.gif")).or(b["thumb"].as_str().filter(|c| !c.is_empty())).unwrap_or("");
   // The cover already fetched for the same picture stays.
   let art = had.filter(|h| h["cover"].as_str() == Some(cover)).and_then(|h| h["art"].as_str()).unwrap_or("");
+  // Its tracklist, once read (a record's doesn't change): kept from the last read.
+  let tracks = had.and_then(|h| h.get("tracks")).filter(|t| t.is_array()).cloned();
   Some(json!({
     "id": id, "instance": item["instance_id"], "title": b["title"].as_str().unwrap_or(""), "artists": names("artists"), "labels": labels,
     "year": b["year"].as_i64().filter(|y| *y > 0), "formats": formats, "genres": strs("genres"), "styles": strs("styles"),
     "added": item["date_added"].as_str().unwrap_or(""), "rating": item["rating"].as_i64().unwrap_or(0), "cover": cover, "art": art,
-  }))
+  })).map(|mut r: Value| { if let Some(t) = tracks { r["tracks"] = t; } r })
+}
+
+/// "4:05" (or "1:02:03") as seconds; None when Discogs doesn't say.
+fn seconds(d: &str) -> Option<f64> {
+  let parts: Vec<f64> = d.trim().split(':').map(|p| p.trim().parse::<f64>()).collect::<Result<_, _>>().ok()?;
+  (!parts.is_empty() && parts.len() <= 3).then(|| parts.iter().fold(0.0, |a, p| a * 60.0 + p)).filter(|s| *s > 0.0)
+}
+/// A release's tracklist (`/releases/{id}`) as GLUE keeps it: each track's position, title, own artists (a
+/// compilation's) and length; headings and index tracks left out.
+pub fn tracks_of(release: &Value) -> Vec<Value> {
+  release["tracklist"].as_array().into_iter().flatten().filter(|t| t["type_"].as_str().is_none_or(|k| k == "track")).filter_map(|t| {
+    let title = t["title"].as_str().filter(|x| !x.trim().is_empty())?;
+    let artists: Vec<&str> = t["artists"].as_array().into_iter().flatten().filter_map(|a| a["name"].as_str()).collect();
+    Some(json!({ "p": t["position"].as_str().unwrap_or(""), "title": title, "artists": artists, "d": seconds(t["duration"].as_str().unwrap_or("")) }))
+  }).collect()
 }
 
 impl<H: Host> Engine<H> {
@@ -149,6 +166,23 @@ impl<H: Host> Engine<H> {
       let url = file[*k][*i]["cover"].as_str().unwrap_or("").to_string();
       if let Ok(img) = self.cover_ask(Service::Discogs, &url) {
         if let Ok(c) = glue_audio::out::cover::from_image(&img) { if self.keep_cover(&c).is_ok() { file[*k][*i]["art"] = json!(c.hash); } }
+      }
+      if (done + 1) % 25 == 0 { for p in profiles { self.discogs_keep(p, &file)?; } }
+    }
+    if !todo.is_empty() { for p in profiles { self.discogs_keep(p, &file)?; } }
+    // The tracklists it lacks (a request a record, once: they match the songs track by track), kept every 25.
+    let mut todo: Vec<(&str, usize)> = vec![];
+    for k in ["records", "wants"] {
+      for (i, r) in file[k].as_array().into_iter().flatten().enumerate() { if r.get("tracks").is_none() { todo.push((k, i)); } }
+    }
+    for (done, (k, i)) in todo.iter().enumerate() {
+      *self.devices.discogs.lock().unwrap() = json!({ "reading": { "what": "tracklists", "done": done, "of": todo.len() } });
+      let id = file[*k][*i]["id"].as_i64().unwrap_or(0);
+      match self.discogs_get(&format!("releases/{id}")) {
+        Ok(rel) => file[*k][*i]["tracks"] = Value::Array(tracks_of(&rel)),
+        // Gone from Discogs (404): nothing to match by; anything else is asked again next time.
+        Err(e) if e.contains("404") => file[*k][*i]["tracks"] = json!([]),
+        Err(_) => {}
       }
       if (done + 1) % 25 == 0 { for p in profiles { self.discogs_keep(p, &file)?; } }
     }

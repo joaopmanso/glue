@@ -26,7 +26,7 @@ import type { DiscogsFile } from '../core/library/discogsMatch';
     and what's kept. */
 export interface DiscogsState {
   token: boolean; user: string | null; tokenError: string | null;
-  now: { reading?: { what: 'collection' | 'wantlist' | 'covers'; done: number; of: number }; error?: string } | null;
+  now: { reading?: { what: 'collection' | 'wantlist' | 'covers' | 'tracklists'; done: number; of: number }; error?: string } | null;
   kept: DiscogsFile | null;
 }
 export interface DjQuestion { ext: string; name: string; deletedIn: 'glue' | 'app' }
