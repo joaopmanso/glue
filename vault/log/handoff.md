@@ -64,9 +64,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 ## Waiting on the user
 - **GLUE Home 0.75.0, its cache tidied (2026-10-20, ADR 0185):** the desktop's cache was 33 GB (24 GB of songs no longer
   in GLUE and a moved collection's copy). About 5 minutes after 0.75 starts, Activity should say "Cache tidied: … removed",
-  and `%LOCALAPPDATA%\io.github.joaopmanso.gluehome` drop to about 9 GB. Asked of the user: shrink the remaining ~500 KB a
-  song (a coarser spectrogram, or details kept only for songs recently opened), which changes the song page and the
-  verdict re-check.
+  and `%LOCALAPPDATA%\io.github.joaopmanso.gluehome` drop to about 9 GB. The remaining ~500 KB a
+  song (the details' spectrogram) stays as it is: the user's decision, 2026-10-21, after the measurements in
+  [research/spectrogram-size.md](../research/spectrogram-size.md).
 - **URGENT, 2026-10-14: 0.74.0's folder repair locked every Engine DJ playlist** (ADR 0184; off in 0.74.1). Asked of
   the user: quit GLUE Home, copy the broken databases (`DatabaseC5`, `DatabaseF5`), restore the first backup after
   updating from `%LOCALAPPDATA%\io.github.joaopmanso.gluehome\library\dj-backups\<uuid>\` (c8666559… the Collection,
