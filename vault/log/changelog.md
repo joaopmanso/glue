@@ -1,9 +1,20 @@
 ---
-updated: 2026-10-20
+updated: 2026-10-31
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-10-31 · GLUE Home 0.76.0: covers from Discogs (ADR 0186)
+- **Why:** the user: "I want to add discogs support". They chose covers from Discogs and their collection (next), with
+  a personal token. ADR 0086 had left Discogs out only for needing one.
+- **Now:** GLUE Home's settings take a Discogs token and check it ("Connected as …", or why not). Discogs is the
+  fourth cover service: a release search, "Artist - Title" matched, its cover. The token goes to `api.discogs.com`
+  only (web.rs `sends`), at a request every 1.1 s, and songs that found nothing before are looked up again once.
+- **The API, probed** (its docs refuse automated reads): `vault/research/discogs-api.md`.
+- Tests: the covers golden (Discogs addresses and picks, TS and Rust); `tests/discogs.rs` (the check; Discogs asked
+  last, with the token, to its API only; nothing found before is asked again); `web.rs` (the token's one host);
+  `home.spec.ts` (the settings field, end to end).
 
 ## 2026-10-20 · GLUE Home 0.75.0: its cache tidied (ADR 0185)
 - **Why:** the user: "why is my appdata library around 30Gb? we need to optimize this asap". Measured: 33 GB, 31 GB of it

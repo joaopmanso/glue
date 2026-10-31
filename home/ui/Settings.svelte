@@ -453,6 +453,11 @@
             <label class="check"><input type="checkbox" id="reminders" checked={cfg?.reminders !== false} onchange={e => save({ reminders: e.currentTarget.checked })}> Remind me of events that need music</label>
             <button type="button" class="mini" id="remind-now" disabled={cfg?.reminders === false} onclick={() => void bridge.remindNow()}>Check now</button>
           </div>
+          <div class="discogs" id="discogs">
+            <label for="discogs-token"><b>Discogs</b><small>Covers from Discogs for records the other services don’t have (vinyl, white labels). Paste a personal access token from <button type="button" class="link inline" onclick={() => openUrl('https://www.discogs.com/settings/developers')}>Discogs › Settings › Developers</button>; it stays on this computer and goes only to Discogs.</small></label>
+            <input id="discogs-token" type="password" autocomplete="off" spellcheck="false" placeholder="Personal access token" value={cfg?.discogsToken ?? ''} onchange={e => save({ discogsToken: e.currentTarget.value.trim() })}>
+            {#if cfg?.discogsToken}<p class="fine" id="discogs-state" class:bad={!!cfg.discogsError}>{cfg.discogsUser ? 'Connected as ' + cfg.discogsUser : cfg.discogsError ? cfg.discogsError : 'Checking the token with Discogs…'}</p>{/if}
+          </div>
           <p class="fine" id="remind-state">A notification once a day for each event coming within its reminder days (set on the event in GLUE’s Calendar) with no songs in its playlists.{#if status?.reminders} Last look {new Date(status.reminders.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: {status.reminders.coming ? status.reminders.coming + ' event' + (status.reminders.coming === 1 ? '' : 's') + ' need' + (status.reminders.coming === 1 ? 's' : '') + ' music' + (status.reminders.sent.length ? ' (notified now)' : '') : 'none needs music'}.{/if}</p>
         {/if}
       </section>
@@ -594,6 +599,12 @@
   .steps > li span { white-space: normal; overflow: visible; }
   .steps code { font: 11.5px var(--font-mono); }
   .row.end { justify-content: flex-end; gap: 14px; }
+  .discogs { display: grid; gap: 6px; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--line); }
+  .discogs label { display: grid; gap: 2px; font-size: 13px; }
+  .discogs label small { color: var(--muted); font-size: 12px; }
+  .discogs input { background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); padding: 5px 8px; font: 12.5px var(--font-mono); }
+  .discogs .bad { color: var(--warn); }
+  .link.inline { padding: 0; font-size: inherit; }
   .remind { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--line); }
   .frow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 8px 0; border-top: 1px solid var(--line); }
   .frow:first-of-type { border-top: 0; padding-top: 0; }

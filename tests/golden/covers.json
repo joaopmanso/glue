@@ -158,7 +158,8 @@
    "urls": {
     "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22Daft%20Punk%22%20album%3A%22Random%20Access%20Memories%20(Deluxe%20Edition)%22",
     "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=Daft%20Punk%20Random%20Access%20Memories%20(Deluxe%20Edition)",
-    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22Daft%20Punk%22%20AND%20release%3A%22Random%20Access%20Memories%20(Deluxe%20Edition)%22"
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22Daft%20Punk%22%20AND%20release%3A%22Random%20Access%20Memories%20(Deluxe%20Edition)%22",
+    "discogs": "https://api.discogs.com/database/search?type=release&per_page=10&artist=Daft%20Punk&release_title=Random%20Access%20Memories%20(Deluxe%20Edition)"
    }
   },
   {
@@ -172,7 +173,8 @@
    "urls": {
     "deezer": "https://api.deezer.com/search?limit=10&q=artist%3A%22Daft%20Punk%22%20track%3A%22Get%20Lucky%20feat.%20Pharrell%20Williams%22",
     "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=song&term=Daft%20Punk%20Get%20Lucky%20feat.%20Pharrell%20Williams",
-    "musicbrainz": "https://musicbrainz.org/ws/2/recording/?fmt=json&limit=10&query=artist%3A%22Daft%20Punk%22%20AND%20recording%3A%22Get%20Lucky%20feat.%20Pharrell%20Williams%22"
+    "musicbrainz": "https://musicbrainz.org/ws/2/recording/?fmt=json&limit=10&query=artist%3A%22Daft%20Punk%22%20AND%20recording%3A%22Get%20Lucky%20feat.%20Pharrell%20Williams%22",
+    "discogs": "https://api.discogs.com/database/search?type=release&per_page=10&artist=Daft%20Punk&track=Get%20Lucky%20feat.%20Pharrell%20Williams"
    }
   },
   {
@@ -186,7 +188,8 @@
    "urls": {
     "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22Simon%20%26%20Garfunkel%22%20album%3A%22Bridge%20Over%20Troubled%20Water%22",
     "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=Simon%20%26%20Garfunkel%20Bridge%20Over%20Troubled%20Water",
-    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22Simon%20%26%20Garfunkel%22%20AND%20release%3A%22Bridge%20Over%20Troubled%20Water%22"
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22Simon%20%26%20Garfunkel%22%20AND%20release%3A%22Bridge%20Over%20Troubled%20Water%22",
+    "discogs": "https://api.discogs.com/database/search?type=release&per_page=10&artist=Simon%20%26%20Garfunkel&release_title=Bridge%20Over%20Troubled%20Water"
    }
   },
   {
@@ -200,7 +203,8 @@
    "urls": {
     "deezer": null,
     "itunes": null,
-    "musicbrainz": null
+    "musicbrainz": null,
+    "discogs": null
    }
   },
   {
@@ -214,7 +218,8 @@
    "urls": {
     "deezer": null,
     "itunes": null,
-    "musicbrainz": null
+    "musicbrainz": null,
+    "discogs": null
    }
   },
   {
@@ -228,7 +233,8 @@
    "urls": {
     "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22%E5%9D%82%E6%9C%AC%E9%BE%8D%E4%B8%80%22%20album%3A%22%E6%88%A6%E5%A0%B4%E3%81%AE%E3%83%A1%E3%83%AA%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%9E%E3%82%B9%22",
     "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=%E5%9D%82%E6%9C%AC%E9%BE%8D%E4%B8%80%20%E6%88%A6%E5%A0%B4%E3%81%AE%E3%83%A1%E3%83%AA%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%9E%E3%82%B9",
-    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22%E5%9D%82%E6%9C%AC%E9%BE%8D%E4%B8%80%22%20AND%20release%3A%22%E6%88%A6%E5%A0%B4%E3%81%AE%E3%83%A1%E3%83%AA%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%9E%E3%82%B9%22"
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22%E5%9D%82%E6%9C%AC%E9%BE%8D%E4%B8%80%22%20AND%20release%3A%22%E6%88%A6%E5%A0%B4%E3%81%AE%E3%83%A1%E3%83%AA%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%9E%E3%82%B9%22",
+    "discogs": "https://api.discogs.com/database/search?type=release&per_page=10&artist=%E5%9D%82%E6%9C%AC%E9%BE%8D%E4%B8%80&release_title=%E6%88%A6%E5%A0%B4%E3%81%AE%E3%83%A1%E3%83%AA%E3%83%BC%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%9E%E3%82%B9"
    }
   },
   {
@@ -242,7 +248,8 @@
    "urls": {
     "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22Weird%20Quotes%22%20album%3A%22Album%22",
     "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=Weird%20%22Quotes%22%20Al%22bum",
-    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22Weird%20Quotes%22%20AND%20release%3A%22Album%22"
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22Weird%20Quotes%22%20AND%20release%3A%22Album%22",
+    "discogs": "https://api.discogs.com/database/search?type=release&per_page=10&artist=Weird%20%22Quotes%22&release_title=Al%22bum"
    }
   },
   {
@@ -256,7 +263,8 @@
    "urls": {
     "deezer": "https://api.deezer.com/search/album?limit=10&q=artist%3A%22The%20Beatles%22%20album%3A%22Abbey%20Road%20%5B2019%20Remix%5D%22",
     "itunes": "https://itunes.apple.com/search?limit=15&media=music&entity=album&term=The%20Beatles%20Abbey%20Road%20%5B2019%20Remix%5D",
-    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22The%20Beatles%22%20AND%20release%3A%22Abbey%20Road%20%5B2019%20Remix%5D%22"
+    "musicbrainz": "https://musicbrainz.org/ws/2/release/?fmt=json&limit=10&query=artist%3A%22The%20Beatles%22%20AND%20release%3A%22Abbey%20Road%20%5B2019%20Remix%5D%22",
+    "discogs": "https://api.discogs.com/database/search?type=release&per_page=10&artist=The%20Beatles&release_title=Abbey%20Road%20%5B2019%20Remix%5D"
    }
   }
  ],
@@ -486,6 +494,84 @@
       ]
      }
     ]
+   },
+   "pick": null
+  },
+  {
+   "service": "discogs",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "Random Access Memories (Deluxe Edition)",
+    "title": "Get Lucky"
+   },
+   "answer": {
+    "results": [
+     {
+      "title": "Daft Punk (2) - Random Access Memories",
+      "cover_image": ""
+     },
+     {
+      "title": "Tribute - Random Access Memories",
+      "cover_image": "https://i.discogs.com/wrong.jpg"
+     },
+     {
+      "title": "Daft Punk - Random Access Memories",
+      "cover_image": "https://st.discogs.com/images/spacer.gif"
+     },
+     {
+      "title": "Daft Punk - Random Access Memories",
+      "cover_image": "https://i.discogs.com/ram.jpeg"
+     }
+    ]
+   },
+   "pick": "https://i.discogs.com/ram.jpeg"
+  },
+  {
+   "service": "discogs",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "",
+    "title": "Get Lucky feat. Pharrell Williams"
+   },
+   "answer": {
+    "results": [
+     {
+      "title": "Daft Punk Feat. Pharrell Williams - Get Lucky",
+      "cover_image": "https://i.discogs.com/gl.jpeg"
+     }
+    ]
+   },
+   "pick": "https://i.discogs.com/gl.jpeg"
+  },
+  {
+   "service": "discogs",
+   "q": {
+    "artist": "Simon & Garfunkel",
+    "album": "Bridge Over Troubled Water",
+    "title": ""
+   },
+   "answer": {
+    "results": [
+     {
+      "title": "No Separator Here",
+      "cover_image": "https://i.discogs.com/x.jpeg"
+     },
+     {
+      "title": 7
+     }
+    ]
+   },
+   "pick": null
+  },
+  {
+   "service": "discogs",
+   "q": {
+    "artist": "Daft Punk",
+    "album": "Random Access Memories (Deluxe Edition)",
+    "title": "Get Lucky"
+   },
+   "answer": {
+    "message": "You are making requests too quickly."
    },
    "pick": null
   },

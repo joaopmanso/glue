@@ -112,6 +112,8 @@ test('events: a gig in the calendar, its folder, an assigned playlist and a vers
 
   // The calendar: on its day, and coming up; kept over a reload.
   await page.click('#calendar-tab');
+  // In 3 days may be next month's page (2026-10-31: the gig on 3 November, past October's last week).
+  if (await page.locator(`.day[data-day="${day}"]`).count() === 0) await page.click('#cal-next');
   await expect(page.locator(`.day[data-day="${day}"] .echip`)).toHaveText(/Lux/);
   await expect(page.locator('#calendar .evc', { hasText: 'Lux' })).toContainText('in 3 days');
   if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/calendar.png' });

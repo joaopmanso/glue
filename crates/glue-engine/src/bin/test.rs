@@ -136,9 +136,12 @@ impl Host for H {
     let ms = at.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0);
     Ok((m.len() as f64, ms))
   }
-  fn web_get(&self, url: &str) -> Result<Vec<u8>, String> {
+  fn web_get(&self, url: &str) -> Result<Vec<u8>, String> { self.web_get_with(url, &[]) }
+  /// The test answers (its `web`), and sees the headers (where Discogs' token went, ADR 0186).
+  fn web_get_with(&self, url: &str, headers: &[(&str, &str)]) -> Result<Vec<u8>, String> {
     use base64::Engine as _;
-    let (status, body) = self.call(json!({ "web": url })).ok_or("the service didn’t answer")?;
+    let headers: serde_json::Map<String, Value> = headers.iter().map(|(k, v)| (k.to_string(), json!(v))).collect();
+    let (status, body) = self.call(json!({ "web": url, "headers": headers })).ok_or("the service didn’t answer")?;
     if !(200..300).contains(&status) { return Err(format!("the service said {status}")); }
     base64::engine::general_purpose::STANDARD.decode(body).map_err(|e| e.to_string())
   }

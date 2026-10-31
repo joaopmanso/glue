@@ -1,8 +1,8 @@
 ---
 status: shipped
 milestone: M3
-updated: 2026-09-28
-adrs: [0071, 0072, 0051, 0024, 0082]
+updated: 2026-10-31
+adrs: [0071, 0072, 0051, 0024, 0082, 0186]
 ---
 # Song info and covers
 
@@ -104,5 +104,5 @@ column, and on their page.
   GLUE Home, and keeps them in its own cache. Never through GLUE Cloud.
 - GLUE Home has them from the website's hand-over, from its own analyses, or from the song's tags,
   read on request (only the bytes the tags need).
-- **Covers looked up (2026-09-28, [ADR 0086](../adr/0086-covers-looked-up-by-glue-home.md)):** songs without a cover in their tags get one from Deezer, iTunes or the Cover Art Archive through a GLUE Home; shown only, never written; "Wrong cover" on the song's page.
+- **Covers looked up (2026-09-28, [ADR 0086](../adr/0086-covers-looked-up-by-glue-home.md)):** songs without a cover in their tags get one from Deezer, iTunes or the Cover Art Archive through a GLUE Home; shown only, never written; "Wrong cover" on the song's page. Since GLUE Home 0.76 ([ADR 0186](../adr/0186-discogs-covers-with-the-users-token.md)), Discogs too, last, with a personal access token pasted in GLUE Home's settings ("Connected as …").
 - **Other computers' songs (2026-09-28, [ADR 0087](../adr/0087-edits-reach-glue-home.md)):** their info can be edited too; the owner keeps it as its own edit and writes it into the file, through its GLUE Home even with no GLUE tab open.

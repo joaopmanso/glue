@@ -259,6 +259,7 @@ Planned (GLUE):
 | [0183](adr/0183-engine-dj-folders-kept-as-engine-dj-keeps-them.md) | Engine DJ's folders kept as Engine DJ keeps them: each holds its lists' songs once, `membershipReference` how many hold it, and its own; put right after every sync (GLUE wrote them all 0) | superseded by 0184 |
 | [0184](adr/0184-engine-dj-folder-repair-turned-off.md) | The folder repair turned off (0.74.1): after it, Engine DJ locked every playlist; the user restores GLUE Home's backups | accepted |
 | [0185](adr/0185-the-cache-of-songs-that-left-is-tidied.md) | GLUE Home tidies its cache: the files of songs no longer in their collection, and a moved collection's, removed daily (two days' grace; a collection it can't read left alone) | accepted |
+| [0186](adr/0186-discogs-covers-with-the-users-token.md) | Discogs covers, with the user's personal token in GLUE Home's settings: the fourth cover service, the token sent to Discogs' API only (supersedes 0086's Discogs line) | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

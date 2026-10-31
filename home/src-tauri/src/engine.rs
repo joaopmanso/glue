@@ -117,6 +117,7 @@ impl Host for App {
   }
   /// A cover service's answer (ADR 0086): only the addresses web.rs allows.
   fn web_get(&self, url: &str) -> Result<Vec<u8>, String> { crate::web::get(url, &self.version()) }
+  fn web_get_with(&self, url: &str, headers: &[(&str, &str)]) -> Result<Vec<u8>, String> { crate::web::get_with(url, &self.version(), headers) }
   /// The local link and its tokens (the full one, and the read-only one for a GLUE tab while GLUE Home is the engine).
   fn local_link(&self) -> Value { let c = self.config(); json!({ "port": crate::local::PORT.load(std::sync::atomic::Ordering::Relaxed), "token": c["localToken"], "readToken": c["readToken"] }) }
   fn serving(&self) -> bool { crate::rtc::busy() }

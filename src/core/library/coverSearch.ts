@@ -1,12 +1,12 @@
 /* Finding a cover on public services for a song that has none in its tags (ADR 0086): Deezer, then
-   iTunes, then MusicBrainz's Cover Art Archive. Pure: the addresses to ask, and the pick from each
+   iTunes, then MusicBrainz's Cover Art Archive, then Discogs with the user's token (ADR 0186). Pure: the addresses to ask, and the pick from each
    answer. A pick needs the same artist and the same album (or the same song, when there's no album),
    so a search that finds something else gives no cover rather than a wrong one. */
 import { bare } from './names';
 
 export interface CoverQuery { artist: string; album: string; title: string }
-export type Service = 'deezer' | 'itunes' | 'musicbrainz';
-export const SERVICES: Service[] = ['deezer', 'itunes', 'musicbrainz'];
+export type Service = 'deezer' | 'itunes' | 'musicbrainz' | 'discogs';
+export const SERVICES: Service[] = ['deezer', 'itunes', 'musicbrainz', 'discogs'];
 
 /** The shared name (names.ts `bare`), also without a "with …" tail or a leading "the", and no spaces. */
 export const norm = (s: string) => bare(s).replace(/ with .*$/, '').replace(/^the /, '').replace(/ /g, '');
@@ -17,7 +17,7 @@ export function same(a: string, b: string): boolean {
   return x === y || (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x)));
 }
 /** One of the artists matches ("A & B" finds "A"). */
-function sameArtist(want: string, got: string): boolean {
+export function sameArtist(want: string, got: string): boolean {
   const parts = (s: string) => s.split(/\s*(?:,|&|\band\b|\bx\b|\bvs\b\.?)\s*/i).filter(Boolean);
   return same(want, got) || parts(want).some(w => parts(got).some(g => same(w, g)));
 }
@@ -44,6 +44,7 @@ export function searchUrl(service: Service, q: CoverQuery): string | null {
     ? 'https://api.deezer.com/search/album?limit=10&q=' + e('artist:' + quote(k.artist) + ' album:' + quote(k.name))
     : 'https://api.deezer.com/search?limit=10&q=' + e('artist:' + quote(k.artist) + ' track:' + quote(k.name));
   if (service === 'itunes') return 'https://itunes.apple.com/search?limit=15&media=music&entity=' + (k.by === 'album' ? 'album' : 'song') + '&term=' + e(k.artist + ' ' + k.name);
+  if (service === 'discogs') return 'https://api.discogs.com/database/search?type=release&per_page=10&artist=' + e(k.artist) + (k.by === 'album' ? '&release_title=' : '&track=') + e(k.name);
   return 'https://musicbrainz.org/ws/2/' + (k.by === 'album' ? 'release' : 'recording') + '/?fmt=json&limit=10&query=' + e('artist:' + quote(k.artist) + ' AND ' + (k.by === 'album' ? 'release:' : 'recording:') + quote(k.name));
 }
 
@@ -64,6 +65,16 @@ export function pick(service: Service, q: CoverQuery, answer: unknown): string |
     for (const it of (a.results as Record<string, any>[] | undefined) ?? []) {
       const name = k.by === 'album' ? it.collectionName : it.trackName, art = it.artworkUrl100 as string | undefined;
       if (art && sameArtist(k.artist, it.artistName ?? '') && same(k.name, name ?? '')) return art.replace(/\/\d+x\d+bb\./, '/600x600bb.');
+    }
+    return null;
+  }
+  if (service === 'discogs') {
+    // "Artist - Title"; no picture without the user's token (an empty `cover_image`), or a placeholder.
+    for (const it of (a.results as Record<string, any>[] | undefined) ?? []) {
+      const full = typeof it.title === 'string' ? it.title : '', cut = full.indexOf(' - '), cover = it.cover_image as string | undefined;
+      if (cut < 0 || !cover || /spacer\.gif$/.test(cover)) continue;
+      // A song: the release named after it (a single, an EP); an album track's release can't be told from here.
+      if (sameArtist(k.artist, full.slice(0, cut)) && same(k.name, full.slice(cut + 3))) return cover;
     }
     return null;
   }

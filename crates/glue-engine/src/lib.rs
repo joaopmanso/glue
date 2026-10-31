@@ -17,6 +17,7 @@
 pub mod analyse;
 pub mod answers;
 pub mod covers;
+pub mod discogs;
 pub mod dj;
 pub mod djdrives;
 pub mod djedit;
@@ -65,6 +66,8 @@ pub trait Host: Send + Sync + 'static {
   /// A public service's answer (a cover look-up, ADR 0086): the body's bytes. Only GLUE Home's own rules decide which
   /// addresses (home/src-tauri/src/web.rs).
   fn web_get(&self, _url: &str) -> Result<Vec<u8>, String> { Err("no cover services here".into()) }
+  /// The same with request headers (Discogs' token, ADR 0186: web.rs sends it to Discogs' API only).
+  fn web_get_with(&self, url: &str, _headers: &[(&str, &str)]) -> Result<Vec<u8>, String> { self.web_get(url) }
   /// How a GLUE page on this computer reaches GLUE Home without GLUE Cloud (ADR 0048, 0104): `{ port, token, readToken }`.
   fn local_link(&self) -> Value { json!({ "port": null, "token": null, "readToken": null }) }
   /// GLUE Home is sending or receiving for another device now (the background waits).

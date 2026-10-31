@@ -33,7 +33,7 @@ const PAIRS: [string, string][] = [
   ['ABC', 'ABCD'], ['Beyoncé', 'Beyonce'], ['The Beatles', 'Beatles'], ['', 'x'], ['Kino', 'Кино'], ['Lost', 'Lost in Space'],
 ];
 // Answers as each service gives them (trimmed to what `pick` reads).
-const ANSWERS: { service: 'deezer' | 'itunes' | 'musicbrainz'; q: CoverQuery; answer: unknown }[] = [
+const ANSWERS: { service: 'deezer' | 'itunes' | 'musicbrainz' | 'discogs'; q: CoverQuery; answer: unknown }[] = [
   { service: 'deezer', q: QUERIES[0], answer: { data: [
     { title: 'Random Access Memories', artist: { name: 'Someone Else' }, cover_xl: 'https://e-cdns-images.dzcdn.net/wrong.jpg' },
     { title: 'Random Access Memories (Drumless Edition)', artist: { name: 'Daft Punk' }, cover_big: 'https://e-cdns-images.dzcdn.net/ram.jpg' },
@@ -48,6 +48,16 @@ const ANSWERS: { service: 'deezer' | 'itunes' | 'musicbrainz'; q: CoverQuery; an
   ] } },
   { service: 'musicbrainz', q: QUERIES[1], answer: { recordings: [{ title: 'Get Lucky', 'artist-credit': [{ name: 'Daft Punk' }, { name: 'Pharrell Williams' }], releases: [{ id: 'rel-9' }] }] } },
   { service: 'musicbrainz', q: QUERIES[1], answer: { recordings: [{ title: 'Get Lucky', 'artist-credit': [{ name: 'Daft Punk' }] }] } },
+  // Discogs (ADR 0186): "Artist - Title", "(2)" a name Discogs tells apart; no picture without a token.
+  { service: 'discogs', q: QUERIES[0], answer: { results: [
+    { title: 'Daft Punk (2) - Random Access Memories', cover_image: '' },
+    { title: 'Tribute - Random Access Memories', cover_image: 'https://i.discogs.com/wrong.jpg' },
+    { title: 'Daft Punk - Random Access Memories', cover_image: 'https://st.discogs.com/images/spacer.gif' },
+    { title: 'Daft Punk - Random Access Memories', cover_image: 'https://i.discogs.com/ram.jpeg' },
+  ] } },
+  { service: 'discogs', q: QUERIES[1], answer: { results: [{ title: 'Daft Punk Feat. Pharrell Williams - Get Lucky', cover_image: 'https://i.discogs.com/gl.jpeg' }] } },
+  { service: 'discogs', q: QUERIES[2], answer: { results: [{ title: 'No Separator Here', cover_image: 'https://i.discogs.com/x.jpeg' }, { title: 7 }] } },
+  { service: 'discogs', q: QUERIES[0], answer: { message: 'You are making requests too quickly.' } },
   { service: 'deezer', q: QUERIES[0], answer: null },
   { service: 'itunes', q: QUERIES[0], answer: { results: 'not a list' } },
 ];

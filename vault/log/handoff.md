@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-20
+updated: 2026-10-31
 ---
 # Handoff: where things stand
 
@@ -24,8 +24,8 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## State (2026-10-20)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.75.0** (0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+## State (2026-10-31)
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.76.0** (0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.76.0, covers from Discogs (2026-10-31, ADR 0186):** in GLUE Home's settings, paste a Discogs personal
+  access token (discogs.com › Settings › Developers): it should say "Connected as <your Discogs name>"; vinyl-only songs
+  without covers then get Discogs' (a few minutes, a request a second). Next (batch 2 of the approved plan,
+  `C:\Users\joaop\.claude\plans\warm-stargazing-raccoon.md`): the Discogs collection and wantlist in GLUE (ADR 0187,
+  GLUE Home 0.77). Confirm with the token the collection item fields marked [UNVERIFIED] in research/discogs-api.md.
 - **GLUE Home 0.75.0, its cache tidied (2026-10-20, ADR 0185):** the desktop's cache was 33 GB (24 GB of songs no longer
   in GLUE and a moved collection's copy). About 5 minutes after 0.75 starts, Activity should say "Cache tidied: … removed",
   and `%LOCALAPPDATA%\io.github.joaopmanso.gluehome` drop to about 9 GB. The remaining ~500 KB a
@@ -337,6 +342,10 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
   with the Write tool, or use the Edit tool for such lines.
 
 ### Other work
+- **Since Edge 156.0.4314.50 (installed 2026-10-28):** `decode.spec.ts` "the worker decodes like the page" fails every
+  time on `opus.webm` (made by ffmpeg: samples differ by up to 0.105; rate, channels and length agree). Passed on
+  2026-10-20 with Edge 154. Suspect Edge's `decodeAudioData` changed how it trims Opus's start (pre-skip) or resamples;
+  compare the first samples of both decodes.
 - **Flaky on the laptop, 2026-10-09:** `library.spec.ts` "a main music folder…" (ADR 0121) waits 60 s for the Duplicates
   group and misses it about 1 run in 2, on `main` as it is too (alone or two at once); CI passes it. Look at what the
   group waits on (the fingerprints after "All analysed"?) before raising the wait.

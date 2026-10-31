@@ -310,7 +310,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     with Disconnect (the engine's `sessions.rs`, `room.rs`, ADR 0158; Disconnect refuses that tab for an hour). It says `{t:'session'}` first, then tells every session what happened:
     `made` (songs analysed: rows and song pages show them at once) and `incoming` (TO BE SORTED changed);
     covers for songs whose tags have none, looked up on public services (`covers.rs`, ADR 0086, 0156; held to the
-    website's `coverSearch.ts` by `tests/golden/covers.json`).
+    website's `coverSearch.ts` by `tests/golden/covers.json`): Deezer, iTunes, MusicBrainz, then Discogs with the
+    user's token (GLUE Home's setting `discogsToken`, checked by `discogs.rs`; sent to `api.discogs.com` only, web.rs
+    `sends`; ADR 0186).
   - **No audio JavaScript** (ADR 0147, 0.47): songs arriving in the incoming folder (the engine's `analyse_incoming`
     since 0.57, ADR 0158; those that came while it was off, `analyse_waiting`), covers from
     tags (only the tags read) and from cover services, and waveforms from kept details are the Rust engine's, like the

@@ -1,25 +1,36 @@
 // Looking covers up on public services (ADR 0086): GLUE Home asks Deezer, iTunes and MusicBrainz's
-// Cover Art Archive for the covers songs don't carry. Their APIs don't all allow a web page to read
+// Cover Art Archive (and Discogs, with the user's token: ADR 0186) for the covers songs don't carry. Their APIs don't all allow a web page to read
 // the answers (CORS), so the request is made here. Only these services, only https, at most 8 MB, and
 // only a song's artist and album or title ever go out, never audio.
 use std::io::Read;
 use std::time::Duration;
 
-const HOSTS: [&str; 5] = ["api.deezer.com", "itunes.apple.com", "musicbrainz.org", "coverartarchive.org", "archive.org"];
-const IMAGE_HOSTS: [&str; 2] = ["dzcdn.net", "mzstatic.com"];
+const HOSTS: [&str; 6] = ["api.deezer.com", "itunes.apple.com", "musicbrainz.org", "coverartarchive.org", "archive.org", "api.discogs.com"];
+const IMAGE_HOSTS: [&str; 3] = ["dzcdn.net", "mzstatic.com", "discogs.com"];
+/// The only host the Discogs token (an `Authorization` header) is ever sent to.
+const TOKEN_HOST: &str = "api.discogs.com";
 const MAX: u64 = 8 * 1024 * 1024;
 
 /// Is this an address GLUE Home may fetch? One of the services, or a subdomain of one (their images
 /// come from CDNs: `e-cdns-images.dzcdn.net`, `is1-ssl.mzstatic.com`, `ia800.us.archive.org`).
 pub fn allowed(url: &str) -> bool {
-    let Some(rest) = url.strip_prefix("https://") else { return false };
-    let host = rest.split(|c: char| c == '/' || c == '?' || c == '#').next().unwrap_or("").to_ascii_lowercase();
-    if host.contains(':') || host.contains('@') { return false; }
+    let Some(host) = host_of(url) else { return false };
     HOSTS.iter().chain(IMAGE_HOSTS.iter()).any(|h| host == *h || host.ends_with(&format!(".{h}")))
+}
+fn host_of(url: &str) -> Option<String> {
+    let rest = url.strip_prefix("https://")?;
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("").to_ascii_lowercase();
+    (!host.contains(':') && !host.contains('@')).then_some(host)
+}
+/// Does this header go to this address? An `Authorization` (the Discogs token) only to Discogs' API.
+pub fn sends(url: &str, header: &str) -> bool {
+    !header.eq_ignore_ascii_case("authorization") || host_of(url).as_deref() == Some(TOKEN_HOST)
 }
 
 /// GET the address (following redirects only to allowed addresses): the body's bytes.
-pub fn get(url: &str, version: &str) -> Result<Vec<u8>, String> {
+pub fn get(url: &str, version: &str) -> Result<Vec<u8>, String> { get_with(url, version, &[]) }
+/// The same with request headers, each sent only where `sends` allows (a redirect elsewhere goes without the token).
+pub fn get_with(url: &str, version: &str, headers: &[(&str, &str)]) -> Result<Vec<u8>, String> {
     let agent = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(20))
         .redirects(0)
@@ -28,7 +39,9 @@ pub fn get(url: &str, version: &str) -> Result<Vec<u8>, String> {
     let mut at = url.to_string();
     for _ in 0..5 {
         if !allowed(&at) { return Err(format!("not an address GLUE Home looks covers up at: {at}")); }
-        let resp = match agent.get(&at).call() {
+        let mut req = agent.get(&at);
+        for (k, v) in headers { if sends(&at, k) { req = req.set(k, v); } }
+        let resp = match req.call() {
             Ok(r) => r,
             Err(ureq::Error::Status(code, r)) if (300..400).contains(&code) => r,
             Err(ureq::Error::Status(code, _)) => return Err(format!("the service said {code}")),
@@ -52,7 +65,7 @@ pub fn get(url: &str, version: &str) -> Result<Vec<u8>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::allowed;
+    use super::{allowed, sends};
     #[test]
     fn only_the_cover_services() {
         assert!(allowed("https://api.deezer.com/search/album?q=x"));
@@ -65,5 +78,13 @@ mod tests {
         assert!(!allowed("https://api.deezer.com.evil.com/"));
         assert!(!allowed("https://user@api.deezer.com/"));
         assert!(!allowed("https://notdzcdn.net/x"));
+        // Discogs (ADR 0186): its API and its images; the token to its API only.
+        assert!(allowed("https://api.discogs.com/database/search?q=x"));
+        assert!(allowed("https://i.discogs.com/abc/rs:fit/x.jpeg"));
+        assert!(sends("https://api.discogs.com/oauth/identity", "Authorization"));
+        assert!(!sends("https://i.discogs.com/x.jpeg", "Authorization"));
+        assert!(!sends("https://api.deezer.com/search", "authorization"));
+        assert!(!sends("https://api.discogs.com.evil.com/", "Authorization"));
+        assert!(sends("https://i.discogs.com/x.jpeg", "Accept"));
     }
 }

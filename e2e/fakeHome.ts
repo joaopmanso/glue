@@ -29,6 +29,8 @@ export class FakeHome {
       none: 404. What was asked, in order. */
   web: Record<string, string | number[] | Buffer> = {};
   webAsked: string[] = [];
+  /** The headers sent with each of those (the same order): Discogs' token only to its API (ADR 0186). */
+  webHeaders: Record<string, string>[] = [];
   /** GLUE Home's own cache (the test wires it to the service page's), for /cache?key=. */
   cache: ((key: string) => Promise<number[] | null>) | null = null;
   /** Keys asked of /cache (GLUE Home's analyses, by a tab). */
@@ -132,6 +134,7 @@ export class FakeHome {
       if (m.call !== undefined && typeof m.web === 'string') {
         const n = m.call, url = m.web;
         this.webAsked.push(url);
+        this.webHeaders.push((m.headers as Record<string, string> | undefined) ?? {});
         const hit = Object.entries(this.web).find(([k]) => url.startsWith(k));
         const body = hit ? (typeof hit[1] === 'string' ? Buffer.from(hit[1]) : Buffer.from(hit[1] as number[])) : null;
         this.engine?.stdin.write(JSON.stringify({ reply: n, status: body ? 200 : 404, body: body?.toString('base64') ?? '' }) + '\n');

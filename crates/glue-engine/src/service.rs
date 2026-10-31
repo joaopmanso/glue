@@ -156,6 +156,7 @@ impl<H: Host> Engine<H> {
     let differ = |k: &str| before[k] != after[k];
     if differ("glue") || differ("serve") || differ("folders") { self.find_folders(); }
     if truthy(before.get("analysisPaused")) != truthy(after.get("analysisPaused")) { self.set_paused(truthy(after.get("analysisPaused")), false); }
+    if crate::discogs::token(before) != crate::discogs::token(after) { let me = self.clone(); std::thread::spawn(move || me.discogs_check()); }
     if differ("deviceId") || differ("token") || running(before) != running(after) || before["api"].as_str().unwrap_or("") != after["api"].as_str().unwrap_or("") { self.room_start(); }
     self.report();
   }
@@ -195,7 +196,7 @@ impl<H: Host> Engine<H> {
       let t0 = Instant::now();
       let s = Duration::from_secs;
       // (what, first after, then every): the service page's, as it had them.
-      let mut due: Vec<(&str, Duration, Duration)> = vec![("sync", s(25), s(60)), ("moves", s(30), s(3600)), ("backups", s(45), s(3600)), ("update", s(60), s(6 * 3600)), ("reminders", s(90), s(3600)), ("computer", s(3600), s(3600)), ("dj", s(20), s(5)), ("cache", s(300), s(24 * 3600))];
+      let mut due: Vec<(&str, Duration, Duration)> = vec![("sync", s(25), s(60)), ("moves", s(30), s(3600)), ("backups", s(45), s(3600)), ("update", s(60), s(6 * 3600)), ("reminders", s(90), s(3600)), ("computer", s(3600), s(3600)), ("dj", s(20), s(5)), ("cache", s(300), s(24 * 3600)), ("discogs", s(15), s(24 * 3600))];
       loop {
         std::thread::sleep(s(1));
         let Some(e) = me.upgrade() else { return };
@@ -217,6 +218,8 @@ impl<H: Host> Engine<H> {
       "sync" if on => self.sync_soon(0),
       "moves" if on => { let n = self.follow_moves(); if n > 0 { eprintln!("GLUE Home: {n} cache files followed their moved collections"); } }
       "backups" if on => { self.backups_daily(); }
+      // A Discogs token not checked yet (set while GLUE Home was off, or before 0.76).
+      "discogs" if on && crate::discogs::token(&cfg).is_some() && cfg["discogsUser"].as_str().is_none() && cfg["discogsError"].is_null() => self.discogs_check(),
       "cache" if on => {
         let (n, b) = self.tidy_cache();
         if n > 0 { self.event(&format!("Cache tidied: {} of songs no longer in GLUE removed ({n} files)", size_text(b))); }

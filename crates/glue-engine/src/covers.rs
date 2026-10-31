@@ -1,6 +1,6 @@
 //! Covers looked up on public services for songs whose tags have none (ADR 0086), as src/core/library/coverSearch.ts
 //! and home/ui/lookup.ts did it in GLUE Home's service page (ADR 0156): Deezer, then iTunes, then MusicBrainz's Cover
-//! Art Archive, one look-up at a time and gently (MusicBrainz asks for at most one request a second). A pick needs the
+//! Art Archive, then Discogs with the user's token (ADR 0186), one look-up at a time and gently (MusicBrainz asks for at most one request a second). A pick needs the
 //! same artist and the same album (or song), so a search that finds something else gives no cover rather than a wrong
 //! one. What's found is kept like any cover (`a/<hash>-<px>.jpg`); per album (or song) the result in
 //! `f/<key hash>.txt`: the cover's hash, '' when nothing matched (asked again after a month), or 'x' when the user
@@ -24,9 +24,9 @@ impl Query {
   }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Service { Deezer, Itunes, Musicbrainz }
-pub const SERVICES: [Service; 3] = [Service::Deezer, Service::Itunes, Service::Musicbrainz];
-impl Service { pub fn name(self) -> &'static str { match self { Service::Deezer => "deezer", Service::Itunes => "itunes", Service::Musicbrainz => "musicbrainz" } } }
+pub enum Service { Deezer, Itunes, Musicbrainz, Discogs }
+pub const SERVICES: [Service; 4] = [Service::Deezer, Service::Itunes, Service::Musicbrainz, Service::Discogs];
+impl Service { pub fn name(self) -> &'static str { match self { Service::Deezer => "deezer", Service::Itunes => "itunes", Service::Musicbrainz => "musicbrainz", Service::Discogs => "discogs" } } }
 
 static WITH: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" with .*$").unwrap());
 static ARTISTS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\s*(?:,|&|(?-u:\b)and(?-u:\b)|(?-u:\b)x(?-u:\b)|(?-u:\b)vs(?-u:\b)\.?)\s*").unwrap());
@@ -46,7 +46,7 @@ pub fn same(a: &str, b: &str) -> bool {
   x == y || (js_len(&x).min(js_len(&y)) >= 4 && (x.contains(&y) || y.contains(&x)))
 }
 /// One of the artists matches ("A & B" finds "A").
-fn same_artist(want: &str, got: &str) -> bool {
+pub fn same_artist(want: &str, got: &str) -> bool {
   let parts = |s: &str| -> Vec<String> { ARTISTS.split(s).filter(|p| !p.is_empty()).map(String::from).collect() };
   same(want, got) || parts(want).iter().any(|w| parts(got).iter().any(|g| same(w, g)))
 }
@@ -84,6 +84,7 @@ pub fn search_url(service: Service, q: &Query) -> Option<String> {
     Service::Deezer if album => format!("https://api.deezer.com/search/album?limit=10&q={}", enc(&format!("artist:{} album:{}", quote(&artist), quote(&name)))),
     Service::Deezer => format!("https://api.deezer.com/search?limit=10&q={}", enc(&format!("artist:{} track:{}", quote(&artist), quote(&name)))),
     Service::Itunes => format!("https://itunes.apple.com/search?limit=15&media=music&entity={}&term={}", if album { "album" } else { "song" }, enc(&format!("{artist} {name}"))),
+    Service::Discogs => format!("https://api.discogs.com/database/search?type=release&per_page=10&artist={}{}{}", enc(&artist), if album { "&release_title=" } else { "&track=" }, enc(&name)),
     Service::Musicbrainz => format!("https://musicbrainz.org/ws/2/{}/?fmt=json&limit=10&query={}", if album { "release" } else { "recording" },
       enc(&format!("artist:{} AND {}{}", quote(&artist), if album { "release:" } else { "recording:" }, quote(&name)))),
   })
@@ -106,6 +107,14 @@ pub fn pick(service: Service, q: &Query, answer: &Value) -> Option<String> {
       let n = s(&it[if album { "collectionName" } else { "trackName" }]);
       (same_artist(&artist, &s(&it["artistName"])) && same(&name, &n)).then(|| ART_SIZE.replace(art, "/600x600bb.").into_owned())
     }),
+    // "Artist - Title"; no picture without the user's token (an empty `cover_image`), or a placeholder. A song: the
+    // release named after it (a single, an EP).
+    Service::Discogs => items("results").into_iter().find_map(|it| {
+      let full = it["title"].as_str().unwrap_or("");
+      let (who, title) = full.split_once(" - ")?;
+      let cover = it["cover_image"].as_str().filter(|c| !c.is_empty() && !c.ends_with("spacer.gif"))?;
+      (same_artist(&artist, who) && same(&name, title)).then(|| cover.to_string())
+    }),
     Service::Musicbrainz => items(if album { "releases" } else { "recordings" }).into_iter().find_map(|it| {
       let credit = it["artist-credit"].as_array().map(|a| a.iter().map(|c| s(&c["name"])).collect::<Vec<_>>().join(" & ")).unwrap_or_default();
       if !same_artist(&artist, &credit) || !same(&name, &s(&it["title"])) { return None; }
@@ -116,11 +125,11 @@ pub fn pick(service: Service, q: &Query, answer: &Value) -> Option<String> {
 }
 
 const RETRY_AFTER: i64 = 30 * 86_400_000;
-const GAP: [i64; 3] = [250, 400, 1100];
+const GAP: [i64; 4] = [250, 400, 1100, 1100];
 
 /// The look-ups waiting, one running at a time; when each service was last asked.
 #[derive(Default)]
-pub struct Lookups { q: Mutex<(VecDeque<Query>, HashSet<String>, bool)>, last: Mutex<[i64; 3]>, pub counts: Mutex<(u32, u32)> }
+pub struct Lookups { q: Mutex<(VecDeque<Query>, HashSet<String>, bool)>, last: Mutex<[i64; 4]>, pub counts: Mutex<(u32, u32)> }
 
 fn now() -> i64 { crate::now().0 }
 
@@ -132,7 +141,10 @@ impl<H: Host> Engine<H> {
     let b = self.cache_dir().read_bytes(&kept_at(&key)).ok().flatten()?;
     let t = String::from_utf8_lossy(&b).into_owned();
     let (hash, at) = t.split_once('\n').unwrap_or((&t, ""));
-    if hash.is_empty() && now() - at.parse::<i64>().unwrap_or(0) > RETRY_AFTER { return None; }
+    let at = at.parse::<i64>().unwrap_or(0);
+    if hash.is_empty() && now() - at > RETRY_AFTER { return None; }
+    // Nothing found before Discogs could be asked (its token came since): asked again, once.
+    if hash.is_empty() && self.host.config()["discogsAt"].as_i64().is_some_and(|t| at < t) { return None; }
     Some(hash.to_string())
   }
   fn cover_remember(&self, q: &Query, hash: &str) {
@@ -156,17 +168,22 @@ impl<H: Host> Engine<H> {
       if let Some(k) = lookup_key(&next) { me.devices.lookups.q.lock().unwrap().1.remove(&k); }
     });
   }
-  fn cover_ask(&self, service: Service, url: &str) -> Result<Vec<u8>, String> {
+  pub(crate) fn cover_ask(&self, service: Service, url: &str) -> Result<Vec<u8>, String> {
     let i = service as usize;
     let wait = { self.devices.lookups.last.lock().unwrap()[i] + GAP[i] - now() };
     if wait > 0 { std::thread::sleep(std::time::Duration::from_millis(wait as u64)); }
     self.devices.lookups.last.lock().unwrap()[i] = now();
-    self.host.web_get(url)
+    match crate::discogs::token(&self.host.config()) {
+      Some(t) if service == Service::Discogs && url.starts_with(crate::discogs::API) => self.host.web_get_with(url, &[("Authorization", &format!("Discogs token={t}"))]),
+      _ => self.host.web_get(url),
+    }
   }
   /// Each service in turn; the first matching picture becomes the cover (made and kept): its hash, '' none.
   fn cover_find(&self, q: &Query) -> String {
     self.devices.lookups.counts.lock().unwrap().0 += 1;
+    let discogs = crate::discogs::token(&self.host.config()).is_some();
     for s in SERVICES {
+      if s == Service::Discogs && !discogs { continue; }
       let Some(url) = search_url(s, q) else { return String::new() };
       let found = self.cover_ask(s, &url).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).and_then(|a| pick(s, q, &a));
       let Some(found) = found else { continue };

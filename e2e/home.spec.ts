@@ -231,6 +231,30 @@ test('GLUE Home reminds of events that need music, once a day each; Check now; o
   await d.done();
 });
 
+test('GLUE Home takes a Discogs token, checks it with Discogs, and sends it there only (ADR 0186)', async ({ page }) => {
+  const ctx = page.context();
+  await ctx.addInitScript(TAURI_MOCK);
+  const d = await homeDisk(LIBRARY);
+  await d.wire(ctx);
+  await ctx.addInitScript(({ g, lib }) => { const w = window as unknown as Record<string, unknown>; w.__glueFolder = g; w.__glue = lib; w.__disk = {}; }, { g: d.glue, lib: LIBRARY });
+  d.fake.web['https://api.discogs.com/oauth/identity'] = JSON.stringify({ id: 7, username: 'djtest' });
+  await page.goto(HOME + 'index.html');
+  await expect(page.locator('#glue-folder')).toHaveText(d.glue);
+  await expect(page.locator('#discogs-state')).toHaveCount(0);
+  await page.fill('#discogs-token', '  tok123 ');
+  await page.locator('#discogs-token').press('Tab');
+  await expect(page.locator('#discogs-state')).toHaveText('Connected as djtest', { timeout: 15_000 });
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('home-config')!).discogsToken)).toBe('tok123');
+  const i = d.fake.webAsked.indexOf('https://api.discogs.com/oauth/identity');
+  expect(d.fake.webHeaders[i]).toEqual({ Authorization: 'Discogs token=tok123' });
+  // One Discogs doesn't take: said so.
+  delete d.fake.web['https://api.discogs.com/oauth/identity'];
+  await page.fill('#discogs-token', 'nope');
+  await page.locator('#discogs-token').press('Tab');
+  await expect(page.locator('#discogs-state')).toHaveClass(/bad/, { timeout: 15_000 });
+  await d.done();
+});
+
 test('GLUE Home opens with a gluehome://pair link and connects', async ({ page }) => {
   await page.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => {
     const p = new URL(r.request().url()).pathname, body = r.request().postDataJSON() ?? {};

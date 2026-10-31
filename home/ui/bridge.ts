@@ -38,6 +38,12 @@ export interface HomeConfig {
   folders?: Record<string, string>;   // music folder id → where it is on this computer
   autoUpdate?: boolean;         // install updates by itself (on unless turned off)
   serve?: Record<string, boolean>;    // 'profile/collection' → shared with other computers (on unless false)
+  /** Discogs (ADR 0186): the user's personal access token (this computer's only); whose it is and when GLUE Home checked
+      it, or why it didn't take it. */
+  discogsToken?: string;
+  discogsUser?: string | null;
+  discogsAt?: number;
+  discogsError?: string | null;
   localToken?: string;          // what the website on this computer shows the local link (ADR 0048)
   duplicates?: string | null;   // where duplicates the website puts aside go (ADR 0070)
   reminders?: boolean;          // notify of events that need music (ADR 0074; on unless false)
