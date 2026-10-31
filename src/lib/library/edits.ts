@@ -15,8 +15,9 @@ const now = () => new Date().toISOString();
 
 export const edits = {
 
+  /** The library's own lists under a folder (Discogs playlists, ADR 0189, are under Discogs instead). */
   childLists(this: Library, parentId: string | null): List[] {
-    return [...(this.store?.lists.values() ?? [])].filter(l => l.parentId === parentId).sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+    return [...(this.store?.lists.values() ?? [])].filter(l => l.parentId === parentId && !l.discogs).sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
   },
   createList(this: Library, kind: 'folder' | 'playlist', name: string, parentId: string | null = null, items: string[] = []): List | null {
     const s = this.store;
@@ -25,7 +26,27 @@ export const edits = {
     s.putList(l);
     return l;
   },
-  updateList(this: Library, id: string, patch: Partial<Pick<List, 'name' | 'notes' | 'items' | 'parentId' | 'position'>>) {
+  /** The Discogs playlists (ADR 0189), in the order made. */
+  discogsLists(this: Library): List[] {
+    return [...(this.store?.lists.values() ?? [])].filter(l => !!l.discogs).sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt));
+  },
+  /** A new Discogs playlist (`rules`: an auto one). */
+  createDiscogsList(this: Library, name: string, rules?: import('../../core/library/discogsLists').DiscogsRules, items: string[] = []): List | null {
+    const s = this.store;
+    if (!s || this.readOnly) return null;
+    const l: List = { schemaVersion: SCHEMA, id: newId(), kind: 'playlist', name: name.trim() || (rules ? 'New auto playlist' : 'New playlist'), parentId: null, position: this.discogsLists().length, notes: '', items: rules ? [] : items, origin: null, createdAt: now(), discogs: rules ? { rules } : {} };
+    s.putList(l);
+    return l;
+  },
+  /** Items added to a Discogs playlist (each once, at the end): how many were new. */
+  addToDiscogsList(this: Library, id: string, items: string[]): number {
+    const s = this.store, l = s?.lists.get(id);
+    if (!s || !l?.discogs || l.discogs.rules || this.readOnly) return 0;
+    const add = [...new Set(items)].filter(x => !l.items.includes(x));
+    if (add.length) s.putList({ ...l, items: [...l.items, ...add] });
+    return add.length;
+  },
+  updateList(this: Library, id: string, patch: Partial<Pick<List, 'name' | 'notes' | 'items' | 'parentId' | 'position' | 'discogs'>>) {
     const s = this.store, l = s?.lists.get(id);
     if (s && l) s.putList({ ...l, ...patch });
   },

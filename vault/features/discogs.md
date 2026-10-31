@@ -2,7 +2,7 @@
 status: shipped
 milestone: M8
 updated: 2026-10-31
-adrs: [0186, 0187, 0188]
+adrs: [0186, 0187, 0188, 0189]
 ---
 # Discogs
 
@@ -20,7 +20,14 @@ adrs: [0186, 0187, 0188]
     one off for good), and a library search to **Add** more. Remembered on the songs (`discogs`, `discogsNo`).
   - **Finding:** filter All / In GLUE / Not in GLUE, search (names, labels, catalogue numbers, styles), sort by added,
     artist, title, label or year.
-  - **Right-click:** Show its songs, Play, Open on Discogs.
+  - **Right-click:** Show its songs, Play, Add to Discogs playlist, Open on Discogs.
+- **Discogs playlists** (ADR 0189): under 💿 Discogs in the sidebar; **+ Playlist** / **+ Auto** in the Discogs view.
+  - **They mix** your songs (they play) and vinyl tracks (cover, position, record, label and catalogue number, **On
+    vinyl**). Added from a record's menu (its tracks), a track's ＋ in its panel, or a song's menu. Arranged by hand
+    (move, drag, remove).
+  - **An auto one** follows its rules: style, genre, artist, label, format, years, vinyl / digital / both, and the
+    order. **Save as a playlist** freezes it.
+  - **Kept out of** the library's Playlists, its pickers, Engine DJ and the exports.
 - **How:**
   - **Reading:** GLUE Home reads the lists (100 a page, a request every 1.1 s) and the new records' covers. It does so
     after the token is checked, again after 20 hours (an hourly look), and on Refresh.
@@ -37,6 +44,8 @@ adrs: [0186, 0187, 0188]
   - the covers golden;
   - `home.spec.ts` (the token in GLUE Home's settings);
   - `homemode.spec.ts` (the view: covers, in GLUE or not, filters, the wantlist, a record's songs, Refresh).
+  - **Playlists:** collection lists marked `discogs`, items song ids or `dg:<release>:<position>`; auto ones worked out live
+    (`discogsLists.ts` `discogsAuto`).
 - **Not yet:**
   - devices without GLUE Home;
   - giving a matched record's cover to its songs without a search.

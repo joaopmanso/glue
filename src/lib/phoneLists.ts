@@ -91,7 +91,7 @@ export function startEditing(id: string) {
 
 /** Add songs to a playlist: one from the tree, or a new one. */
 export function addMenu(ids: string[], done?: () => void): MenuEntry[] {
-  const own = (l: List) => l.kind === 'playlist';
+  const own = (l: List) => l.kind === 'playlist' && !l.discogs;
   return tidy([
     { label: 'New playlist…', attrs: { 'data-m': 'new-playlist' }, run: () => void newList('playlist', null, ids).then(l => { if (l) done?.(); }) },
     SEP,

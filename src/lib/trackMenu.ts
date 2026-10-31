@@ -16,6 +16,8 @@ import { absolutePath } from './dragout';
 import { menu, SEP, tidy, type MenuAction, type MenuEntry } from './menu.svelte';
 import { phone } from './phone.svelte';
 import { relink } from './relink.svelte';
+import { discogsListPicker } from './discogsMenu';
+import { discogs } from './discogs.svelte';
 import { listTree } from '../core/library/listTree';
 import { INCOMING_ROOT, type List, type Source, type SourceList, type Track } from '../store/types';
 import { djEntries } from '../core/library/djEntries';
@@ -45,7 +47,7 @@ let recent: string[] = [];
 export function listPicker(pick: (l: List) => void, opts: { only?: (l: List) => boolean; mark?: (l: List) => boolean } = {}): MenuEntry[] {
   const s = lib.store;
   if (!s) return [];
-  const tree = listTree(s.lists.values(), l => l.id === TO_BE_SORTED), ok = opts.only ?? (() => true);
+  const tree = listTree(s.lists.values(), l => l.id === TO_BE_SORTED || !!l.discogs), ok = opts.only ?? (() => true);
   const item = (l: List, depth: number): MenuAction => ({ label: l.name, depth, detail: lib.listPath(l), color: l.color ?? null, checked: opts.mark?.(l) || undefined, hint: l.kind === 'folder' ? 'folder' : undefined, run: () => pick(l) });
   const own = tree.own.filter(e => ok(e.list));
   return tidy([
@@ -150,6 +152,8 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
         ]);
       },
     },
+    // With your vinyl (ADR 0189): this computer's songs.
+    discogs.here && !lib.readOnly && { label: 'Add to Discogs playlist', attrs: { 'data-m': 'add-discogs' }, sub: () => discogsListPicker(() => ids.filter(id => !s.tracks.get(id)?.remote)) },
     djAdd && {
       label: 'Add to Engine DJ playlist', find: 'Find a playlist', attrs: { 'data-m': 'dj-add' },
       sub: () => djPicker((src, l) => {

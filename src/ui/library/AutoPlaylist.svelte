@@ -15,7 +15,7 @@
   const f = $derived(auto.form);
   const seed = $derived.by(() => { void lib.version; return f.seedId ? lib.store?.tracks.get(f.seedId) ?? null : null; });
   const eligible = $derived.by(() => { void lib.version; void f.avoidLists.length; void f.unanalysed; return auto.candidates().length; });
-  const playlists = $derived.by(() => { void lib.version; return [...(lib.store?.lists.values() ?? [])].filter(l => l.kind === 'playlist').sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b))); });
+  const playlists = $derived.by(() => { void lib.version; return [...(lib.store?.lists.values() ?? [])].filter(l => l.kind === 'playlist' && !l.discogs).sort((a, b) => lib.listPath(a).localeCompare(lib.listPath(b))); });
 
   // Search the collection for the seed or must-include tracks.
   let q = $state(''), pickFor = $state<'seed' | 'include'>('include');

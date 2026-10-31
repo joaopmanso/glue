@@ -140,6 +140,18 @@ describe('the bin (ADR 0090)', () => {
     expect(re.lists.get('friday')).toMatchObject({ parentId: 'gigs', items: [t.id] });
     expect(await re.binEntries()).toEqual([]);
   });
+  it('a Discogs playlist comes back with its vinyl tracks (ADR 0189)', async () => {
+    const mem = new MemDir(), home = await HomeStore.open(asDir(mem));
+    const p = await home.createProfile('DJ'), c = await home.createCollection(p, 'Club');
+    const s = await CollectionStore.load(asDir(mem), p.id, c.id);
+    const t = track(); s.putTracks([t]);
+    s.putList({ schemaVersion: SCHEMA, id: 'dg', kind: 'playlist', name: 'Crate', parentId: null, position: 0, notes: '', items: ['dg:12:A1', t.id, 'gone-song'], origin: null, createdAt: '', discogs: {} });
+    await s.flush();
+    s.deleteList('dg');
+    await s.flush();
+    await s.restoreFromBin((await s.binEntries())[0].name);
+    expect(s.lists.get('dg')?.items).toEqual(['dg:12:A1', t.id]);
+  });
 });
 
 describe('daily backups (ADR 0090)', () => {

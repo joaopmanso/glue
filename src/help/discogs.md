@@ -24,5 +24,14 @@ The token stays on the computer with GLUE Home and goes only to Discogs.
 
 GLUE Home reads your lists again once a day, and on **Refresh**. A big collection takes a minute or two; then each new record's cover and tracklist, about a second each (Discogs allows about one request a second).
 
+## Playlists
+Make playlists of your records' tracks, mixed with your songs if you like, under **Discogs** in the sidebar.
+- **+ Playlist** (in the Discogs view) makes one. Add a record (right-click › **Add to Discogs playlist**: its tracks, the ones you have here as your songs, the rest on vinyl), one track (the ＋ next to it in **Choose…**), or songs from your library (right-click › **Add to Discogs playlist**).
+- Your songs play (▶, or **Play the digital ones**). A vinyl track shows its record, side and position, label and catalogue number, and **On vinyl**: the record to pull.
+- Move tracks (right-click › **Move up**/**Move down**, or drag them), or remove them.
+- **+ Auto** makes one that follows filters: style, genre, artist, label, format (Vinyl, 12", LP…), years, and **Vinyl only**, **Digital only** or **Both**. New records join it at the next read. **Save as a playlist** turns it into one you arrange by hand.
+
+Discogs playlists stay under Discogs: they aren't among your library's playlists, and they don't go to Engine DJ.
+
 ## Covers
 Songs whose tags have no cover get one looked up by GLUE Home. With Discogs connected, Discogs is asked too when the other services have none: often the only source for vinyl and white labels.

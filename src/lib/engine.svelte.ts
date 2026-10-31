@@ -91,7 +91,8 @@ class EngineClient {
     if (!w) return;
     await this.rpc({ op: 'open', ...w }).catch(() => {});   // the engine reads it again (saved from here just now)
     this.attached = s;
-    s.sink = op => { this.outbox.push(op); clearTimeout(this.timer); this.timer = window.setTimeout(() => void this.send(), 150); };
+    // "Saving…" while changes wait for GLUE Home (2026-10-31: a reload within the 150 ms lost them, nothing said so).
+    s.sink = op => { this.outbox.push(op); lib.unsaved = true; clearTimeout(this.timer); this.timer = window.setTimeout(() => void this.send(), 150); };
     this.active = true;
     thumbs.retryMissing(); waves.retryMissing();   // asked for before GLUE Home's cache could answer
     lib.stopOwnAnalysis?.();
@@ -116,7 +117,16 @@ class EngineClient {
     const ops = this.outbox.splice(0);
     return (this.sending = this.rpc<{ rev: number }>({ op: 'edit', ...w, ops }, 60_000)
       .then(() => undefined, e => { lib.notice = 'GLUE Home couldn’t save a change: ' + (e as Error).message; })
-      .finally(() => { this.sending = null; }));
+      .finally(() => { this.sending = null; if (!this.outbox.length && this.attached) lib.unsaved = this.attached.hasPending; }));
+  }
+  /** The page going (closed, reloaded): what still waits sent at once, as a request the browser finishes after the page
+      is gone (`keepalive`). */
+  sendNow() {
+    const w = this.where();
+    if (!w || !this.outbox.length || !this.active) return;
+    clearTimeout(this.timer);
+    const ops = this.outbox.splice(0);
+    void fetch(localHome.url('/rpc'), { method: 'POST', body: JSON.stringify({ op: 'edit', ...w, ops }), keepalive: true }).catch(() => {});
   }
   /** Everything changed here is at the engine (closing, switching collections). */
   async flush() { clearTimeout(this.timer); while (this.outbox.length || this.sending) await this.send(); }
@@ -302,6 +312,7 @@ async function cacheFile(key: string, first = false, signal?: AbortSignal): Prom
   return cacheGate.run(() => localHome.get<ArrayBuffer>('/cache?key=' + encodeURIComponent(key)).then(b => new Uint8Array(b)).catch(() => null), first);
 }
 export const engineClient = new EngineClient();
+if (typeof window !== 'undefined') window.addEventListener('pagehide', () => engineClient.sendNow());
 lib.homeRuns = () => engineClient.runs && homeMode() && !!localHome.link;
 lib.analysisElsewhere = { active: () => lib.homeRuns(), now: ids => engineClient.now(ids), pause: p => engineClient.pause(p) };
 lib.beforeClose = () => engineClient.flush();

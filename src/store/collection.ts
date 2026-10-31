@@ -140,7 +140,11 @@ export class CollectionStore {
   async reloadFiles(paths: string[]) {
     for (const p of paths) {
       const [dir, file] = p.split('/');
+      const before = this.touches;
       const v = await readJSON<unknown>(this.root, `${this.base}/${p}`).catch(() => null);
+      // Edited here while it was being read: this copy is older than what's shown, and the edit is on its way (the next
+      // reading-back brings the result).
+      if ((this.touched.get(p) ?? 0) > before) continue;
       if (p === 'collection.json') {
         if (!v) continue;
         if (this.shared) { this.shared.meta = v as SharedCollection; this.shared.here = { ...this.shared.here, members: (v as SharedCollection).members ?? {}, rootsBy: (v as SharedCollection).rootsBy }; if (!this.shared.shownOnly) this.shared.own = writesFor(this.shared.meta, this.shared.here.me, this.shared.member.profile); this.meta = migrate('collection', collectionHere(v as SharedCollection, this.shared.here.me)); }
@@ -188,7 +192,11 @@ export class CollectionStore {
       case 'deleteSource': this.deleteSource(op.id); break;
     }
   }
-  private mark(path: string) { if (this.sink) return; this.deleted.delete(path); this.dirty.add(path); this.onDirty?.(); }
+  /** Each file's last edit here (a count), so a reading-back started before it doesn't undo it (2026-10-31: a playlist
+      moved while GLUE Home's copy of an earlier edit was being read came back in its old order). */
+  private touches = 0;
+  private touched = new Map<string, number>();
+  private mark(path: string) { this.touched.set(path, ++this.touches); if (this.sink) return; this.deleted.delete(path); this.dirty.add(path); this.onDirty?.(); }
   private changed() { this.onChange?.(); }
 
   saveMeta() { this.sink?.({ m: 'meta', meta: this.meta }); this.mark('collection.json'); this.changed(); }
@@ -334,7 +342,7 @@ export class CollectionStore {
     const e = await readJSON<Omit<BinEntry, 'name'>>(this.root, `${this.binDir}/${name}`);
     if (!e?.lists?.length) return 0;
     const ids = new Set(e.lists.map(l => l.id));
-    for (const l of e.lists) this.putList({ ...l, parentId: l.parentId && (ids.has(l.parentId) || this.lists.has(l.parentId)) ? l.parentId : null, items: l.items.filter(t => this.tracks.has(t)) });
+    for (const l of e.lists) this.putList({ ...l, parentId: l.parentId && (ids.has(l.parentId) || this.lists.has(l.parentId)) ? l.parentId : null, items: l.items.filter(t => this.tracks.has(t) || t.startsWith('dg:')) });   // a Discogs playlist's vinyl tracks stay (ADR 0189)
     await this.flush();
     await removePath(this.root, `${this.binDir}/${name}`);
     return e.lists.length;

@@ -4,6 +4,8 @@
 import { engineClient, type DiscogsState } from './engine.svelte';
 import { lib } from './library.svelte';
 import { discogsMatcher, type DiscogsRecord, type RecordMatch } from '../core/library/discogsMatch';
+import { discogsAuto, itemOf } from '../core/library/discogsLists';
+import type { List } from '../store/types';
 
 const NONE: RecordMatch = { songs: [], found: 0, tracks: 0, chosen: [], byTrack: [] };
 
@@ -64,6 +66,24 @@ class Discogs {
       for (const x of [...k?.records ?? [], ...k?.wants ?? []]) this.matched.set(x.id, match(x));
     }
     return this.matched.get(r.id) ?? NONE;
+  }
+
+  // ---- Discogs playlists (ADR 0189) ----
+  /** Every record kept (collection and wantlist), by release id. */
+  get byId(): Map<number, DiscogsRecord> {
+    const k = this.state?.kept;
+    return new Map([...k?.wants ?? [], ...k?.records ?? []].map(r => [r.id, r]));
+  }
+  /** A record's items for a playlist: each track as its song here, else as vinyl; with no tracklist yet, its songs. */
+  recordItems(r: DiscogsRecord): string[] {
+    const m = this.matchOf(r);
+    return r.tracks?.length ? r.tracks.map((_, i) => itemOf(r, i, m)) : m.songs;
+  }
+  /** A Discogs playlist's items: its own, or (an auto one) the collection's tracks its rules keep. */
+  itemsOf(l: List): string[] {
+    const rules = l.discogs?.rules;
+    if (!rules) return l.items;
+    return discogsAuto(this.state?.kept?.records ?? [], r => this.matchOf(r), rules);
   }
 }
 

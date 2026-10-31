@@ -62,6 +62,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Discogs playlists (2026-10-31, ADR 0189, the website):** **+ Playlist** / **+ Auto** in the Discogs view, under 💿
+  Discogs in the sidebar. Mix a record's tracks (vinyl) with songs; an auto one by style, artist, label, years, vinyl or
+  digital. Also fixed: changes made with GLUE Home and a reload within a moment were lost. To check: make one of each
+  from the real collection.
 - **GLUE Home 0.78.0, Discogs records matched track by track (2026-10-31, ADR 0188):** after its covers, GLUE Home reads
   each record's tracklist (a second each, once); rows say "In GLUE: 3 of 4 tracks"; **Choose…** adds songs it missed or
   takes off wrong ones. The user misread 0.77 as writing to Discogs: told nothing is written there. To check: the

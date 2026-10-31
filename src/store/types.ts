@@ -131,6 +131,9 @@ export interface List {
   /** The DJ apps this list (and, for a folder, everything in it) is kept in, under their "GLUE" folder (ADR 0180):
       'engine'. Only GLUE's own lists (no origin). */
   apps?: string[];
+  /** A Discogs playlist (ADR 0189), shown under Discogs only: its items mix song ids and vinyl tracks
+      (`dg:<release>:<position>`); an auto one keeps `rules` and no items. */
+  discogs?: { rules?: import('../core/library/discogsLists').DiscogsRules };
   createdAt: string;
 }
 

@@ -5,6 +5,7 @@
   import Opening from './Opening.svelte';
   import BrowseView from './BrowseView.svelte';
   import DiscogsView from './DiscogsView.svelte';
+  import DiscogsListView from './DiscogsListView.svelte';
   import { facetInfo } from '../../core/library/browse';
   import { removeNote, view, viewTitle, withCopies, FILTER_GROUPS } from '../../lib/view.svelte';
   import { router, trackHref, trackTab } from '../../lib/route.svelte';
@@ -55,7 +56,7 @@
 
   const title = $derived.by(() => { void lib.version; return viewTitle(view.sel); });
   /** A view of its own instead of the songs' table (Browse's lists, the Discogs collection): no song toolbar or count. */
-  const noTable = $derived(view.sel.kind === 'browse' || view.sel.kind === 'discogs');
+  const noTable = $derived(view.sel.kind === 'browse' || view.sel.kind === 'discogs' || view.sel.kind === 'discogsList');
   // A DJ library's view shows its app's badge.
   const djApp = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'source' ? lib.store?.sources.get(s.id)?.app : s.kind === 'dj' ? lib.store?.sources.get(s.sourceId)?.app : undefined; });
   const count = $derived.by(() => { void lib.version; void view.search; return view.rows('camelot').length; });
@@ -67,7 +68,7 @@
   const pending = $derived.by(() => { void lib.version; const st = engineClient.active ? engineClient.state?.analysis : null; return (st ? st.left + st.running : 0) || lib.pendingCount(); });
   // Where songs can be added: the playlists as the sidebar shows them (ADR 0062), the user's own first,
   // then each import's (replaced when it's imported again). Folders are playlists too (ADR 0049).
-  const targets = $derived.by(() => { void lib.version; return listTree(lib.store?.lists.values() ?? [], l => l.id === TO_BE_SORTED); });
+  const targets = $derived.by(() => { void lib.version; return listTree(lib.store?.lists.values() ?? [], l => l.id === TO_BE_SORTED || !!l.discogs); });
   const NBSP = String.fromCharCode(160);   // an option keeps no-break spaces (ordinary ones collapse)
   const pad = (depth: number, folder: boolean) => NBSP.repeat(3 * depth) + (folder ? '📁' + NBSP : '');
   const current = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
@@ -313,7 +314,7 @@
       </div>
       {/if}
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
-      {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else if view.sel.kind === 'browse'}<BrowseView by={view.sel.by} />{:else if view.sel.kind === 'discogs'}<DiscogsView />{:else if view.sel.kind === 'unlinked' && !relink.asList}<RelinkView />{:else}
+      {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else if view.sel.kind === 'browse'}<BrowseView by={view.sel.by} />{:else if view.sel.kind === 'discogs'}<DiscogsView />{:else if view.sel.kind === 'discogsList'}<DiscogsListView id={view.sel.id} />{:else if view.sel.kind === 'unlinked' && !relink.asList}<RelinkView />{:else}
         {#if view.sel.kind === 'unlinked'}<p class="relinkbar"><button type="button" class="mini" id="relink-find" onclick={() => (relink.asList = false)}>Find them in your library</button></p>{/if}
         <TrackTable />{/if}
     </div>

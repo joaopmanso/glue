@@ -1501,5 +1501,60 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
     await page.click('#discogs-refresh');
     await expect.poll(() => fake.webAsked.length, { timeout: 20_000 }).toBeGreaterThan(asked);
     fake.webAsked.forEach((u, i) => expect(!!fake.webHeaders[i].Authorization, u).toBe(u.startsWith('https://api.discogs.com/')));
+    // Discogs playlists (ADR 0189): a record's tracks (its song here, the rest on vinyl) with a library song.
+    page.on('dialog', d => void d.accept(d.type() === 'prompt' ? (d.message().includes('auto') ? 'Vinyl crate' : 'Crate') : undefined));
+    await page.click('#discogs-new-list');
+    await expect(page).toHaveURL(/#\/discogs\/[\w-]+$/);
+    await expect(page.locator('#discogs-list-empty')).toBeVisible();
+    const side = page.locator('.lside [data-discogs-list]', { hasText: 'Crate' });
+    await expect(side).toBeVisible();
+    await expect(page.locator('.lside .tree .name', { hasText: 'Crate' })).toHaveCount(0);   // not among the library's playlists
+    await page.click('#discogs-side');
+    await rows.filter({ hasText: 'Night Drive' }).click({ button: 'right' });
+    await page.locator('.cmenu [data-m="add-discogs"]').hover();
+    await page.locator('.cmenu [data-m="discogs-list"]', { hasText: 'Crate' }).click();
+    await expect(page.locator('.notice')).toContainText('Added 2 tracks to Crate');
+    await page.click('.lib .lside [data-view="all"], .lside [data-view="all"]');
+    await page.locator('.tr', { hasText: 'Something Else' }).click({ button: 'right' });
+    await page.locator('.cmenu [data-m="add-discogs"]').hover();
+    await page.locator('.cmenu [data-m="discogs-list"]', { hasText: 'Crate' }).click();
+    await side.click();
+    const items = page.locator('#discogs-list .it');
+    await expect(items).toHaveCount(3);
+    await expect(page.locator('#discogs-list-sum')).toContainText('3 tracks: 1 on vinyl, 2 digital');
+    await expect(items.nth(1)).toContainText('Dawn');
+    await expect(items.nth(1).locator('.vin')).toHaveText('On vinyl');
+    await expect(items.nth(1)).toContainText('B · Night Drive');
+    await expect(items.nth(0).locator('.play')).toBeVisible();
+    // Arranged by hand: the vinyl one up; a song removed; so after a reload.
+    await items.nth(1).click({ button: 'right' });
+    await page.click('.cmenu [data-m="up"]');
+    await expect(items.nth(0)).toContainText('Dawn');
+    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+    await items.filter({ hasText: 'Something Else' }).click({ button: 'right' });
+    await page.click('.cmenu [data-m="remove"]');
+    await expect(items).toHaveCount(2);
+    await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
+    await page.reload();
+    await expect(page.locator('#discogs-list .it')).toHaveCount(2, { timeout: 30_000 });
+    await expect(page.locator('#discogs-list .it').nth(0)).toContainText('Dawn', { timeout: 20_000 });   // once the Discogs records are in
+    // An auto one: vinyl only, the tracks GLUE has no song for; digital only, the song; then frozen.
+    await page.click('#discogs-side');
+    await page.click('#discogs-new-auto');
+    await expect(page.locator('#discogs-rules')).toBeVisible();
+    await page.click('[data-have="vinyl"]');
+    await expect(items).toHaveCount(2);
+    await expect(page.locator('#discogs-list-sum')).toContainText('2 tracks: 2 on vinyl, 0 digital');
+    await page.click('[data-have="digital"]');
+    await expect(items).toHaveCount(1);
+    await expect(items).toContainText('Night Drive');
+    await page.click('[data-have="both"]');
+    await page.click('[data-add="styles"]');
+    await page.click('#discogs-pick [data-value="Techno"]');
+    await expect(page.locator('[data-rule="styles"] .chip')).toHaveText('Techno ×');
+    await expect(items).toHaveCount(3);
+    await page.click('#discogs-freeze');
+    await expect(page.locator('#discogs-rules')).toHaveCount(0);
+    await expect(items).toHaveCount(3);
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

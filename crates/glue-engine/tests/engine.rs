@@ -278,7 +278,8 @@ fn songs_added_get_their_tags_then_their_analysis_within_the_number() {
   }).collect();
   e.rpc(&json!({ "op": "edit", "p": "p1", "c": "c1", "ops": [{ "m": "tracks", "ts": ts }] })).unwrap();
   let (mut most, mut names_over) = (0i64, false);
-  for _ in 0..3000 {
+  // Up to a minute: CI's macOS machine took more than 15 s for the first one (2026-10-31).
+  for _ in 0..12000 {
     let s = e.analysis_json();
     most = most.max(s["steps"]["reading"].as_i64().unwrap() + s["steps"]["analysing"].as_i64().unwrap()).max(s["running"].as_i64().unwrap());
     if s["current"].as_array().unwrap().len() as u64 > s["running"].as_u64().unwrap() { names_over = true; }

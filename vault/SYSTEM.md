@@ -35,7 +35,8 @@ profiles/<pid>/collections/<cid>/
   collection.json             name, music folders (roots), or the shared form (§4)
   tracks/<shard>.json         songs, sharded by the first 2 characters of the id
   analysis/<shard>.json       analysis summaries, same shards
-  lists/<id>.json             one per playlist / folder / smart list
+  lists/<id>.json             one per playlist / folder / smart list; a Discogs one (`discogs`, ADR 0189) mixes song
+                              ids and vinyl tracks `dg:<release>:<position>`, shown under Discogs only
   sources/<id>.json           one per imported DJ library
   events.json                 the calendar (ADR 0074)
   dupes/<computer>.json       duplicates found on that computer (ADR 0098)

@@ -12,6 +12,8 @@
   import type { DiscogsRecord } from '../../core/library/discogsMatch';
   import type { Track } from '../../store/types';
   import { untrack } from 'svelte';
+  import { discogsListPicker, openDiscogsList } from '../../lib/discogsMenu';
+  import { NO_RULES, itemOf } from '../../core/library/discogsLists';
 
   const ROW = 58;
   $effect(() => discogs.watch());
@@ -65,6 +67,7 @@
       ids.length > 0 && { label: 'Show its songs', attrs: { 'data-m': 'songs' }, run: () => openSongs(r) },
       playable.length > 0 && { label: 'Play', hint: String(playable.length), attrs: { 'data-m': 'play' }, run: () => void nowPlaying.play(playable[0], playable, 0, r.title) },
       { label: 'Choose its songs…', attrs: { 'data-m': 'choose' }, run: () => choose(r) },
+      { label: 'Add to Discogs playlist', attrs: { 'data-m': 'add-discogs' }, disabled: lib.readOnly, title: r.tracks?.length ? 'Its tracks: those here as your songs, the rest on vinyl' : 'Its songs here (its tracklist comes with GLUE Home’s next read)', sub: () => discogsListPicker(() => discogs.recordItems(r)) },
       SEP,
       { label: 'Open on Discogs', attrs: { 'data-m': 'discogs' }, run: () => { window.open(page(r), '_blank', 'noopener'); } },
     ]);
@@ -94,6 +97,9 @@
   const choose = (r: DiscogsRecord) => { discogs.choosing = r.id; document.getElementById('discogs')?.scrollIntoView({ block: 'start' }); };
   const link = (ids: string[], on: boolean) => { if (chosen) lib.linkDiscogs(ids, chosen.id, on); };
   const pickFocus = (el: HTMLInputElement) => { el.focus(); el.select(); };
+  // Discogs playlists (ADR 0189).
+  function newList() { const n = prompt('Name of the new Discogs playlist'); if (!n) return; const l = lib.createDiscogsList(n); if (l) openDiscogsList(l.id); }
+  function newAuto() { const n = prompt('Name of the new auto playlist'); if (!n) return; const l = lib.createDiscogsList(n, { ...NO_RULES }); if (l) openDiscogsList(l.id); }
   function when(ms: number) { return new Date(ms).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); }
 </script>
 
@@ -120,6 +126,8 @@
         <option value="added">Added</option><option value="artist">Artist</option><option value="title">Title</option><option value="label">Label</option><option value="year">Year</option>
       </select>
       <button type="button" class="mini" id="discogs-refresh" disabled={!!reading} onclick={() => void discogs.load(true)}>Refresh</button>
+      <button type="button" class="mini" id="discogs-new-list" data-guide="discogs-new-list" disabled={lib.readOnly} title="A playlist of your records’ tracks and your songs" onclick={newList}>+ Playlist</button>
+      <button type="button" class="mini" id="discogs-new-auto" disabled={lib.readOnly} title="A playlist that follows filters (genre, style, artist, label, year, format, vinyl or digital)" onclick={newAuto}>+ Auto</button>
     </div>
     {#if chosen && chosenMatch}
       <div class="choose" id="discogs-choose" role="group" aria-label="Its songs">
@@ -128,7 +136,8 @@
           <ol class="tl">
             {#each chosen.tracks as tr, i (i)}
               {@const t = songOf(chosenMatch.byTrack[i] ?? null)}
-              <li><span class="pos">{tr.p}</span><span class="tt">{tr.title}</span><span class="ts" class:no={!t}>{t ? '✓ ' + nameOf(t) : 'not found'}</span></li>
+              <li><span class="pos">{tr.p}</span><span class="tt">{tr.title}</span><span class="ts" class:no={!t}>{t ? '✓ ' + nameOf(t) : 'not found'}</span>
+                <button type="button" class="plus" data-add-track={i} title="Add this track to a Discogs playlist" aria-label="Add to a Discogs playlist" disabled={lib.readOnly} onclick={e => menu.context(e, () => discogsListPicker(() => [itemOf(chosen, i, chosenMatch)]), tr.title)}>＋</button></li>
             {/each}
           </ol>
         {:else if !chosen.tracks}<p class="fine">Its tracklist comes with GLUE Home’s next read.</p>{/if}
@@ -216,7 +225,9 @@
   .ch-head b { font-size: 14px; }
   .ch-head span { color: var(--muted); font-size: 12.5px; flex: 1; }
   .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; font-size: 12.5px; }
-  .tl li { display: grid; grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; }
+  .tl li { display: grid; grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1.2fr) 22px; gap: 8px; align-items: center; }
+  .plus { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0; }
+  .plus:hover:not(:disabled) { color: var(--accent); }
   .pos { color: var(--muted); font-family: var(--font-mono); }
   .tt, .ts { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ts { color: var(--ink-2); }

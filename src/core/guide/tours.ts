@@ -90,6 +90,7 @@ export const TOURS: Tour[] = [
     steps: [
       { target: 'discogs-side', optional: true, go: { route: '#/' }, title: 'Your records', place: 'right', body: 'With GLUE Home, your Discogs collection and wantlist are here. Connect Discogs once in GLUE Home’s settings with a personal access token.' },
       { target: 'discogs', optional: true, go: { view: 'discogs' }, title: 'In GLUE, or not', place: 'top', body: 'Each record says how many of its songs you have here (click to see them), or “Not in GLUE”: records you have only on vinyl. Discogs also gives covers to songs the other services can’t find.' },
+      { target: 'discogs-new-list', optional: true, go: { view: 'discogs' }, title: 'Playlists with your vinyl', place: 'bottom', body: '+ Playlist mixes your records’ tracks with your songs; + Auto follows filters (style, artist, label, years, vinyl or digital). They live under Discogs in the sidebar.' },
     ],
   },
   {

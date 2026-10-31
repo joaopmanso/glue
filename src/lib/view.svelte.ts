@@ -17,7 +17,9 @@ import { glueSong } from '../core/library/djEntries';
 
 export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'failed' | 'attention' | 'unlinked' | 'dupes' | 'discogs' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string }
   /** Browsing (2026-09-28): a field's values (Artists…), and one value's songs. */
-  | { kind: 'browse'; by: Facet } | { kind: 'facet'; by: Facet; key: string; value: string };
+  | { kind: 'browse'; by: Facet } | { kind: 'facet'; by: Facet; key: string; value: string }
+  /** A Discogs playlist (ADR 0189). */
+  | { kind: 'discogsList'; id: string };
 /** The table's value filters; each can also be opened from its column header. */
 export type FilterGroup = 'quality' | 'format' | 'tag' | 'genre' | 'device';
 export const FILTER_GROUPS: { g: FilterGroup; title: string }[] = [{ g: 'quality', title: 'Quality' }, { g: 'format', title: 'Format' }, { g: 'tag', title: 'Tags' }, { g: 'genre', title: 'Genre' }, { g: 'device', title: 'Device' }];
@@ -193,6 +195,7 @@ export function viewHash(s: ViewSel): string {
     case 'tag': return '#/tag/' + enc(s.name);
     case 'browse': return '#/browse/' + s.by;
     case 'facet': return '#/browse/' + s.by + '/' + enc(s.value);
+    case 'discogsList': return '#/discogs/' + enc(s.id);
     default: return '#/' + SLUG[s.kind];
   }
 }
@@ -206,6 +209,7 @@ export function viewOf(path: string): ViewSel | null {
   if (a === 'dj-library') return c ? { kind: 'dj', sourceId: dec(b), id: dec(c) } : { kind: 'source', id: dec(b) };
   if (a === 'folder') return { kind: 'root', id: dec(b) };
   if (a === 'tag') return { kind: 'tag', name: dec(b) };
+  if (a === 'discogs') return { kind: 'discogsList', id: dec(b) };
   if (a === 'browse' && FACETS.includes(b)) { if (!c) return { kind: 'browse', by: b as Facet }; const value = dec(c); return { kind: 'facet', by: b as Facet, key: facetKey(value), value }; }
   return null;
 }
@@ -213,7 +217,7 @@ const sameView = (x: ViewSel, y: ViewSel) => JSON.stringify(x) === JSON.stringif
 function stillThere(s: ViewSel): boolean {
   const st = lib.store;
   if (!st) return true;   // not open yet: looked at when it opens
-  if (s.kind === 'list') return st.lists.has(s.id);
+  if (s.kind === 'list' || s.kind === 'discogsList') return st.lists.has(s.id);
   if (s.kind === 'source') return st.sources.has(s.id);
   if (s.kind === 'dj') return st.sources.has(s.sourceId);
   // Songs added on their own (there while there are some) and GLUE Home's TO BE SORTED are music folders of their own,
@@ -305,7 +309,7 @@ function tracksForAll(sel: ViewSel): Track[] {
   if (sel.kind === 'tag') return [...s.tracks.values()].filter(t => hasTag(tagsOf(t), sel.name));
   if (sel.kind === 'root') return [...s.tracks.values()].filter(t => sel.id === LOOSE ? !!t.fileKey : t.rootId === sel.id);
   if (sel.kind === 'facet') return [...s.tracks.values()].filter(t => inFacet(t, sel.by, sel.key));
-  if (sel.kind === 'browse' || sel.kind === 'discogs') return [];
+  if (sel.kind === 'browse' || sel.kind === 'discogs' || sel.kind === 'discogsList') return [];
   const all = [...s.tracks.values()];
   if (sel.kind === 'dupes') return byIds(dupes.groups.flatMap(g => g.ids));
   // One meaning of each (ADR 0109): not analysed yet (waiting), couldn't analyse (failed), no file here (this
@@ -329,6 +333,7 @@ export function viewTitle(s: ViewSel): string {
     case 'unlinked': return 'No file linked';
     case 'dupes': return 'Duplicates';
     case 'discogs': return 'Discogs';
+    case 'discogsList': return st?.lists.get(s.id)?.name ?? 'Discogs playlist';
     case 'list': { const l = st?.lists.get(s.id); return l ? lib.listPath(l) : 'Playlist'; }
     case 'source': { const x = st?.sources.get(s.id); return x ? (APP_NAMES[x.app] ?? x.app) + ' import' : 'Import'; }
     case 'dj': { const x = st?.sources.get(s.sourceId), l = x?.tree?.find(y => y.externalId === s.id); return (l?.name ?? 'Playlist') + ' · ' + (x ? APP_NAMES[x.app] ?? x.app : ''); }

@@ -5,6 +5,26 @@ updated: 2026-10-31
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-31 · Discogs playlists, vinyl and digital (ADR 0189); changes waiting for GLUE Home kept
+- **Why:** the user: "create playlists using these songs I have on Discogs … either discogs only or mix and mash with
+  digital … under the music -> discogs icon. Auto playlists with some filters such as genres or artists". Their choices:
+  vinyl tracks under Discogs only; filters genre and style, artist and label, year and format, vinyl or digital.
+- **Now:** **+ Playlist** and **+ Auto** in the Discogs view; the playlists under 💿 Discogs in the sidebar.
+  - **Their items** mix songs (they play) and vinyl tracks (`dg:<release>:<position>`: the record, side, label, "On
+    vinyl"), added from a record, a track's ＋, or a song's menu, and arranged by hand.
+  - **An auto one** follows live rules (`discogsLists.ts`). **Save as a playlist** freezes it.
+  - **Kept out of** the library's Playlists, pickers, Engine DJ and exports; the bin and a shared join keep their vinyl
+    items.
+- **Found on the way** (any edit with GLUE Home):
+  - quick edits then a reload were lost (sent 150 ms after the last; "Saving…" didn't count them). Now "Saving…" shows
+    while they wait, and closing or reloading sends them (`keepalive`);
+  - a file edited while GLUE Home's copy was being read back is no longer undone by that copy.
+- **GLUE Home 0.78.0** didn't publish on its first build: a macOS analysis test waited 15 s for its six songs. Now up to
+  a minute, and 0.78.0 is built again with this push.
+- Tests: `tests/discogsLists.test.ts` (refs, every rule, the order, vinyl / digital), `store.test.ts` (the bin keeps
+  vinyl items), `homemode.spec.ts` (a playlist from a record and a song, reordered, an item removed, kept after a
+  reload; an auto one by vinyl, digital and style, frozen).
+
 ## 2026-10-31 · GLUE Home 0.78.0: Discogs records matched track by track, and by hand (ADR 0188)
 - **Why:** the user: "I want to see my discogs collection on Glue to match it on Glue … we should be able to easily match
   them automatically." (They took 0.77's "Connect Discogs" for writing to Discogs: nothing is written there.)

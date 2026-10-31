@@ -80,7 +80,8 @@ export function adopt(shared: SharedParts, own: OwnParts, me: string, member: { 
   // Parents first, so a playlist's folder is known when it comes.
   const depth = (l: List) => { let d = 0; for (let x: List | undefined = l; x?.parentId && d < 20; x = own.lists.find(y => y.id === x!.parentId)) d++; return d; };
   for (const l of [...own.lists].sort((a, b) => depth(a) - depth(b))) {
-    const items = [...new Set(l.items.map(x => ids.get(x)).filter((x): x is string => !!x))];
+    // A Discogs playlist's vinyl tracks (`dg:…`, ADR 0189) aren't songs: kept as they are.
+    const items = [...new Set(l.items.map(x => x.startsWith('dg:') ? x : ids.get(x)).filter((x): x is string => !!x))];
     const at = byPath.get(listPath(own.lists, l));
     if (at) {
       const cur = lists.get(at)!;

@@ -645,6 +645,15 @@
       {#if discogs.here}
         <li><button type="button" class="item name" id="discogs-side" data-guide="discogs-side" class:sel={isSel({ kind: 'discogs' })} class:menued={menued('discogs')} onclick={() => view.select({ kind: 'discogs' })} title="Your Discogs collection and wantlist, and which records you also have here"
           oncontextmenu={e => onMenu(e, 'discogs', () => [{ label: 'Show it', run: () => view.select({ kind: 'discogs' }) }, { label: 'Refresh from Discogs', disabled: !discogs.state?.token, run: () => void discogs.load(true) }, SEP, ...whatsThis('discogs')], 'Discogs')}>💿 Discogs<span class="n">{discogs.state?.kept?.records.length ?? ''}</span></button></li>
+        <!-- Its playlists (ADR 0189): vinyl and digital together; ⚙ one that follows filters. -->
+        {#each (void lib.version, lib.discogsLists()) as dl (dl.id)}
+          <li><button type="button" class="item name sub2 dglist" data-discogs-list={dl.id} class:sel={isSel({ kind: 'discogsList', id: dl.id })} class:menued={menued('dl:' + dl.id)} onclick={() => view.select({ kind: 'discogsList', id: dl.id })}
+            oncontextmenu={e => onMenu(e, 'dl:' + dl.id, () => [
+              { label: 'Show it', run: () => view.select({ kind: 'discogsList', id: dl.id }) },
+              { label: 'Rename…', disabled: lib.readOnly, run: () => { const n = prompt('Rename the playlist', dl.name); if (n?.trim()) lib.updateList(dl.id, { name: n.trim() }); } },
+              { label: 'Delete', disabled: lib.readOnly, attrs: { 'data-m': 'delete' }, run: () => { if (confirm('Delete “' + dl.name + '”? (It goes to Recently deleted.)')) { lib.store?.deleteList(dl.id); if (isSel({ kind: 'discogsList', id: dl.id })) view.select({ kind: 'discogs' }); } } },
+            ], dl.name)}>{dl.discogs?.rules ? '⚙' : '🎵'} <span class="nm">{dl.name}</span><span class="n">{(void discogs.state, discogs.itemsOf(dl).length)}</span></button></li>
+        {/each}
       {/if}
       {#if !lib.musicFolders.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). GLUE only reads them.' : 'Add songs, or drop them onto GLUE: they’re copied into GLUE’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
     </ul>
