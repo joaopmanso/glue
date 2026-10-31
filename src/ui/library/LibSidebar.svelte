@@ -3,7 +3,6 @@
   import { FACETS, facetItems } from '../../core/library/browse';
   import { asShown } from '../../core/library/summary';
   import { describeRemoval, removalImpact } from '../../core/library/removal';
-  import { untrack } from 'svelte';
   import { dock } from '../../lib/dock.svelte';
   import { sidebar, type LibView, type SideKey } from '../../lib/sidebar.svelte';
   import { lib, type RootState } from '../../lib/library.svelte';
@@ -32,6 +31,8 @@
   import { whatsThis } from '../../lib/guide.svelte';
   import AppIcon from '../AppIcon.svelte';
   import { cleanTag } from '../../core/library/tagging';
+  import { discogs } from '../../lib/discogs.svelte';
+  import { untrack } from 'svelte';
   const dragOut = canDragOut();
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
@@ -91,6 +92,8 @@
   }
   // The selected playlist is always in sight: the folders above it open (also after coming back from
   // another page, which forgets them).
+  // The Discogs entry's count, once GLUE Home answers.
+  $effect(() => { if (discogs.here) untrack(() => discogs.ensure()); });
   $effect(() => {
     const sel = view.sel;
     if (sel.kind !== 'list') return;
@@ -637,6 +640,11 @@
       {#if loose}
         <li><button type="button" class="item name" class:sel={isSel({ kind: 'root', id: LOOSE })} class:menued={menued('r:' + LOOSE)} onclick={() => view.select({ kind: 'root', id: LOOSE })} title="Songs added one by one"
           oncontextmenu={e => onMenu(e, 'r:' + LOOSE, () => [{ label: 'Show its songs', run: () => view.select({ kind: 'root', id: LOOSE }) }, { label: 'Add songs…', run: () => void addSongs() }], 'Added songs')}>🎵 Added songs<span class="n">{loose}</span></button></li>
+      {/if}
+      <!-- The user's Discogs collection, through GLUE Home (ADR 0187). -->
+      {#if discogs.here}
+        <li><button type="button" class="item name" id="discogs-side" data-guide="discogs-side" class:sel={isSel({ kind: 'discogs' })} class:menued={menued('discogs')} onclick={() => view.select({ kind: 'discogs' })} title="Your Discogs collection and wantlist, and which records you also have here"
+          oncontextmenu={e => onMenu(e, 'discogs', () => [{ label: 'Show it', run: () => view.select({ kind: 'discogs' }) }, { label: 'Refresh from Discogs', disabled: !discogs.state?.token, run: () => void discogs.load(true) }, SEP, ...whatsThis('discogs')], 'Discogs')}>💿 Discogs<span class="n">{discogs.state?.kept?.records.length ?? ''}</span></button></li>
       {/if}
       {#if !lib.musicFolders.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). GLUE only reads them.' : 'Add songs, or drop them onto GLUE: they’re copied into GLUE’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
     </ul>

@@ -4,6 +4,7 @@
   import { djWatch } from '../../lib/djWatch.svelte';
   import Opening from './Opening.svelte';
   import BrowseView from './BrowseView.svelte';
+  import DiscogsView from './DiscogsView.svelte';
   import { facetInfo } from '../../core/library/browse';
   import { removeNote, view, viewTitle, withCopies, FILTER_GROUPS } from '../../lib/view.svelte';
   import { router, trackHref, trackTab } from '../../lib/route.svelte';
@@ -53,6 +54,8 @@
   import type { HomeFolder } from '../../core/transfer';
 
   const title = $derived.by(() => { void lib.version; return viewTitle(view.sel); });
+  /** A view of its own instead of the songs' table (Browse's lists, the Discogs collection): no song toolbar or count. */
+  const noTable = $derived(view.sel.kind === 'browse' || view.sel.kind === 'discogs');
   // A DJ library's view shows its app's badge.
   const djApp = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'source' ? lib.store?.sources.get(s.id)?.app : s.kind === 'dj' ? lib.store?.sources.get(s.sourceId)?.app : undefined; });
   const count = $derived.by(() => { void lib.version; void view.search; return view.rows('camelot').length; });
@@ -184,8 +187,8 @@
     <button type="button" class="sidetog" id="side-toggle" aria-pressed={folded} title={folded ? 'Show the sidebar (Ctrl+B)' : 'Hide the sidebar, for more columns (Ctrl+B)'} aria-label={folded ? 'Show the sidebar' : 'Hide the sidebar'} onclick={() => fold()}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.5v11" stroke="currentColor" stroke-width="1.3"/>{#if !folded}<path d="M2.8 5h1.9M2.8 7h1.9M2.8 9h1.9" stroke="currentColor" stroke-width="1.1"/>{/if}</svg>
     </button>
-    <h2>{#if view.sel.kind === 'facet'}{@const by = view.sel.by}<button type="button" class="crumb" id="browse-back" title="Back to the list" onclick={() => view.select({ kind: 'browse', by })}>{facetInfo(by).name} ›</button>{/if}{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}{#if view.sel.kind !== 'browse' && lib.store}<small>{count} track{count === 1 ? '' : 's'}</small>{/if}</h2>
-    {#if view.sel.kind !== 'browse'}
+    <h2>{#if view.sel.kind === 'facet'}{@const by = view.sel.by}<button type="button" class="crumb" id="browse-back" title="Back to the list" onclick={() => view.select({ kind: 'browse', by })}>{facetInfo(by).name} ›</button>{/if}{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}{#if !noTable && lib.store}<small>{count} track{count === 1 ? '' : 's'}</small>{/if}</h2>
+    {#if !noTable}
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks" data-guide="search">
     <FilterMenu />
     {/if}
@@ -257,7 +260,7 @@
            once opened the wrong song as the rows jumped, 2026-09-27), and a layout shift during
            dragstart makes Chromium cancel the drag. The actions are always there, disabled until songs
            are selected; what doesn't fit is in ⋯ (and on right-click). -->
-      {#if view.sel.kind !== 'browse'}
+      {#if !noTable}
       <div class="selbar" class:has={sel.length > 0}>
         <div class="selinfo">
           {#if sel.length}
@@ -310,7 +313,7 @@
       </div>
       {/if}
       {#if current && showInsights}<PlaylistInsights ids={insightIds} listId={current.kind === 'playlist' ? current.id : null} />{/if}
-      {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else if view.sel.kind === 'browse'}<BrowseView by={view.sel.by} />{:else if view.sel.kind === 'unlinked' && !relink.asList}<RelinkView />{:else}
+      {#if view.sel.kind === 'dupes'}<DuplicatesView />{:else if view.sel.kind === 'browse'}<BrowseView by={view.sel.by} />{:else if view.sel.kind === 'discogs'}<DiscogsView />{:else if view.sel.kind === 'unlinked' && !relink.asList}<RelinkView />{:else}
         {#if view.sel.kind === 'unlinked'}<p class="relinkbar"><button type="button" class="mini" id="relink-find" onclick={() => (relink.asList = false)}>Find them in your library</button></p>{/if}
         <TrackTable />{/if}
     </div>

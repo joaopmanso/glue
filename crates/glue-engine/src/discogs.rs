@@ -4,7 +4,9 @@
 //! `discogsAt` (when) in the settings, or `discogsError`.
 use crate::covers::Service;
 use crate::{Engine, Host};
+use glue_store::dir::{read_json, write_json};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 /// Discogs' API: the only address the token is sent to.
 pub const API: &str = "https://api.discogs.com/";
@@ -39,5 +41,124 @@ impl<H: Host> Engine<H> {
         Err(e) => json!({ "discogsUser": null, "discogsError": if e.contains("401") { "Discogs doesn’t accept this token".to_string() } else { e.clone() } }),
       })
     });
+  }
+}
+
+// ---- the user's collection and wantlist (ADR 0187) -------------------------------------------------------------------
+
+/// Records a page (Discogs' most for these lists).
+const PAGE: u32 = 100;
+/// Read again after this long (the service's daily look), or on Refresh.
+const AGAIN_MS: i64 = 20 * 3600 * 1000;
+
+/// Where it's kept: the GLUE folder (the profile's, ADR 0009) and GLUE Home's own copy (read while a tab holds the lease).
+pub fn file_of(p: &str) -> String { format!("profiles/{p}/discogs.json") }
+fn cached_of(p: &str) -> String { format!("discogs/{p}.json") }
+
+/// A collection or wantlist item as GLUE keeps it: the release's id, the copy's (`instance`), its names, labels with
+/// catalogue numbers, year, formats ("Vinyl", "12 inch", "LP"…), genres and styles, when it was added, its rating, its
+/// cover's address on Discogs and (once fetched) the cover's hash in GLUE Home's cache (`art`).
+pub fn record_of(item: &Value, had: Option<&Value>) -> Option<Value> {
+  let b = item.get("basic_information")?;
+  let id = b["id"].as_i64()?;
+  let names = |k: &str| -> Vec<Value> { b[k].as_array().into_iter().flatten().filter_map(|x| x["name"].as_str().map(|s| json!(s))).collect() };
+  let strs = |k: &str| -> Vec<Value> { b[k].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(|s| json!(s))).collect() };
+  let labels: Vec<Value> = b["labels"].as_array().into_iter().flatten().map(|l| json!({ "name": l["name"].as_str().unwrap_or(""), "catno": l["catno"].as_str().unwrap_or("") })).collect();
+  let mut formats: Vec<Value> = vec![];
+  for f in b["formats"].as_array().into_iter().flatten() {
+    for s in std::iter::once(&f["name"]).chain(f["descriptions"].as_array().into_iter().flatten()) {
+      if let Some(s) = s.as_str().filter(|s| !s.is_empty()) { if !formats.iter().any(|x| x == s) { formats.push(json!(s)); } }
+    }
+  }
+  let cover = b["cover_image"].as_str().filter(|c| !c.is_empty() && !c.ends_with("spacer.gif")).or(b["thumb"].as_str().filter(|c| !c.is_empty())).unwrap_or("");
+  // The cover already fetched for the same picture stays.
+  let art = had.filter(|h| h["cover"].as_str() == Some(cover)).and_then(|h| h["art"].as_str()).unwrap_or("");
+  Some(json!({
+    "id": id, "instance": item["instance_id"], "title": b["title"].as_str().unwrap_or(""), "artists": names("artists"), "labels": labels,
+    "year": b["year"].as_i64().filter(|y| *y > 0), "formats": formats, "genres": strs("genres"), "styles": strs("styles"),
+    "added": item["date_added"].as_str().unwrap_or(""), "rating": item["rating"].as_i64().unwrap_or(0), "cover": cover, "art": art,
+  }))
+}
+
+impl<H: Host> Engine<H> {
+  /// Every page of a list (`path`, to which `per_page` and `page` are added), as records; `had`: the last read's, by
+  /// release id (their covers).
+  fn discogs_pages(&self, path: &str, key: &str, had: &HashMap<i64, Value>, what: &str) -> Result<Vec<Value>, String> {
+    let mut out = vec![];
+    let mut page = 1;
+    loop {
+      let v = self.discogs_get(&format!("{path}&per_page={PAGE}&page={page}"))?;
+      for it in v[key].as_array().into_iter().flatten() {
+        let id = it["basic_information"]["id"].as_i64().unwrap_or(0);
+        if let Some(r) = record_of(it, had.get(&id)) { out.push(r); }
+      }
+      let pages = v["pagination"]["pages"].as_u64().unwrap_or(1) as u32;
+      *self.devices.discogs.lock().unwrap() = json!({ "reading": { "what": what, "done": page, "of": pages } });
+      if page >= pages { return Ok(out); }
+      page += 1;
+    }
+  }
+  /// What was kept for a profile (GLUE Home's copy, else the GLUE folder's).
+  pub fn discogs_kept(&self, p: &str) -> Option<Value> {
+    read_json(&self.cache_dir(), &cached_of(p)).ok().flatten().or_else(|| read_json(&self.dir(), &file_of(p)).ok().flatten())
+  }
+  fn discogs_keep(&self, p: &str, v: &Value) -> Result<(), String> {
+    write_json(&self.cache_dir(), &cached_of(p), v)?;
+    // The GLUE folder only while no tab holds the lease (ADR 0051); GLUE Home's copy carries it meanwhile.
+    if !self.host.lease_held() { write_json(&self.dir(), &file_of(p), v)?; }
+    Ok(())
+  }
+  /// The user's collection and wantlist read from Discogs into every profile's file, then the covers it lacks
+  /// (`now`: whatever the last read's age). One read at a time. The records read.
+  pub fn discogs_read(&self, now: bool) -> Result<usize, String> {
+    let cfg = self.host.config();
+    if token(&cfg).is_none() { return Err("No Discogs token in GLUE Home’s settings".into()); }
+    let Some(user) = cfg["discogsUser"].as_str().filter(|u| !u.is_empty()).map(String::from) else { return Err("The Discogs token isn’t checked yet".into()) };
+    if cfg["glue"].as_str().is_none_or(|g| g.is_empty()) { return Ok(0); }
+    let profiles: Vec<String> = self.describe().unwrap_or(Value::Null)["profiles"].as_array().into_iter().flatten().map(|p| crate::text(p, "id")).filter(|p| !p.is_empty()).collect();
+    let Some(first) = profiles.first() else { return Ok(0) };
+    let last = self.discogs_kept(first);
+    if !now && last.as_ref().is_some_and(|l| l["user"].as_str() == Some(user.as_str()) && crate::now().0 - l["readAt"].as_i64().unwrap_or(0) < AGAIN_MS) { return Ok(0); }
+    {
+      let mut g = self.devices.discogs.lock().unwrap();
+      if g.get("reading").is_some() { return Ok(0); }
+      *g = json!({ "reading": { "what": "collection", "done": 0, "of": 0 } });
+    }
+    let r = self.discogs_read_now(&user, last.as_ref(), &profiles);
+    *self.devices.discogs.lock().unwrap() = match &r { Ok(_) => Value::Null, Err(e) => json!({ "error": e }) };
+    r
+  }
+  fn discogs_read_now(&self, user: &str, last: Option<&Value>, profiles: &[String]) -> Result<usize, String> {
+    let mut had = HashMap::new();
+    for k in ["records", "wants"] { for r in last.map(|l| &l[k]).and_then(Value::as_array).into_iter().flatten() { if let Some(id) = r["id"].as_i64() { had.insert(id, r.clone()); } } }
+    let u = crate::covers::enc(user);
+    let records = self.discogs_pages(&format!("users/{u}/collection/folders/0/releases?sort=added&sort_order=desc"), "releases", &had, "collection")?;
+    let wants = self.discogs_pages(&format!("users/{u}/wants?sort=added&sort_order=desc"), "wants", &had, "wantlist")?;
+    let n = records.len();
+    let mut file = json!({ "schemaVersion": 1, "user": user, "readAt": crate::now().0, "records": records, "wants": wants });
+    for p in profiles { self.discogs_keep(p, &file)?; }
+    // The covers it lacks, at Discogs' pace, kept every 25.
+    let mut todo: Vec<(&str, usize)> = vec![];
+    for k in ["records", "wants"] {
+      for (i, r) in file[k].as_array().into_iter().flatten().enumerate() {
+        if r["art"].as_str() == Some("") && r["cover"].as_str().is_some_and(|c| !c.is_empty()) { todo.push((k, i)); }
+      }
+    }
+    for (done, (k, i)) in todo.iter().enumerate() {
+      *self.devices.discogs.lock().unwrap() = json!({ "reading": { "what": "covers", "done": done, "of": todo.len() } });
+      let url = file[*k][*i]["cover"].as_str().unwrap_or("").to_string();
+      if let Ok(img) = self.cover_ask(Service::Discogs, &url) {
+        if let Ok(c) = glue_audio::out::cover::from_image(&img) { if self.keep_cover(&c).is_ok() { file[*k][*i]["art"] = json!(c.hash); } }
+      }
+      if (done + 1) % 25 == 0 { for p in profiles { self.discogs_keep(p, &file)?; } }
+    }
+    if !todo.is_empty() { for p in profiles { self.discogs_keep(p, &file)?; } }
+    Ok(n)
+  }
+  /// For the page (`discogs`): the profile's records and wantlist, whether a token is set and whose, and a read under
+  /// way or its error.
+  pub fn discogs_state(&self, p: &str) -> Value {
+    let cfg = self.host.config();
+    json!({ "token": token(&cfg).is_some(), "user": cfg["discogsUser"], "tokenError": cfg["discogsError"], "now": self.devices.discogs.lock().unwrap().clone(), "kept": self.discogs_kept(p) })
   }
 }

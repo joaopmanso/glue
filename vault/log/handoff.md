@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-31)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.76.0** (0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.77.0** (0.77: the Discogs collection, ADR 0187; 0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.77.0, your Discogs collection (2026-10-31, ADR 0187):** with the token set, GLUE Home reads the collection
+  and wantlist; **Discogs** under Music in the sidebar lists them with covers (they come a second each, after the list),
+  "In GLUE: N songs" or "Not in GLUE". To check: the counts look right, records you know as in GLUE say so, Refresh.
+  Not yet: tracklists for records that don't match by album; devices without GLUE Home.
 - **GLUE Home 0.76.0, covers from Discogs (2026-10-31, ADR 0186):** in GLUE Home's settings, paste a Discogs personal
   access token (discogs.com › Settings › Developers): it should say "Connected as <your Discogs name>"; vinyl-only songs
   without covers then get Discogs' (a few minutes, a request a second). Next (batch 2 of the approved plan,

@@ -19,8 +19,16 @@ import type { DetailsHeader } from '../store/details';
 import type { Clash } from '../core/shared/merge3';
 import type { DupGroup, Match } from '../core/library/duplicates';
 import type { ImportReport } from '../store/merge';
+import type { DiscogsFile } from '../core/library/discogsMatch';
 /** A clash of the two-way sync (ADR 0170): what ("hot 2", "loop 0", "grid") and each side's. */
 /** A playlist gone from one side of the two-way sync (ADR 0171): its Engine DJ id and name, and where it went. */
+/** The user's Discogs collection as GLUE Home has it (ADR 0187): the token set and whose, a read under way or its error,
+    and what's kept. */
+export interface DiscogsState {
+  token: boolean; user: string | null; tokenError: string | null;
+  now: { reading?: { what: 'collection' | 'wantlist' | 'covers'; done: number; of: number }; error?: string } | null;
+  kept: DiscogsFile | null;
+}
 export interface DjQuestion { ext: string; name: string; deletedIn: 'glue' | 'app' }
 /** A GLUE playlist's songs that couldn't go to Engine DJ's GLUE folder, and why (2026-10-09). */
 export interface DjUnsent { songs: string[]; why: string[] }
@@ -260,6 +268,15 @@ class EngineClient {
   async djFind(): Promise<{ kind: 'engine' | 'serato' | 'traktor' | 'rekordbox' | 'apple'; relPath: string; place: string; placeName: string; modified: number; size: number }[]> {
     const w = this.where();
     return w ? this.rpc({ op: 'djFind', ...w }, 120_000) : [];
+  }
+  /** The user's Discogs collection and wantlist (ADR 0187); `refresh`: read from Discogs again now (in the background). */
+  async discogs(refresh = false): Promise<DiscogsState | null> {
+    const w = this.where();
+    return w ? this.rpc<DiscogsState>({ op: refresh ? 'discogsRefresh' : 'discogs', ...w }, 20_000) : null;
+  }
+  /** A cover kept in GLUE Home's cache, by its hash (a Discogs record's): its JPEG, or null. */
+  async coverBytes(hash: string, size: 64 | 320 = 64): Promise<Uint8Array | null> {
+    return /^[0-9a-f]{24}$/.test(hash) ? cacheFile('a/' + hash + '-' + size + '.jpg') : null;
   }
   /** The open shared collection's clashes waiting (GLUE Home syncs it, ADR 0162). */
   async clashes(): Promise<Clash[]> {

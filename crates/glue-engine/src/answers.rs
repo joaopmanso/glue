@@ -40,6 +40,8 @@ fn data(v: Value) -> Answer { Answer::Data { data: v, bytes: vec![], tell: None 
 #[derive(Default)]
 pub struct Devices {
   pub(crate) lookups: crate::covers::Lookups,
+  /// Discogs: a read of the collection under way (`reading`: what, done, of) or its `error` (ADR 0187).
+  pub(crate) discogs: Mutex<Value>,
   /// Where a song being streamed is (looked up once a minute, not for each part).
   located: Mutex<HashMap<String, (String, String, Instant)>>,
   /// The background's mini spectrograms and waveforms (`background`).

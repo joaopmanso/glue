@@ -7,7 +7,7 @@ export type Place = 'right' | 'left' | 'top' | 'bottom' | 'center';
 /** What to open before a stop is shown. */
 export type Go =
   | { route: string }                                   // a page, e.g. '#/' or '#/events'
-  | { view: 'all' | 'dupes' | 'unlinked' | 'attention' | 'pending' }   // a library view
+  | { view: 'all' | 'dupes' | 'unlinked' | 'attention' | 'pending' | 'discogs' }   // a library view
   | { song: 'first'; tab?: 'details' | 'prepare' };     // the first song's page
 
 export interface TourStep {
@@ -83,6 +83,13 @@ export const TOURS: Tour[] = [
       { target: 'dj-libs', go: { route: '#/' }, title: 'Your DJ apps', place: 'right', body: 'rekordbox, Engine DJ, Serato, Traktor and Apple Music. An imported library is followed: when the app changes it, GLUE reads it again. Your main Engine DJ library can also be kept in step both ways (right-click it).' },
       { target: 'playlists', title: 'Their playlists', place: 'right', body: 'A DJ library’s playlists are browsed under it, and brought in here when you want them. With your main Engine DJ library kept in step, you change its own playlists there too: right-click one, or drop songs on it. Yours go into Engine DJ’s GLUE folder with Keep in Engine DJ.' },
       { target: 'view-unlinked', optional: true, title: 'Songs with no file', place: 'right', body: 'Songs a DJ library lists whose files are gone show here; I can find most of them in your library.' },
+    ],
+  },
+  {
+    id: 'discogs', title: 'Discogs', summary: 'Your Discogs collection and wantlist, and which records you have here.',
+    steps: [
+      { target: 'discogs-side', optional: true, go: { route: '#/' }, title: 'Your records', place: 'right', body: 'With GLUE Home, your Discogs collection and wantlist are here. Connect Discogs once in GLUE Home’s settings with a personal access token.' },
+      { target: 'discogs', optional: true, go: { view: 'discogs' }, title: 'In GLUE, or not', place: 'top', body: 'Each record says how many of its songs you have here (click to see them), or “Not in GLUE”: records you have only on vinyl. Discogs also gives covers to songs the other services can’t find.' },
     ],
   },
   {

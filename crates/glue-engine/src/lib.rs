@@ -571,6 +571,9 @@ impl<H: Host> Engine<H> {
       // Engine DJ's own playlists edited in the DJ collection (ADR 0179).
       "djEdit" => self.dj_edit(&p, &c, &text(b, "source"), &b["edit"]),
       "djFind" => self.dj_find_all(&p, &c),
+      // The user's Discogs collection and wantlist (ADR 0187): what's kept, and a read now (in the background).
+      "discogs" => Ok(self.discogs_state(&p)),
+      "discogsRefresh" => { let me = self.clone(); std::thread::spawn(move || { let _ = me.discogs_read(true); }); Ok(self.discogs_state(&p)) }
       "djImport" => {
         let also: Vec<(String, String)> = b["also"].as_array().into_iter().flatten().map(|x| (text(x, "place"), text(x, "relPath"))).collect();
         self.dj_import(&p, &c, &text(b, "place"), &text(b, "relPath"), &also)

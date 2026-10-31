@@ -15,7 +15,7 @@ import { readPref, writePref } from './prefs';
 import { router } from './route.svelte';
 import { glueSong } from '../core/library/djEntries';
 
-export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'failed' | 'attention' | 'unlinked' | 'dupes' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string }
+export type ViewSel = { kind: 'all' | 'recent' | 'pending' | 'failed' | 'attention' | 'unlinked' | 'dupes' | 'discogs' } | { kind: 'list'; id: string } | { kind: 'source'; id: string } | { kind: 'dj'; sourceId: string; id: string } | { kind: 'root'; id: string } | { kind: 'tag'; name: string }
   /** Browsing (2026-09-28): a field's values (Artists…), and one value's songs. */
   | { kind: 'browse'; by: Facet } | { kind: 'facet'; by: Facet; key: string; value: string };
 /** The table's value filters; each can also be opened from its column header. */
@@ -179,7 +179,7 @@ export const view = new View();
    the view: choosing one is a step in the browser's history (Back and Forward go through them; the mouse's Back left
    GLUE from Duplicates), and a view's address opens it (one gone since, a playlist deleted: All tracks). "#/" alone is
    the library as it was (a song page's "← Library"): it becomes the view's address. */
-const SLUG: Record<string, string> = { all: 'all-tracks', recent: 'recently-added', pending: 'not-analysed', failed: 'couldnt-analyse', attention: 'lower-quality', unlinked: 'no-file', dupes: 'duplicates' };
+const SLUG: Record<string, string> = { all: 'all-tracks', recent: 'recently-added', pending: 'not-analysed', failed: 'couldnt-analyse', attention: 'lower-quality', unlinked: 'no-file', dupes: 'duplicates', discogs: 'discogs' };
 const KIND = Object.fromEntries(Object.entries(SLUG).map(([k, s]) => [s, k]));
 const FACETS: string[] = ['artist', 'album', 'genre', 'label', 'year'];
 const enc = encodeURIComponent;
@@ -305,7 +305,7 @@ function tracksForAll(sel: ViewSel): Track[] {
   if (sel.kind === 'tag') return [...s.tracks.values()].filter(t => hasTag(tagsOf(t), sel.name));
   if (sel.kind === 'root') return [...s.tracks.values()].filter(t => sel.id === LOOSE ? !!t.fileKey : t.rootId === sel.id);
   if (sel.kind === 'facet') return [...s.tracks.values()].filter(t => inFacet(t, sel.by, sel.key));
-  if (sel.kind === 'browse') return [];
+  if (sel.kind === 'browse' || sel.kind === 'discogs') return [];
   const all = [...s.tracks.values()];
   if (sel.kind === 'dupes') return byIds(dupes.groups.flatMap(g => g.ids));
   // One meaning of each (ADR 0109): not analysed yet (waiting), couldn't analyse (failed), no file here (this
@@ -328,6 +328,7 @@ export function viewTitle(s: ViewSel): string {
     case 'attention': return 'Lower quality';
     case 'unlinked': return 'No file linked';
     case 'dupes': return 'Duplicates';
+    case 'discogs': return 'Discogs';
     case 'list': { const l = st?.lists.get(s.id); return l ? lib.listPath(l) : 'Playlist'; }
     case 'source': { const x = st?.sources.get(s.id); return x ? (APP_NAMES[x.app] ?? x.app) + ' import' : 'Import'; }
     case 'dj': { const x = st?.sources.get(s.sourceId), l = x?.tree?.find(y => y.externalId === s.id); return (l?.name ?? 'Playlist') + ' · ' + (x ? APP_NAMES[x.app] ?? x.app : ''); }

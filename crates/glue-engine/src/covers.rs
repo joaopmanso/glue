@@ -70,7 +70,7 @@ pub fn kept_at(key: &str) -> String {
 }
 
 /// JavaScript's `encodeURIComponent`.
-fn enc(s: &str) -> String {
+pub fn enc(s: &str) -> String {
   let mut out = String::new();
   for b in s.bytes() {
     if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) { out.push(b as char) } else { out.push_str(&format!("%{b:02X}")) }

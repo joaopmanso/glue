@@ -5,6 +5,18 @@ updated: 2026-10-31
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-10-31 · GLUE Home 0.77.0: your Discogs collection in GLUE (ADR 0187)
+- **Why:** the user's second Discogs choice (after covers, 0.76): their Discogs collection and wantlist, and which
+  records they also have digitally.
+- **Now:** with a Discogs token, GLUE Home reads the collection and wantlist (100 a page, a request a second), and the
+  new records' covers. It does so after the token is checked, daily, and on Refresh, into `profiles/<p>/discogs.json`.
+  **Discogs** in the sidebar (`#/discogs`) lists them: cover, label and catalogue number, year, styles, formats, and
+  "In GLUE: N songs" (its album opens) or "Not in GLUE"; filters, search, sort, the wantlist, right-click Open on
+  Discogs. Matched on the page (`discogsMatch.ts`): the record's title as the album by one of its artists, a
+  compilation on its label, a single by its title. Help article "Discogs" and Gluey's tour.
+- Tests: `tests/discogs.rs` (two pages read, covers once, the token to the API only), `tests/discogsMatch.test.ts`,
+  `homemode.spec.ts` (the view end to end).
+
 ## 2026-10-31 · GLUE Home 0.76.0: covers from Discogs (ADR 0186)
 - **Why:** the user: "I want to add discogs support". They chose covers from Discogs and their collection (next), with
   a personal token. ADR 0086 had left Discogs out only for needing one.

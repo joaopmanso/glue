@@ -30,6 +30,7 @@ stay.
 mco.json                      index: profiles (library folders), lastProfile, aliases, aliasesV, lastAlias,
                               container, computer, appearance
 profiles/<pid>/profile.json   a library folder: collections [{id,name}], lastCollection, cloudSync
+profiles/<pid>/discogs.json   the user's Discogs collection and wantlist, written by GLUE Home (ADR 0187)
 profiles/<pid>/collections/<cid>/
   collection.json             name, music folders (roots), or the shared form (§4)
   tracks/<shard>.json         songs, sharded by the first 2 characters of the id

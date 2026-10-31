@@ -1394,3 +1394,82 @@ test('with GLUE Home running, it finds the duplicates: the same recording under 
     await expect(page.locator('.grp', { hasText: 'Same recording' })).toHaveCount(0);
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
+
+test('with GLUE Home and a Discogs token, the Discogs collection and wantlist show with covers, and which records are in GLUE (ADR 0187)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-discogs-'));
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} }, { engine: true, known: { music: join(tmp, 'Music') } });
+  try {
+    mkdirSync(fake.dirs.incoming, { recursive: true }); mkdirSync(join(tmp, 'Music'), { recursive: true });
+    copyFileSync(fixture('mp3-128k.mp3'), join(tmp, 'Music', 'night.mp3'));
+    const col = 'profiles/p1/collections/c1';
+    const song = { id: 't1', status: 'linked', rootId: 'r1', relPath: 'night.mp3', importPath: null, fileName: 'night.mp3', size: 1, mtime: 1000, title: 'Night Drive', artist: 'Test Artist', album: 'Night Drive EP', genre: '', label: 'Test Label', comment: '', year: '', duration: null, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] };
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
+      [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
+      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: { t1: song } }),
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    // Discogs, as its API answers (research/discogs-api.md).
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    const item = (id: number, artist: string, title: string, cover: string) => ({ id, instance_id: id * 10, date_added: '2026-10-0' + id + 'T10:00:00-07:00', rating: 0, basic_information: {
+      id, title, year: 2020, artists: [{ name: artist }], labels: [{ name: 'Test Label', catno: 'TL00' + id }], formats: [{ name: 'Vinyl', qty: '1', descriptions: ['12"', 'EP'] }], genres: ['Electronic'], styles: ['Techno'], thumb: '', cover_image: cover } });
+    const page1 = (key: string, items: unknown[]) => JSON.stringify({ pagination: { page: 1, pages: 1, per_page: 100, items: items.length }, [key]: items });
+    Object.assign(fake.web, {
+      'https://api.discogs.com/oauth/identity': JSON.stringify({ id: 5, username: 'djtest' }),
+      'https://api.discogs.com/users/djtest/collection/folders/0/releases': page1('releases', [item(1, 'Test Artist', 'Night Drive', 'https://i.discogs.com/1.png'), item(2, 'Someone (2)', 'Vinyl Only', '')]),
+      'https://api.discogs.com/users/djtest/wants': page1('wants', [item(3, 'Kloudmen', 'Wanted EP', 'https://i.discogs.com/3.png')]),
+      'https://i.discogs.com/': [...png],
+    });
+    await fake.start();
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, discogsToken: 'tok' } });
+    await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
+      const u = new URL(r.request().url());
+      if (u.port !== '47400') return r.abort('connectionrefused');
+      u.port = String(fake.port);
+      return r.fulfill({ response: await r.fetch({ url: u.toString() }) });
+    });
+    await page.goto('./#/analyze');
+    await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), fake.pref);
+    await page.goto('./');
+    await expect(page.locator('.tr')).toHaveCount(1, { timeout: 30_000 });
+    // GLUE Home checks the token and reads the lists (the file in the GLUE folder); the sidebar counts the records.
+    await expect.poll(() => existsSync(join(fake.dirs.glue, 'profiles/p1/discogs.json')), { timeout: 30_000 }).toBe(true);
+    await page.click('#discogs-side');
+    await expect(page).toHaveURL(/#\/discogs$/);
+    const rows = page.locator('#discogs .rec');
+    await expect(rows).toHaveCount(2, { timeout: 20_000 });
+    await expect(page.locator('#discogs-status')).toContainText('djtest on Discogs', { timeout: 20_000 });
+    await expect(page.locator('#discogs-side .n')).toHaveText('2');
+    // Its cover, its label and number, its formats; in GLUE (the album "Night Drive EP" by the same artist), or not.
+    const night = rows.filter({ hasText: 'Night Drive' });
+    await expect(night).toContainText('Test Label · TL001');
+    await expect(night).toContainText('Vinyl · 12" · EP');
+    await expect(night.locator('.cov img')).toBeVisible({ timeout: 20_000 });
+    await expect(night.locator('.in')).toHaveText('In GLUE: 1 song');
+    if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/discogs.png' });
+    await expect(rows.filter({ hasText: 'Vinyl Only' }).locator('.out')).toHaveText('Not in GLUE');
+    await page.click('[data-show="out"]');
+    await expect(rows).toHaveCount(1);
+    await expect(rows).toContainText('Vinyl Only');
+    await page.click('[data-show="all"]');
+    await page.fill('#discogs-find', 'tl001');
+    await expect(rows).toHaveCount(1);
+    await page.fill('#discogs-find', '');
+    await page.click('#discogs-wants');
+    await expect(rows).toHaveCount(1);
+    await expect(rows).toContainText('Wanted EP');
+    await page.click('#discogs-records');
+    // Its songs: their album.
+    await night.locator('.in').click();
+    await expect(page.locator('.lib h2')).toContainText('Night Drive EP');
+    await expect(page.locator('.tr')).toHaveCount(1);
+    // Refresh: read again; the token went to Discogs' API only.
+    await page.goBack();
+    const asked = fake.webAsked.length;
+    await page.click('#discogs-refresh');
+    await expect.poll(() => fake.webAsked.length, { timeout: 20_000 }).toBeGreaterThan(asked);
+    fake.webAsked.forEach((u, i) => expect(!!fake.webHeaders[i].Authorization, u).toBe(u.startsWith('https://api.discogs.com/')));
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});
