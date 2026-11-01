@@ -5,6 +5,19 @@ updated: 2026-11-01
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-01 · The Prepare waveform: no fixed stripes, the grid behind it
+- **Why:** the user: "waveform on cue edit is still broken. I see these vertical lines that are always there so color
+  are always messed up".
+- **Cause (older than the restyle):**
+  - the wave was drawn in CSS pixels on a canvas scaled to the screen;
+  - on a 1.25× or 1.5× screen every 1-pixel column straddled device pixels and blended with its neighbour, a fixed
+    pattern of lighter and darker stripes;
+  - the beat and bar lines were drawn over the wave.
+- **Now** (`wave.ts`):
+  - the wave and the grid are drawn in device pixels, one column per screen pixel;
+  - the grid sits behind the wave (it shows in the quiet parts);
+  - bar numbers, cues and the playhead stay on top.
+
 ## 2026-11-01 · Fixes after the restyle: the deck's shimmer, the sidebar, the picker, full width, stats
 - **The Prepare deck shimmered while playing** (older than the restyle): each pixel column sampled the track from the
   view's start, which moves a fraction of a point every frame, so columns caught different peaks. Now columns are cut
