@@ -29,7 +29,11 @@ Make playlists of your records' tracks, mixed with your songs if you like, under
 - **+ Playlist** (in the Discogs view) makes one. Add a record (right-click › **Add to Discogs playlist**: its tracks, the ones you have here as your songs, the rest on vinyl), one track (the ＋ next to it in **Choose…**), or songs from your library (right-click › **Add to Discogs playlist**).
 - Your songs play (▶, or **Play the digital ones**). A vinyl track shows its record, side and position, label and catalogue number, and **On vinyl**: the record to pull.
 - Move tracks (right-click › **Move up**/**Move down**, or drag them), or remove them.
-- **+ Auto** makes one that follows filters: style, genre, artist, label, format (Vinyl, 12", LP…), years, and **Vinyl only**, **Digital only** or **Both**. New records join it at the next read. **Save as a playlist** turns it into one you arrange by hand.
+- **Build one from records or tracks:** tick records in the Discogs view and click **Build a playlist from these** (or right-click a record › **Build a playlist from this record**; in a Discogs playlist, tick tracks › **Build from these**). With nothing ticked, **+ Auto** builds from the rules alone.
+  - Choose how many tracks, **tracks per record** (1, 2 or any), **Vinyl only / Digital only / Both**, whether to include compilations, add songs from your library, or avoid tracks already in your Discogs playlists.
+  - Refine by styles and artists (**Prefer** or **Only these**), labels, formats and years.
+  - GLUE picks tracks like the ones you started from: the same styles first, then genre, label, years and artists. **Surprise me** mixes it up.
+  - **↻** swaps one track, **×** takes it out, **↻ Another** builds again. **Save** makes it a Discogs playlist you arrange by hand.
 
 Discogs playlists stay under Discogs: they aren't among your library's playlists, and they don't go to Engine DJ.
 

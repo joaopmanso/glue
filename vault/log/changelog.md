@@ -5,6 +5,23 @@ updated: 2026-11-01
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-01 · The Discogs playlist builder (ADR 0190)
+- **Why:** the user: "it should be more like the auto playlist from the collection. let me select 1 or more
+  tracks/albums and create a playlist based on that, allow me to refine, number of tracks, multiple tracks from same
+  record or not, include compilations, specific artists, etc."
+- **Now:** a builder in the style of the library's (`discogsBuild.ts`, `DiscogsBuilder.svelte`).
+  - **Started** from ticked records (the Discogs view) or tracks (a Discogs playlist), a record's or track's menu, or
+    **+ Auto** (the rules alone).
+  - **Options:** how many tracks, per record (1/2/any), vinyl/digital/both, compilations, songs from the library,
+    avoiding tracks already in the playlists, styles and artists (Prefer/Only), labels, formats, years, Surprise me.
+  - **The pick:** tracks like the seeds (style first, then genre, label, years, artists); the rules relax in steps when
+    short, each said.
+  - **The result:** ↻ and × per track, ↻ Another; Save makes a Discogs playlist to arrange. The live-rules auto
+    playlists aren't made any more.
+- Tests: `tests/discogsBuild.test.ts` (seeds first, per record, compilations, artists/styles/labels/formats/years,
+  vinyl/digital, avoiding, relaxing, the same seed the same list, `replaceOne`); `homemode.spec.ts` (from a ticked
+  record, 3 tracks one per record, one taken out, saved and arranged; from a playlist track; from the rules alone).
+
 ## 2026-11-01 · GLUE Home 0.79.0: Discogs auto playlists filled at once
 - **Why:** the user: an auto playlist always said "No track of your Discogs collection fits these rules yet", even with
   12" vinyl the only filter. Their 311 records had been read by 0.77 (no tracklists). An auto playlist used only records

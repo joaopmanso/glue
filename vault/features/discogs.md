@@ -2,7 +2,7 @@
 status: shipped
 milestone: M8
 updated: 2026-10-31
-adrs: [0186, 0187, 0188, 0189]
+adrs: [0186, 0187, 0188, 0189, 0190]
 ---
 # Discogs
 
@@ -25,9 +25,12 @@ adrs: [0186, 0187, 0188, 0189]
   - **They mix** your songs (they play) and vinyl tracks (cover, position, record, label and catalogue number, **On
     vinyl**). Added from a record's menu (its tracks), a track's ＋ in its panel, or a song's menu. Arranged by hand
     (move, drag, remove).
-  - **An auto one** follows its rules: style, genre, artist, label, format, years, vinyl / digital / both, and the
-    order. **Save as a playlist** freezes it. A record whose tracklist isn't known yet counts as the whole record (or its
-    songs here) until it is (0.79).
+  - **The builder** (ADR 0190): from ticked records or tracks (or a record's or a track's menu; nothing: the rules
+    alone). It takes how many tracks, per record, vinyl / digital / both, compilations, songs from the library, avoiding
+    tracks already in the playlists, styles and artists (Prefer or Only), labels, formats and years. It picks tracks like
+    the seeds (style, genre, label, years, artists); ↻ and × per track, ↻ Another; Save makes a Discogs playlist.
+  - **The live-rules auto playlists** (ADR 0189) aren't made any more; existing ones still show and can be saved as a
+    playlist.
   - **Kept out of** the library's Playlists, its pickers, Engine DJ and the exports.
 - **How:**
   - **Reading:** GLUE Home reads the lists (100 a page, a request every 1.1 s) and the new records' covers. It does so

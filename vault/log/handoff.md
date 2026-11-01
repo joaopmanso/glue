@@ -62,6 +62,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **The Discogs playlist builder (2026-11-01, ADR 0190, the website):** tick records in Discogs › **Build a playlist
+  from these** (or + Auto with none): tracks, per record, vinyl/digital, compilations, styles/artists Prefer or Only,
+  labels, formats, years; ↻ × per track; Save makes a Discogs playlist to drag and arrange. To check: from one or two of
+  the user's records, a 12" vinyl-only playlist, one per record, no compilations.
 - **GLUE Home 0.79.0 (2026-11-01):** the user's Discogs auto playlists were empty (their 311 records had no tracklists:
   read by 0.77, and 0.78 fetched them only with the next day's read). Now GLUE Home fetches the missing tracklists within
   the hour of updating (about 6 minutes for 311 records), and until then a record counts as a whole record. To check: an

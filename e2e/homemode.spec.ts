@@ -1538,23 +1538,43 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
     await page.reload();
     await expect(page.locator('#discogs-list .it')).toHaveCount(2, { timeout: 30_000 });
     await expect(page.locator('#discogs-list .it').nth(0)).toContainText('Dawn', { timeout: 20_000 });   // once the Discogs records are in
-    // An auto one: vinyl only, the tracks GLUE has no song for; digital only, the song; then frozen.
+    // The builder (ADR 0190): from a ticked record, 3 tracks, one per record (its own two are where it starts); one taken
+    // out, the rest saved as a Discogs playlist to arrange.
     await page.click('#discogs-side');
-    await page.click('#discogs-new-auto');
-    await expect(page.locator('#discogs-rules')).toBeVisible();
-    await page.click('[data-have="vinyl"]');
+    await rows.filter({ hasText: 'Night Drive' }).locator('[data-tick]').check();
+    await expect(page.locator('#discogs-build')).toHaveText('Build a playlist from these 1');
+    await page.click('#discogs-build');
+    const dlg = page.locator('#dgb-dialog');
+    await expect(dlg.locator('.tchip')).toHaveCount(2);
+    await page.fill('#dgb-count', '3');
+    await page.click('[data-per="1"]');
+    await page.click('#dgb-go');
+    const built = page.locator('#dgb-list li');
+    await expect(built).toHaveCount(3);
+    await expect(built.nth(2)).toContainText('Lost Track');   // the other record's
+    await expect(page.locator('#dgb-meta')).toContainText('3 tracks');
+    if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/discogs-builder.png' });
+    await built.nth(2).locator('[data-remove]').click();
+    await expect(built).toHaveCount(2);
+    await page.fill('#dgb-name', 'Like Night Drive');
+    await page.click('#dgb-save');
+    await expect(dlg).toHaveCount(0);
+    await expect(page.locator('.lside [data-discogs-list]', { hasText: 'Like Night Drive' })).toBeVisible();
     await expect(items).toHaveCount(2);
-    await expect(page.locator('#discogs-list-sum')).toContainText('2 tracks: 2 on vinyl, 0 digital');
-    await page.click('[data-have="digital"]');
-    await expect(items).toHaveCount(1);
-    await expect(items).toContainText('Night Drive');
-    await page.click('[data-have="both"]');
-    await page.click('[data-add="styles"]');
-    await page.click('#discogs-pick [data-value="Techno"]');
-    await expect(page.locator('[data-rule="styles"] .chip')).toHaveText('Techno ×');
-    await expect(items).toHaveCount(3);
-    await page.click('#discogs-freeze');
-    await expect(page.locator('#discogs-rules')).toHaveCount(0);
-    await expect(items).toHaveCount(3);
+    await items.nth(1).click({ button: 'right' });
+    await page.click('.cmenu [data-m="up"]');
+    await expect(items.nth(0)).toContainText('Dawn');
+    // From a playlist's track, and from nothing ticked (the rules alone).
+    await items.nth(0).click({ button: 'right' });
+    await page.click('.cmenu [data-m="build"]');
+    await expect(dlg.locator('.tchip')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await page.click('#discogs-side');
+    await page.click('#discogs-build');
+    await expect(page.locator('#dgb-noseed')).toBeVisible();
+    await page.click('[data-have="vinyl"]');
+    await page.click('#dgb-go');
+    await expect(built).toHaveCount(2);   // Dawn and Lost Track: the vinyl ones
+    await page.keyboard.press('Escape');
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

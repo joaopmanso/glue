@@ -13,7 +13,8 @@
   import type { Track } from '../../store/types';
   import { untrack } from 'svelte';
   import { discogsListPicker, openDiscogsList } from '../../lib/discogsMenu';
-  import { NO_RULES, itemOf } from '../../core/library/discogsLists';
+  import { discogsBuild } from '../../lib/discogsBuild.svelte';
+  import { itemOf } from '../../core/library/discogsLists';
 
   const ROW = 58;
   $effect(() => discogs.watch());
@@ -67,6 +68,7 @@
       ids.length > 0 && { label: 'Show its songs', attrs: { 'data-m': 'songs' }, run: () => openSongs(r) },
       playable.length > 0 && { label: 'Play', hint: String(playable.length), attrs: { 'data-m': 'play' }, run: () => void nowPlaying.play(playable[0], playable, 0, r.title) },
       { label: 'Choose its songs…', attrs: { 'data-m': 'choose' }, run: () => choose(r) },
+      { label: 'Build a playlist from this record…', attrs: { 'data-m': 'build' }, run: () => discogsBuild.show(discogs.recordItems(r), 'Like ' + r.title) },
       { label: 'Add to Discogs playlist', attrs: { 'data-m': 'add-discogs' }, disabled: lib.readOnly, title: r.tracks?.length ? 'Its tracks: those here as your songs, the rest on vinyl' : 'Its songs here (its tracklist comes with GLUE Home’s next read)', sub: () => discogsListPicker(() => discogs.recordItems(r)) },
       SEP,
       { label: 'Open on Discogs', attrs: { 'data-m': 'discogs' }, run: () => { window.open(page(r), '_blank', 'noopener'); } },
@@ -99,7 +101,14 @@
   const pickFocus = (el: HTMLInputElement) => { el.focus(); el.select(); };
   // Discogs playlists (ADR 0189).
   function newList() { const n = prompt('Name of the new Discogs playlist'); if (!n) return; const l = lib.createDiscogsList(n); if (l) openDiscogsList(l.id); }
-  function newAuto() { const n = prompt('Name of the new auto playlist'); if (!n) return; const l = lib.createDiscogsList(n, { ...NO_RULES }); if (l) openDiscogsList(l.id); }
+  // Ticked records: what the builder starts from (ADR 0190).
+  let ticked = $state<Set<number>>(new Set());
+  function tick(id: number, on: boolean) { const n = new Set(ticked); if (on) n.add(id); else n.delete(id); ticked = n; }
+  function build() {
+    const rs = [...ticked].map(id => discogs.byId.get(id)).filter((r): r is DiscogsRecord => !!r);
+    discogsBuild.show(rs.flatMap(r => discogs.recordItems(r)), rs.length === 1 ? 'Like ' + rs[0].title : undefined);
+    ticked = new Set();
+  }
   function when(ms: number) { return new Date(ms).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); }
 </script>
 
@@ -127,7 +136,7 @@
       </select>
       <button type="button" class="mini" id="discogs-refresh" disabled={!!reading} onclick={() => void discogs.load(true)}>Refresh</button>
       <button type="button" class="mini" id="discogs-new-list" data-guide="discogs-new-list" disabled={lib.readOnly} title="A playlist of your records’ tracks and your songs" onclick={newList}>+ Playlist</button>
-      <button type="button" class="mini" id="discogs-new-auto" disabled={lib.readOnly} title="A playlist that follows filters (genre, style, artist, label, year, format, vinyl or digital)" onclick={newAuto}>+ Auto</button>
+      <button type="button" class="mini" id="discogs-build" disabled={lib.readOnly} title="A playlist built from the records ticked (or from rules alone): how many tracks, per record, compilations, artists, styles…" onclick={build}>{ticked.size ? 'Build a playlist from these ' + ticked.size : '+ Auto'}</button>
     </div>
     {#if chosen && chosenMatch}
       <div class="choose" id="discogs-choose" role="group" aria-label="Its songs">
@@ -172,6 +181,7 @@
           {@const ids = m.songs}
           {@const src = (void discogs.version, discogs.art(r.art))}
           <div class="rec" role="listitem" data-record={r.id} style:transform={'translateY(' + (first + j) * ROW + 'px)'} oncontextmenu={e => menu.context(e, () => recordMenu(r), r.title)}>
+            <input type="checkbox" class="tick" aria-label={'Pick ' + r.title} data-tick={r.id} checked={ticked.has(r.id)} onchange={e => tick(r.id, e.currentTarget.checked)}>
             <span class="cov">{#if src}<img src={src} alt="" loading="lazy">{/if}</span>
             <span class="nm"><b title={r.title}>{r.title}</b><small>{artistOf(r)}</small></span>
             <span class="lab"><span>{labelOf(r)}</span><small>{r.year ?? ''}{r.styles.length ? (r.year ? ' · ' : '') + r.styles.slice(0, 3).join(', ') : ''}</small></span>
@@ -206,7 +216,7 @@
   .bad { color: var(--warn); }
   .list { position: relative; flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); }
   .spacer { position: relative; }
-  .rec { position: absolute; left: 0; right: 0; height: 58px; display: grid; grid-template-columns: 44px minmax(0, 1.4fr) minmax(0, 1fr) 140px 220px; gap: 12px; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--line); }
+  .rec { position: absolute; left: 0; right: 0; height: 58px; display: grid; grid-template-columns: 18px 44px minmax(0, 1.4fr) minmax(0, 1fr) 140px 220px; gap: 12px; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--line); }
   .rec:hover { background: var(--raised); }
   .cov { width: 44px; height: 44px; border-radius: 3px; background: var(--surface); overflow: hidden; }
   .cov img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -242,5 +252,6 @@
   .empty { max-width: 640px; color: var(--ink-2); font-size: 13.5px; padding: 16px; }
   .empty p { color: var(--muted); }
   .none { color: var(--muted); padding: 20px; text-align: center; }
-  @media (max-width: 760px) { .rec { grid-template-columns: 44px minmax(0, 1fr) auto; } .lab, .fmt { display: none; } }
+  .tick { margin: 0; accent-color: var(--accent); }
+  @media (max-width: 760px) { .rec { grid-template-columns: 18px 44px minmax(0, 1fr) auto; } .lab, .fmt { display: none; } }
 </style>

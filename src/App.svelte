@@ -19,6 +19,8 @@
   import LibPlayer from './ui/library/LibPlayer.svelte';
   import DragTag from './ui/library/DragTag.svelte';
   import AutoPlaylist from './ui/library/AutoPlaylist.svelte';
+  import DiscogsBuilder from './ui/library/DiscogsBuilder.svelte';
+  import { discogsBuild } from './lib/discogsBuild.svelte';
   import TagEditor from './ui/library/TagEditor.svelte';
   import EditInfo from './ui/library/EditInfo.svelte';
   import BinDialog from './ui/library/BinDialog.svelte';
@@ -234,6 +236,7 @@
 <TopLoading />
 {#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
+{#if discogsBuild.open && inLibrary}<DiscogsBuilder />{/if}
 {#if inLibrary}<TagEditor /><GenreEditor /><NoteEditor /><SendPanel />{/if}
 {#if inLibrary && view.infoFor}{#key view.infoFor}<EditInfo />{/key}{/if}
 {#if inLibrary && view.binOpen && lib.store}<BinDialog />{/if}

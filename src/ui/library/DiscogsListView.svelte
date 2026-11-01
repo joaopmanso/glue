@@ -11,6 +11,7 @@
   import { fmtTime } from '../../core/format';
   import { isVinyl, NO_RULES, plainName, ruleValues, vinylTrack, type DiscogsRules } from '../../core/library/discogsLists';
   import CoverArt from './CoverArt.svelte';
+  import { discogsBuild } from '../../lib/discogsBuild.svelte';
 
   let { id }: { id: string } = $props();
   const ROW = 52;
@@ -43,6 +44,8 @@
 
   // ---- a list arranged by hand: move, remove, drag ----
   const editable = $derived(!!list && !rules && !lib.readOnly);
+  let ticked = $state<Set<number>>(new Set());
+  function tick(i: number, on: boolean) { const n = new Set(ticked); if (on) n.add(i); else n.delete(i); ticked = n; }
   function setItems(next: string[]) { if (list) lib.updateList(list.id, { items: next }); }
   function move(i: number, to: number) {
     if (!list || to < 0 || to >= list.items.length || to === i) return;
@@ -54,6 +57,7 @@
     return tidy([
       r.vinyl === false && nowPlaying.canPlay(r.t.id) && { label: 'Play from here', attrs: { 'data-m': 'play' }, run: () => void nowPlaying.play(r.t.id, songs.slice(songs.indexOf(r.t.id)), 0, list?.name) },
       r.vinyl === false && { label: 'Open its page', run: () => router.go(trackHref(r.t.id)) },
+      r.vinyl !== null && { label: 'Build a playlist from this track…', attrs: { 'data-m': 'build' }, run: () => discogsBuild.show([r.key]) },
       r.vinyl === true && { label: 'Open on Discogs', attrs: { 'data-m': 'discogs' }, run: () => { window.open('https://www.discogs.com/release/' + r.v.record.id, '_blank', 'noopener'); } },
       editable && SEP,
       editable && r.i > 0 && { label: 'Move up', attrs: { 'data-m': 'up' }, run: () => move(r.i, r.i - 1) },
@@ -92,6 +96,7 @@
   {:else}
     <div class="head">
       <span class="sum" id="discogs-list-sum">{rows.length} track{rows.length === 1 ? '' : 's'}: {counts.vinyl} on vinyl, {counts.digital} digital{counts.secs ? ' · ' + len(counts.secs) : ''}</span>
+      <button type="button" class="mini" id="discogs-list-build" disabled={!rows.length || lib.readOnly} title="A new playlist like the tracks ticked (or this whole playlist)" onclick={() => { discogsBuild.show(ticked.size ? rows.filter(r => ticked.has(r.i)).map(r => r.key) : items, 'Like ' + list.name); ticked = new Set(); }}>{ticked.size ? 'Build from these ' + ticked.size : 'Build a playlist like this'}</button>
       <button type="button" class="mini" id="discogs-list-play" disabled={!songs.length} onclick={() => void nowPlaying.play(songs[0], songs, 0, list.name)}>Play the digital ones</button>
       {#if rules}<button type="button" class="mini" id="discogs-freeze" disabled={!items.length || lib.readOnly} onclick={freeze}>Save as a playlist</button>{/if}
       <button type="button" class="mini" onclick={rename} disabled={lib.readOnly}>Rename</button>
@@ -131,6 +136,7 @@
             ondragleave={() => { if (over === r.i) over = null; }} ondrop={e => { e.preventDefault(); if (dragging != null) move(dragging, r.i); dragging = null; over = null; }} ondragend={() => { dragging = null; over = null; }}
             oncontextmenu={e => menu.context(e, () => rowMenu(r), r.vinyl === true ? r.v.track.title : r.vinyl === false ? r.t.title : '')}
             ondblclick={() => { if (r.vinyl === false) router.go(trackHref(r.t.id)); }}>
+            <input type="checkbox" class="tick" aria-label="Pick" data-tick={r.i} checked={ticked.has(r.i)} onchange={e => tick(r.i, e.currentTarget.checked)}>
             {#if r.vinyl === false}
               <span class="cov"><CoverArt t={r.t} px={40} /></span>
               <span class="nm"><b>{r.t.title || r.t.fileName}</b><small>{r.t.artist}</small></span>
@@ -180,7 +186,7 @@
   .fine { color: var(--muted); font-size: 12px; }
   .list { position: relative; flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); }
   .spacer { position: relative; }
-  .it { position: absolute; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) 56px 120px; gap: 12px; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--line); }
+  .it { position: absolute; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 18px 40px minmax(0, 1.3fr) minmax(0, 1fr) 56px 120px; gap: 12px; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--line); }
   .it:hover { background: var(--raised); }
   .it.over { box-shadow: inset 0 2px 0 var(--accent); }
   .cov { width: 40px; height: 40px; border-radius: 3px; overflow: hidden; background: var(--surface); display: grid; place-items: center; }
@@ -196,5 +202,6 @@
   .dig { color: var(--muted); font-size: 11.5px; }
   .vin { color: var(--warn, #e0a030); border: 1px solid currentColor; border-radius: 10px; font-size: 11px; padding: 1px 7px; }
   .none { color: var(--muted); padding: 20px; text-align: center; }
-  @media (max-width: 760px) { .it { grid-template-columns: 40px minmax(0, 1fr) auto; } .from, .len { display: none; } }
+  .tick { margin: 0; accent-color: var(--accent); }
+  @media (max-width: 760px) { .it { grid-template-columns: 18px 40px minmax(0, 1fr) auto; } .from, .len { display: none; } }
 </style>
