@@ -51,6 +51,13 @@ const PAGE: u32 = 100;
 /// Read again after this long (the service's daily look), or on Refresh.
 const AGAIN_MS: i64 = 20 * 3600 * 1000;
 
+/// A record's cover that couldn't be fetched (`art`): not a hash, so the page shows none.
+const NO_ART: &str = "none";
+/// Something to fetch still: a cover not tried, or a tracklist not read.
+fn lacks(l: &Value) -> bool {
+  ["records", "wants"].iter().flat_map(|k| l[*k].as_array().into_iter().flatten()).any(|r| r.get("tracks").is_none() || (r["art"].as_str() == Some("") && r["cover"].as_str().is_some_and(|c| !c.is_empty())))
+}
+
 /// Where it's kept: the GLUE folder (the profile's, ADR 0009) and GLUE Home's own copy (read while a tab holds the lease).
 pub fn file_of(p: &str) -> String { format!("profiles/{p}/discogs.json") }
 fn cached_of(p: &str) -> String { format!("discogs/{p}.json") }
@@ -135,13 +142,19 @@ impl<H: Host> Engine<H> {
     let profiles: Vec<String> = self.describe().unwrap_or(Value::Null)["profiles"].as_array().into_iter().flatten().map(|p| crate::text(p, "id")).filter(|p| !p.is_empty()).collect();
     let Some(first) = profiles.first() else { return Ok(0) };
     let last = self.discogs_kept(first);
-    if !now && last.as_ref().is_some_and(|l| l["user"].as_str() == Some(user.as_str()) && crate::now().0 - l["readAt"].as_i64().unwrap_or(0) < AGAIN_MS) { return Ok(0); }
+    // Read within the day: only what it lacks is fetched (covers, tracklists: 2026-11-01, a collection read before 0.78
+    // had no tracklists, and its auto playlists stayed empty until the next day's read).
+    let fresh = !now && last.as_ref().is_some_and(|l| l["user"].as_str() == Some(user.as_str()) && crate::now().0 - l["readAt"].as_i64().unwrap_or(0) < AGAIN_MS);
+    if fresh && !last.as_ref().is_some_and(lacks) { return Ok(0); }
     {
       let mut g = self.devices.discogs.lock().unwrap();
       if g.get("reading").is_some() { return Ok(0); }
       *g = json!({ "reading": { "what": "collection", "done": 0, "of": 0 } });
     }
-    let r = self.discogs_read_now(&user, last.as_ref(), &profiles);
+    let r = match (fresh, last) {
+      (true, Some(mut file)) => self.discogs_fill(&mut file, &profiles).map(|_| 0),
+      (_, last) => self.discogs_read_now(&user, last.as_ref(), &profiles),
+    };
     *self.devices.discogs.lock().unwrap() = match &r { Ok(_) => Value::Null, Err(e) => json!({ "error": e }) };
     r
   }
@@ -154,7 +167,12 @@ impl<H: Host> Engine<H> {
     let n = records.len();
     let mut file = json!({ "schemaVersion": 1, "user": user, "readAt": crate::now().0, "records": records, "wants": wants });
     for p in profiles { self.discogs_keep(p, &file)?; }
-    // The covers it lacks, at Discogs' pace, kept every 25.
+    self.discogs_fill(&mut file, profiles)?;
+    Ok(n)
+  }
+  /// The covers and tracklists the records lack, at Discogs' pace, the file kept every 25.
+  fn discogs_fill(&self, file: &mut Value, profiles: &[String]) -> Result<(), String> {
+    // The covers.
     let mut todo: Vec<(&str, usize)> = vec![];
     for k in ["records", "wants"] {
       for (i, r) in file[k].as_array().into_iter().flatten().enumerate() {
@@ -167,9 +185,11 @@ impl<H: Host> Engine<H> {
       if let Ok(img) = self.cover_ask(Service::Discogs, &url) {
         if let Ok(c) = glue_audio::out::cover::from_image(&img) { if self.keep_cover(&c).is_ok() { file[*k][*i]["art"] = json!(c.hash); } }
       }
-      if (done + 1) % 25 == 0 { for p in profiles { self.discogs_keep(p, &file)?; } }
+      // One that can't be had: not asked again until its picture changes (record_of starts it over then).
+      if file[*k][*i]["art"].as_str() == Some("") { file[*k][*i]["art"] = json!(NO_ART); }
+      if (done + 1) % 25 == 0 { for p in profiles { self.discogs_keep(p, file)?; } }
     }
-    if !todo.is_empty() { for p in profiles { self.discogs_keep(p, &file)?; } }
+    if !todo.is_empty() { for p in profiles { self.discogs_keep(p, file)?; } }
     // The tracklists it lacks (a request a record, once: they match the songs track by track), kept every 25.
     let mut todo: Vec<(&str, usize)> = vec![];
     for k in ["records", "wants"] {
@@ -184,10 +204,10 @@ impl<H: Host> Engine<H> {
         Err(e) if e.contains("404") => file[*k][*i]["tracks"] = json!([]),
         Err(_) => {}
       }
-      if (done + 1) % 25 == 0 { for p in profiles { self.discogs_keep(p, &file)?; } }
+      if (done + 1) % 25 == 0 { for p in profiles { self.discogs_keep(p, file)?; } }
     }
-    if !todo.is_empty() { for p in profiles { self.discogs_keep(p, &file)?; } }
-    Ok(n)
+    if !todo.is_empty() { for p in profiles { self.discogs_keep(p, file)?; } }
+    Ok(())
   }
   /// For the page (`discogs`): the profile's records and wantlist, whether a token is set and whose, and a read under
   /// way or its error.

@@ -4,7 +4,7 @@
 import { engineClient, type DiscogsState } from './engine.svelte';
 import { lib } from './library.svelte';
 import { discogsMatcher, type DiscogsRecord, type RecordMatch } from '../core/library/discogsMatch';
-import { discogsAuto, itemOf } from '../core/library/discogsLists';
+import { discogsAuto, itemOf, vinylRef } from '../core/library/discogsLists';
 import type { List } from '../store/types';
 
 const NONE: RecordMatch = { songs: [], found: 0, tracks: 0, chosen: [], byTrack: [] };
@@ -77,7 +77,7 @@ class Discogs {
   /** A record's items for a playlist: each track as its song here, else as vinyl; with no tracklist yet, its songs. */
   recordItems(r: DiscogsRecord): string[] {
     const m = this.matchOf(r);
-    return r.tracks?.length ? r.tracks.map((_, i) => itemOf(r, i, m)) : m.songs;
+    return r.tracks?.length ? r.tracks.map((_, i) => itemOf(r, i, m)) : m.songs.length ? m.songs : [vinylRef(r.id, '')];
   }
   /** A Discogs playlist's items: its own, or (an auto one) the collection's tracks its rules keep. */
   itemsOf(l: List): string[] {

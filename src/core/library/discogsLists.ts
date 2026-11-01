@@ -1,7 +1,8 @@
 /* Discogs playlists (ADR 0189): collection lists marked `discogs`, kept out of the library's own lists, whose items mix the
    library's songs (their ids) and vinyl tracks of the user's Discogs records (`dg:<release id>:<position>`). An auto one
    keeps rules instead of items: every track of the collection's records whose record passes them, as its song when GLUE
-   has it (`RecordMatch.byTrack`), else as vinyl. Pure. */
+   has it (`RecordMatch.byTrack`), else as vinyl. A record whose tracklist isn't known (not read yet, or none on Discogs)
+   is one item, the whole record (`dg:<release id>:`), or its songs here. Pure. */
 import type { DiscogsRecord, DiscogsTrack, RecordMatch } from './discogsMatch';
 
 export interface DiscogsRules {
@@ -14,7 +15,7 @@ export interface DiscogsRules {
 }
 export const NO_RULES: DiscogsRules = { genres: [], styles: [], artists: [], labels: [], formats: [], years: null, have: 'both', order: 'added' };
 
-/** A vinyl track's item: `dg:<release id>:<position>`; its position may itself hold ':'. */
+/** A vinyl track's item: `dg:<release id>:<position>`; its position may itself hold ':'; none: the whole record. */
 export const vinylRef = (release: number, position: string) => 'dg:' + release + ':' + position;
 export function parseRef(item: string): { release: number; position: string } | null {
   if (!item.startsWith('dg:')) return null;
@@ -26,11 +27,13 @@ export const isVinyl = (item: string) => item.startsWith('dg:');
 
 /** A track's item: its song here, else its vinyl ref. */
 export const itemOf = (r: DiscogsRecord, i: number, m: RecordMatch) => m.byTrack[i] ?? vinylRef(r.id, r.tracks![i].p || String(i + 1));
-/** The vinyl track an item names: its record, the track and its place. */
-export function vinylTrack(item: string, byId: Map<number, DiscogsRecord>): { record: DiscogsRecord; track: DiscogsTrack; i: number } | null {
+/** The vinyl track an item names: its record, the track and its place (`whole`: the whole record, -1). */
+export function vinylTrack(item: string, byId: Map<number, DiscogsRecord>): { record: DiscogsRecord; track: DiscogsTrack; i: number; whole?: boolean } | null {
   const ref = parseRef(item);
   const record = ref ? byId.get(ref.release) : undefined;
-  if (!ref || !record?.tracks) return null;
+  if (!ref || !record) return null;
+  if (!ref.position) return { record, track: { p: '', title: record.title, artists: record.artists, d: null }, i: -1, whole: true };
+  if (!record.tracks) return null;
   const i = record.tracks.findIndex((t, k) => (t.p || String(k + 1)) === ref.position);
   return i < 0 ? null : { record, track: record.tracks[i], i };
 }
@@ -46,7 +49,8 @@ export function discogsAuto(records: DiscogsRecord[], matchOf: (r: DiscogsRecord
   const [from, to] = rules.years ?? [null, null];
   const passes = (r: DiscogsRecord) => someIn(r.genres, genres) && someIn(r.styles, styles) && someIn(r.labels.map(l => l.name), labels) && someIn(r.formats, formats)
     && (from == null || (r.year != null && r.year >= from)) && (to == null || (r.year != null && r.year <= to));
-  const label = (r: DiscogsRecord) => r.labels[0]?.name ?? '';
+  // (Records with no label last.)
+  const label = (r: DiscogsRecord) => r.labels[0]?.name || '￿';
   const firstArtist = (r: DiscogsRecord) => plainName(r.artists[0] ?? '');
   const sorted = [...records].sort(
     rules.order === 'artist' ? (a, b) => firstArtist(a).localeCompare(firstArtist(b)) || a.title.localeCompare(b.title)
@@ -55,8 +59,15 @@ export function discogsAuto(records: DiscogsRecord[], matchOf: (r: DiscogsRecord
     : (a, b) => b.added.localeCompare(a.added));
   const out: string[] = [];
   for (const r of sorted) {
-    if (!r.tracks?.length || !passes(r)) continue;
+    if (!passes(r)) continue;
     const m = matchOf(r);
+    // No tracklist known: its songs here, or (none) the whole record.
+    if (!r.tracks?.length) {
+      if (artists.size && !r.artists.some(a => artists.has(plainName(a).toLowerCase()))) continue;
+      const items = m.songs.length ? (rules.have === 'vinyl' ? [] : m.songs) : rules.have === 'digital' ? [] : [vinylRef(r.id, '')];
+      for (const x of items) if (!out.includes(x)) out.push(x);
+      continue;
+    }
     r.tracks.forEach((t, i) => {
       // An artist rule: the track's own artists (a compilation's) or the record's.
       if (artists.size && !(t.artists.length ? t.artists : r.artists).some(a => artists.has(plainName(a).toLowerCase()))) return;

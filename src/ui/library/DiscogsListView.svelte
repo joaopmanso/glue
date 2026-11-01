@@ -141,7 +141,7 @@
               {@const src = (void discogs.version, discogs.art(r.v.record.art))}
               <span class="cov">{#if src}<img src={src} alt="">{/if}</span>
               <span class="nm"><b>{r.v.track.title}</b><small>{(r.v.track.artists.length ? r.v.track.artists : r.v.record.artists).map(plainName).join(', ')}</small></span>
-              <span class="from"><span>{r.v.track.p ? r.v.track.p + ' · ' : ''}{r.v.record.title}</span><small>{r.v.record.labels[0] ? r.v.record.labels[0].name + (r.v.record.labels[0].catno ? ' · ' + r.v.record.labels[0].catno : '') : ''}</small></span>
+              <span class="from"><span>{r.v.whole ? 'Whole record' + (r.v.record.tracks ? '' : ' (its tracklist comes with GLUE Home’s next read)') : (r.v.track.p ? r.v.track.p + ' · ' : '') + r.v.record.title}</span><small>{r.v.record.labels[0] ? r.v.record.labels[0].name + (r.v.record.labels[0].catno ? ' · ' + r.v.record.labels[0].catno : '') : ''}</small></span>
               <span class="len">{r.v.track.d ? fmtTime(r.v.track.d) : ''}</span>
               <span class="kind"><span class="vin" title="On vinyl: this record">On vinyl</span></span>
             {:else}

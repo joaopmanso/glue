@@ -1,9 +1,23 @@
 ---
-updated: 2026-10-31
+updated: 2026-11-01
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-11-01 · GLUE Home 0.79.0: Discogs auto playlists filled at once
+- **Why:** the user: an auto playlist always said "No track of your Discogs collection fits these rules yet", even with
+  12" vinyl the only filter. Their 311 records had been read by 0.77 (no tracklists). An auto playlist used only records
+  with a tracklist, and GLUE Home fetched tracklists only as part of the list's read, so not again for 20 hours.
+- **Now:**
+  - **GLUE Home:** whatever records lack (a cover not tried, a tracklist not read) is fetched at its next hourly look,
+    without reading the list again (`discogs.rs` `discogs_fill`, `lacks`). A cover that can't be had is marked
+    (`art: "none"`), not asked again until its picture changes.
+  - **The page:** a record whose tracklist isn't known (not read yet, or none on Discogs) counts as one item, the whole
+    record (`dg:<release>:`, "Whole record"), or its songs here. Its filters apply at once. "Records with no label" sort
+    last by label.
+- Tests: `tests/discogs.rs` (a collection read today without tracklists: they're fetched, the list isn't read again,
+  nothing more asked after); `discogsLists.test.ts` (whole records).
 
 ## 2026-10-31 · Discogs playlists, vinyl and digital (ADR 0189); changes waiting for GLUE Home kept
 - **Why:** the user: "create playlists using these songs I have on Discogs … either discogs only or mix and mash with

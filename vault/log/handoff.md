@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-31
+updated: 2026-11-01
 ---
 # Handoff: where things stand
 
@@ -25,7 +25,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   batch was released when its checks passed; new work is the user's to choose.
 
 ## State (2026-10-31)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.78.0** (0.78: Discogs matched track by track, ADR 0188; 0.77: the Discogs collection, ADR 0187; 0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.79.0** (0.79: Discogs auto playlists filled at once; 0.78: Discogs matched track by track, ADR 0188; 0.77: the Discogs collection, ADR 0187; 0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.
@@ -62,6 +62,10 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **GLUE Home 0.79.0 (2026-11-01):** the user's Discogs auto playlists were empty (their 311 records had no tracklists:
+  read by 0.77, and 0.78 fetched them only with the next day's read). Now GLUE Home fetches the missing tracklists within
+  the hour of updating (about 6 minutes for 311 records), and until then a record counts as a whole record. To check: an
+  auto playlist with Vinyl only (or 12") lists records at once, then their tracks as they come.
 - **Discogs playlists (2026-10-31, ADR 0189, the website):** **+ Playlist** / **+ Auto** in the Discogs view, under 💿
   Discogs in the sidebar. Mix a record's tracks (vinyl) with songs; an auto one by style, artist, label, years, vinyl or
   digital. Also fixed: changes made with GLUE Home and a reload within a moment were lost. To check: make one of each

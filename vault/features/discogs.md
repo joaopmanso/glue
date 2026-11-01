@@ -26,13 +26,15 @@ adrs: [0186, 0187, 0188, 0189]
     vinyl**). Added from a record's menu (its tracks), a track's ＋ in its panel, or a song's menu. Arranged by hand
     (move, drag, remove).
   - **An auto one** follows its rules: style, genre, artist, label, format, years, vinyl / digital / both, and the
-    order. **Save as a playlist** freezes it.
+    order. **Save as a playlist** freezes it. A record whose tracklist isn't known yet counts as the whole record (or its
+    songs here) until it is (0.79).
   - **Kept out of** the library's Playlists, its pickers, Engine DJ and the exports.
 - **How:**
   - **Reading:** GLUE Home reads the lists (100 a page, a request every 1.1 s) and the new records' covers. It does so
     after the token is checked, again after 20 hours (an hourly look), and on Refresh.
   - **Kept** in `profiles/<p>/discogs.json`. The page asks GLUE Home for it (`discogs`).
-  - **Tracklists:** GLUE Home reads each record's once, after the covers (a request a record).
+  - **Tracklists:** GLUE Home reads each record's once, after the covers (a request a record). What's missing is fetched at
+    the next hourly look even when the list is fresh (0.79).
   - **Matching** on the page (`discogsMatch.ts`):
     - track by track: title and version, the track's or the record's artist, length within 8 s;
     - before the tracklist: the record's title as the songs' album by one of its artists, a compilation on its label, a

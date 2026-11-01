@@ -25,21 +25,24 @@ describe('Discogs playlists (ADR 0189)', () => {
     expect(vinylTrack('dg:2:A1', byId)?.track.title).toBe('Qawwali');
     expect(vinylTrack('dg:2:Z9', byId)).toBeNull();
   });
-  it('every track, songs as themselves, the rest as vinyl, newest record first; none without a tracklist', () => {
-    expect(auto({})).toEqual(['dg:2:A1', 's1', 'dg:1:B', 'dg:3:1', 's3']);
+  it('every track, songs as themselves, the rest as vinyl, newest record first; one without a tracklist as the whole record', () => {
+    expect(auto({})).toEqual(['dg:4:', 'dg:2:A1', 's1', 'dg:1:B', 'dg:3:1', 's3']);
+    const byId = new Map(records.map(r => [r.id, r]));
+    expect(vinylTrack('dg:4:', byId)).toMatchObject({ whole: true, track: { title: 'No List' } });
   });
   it('by style, label, format and years', () => {
-    expect(auto({ styles: ['techno'] })).toEqual(['s1', 'dg:1:B', 'dg:3:1', 's3']);
+    expect(auto({ styles: ['techno'] })).toEqual(['dg:4:', 's1', 'dg:1:B', 'dg:3:1', 's3']);
     expect(auto({ labels: ['Tectonic'] })).toEqual(['dg:2:A1']);
     expect(auto({ formats: ['12"'] })).toEqual(['s1', 'dg:1:B']);
+    expect(auto({ formats: ['Vinyl'], styles: ['Dubstep'] })).toEqual(['dg:2:A1']);
     expect(auto({ years: [2012, null] })).toEqual(['s1', 'dg:1:B', 'dg:3:1', 's3']);
     expect(auto({ years: [null, 2012] })).toEqual(['dg:2:A1']);
   });
   it('by artist: a compilation’s tracks by their own artists; "(2)" is the name', () => {
-    expect(auto({ artists: ['Ploy'] })).toEqual(['s1', 'dg:1:B', 's3']);
+    expect(auto({ artists: ['Ploy'] })).toEqual(['dg:4:', 's1', 'dg:1:B', 's3']);
   });
   it('vinyl only, digital only', () => {
-    expect(auto({ have: 'vinyl' })).toEqual(['dg:2:A1', 'dg:1:B', 'dg:3:1']);
+    expect(auto({ have: 'vinyl' })).toEqual(['dg:4:', 'dg:2:A1', 'dg:1:B', 'dg:3:1']);
     expect(auto({ have: 'digital' })).toEqual(['s1', 's3']);
   });
   it('in another order', () => {

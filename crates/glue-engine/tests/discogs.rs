@@ -164,3 +164,33 @@ fn the_collection_and_wantlist_are_read_into_the_profiles_file_with_their_covers
   assert_eq!(h.0.lock().unwrap().asked.iter().filter(|(u, _)| u.starts_with("https://i.discogs.com/")).count(), images);
   assert_eq!(h.0.lock().unwrap().asked.iter().filter(|(u, _)| u.starts_with("https://api.discogs.com/releases/")).count(), lists, "tracklists read once");
 }
+
+#[test]
+fn a_collection_read_today_without_its_tracklists_gets_them_without_reading_the_list_again() {
+  // 2026-11-01: the user's collection was read by 0.77 (no tracklists); its auto playlists stayed empty until the next day.
+  let glue = temp("fill");
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "collections": [] }));
+  let rec = |id: i64| json!({ "id": id, "title": "R", "artists": ["A"], "labels": [], "year": 2012, "formats": ["Vinyl", "12\""], "genres": [], "styles": [], "added": "", "rating": 0, "cover": format!("https://i.discogs.com/{id}.jpeg"), "art": "" });
+  put(&glue, "profiles/p1/discogs.json", json!({ "schemaVersion": 1, "user": "u", "readAt": glue_engine::now().0, "records": [rec(1), rec(2)], "wants": [] }));
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "discogsToken": "abc", "discogsUser": "u" });
+  let e = Engine::new(glue.clone(), temp("fill-cache"), h.clone());
+  {
+    let mut g = h.0.lock().unwrap();
+    g.web.insert("https://api.discogs.com/releases/1".into(), json!({ "tracklist": [{ "position": "A", "type_": "track", "title": "One", "duration": "" }] }).to_string().into_bytes());
+    g.web.insert("https://i.discogs.com/1.jpeg".into(), png());
+  }
+  assert_eq!(e.discogs_read(false), Ok(0));
+  let f: Value = serde_json::from_str(&std::fs::read_to_string(glue.join("profiles/p1/discogs.json")).unwrap()).unwrap();
+  assert_eq!(f["records"][0]["tracks"][0]["title"], "One");
+  assert_eq!(f["records"][1]["tracks"], json!([]), "none on Discogs (404)");
+  assert!(f["records"][0]["art"].as_str().is_some_and(|a| a.len() == 24), "its cover");
+  assert_eq!(f["records"][1]["art"], "none", "a cover that can't be had isn't asked again");
+  let asked: Vec<String> = h.0.lock().unwrap().asked.iter().map(|(u, _)| u.clone()).collect();
+  assert!(asked.iter().all(|u| !u.contains("/collection/") && !u.contains("/wants")), "the list not read again: {asked:?}");
+  // Nothing left to fetch: nothing asked.
+  let n = asked.len();
+  assert_eq!(e.discogs_read(false), Ok(0));
+  assert_eq!(h.0.lock().unwrap().asked.len(), n);
+}
