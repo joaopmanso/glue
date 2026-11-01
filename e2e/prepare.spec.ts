@@ -115,6 +115,24 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.click('#prep-metronome');
   await expect(page.locator('#prep-metronome')).not.toHaveClass(/on/);
 
+  // Vinyl scrubbing: playing, the deck is held and dragged like a record, then let go; the player takes over and plays
+  // on, at its volume again.
+  const deckC = page.locator('#prep-deck');
+  await expect(deckC).toHaveAttribute('data-vinyl', 'ready', { timeout: 30_000 });
+  await page.click('#prep-play');
+  await expect(page.locator('#prep-play')).toHaveAttribute('aria-label', 'Pause');
+  const db = (await deckC.boundingBox())!;
+  await page.mouse.move(db.x + db.width * .6, db.y + db.height / 2);
+  await page.mouse.down();
+  await expect(deckC).toHaveAttribute('data-vinyl', 'held');
+  for (let i = 1; i <= 10; i++) { await page.mouse.move(db.x + db.width * (.6 - i * .03), db.y + db.height / 2); await page.waitForTimeout(30); }
+  await page.mouse.up();
+  await expect(deckC).toHaveAttribute('data-vinyl', 'ready', { timeout: 5_000 });
+  await expect(page.locator('#prep-play')).toHaveAttribute('aria-label', 'Pause');
+  const clock = page.locator('.prep .time, .time').first(), before = await clock.textContent();
+  await expect(clock).not.toHaveText(before!, { timeout: 3_000 });   // it plays on
+  await page.click('#prep-play');
+
   // Cues (step 2): hot cues A and B, a memory cue, a 4-beat loop saved; they stay after a reload.
   const ov = page.locator('#prep-overview'), box = (await ov.boundingBox())!;
   await page.click('[data-pad="A"]');

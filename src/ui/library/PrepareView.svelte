@@ -8,6 +8,7 @@
   import { time } from '../../core/perf';
   import { lib } from '../../lib/library.svelte';
   import { player } from '../../lib/player.svelte';
+  import { scratch } from '../../lib/scratch.svelte';
   import { app } from '../../lib/app.svelte';
   import { prepare } from '../../lib/prepare.svelte';
   import { metronome } from '../../lib/metronome.svelte';
@@ -43,13 +44,16 @@
   const shown = $derived(grid ? shownBpm(grid.bpm, rangeName, track.prep?.flip) : null);
   const other = $derived(grid ? shownBpm(grid.bpm, rangeName, !track.prep?.flip) : null);
   const here = $derived(player.sourceKey === key);
-  const t = $derived(here ? player.time : 0);
+  // Held (vinyl scrubbing), the record's position; else the player's.
+  const t = $derived(scratch.active ? scratch.time : here ? player.time : 0);
 
   // The waveform, and this track in the player (unless it's already there).
   $effect(() => {
     const tr = untrack(() => track);
     if (tr.remote) return;
     void prepare.open(tr);
+    // The deck's record (vinyl scrubbing): the track decoded in the background.
+    void lib.fileFor(tr).then(f => scratch.load('track:' + tr.id, f)).catch(() => {});
     untrack(() => {
       if (player.sourceKey === key) return;
       void lib.fileFor(tr).then(async f => { if (player.sourceKey !== key) player.setSource(await playable(f), { key, duration: tr.duration ?? undefined }); })
@@ -57,7 +61,7 @@
     });
   });
   // Leaving the tab: normal speed, no metronome, the live view back as the Details tab has it.
-  $effect(() => () => { metronome.stop(); player.setRate(1); player.onFrame = null; player.setLive(app.liveOn); });
+  $effect(() => () => { scratch.free(); metronome.stop(); player.setRate(1); player.onFrame = null; player.setLive(app.liveOn); });
 
   function setTempo(p: number) { pct = Math.max(-range, Math.min(range, p)); player.setRate(1 + pct / 100); }
   function toggle() { if (!here) return; player.toggle(); }
@@ -98,15 +102,22 @@
     return () => { player.onFrame = null; };
   });
 
-  // Click or drag on the deck view scrubs; on the overview, jumps.
+  // Click or drag on the deck view scrubs, like a hand on a record (scratch.svelte.ts; a plain seek until the track is
+  // decoded for it); on the overview, jumps.
   let drag: { x: number; t: number } | null = null;
-  function deckDown(e: PointerEvent) { if (!here) return; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); drag = { x: e.clientX, t: player.time }; }
+  function deckDown(e: PointerEvent) {
+    if (!here) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const from = scratch.active ? scratch.time : player.time;
+    drag = { x: e.clientX, t: from };
+    scratch.grab(key, from);
+  }
   function deckMove(e: PointerEvent) {
     if (!drag || !deck) return;
-    const W = deck.getBoundingClientRect().width;
-    player.seek(Math.max(0, drag.t - (e.clientX - drag.x) / W * span));
+    const W = deck.getBoundingClientRect().width, to = Math.max(0, drag.t - (e.clientX - drag.x) / W * span);
+    if (scratch.active) scratch.move(to); else player.seek(to);
   }
-  function deckUp() { drag = null; }
+  function deckUp() { if (!drag) return; drag = null; scratch.release(); }
   function overClick(e: MouseEvent) {
     const w = prepare.wave; if (!w || !here) return;
     const b = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -194,7 +205,7 @@
     </div>
 
     <div class="deckwrap">
-      <canvas class="deck" id="prep-deck" aria-label="The waveform and its beat grid" data-guide="prep-deck" bind:this={deck} onpointerdown={deckDown} onpointermove={deckMove} onpointerup={deckUp} onwheel={wheel}></canvas>
+      <canvas class="deck" id="prep-deck" data-vinyl={scratch.active ? 'held' : scratch.ready ? 'ready' : 'off'} aria-label="The waveform and its beat grid" data-guide="prep-deck" bind:this={deck} onpointerdown={deckDown} onpointermove={deckMove} onpointerup={deckUp} onpointercancel={deckUp} onwheel={wheel}></canvas>
       {#if prepare.status === 'loading'}<p class="over-msg"><span class="spin"></span>Drawing the waveform…</p>
       {:else if prepare.status === 'error'}<p class="over-msg err">Couldn’t read the track: {prepare.error}</p>{/if}
       <div class="dtools">
@@ -291,7 +302,7 @@
     {/if}
     {#if show3d}<div class="c3d"><Live3D /></div>{/if}
     {#if message}<p class="err">{message}</p>{/if}
-    <p class="fine"><Parts items={['Space plays', '1 to 8 hot cues (shift: clear)', 'M metronome', 'T tap', '← → nudge the grid (shift: 1 ms)', 'wheel on the waveform zooms', 'drag it to scrub']} /></p>
+    <p class="fine"><Parts items={['Space plays', '1 to 8 hot cues (shift: clear)', 'M metronome', 'T tap', '← → nudge the grid (shift: 1 ms)', 'wheel on the waveform zooms', 'drag it like a record']} /></p>
   {/if}
 </div>
 

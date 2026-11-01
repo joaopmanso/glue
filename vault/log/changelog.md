@@ -5,6 +5,24 @@ updated: 2026-11-01
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-01 · Vinyl scrubbing on the Prepare deck (ADR 0192)
+- **Why:** the user: "I would like to have a vinyl feel when I scrub with the music playing, so that it doesn't
+  produce clicking sounds."
+- **Now:** dragging the deck sounds like a record under the hand.
+  - **Speed and pitch** follow the hand, forwards or backwards, with no clicks.
+  - **Let go playing:** the motor brings it back to the tempo (about 0.25 s), then the player takes over with a 40 ms
+    crossfade.
+  - **Let go paused:** a slow stop.
+- **How:** the open track decoded once, in the background, into an AudioWorklet platter (`platter.ts`):
+  - the hand's position pulled through a platter with mass;
+  - cubic interpolation;
+  - a low-pass when faster than the record.
+  - The player keeps running silently while held, so taking over is a seek.
+- **Tests:**
+  - `tests/platter.test.ts`: a tone dragged back and forth with no click, the motor back to the tempo, the brake's
+    stop, fades without a step;
+  - `prepare.spec.ts`: held, dragged, let go, plays on.
+
 ## 2026-11-01 · The Prepare waveform: no fixed stripes, the grid behind it
 - **Why:** the user: "waveform on cue edit is still broken. I see these vertical lines that are always there so color
   are always messed up".

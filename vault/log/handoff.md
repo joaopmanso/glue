@@ -62,6 +62,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Vinyl scrubbing on the Prepare deck (2026-11-01, ADR 0192):** dragging the deck plays it like a record; let go playing
+  it spins up and the player takes over. To check by ear on both computers: no clicks; the handover is seamless; the
+  sound follows the hand closely enough (the platter's mass is 14 ms, the hand's pull 25 ms, in `platter.ts`).
 - **Hallmark's Console treatment (2026-11-01, ADR 0191, the website):**
   - **What changed:** GLUE's colours and layout kept; new reading face (Host Grotesk), the measured mono for figures,
     sentence-case labels, hairline meta lines, line icons.

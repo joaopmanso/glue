@@ -1,8 +1,8 @@
 ---
 status: in-progress (steps 1 and 2 shipped 2026-09-26; step 3, the rekordbox XML export, next)
 milestone: M4
-updated: 2026-10-09
-adrs: [0052, 0006, 0011, 0168, 0169, 0170]
+updated: 2026-11-01
+adrs: [0052, 0006, 0011, 0168, 0169, 0170, 0192]
 ---
 # Prepare (track page tab)
 
@@ -17,7 +17,10 @@ tempos. Corrections override the analysis ([ADR 0052](../adr/0052-prepare-tab.md
   - Colour schemes: RGB (3-band, Rekordbox-like), Blue, Bands (stacked), Mono.
   - The 3D view (as on Details) can be shown below it; it turns, zooms and resets
     ([ADR 0073](../adr/0073-3d-view-on-the-gpu.md)).
-- **Beat grid** on both views: bar lines numbered, beats fainter.
+- **Vinyl scrubbing** (ADR 0192): dragging the deck sounds like a hand on a record (speed and pitch follow the hand,
+  forwards or backwards, no clicks). Let go playing: back to the tempo in about a quarter second, the player taking
+  over. Let go paused: a slow stop. Until the track is decoded for it (in the background), dragging seeks.
+- **Beat grid** on both views, behind the wave (2026-11-01): bar lines numbered, beats fainter.
 - **Metronome:** clicks on the grid (accent on beat 1), with its own volume.
 - **Tempo:** a pitch fader (±8 / ±16 / ±50 %) and key lock; the BPM shown follows the speed.
 - **Grid editing:**

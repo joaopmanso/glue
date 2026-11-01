@@ -453,7 +453,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - `view.svelte.ts` and `sidebar.svelte.ts` (what's shown);
   - `shared.svelte.ts`, `profiles.svelte.ts`, `account.svelte.ts`, `anywhere.svelte.ts` (the account);
   - `engine.svelte.ts`, `localHome.svelte.ts` (GLUE Home);
-  - `player.svelte.ts`, `thumbs.svelte.ts`, `dupes.svelte.ts`.
+  - `player.svelte.ts`, `thumbs.svelte.ts`, `dupes.svelte.ts`;
+  - `scratch.svelte.ts` + `platter.ts`: the Prepare deck's vinyl scrubbing, a second audio path while the deck is held
+    (ADR 0192).
 - **Opening** (ADR 0177): `lib.loading` (the step, files read of how many, the collection being opened) from the page's
   start until the library or the start page is there; `Opening.svelte` shows it as a card with a bar (the start, and
   the library while a collection opens: the collection list keeps naming it), `TopLoading.svelte` as a line along the

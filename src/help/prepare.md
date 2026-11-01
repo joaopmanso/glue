@@ -1,11 +1,16 @@
 ---
 title: Prepare
 summary: The beat grid, tempo, cues and loops, before a set.
-keywords: prepare, grid, beat grid, bpm, cue, cues, loop, tap, metronome, tempo, keyboard, engine dj, rekordbox, traktor, hot cue
+keywords: prepare, scrub, vinyl, scratch, grid, beat grid, bpm, cue, cues, loop, tap, metronome, tempo, keyboard, engine dj, rekordbox, traktor, hot cue
 tour: prepare
 order: 7
 ---
 The **Prepare** tab of a song's page is for getting it ready to mix.
+
+## Scrubbing like vinyl
+- Drag the waveform and it sounds like a record under your hand: faster or slower, forwards or backwards, the pitch following, with no clicks.
+- Let go while it plays and it spins back up to the tempo and plays on; let go while paused and it slows to a stop, so you can find a cue by ear.
+- A long song takes a moment to get ready; until then, dragging just moves along.
 
 ## The beat grid
 - GLUE sets the BPM and the first beat; check them with the **metronome** (M).
