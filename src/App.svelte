@@ -154,7 +154,7 @@
   {:else if route.name === 'event'}{#key route.id}<EventPage id={route.id} />{/key}{/if}
 {/snippet}
 
-<div class="wrap">
+<div class="wrap" class:app={inLibrary && ['library', 'track', 'events', 'event'].includes(route.name)}>
   {#if !phoneLib}
   <header class="top">
     <div class="brand">

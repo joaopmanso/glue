@@ -5,6 +5,20 @@ updated: 2026-11-01
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-01 · Fixes after the restyle: the deck's shimmer, the sidebar, the picker, full width, stats
+- **The Prepare deck shimmered while playing** (older than the restyle): each pixel column sampled the track from the
+  view's start, which moves a fraction of a point every frame, so columns caught different peaks. Now columns are cut
+  from the track (`wave.ts`: column k holds points [k·pts, (k+1)·pts)) and slide along whole.
+- **The sidebar's Music rows** (after the icons) spread icon, name and count apart (`space-between`); now packed left,
+  the count pushed right.
+- **The theme picker** marked Classic "current" whatever was chosen (a leftover from before GLUE Stick was the
+  default); it now marks the chosen theme. Classic's blurb no longer says "wide grotesque".
+- **Full width:** the library, a song's page and the calendar use the whole window (`.wrap.app`: an 8 to 16 px edge, no
+  2560 px cap). The homepage, help and Analyze a file keep their margin.
+- **Collection stats** fit a wide window without scrolling: wider (up to 1500 px), Quality beside Tempo and Keys.
+- Meta lines (`Parts`): a wrapped line no longer opens with a stray hairline. Gluey's "Show the button" checkbox sits
+  by its label again.
+
 ## 2026-11-01 · Hallmark's Console treatment (ADR 0191)
 - **Why:** the user: "use the hallmark github repo to have a more unique and professional looking design … keep the
   color scheme and have minimal ui changes".

@@ -20,7 +20,7 @@ const G = 'https://fonts.googleapis.com/css2?';
 const CONSOLE = { display: '"Archivo", system-ui, sans-serif', sans: '"Host Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif', mono: '"Atkinson Hyperlegible Mono", ui-monospace, Consolas, monospace', css: null };
 export const THEMES: ThemeDef[] = [
   {
-    id: 'classic', name: 'Classic', blurb: 'The original: cool blue on slate, a wide grotesque.',
+    id: 'classic', name: 'Classic', blurb: 'The original: cool blue on slate, a clean grotesque.',
     fonts: CONSOLE,
     radius: '6px', displayWeight: 750, displayTracking: '0',
     dark: { ground: '#0b0e12', surface: '#11161c', raised: '#171d25', line: '#232b36', line2: '#2f3a47', ink: '#e6e9ee', ink2: '#b3bcc8', muted: '#7d8898', accent: '#7cc7ff', accentInk: '#06121d', ok: '#3ecf8e', warn: '#f2c14e', bad: '#ff6b6b' },

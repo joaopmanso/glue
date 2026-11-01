@@ -21,6 +21,7 @@ Choose how GLUE looks: a theme (colours, fonts, shape) and dark, light or match-
 - Labels are sentence case and untracked everywhere; disabled controls change fill, ink and cursor.
 - Shared tokens in the theme table: `--stage`, `--on-stage`, `--stage-glass`, `--scrim`, `--shadow-pop`,
   `--bad-ink`, `--font-outlier`; `app.css` holds `--brand-*` (logo, Gluey) and `--field-*` (homepage).
+- The picker marks the chosen theme ("chosen"); the old "current" on Classic is gone.
 - `Icon.svelte` (line icons instead of emoji) and `Parts.svelte` (meta lines parted by hairlines, not dots).
 
 ## Open

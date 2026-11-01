@@ -465,6 +465,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   surfaces (`--stage`, `--scrim`, `--shadow-pop`…); no literal colour in a component. Hallmark's Console treatment:
   sentence-case labels in the body face, mono only for what was measured, `Icon.svelte` for icons (no emoji),
   `Parts.svelte` for meta lines (no middle dots). `app.css` opens with the Hallmark stamp; `sloplint` checks it.
+- **Width:** working screens (the library, a song, the calendar: `.wrap.app`) use the whole window with a slim edge;
+  reading pages (the homepage, help, Analyze a file) keep a margin and a 2560 px cap.
 - **OS access** only through `src/platform/` (ADR 0007): the browser's handles, or GLUE Home's disk.
 - **Gluey** (ADR 0126):
   - tours as data (`src/core/guide/tours.ts`), pointing at `data-guide` parts of the UI;

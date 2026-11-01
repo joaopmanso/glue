@@ -67,6 +67,12 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     sentence-case labels, hairline meta lines, line icons.
   - **To check by hand on both computers:** light mode, the Studio, Riso and Moss themes, the phone layout.
   - **Before/after** (local only): `.hallmark/compare.html`.
+  - **Fixed after the user's first look:**
+    - the deck's shimmer while playing (columns now cut from the track);
+    - the sidebar's Music rows;
+    - the picker marking Classic;
+    - full width for working screens;
+    - collection stats without a scroll.
 - **The Discogs playlist builder (2026-11-01, ADR 0190, the website):** tick records in Discogs › **Build a playlist
   from these** (or + Auto with none): tracks, per record, vinyl/digital, compilations, styles/artists Prefer or Only,
   labels, formats, years; ↻ × per track; Save makes a Discogs playlist to drag and arrange. To check: from one or two of

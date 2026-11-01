@@ -39,6 +39,9 @@
   html, body { background: var(--ground); color: var(--ink); overflow-x: clip; }
   body { font-family: var(--font-sans); font-size: 15px; line-height: 1.5; margin: 0; }
   .wrap { max-width: 2560px; margin: 0 auto; padding-inline: clamp(16px, 2.5vw, 56px); padding-block: 18px 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  /* A working screen (the library, a song, the calendar) uses the whole window: a slim edge, no cap. Reading pages
+     (the homepage, help, Analyze a file) keep the wider margin. */
+  .wrap.app { max-width: none; padding-inline: clamp(8px, .8vw, 16px); }
   /* minmax(0, 1fr): wide content (the track table) scrolls inside, it never widens the page. */
   h1, h2, h3 { margin: 0; font-synthesis: none; font-weight: var(--display-weight, 700); font-family: var(--font-display, var(--font-sans)); letter-spacing: var(--display-tracking, 0); text-wrap: balance; }
   p { margin: 0; }
@@ -296,5 +299,8 @@
   :root[data-theme="moss"] h3:not(.label) { font-size: 1.2em; }
 
   /* A meta line's parts, parted by hairlines, never middle dots (ADR 0191; Parts.svelte). */
-  .parts { display: inline-flex; flex-wrap: wrap; align-items: baseline; row-gap: 2px; min-width: 0; }
-  .parts > * + * { margin-left: .55em; padding-left: .55em; border-left: 1px solid var(--line-2); }
+  /* Every part carries its hairline; the one that starts a line (the first, or one that wrapped) sits just outside the
+     box and is clipped, so a wrapped line never opens with a stray rule. */
+  .parts { display: inline-flex; flex-wrap: wrap; align-items: baseline; row-gap: 2px; min-width: 0; max-width: calc(100% + .55em); overflow: hidden; margin-left: -.55em; }
+  .parts > * { margin-left: -1px; padding-inline: .55em; border-left: 1px solid var(--line-2); }
+  .parts > :last-child { padding-right: 0; }

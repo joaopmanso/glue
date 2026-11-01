@@ -45,28 +45,31 @@ export function drawWave(ctx: CanvasRenderingContext2D, W: number, H: number, w:
   const x = (t: number) => (t - o.t0) / span * W;
   // Loop region behind the wave.
   if (o.loop) { ctx.fillStyle = withAlpha(T.accent.startsWith('#') ? T.accent : '#f5c518', 0.14); ctx.fillRect(x(o.loop.a), 0, x(o.loop.b) - x(o.loop.a), H); }
-  const pts = w.rate * span / W;   // waveform points per pixel column
-  for (let px = 0; px < W; px++) {
-    const t = o.t0 + px / W * span;
-    if (t < 0 || t > w.duration) continue;
-    const a = t * w.rate, c = column(w, a, a + Math.max(1, pts));
+  // Columns are cut from the track, not from the view: column k holds points [k·pts, (k+1)·pts). As the view scrolls
+  // they slide along whole; cut from the view, each frame's columns caught different peaks and the wave shimmered.
+  const pts = Math.max(1, w.rate * span / W);   // waveform points per column
+  const k0 = Math.max(0, Math.floor(o.t0 * w.rate / pts)), k1 = Math.min(Math.ceil(w.low.length / pts), Math.ceil(o.t1 * w.rate / pts) + 1);
+  for (let k = k0; k < k1; k++) {
+    const a = k * pts, px = Math.round(x(a / w.rate)), bw = Math.max(1, Math.round(x((a + pts) / w.rate)) - px);
+    if (px + bw <= 0 || px >= W) continue;
+    const c = column(w, a, a + pts);
     const hp = c.p / 255 * (mid - 2);
     if (o.scheme === 'rgb') {
-      const k = 255 / Math.max(1, c.l, c.m, c.h);
-      ctx.fillStyle = `rgb(${Math.round(c.l * k)},${Math.round(c.m * k)},${Math.round(c.h * k)})`;
-      ctx.fillRect(px, mid - hp, 1, hp * 2);
+      const s = 255 / Math.max(1, c.l, c.m, c.h);
+      ctx.fillStyle = `rgb(${Math.round(c.l * s)},${Math.round(c.m * s)},${Math.round(c.h * s)})`;
+      ctx.fillRect(px, mid - hp, bw, hp * 2);
     } else if (o.scheme === 'blue') {
       const f = c.h / Math.max(1, c.l + c.m + c.h) * 1.8, v = Math.min(1, f);
       ctx.fillStyle = `rgb(${Math.round(20 + 200 * v)},${Math.round(90 + 150 * v)},255)`;
-      ctx.fillRect(px, mid - hp, 1, hp * 2);
+      ctx.fillRect(px, mid - hp, bw, hp * 2);
     } else if (o.scheme === 'bands') {
       const hl = c.l / 255 * (mid - 2), hm = c.m / 255 * (mid - 2) * 0.8, hh = c.h / 255 * (mid - 2) * 0.6;
-      ctx.fillStyle = '#ff8a1f'; ctx.fillRect(px, mid - hl, 1, hl * 2);
-      ctx.fillStyle = '#ffd35c'; ctx.fillRect(px, mid - hm, 1, hm * 2);
-      ctx.fillStyle = o.clear ? T.ink2 || '#f4f4f6' : '#f4f4f6'; ctx.fillRect(px, mid - hh, 1, hh * 2);
+      ctx.fillStyle = '#ff8a1f'; ctx.fillRect(px, mid - hl, bw, hl * 2);
+      ctx.fillStyle = '#ffd35c'; ctx.fillRect(px, mid - hm, bw, hm * 2);
+      ctx.fillStyle = o.clear ? T.ink2 || '#f4f4f6' : '#f4f4f6'; ctx.fillRect(px, mid - hh, bw, hh * 2);
     } else {
       ctx.fillStyle = T.accent || '#f5c518';
-      ctx.fillRect(px, mid - hp, 1, hp * 2);
+      ctx.fillRect(px, mid - hp, bw, hp * 2);
     }
   }
   // The grid: beats faint, bar lines strong (numbered in the deck view). Too dense to see: bars only.

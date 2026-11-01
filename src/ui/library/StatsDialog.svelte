@@ -170,4 +170,10 @@
   .fine, .none { font-size: 12.5px; color: var(--muted); margin: 4px 0 0; }
   .foot { margin: 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); }
   @media (max-width: 720px) { .two, .three { grid-template-columns: minmax(0, 1fr); } }
+  /* A wide window shows it all at once (2026-11-01): wider, Quality beside Tempo and Key, the rest across. */
+  @media (min-width: 1180px) {
+    .dlg { width: min(1500px, 100%); grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; align-items: start; }
+    .dlg > header, .dlg > .tiles, .dlg > .three, .dlg > section:last-of-type, .dlg > .foot { grid-column: 1 / -1; }
+    .fcols { max-width: none; }
+  }
 </style>

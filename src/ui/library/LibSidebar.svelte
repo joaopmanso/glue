@@ -806,7 +806,7 @@
   .topzone { margin-top: 4px; padding: 6px 8px; border: 1px dashed var(--line-2); border-radius: 4px; color: var(--muted); font-size: 12px; text-align: center; }
   .topzone.on { border-color: var(--accent); color: var(--accent); }
   .add button.hot { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); }
-  .name { flex: 1; min-width: 0; background: none; border: 0; text-align: left; cursor: pointer; padding: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; justify-content: space-between; gap: 6px; }
+  .name { flex: 1; min-width: 0; background: none; border: 0; text-align: left; cursor: pointer; padding: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
   div.item > .name { padding-left: 2px; }
   .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   section > ul > li > div.item { padding-left: 8px; }
@@ -816,7 +816,7 @@
   .kept.own { opacity: 1; }
   .kept.out { opacity: 1; }
   .kept b { color: var(--warn, var(--warn)); font-size: 11px; margin-left: 1px; }
-  .n { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; flex: none; }
+  .n { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; flex: none; margin-left: auto; }
   .twist { width: 16px; flex: none; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; font-size: 11px; text-align: center; }
   .tools { display: none; gap: 2px; flex: none; }
   .item:hover .tools, .item:focus-within .tools { display: flex; }

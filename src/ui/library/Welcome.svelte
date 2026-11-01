@@ -447,6 +447,7 @@
   .card.gluey { grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; }
   .card.gluey p { margin: 2px 0 0; }
   .gluey-show { display: flex; gap: 6px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+  .gluey-show input { width: auto; flex: none; margin: 0; accent-color: var(--accent); }
   #choose-home { white-space: nowrap; }
   .fallback { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
   .fallback details summary { cursor: pointer; color: var(--muted); font-size: 13px; }

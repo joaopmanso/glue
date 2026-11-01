@@ -31,7 +31,7 @@
             </div>
           </div>
         </div>
-        <span class="name">{t.name}{#if t.id === 'classic'}<small> current</small>{/if}</span>
+        <span class="name">{t.name}{#if themes.theme === t.id}<small> chosen</small>{/if}</span>
         <span class="blurb">{t.blurb}</span>
       </button>
     {/each}
@@ -48,7 +48,7 @@
   .card:hover { border-color: var(--line-2); }
   .card[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
   .name { font-weight: 700; font-size: 14px; padding: 0 4px; }
-  .name small { font-weight: 500; color: var(--muted); font-size: 11.5px; }
+  .name small { margin-left: 6px; font-weight: 500; color: var(--muted); font-size: 11.5px; }
   .blurb { color: var(--muted); font-size: 12px; line-height: 1.4; padding: 0 4px; }
   /* The preview is drawn with the previewed theme's own tokens (.theme-scope). */
   .preview { background: var(--ground); color: var(--ink); font-family: var(--font-sans); border-radius: 6px; overflow: hidden; border: 1px solid var(--line); height: 150px; display: grid; grid-template-rows: auto 1fr; font-size: 10px; }
