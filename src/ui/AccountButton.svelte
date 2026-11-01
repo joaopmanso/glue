@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from './Parts.svelte';
   /* The optional GLUE account in the header: "Sign in" (Google) or your avatar with a small menu. */
   import { account } from '../lib/account.svelte';
   import { themes } from '../lib/themes.svelte';
@@ -46,7 +47,7 @@
     <div class="pop" role="dialog" aria-label="GLUE account" id="account-pop" style={place}>
       {#if account.signedIn}
         <p class="who"><b>{account.user?.name ?? 'Signed in'}</b><span>{account.user?.email}{account.user?.tier ? ' · ' + account.user.tier + ' plan' : ''}</span></p>
-        <p class="fine">{account.devices.length} device{account.devices.length === 1 ? '' : 's'}{homes ? ' · ' + homes + ' GLUE Home' : ''} · {account.connected ? 'connected' : 'connecting…'}</p>
+        <p class="fine"><Parts items={[account.devices.length + ' device' + (account.devices.length === 1 ? '' : 's'), homes && homes + ' GLUE Home', account.connected ? 'connected' : 'connecting…']} /></p>
         <div class="acts">
           {#if account.isAdmin}<a class="mini" id="admin-link" href="#/admin" onclick={() => (open = false)}>Admin</a>{/if}
           <button type="button" class="mini" id="sign-out" onclick={() => { open = false; void account.signOut(); }}>Sign out</button>
@@ -75,9 +76,9 @@
   .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
   .live { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); border: 2px solid var(--ground); }
   .live.on { background: var(--ok); }
-  .pop { position: fixed; z-index: 50; width: 320px; max-height: calc(100dvh - 80px); overflow-y: auto; background: var(--raised); border: 1px solid var(--line-2); border-radius: 10px; padding: 14px; box-shadow: 0 14px 36px rgb(0 0 0 / .45); display: grid; gap: 10px; font-size: 13px; }
+  .pop { position: fixed; z-index: 50; width: 320px; max-height: calc(100dvh - 80px); overflow-y: auto; background: var(--raised); border: 1px solid var(--line-2); border-radius: 10px; padding: 14px; box-shadow: var(--shadow-pop); display: grid; gap: 10px; font-size: 13px; }
   h3 { font-size: 16px; display: flex; gap: 8px; align-items: baseline; }
-  h3 small { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .08em; }
+  h3 small { font-size: 11px; color: var(--muted); font-weight: 500; }
   .pop p { color: var(--ink-2); }
   /* Google draws the button in an iframe; a matching colour scheme keeps its background transparent. */
   .gbtn { min-height: 44px; color-scheme: light; }

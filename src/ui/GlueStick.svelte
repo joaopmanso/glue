@@ -22,10 +22,10 @@
 <style>
   .gluestick { flex: none; overflow: visible; }
   /* Glue is always cream and the band always dark, whatever the theme; the tube takes the accent. */
-  .glue { fill: #f6f3e8; stroke: color-mix(in srgb, var(--ink) 25%, transparent); stroke-width: .5; }
+  .glue { fill: var(--brand-cream); stroke: color-mix(in srgb, var(--ink) 25%, transparent); stroke-width: .5; }
   .body { fill: var(--accent); }
   .dark { fill: color-mix(in srgb, var(--accent) 55%, var(--ground)); }
-  .label { fill: #15140f; }
-  .shine { fill: color-mix(in srgb, var(--accent) 45%, #fff); }
-  .ridge { stroke: #15140f; stroke-width: .8; }
+  .label { fill: var(--brand-ink); }
+  .shine { fill: color-mix(in srgb, var(--accent) 45%, var(--brand-white)); }
+  .ridge { stroke: var(--brand-ink); stroke-width: .8; }
 </style>

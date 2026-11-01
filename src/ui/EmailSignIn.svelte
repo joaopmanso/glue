@@ -42,13 +42,13 @@
 
 <style>
   .pwf { display: grid; gap: 8px; max-width: 320px; }
-  .or { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; }
+  .or { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11.5px; }
   .or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
   label { display: grid; gap: 3px; font-size: 12.5px; color: var(--ink-2); }
   input { background: var(--ground); border: 1px solid var(--line-2); border-radius: 6px; padding: 7px 9px; font-size: 13.5px; color: var(--ink); }
   input:focus { outline: none; border-color: var(--accent); }
   .btn { justify-self: start; padding: 7px 16px; font-size: 13.5px; }
-  .btn:disabled { opacity: .6; }
+  .btn:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .swap { justify-self: start; background: none; border: 0; padding: 0; color: var(--accent); font-size: 12.5px; cursor: pointer; text-decoration: underline; }
   .err { color: var(--bad); font-size: 12.5px; }
   .hint { color: var(--muted); font-size: 11.5px; }

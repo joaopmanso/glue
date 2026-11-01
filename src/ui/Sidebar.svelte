@@ -36,7 +36,7 @@
 
 <aside class="side">
   {#if app.info?.example}
-    <p id="example-note" class="example-note"><span class="tag">EXAMPLE</span> A synthetic track generated in your browser: a 16 kHz lossy-style cutoff and 16-bit samples, labelled as 96 kHz / 24-bit FLAC. Open one of your own files to analyze it.</p>
+    <p id="example-note" class="example-note"><span class="tag">Example</span> A synthetic track generated in your browser: a 16 kHz lossy-style cutoff and 16-bit samples, labelled as 96 kHz / 24-bit FLAC. Open one of your own files to analyze it.</p>
   {/if}
   {#if v}
     <section id="verdict" class="verdict" data-guide="verdict" data-grade={v.grade} aria-live="polite">

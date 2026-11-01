@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../Icon.svelte';
   import { asShown, MARKED_FINE } from '../../core/library/summary';
   import CoverArt from './CoverArt.svelte';
   import { covers } from '../../lib/covers.svelte';
@@ -235,8 +236,8 @@ canPlay = true;
         <button type="button" class="mini" id="auto-from-page" onclick={() => auto.show(id)}>Build playlist from this</button>
         <button type="button" class="mini" id="reanalyse" title="Analyse the file again and replace the stored result" onclick={() => { const t = lib.store?.tracks.get(id); if (t) prepare.reset(t); void load(true, true); }}>Re-analyse</button>
       {/if}
-      <button type="button" class="mini" disabled={pos <= 0} onclick={() => router.replace(trackHref(order[pos - 1], tab))}>‹ Previous</button>
-      <button type="button" class="mini" disabled={pos < 0 || pos >= order.length - 1} onclick={() => router.replace(trackHref(order[pos + 1], tab))}>Next ›</button>
+      <button type="button" class="mini" disabled={pos <= 0} onclick={() => router.replace(trackHref(order[pos - 1], tab))}><Icon name="chev-left" /> Previous</button>
+      <button type="button" class="mini" disabled={pos < 0 || pos >= order.length - 1} onclick={() => router.replace(trackHref(order[pos + 1], tab))}>Next <Icon name="chev-right" /></button>
     </span>
   </nav>
 
@@ -319,7 +320,7 @@ canPlay = true;
     {#if fetching}
       <div class="status" id="remote-fetch">
         <div class="row"><span>Getting the song from {fetching.device}…</span><span class="mono">{fetching.size ? Math.round(fetching.got / fetching.size * 100) + '%' : ''}</span></div>
-        <div class="bar"><span style:width={(fetching.size ? fetching.got / fetching.size : 0) * 100 + '%'}></span></div>
+        <div class="bar"><span style:transform={'scaleX(' + (fetching.size ? fetching.got / fetching.size : 0) + ')'}></span></div>
       </div>
     {/if}
     {#if phase === 'ready' && !canPlay && track.remote}
@@ -366,7 +367,7 @@ canPlay = true;
     {#if app.busy}
       <div class="status">
         <div class="row"><span>{app.busy.text}</span><span class="mono">{app.busy.p != null ? Math.round(app.busy.p * 100) + '%' : ''}</span></div>
-        <div class="bar"><span style:width={(app.busy.p ?? 0) * 100 + '%'}></span></div>
+        <div class="bar"><span style:transform={'scaleX(' + (app.busy.p ?? 0) + ')'}></span></div>
       </div>
     {/if}
     {#if app.phase === 'result' && phase === 'ready'}<Results />{/if}
@@ -381,7 +382,7 @@ canPlay = true;
   .nav { display: flex; gap: 6px; align-items: center; }
   .src { color: var(--muted); font-size: 12px; margin-right: 4px; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
-  .mini:disabled { opacity: .4; cursor: default; }
+  .mini:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
   .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ink-2); font-size: 13.5px; font-weight: 600; padding: 6px 14px; cursor: pointer; margin-bottom: -1px; }
   .tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
@@ -399,7 +400,7 @@ canPlay = true;
   .who { color: var(--ink-2); }
   .rate { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
   .muted { color: var(--muted); }
-  .q { font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; padding: 5px 11px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
+  .q { font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
   .q[data-grade="ok"] { color: var(--ok); } .q[data-grade="warn"] { color: var(--warn); } .q[data-grade="bad"] { color: var(--bad); } .q[data-grade="info"] { color: var(--muted); }
   .info { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px 24px; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 10px 14px; }
   .info.withdj { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
@@ -412,7 +413,7 @@ canPlay = true;
   .inlists { display: flex; align-items: baseline; min-width: 0; white-space: pre; }
   .inlists a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .inlists .tedit { flex: none; margin-left: 6px; }
-  dt, .k { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  dt, .k { font-size: 11px; color: var(--muted); white-space: nowrap; }
   dd { margin: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .comment { margin: 0; flex: 1 1 100%; font-size: 13px; color: var(--ink-2); }
   .notes { display: flex; flex: 1 1 340px; gap: 10px; align-items: baseline; }
@@ -424,10 +425,10 @@ canPlay = true;
   .tedit { background: none; border: 1px dashed var(--line-2); border-radius: 9px; color: var(--ink-2); font-size: 12px; padding: 0 8px; line-height: 18px; cursor: pointer; }
   .tedit:hover { border-color: var(--accent); color: var(--accent); }
   .dj { border-collapse: collapse; font-size: 12.5px; align-self: start; width: 100%; }
-  .dj th { text-align: left; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 8px 6px 0; }
+  .dj th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; padding: 0 8px 6px 0; }
   .dj td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line); color: var(--ink-2); }
   .dj .mco td { color: var(--accent); }
-  .stars { color: var(--warn); letter-spacing: 1px; }
+  .stars { color: var(--warn); }
   .remote-state { display: flex; gap: 10px; align-items: center; color: var(--ink-2); font-size: 13px; }
   .remote-state[data-state="failed"] { color: var(--muted); }
   .spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: spin .9s linear infinite; flex: none; }

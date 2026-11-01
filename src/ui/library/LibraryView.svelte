@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Icon from '../Icon.svelte';
+  import Parts from '../Parts.svelte';
   import { lib } from '../../lib/library.svelte';
   import NeedsMusic from '../events/NeedsMusic.svelte';
   import { djWatch } from '../../lib/djWatch.svelte';
@@ -70,7 +72,7 @@
   // then each import's (replaced when it's imported again). Folders are playlists too (ADR 0049).
   const targets = $derived.by(() => { void lib.version; return listTree(lib.store?.lists.values() ?? [], l => l.id === TO_BE_SORTED || !!l.discogs); });
   const NBSP = String.fromCharCode(160);   // an option keeps no-break spaces (ordinary ones collapse)
-  const pad = (depth: number, folder: boolean) => NBSP.repeat(3 * depth) + (folder ? '📁' + NBSP : '');
+  const pad = (depth: number, folder: boolean) => NBSP.repeat(3 * depth) + (folder ? '▸' + NBSP : '');
   const current = $derived.by(() => { void lib.version; const s = view.sel; return s.kind === 'list' ? lib.store?.lists.get(s.id) ?? null : null; });
   // A DJ app's own playlist (not a folder), edited in GLUE (ADR 0179).
   const djCurrent = $derived.by(() => {
@@ -188,7 +190,7 @@
     <button type="button" class="sidetog" id="side-toggle" aria-pressed={folded} title={folded ? 'Show the sidebar (Ctrl+B)' : 'Hide the sidebar, for more columns (Ctrl+B)'} aria-label={folded ? 'Show the sidebar' : 'Hide the sidebar'} onclick={() => fold()}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.5v11" stroke="currentColor" stroke-width="1.3"/>{#if !folded}<path d="M2.8 5h1.9M2.8 7h1.9M2.8 9h1.9" stroke="currentColor" stroke-width="1.1"/>{/if}</svg>
     </button>
-    <h2>{#if view.sel.kind === 'facet'}{@const by = view.sel.by}<button type="button" class="crumb" id="browse-back" title="Back to the list" onclick={() => view.select({ kind: 'browse', by })}>{facetInfo(by).name} ›</button>{/if}{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}{#if !noTable && lib.store}<small>{count} track{count === 1 ? '' : 's'}</small>{/if}</h2>
+    <h2>{#if view.sel.kind === 'facet'}{@const by = view.sel.by}<button type="button" class="crumb" id="browse-back" title="Back to the list" onclick={() => view.select({ kind: 'browse', by })}>{facetInfo(by).name} <Icon name="chev-right" /></button>{/if}{#if djApp}<AppIcon app={djApp} size={20} />{/if}{title}{#if !noTable && lib.store}<small>{count} track{count === 1 ? '' : 's'}</small>{/if}</h2>
     {#if !noTable}
     <input type="search" placeholder="Search title, artist, album…" bind:value={view.search} aria-label="Search tracks" data-guide="search">
     <FilterMenu />
@@ -197,11 +199,11 @@
     {#if current}<button type="button" class="ibtn" class:on={showInsights} id="insights-btn" aria-pressed={showInsights} title="Length, tempo, keys and tags of this playlist" onclick={toggleInsights}>Insights</button>{/if}
     <div class="an" data-guide="analysis" title="Tracks are analysed in the background, several at a time">
       {#if lib.analysis.running}
-        <span class="spin"></span> Analysing · {pending} left
+        <span class="spin"></span> <Parts items={['Analysing', pending + ' left']} />
       {:else if pending && lib.analysis.paused}
         <span class="spin paused"></span> {pending} not analysed
       {:else if pending}
-        <span class="spin"></span> Analysing · {pending} left
+        <span class="spin"></span> <Parts items={['Analysing', pending + ' left']} />
       {:else if lib.store?.tracks.size}
         <span class="ok">✓</span> All analysed
       {/if}
@@ -249,7 +251,7 @@
   {:else}
   <div class="main" class:folded style:--sidew={sideW + 'px'}>
     {#if folded}
-      <button type="button" class="sidestrip" id="side-show" title="Show the sidebar (Ctrl+B)" aria-label="Show the sidebar" onclick={() => fold(false)}>»</button>
+      <button type="button" class="sidestrip" id="side-show" title="Show the sidebar (Ctrl+B)" aria-label="Show the sidebar" onclick={() => fold(false)}><Icon name="chev-double" /></button>
     {:else}
       <LibSidebar />
       <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -280,7 +282,7 @@
             <button type="button" class="mini" id="keep-order" onclick={keepOrder}>Keep this order</button>
             <button type="button" class="mini" onclick={() => view.sortBy('order')}>Back to playlist order</button>
           {:else}
-            <span class="hint" title="Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection.">Double-click a track for its page · drag tracks onto a playlist · right-click for more</span>
+            <span class="hint" title="Double-click a track for its full analysis. Drag tracks onto a playlist to add them. Drop songs or folders anywhere to add them to the collection."><Parts items={['Double-click a track for its page', 'drag tracks onto a playlist', 'right-click for more']} /></span>
           {/if}
         </div>
         <div class="selacts" title={sel.length ? '' : 'Select songs to use these'}>
@@ -328,7 +330,7 @@
   .lib { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 110px - 64px); min-height: 440px; }
   .lib > .main { flex: 1; }
   /* Floats above the player bar: an in-flow banner would shift the table (and cancel a drag). */
-  .toast { position: fixed; right: calc(clamp(16px, 3vw, 32px) + 64px); bottom: 76px; z-index: 25; max-width: min(560px, calc(100vw - 32px)); box-shadow: 0 8px 28px rgb(0 0 0 / .45); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
+  .toast { position: fixed; right: calc(clamp(16px, 3vw, 32px) + 64px); bottom: 76px; z-index: 25; max-width: min(560px, calc(100% - 32px)); box-shadow: var(--shadow-pop); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
   .colbar { display: flex; gap: 6px; align-items: center; }
   .colbar select, .selbar select { background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; font-size: 13px; }
   .colbar select { font-weight: 700; }
@@ -388,7 +390,7 @@
   .selinfo .hint { overflow: hidden; text-overflow: ellipsis; }
   .count { color: var(--ink); font-weight: 600; }
   .selacts { flex: none; display: flex; gap: 6px; align-items: center; }
-  .selacts :disabled { opacity: .4; cursor: default; }
+  .selacts :disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .selacts .mini:disabled:hover { border-color: var(--line-2); color: var(--ink-2); }
   /* Narrower: the less used actions go (they're in ⋯ and on right-click). */
   @container (max-width: 1100px) { .opt { display: none; } }

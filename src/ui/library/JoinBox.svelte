@@ -36,8 +36,8 @@
 {/if}
 
 <style>
-  .scrim { position: fixed; inset: 0; z-index: 80; background: rgb(0 0 0 / .5); }
-  .box { position: fixed; z-index: 81; left: 50%; top: 18vh; transform: translateX(-50%); width: min(520px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: grid; gap: 12px; box-shadow: 0 20px 50px rgb(0 0 0 / .5); color: var(--ink-2); font-size: 14px; }
+  .scrim { position: fixed; inset: 0; z-index: 80; background: var(--scrim); }
+  .box { position: fixed; z-index: 81; left: 50%; top: 18vh; transform: translateX(-50%); width: min(520px, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: grid; gap: 12px; box-shadow: var(--shadow-pop); color: var(--ink-2); font-size: 14px; }
   h3 { margin: 0; font-size: 17px; color: var(--ink); }
   p { margin: 0; }
   label { display: grid; gap: 4px; font-size: 13px; }

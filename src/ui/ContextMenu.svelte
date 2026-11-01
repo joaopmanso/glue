@@ -233,7 +233,7 @@
 {/each}
 
 <style>
-  .cmenu { position: fixed; left: 0; top: 0; z-index: 80; min-width: 210px; max-width: min(380px, calc(100vw - 16px)); max-height: calc(100vh - 16px); display: flex; flex-direction: column; gap: 4px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 7px; padding: 5px; box-shadow: 0 14px 36px rgb(0 0 0 / .5); font-size: 13px; outline: none; }
+  .cmenu { position: fixed; left: 0; top: 0; z-index: 80; min-width: 210px; max-width: min(380px, calc(100% - 16px)); max-height: calc(100vh - 16px); display: flex; flex-direction: column; gap: 4px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 7px; padding: 5px; box-shadow: var(--shadow-pop); font-size: 13px; outline: none; }
   .cmenu.finding { width: 300px; }
   .clist { display: grid; gap: 1px; overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
   .finding .clist { max-height: min(60vh, 520px); }
@@ -251,7 +251,7 @@
   .cmark { color: var(--accent); font-size: 12px; font-weight: 700; display: grid; place-items: center; }
   .cmark i { width: 9px; height: 9px; border-radius: 50%; display: block; }
   hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
-  .chead { margin: 0; padding: 5px 8px 3px; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chead { margin: 0; padding: 5px 8px 3px; font-size: 11px; color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cnote { margin: 0; padding: 6px 8px; color: var(--muted); font-size: 12.5px; }
   .ccolors { display: flex; gap: 5px; padding: 5px 8px 6px 27px; flex-wrap: wrap; }
   .sw { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }

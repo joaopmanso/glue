@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../Icon.svelte';
   /* The homepage's pictures of one chapter, all full size, side by side to scroll through (swipe, the arrows, the dots,
      or the keyboard's ← →). The next one peeks in, so it's clear there's more. Clips play only while on screen. */
   type Shot = { file: string; alt: string; video?: boolean };
@@ -41,19 +42,19 @@
   </div>
   {#if slides.length > 1}
     <div class="ctl">
-      <button type="button" class="arrow" aria-label="Previous picture" onclick={() => go(at - 1)}>‹</button>
+      <button type="button" class="arrow" aria-label="Previous picture" onclick={() => go(at - 1)}><Icon name="chev-left" /></button>
       <span class="dots">{#each slides as s, i (s.file)}<button type="button" class:on={i === at} aria-label={'Picture ' + (i + 1) + ': ' + s.alt} aria-current={i === at} onclick={() => go(i)}></button>{/each}</span>
-      <button type="button" class="arrow" aria-label="Next picture" onclick={() => go(at + 1)}>›</button>
+      <button type="button" class="arrow" aria-label="Next picture" onclick={() => go(at + 1)}><Icon name="chev-right" /></button>
       <span class="cap">{slides[at]?.alt}</span>
     </div>
   {/if}
 </div>
 
 <style>
-  .slides { display: grid; gap: 12px; min-width: 0; }
+  .slides { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
   .rail { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 14px; outline-offset: 4px; }
   .rail::-webkit-scrollbar { display: none; }
-  .slide { flex: 0 0 92%; scroll-snap-align: start; margin: 0; border-radius: 14px; overflow: hidden; background: var(--surface); border: 1px solid var(--line-2); box-shadow: 0 20px 50px -20px rgb(0 0 0 / .55); }
+  .slide { flex: 0 0 92%; scroll-snap-align: start; margin: 0; border-radius: 14px; overflow: hidden; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-pop); }
   .slide:only-child { flex-basis: 100%; }
   .media { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; background: var(--ground); }
   .ctl { display: flex; align-items: center; gap: 10px; }
@@ -61,7 +62,7 @@
   .arrow:hover { border-color: var(--accent); color: var(--accent); }
   .dots { display: flex; gap: 6px; }
   .dots button { width: 8px; height: 8px; border-radius: 50%; border: 0; padding: 0; background: var(--line-2); cursor: pointer; }
-  .dots button.on { background: var(--accent); width: 22px; border-radius: 4px; }
+  .dots button.on { background: var(--accent); transform: scaleX(2.75); margin-inline: 7px; }
   .cap { color: var(--muted); font-size: 13px; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-  @media (prefers-reduced-motion: no-preference) { .dots button { transition: width .25s, background .25s; } }
+  @media (prefers-reduced-motion: no-preference) { .dots button { transition: transform .25s, background-color .25s; } }
 </style>

@@ -50,7 +50,7 @@
 </div>
 
 <style>
-  .hud { position: fixed; left: 8px; bottom: 76px; z-index: 200; width: 330px; background: var(--raised); color: var(--ink); border: 1px solid var(--line-2); border-radius: 8px; font: 11.5px/1.35 ui-monospace, monospace; box-shadow: 0 6px 18px rgb(0 0 0 / .35); }
+  .hud { position: fixed; left: 8px; bottom: 76px; z-index: 200; width: 330px; background: var(--raised); color: var(--ink); border: 1px solid var(--line-2); border-radius: 8px; font: 11.5px/1.35 ui-monospace, monospace; box-shadow: var(--shadow-pop); }
   .hud.shut { width: auto; }
   .head { all: unset; cursor: pointer; display: block; padding: 4px 8px; font-weight: 700; }
   dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; margin: 0; padding: 0 8px 6px; }

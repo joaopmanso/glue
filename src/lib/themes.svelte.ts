@@ -15,10 +15,13 @@ export interface ThemeDef {
 export type Mode = 'dark' | 'light' | 'system';
 
 const G = 'https://fonts.googleapis.com/css2?';
+// Hallmark's Console treatment (ADR 0191): Archivo heavy stays for titles and the wordmark; Host Grotesk reads, and
+// Atkinson Hyperlegible Mono sets only what was measured (BPM, key, kHz, times). Loaded by index.html.
+const CONSOLE = { display: '"Archivo", system-ui, sans-serif', sans: '"Host Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif', mono: '"Atkinson Hyperlegible Mono", ui-monospace, Consolas, monospace', css: null };
 export const THEMES: ThemeDef[] = [
   {
     id: 'classic', name: 'Classic', blurb: 'The original: cool blue on slate, a wide grotesque.',
-    fonts: { display: '"Archivo", system-ui, sans-serif', sans: '"Archivo", system-ui, -apple-system, "Segoe UI", sans-serif', mono: '"JetBrains Mono", ui-monospace, Consolas, monospace', css: null },
+    fonts: CONSOLE,
     radius: '6px', displayWeight: 750, displayTracking: '0',
     dark: { ground: '#0b0e12', surface: '#11161c', raised: '#171d25', line: '#232b36', line2: '#2f3a47', ink: '#e6e9ee', ink2: '#b3bcc8', muted: '#7d8898', accent: '#7cc7ff', accentInk: '#06121d', ok: '#3ecf8e', warn: '#f2c14e', bad: '#ff6b6b' },
     light: { ground: '#f3f5f8', surface: '#ffffff', raised: '#eaeef3', line: '#dbe1e8', line2: '#c5cdd8', ink: '#111821', ink2: '#3a4655', muted: '#687586', accent: '#1d74c4', accentInk: '#ffffff', ok: '#12875a', warn: '#a8790a', bad: '#cc3b3b' },
@@ -27,7 +30,7 @@ export const THEMES: ThemeDef[] = [
     // GLUE Stick yellow on black, like the classic glue stick; a darker gold on cream in light mode so
     // text in the accent colour stays readable. The logo follows the accent, so it turns yellow too.
     id: 'stick', name: 'GLUE Stick', blurb: 'GLUE Stick yellow on black, a heavy grotesque, rounded corners.',
-    fonts: { display: '"Archivo", system-ui, sans-serif', sans: '"Archivo", system-ui, -apple-system, "Segoe UI", sans-serif', mono: '"JetBrains Mono", ui-monospace, Consolas, monospace', css: null },
+    fonts: CONSOLE,
     radius: '10px', displayWeight: 850, displayTracking: '-0.015em',
     dark: { ground: '#0c0c0b', surface: '#141412', raised: '#1c1c19', line: '#2a2a25', line2: '#3a3a33', ink: '#f6f3e8', ink2: '#c9c4b3', muted: '#8f8a7a', accent: '#ffd100', accentInk: '#141200', ok: '#4fd18b', warn: '#ff9f1c', bad: '#ff4d3d' },
     light: { ground: '#fff9e6', surface: '#ffffff', raised: '#fbf1cc', line: '#ece0b6', line2: '#dccb90', ink: '#15140f', ink2: '#433f30', muted: '#7a735d', accent: '#b58500', accentInk: '#ffffff', ok: '#16834f', warn: '#b35c00', bad: '#d32a1d' },
@@ -61,8 +64,15 @@ const vars = (t: ThemeDef, k: Tokens, mode: 'dark' | 'light') => [
   `--ground: ${k.ground}`, `--surface: ${k.surface}`, `--raised: ${k.raised}`, `--line: ${k.line}`, `--line-2: ${k.line2}`,
   `--ink: ${k.ink}`, `--ink-2: ${k.ink2}`, `--muted: ${k.muted}`, `--accent: ${k.accent}`, `--accent-ink: ${k.accentInk}`,
   `--ok: ${k.ok}`, `--warn: ${k.warn}`, `--bad: ${k.bad}`,
-  `--font-sans: ${t.fonts.sans}`, `--font-mono: ${t.fonts.mono}`, `--font-display: ${t.fonts.display}`,
+  `--font-sans: ${t.fonts.sans}`, `--font-mono: ${t.fonts.mono}`, `--font-outlier: ${t.fonts.mono}`, `--font-display: ${t.fonts.display}`,
   `--radius: ${t.radius}`, `--display-weight: ${t.displayWeight}`, `--display-tracking: ${t.displayTracking}`,
+  // Shared surfaces (ADR 0191): the dark stage behind video, 3D and spectrograms (the ground, deeper; never pure black),
+  // what sits on it, the scrim under a dialog, the one shadow a floating layer may have, and ink on a danger fill.
+  `--stage: color-mix(in oklab, ${k.ground} 45%, #000)`, `--on-stage: #f1efe8`, `--on-stage-2: color-mix(in oklab, #f1efe8 72%, transparent)`,
+  `--stage-glass: color-mix(in oklab, ${k.ground} 55%, transparent)`, `--stage-line: color-mix(in oklab, #f1efe8 25%, transparent)`,
+  `--scrim: ${mode === 'dark' ? 'rgb(0 0 0 / .5)' : 'rgb(20 18 10 / .32)'}`,
+  `--shadow-pop: ${mode === 'dark' ? '0 12px 32px -6px rgb(0 0 0 / .5)' : '0 12px 32px -8px rgb(20 18 10 / .22)'}`,
+  `--bad-ink: ${mode === 'dark' ? '#1a0505' : '#ffffff'}`,
 ].join('; ');
 
 /** CSS for every theme and mode (also used by the previews, scoped to a class). */

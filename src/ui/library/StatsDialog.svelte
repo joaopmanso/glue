@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   /* A collection, a playlist, a tag, a folder… or the selected songs at a glance (the user's list,
      2026-09-27): core/library/stats over the songs, drawn as tiles and plain bars. */
   import { asShown } from '../../core/library/summary';
@@ -124,19 +125,19 @@
       </div>
     </section>
 
-    <p class="foot" id="stat-foot">Rated {st.rated} ({pct(st.rated)}) · tagged {st.tagged} ({pct(st.tagged)}){st.noFile ? ' · ' + st.noFile + ' without a file here' : ''}</p>
+    <p class="foot" id="stat-foot"><Parts items={['Rated ' + st.rated + ' (' + pct(st.rated) + ')', 'tagged ' + st.tagged + ' (' + pct(st.tagged) + ')', st.noFile && st.noFile + ' without a file here']} /></p>
   </div>
 </div>
 
 <style>
   .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; }
   .dlg:focus { outline: none; }
-  .dlg { width: min(880px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 18px 22px 20px; display: grid; gap: 16px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); }
+  .dlg { width: min(880px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 18px 22px 20px; display: grid; gap: 16px; box-shadow: var(--shadow-pop); }
   header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
   h2 { font-size: 20px; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   h2 span { color: var(--ink-2); font-weight: 500; }
   .x { background: none; border: 0; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1; }
-  h3 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+  h3 { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
   h4 { font-size: 12px; color: var(--ink-2); margin: 0 0 6px; font-weight: 600; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
   .tile { background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; display: grid; gap: 1px; }

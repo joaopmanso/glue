@@ -51,19 +51,19 @@
 <style>
   .gluey { flex: none; overflow: visible; }
   .gluey.flip { transform: scaleX(-1); }
-  .glue { fill: #f6f3e8; stroke: color-mix(in srgb, var(--ink) 25%, transparent); stroke-width: .6; }
+  .glue { fill: var(--brand-cream); stroke: color-mix(in srgb, var(--ink) 25%, transparent); stroke-width: .6; }
   .body { fill: var(--accent); }
   .dark { fill: color-mix(in srgb, var(--accent) 55%, var(--ground)); }
-  .label { fill: #15140f; }
-  .shine { fill: color-mix(in srgb, var(--accent) 45%, #fff); }
-  .ridge { stroke: #15140f; stroke-width: 1; fill: none; }
-  .eye { fill: #fff; }
-  .pupil { fill: #15140f; }
-  .mouth { fill: none; stroke: #15140f; stroke-width: 1.6; stroke-linecap: round; }
-  .mouth.open { fill: #15140f; }
-  .cheek { fill: #ff8a8a; opacity: .45; }
+  .label { fill: var(--brand-ink); }
+  .shine { fill: color-mix(in srgb, var(--accent) 45%, var(--brand-white)); }
+  .ridge { stroke: var(--brand-ink); stroke-width: 1; fill: none; }
+  .eye { fill: var(--brand-white); }
+  .pupil { fill: var(--brand-ink); }
+  .mouth { fill: none; stroke: var(--brand-ink); stroke-width: 1.6; stroke-linecap: round; }
+  .mouth.open { fill: var(--brand-ink); }
+  .cheek { fill: var(--brand-cheek); opacity: .45; }
   .arm { fill: none; stroke: color-mix(in srgb, var(--accent) 70%, var(--ink)); stroke-width: 3; stroke-linecap: round; }
-  .hand { fill: #f6f3e8; stroke: color-mix(in srgb, var(--ink) 25%, transparent); stroke-width: .6; }
+  .hand { fill: var(--brand-cream); stroke: color-mix(in srgb, var(--ink) 25%, transparent); stroke-width: .6; }
   @media (prefers-reduced-motion: no-preference) {
     .bob { animation: bob 3.2s ease-in-out infinite; transform-origin: 32px 76px; }
     .eyes { animation: blink 5s infinite; transform-origin: 32px 41px; }

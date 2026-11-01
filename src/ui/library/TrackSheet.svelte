@@ -29,7 +29,7 @@
 <style>
   .scrim { position: fixed; inset: 0; z-index: 40; background: color-mix(in srgb, var(--ground) 55%, transparent); animation: fade .14s ease-out; }
   .sheet { position: absolute; top: 0; right: 0; bottom: 0; width: min(1240px, 84vw); overflow-y: auto; overscroll-behavior: contain;
-    background: var(--ground); border-left: 1px solid var(--line-2); box-shadow: -24px 0 60px rgb(0 0 0 / .35); padding: 16px 28px 28px; outline: none;
+    background: var(--ground); border-left: 1px solid var(--line-2); box-shadow: var(--shadow-pop); padding: 16px 28px 28px; outline: none;
     animation: slide .18s ease-out; }
   .x { position: sticky; top: 0; float: right; z-index: 3; margin: -4px -12px 0 12px; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line-2);
     background: var(--surface); color: var(--ink-2); cursor: pointer; font-size: 14px; line-height: 1; }
@@ -37,5 +37,5 @@
   @keyframes slide { from { transform: translateX(40px); opacity: .4; } to { transform: none; opacity: 1; } }
   @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .sheet, .scrim { animation: none; } }
-  @media (max-width: 900px) { .sheet { width: 100vw; padding: 12px 14px 20px; } }
+  @media (max-width: 900px) { .sheet { width: 100%; padding: 12px 14px 20px; } }
 </style>

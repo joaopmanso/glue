@@ -224,7 +224,7 @@ try {
   await shot(page, 'calendar');
 
   // 12. The phone: the same library, on a phone's screen.
-  await page.locator('.tabs a[href="#/"]').click();
+  await page.locator('.tabs a').first().click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(1500);
   await page.locator('#phone-library').waitFor({ timeout: 20_000 });

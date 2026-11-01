@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   /* The library's player bar (ADR 0068): shuffle, previous, play, next, repeat; the song; the seek bar;
      volume and the sound output; ▲ opens the player (the queue and the visualiser). Songs or playlists
      dropped on it are queued. */
@@ -81,7 +82,8 @@
     {#if t}
       <span class="line"><a class="title" href={trackHref(t.id)} title="Open the track page" id="lib-now">{t.title || t.fileName}</a>
       <button type="button" class="locate" id="lib-locate" title="Show it in the list" aria-label="Show the playing track in the list" onclick={() => { view.reveal = t.id; if (router.current.name !== 'library') router.go('#/'); }}>⌖</button></span>
-      <span class="who">{t.artist}{#if remoteFiles.loading}<span> · getting it from {remoteFiles.loading.device}… {remoteFiles.loading.size ? Math.round(remoteFiles.loading.got / remoteFiles.loading.size * 100) + '%' : ''}</span>{:else if nowPlaying.error}<span class="err"> · {nowPlaying.error}</span>{:else if player.message}<span class="err"> · {player.message}</span>{/if}</span>
+      <span class="who"><Parts items={[t.artist, remoteFiles.loading ? 'getting it from ' + remoteFiles.loading.device + '… ' + (remoteFiles.loading.size ? Math.round(remoteFiles.loading.got / remoteFiles.loading.size * 100) + '%' : '')
+        : nowPlaying.error ? { text: nowPlaying.error, cls: 'err' } : player.message ? { text: player.message, cls: 'err' } : null]} /></span>
     {:else if hot}
       <span class="who drop">Drop to queue them</span>
     {:else if queued}
@@ -126,7 +128,7 @@
   .lplayer.open { background: var(--surface); }
   .ctl { display: flex; align-items: center; gap: 4px; }
   button { background: none; border: 0; color: var(--ink-2); cursor: pointer; display: grid; place-items: center; }
-  button:disabled { opacity: .35; cursor: default; }
+  button:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .skip, .tog { width: 30px; height: 30px; border-radius: 50%; }
   .skip:not(:disabled):hover, .tog:hover { color: var(--ink); background: var(--raised); }
   .skip svg { width: 13px; height: 13px; }
@@ -142,11 +144,11 @@
   .title:hover { text-decoration: underline; }
   .who { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .who.drop { color: var(--accent); font-weight: 600; }
-  .err { color: var(--warn); }
+  .who :global(.err) { color: var(--warn); }
   .seek { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
   .seek input { flex: 1; min-width: 0; accent-color: var(--accent); }
   .meta { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
-  .q { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; }
+  .q { font-family: var(--font-sans); font-size: 11px; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; }
   .q[data-grade="ok"] { color: var(--ok); } .q[data-grade="warn"] { color: var(--warn); } .q[data-grade="bad"] { color: var(--bad); } .q[data-grade="info"] { color: var(--muted); }
   .vol { display: flex; align-items: center; gap: 6px; color: var(--muted); }
   .ico { width: 26px; height: 26px; border-radius: 5px; color: var(--muted); }
@@ -157,7 +159,7 @@
   .expand { position: relative; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line-2); color: var(--ink-2); }
   .expand:hover, .expand[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
   .expand svg { width: 14px; height: 14px; }
-  .badge { position: absolute; top: -7px; right: -7px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: 10.5px; line-height: 17px; text-align: center; }
+  .badge { position: absolute; top: -7px; right: -7px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: 11px; line-height: 17px; text-align: center; }
   @media (max-width: 900px) { .lplayer { grid-template-columns: auto 1fr auto auto; gap: 10px; } .seek, .meta { display: none; } .vol input { width: 60px; } .tog { display: none; } }
   .locate { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; line-height: 1; }
   .locate:hover { color: var(--accent); }

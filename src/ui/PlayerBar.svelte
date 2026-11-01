@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { player } from '../lib/player.svelte';
   import { fmtTime } from '../core/format';
   import { nowPlaying } from '../lib/nowPlaying.svelte';
@@ -30,9 +31,9 @@
   {#if player.message && !wait}<span class="p-msg" id="p-msg">{player.message}</span>{/if}
   {#if wait && player.url}
     <span class="other" id="other-playing">
-      <button type="button" aria-label={player.paused ? 'Resume' : 'Pause'} onclick={() => player.toggle(false)}>{player.paused ? '▶' : '❚❚'}</button>
+      <button type="button" aria-label={player.paused ? 'Resume' : 'Pause'} onclick={() => player.toggle(false)}><Icon name={player.paused ? 'play' : 'pause'} /></button>
       {player.paused ? 'Paused' : 'Still playing'}: {#if nowPlaying.track}<a href={'#/track/' + nowPlaying.track.id}>{nowPlaying.track.title || nowPlaying.track.fileName}</a>{:else}another track{/if}
-      <small>· ▶ here plays this one</small>
+      <small>(<Icon name="play" /> here plays this one)</small>
     </span>
   {/if}
 </div>

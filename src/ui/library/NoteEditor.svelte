@@ -35,7 +35,7 @@
 {/if}
 
 <style>
-  .noteed { position: fixed; z-index: 40; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; box-shadow: 0 12px 32px rgb(0 0 0 / .5); display: grid; gap: 8px; }
+  .noteed { position: fixed; z-index: 40; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; box-shadow: var(--shadow-pop); display: grid; gap: 8px; }
   .head { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 13px; }
   .head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .head button { background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; line-height: 1; }

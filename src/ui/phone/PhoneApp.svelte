@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../Icon.svelte';
   /* GLUE's library on a phone or a tablet (the user's lists, 2026-09-28; ADR 0078, 0079): a library
      explorer and player. Tabs at the bottom: Library (the collection's lists), Browse (artists, albums,
      genres, labels, years), Playlists (made, named, moved and edited by touch), Search, More. Each tab
@@ -89,8 +90,8 @@
 
 <div class="phone" id="phone" data-page={children ? route.name : undefined}>
   <header class="ptop">
-    {#if children}<button type="button" class="back" id="phone-back" aria-label="Back" onclick={leavePage}>‹</button>
-    {:else if top}<button type="button" class="back" id="phone-back" aria-label="Back" onclick={() => phone.back()}>‹</button>{:else}<span class="logo" aria-hidden="true">G</span>{/if}
+    {#if children}<button type="button" class="back" id="phone-back" aria-label="Back" onclick={leavePage}><Icon name="chev-left" /></button>
+    {:else if top}<button type="button" class="back" id="phone-back" aria-label="Back" onclick={() => phone.back()}><Icon name="chev-left" /></button>{:else}<span class="logo" aria-hidden="true">G</span>{/if}
     <h1 id="phone-title">{children ? PAGES[route.name] ?? '' : title}</h1>
     {#if !children && canEdit && !phone.selecting}<button type="button" class="act" id="phone-edit" onclick={() => phone.editing ? (phone.editing = null) : startEditing(shownList!.id)}>{phone.editing ? 'Done' : 'Edit'}</button>{/if}
     {#if !children && shownList}<button type="button" class="act more" id="phone-list-more" aria-label={'More: ' + shownList.name} onclick={() => phone.menu(shownList.name, () => listMenu(shownList))}>⋯</button>{/if}
@@ -134,7 +135,7 @@
       </ul>
     {:else if phone.tab === 'browse'}
       <ul class="menu" id="phone-browse">
-        {#each FACETS as f (f.by)}<li><button type="button" class="ent strong" data-browse={f.by} onclick={() => phone.push({ kind: 'values', by: f.by })}>{f.name}<span class="n">›</span></button></li>{/each}
+        {#each FACETS as f (f.by)}<li><button type="button" class="ent strong" data-browse={f.by} onclick={() => phone.push({ kind: 'values', by: f.by })}>{f.name}<span class="n"><Icon name="chev-right" /></span></button></li>{/each}
       </ul>
     {:else if phone.tab === 'playlists'}
       <ul class="menu" id="phone-playlists">
@@ -194,7 +195,7 @@
   .ent.strong { font-weight: 650; }
   .ent.add { color: var(--accent); font-weight: 600; }
   .n { margin-left: auto; color: var(--muted); font: 13px var(--font-mono); }
-  .sec { margin: 18px 18px 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .sec { margin: 18px 18px 4px; font-size: 12px; color: var(--muted); }
   .lrow { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
   .lrow .ent { border-bottom: 0; flex: 1; min-width: 0; }
   .ic { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; font-style: normal; font-size: 12px; background: var(--raised); color: var(--ink-2); flex: none; }
@@ -204,7 +205,7 @@
   .search input { width: 100%; box-sizing: border-box; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 16px; }
   .acct { padding: 8px 18px; list-style: none; }
   .devices { flex: none; }
-  .toast { position: fixed; left: 10px; right: 10px; bottom: calc(60px + 70px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 14%, var(--raised)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-2)); font-size: 14px; box-shadow: 0 8px 24px rgb(0 0 0 / .4); }
+  .toast { position: fixed; left: 10px; right: 10px; bottom: calc(60px + 70px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 14%, var(--raised)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-2)); font-size: 14px; box-shadow: var(--shadow-pop); }
   .toast span { flex: 1; }
   .toast button { background: none; border: 0; color: var(--muted); font-size: 20px; }
   .toast .undo { color: var(--accent); font-size: 15px; font-weight: 700; padding: 6px 8px; }

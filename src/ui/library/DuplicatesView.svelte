@@ -135,13 +135,13 @@
     <header>
       {#if g.kind === 'same'}
         {#if canClean}<input type="checkbox" class="gpick" aria-label="Choose this group" checked={picked.has(g.key)} onchange={e => pick(g, e.currentTarget.checked)}>{/if}
-        <span class="kind">Same recording</span><span class="sure" data-sure={g.sure} title="How sure GLUE is that these are one recording">{g.sure}%</span><span class="sim">{g.byHand ? 'you marked them as duplicates' : g.confirmed ? 'same artist and title; you said it’s the same' : strength(g.similarity ?? 0)}{#if g.concerns.length}<span class="concern" title="Look before removing: these copies may be different versions"> · {g.concerns.join(' · ')}</span>{/if}</span>
+        <span class="kind">Same recording</span><span class="sure" data-sure={g.sure} title="How sure GLUE is that these are one recording">{g.sure}%</span><span class="sim">{g.byHand ? 'you marked them as duplicates' : g.confirmed ? 'same artist and title; you said it’s the same' : strength(g.similarity ?? 0)}{#if g.concerns.length}<span class="concern" title="Look before removing: these copies may be different versions">: {g.concerns.join(', ')}</span>{/if}</span>
         {#if canClean}
           <button type="button" class="mini" data-clean="move" title="Keep the best copy; put the others in GLUE Home's duplicates folder (out of the library, not deleted)" onclick={() => (ask = { mode: 'move', groups: [g] })}>Move the others…</button>
           <button type="button" class="mini danger" data-clean="trash" title="Keep the best copy; move the others' files to the Recycle Bin" onclick={() => (ask = { mode: 'trash', groups: [g] })}>Delete the others…</button>
         {/if}
       {:else}
-        <span class="kind probable">Probable</span><span class="sure" data-sure={g.sure}>{g.sure}%</span><span class="sim">same artist and title, similar length; not confirmed by sound{#if g.concerns.length}<span class="concern"> · {g.concerns.join(' · ')}</span>{/if}</span>
+        <span class="kind probable">Probable</span><span class="sure" data-sure={g.sure}>{g.sure}%</span><span class="sim">same artist and title, similar length; not confirmed by sound{#if g.concerns.length}<span class="concern">: {g.concerns.join(', ')}</span>{/if}</span>
         <button type="button" class="mini" data-confirm title="They are the same recording: clean them up like one (keep the best copy, move or delete the others)" disabled={lib.readOnly} onclick={() => dupes.confirm(g)}>Same recording</button>
       {/if}
       <button type="button" class="mini" onclick={() => dupes.ignore(g)} title="Hide this group from now on">Not duplicates</button>
@@ -274,7 +274,7 @@
   .empty { text-align: center; padding: 40px 0; }
   .grp { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .grp header { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-  .kind { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .kind { font-size: 12px; font-weight: 600; color: var(--accent); }
   .kind.probable { color: var(--warn); }
   .sim { color: var(--muted); font-size: 12.5px; flex: 1; }
   ul { list-style: none; margin: 0; padding: 0; }
@@ -295,7 +295,7 @@
      then "Keep · not a duplicate". */
   .act { display: grid; grid-template-columns: 140px 160px; gap: 8px; align-items: center; justify-items: stretch; }
   .act > * { text-align: center; }
-  .bestb { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid currentColor; border-radius: 4px; padding: 4px 6px; }
+  .bestb { font-size: 11px; color: var(--ok); border: 1px solid currentColor; border-radius: 4px; padding: 4px 6px; }
   .sure { font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 3px; padding: 0 5px; }
   .sure[data-sure="100"] { color: var(--ok); border-color: currentColor; }
   .concern { color: var(--warn); }
@@ -310,11 +310,11 @@
   .doubt ul { display: grid; gap: 2px; max-height: 20vh; overflow-y: auto; }
   .doubt li { display: flex; justify-content: space-between; gap: 12px; padding: 0; border: 0; grid-template-columns: none; font-size: 12.5px; }
   .doubt li small { color: var(--warn); white-space: nowrap; }
-  .q { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
+  .q { font-size: 11px; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
   .q[data-grade="ok"] { color: var(--ok); } .q[data-grade="warn"] { color: var(--warn); } .q[data-grade="bad"] { color: var(--bad); } .q[data-grade="info"] { color: var(--muted); }
   .pbtn { width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--raised); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; padding: 0; }
   .pbtn:hover:not(:disabled) { background: var(--accent); color: var(--accent-ink); }
-  .pbtn:disabled { opacity: .3; cursor: default; }
+  .pbtn:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .pbtn svg { width: 10px; height: 10px; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
   .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
@@ -325,7 +325,7 @@
   .bulk { position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 12.5px; color: var(--ink-2); }
   .bulk span { flex: 1; }
   .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; }
-  .dlg { width: min(620px, 100%); max-height: calc(100vh - 32px); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; display: grid; gap: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); min-height: 0; }
+  .dlg { width: min(620px, 100%); max-height: calc(100vh - 32px); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; display: grid; gap: 12px; box-shadow: var(--shadow-pop); min-height: 0; }
   .dlg h2 { font-size: 20px; margin: 0; }
   .dlg p { color: var(--ink-2); font-size: 13.5px; margin: 0; }
   .dlg .fine { color: var(--muted); font-size: 12.5px; }
@@ -335,6 +335,6 @@
   .plan li small { color: var(--muted); white-space: nowrap; }
   .plan .more { color: var(--muted); }
   .acts { display: flex; gap: 8px; justify-content: flex-end; }
-  .dangerbtn { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .dangerbtn { background: var(--bad); border-color: var(--bad); color: var(--bad-ink); }
   @media (max-width: 1200px) { li { grid-template-columns: 28px 150px minmax(160px, 1fr) 120px 140px 310px; } li > :nth-child(5), li > :nth-child(6), li > :nth-child(8) { display: none; } }
 </style>

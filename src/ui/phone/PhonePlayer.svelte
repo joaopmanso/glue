@@ -90,14 +90,14 @@
 {/if}
 
 <style>
-  .mini { position: fixed; left: 8px; right: 8px; bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 6px); z-index: 30; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 8px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 6px 24px rgb(0 0 0 / .35); overflow: hidden; cursor: pointer; }
+  .mini { position: fixed; left: 8px; right: 8px; bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 6px); z-index: 30; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 8px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-pop); overflow: hidden; cursor: pointer; }
   .prog { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); }
   .mini :global(.cov) { border-radius: 6px; }
   .txt { flex: 1; min-width: 0; display: grid; }
   .txt b { font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .txt small { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   button { background: none; border: 0; color: var(--ink); cursor: pointer; display: grid; place-items: center; }
-  button:disabled { opacity: .35; }
+  button:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .pp, .nx { width: 44px; height: 44px; }
   .pp svg { width: 18px; height: 18px; }
   .nx svg { width: 16px; height: 16px; }
@@ -112,7 +112,7 @@
   .art :global(.cov:not(.has)::before) { content: '♪'; font-size: 96px; opacity: .5; }
   .body { flex: 1; overflow-y: auto; padding: 8px 22px 30px; display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 640px; margin: 0 auto; box-sizing: border-box; }
   .art { display: grid; place-items: center; min-height: 200px; }
-  .art :global(.cov) { border-radius: 12px; box-shadow: 0 12px 40px rgb(0 0 0 / .45); background: var(--raised); max-width: min(72vw, 420px); max-height: min(72vw, 420px); }
+  .art :global(.cov) { border-radius: 12px; box-shadow: var(--shadow-pop); background: var(--raised); max-width: min(72vw, 420px); max-height: min(72vw, 420px); }
   .who { display: grid; gap: 2px; }
   .who a { color: var(--ink); text-decoration: none; }
   .who b { font-size: 21px; }
@@ -130,7 +130,7 @@
   .big { width: 72px; height: 72px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); }
   .big svg { width: 26px; height: 26px; }
   .queue { display: grid; gap: 2px; }
-  .queue h3 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 12px 0 4px; }
+  .queue h3 { font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
   .q { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
   .qt { flex: 1; min-width: 0; display: grid; justify-items: start; text-align: left; padding: 8px 0; }
   .qt b { font-size: 14.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

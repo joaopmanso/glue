@@ -73,9 +73,9 @@
 
 <style>
   .clashes {
-    position: fixed; right: 16px; bottom: 80px; z-index: 55; width: min(380px, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto;
+    position: fixed; right: 16px; bottom: 80px; z-index: 55; width: min(380px, calc(100% - 32px)); max-height: 60vh; overflow-y: auto;
     background: var(--surface); border: 1px solid color-mix(in srgb, var(--warn) 60%, var(--line)); border-radius: 10px;
-    box-shadow: 0 16px 40px rgb(0 0 0 / .45); font-size: 13px;
+    box-shadow: var(--shadow-pop); font-size: 13px;
   }
   .head {
     display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 10px 12px; border: 0; cursor: pointer;
@@ -92,5 +92,5 @@
   .mini { background: none; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }
-  button:disabled { opacity: .5; cursor: default; }
+  button:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
 </style>

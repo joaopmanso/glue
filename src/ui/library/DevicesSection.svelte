@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   /* Sidebar › Devices (signed in only): this browser and the account's other devices, each in its
      colour (the Device column's), with its songs, when it was last seen, and that streaming from it
      is off until GLUE Home streaming exists. Clicking one shows only its songs (a merged collection,
@@ -143,7 +144,11 @@
           <button type="button" class="dname" aria-pressed={only.includes(d.name)} title={only.includes(d.name) ? 'Show every device’s songs again' : 'Show only the songs on ' + d.name}
             onclick={() => view.toggleFilter('device', d.name)}>
             <i class="sw" class:on aria-hidden="true"></i>
-            <span class="txt"><b>{d.name}</b><small>{d.kind === 'home' ? 'GLUE Home · ' : ''}{seen(d)}{h && d.kind !== 'home' ? ' · GLUE Home ' + (hOn ? 'on' : 'off') : ''}{#if me && h}{#if localHome.for(h.id)}<span class="link" id="local-link" title="This page talks to GLUE Home directly on 127.0.0.1, without GLUE Cloud"> · linked directly</span>{:else if localHome.problem}<span class="link off" id="local-link" title={'No direct link to GLUE Home: ' + localHome.problem + '. It goes through GLUE Cloud instead.'}> · no direct link</span>{/if}{/if}{hOn ? ' · drop songs to send' : ''}{n != null ? ' · ' + n.toLocaleString() + ' song' + (n === 1 ? '' : 's') : ''}{!me && at ? ' · synced ' + ago(at) : ''}</small></span>
+            <span class="txt"><b>{d.name}</b><small><Parts items={[
+              d.kind === 'home' && 'GLUE Home', seen(d), h && d.kind !== 'home' && 'GLUE Home ' + (hOn ? 'on' : 'off'),
+              me && h && (localHome.for(h.id) ? { text: 'linked directly', cls: 'link', id: 'local-link', title: 'This page talks to GLUE Home directly on 127.0.0.1, without GLUE Cloud' }
+                : localHome.problem ? { text: 'no direct link', cls: 'link off', id: 'local-link', title: 'No direct link to GLUE Home: ' + localHome.problem + '. It goes through GLUE Cloud instead.' } : null),
+              hOn && 'drop songs to send', n != null && n.toLocaleString() + ' song' + (n === 1 ? '' : 's'), !me && at && 'synced ' + ago(at)]} /></small></span>
           </button>
           {#if loading || (remoteFiles.loading && remoteFiles.loading.device === d.name)}<span class="spin" title={remoteFiles.loading ? 'Getting ' + remoteFiles.loading.name + ' from ' + d.name + '…' : 'Updating from ' + d.name + '…'}></span>
           {:else if hOn && !me}<span class="stream" title={'Streaming on: ' + d.name + '’s songs play here through its GLUE Home.'} aria-label="Streaming on">
@@ -201,8 +206,8 @@
   .txt { flex: 1; min-width: 0; display: grid; line-height: 1.25; font-size: 13px; }
   .txt b { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .txt small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .txt small .link { color: var(--ok, inherit); }
-  .txt small .link.off { color: var(--warn, inherit); }
+  .txt small :global(.link) { color: var(--ok); }
+  .txt small :global(.link.off) { color: var(--warn); }
   .nostream { display: inline-grid; place-items: center; color: var(--muted); opacity: .75; flex: none; }
   .nostream svg, .stream svg { width: 14px; height: 14px; }
   .stream { display: inline-grid; place-items: center; color: var(--ok); flex: none; }
@@ -217,7 +222,7 @@
   .dlg a.btn { text-decoration: none; display: inline-block; }
   .err { color: var(--bad); font-size: 12px; padding: 0 8px; }
   .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; overflow-y: auto; }
-  .dlg { width: min(460px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 22px; display: grid; gap: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); }
+  .dlg { width: min(460px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 22px; display: grid; gap: 12px; box-shadow: var(--shadow-pop); }
   .dlg h2 { font-size: 21px; }
   .dlg p { color: var(--ink-2); font-size: 14px; }
   .codebox { display: flex; gap: 10px; align-items: center; }

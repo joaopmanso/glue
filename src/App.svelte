@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './ui/Icon.svelte';
   import { onMount, untrack } from 'svelte';
   import { app, analyzeFile } from './lib/app.svelte';
   import { player } from './lib/player.svelte';
@@ -176,7 +177,7 @@
       {:else if lib.profile}
         {@const who = lib.alias ?? lib.profile}
         <small id="saving" class:hidden={!(lib.saving || lib.unsaved)} aria-hidden={!(lib.saving || lib.unsaved)}>Saving…</small>
-        <small title={'Your library is stored in ' + lib.homeName}>📂 {lib.homeName}</small>
+        <small title={'Your library is stored in ' + lib.homeName}><Icon name="folder-open" /> {lib.homeName}</small>
         <button type="button" class="who" data-guide="profile" title="Switch profile" onclick={() => lib.switchProfile()}>
           <span class="dot" style:background={who.color}>{who.name.slice(0, 1).toUpperCase()}</span>{who.name}
         </button>
@@ -189,7 +190,7 @@
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 10.2A5.8 5.8 0 0 1 5.8 2.5a5.8 5.8 0 1 0 7.7 7.7z" fill="currentColor"/></svg>
         {/if}
       </button>
-      <input type="file" id="file-input" accept="audio/*,.flac,.wav,.aif,.aiff,.aifc,.m4a,.mp4,.alac,.mp3,.aac,.ogg,.oga,.opus,.webm,.mka" onchange={pick}>
+      <input type="file" id="file-input" tabindex="-1" aria-hidden="true" accept="audio/*,.flac,.wav,.aif,.aiff,.aifc,.m4a,.mp4,.alac,.mp3,.aac,.ogg,.oga,.opus,.webm,.mka" onchange={pick}>
     </div>
   </header>
 
@@ -204,7 +205,7 @@
     {#if app.busy}
       <div id="status" class="status">
         <div class="row"><span id="status-text">{app.busy.text}</span><span id="status-pct" class="mono">{app.busy.p != null ? Math.round(app.busy.p * 100) + '%' : ''}</span></div>
-        <div class="bar"><span id="status-bar" style:width={(app.busy.p ?? 0) * 100 + '%'}></span></div>
+        <div class="bar"><span id="status-bar" style:transform={'scaleX(' + (app.busy.p ?? 0) + ')'}></span></div>
       </div>
     {/if}
     {#if app.error}
@@ -259,12 +260,12 @@
   .modebtn:hover { color: var(--accent); border-color: var(--accent); }
   .modebtn svg { width: 15px; height: 15px; }
   .brand h1 a { color: inherit; text-decoration: none; }
-  .tabs { display: flex; gap: 4px; }
-  .tabs a { color: var(--muted); text-decoration: none; font-size: 13.5px; font-weight: 600; padding: 4px 10px; border-radius: 4px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tabs a { color: var(--muted); text-decoration: none; font-size: 13.5px; font-weight: 600; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
   .tabs a:hover { color: var(--ink); }
   .tabs a.on { color: var(--ink); background: var(--raised); }
-  .badge { display: inline-block; margin-left: 5px; min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--warn); color: #111; font: 700 10.5px/16px var(--font-sans); font-style: normal; text-align: center; }
+  .badge { display: inline-block; margin-left: 5px; min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--warn); color: var(--accent-ink); font: 700 10.5px/16px var(--font-sans); font-style: normal; text-align: center; }
   .who { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 3px 12px 3px 3px; cursor: pointer; font-weight: 600; font-size: 13px; }
   .who:hover { border-color: var(--accent); }
-  .dot { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #06121d; font-weight: 800; font-size: 12px; }
+  .dot { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--accent-ink); font-weight: 800; font-size: 12px; }
 </style>

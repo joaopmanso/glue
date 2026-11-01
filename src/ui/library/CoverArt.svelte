@@ -36,5 +36,5 @@
   .cov { display: inline-block; flex: none; border-radius: 3px; overflow: hidden; vertical-align: middle; }
   .cov.has { background: var(--raised); box-shadow: 0 0 0 1px var(--line); }
   .cov img { display: block; width: 100%; height: 100%; object-fit: cover; }
-  .big { position: fixed; z-index: 70; border-radius: 6px; box-shadow: 0 16px 40px rgb(0 0 0 / .55), 0 0 0 1px var(--line-2); pointer-events: none; background: var(--raised); }
+  .big { position: fixed; z-index: 70; border-radius: 6px; box-shadow: var(--shadow-pop), 0 0 0 1px var(--line-2); pointer-events: none; background: var(--raised); }
 </style>

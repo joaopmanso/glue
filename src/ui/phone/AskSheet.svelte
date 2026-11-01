@@ -27,8 +27,8 @@
 {/if}
 
 <style>
-  .scrim { position: fixed; inset: 0; z-index: 90; background: rgb(0 0 0 / .5); }
-  .ask { position: fixed; z-index: 91; left: 10px; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 12px); max-width: 480px; margin: 0 auto; padding: 16px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 14px; box-shadow: 0 16px 48px rgb(0 0 0 / .5); }
+  .scrim { position: fixed; inset: 0; z-index: 90; background: var(--scrim); }
+  .ask { position: fixed; z-index: 91; left: 10px; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 12px); max-width: 480px; margin: 0 auto; padding: 16px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 14px; box-shadow: var(--shadow-pop); }
   form { display: grid; gap: 12px; }
   b { font-size: 17px; }
   p { margin: 0; color: var(--ink-2); font-size: 15px; line-height: 1.4; }
@@ -37,6 +37,6 @@
   .acts { display: flex; justify-content: flex-end; gap: 10px; }
   .acts button { min-width: 96px; padding: 11px 16px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--raised); color: var(--ink); font-size: 16px; font-weight: 600; cursor: pointer; }
   .acts button[type="submit"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  .acts button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
-  .acts button:disabled { opacity: .45; }
+  .acts button.danger { background: var(--bad); border-color: var(--bad); color: var(--bad-ink); }
+  .acts button:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
 </style>

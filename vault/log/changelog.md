@@ -5,6 +5,27 @@ updated: 2026-11-01
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-01 · Hallmark's Console treatment (ADR 0191)
+- **Why:** the user: "use the hallmark github repo to have a more unique and professional looking design … keep the
+  color scheme and have minimal ui changes".
+- **Audit:** Hallmark's linter found 281 Floor failures; 4 are left, each recorded in ADR 0191.
+- **Now (a restyle: layout, colours, words and wiring kept):**
+  - Host Grotesk for reading, heavy Archivo for titles, Atkinson Hyperlegible Mono only for measurements (GLUE Stick,
+    Classic);
+  - sentence-case labels;
+  - surface tokens instead of literals (stage, scrim, the floating shadow);
+  - disabled states in fill, ink and cursor;
+  - transform-only progress bars;
+  - `overflow-x: clip` and no `100vw`;
+  - line icons instead of emoji;
+  - hairline-parted meta lines instead of middle dots;
+  - "to" in ranges;
+  - no eyebrows;
+  - the homepage's scroll reveal removed;
+  - the hidden file input out of the tab order.
+- **Homepage media:** captured again (`scripts/demo/capture.ts`; its Library-tab locator fixed).
+- **Tests:** e2e locators that matched emoji or dotted strings now match the icons' text and `.parts`.
+
 ## 2026-11-01 · The Discogs playlist builder (ADR 0190)
 - **Why:** the user: "it should be more like the auto playlist from the collection. let me select 1 or more
   tracks/albums and create a playlist based on that, allow me to refine, number of tracks, multiple tracks from same

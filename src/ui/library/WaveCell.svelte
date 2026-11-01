@@ -87,7 +87,7 @@
   .wave.empty { background: repeating-linear-gradient(90deg, var(--raised) 0 3px, transparent 3px 6px); opacity: .6; }
   canvas { display: block; width: 100%; height: 100%; image-rendering: auto; }
   .played { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--ground) 45%, transparent); pointer-events: none; }
-  .head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / .5); pointer-events: none; }
+  .head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); box-shadow: 0 0 0 1px var(--stage); pointer-events: none; }
   .cue { position: absolute; top: 0; width: 2px; height: 6px; margin-left: -1px; background: var(--accent); pointer-events: none; }
   .cue.hot { height: 22px; opacity: .8; width: 1.5px; }
   .cue.loop { background: var(--ok); }

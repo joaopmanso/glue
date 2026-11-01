@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
+  import Icon from '../Icon.svelte';
   /* The Discogs playlist builder (ADR 0190): from the records or tracks picked, a playlist of tracks like them (style,
      genre, label, years, artists), within the rules asked: how many, tracks per record, compilations, artists, styles,
      labels, formats, years, vinyl or digital. Each track can be swapped (↻) or taken out (×); Save makes a Discogs
@@ -30,7 +32,7 @@
     const out: { item: string; label: string }[] = [];
     for (const r of discogs.state?.kept?.records ?? []) {
       const rn = (r.title + ' ' + r.artists.join(' ') + ' ' + r.labels.map(l => l.name + ' ' + l.catno).join(' ')).toLowerCase();
-      if (rn.includes(w)) out.push({ item: 'rec:' + r.id, label: '💿 ' + r.artists.map(plainName).join(', ') + ' – ' + r.title });
+      if (rn.includes(w)) out.push({ item: 'rec:' + r.id, label: r.artists.map(plainName).join(', ') + ' – ' + r.title });
       const m = discogs.matchOf(r);
       r.tracks?.forEach((t, i) => { if (t.title.toLowerCase().includes(w)) out.push({ item: m.byTrack[i] ?? 'dg:' + r.id + ':' + (t.p || String(i + 1)), label: (t.p ? t.p + ' ' : '') + t.title + ' · ' + r.title }); });
       if (out.length > 30) break;
@@ -57,7 +59,7 @@
         {#each b.seeds as s (s)}<div class="tchip seed"><b>{b.label(s)}</b><span>{b.describe(s)?.record?.title ?? ''}</span><button type="button" aria-label="Remove" onclick={() => (b.seeds = b.seeds.filter(x => x !== s))}>×</button></div>
         {:else}<p class="fine" id="dgb-noseed">Nothing picked: the rules below choose. Add records or tracks here, or tick them in Discogs.</p>{/each}
         <input type="search" id="dgb-search" placeholder="Add a record or track…" bind:value={sq} autocomplete="off">
-        {#if seedHits.length}<div class="hits">{#each seedHits as h (h.item)}<button type="button" onclick={() => addSeed(h.item)}>{h.label}</button>{/each}</div>{/if}
+        {#if seedHits.length}<div class="hits">{#each seedHits as h (h.item)}<button type="button" onclick={() => addSeed(h.item)}>{#if h.item.startsWith('rec:')}<Icon name="disc" /> {/if}{h.label}</button>{/each}</div>{/if}
 
         <h3>Shape</h3>
         <label class="row">Tracks <input type="number" id="dgb-count" min="1" max="200" bind:value={b.form.count}></label>
@@ -98,7 +100,7 @@
           <button type="button" class="btn" id="dgb-save" disabled={!b.ids.length || lib.readOnly} onclick={() => b.save()}>Save</button>
         </div>
         {#if b.ids.length}
-          <p class="meta" id="dgb-meta">{b.ids.length} tracks{total ? ' · ' + Math.round(total / 60) + ' min' : ''} · {b.ids.filter(id => id.startsWith('dg:')).length} on vinyl{b.relaxed.length ? ' · ' + b.relaxed.join(', ') : ''}</p>
+          <p class="meta" id="dgb-meta"><Parts items={[b.ids.length + ' tracks', total && Math.round(total / 60) + ' min', b.ids.filter(id => id.startsWith('dg:')).length + ' on vinyl', b.relaxed.length > 0 && b.relaxed.join(', ')]} /></p>
           <ol class="list" id="dgb-list">
             {#each b.ids as id, i (id)}
               {@const d = b.describe(id)}
@@ -108,7 +110,7 @@
                 <span class="cov">{#if src}<img src={src} alt="">{/if}</span>
                 <span class="who"><b>{d?.title ?? id}</b><small>{d?.artist ?? ''}{d?.record ? ' · ' + d.record.title : ''}</small></span>
                 <span class="len">{d?.duration ? fmtTime(d.duration) : ''}</span>
-                {#if d?.digital}<button type="button" class="play" aria-label="Play" disabled={!nowPlaying.canPlay(id)} onclick={() => void nowPlaying.play(id, songs, 0, b.name)}>▶</button>{:else}<span class="vin">On vinyl</span>{/if}
+                {#if d?.digital}<button type="button" class="play" aria-label="Play" disabled={!nowPlaying.canPlay(id)} onclick={() => void nowPlaying.play(id, songs, 0, b.name)}><Icon name="play" /></button>{:else}<span class="vin">On vinyl</span>{/if}
                 <span class="acts">
                   <button type="button" class="ic" title="Another track here" aria-label="Another track here" data-reroll={i} disabled={b.seeds.includes(id)} onclick={() => b.reroll(i)}>↻</button>
                   <button type="button" class="ic" title="Take it out" aria-label="Take it out" data-remove={i} onclick={() => b.remove(i)}>×</button>
@@ -124,13 +126,13 @@
 
 <style>
   .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; justify-items: center; align-items: start; overflow-y: auto; padding: 16px; }
-  .dlg { margin-block: auto; width: min(1180px, 100%); height: min(860px, calc(100dvh - 32px)); display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); overflow: clip; }
+  .dlg { margin-block: auto; width: min(1180px, 100%); height: min(860px, calc(100dvh - 32px)); display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-pop); overflow: clip; }
   header { position: relative; padding: 14px 22px; border-bottom: 1px solid var(--line); }
   h2 { margin: 0; font-size: 17px; }
   .x { position: absolute; right: 14px; top: 12px; background: none; border: 0; color: var(--muted); font-size: 24px; cursor: pointer; line-height: 1; }
   .cols { display: flex; min-height: 0; overflow: hidden; }
   .opts { flex: 0 0 400px; min-height: 0; overflow-y: auto; padding: 14px 18px 18px 22px; display: grid; gap: 10px; align-content: start; border-right: 1px solid var(--line); }
-  h3 { margin: 6px 0 0; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+  h3 { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
   .fine { color: var(--muted); font-size: 12.5px; margin: 0; }
   .tchip { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; background: var(--raised); border-radius: 6px; padding: 6px 8px; font-size: 13px; border-left: 3px solid var(--accent); }
   .tchip b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -149,16 +151,16 @@
   .seg button[aria-checked="true"] { background: var(--raised); color: var(--ink); }
   .seg.small button { font-size: 11px; padding: 2px 7px; }
   .rule { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12.5px; }
-  .rule b { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-right: 4px; }
+  .rule b { color: var(--muted); font-weight: 600; font-size: 11px; margin-right: 4px; }
   .chip { background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 12px; color: var(--ink); font-size: 12px; padding: 1px 8px; cursor: pointer; }
   .add { background: none; border: 1px dashed var(--line-2); border-radius: 12px; color: var(--ink-2); font-size: 12px; padding: 0 8px; cursor: pointer; }
   .pick { display: grid; gap: 4px; }
   .opts2 { display: flex; flex-wrap: wrap; gap: 4px; max-height: 120px; overflow-y: auto; }
   .opts2 button { background: none; border: 1px solid var(--line-2); border-radius: 12px; color: var(--ink-2); font-size: 12px; padding: 1px 8px; cursor: pointer; }
   .btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 6px; padding: 7px 16px; font-weight: 600; cursor: pointer; }
-  .btn:disabled { opacity: .45; cursor: default; }
+  .btn:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 4px 10px; cursor: pointer; }
-  .mini:disabled { opacity: .45; cursor: default; }
+  .mini:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .res { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 14px 22px 18px 18px; gap: 8px; }
   .res-head { display: flex; gap: 8px; align-items: center; }
   .res-head input { flex: 1; font-size: 15px; font-weight: 600; padding: 7px 10px; }
@@ -175,11 +177,11 @@
   .who small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .len { color: var(--ink-2); font: 12px var(--font-mono); text-align: right; }
   .play { background: none; border: 1px solid var(--line-2); border-radius: 50%; width: 24px; height: 24px; color: var(--accent); cursor: pointer; font-size: 10px; justify-self: start; }
-  .vin { color: var(--warn, #e0a030); border: 1px solid currentColor; border-radius: 10px; font-size: 11px; padding: 1px 7px; justify-self: start; }
+  .vin { color: var(--warn, var(--warn)); border: 1px solid currentColor; border-radius: 10px; font-size: 11px; padding: 1px 7px; justify-self: start; }
   .acts { display: flex; gap: 2px; }
   .ic { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 4px; }
   .ic:hover:not(:disabled) { color: var(--accent); background: var(--surface); }
-  .ic:disabled { opacity: .3; cursor: default; }
+  .ic:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .empty { color: var(--muted); font-size: 13.5px; }
   @media (max-width: 860px) { .cols { flex-direction: column; overflow-y: auto; } .opts { flex: none; border-right: 0; border-bottom: 1px solid var(--line); } .res { overflow: visible; } }
 </style>

@@ -284,7 +284,7 @@ test('the account’s collections (ADR 0112): one box with each computer’s num
     await desk.page.locator('button.who').click();
     const box = desk.page.locator(`#cloud-panel [data-cloud="${main}"]`);
     await expect(box).toContainText('4 songs', { timeout: 30_000 });
-    await expect(box.locator('[data-computer="b1"]')).toContainText(/Desktop.*4 songs · online/, { timeout: 30_000 });
+    await expect(box.locator('[data-computer="b1"]')).toContainText(/Desktop.*4 songs.*online/, { timeout: 30_000 });
     // The laptop has no music of its own: not one of its computers. The phone's line doesn't show; the old one does,
     // and goes with its ×.
     await expect(box.locator('[data-computer="b2"]')).toHaveCount(0);

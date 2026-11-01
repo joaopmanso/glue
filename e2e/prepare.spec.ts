@@ -68,7 +68,7 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await expect(row.locator('.c-num').first()).toHaveText(/^12[34]/);
   await expect(page.locator('.lside .name', { hasText: 'Duplicates' })).toContainText('1', { timeout: 30_000 });
   // The music folder's own list: every copy is a row there (All tracks shows the song once, its best copy).
-  await page.locator('.lside .name', { hasText: '📁 Music' }).click();
+  await page.locator('.lside .name', { hasText: /^\s*Music/ }).click();
   await expect(copy).toHaveCount(1);
 
   // The sidebar's sections fold, and one can take the full height (the others fold meanwhile).
@@ -79,7 +79,7 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await expect(allTracks).toHaveCount(1);
   await page.click('[data-max="music"]');
   await expect(allTracks).toHaveCount(0);
-  await expect(page.locator('.lside .name', { hasText: '📁 Music' })).toBeVisible();
+  await expect(page.locator('.lside .name', { hasText: /^\s*Music/ })).toBeVisible();
   await page.click('[data-max="music"]');
   await expect(allTracks).toHaveCount(1);
 
@@ -151,7 +151,7 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await expect(page.locator('#m-bpm')).toContainText('125', { timeout: 30_000 });
   await expect(page.locator('#m-bpm-sub')).toContainText('your BPM');
   await page.goto('./#/');
-  await page.locator('.lside .name', { hasText: '📁 Music' }).click();   // every copy a row
+  await page.locator('.lside .name', { hasText: /^\s*Music/ }).click();   // every copy a row
   await expect(row.locator('.c-num.mine')).toHaveText('125');
   await expect(copy.locator('.c-num.mine')).toHaveText('125');   // the other copy of the recording too
 
@@ -165,15 +165,15 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await row.locator('.c-title').click({ button: 'right' });
   await page.locator('.cmenu [data-m="add"]').hover(); await page.locator('.cmenu [data-m="new-playlist"]').click();
   await page.locator('.lside .tree .name', { hasText: 'Half-time' }).click();
-  await expect(page.locator('#playlist-insights')).toContainText('63–63 BPM · avg 63');
-  await page.locator('.lside .name', { hasText: '📁 Music' }).click();
+  await expect(page.locator('#playlist-insights')).toContainText('63 to 63 BPM');
+  await page.locator('.lside .name', { hasText: /^\s*Music/ }).click();
   await row.locator('.c-title').dblclick();
   await expect(page.locator('#m-bpm')).toContainText('62.5', { timeout: 30_000 });
   await page.click('#tab-prepare');
   await expect(page.locator('#prep-copies')).toBeVisible({ timeout: 30_000 });   // Duplicates found the copy again
   await page.locator('#prep-flip').check();
   await page.goto('./#/');
-  await page.locator('.lside .name', { hasText: '📁 Music' }).click();   // every copy a row
+  await page.locator('.lside .name', { hasText: /^\s*Music/ }).click();   // every copy a row
   await expect(row.locator('.c-num.mine')).toHaveText('125');
   await expect(copy.locator('.c-num.mine')).toHaveText('125');
 
@@ -183,7 +183,7 @@ test('Prepare: waveform and grid, a BPM correction shown in the library, range a
   await page.click('#reanalyse');
   await expect(page.locator('#v-pill')).not.toHaveText('', { timeout: 60_000 });
   await page.goto('./#/');
-  await page.locator('.lside .name', { hasText: '📁 Music' }).click();   // every copy a row
+  await page.locator('.lside .name', { hasText: /^\s*Music/ }).click();   // every copy a row
   await expect(row.locator('.c-num.mine')).toHaveCount(0);
   await expect(copy.locator('.c-num.mine')).toHaveCount(0);
   await expect(row.locator('.c-num').first()).toHaveText(/^12[34]/);   // half-time, flipped: back to ~124

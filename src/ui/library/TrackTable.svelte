@@ -552,7 +552,7 @@
   .thead, .tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 10px; padding: 0 6px 0 10px; }
   .thead { border-bottom: 1px solid var(--line); height: 32px; position: relative; z-index: 2; }
   .th { display: flex; align-items: center; min-width: 0; height: 100%; gap: 2px; position: relative; }
-  .th .sortb { flex: 1; min-width: 0; background: none; border: 0; padding: 0; text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 100%; }
+  .th .sortb { flex: 1; min-width: 0; background: none; border: 0; padding: 0; text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 100%; }
   .th.on .sortb { color: var(--ink); }
   /* The resize grip on a header's right edge. */
   .rz { position: absolute; right: -6px; top: 6px; bottom: 6px; width: 7px; cursor: col-resize; z-index: 3; border-radius: 2px; }
@@ -566,7 +566,7 @@
   .thead .th.lifted { opacity: .35; }
   .thead .th.col-before { box-shadow: inset 2px 0 0 var(--accent); }
   .thead .th.col-after { box-shadow: inset -2px 0 0 var(--accent); }
-  .hfpop { position: fixed; z-index: 45; width: 260px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; box-shadow: 0 12px 32px rgb(0 0 0 / .45); display: grid; gap: 8px; }
+  .hfpop { position: fixed; z-index: 45; width: 260px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; box-shadow: var(--shadow-pop); display: grid; gap: 8px; }
   .hsort { display: grid; gap: 2px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
   .hsort button { text-align: left; background: none; border: 0; border-radius: 4px; padding: 4px 6px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
   .hsort button:hover { background: var(--surface); }
@@ -575,20 +575,20 @@
   .tg { flex: none; font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--c) 20%, transparent); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); color: var(--ink); white-space: nowrap; }
   .tadd { font-size: 11px; color: var(--muted); opacity: 0; }
   .tr:hover .tadd { opacity: 1; }
-  .thead button[role="columnheader"] { background: none; border: 0; padding: 0; text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; height: 100%; }
+  .thead button[role="columnheader"] { background: none; border: 0; padding: 0; text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; height: 100%; }
   .thead button[role="columnheader"].on { color: var(--ink); }
   .arrow { font-size: 8px; margin-left: 4px; }
   .cm { position: relative; display: flex; justify-content: flex-end; }
   .cmbtn { background: none; border: 0; color: var(--muted); cursor: pointer; width: 24px; height: 24px; border-radius: 4px; display: grid; place-items: center; padding: 0; }
   .cmbtn:hover, .cmbtn[aria-expanded="true"] { color: var(--ink); background: var(--raised); }
   .cmbtn svg { width: 14px; height: 14px; }
-  .colmenu { position: fixed; z-index: 45; width: 230px; max-height: calc(100vh - 120px); overflow-y: auto; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 8px; box-shadow: 0 10px 28px rgb(0 0 0 / .45); display: grid; gap: 2px; }
+  .colmenu { position: fixed; z-index: 45; width: 230px; max-height: calc(100vh - 120px); overflow-y: auto; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; padding: 8px; box-shadow: var(--shadow-pop); display: grid; gap: 2px; }
   .colmenu .label { margin: 0 4px 4px; }
   .crow { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px; }
   .crow:hover { background: var(--surface); }
   .crow label { flex: 1; display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: 13px; cursor: pointer; }
   .crow button { background: none; border: 1px solid var(--line-2); border-radius: 3px; color: var(--ink-2); font-size: 11px; width: 22px; height: 20px; cursor: pointer; padding: 0; }
-  .crow button:disabled { opacity: .3; cursor: default; }
+  .crow button:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .reset { margin-top: 6px; background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 4px; cursor: pointer; }
   .hint { color: var(--muted); font-size: 11.5px; margin: 4px 4px 0; }
   .body { overflow: auto; position: relative; min-height: 0; min-width: 0; outline: none; }
@@ -640,7 +640,7 @@
   .note:hover { background: var(--surface); color: var(--ink) !important; }
   .from-dj { color: var(--muted); font-style: italic; }
   .mine { color: var(--accent); }
-  .q { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; }
+  .q { font-size: 11px; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; }
   .qbtn { background: none; cursor: pointer; }
   .qbtn:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
   .q[data-grade="ok"] { color: var(--ok); }

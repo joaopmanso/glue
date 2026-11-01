@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../Icon.svelte';
   /* The calendar (ADR 0074): a month of events, what's coming and what's been; a click on a day adds
      one there. Events that need music say so. */
   import { lib } from '../../lib/library.svelte';
@@ -36,9 +37,9 @@
   <header class="head">
     <h2>Calendar</h2>
     <div class="nav">
-      <button type="button" class="mini" aria-label="Previous month" id="cal-prev" onclick={() => step(-1)}>‹</button>
+      <button type="button" class="mini" aria-label="Previous month" id="cal-prev" onclick={() => step(-1)}><Icon name="chev-left" /></button>
       <b id="cal-month">{title}</b>
-      <button type="button" class="mini" aria-label="Next month" id="cal-next" onclick={() => step(1)}>›</button>
+      <button type="button" class="mini" aria-label="Next month" id="cal-next" onclick={() => step(1)}><Icon name="chev-right" /></button>
       <button type="button" class="mini" onclick={() => { year = now.getFullYear(); month = now.getMonth(); }}>Today</button>
     </div>
     <button type="button" class="btn" id="new-event" data-guide="new-event" disabled={lib.readOnly} onclick={() => (adding = today)}>+ New event</button>
@@ -97,7 +98,7 @@
   .body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
   .month { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
   .wk { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-  .wk.hd span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .wk.hd span { font-size: 11px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
   .day { min-height: 96px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .wk .day:nth-child(7) { border-right: 0; }
   .wk:last-child .day { border-bottom: 0; }
@@ -113,7 +114,7 @@
   .echip.needs { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
   .echip:hover { filter: brightness(1.2); }
   .lists { display: grid; gap: 6px; align-content: start; }
-  h3 { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 4px 0 2px; }
+  h3 { font-size: 11.5px; color: var(--muted); margin: 4px 0 2px; }
   .evc { display: grid; gap: 1px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--ink); background: var(--surface); }
   .evc:hover { border-color: var(--accent); }
   .evc b { font-size: 14px; }

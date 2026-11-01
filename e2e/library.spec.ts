@@ -124,7 +124,7 @@ test('profile, collection, import, link folder, background analysis, playlists, 
   // "Add to playlist" lists them as the sidebar does (ADR 0062): the user's own, then each import.
   await page.locator('.tr', { hasText: 'aiff-44k-24' }).locator('.c-title').click();
   const groups = await page.locator('.selbar select[aria-label="Add to playlist"] optgroup').evaluateAll(gs => gs.map(g => [g.getAttribute('label'), [...g.querySelectorAll('option')].map(o => o.textContent!.replace(/ /g, ' ').trim())]));
-  expect(groups).toEqual([['Your playlists', ['Warm-up']], ['Rekordbox ↓ · replaced when you import it again', ['📁 Rekordbox', 'Friday']]]);
+  expect(groups).toEqual([['Your playlists', ['Warm-up']], ['Rekordbox ↓ · replaced when you import it again', ['▸ Rekordbox', 'Friday']]]);
 
   // Everything is on disk: reload and it's all still there.
   await expect(page.locator('#saving')).toBeHidden({ timeout: 20_000 });
@@ -1852,7 +1852,7 @@ test('GLUE account: Google sign-in, devices, pairing a GLUE Home, staying signed
   devices.push({ id: 'h1', kind: 'home', name: 'Studio PC', platform: 'win32', createdAt: 2, lastSeen: 2 });
   room!.send(JSON.stringify({ type: 'presence', online: ['b1', 'h1'] }));
   await expect(page.locator('#pair-dialog')).toHaveCount(0, { timeout: 15_000 });   // after the device list comes back
-  await expect(devs.locator('[data-device="h1"]')).toContainText('GLUE Home · online');
+  await expect(devs.locator('[data-device="h1"] .parts > span')).toContainText(['GLUE Home', 'online']);
   await expect(devs.locator('[data-device="h1"] .sw')).toHaveClass(/on/);
   page.once('dialog', d => d.accept('Studio'));
   await devs.locator('[data-device="h1"]').hover();
@@ -2291,7 +2291,7 @@ test('the local link: this computer’s GLUE Home answers the website directly, 
   await expect.poll(async () => !!await cached('i/flac-96k-24.flac.summary.json'), { timeout: 60_000 }).toBe(true);
   // The website learns the local link (once, over the account's channel).
   await expect.poll(() => page.evaluate(() => localStorage.getItem('mco.localHome')), { timeout: 40_000 }).toContain('47400');
-  await expect(page.locator('#local-link')).toHaveText(' · linked directly');
+  await expect(page.locator('#local-link')).toHaveText('linked directly');
   // A song's menu doesn't offer to send it to this computer's own GLUE Home: it's here already (the
   // selection bar once had "Send to Desktop" on the desktop).
   await page.locator('.lside').getByText('TO BE SORTED').click({ timeout: 20_000 });
@@ -3019,7 +3019,7 @@ test('a song opens in a sheet over the library: the library as it was underneath
   await expect(page.locator('.lside [data-view="recent"]')).toHaveClass(/\bsel\b/);
   await expect(sheet.locator('h1, h2').first()).toContainText(/Fixture/);
   // Next and Previous: another song, one step in the history for the sheet.
-  const next = sheet.getByRole('button', { name: 'Next ›' }), prev = sheet.getByRole('button', { name: '‹ Previous' });
+  const next = sheet.getByRole('button', { name: 'Next', exact: true }), prev = sheet.getByRole('button', { name: 'Previous', exact: true });
   const [there, back] = await next.isEnabled() ? [next, prev] : [prev, next];
   const title = await sheet.locator('h1, h2').first().textContent();
   await there.click();

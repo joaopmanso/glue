@@ -229,7 +229,7 @@
             {:else if account.signedIn}
               <!-- Never a dead end (2026-10-07): GLUE Home looked for again, or a folder chosen here meanwhile; GLUE Home
                    takes the library over when it answers. -->
-              <div class="card fallback" id="home-not-here">
+              <div class="fallback" id="home-not-here">
                 <p><b>GLUE Home isn’t answering on this computer yet.</b> {myHome ? 'It’s connected to your account: make sure it’s running (its icon is in the taskbar’s tray).' : 'Connect it with the code above, then it’s found here by itself.'}</p>
                 <div class="actions">
                   <button type="button" class="btn-ghost" id="look-for-home" disabled={looking} onclick={lookForHome}>{looking ? 'Looking…' : 'Look for GLUE Home again'}</button>
@@ -284,7 +284,7 @@
             <span class="ptools">
               <label class="bpmr" title="How BPMs show in the library: as detected, folded into half-time (60–120) or full (120–240). A track can be flipped on its Prepare tab.">BPM
                 <select data-bpm-range={a.id} value={a.bpmRange ?? ''} onchange={e => { const v = e.currentTarget.value as '' | 'half' | 'full'; void lib.setBpmRange(a.id, v || undefined); }}>
-                  <option value="">as detected</option><option value="half">60–120</option><option value="full">120–240</option>
+                  <option value="">as detected</option><option value="half">60 to 120</option><option value="full">120 to 240</option>
                 </select>
               </label>
               <button type="button" title="Rename (on every device)" onclick={() => { const n = prompt('Rename profile', a.name); if (n?.trim()) void lib.renameProfile(a.id, n); }}>Rename</button>
@@ -411,8 +411,8 @@
 {/if}
 
 <style>
-  .offscrim { position: fixed; inset: 0; z-index: 80; background: rgb(0 0 0 / .5); }
-  .offbox { position: fixed; z-index: 81; left: 50%; top: 20vh; transform: translateX(-50%); width: min(500px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: grid; gap: 12px; box-shadow: 0 20px 50px rgb(0 0 0 / .5); font-size: 14px; color: var(--ink-2); }
+  .offscrim { position: fixed; inset: 0; z-index: 80; background: var(--scrim); }
+  .offbox { position: fixed; z-index: 81; left: 50%; top: 20vh; transform: translateX(-50%); width: min(500px, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: grid; gap: 12px; box-shadow: var(--shadow-pop); font-size: 14px; color: var(--ink-2); }
   .offbox h3 { margin: 0; color: var(--ink); font-size: 17px; }
   .offbox p { margin: 0; }
   .offbox .chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
@@ -447,8 +447,9 @@
   .card.gluey { grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; }
   .card.gluey p { margin: 2px 0 0; }
   .gluey-show { display: flex; gap: 6px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
-  .card.fallback { background: var(--raised, var(--surface)); }
-  .card.fallback details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  #choose-home { white-space: nowrap; }
+  .fallback { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .fallback details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   .card.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
   .card .btn, .card .btn-ghost { justify-self: start; }
   .where { font-family: var(--font-mono); font-size: 13px; color: var(--ink); }
@@ -462,7 +463,7 @@
   .pcard { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px 6px 6px; }
   .profile { flex: 1; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 4px; cursor: pointer; font-weight: 650; font-size: 15px; text-align: left; }
   .profile:hover { color: var(--accent); }
-  .dot { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #06121d; font-weight: 800; }
+  .dot { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--accent-ink); font-weight: 800; }
   .ptools { display: flex; gap: 6px; }
   .ptools button { display: inline-flex; align-items: center; gap: 5px; background: none; border: 1px solid var(--line-2); border-radius: 5px; color: var(--ink-2); font-size: 12.5px; padding: 4px 10px; cursor: pointer; }
   .ptools button:hover { color: var(--accent); border-color: var(--accent); }
@@ -472,19 +473,19 @@
   .create { display: grid; gap: 6px; }
   .row { display: flex; gap: 10px; }
   input:not([type="file"]) { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 9px 12px; }
-  .btn:disabled { opacity: .5; cursor: default; }
+  .btn:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .more { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
   .link { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 0; font-size: 13px; }
   .link.danger { color: color-mix(in srgb, var(--bad) 80%, var(--muted)); }
   .danger-zone { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); background: color-mix(in srgb, var(--bad) 6%, var(--surface)); }
-  .btn.danger { background: var(--bad); color: #1a0505; }
+  .btn.danger { background: var(--bad); color: var(--bad-ink); }
   @media (max-width: 760px) { .paths { grid-template-columns: 1fr; } }
   .bpmr { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; color: var(--ink-2); }
   .bpmr select { background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); font-size: 12px; padding: 2px 4px; }
   .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
   .mode { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--raised, var(--surface)); color: var(--ink-2); cursor: pointer; font: inherit; }
   .mode b { color: var(--ink); font-size: 14px; }
-  .mode small { font-size: 12px; color: var(--muted); }
+  .mode small { font-size: 12px; color: var(--ink-2); }
   .mode[aria-checked='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
   .dl { margin-right: 6px; }
   .dl.mine { font-weight: 600; }

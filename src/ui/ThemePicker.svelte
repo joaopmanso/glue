@@ -65,7 +65,7 @@
   .pv-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; color: var(--ink-2); }
   .pv-row.sel { background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 2px; color: var(--ink); }
   .pv-mono { font-family: var(--font-mono); color: var(--muted); font-size: 9px; }
-  .pv-q { font-family: var(--font-mono); font-size: 7.5px; text-transform: uppercase; letter-spacing: .05em; border: 1px solid currentColor; border-radius: 2px; padding: 0 3px; }
+  .pv-q { font-family: var(--font-mono); font-size: 7.5px; border: 1px solid currentColor; border-radius: 2px; padding: 0 3px; }
   .pv-q.ok { color: var(--ok); } .pv-q.warn { color: var(--warn); } .pv-q.bad { color: var(--bad); }
   .pv-btn { justify-self: start; margin-top: 2px; background: var(--accent); color: var(--accent-ink); border-radius: var(--radius); padding: 1px 8px; font-weight: 700; }
 </style>

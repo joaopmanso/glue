@@ -96,7 +96,7 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     await page.locator('.lside .name', { hasText: 'TO BE SORTED' }).click({ timeout: 20_000 });
     await expect(page.locator('.tr', { hasText: 'Fixture MP3' })).toBeVisible({ timeout: 20_000 });
     expect(home.calls).toContain('/fs/roots');
-    await expect(page.locator('.lside')).not.toContainText('📁 TO BE SORTED');   // not a music folder
+    await expect(page.locator('.lside [data-root]', { hasText: 'TO BE SORTED' })).toHaveCount(0);   // not a music folder
     // "Move to music folder": this collection's music folders only, not every one GLUE Home was ever told of.
     await page.locator('.tr', { hasText: 'Fixture MP3' }).click({ button: 'right' });
     await page.locator('.cmenu [data-m="move"]').hover();
@@ -114,7 +114,7 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     await page.locator('.tr', { hasText: 'Fixture MP3' }).first().locator('.c-title').click({ modifiers: ['Control'] });
     await page.click('#dock-add');
     await expect.poll(() => home.dock.length).toBe(2);
-    await page.locator('.lside .item', { hasText: '📁 Music' }).hover();
+    await page.locator('.lside .item', { hasText: /^\s*Music/ }).hover();
     await page.locator('[data-dock-root]').first().click();
     const inMusic = ['Sets/aac-128k.m4a', 'Sets/aiff-44k-24.aiff', 'Sets/flac-96k-24.flac', 'Sets/mp3-128k.mp3'];
     await expect.poll(() => inMusic.every(p => home.dock.some(d => d.path === p))).toBe(true);
@@ -1451,7 +1451,7 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
     // Its cover, its label and number, its formats; in GLUE (the album "Night Drive EP" by the same artist), or not.
     const night = rows.filter({ hasText: 'Night Drive' });
     await expect(night).toContainText('Test Label · TL001');
-    await expect(night).toContainText('Vinyl · 12" · EP');
+    await expect(night.locator('.fmt .parts > span')).toHaveText(['Vinyl', '12"', 'EP']);
     await expect(night.locator('.cov img')).toBeVisible({ timeout: 20_000 });
     await expect(night.locator('.in')).toHaveText('In GLUE: 1 of 2 tracks', { timeout: 30_000 });
     if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/discogs.png' });
@@ -1524,7 +1524,7 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
     await expect(page.locator('#discogs-list-sum')).toContainText('3 tracks: 1 on vinyl, 2 digital');
     await expect(items.nth(1)).toContainText('Dawn');
     await expect(items.nth(1).locator('.vin')).toHaveText('On vinyl');
-    await expect(items.nth(1)).toContainText('B · Night Drive');
+    await expect(items.nth(1).locator('.from > .parts > span')).toHaveText(['B', 'Night Drive']);
     await expect(items.nth(0).locator('.play')).toBeVisible();
     // Arranged by hand: the vinyl one up; a song removed; so after a reload.
     await items.nth(1).click({ button: 'right' });

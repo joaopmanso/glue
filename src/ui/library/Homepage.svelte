@@ -12,12 +12,6 @@
   const start = (e: Event) => { e.preventDefault(); document.getElementById('get-started')?.scrollIntoView({ behavior: 'smooth' }); };
 
   /** Adds `.in` once the element scrolls into view (the CSS does the rest). */
-  function reveal(el: HTMLElement) {
-    if (!('IntersectionObserver' in window)) { el.classList.add('in'); return; }
-    const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { el.classList.add('in'); io.disconnect(); } }, { rootMargin: '0px 0px -12% 0px' });
-    io.observe(el);
-    return { destroy: () => io.disconnect() };
-  }
   /** The hero frame tilts a little with the pointer and settles as the page scrolls. */
   function depth(el: HTMLElement) {
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -70,7 +64,6 @@
   <section class="hero">
     <div class="hero-head">
       <div>
-        <p class="eyebrow">Global Library Unified Exporter</p>
         <h2 class="h1" aria-label="The GLUE between your DJ apps.">
           {#each headline as w, i (i)}<span class="w" class:accent={w === 'GLUE'} style:--d={i * 70 + 'ms'}>{w}</span>{i === 2 ? '' : ' '}{#if i === 2}<br>{/if}{/each}
         </h2>
@@ -85,10 +78,10 @@
       <div class="hero-act">
         <div class="cta">
           <a class="btn big" href="#get-started" id="get-started-btn" onclick={start}>Get started, free</a>
-          <a class="ghost" href="#/analyze">Check one file first <span aria-hidden="true">→</span></a>
+          <a class="ghost" href="#/analyze">Check one file first</a>
           <a class="ghost" href="#/help/getting-started" id="hp-help">How it works</a>
         </div>
-        <p class="works"><span>Reads</span> rekordbox <i></i> Engine DJ <i></i> Serato <i></i> Traktor <i></i> Apple Music</p>
+        <p class="works"><span>Reads</span> rekordbox, Engine DJ, Serato, Traktor and Apple Music</p>
       </div>
     </div>
     <div class="frame hero-frame" use:depth>
@@ -99,7 +92,7 @@
   </section>
 
   <!-- How it starts -->
-  <section class="how" use:reveal id="hp-how">
+  <section class="how" id="hp-how">
     <h3>How it starts</h3>
     <ol class="steps">
       {#each steps as s (s.n)}<li><b class="sn">{s.n}</b><div><h4>{s.title}</h4><p>{s.body}</p></div></li>{/each}
@@ -109,13 +102,12 @@
   </section>
 
   {#each sections as c, i (c.n)}
-    <section class="chapter" class:flip={i % 2 === 1} use:reveal>
+    <section class="chapter" class:flip={i % 2 === 1}>
       <div class="copy">
-        <span class="num">{c.n}</span>
         <h3>{c.title}</h3>
         <p>{c.body}</p>
         <ul>{#each c.points as p (p)}<li>{p}</li>{/each}</ul>
-        <a class="more" href={'#/help/' + c.help}>More in the help <span aria-hidden="true">→</span></a>
+        <a class="more" href={'#/help/' + c.help}>More in the help</a>
       </div>
       <!-- The chapter's pictures, all full size, to scroll through (2026-10-01: the small ones were too small to read). -->
       <Slides slides={[c.main, ...(c.side ?? [])]} {media} />
@@ -123,20 +115,19 @@
   {/each}
 
   <!-- Every device; the music stays yours -->
-  <section class="devices-sec" use:reveal>
+  <section class="devices-sec">
     <div class="copy">
-      <span class="num">04</span>
       <h3>Every device. Your music stays yours.</h3>
       <p>Sign in (optional) and your library is on your laptop and phone too. Songs play straight from the computer that has them, through GLUE Home: no GLUE server ever sees your music.</p>
       <ul><li>GLUE Home: the background engine on your computer</li><li>Your phone: browse, play, rate, make playlists</li><li>Profiles are your artist names, the same everywhere</li></ul>
-      <a class="more" href="#/help/devices">More in the help <span aria-hidden="true">→</span></a>
+      <a class="more" href="#/help/devices">More in the help</a>
     </div>
     <figure class="phone"><img src={media('phone.webp')} alt="GLUE on a phone" loading="lazy" decoding="async"></figure>
     <div class="cloud-panel"><CloudPanel /></div>
   </section>
 
   <!-- The end: Gluey again -->
-  <section class="end" use:reveal>
+  <section class="end">
     <Gluey size={92} pose="cheer" />
     <div>
       <h3>Ready when you are.</h3>
@@ -154,9 +145,8 @@
   .hero-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 56px; align-items: end; }
   .hero-gluey { position: relative; display: grid; justify-items: center; gap: 6px; opacity: 0; animation: arrive 1s .35s cubic-bezier(.2, .7, .2, 1) forwards; }
   .hero-gluey::before { content: ''; position: absolute; inset: 10% -10% -10%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 34%, transparent), transparent); z-index: -1; }
-  .say { position: relative; background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 8px 14px; font-weight: 600; font-size: 14px; text-align: center; line-height: 1.35; box-shadow: 0 10px 28px rgb(0 0 0 / .35); }
+  .say { position: relative; background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 8px 14px; font-weight: 600; font-size: 14px; text-align: center; line-height: 1.35; box-shadow: var(--shadow-pop); }
   .say::after { content: ''; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; background: var(--surface); border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); transform: translateX(-50%) rotate(45deg); }
-  .eyebrow { font: 600 12px var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
   .h1 { font-size: clamp(40px, 7.4vw, 112px); line-height: .95; letter-spacing: -.04em; font-weight: 850; margin: 20px 0 8px; }
   .w { display: inline-block; opacity: 0; transform: translateY(.35em); animation: rise .7s cubic-bezier(.2, .7, .2, 1) forwards; animation-delay: var(--d); }
   .w.accent { color: var(--accent); }
@@ -169,10 +159,9 @@
   .ghost:hover, .more:hover { border-color: var(--accent); color: var(--accent); }
   .more { justify-self: start; font-size: 14px; }
   .works { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; color: var(--ink-2); font-size: 13.5px; margin: 0; opacity: 0; animation: rise .7s .75s ease forwards; }
-  .works span { font: 600 11px var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
-  .works i { width: 3px; height: 3px; border-radius: 50%; background: var(--line-2); }
+  .works span { font-weight: 600; color: var(--muted); }
   /* Media frames: the product, not a mock-up */
-  .frame { position: relative; margin: 0; border-radius: 14px; overflow: hidden; background: var(--surface); border: 1px solid var(--line-2); box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 6%, transparent) inset, 0 30px 80px -20px rgb(0 0 0 / .55), 0 12px 24px -12px rgb(0 0 0 / .4); }
+  .frame { position: relative; margin: 0; border-radius: 14px; overflow: hidden; background: var(--surface); border: 1px solid var(--line-2); box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 6%, transparent) inset, var(--shadow-pop); }
   .frame .media { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; background: var(--ground); }
   .hero-frame { transform-origin: 50% 0%; transition: transform .25s ease-out; opacity: 0; animation: arrive 1s .25s cubic-bezier(.2, .7, .2, 1) forwards; will-change: transform; }
   @keyframes arrive { from { opacity: 0; translate: 0 40px; scale: .97; } to { opacity: 1; translate: 0 0; scale: 1; } }
@@ -189,13 +178,13 @@
   .need a.mine { color: var(--accent); font-weight: 600; }
   /* Colour fields: soft blocks of colour behind the sections, drifting slowly */
   :global(html:has(#homepage)) { overflow-x: clip; }
-  .bg { position: absolute; z-index: -1; top: -12vh; bottom: -20vh; left: 50%; width: 100vw; margin-left: -50vw; overflow: hidden; pointer-events: none; }
+  .bg { position: absolute; z-index: -1; top: -12vh; bottom: -20vh; left: calc(50% - 50vw); right: calc(50% - 50vw); overflow: hidden; pointer-events: none; }
   .bg i { position: absolute; display: block; border-radius: 50%; opacity: var(--o, .22); background: radial-gradient(closest-side, var(--c) 0%, color-mix(in srgb, var(--c) 55%, transparent) 38%, color-mix(in srgb, var(--c) 18%, transparent) 70%, transparent 100%); animation: drift var(--t, 26s) ease-in-out infinite alternate; }
   .b1 { --c: var(--accent); --o: .17; width: 70vw; height: 56vw; max-height: 1000px; top: -6%; right: -14vw; }
-  .b2 { --c: #ff5a2e; --o: .13; --t: 31s; width: 60vw; height: 48vw; top: 14%; left: -12vw; }
-  .b3 { --c: #8b3dff; --o: .16; --t: 28s; width: 66vw; height: 52vw; top: 36%; right: -10vw; }
-  .b4 { --c: #18b8a6; --o: .13; --t: 29s; width: 64vw; height: 50vw; top: 58%; left: -12vw; }
-  .b5 { --c: #3d7bff; --o: .14; --t: 27s; width: 66vw; height: 52vw; top: 80%; right: -10vw; }
+  .b2 { --c: var(--field-2); --o: .13; --t: 31s; width: 60vw; height: 48vw; top: 14%; left: -12vw; }
+  .b3 { --c: var(--field-3); --o: .16; --t: 28s; width: 66vw; height: 52vw; top: 36%; right: -10vw; }
+  .b4 { --c: var(--field-4); --o: .13; --t: 29s; width: 64vw; height: 50vw; top: 58%; left: -12vw; }
+  .b5 { --c: var(--field-5); --o: .14; --t: 27s; width: 66vw; height: 52vw; top: 80%; right: -10vw; }
   @keyframes drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(4vw, -3vw, 0) scale(1.08); } }
   :global([data-mode="light"]) .bg i { opacity: calc(var(--o, .22) * 1.5); mix-blend-mode: multiply; }
   /* Chapters */
@@ -203,7 +192,6 @@
   .chapter.flip { grid-template-columns: minmax(0, 1.3fr) minmax(0, .8fr); }
   .chapter.flip .copy { order: 2; }
   .copy { display: grid; gap: 14px; align-content: start; }
-  .num { font: 600 12px var(--font-mono); color: var(--accent); letter-spacing: .14em; }
   .copy h3 { font-size: clamp(28px, 3.2vw, 44px); line-height: 1.05; letter-spacing: -.025em; font-weight: 800; margin: 0; }
   .copy p { color: var(--ink-2); font-size: 16px; line-height: 1.6; margin: 0; }
   .copy ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 9px; }
@@ -211,25 +199,21 @@
   .copy li::before { content: ''; flex: none; width: 14px; height: 2px; margin-top: .7em; background: var(--accent); }
   /* Devices */
   .devices-sec { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px clamp(28px, 5vw, 80px); align-items: center; }
-  .phone { margin: 0; width: clamp(200px, 22vw, 290px); border-radius: 30px; overflow: hidden; border: 6px solid color-mix(in srgb, var(--ink) 14%, var(--surface)); box-shadow: 0 30px 70px -20px rgb(0 0 0 / .6); }
+  .phone { margin: 0; width: clamp(200px, 22vw, 290px); border-radius: 30px; overflow: hidden; border: 6px solid color-mix(in srgb, var(--ink) 14%, var(--surface)); box-shadow: var(--shadow-pop); }
   .phone img { display: block; width: 100%; height: auto; }
   .cloud-panel { grid-column: 1 / -1; }
   /* The end */
   .end { display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center; background: var(--surface); border: 1px solid var(--line-2); border-radius: 18px; padding: 24px 28px; }
   .end p { margin: 6px 0 0; color: var(--ink-2); }
   .end .cta { opacity: 1; animation: none; }
-  /* Scroll reveal */
-  .how, .chapter, .devices-sec, .end { opacity: 0; transform: translateY(28px); transition: opacity .8s cubic-bezier(.2, .7, .2, 1), transform .8s cubic-bezier(.2, .7, .2, 1); }
-  :global(.hp .in) { opacity: 1 !important; transform: none !important; }
   @media (prefers-reduced-motion: reduce) {
     .w, .lede, .cta, .works, .hero-frame, .hero-gluey, .bg i { animation: none; opacity: 1; transform: none; }
-    .how, .chapter, .devices-sec, .end { opacity: 1; transform: none; transition: none; }
   }
   @media (max-width: 900px) {
     .hero-head { grid-template-columns: minmax(0, 1fr) 110px; gap: 12px; align-items: start; }
     .hero-gluey :global(svg) { width: 100px; height: auto; }
     .say { font-size: 12px; padding: 6px 8px; }
-    .hero-row, .chapter, .chapter.flip, .devices-sec, .steps, .end { grid-template-columns: 1fr; }
+    .hero-row, .chapter, .chapter.flip, .devices-sec, .steps, .end { grid-template-columns: minmax(0, 1fr); }
     .chapter.flip .copy { order: 0; }
     .phone { justify-self: center; }
     .end { justify-items: start; }

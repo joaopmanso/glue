@@ -119,9 +119,8 @@
       </div>
       {#if viz.loading}<p class="vnote">Loading the visualiser…</p>{:else if viz.error}<p class="vnote err">{viz.error}</p>{:else if !t}<p class="vnote">It moves with the music: play something.</p>{/if}
     {:else}
-      <div class="song">
+      <div class="song" role="group" aria-label="Now playing">
         {#if t}
-          <p class="label">Now playing</p>
           <h2>{t.title || t.fileName}</h2>
           <p class="artist">{t.artist}{#if t.album}<span> · {t.album}</span>{/if}</p>
           <p class="facts mono">
@@ -176,22 +175,22 @@
 </section>
 
 <style>
-  .pp { position: fixed; left: 0; right: 0; bottom: 64px; z-index: 19; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 420px); background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -18px 44px rgb(0 0 0 / .45); animation: rise .18s ease-out; }
+  .pp { position: fixed; left: 0; right: 0; bottom: 64px; z-index: 19; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 420px); background: var(--surface); border-top: 1px solid var(--line); box-shadow: var(--shadow-pop); animation: rise .18s ease-out; }
   .sizer { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; z-index: 3; touch-action: none; }
   .sizer::after { content: ''; position: absolute; left: 50%; top: 2px; width: 44px; height: 4px; margin-left: -22px; border-radius: 2px; background: var(--line-2); transition: background .12s; }
   .sizer:hover::after, .sizer.on::after { background: var(--accent); }
   @keyframes rise { from { transform: translateY(24px); opacity: 0; } }
-  .stagewrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #000; outline: none; }
-  .stagewrap.full { background: #000; }
+  .stagewrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--stage); outline: none; }
+  .stagewrap.full { background: var(--stage); }
   .stage { position: absolute; inset: 0; }
-  .vctl { position: absolute; left: 0; right: 0; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; background: linear-gradient(rgb(0 0 0 / .55), transparent); opacity: .25; transition: opacity .2s; color: #eee; font-size: 12.5px; }
+  .vctl { position: absolute; left: 0; right: 0; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; background: linear-gradient(var(--stage-glass), transparent); opacity: .25; transition: opacity .2s; color: var(--on-stage); font-size: 12.5px; }
   .stagewrap:hover .vctl, .stagewrap:focus-within .vctl, .stagewrap:not(.full) .vctl:focus-within { opacity: 1; }
-  .vctl select { background: rgb(0 0 0 / .55); color: #eee; border: 1px solid rgb(255 255 255 / .25); border-radius: 5px; padding: 3px 6px; font-size: 12.5px; }
+  .vctl select { background: var(--stage-glass); color: var(--on-stage); border: 1px solid var(--stage-line); border-radius: 5px; padding: 3px 6px; font-size: 12.5px; }
   .vopt { display: inline-flex; gap: 6px; align-items: center; }
   .grow { flex: 1; }
-  .vb { background: rgb(0 0 0 / .55); color: #eee; border: 1px solid rgb(255 255 255 / .25); border-radius: 5px; padding: 3px 10px; cursor: pointer; font-size: 12.5px; }
+  .vb { background: var(--stage-glass); color: var(--on-stage); border: 1px solid var(--stage-line); border-radius: 5px; padding: 3px 10px; cursor: pointer; font-size: 12.5px; }
   .vb:hover { border-color: var(--accent); color: var(--accent); }
-  .vnote { position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; color: rgb(255 255 255 / .7); font-size: 13px; margin: 0; z-index: 2; }
+  .vnote { position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; color: var(--on-stage-2); font-size: 13px; margin: 0; z-index: 2; }
   .vnote.err { color: var(--warn); }
   .song { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 8px; padding: 0 clamp(20px, 5vw, 64px); background: radial-gradient(ellipse at 20% 30%, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--ground) 70%); }
   .song h2 { font-size: clamp(24px, 3.2vw, 42px); line-height: 1.1; margin: 0; color: var(--ink); }
@@ -199,7 +198,7 @@
   .song .artist { font-size: 17px; color: var(--ink-2); margin: 0; }
   .song .artist span { color: var(--muted); }
   .facts { display: flex; gap: 14px; align-items: center; color: var(--ink-2); font-size: 13px; margin: 4px 0; }
-  .qb { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; }
+  .qb { font-family: var(--font-sans); font-size: 11px; padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; }
   .qb[data-grade="ok"] { color: var(--ok); } .qb[data-grade="warn"] { color: var(--warn); } .qb[data-grade="bad"] { color: var(--bad); } .qb[data-grade="info"] { color: var(--muted); }
   .from { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
   .from b { color: var(--ink-2); font-weight: 600; }
@@ -209,8 +208,8 @@
   .qsum { color: var(--muted); font-size: 12px; }
   .qscroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 14px; }
   .qsec { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px 4px; }
-  .qsec h4 { margin: 0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .qsec h4 small { margin-left: 8px; font-family: var(--font-mono); letter-spacing: 0; }
+  .qsec h4 { margin: 0; font-size: 11px; color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qsec h4 small { margin-left: 8px; font-variant-numeric: tabular-nums; }
   .qclear { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 11.5px; padding: 1px 8px; cursor: pointer; flex: none; }
   .qclear:hover { color: var(--accent); border-color: var(--accent); }
   .qlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
@@ -235,8 +234,8 @@
   .qmore { color: var(--muted); font-size: 12px; padding: 6px 8px; margin: 0; }
   .qgrip { color: var(--muted); font-size: 11px; opacity: 0; cursor: grab; }
   .qr:hover .qgrip { opacity: .8; }
-  .qtoggle { background: none; border: 0; padding: 0; cursor: pointer; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .qtoggle { background: none; border: 0; padding: 0; cursor: pointer; font-size: 11px; color: var(--muted); font-weight: 600; }
   .qtoggle:hover { color: var(--ink); }
-  .qtoggle small { margin-left: 8px; font-family: var(--font-mono); letter-spacing: 0; }
+  .qtoggle small { margin-left: 8px; font-variant-numeric: tabular-nums; }
   @media (max-width: 800px) { .pp { grid-template-columns: 1fr; grid-template-rows: 40% 60%; } .queue { border-left: 0; border-top: 1px solid var(--line); } }
 </style>

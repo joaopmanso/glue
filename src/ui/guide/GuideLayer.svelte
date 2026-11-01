@@ -151,7 +151,7 @@
       <rect width="100%" height="100%" mask="url(#gluey-hole)" class="dim" />
       {#if rect && step.target}<rect class="ring" x={rect.left - PAD} y={rect.top - PAD} width={rect.width + PAD * 2} height={rect.height + PAD * 2} rx="10" />{/if}
     </svg>
-    <div class="bubble" bind:this={bubble} id="gluey-bubble" data-step={run.step} data-target={step.target ?? ''} role="dialog" aria-modal="true" aria-labelledby="gluey-title" aria-describedby="gluey-body" style:left={at.left + 'px'} style:top={at.top + 'px'} style:width={at.w + 'px'}>
+    <div class="bubble" bind:this={bubble} id="gluey-bubble" data-step={run.step} data-target={step.target ?? ''} role="dialog" aria-modal="true" aria-labelledby="gluey-title" aria-describedby="gluey-body" style:transform={'translate(' + at.left + 'px, ' + at.top + 'px)'} style:width={at.w + 'px'}>
       <div class="who"><Gluey size={64} pose={step.pose ?? 'point'} flip={step.place === 'left'} /></div>
       <div class="say">
         <h2 id="gluey-title">{step.title}</h2>
@@ -168,10 +168,10 @@
 {/if}
 
 <style>
-  .corner { position: fixed; right: 18px; bottom: 92px; z-index: 55; width: 50px; height: 50px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface); display: grid; place-items: center; cursor: pointer; box-shadow: 0 8px 24px rgb(0 0 0 / .3); padding: 0; }
+  .corner { position: fixed; right: 18px; bottom: 92px; z-index: 55; width: 50px; height: 50px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface); display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow-pop); padding: 0; }
   .corner:hover { border-color: var(--accent); }
   .corner.phone { bottom: 196px; right: 12px; width: 44px; height: 44px; }
-  .offer, .panel { position: fixed; right: 18px; bottom: 152px; z-index: 56; width: min(340px, calc(100vw - 24px)); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 16px 40px rgb(0 0 0 / .4); padding: 12px 14px; font-size: 13.5px; color: var(--ink-2); }
+  .offer, .panel { position: fixed; right: 18px; bottom: 152px; z-index: 56; width: min(340px, calc(100% - 24px)); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-pop); padding: 12px 14px; font-size: 13.5px; color: var(--ink-2); }
   .offer.phone, .panel.phone { right: 12px; bottom: 250px; }
   .offer p { margin: 0; }
   .ohead { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
@@ -188,9 +188,9 @@
   .full:hover { color: var(--accent); }
   .layer { position: fixed; inset: 0; z-index: 90; }
   .scrim { position: absolute; inset: 0; }
-  .dim { fill: rgb(0 0 0 / .55); }
+  .dim { fill: var(--scrim); }
   .ring { fill: none; stroke: var(--accent); stroke-width: 2.5; }
-  .bubble { box-sizing: border-box; position: absolute; display: flex; gap: 10px; align-items: flex-start; background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 12px 14px; box-shadow: 0 18px 50px rgb(0 0 0 / .45); }
+  .bubble { box-sizing: border-box; position: absolute; left: 0; top: 0; display: flex; gap: 10px; align-items: flex-start; background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow-pop); }
   .who { flex: none; margin-top: 4px; }
   .say { display: grid; gap: 6px; min-width: 0; flex: 1; }
   .say h2 { margin: 0; font-size: 16px; color: var(--ink); }
@@ -205,5 +205,5 @@
   .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); }
   .dots i.on { background: var(--accent); }
   .link { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 12.5px; text-decoration: underline; padding: 0; }
-  @media (prefers-reduced-motion: no-preference) { .bubble { transition: left .25s ease, top .25s ease; } }
+  @media (prefers-reduced-motion: no-preference) { .bubble { transition: transform .25s ease; } }
 </style>

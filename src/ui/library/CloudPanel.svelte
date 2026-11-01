@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   /* GLUE Cloud on the profile screen and the start page (ADR 0101): the account, and the collections it
      keeps (one copy each, the same on every device; never the music). Sign in here; with cloud sync on,
      a profile's collections become the account's when they open. */
@@ -73,7 +74,7 @@
               <ul class="comps">
                 {#each comps as d (d.id)}
                   <li data-computer={d.id}><span class="dot" class:on={d.online} title={d.online ? 'Online now' : 'Not online'}></span><b>{d.name}</b>{#if d.home}<span class="tag">GLUE Home</span>{/if}
-                    <small>{d.songs != null ? d.songs.toLocaleString() + ' songs' : ''}{d.online ? ' · online' : d.seen ? ' · seen ' + ago(d.seen) : ''}{d.changed ? ' · changed ' + ago(d.changed) : ''}</small>
+                    <small><Parts items={[d.songs != null && d.songs.toLocaleString() + ' songs', d.online ? 'online' : d.seen && 'seen ' + ago(d.seen), d.changed && 'changed ' + ago(d.changed)]} /></small>
                     <button type="button" class="x" data-forget={d.id} title="Take this computer off the list (it comes back if it syncs this collection again)" aria-label={'Take ' + d.name + ' off the list'} onclick={() => void forget(c, d.id, d.name)}>×</button></li>
                 {/each}
               </ul>
@@ -97,7 +98,7 @@
   .cloud { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; color: var(--ink-2); font-size: 14px; }
   .ch { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
   h3 { font-size: 16px; color: var(--ink); display: flex; gap: 8px; align-items: baseline; }
-  h3 small { font-size: 10.5px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .08em; }
+  h3 small { font-size: 11px; color: var(--muted); font-weight: 500; }
   .acct { font-size: 12.5px; color: var(--muted); }
   .gbtn { min-height: 44px; color-scheme: light; justify-self: start; }
   .items { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -113,8 +114,8 @@
   .comps .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; }
   .comps .x:hover { color: var(--bad); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); align-self: center; flex: none; }
-  .dot.on { background: var(--ok, #3fb950); }
-  .tag { font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .dot.on { background: var(--ok, var(--ok)); }
+  .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
   .what small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; }
   .mini.bad { color: var(--bad); border-color: var(--bad); }

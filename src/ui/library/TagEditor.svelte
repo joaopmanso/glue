@@ -90,7 +90,7 @@
 {/if}
 
 <style>
-  .taged { position: fixed; z-index: 70; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; box-shadow: 0 12px 32px rgb(0 0 0 / .5); display: flex; flex-direction: column; gap: 8px; overflow: hidden; box-sizing: border-box; }
+  .taged { position: fixed; z-index: 70; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; box-shadow: var(--shadow-pop); display: flex; flex-direction: column; gap: 8px; overflow: hidden; box-sizing: border-box; }
   .taged > * { flex: none; }
   #tag-input { width: 100%; box-sizing: border-box; }
   .head { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 13px; }
@@ -109,12 +109,12 @@
   .list label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 4px; border-radius: 4px; cursor: pointer; }
   .list label:hover { background: var(--surface); }
   .list span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .list small { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+  .list small { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   .make { text-align: left; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 4px; color: var(--accent); padding: 4px 8px; font-size: 13px; cursor: pointer; }
   .foot { color: var(--muted); font-size: 11.5px; }
   /* A phone: a sheet from the bottom, with room for fingers. */
-  .scrim { position: fixed; inset: 0; z-index: 69; background: rgb(0 0 0 / .45); }
+  .scrim { position: fixed; inset: 0; z-index: 69; background: var(--scrim); }
   .taged.sheet { border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); gap: 12px; }
   .sheet .head { font-size: 15px; } .sheet .head button { font-size: 26px; width: 40px; height: 36px; }
   .sheet input:not([type="checkbox"]) { font-size: 16px; padding: 10px 12px; border-radius: 10px; }

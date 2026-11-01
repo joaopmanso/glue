@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   /* Recently deleted playlists and folders (ADR 0090): whatever deleted them (you, another device, a DJ
      library that changed), kept 30 days; Restore puts one back with everything that was in it. */
   import { lib } from '../../lib/library.svelte';
@@ -33,7 +34,7 @@
       <ul>
         {#each entries as e (e.name)}
           <li data-bin={e.lists[0].id}>
-            <span class="what"><b>{e.lists[0].name || 'Untitled'}</b><small>{e.lists[0].kind === 'folder' ? 'Folder' : 'Playlist'} · {inside(e)} · deleted {when(e.deletedAt)}</small></span>
+            <span class="what"><b>{e.lists[0].name || 'Untitled'}</b><small><Parts items={[e.lists[0].kind === 'folder' ? 'Folder' : 'Playlist', inside(e), 'deleted ' + when(e.deletedAt)]} /></small></span>
             <button type="button" class="btn" disabled={!!busy} onclick={() => void restore(e)}>{busy === e.name ? 'Restoring…' : 'Restore'}</button>
           </li>
         {/each}
@@ -45,7 +46,7 @@
 
 <style>
   .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; }
-  .dlg { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; display: grid; gap: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); }
+  .dlg { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; display: grid; gap: 12px; box-shadow: var(--shadow-pop); }
   h2 { margin: 0; font-size: 18px; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
   li { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }

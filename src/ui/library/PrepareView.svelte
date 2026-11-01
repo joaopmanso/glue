@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
+  import Icon from '../Icon.svelte';
   /* The Prepare tab (ADR 0052): the track's waveform with its beat grid, a player with tempo and key
      lock, a metronome, and the grid's corrections (saved on the track, overriding the analysis). */
   import Live3D from '../Live3D.svelte';
@@ -192,7 +194,7 @@
     </div>
 
     <div class="deckwrap">
-      <canvas class="deck" id="prep-deck" data-guide="prep-deck" bind:this={deck} onpointerdown={deckDown} onpointermove={deckMove} onpointerup={deckUp} onwheel={wheel}></canvas>
+      <canvas class="deck" id="prep-deck" aria-label="The waveform and its beat grid" data-guide="prep-deck" bind:this={deck} onpointerdown={deckDown} onpointermove={deckMove} onpointerup={deckUp} onwheel={wheel}></canvas>
       {#if prepare.status === 'loading'}<p class="over-msg"><span class="spin"></span>Drawing the waveform…</p>
       {:else if prepare.status === 'error'}<p class="over-msg err">Couldn’t read the track: {prepare.error}</p>{/if}
       <div class="dtools">
@@ -202,7 +204,7 @@
         <label class="kl"><input type="checkbox" bind:checked={show3d}> 3D</label>
       </div>
     </div>
-    <canvas class="overview" id="prep-overview" bind:this={over} onclick={overClick}></canvas>
+    <canvas class="overview" id="prep-overview" aria-label="The whole track: click to jump" bind:this={over} onclick={overClick}></canvas>
 
     <section class="grid" aria-label="Tempo and beat grid" data-guide="prep-grid">
       <div class="grp">
@@ -216,8 +218,8 @@
       </div>
       <div class="grp">
         <span class="k">Grid</span>
-        <button type="button" class="mini" id="prep-earlier" title="Earlier by 5 ms (←, shift: 1 ms)" onclick={e => prepare.nudge(cur(), e.shiftKey ? -0.001 : -0.005)}>◀</button>
-        <button type="button" class="mini" id="prep-later" title="Later by 5 ms (→, shift: 1 ms)" onclick={e => prepare.nudge(cur(), e.shiftKey ? 0.001 : 0.005)}>▶</button>
+        <button type="button" class="mini" id="prep-earlier" title="Earlier by 5 ms (←, shift: 1 ms)" onclick={e => prepare.nudge(cur(), e.shiftKey ? -0.001 : -0.005)} aria-label="Earlier"><Icon name="prev" /></button>
+        <button type="button" class="mini" id="prep-later" title="Later by 5 ms (→, shift: 1 ms)" onclick={e => prepare.nudge(cur(), e.shiftKey ? 0.001 : 0.005)} aria-label="Later"><Icon name="next" /></button>
         <button type="button" class="mini" id="prep-beat1" title="Make the playhead the first beat of a bar" disabled={!here} onclick={() => prepare.beatHere(cur(), player.time)}>Beat 1 here</button>
         <button type="button" class="mini" title="Place the grid on the audio again for this BPM" onclick={() => prepare.replace(cur())}>Place again</button>
       </div>
@@ -289,7 +291,7 @@
     {/if}
     {#if show3d}<div class="c3d"><Live3D /></div>{/if}
     {#if message}<p class="err">{message}</p>{/if}
-    <p class="fine">Space plays · 1–8 hot cues (shift: clear) · M metronome · T tap · ← → nudge the grid (shift: 1 ms) · wheel on the waveform zooms · drag it to scrub.</p>
+    <p class="fine"><Parts items={['Space plays', '1 to 8 hot cues (shift: clear)', 'M metronome', 'T tap', '← → nudge the grid (shift: 1 ms)', 'wheel on the waveform zooms', 'drag it to scrub']} /></p>
   {/if}
 </div>
 
@@ -297,12 +299,12 @@
   .prep { display: grid; gap: 10px; }
   .ptop { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
   .play { width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; cursor: pointer; }
-  .play:disabled { opacity: .4; cursor: default; }
+  .play:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .play svg { width: 14px; height: 14px; }
   .time { font-size: 13px; color: var(--ink-2); }
   .mono { font-family: var(--font-mono); }
   .bpmbig { font-family: var(--font-mono); font-size: 22px; font-weight: 600; display: inline-flex; align-items: baseline; gap: 6px; }
-  .bpmbig small { font-size: 11px; color: var(--muted); font-weight: 400; letter-spacing: .06em; }
+  .bpmbig small { font-size: 11px; color: var(--muted); font-weight: 400; }
   .tgl { display: inline-flex; gap: 6px; align-items: center; background: none; border: 1px solid var(--line-2); border-radius: 5px; color: var(--ink-2); padding: 5px 10px; cursor: pointer; font-size: 12.5px; }
   .tgl svg { width: 14px; height: 14px; }
   .tgl.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -314,27 +316,27 @@
   .deckwrap { position: relative; }
   .deck { width: 100%; height: 210px; display: block; border-radius: var(--radius); cursor: grab; touch-action: none; }
   .overview { width: 100%; height: 44px; display: block; border-radius: 4px; cursor: pointer; }
-  .dtools { position: absolute; top: 6px; right: 8px; display: flex; gap: 6px; align-items: center; background: rgba(0,0,0,.55); border-radius: 5px; padding: 3px 6px; }
-  .dtools .kl { color: #ddd; }
-  .over-msg { position: absolute; inset: 0; display: flex; gap: 10px; align-items: center; justify-content: center; color: #ccc; font-size: 13px; margin: 0; }
+  .dtools { position: absolute; top: 6px; right: 8px; display: flex; gap: 6px; align-items: center; background: var(--stage-glass); border-radius: 5px; padding: 3px 6px; }
+  .dtools .kl { color: var(--on-stage); }
+  .over-msg { position: absolute; inset: 0; display: flex; gap: 10px; align-items: center; justify-content: center; color: var(--on-stage-2); font-size: 13px; margin: 0; }
   .over-msg.err, .err { color: var(--bad); }
   .spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: spin .9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .grid { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 8px 12px; }
   .grp { display: inline-flex; gap: 6px; align-items: center; }
   .grp.end { margin-left: auto; }
-  .k { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+  .k { font-size: 11px; color: var(--muted); margin-right: 2px; }
   .bpmin { width: 78px; background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); padding: 3px 6px; font-size: 13px; }
   .note { color: var(--muted); font-size: 12px; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
   .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .mini:disabled { opacity: .4; cursor: default; }
+  .mini:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .cues { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 8px 12px; }
   .apps { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 2px 4px; }
   .apps .app { display: inline-flex; gap: 8px; align-items: center; }
   .apps .app small { color: var(--muted); }
-  .clash { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; padding: 8px 12px; border: 1px solid var(--warn, #e0a030); border-radius: var(--radius); }
-  .apps .mainf { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; }
+  .clash { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; padding: 8px 12px; border: 1px solid var(--warn, var(--warn)); border-radius: var(--radius); }
+  .apps .mainf { font-size: 11px; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; }
   .pads { display: flex; gap: 5px; align-items: center; }
   .pad { width: 54px; height: 38px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line-2)); background: color-mix(in srgb, var(--c) 6%, var(--ground)); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; line-height: 1.1; padding: 2px; }
   .pad b { font-size: 13px; }
@@ -347,7 +349,7 @@
   .mcj { background: color-mix(in srgb, var(--c) 14%, transparent); border: 0; color: var(--ink); font-family: var(--font-mono); font-size: 11.5px; padding: 2px 7px; cursor: pointer; }
   .mcx { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 5px; }
   .mcx:hover { color: var(--bad); }
-  .c3d { width: 100%; height: 300px; border-radius: var(--radius); overflow: hidden; background: #000; }
+  .c3d { width: 100%; height: 300px; border-radius: var(--radius); overflow: hidden; background: var(--stage); }
   .fine { color: var(--muted); font-size: 12px; margin: 0; }
   .notice { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; }
   /* A phone (ADR 0078): nothing wider than the screen; the pads and tools wrap. */
@@ -358,7 +360,7 @@
     .deck { height: 170px; }
     .grp.end { margin-left: 0; }
     .pads { flex-wrap: wrap; }
-    .pad { width: calc((100vw - 28px - 24px - 7 * 5px) / 8); min-width: 36px; height: 44px; }
+    .pad { width: calc((100% - 7 * 5px) / 8); min-width: 36px; height: 44px; }
     .mini { padding: 6px 10px; font-size: 13px; }
     .bpmin { font-size: 16px; }
   }

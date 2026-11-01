@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from './Parts.svelte';
   /* Admin panel (ADR 0041), #/admin: statistics, users and tiers, clearing data, maintenance.
      Only admins see it; the API checks again on every call. */
   import { account, type Tier } from '../lib/account.svelte';
@@ -73,7 +74,7 @@
         <div class="card"><span class="label">New</span><b>{stats.users.new7}</b><small>this week · {stats.users.new30} in 30 days</small></div>
         <div class="card"><span class="label">Active</span><b>{stats.users.active7}</b><small>users seen this week · {stats.devices.seen24h} devices in 24 h</small></div>
         <div class="card"><span class="label">Devices</span><b>{Object.values(stats.devices.byKind).reduce((a, b) => a + b, 0)}</b><small>{Object.entries(stats.devices.byKind).map(([k, n]) => n + ' ' + (k === 'home' ? 'GLUE Home' : k)).join(' · ')}</small></div>
-        <div class="card"><span class="label">Cloud data</span><b>{fmtBytes(stats.cloud.bytes)}</b><small>{stats.cloud.collections} collections · {stats.cloud.files.toLocaleString()} files · {(stats.cloud.entries ?? 0).toLocaleString()} changes in the log</small></div>
+        <div class="card"><span class="label">Cloud data</span><b>{fmtBytes(stats.cloud.bytes)}</b><small><Parts items={[stats.cloud.collections + ' collections', stats.cloud.files.toLocaleString() + ' files', (stats.cloud.entries ?? 0).toLocaleString() + ' changes in the log']} /></small></div>
         <div class="card"><span class="label">Sign-in</span><b>{Object.values(stats.users.byProvider).reduce((a, b) => a + b, 0)}</b><small>{Object.entries(stats.users.byProvider).map(([p, n]) => n + ' ' + p).join(' · ')}</small></div>
         <div class="card wide"><span class="label">Sign-ups, last 30 days</span>
           <svg class="spark" viewBox="0 0 300 50" preserveAspectRatio="none" role="img" aria-label="Sign-ups per day">
@@ -183,7 +184,7 @@
   input[type="search"] { width: min(320px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 6px 10px; }
   .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .users { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .users th { text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .users th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   .users td { padding: 7px 10px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); vertical-align: middle; white-space: nowrap; }
   .users td b { display: block; font-weight: 600; }
   .users td small { color: var(--muted); font-size: 11.5px; }
@@ -193,7 +194,7 @@
   .maint { display: flex; gap: 8px; flex-wrap: wrap; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 4px 10px; cursor: pointer; }
   .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .mini:disabled { opacity: .4; cursor: default; }
+  .mini:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .mini.bad { color: var(--bad); }
   .muted { color: var(--muted); }
   .small { font-size: 12px; }

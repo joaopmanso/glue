@@ -30,7 +30,7 @@
 
 <style>
   .tag { position: fixed; left: 0; top: 0; z-index: 100; pointer-events: none; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    background: var(--raised); color: var(--ink); border: 1px solid var(--line-2); border-radius: 14px; padding: 3px 10px; font-size: 12.5px; font-weight: 600; box-shadow: 0 6px 18px rgb(0 0 0 / .45); }
+    background: var(--raised); color: var(--ink); border: 1px solid var(--line-2); border-radius: 14px; padding: 3px 10px; font-size: 12.5px; font-weight: 600; box-shadow: var(--shadow-pop); }
   .tag.ok { border-color: var(--accent); }
   .plus { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 800; margin-right: 6px; font-size: 12px; line-height: 1; }
   :global(body.mco-dragging), :global(body.mco-dragging *) { cursor: grabbing !important; user-select: none !important; }

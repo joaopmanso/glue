@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../Icon.svelte';
   import { readPref, writePref } from '../../lib/prefs';
   import { FACETS, facetItems } from '../../core/library/browse';
   import { asShown } from '../../core/library/summary';
@@ -619,7 +620,7 @@
         <li>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="item" class:sel={isSel({ kind: 'root', id: r.root.id })} class:menued={menued('r:' + r.root.id)} data-root={r.root.id} oncontextmenu={e => onMenu(e, 'r:' + r.root.id, () => folderMenu(r), r.root.name)}>
-            <button type="button" class="name" onclick={() => view.select({ kind: 'root', id: r.root.id })} title={r.root.absPath ?? 'Location on disk not known yet'}>📁 {r.root.name}{#if mainRoot === r.root.id}<span class="mainf" title="Your main folder: among duplicates, its copy is kept">main</span>{/if}</button>
+            <button type="button" class="name" onclick={() => view.select({ kind: 'root', id: r.root.id })} title={r.root.absPath ?? 'Location on disk not known yet'}><Icon name="folder" /> {r.root.name}{#if mainRoot === r.root.id}<span class="mainf" title="Your main folder: among duplicates, its copy is kept">main</span>{/if}</button>
             {#if !r.dir}<button type="button" class="reconnect" title="GLUE lost its link to this folder (restored backup or cleared browser data): choose it again" onclick={() => lib.relinkFolder(r.root.id)}>Find folder</button>
             {:else if !r.granted}<button type="button" class="reconnect" onclick={() => lib.reconnectFolder(r.root.id)}>Allow</button>{/if}
             <span class="tools">
@@ -639,20 +640,20 @@
       {/each}
       {#if loose}
         <li><button type="button" class="item name" class:sel={isSel({ kind: 'root', id: LOOSE })} class:menued={menued('r:' + LOOSE)} onclick={() => view.select({ kind: 'root', id: LOOSE })} title="Songs added one by one"
-          oncontextmenu={e => onMenu(e, 'r:' + LOOSE, () => [{ label: 'Show its songs', run: () => view.select({ kind: 'root', id: LOOSE }) }, { label: 'Add songs…', run: () => void addSongs() }], 'Added songs')}>🎵 Added songs<span class="n">{loose}</span></button></li>
+          oncontextmenu={e => onMenu(e, 'r:' + LOOSE, () => [{ label: 'Show its songs', run: () => view.select({ kind: 'root', id: LOOSE }) }, { label: 'Add songs…', run: () => void addSongs() }], 'Added songs')}><Icon name="note" /> Added songs<span class="n">{loose}</span></button></li>
       {/if}
       <!-- The user's Discogs collection, through GLUE Home (ADR 0187). -->
       {#if discogs.here}
         <li><button type="button" class="item name" id="discogs-side" data-guide="discogs-side" class:sel={isSel({ kind: 'discogs' })} class:menued={menued('discogs')} onclick={() => view.select({ kind: 'discogs' })} title="Your Discogs collection and wantlist, and which records you also have here"
-          oncontextmenu={e => onMenu(e, 'discogs', () => [{ label: 'Show it', run: () => view.select({ kind: 'discogs' }) }, { label: 'Refresh from Discogs', disabled: !discogs.state?.token, run: () => void discogs.load(true) }, SEP, ...whatsThis('discogs')], 'Discogs')}>💿 Discogs<span class="n">{discogs.state?.kept?.records.length ?? ''}</span></button></li>
-        <!-- Its playlists (ADR 0189): vinyl and digital together; ⚙ one that follows filters. -->
+          oncontextmenu={e => onMenu(e, 'discogs', () => [{ label: 'Show it', run: () => view.select({ kind: 'discogs' }) }, { label: 'Refresh from Discogs', disabled: !discogs.state?.token, run: () => void discogs.load(true) }, SEP, ...whatsThis('discogs')], 'Discogs')}><Icon name="disc" /> Discogs<span class="n">{discogs.state?.kept?.records.length ?? ''}</span></button></li>
+        <!-- Its playlists (ADR 0189): vinyl and digital together; a gear on one that follows filters. -->
         {#each (void lib.version, lib.discogsLists()) as dl (dl.id)}
           <li><button type="button" class="item name sub2 dglist" data-discogs-list={dl.id} class:sel={isSel({ kind: 'discogsList', id: dl.id })} class:menued={menued('dl:' + dl.id)} onclick={() => view.select({ kind: 'discogsList', id: dl.id })}
             oncontextmenu={e => onMenu(e, 'dl:' + dl.id, () => [
               { label: 'Show it', run: () => view.select({ kind: 'discogsList', id: dl.id }) },
               { label: 'Rename…', disabled: lib.readOnly, run: () => { const n = prompt('Rename the playlist', dl.name); if (n?.trim()) lib.updateList(dl.id, { name: n.trim() }); } },
               { label: 'Delete', disabled: lib.readOnly, attrs: { 'data-m': 'delete' }, run: () => { if (confirm('Delete “' + dl.name + '”? (It goes to Recently deleted.)')) { lib.store?.deleteList(dl.id); if (isSel({ kind: 'discogsList', id: dl.id })) view.select({ kind: 'discogs' }); } } },
-            ], dl.name)}>{dl.discogs?.rules ? '⚙' : '🎵'} <span class="nm">{dl.name}</span><span class="n">{(void discogs.state, discogs.itemsOf(dl).length)}</span></button></li>
+            ], dl.name)}><Icon name={dl.discogs?.rules ? 'gear' : 'note'} /> <span class="nm">{dl.name}</span><span class="n">{(void discogs.state, discogs.itemsOf(dl).length)}</span></button></li>
         {/each}
       {/if}
       {#if !lib.musicFolders.length && !loose}<li class="empty">{canPickFolders() ? 'Add the folders your music lives in, or single songs (or drop them here). GLUE only reads them.' : 'Add songs, or drop them onto GLUE: they’re copied into GLUE’s storage. Linking whole folders needs Chrome or Edge.'}</li>{/if}
@@ -814,7 +815,7 @@
   .kept { margin-left: 4px; display: inline-flex; align-items: center; flex: none; opacity: .45; }
   .kept.own { opacity: 1; }
   .kept.out { opacity: 1; }
-  .kept b { color: var(--warn, #e0a030); font-size: 11px; margin-left: 1px; }
+  .kept b { color: var(--warn, var(--warn)); font-size: 11px; margin-left: 1px; }
   .n { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; flex: none; }
   .twist { width: 16px; flex: none; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; font-size: 11px; text-align: center; }
   .tools { display: none; gap: 2px; flex: none; }
@@ -834,18 +835,18 @@
   .howto { display: grid; gap: 6px; padding: 4px 8px 4px 10px; color: var(--ink-2); font-size: 12.5px; }
   .found { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 4px 8px; background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 4px; font-size: 12.5px; }
   .inline { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font-size: inherit; }
-  .live { color: var(--ok, #3ecf8e); font-size: 10px; padding: 0 4px; cursor: help; }
+  .live { color: var(--ok); font-size: 11px; padding: 0 4px; cursor: help; }
   .live.reading { color: var(--accent); animation: blink 1s infinite alternate; }
   @keyframes blink { to { opacity: .35; } }
   .refresh { font-size: 11px; padding: 1px 6px; }
-  .djwait { color: var(--warn, #e0a030); font-size: 9px; flex: none; padding: 0 2px; }
+  .djwait { color: var(--warn); font-size: 9px; flex: none; padding: 0 2px; }
   .ingl { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; font-weight: 800; padding: 0 3px; flex: none; }
   .djq { list-style: none; margin: 2px 0 6px 26px; padding: 0; font-size: 12px; display: grid; gap: 4px; }
-  .djq li { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; color: var(--warn, #e0a030); }
+  .djq li { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; color: var(--warn, var(--warn)); }
   .djq li span { color: var(--text); }
   .syncf { margin-left: 4px; color: var(--ok); font-size: 11px; }
-  .syncf[data-dj-sync="waiting"] { color: var(--warn, #e0a030); }
-  .mainf { margin-left: 6px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; vertical-align: 1px; }
+  .syncf[data-dj-sync="waiting"] { color: var(--warn, var(--warn)); }
+  .mainf { margin-left: 6px; font-size: 11px; color: var(--ok); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; vertical-align: 1px; }
   .djtree { list-style: none; margin: 0; padding: 0; }
   .onpc { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); white-space: nowrap; }
   .onpc svg { width: 12px; height: 12px; }

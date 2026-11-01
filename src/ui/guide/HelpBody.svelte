@@ -58,7 +58,7 @@
 
 <style>
   .help { display: grid; gap: 10px; min-height: 0; }
-  input[type="search"] { width: 100%; box-sizing: border-box; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 7px 10px; color: var(--ink); }
+  input[type="search"] { width: 100%; box-sizing: border-box; background: var(--raised); border: 1px solid color-mix(in oklab, var(--muted) 80%, var(--line-2)); border-radius: 8px; padding: 7px 10px; color: var(--ink); }
   .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; overflow-y: auto; }
   .list a { display: grid; gap: 2px; text-decoration: none; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--ink); }
   .list a:hover { border-color: var(--accent); }
@@ -72,7 +72,7 @@
   .showme { display: flex; gap: 10px; align-items: center; margin: 0; }
   .showme small { color: var(--muted); }
   .gb { background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); border-radius: 7px; padding: 5px 14px; font-weight: 600; font-size: 13px; cursor: pointer; }
-  .gb:disabled { opacity: .45; cursor: default; }
+  .gb:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .md { color: var(--ink-2); font-size: 13.5px; line-height: 1.55; }
   .page .md { font-size: 15px; max-width: 760px; }
   .md :global(h2), .md :global(h3) { color: var(--ink); margin: 14px 0 4px; font-size: 15px; }

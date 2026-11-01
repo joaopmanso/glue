@@ -28,6 +28,6 @@
   .help { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: var(--ground); font-size: 12.5px; color: var(--ink-2); text-align: left; }
   summary { cursor: pointer; color: var(--ink); font-weight: 600; font-size: 13px; }
   p { margin: 8px 0 0; }
-  h4 { margin: 10px 0 4px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  h4 { margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
   ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 </style>

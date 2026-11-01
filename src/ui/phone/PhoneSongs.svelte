@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   /* A list of songs on a phone or a tablet (ADR 0078, 0079): what the open view shows (a playlist, a tag,
      an artist, a search), two lines a song, its cover. A tap plays it (the list plays on after it); ⋯ or a
      long press opens its menu. Select picks several songs for one action; a playlist's Edit reorders
@@ -149,7 +150,7 @@
           <CoverArt t={r.t} px={44} />
           <span class="txt">
             <b>{r.t.title || r.t.fileName}</b>
-            <small>{r.t.artist || 'Unknown artist'}{#if b} · {fmtBpm(b)}{/if}{#if r.a?.key} · {keyLabel(r.a.key, app.keyNotation)}{:else if r.dj?.key} · {r.dj.key}{/if}{#if r.t.duration} · {fmtTime(r.t.duration)}{/if}</small>
+            <small><Parts items={[r.t.artist || 'Unknown artist', b && fmtBpm(b), r.a?.key ? keyLabel(r.a.key, app.keyNotation) : r.dj?.key, r.t.duration && fmtTime(r.t.duration)]} /></small>
           </span>
           {#if editing}
             <span class="grip" role="button" tabindex="-1" aria-label="Drag to reorder" onpointerdown={e => grab(e, r.t.id, idx)} onpointermove={e => { if (drag) { lastY = e.clientY; follow(); } }} onpointerup={drop} onpointercancel={drop}>
@@ -179,7 +180,7 @@
   .n { flex: 1; color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .n.mid { text-align: center; color: var(--ink-2); font-size: 14px; }
   .tools button { background: var(--raised); border: 1px solid var(--line-2); border-radius: 18px; color: var(--ink); font-size: 14px; padding: 7px 14px; cursor: pointer; flex: none; }
-  .tools button:disabled { opacity: .4; }
+  .tools button:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .tools .ic { width: 38px; height: 36px; padding: 0; display: grid; place-items: center; }
   .tools .ic svg { width: 18px; height: 18px; }
   #phone-play-all { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 650; }
@@ -191,7 +192,7 @@
   .row.off { opacity: .55; }
   .row.picked { background: color-mix(in srgb, var(--accent) 10%, var(--ground)); }
   .moving .row { transition: transform .15s ease; }
-  .moving .row.held { transition: none; z-index: 2; background: var(--raised); box-shadow: 0 8px 24px rgb(0 0 0 / .45); }
+  .moving .row.held { transition: none; z-index: 2; background: var(--raised); box-shadow: var(--shadow-pop); }
   .row :global(.cov) { border-radius: 6px; background: var(--raised); }
   .row :global(.cov:not(.has)) { display: grid; place-items: center; color: var(--muted); }
   .row :global(.cov:not(.has)::before) { content: '♪'; font-size: 18px; }
@@ -207,9 +208,9 @@
   .grip { width: 48px; height: 52px; flex: none; display: grid; place-items: center; color: var(--muted); touch-action: none; cursor: grab; }
   .grip svg { width: 22px; height: 22px; }
   .empty { color: var(--muted); text-align: center; padding: 30px 20px; }
-  .selbar { position: fixed; left: 8px; right: 8px; bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 6px); z-index: 32; height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 8px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 6px 24px rgb(0 0 0 / .35); }
+  .selbar { position: fixed; left: 8px; right: 8px; bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 6px); z-index: 32; height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 8px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-pop); }
   .selbar button { flex: 1; height: 40px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; }
-  .selbar button:disabled { opacity: .4; }
+  .selbar button:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .selbar .danger { color: var(--bad); }
   .selbar .ic { flex: none; width: 48px; font-size: 20px; }
 </style>

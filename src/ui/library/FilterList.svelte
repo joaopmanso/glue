@@ -45,13 +45,13 @@
 
 <style>
   .fl { border: 0; margin: 0; padding: 0; display: grid; gap: 2px; align-content: start; min-width: 0; }
-  legend { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  legend { font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
   .vals { display: grid; gap: 2px; max-height: 240px; overflow-y: auto; }
   label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 4px; border-radius: 4px; cursor: pointer; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink); }
   label:hover { background: var(--surface); }
   label.all { border-bottom: 1px solid var(--line); border-radius: 4px 4px 0 0; padding-bottom: 5px; margin-bottom: 2px; color: var(--ink-2); }
   label span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  label small { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+  label small { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   .dot.sq { border-radius: 2px; }
   .fq { background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; font-size: 12.5px; margin-bottom: 4px; }

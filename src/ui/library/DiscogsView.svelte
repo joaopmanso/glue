@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   /* The user's Discogs collection and wantlist (ADR 0187), read by GLUE Home: each record with its cover, label,
      catalogue number, year and formats, and the songs of it GLUE has ("In GLUE: 7 songs", a click opens its album), or
      "Not in GLUE". Only the rows on screen are drawn. */
@@ -171,7 +172,7 @@
       {#if reading}Reading your Discogs {reading.what}… {reading.of ? reading.done + ' of ' + reading.of + (reading.what === 'collection' || reading.what === 'wantlist' ? ' pages' : '') : ''}
       {:else if st?.now?.error}<span class="bad">Couldn’t read Discogs: {st.now.error}</span>
       {:else if st?.tokenError}<span class="bad">{st.tokenError}</span>
-      {:else if kept}{kept.user} on Discogs · read {when(kept.readAt)} · {items.length.toLocaleString()} shown
+      {:else if kept}<Parts items={[kept.user + ' on Discogs', 'read ' + when(kept.readAt), items.length.toLocaleString() + ' shown']} />
       {:else}Waiting for GLUE Home…{/if}
     </p>
     <div class="list" bind:this={box} bind:clientHeight={height} onscroll={() => (top = box!.scrollTop)}>
@@ -184,8 +185,8 @@
             <input type="checkbox" class="tick" aria-label={'Pick ' + r.title} data-tick={r.id} checked={ticked.has(r.id)} onchange={e => tick(r.id, e.currentTarget.checked)}>
             <span class="cov">{#if src}<img src={src} alt="" loading="lazy">{/if}</span>
             <span class="nm"><b title={r.title}>{r.title}</b><small>{artistOf(r)}</small></span>
-            <span class="lab"><span>{labelOf(r)}</span><small>{r.year ?? ''}{r.styles.length ? (r.year ? ' · ' : '') + r.styles.slice(0, 3).join(', ') : ''}</small></span>
-            <span class="fmt">{r.formats.slice(0, 3).join(' · ')}</span>
+            <span class="lab"><span>{labelOf(r)}</span><small><Parts items={[r.year ? String(r.year) : null, r.styles.slice(0, 3).join(', ')]} /></small></span>
+            <span class="fmt"><Parts items={r.formats.slice(0, 3)} /></span>
             <span class="act">
               {#if ids.length}<button type="button" class="in" data-in={ids.length} title="Show its songs" onclick={() => openSongs(r)}>In GLUE: {m.found ? m.found + ' of ' + m.tracks + ' tracks' : ids.length + ' song' + (ids.length === 1 ? '' : 's')}</button>
               {:else}<span class="out">Not in GLUE</span>{/if}
@@ -207,10 +208,10 @@
   .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; }
   .seg button { background: none; border: 0; color: var(--ink-2); font-size: 12.5px; padding: 4px 10px; cursor: pointer; }
   .seg button[aria-checked="true"], .seg button[aria-selected="true"] { background: var(--raised); color: var(--ink); }
-  .seg small { color: var(--muted); font-family: var(--font-mono); margin-left: 3px; }
+  .seg small { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 3px; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
   .mini:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-  .mini:disabled { opacity: .45; cursor: default; }
+  .mini:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   select { background: var(--surface); border: 1px solid var(--line-2); border-radius: 6px; color: var(--ink); font-size: 12.5px; padding: 4px 6px; }
   .status { margin: 0; color: var(--muted); font-size: 12.5px; }
   .bad { color: var(--warn); }
@@ -242,7 +243,7 @@
   .tt, .ts { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ts { color: var(--ink-2); }
   .ts.no { color: var(--muted); }
-  .sub { margin: 4px 0 0; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .sub { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
   .songs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .songs li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
   .songs li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

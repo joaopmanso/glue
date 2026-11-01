@@ -129,7 +129,7 @@
   .notice button { background: none; border: 0; color: var(--muted); font-size: 16px; cursor: pointer; }
   .crumbs a { color: var(--accent); text-decoration: none; font-size: 13.5px; }
   .eh { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; }
-  .when { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .when { font-size: 12px; color: var(--accent); font-weight: 700; }
   h2 { font-size: 28px; margin: 2px 0 0; font-stretch: 112%; }
   h2.cancelled { text-decoration: line-through; color: var(--muted); }
   .sub { margin: 2px 0 0; color: var(--ink-2); }
@@ -139,7 +139,7 @@
   .mini.danger { color: var(--bad); }
   .needs { margin: 0; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--line-2)); border-radius: 8px; background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--ink); font-size: 13.5px; }
   .ecols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
-  h3 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+  h3 { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
   h4 { font-size: 13px; margin: 14px 0 6px; }
   h4 small { color: var(--muted); font-weight: 400; margin-left: 6px; }
   .mbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

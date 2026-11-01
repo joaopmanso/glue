@@ -1,8 +1,8 @@
 ---
 status: in-progress
 milestone: M2
-updated: 2026-09-25
-adrs: [0028]
+updated: 2026-11-01
+adrs: [0028, 0191]
 ---
 # Themes
 
@@ -13,6 +13,15 @@ Choose how GLUE looks: a theme (colours, fonts, shape) and dark, light or match-
 - "Who's using GLUE?" › Appearance: four themes with live previews (Classic, Studio, Riso, Moss) and a
   Dark / Light / Match system switch. The header's sun/moon button flips dark and light anywhere.
 - Remembered in the browser and in the GLUE folder ([ADR 0028](../adr/0028-themes.md)).
+
+## Now: Hallmark's Console treatment (2026-11-01, ADR 0191)
+- Every theme keeps its colours. GLUE Stick and Classic read in Host Grotesk; titles and the wordmark stay heavy Archivo;
+  Atkinson Hyperlegible Mono only for what was measured (BPM, key, kHz, times, paths). Studio, Riso and Moss keep their
+  faces.
+- Labels are sentence case and untracked everywhere; disabled controls change fill, ink and cursor.
+- Shared tokens in the theme table: `--stage`, `--on-stage`, `--stage-glass`, `--scrim`, `--shadow-pop`,
+  `--bad-ink`, `--font-outlier`; `app.css` holds `--brand-*` (logo, Gluey) and `--field-*` (homepage).
+- `Icon.svelte` (line icons instead of emoji) and `Parts.svelte` (meta lines parted by hairlines, not dots).
 
 ## Open
 - The user tries Studio, Riso and Moss and picks the new default.

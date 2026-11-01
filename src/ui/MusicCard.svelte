@@ -33,7 +33,7 @@
           <span class="big" id="m-bpm">{bpm.show}<small>&nbsp;BPM</small></span>
           <span class="sub" id="m-bpm-sub">{bpm.sub}</span>
         {:else}
-          <span class="big" id="m-bpm">—</span><span class="sub" id="m-bpm-sub">no steady beat found</span>
+          <span class="big" id="m-bpm">None</span><span class="sub" id="m-bpm-sub">no steady beat found</span>
         {/if}
       </div>
       <div>
@@ -42,7 +42,7 @@
           <span class="big" id="m-key">{keyLabel(key, n)}</span>
           <span class="sub" id="m-key-sub">{NOTATIONS.filter(([x]) => x !== n).map(([x]) => keyLabel(key, x)).join(' · ')}</span>
         {:else}
-          <span class="big" id="m-key">—</span><span class="sub" id="m-key-sub">not enough tonal content</span>
+          <span class="big" id="m-key">None</span><span class="sub" id="m-key-sub">not enough tonal content</span>
         {/if}
       </div>
     </div>

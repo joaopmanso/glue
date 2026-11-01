@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   /* "No file linked" (ADR 0124): each song with no file, and the song in the library it most likely is, with how
      sure GLUE is. Linked one at a time, or every ticked one at once (the user, 2026-10-01: an Engine DJ import's
      playlists named duplicates removed since; most are in the library). */
@@ -118,7 +119,7 @@
   {#if relink.busy}<p class="note" id="relink-busy" role="status">Looking for these songs in your library… {relink.busy.done.toLocaleString()} of {relink.busy.of.toLocaleString()}</p>{/if}
   {#if all.length}
     <div class="bulk" id="relink-bulk" data-guide="relink-bulk">
-      <span>{matched.length.toLocaleString()} with a match{unmatched.length ? ' · ' + unmatched.length.toLocaleString() + ' without' : ''}{pickedShown.length ? ' · ' + pickedShown.length + ' ticked' : ''}</span>
+      <Parts items={[matched.length.toLocaleString() + ' with a match', unmatched.length && unmatched.length.toLocaleString() + ' without', pickedShown.length && pickedShown.length + ' ticked']} />
       <label class="atleast">Certainty at least
         <select id="relink-sure" value={String(atLeast)} onchange={e => (atLeast = Number(e.currentTarget.value))}>
           {#each [0, 80, 90, 95, 99] as v (v)}<option value={String(v)}>{v ? v + '% (' + countAt(v) + ')' : 'any'}</option>{/each}
@@ -238,11 +239,11 @@
   .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .mini.primary { border-color: var(--accent); color: var(--accent); }
   .bulk { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 12.5px; color: var(--ink-2); }
-  .bulk > span { flex: 1; }
+  .bulk > :global(.parts) { flex: 1; }
   .atleast { color: var(--muted); display: flex; gap: 6px; align-items: center; }
   .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; }
-  .dlg { width: min(560px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; display: grid; gap: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); }
-  .dlg h2 { font-size: 20px; margin: 0; }
+  .dlg { width: min(560px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; display: grid; gap: 12px; box-shadow: var(--shadow-pop); }
+  .dlg h2 { font-size: 20px; margin: 0; overflow-wrap: break-word; min-width: 0; }
   .dlg p { color: var(--ink-2); font-size: 13.5px; margin: 0; }
   .doubtbox { border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; font-size: 13px; }
   .acts { display: flex; justify-content: flex-end; gap: 8px; }

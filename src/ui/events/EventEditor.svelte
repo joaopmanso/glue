@@ -76,7 +76,7 @@
 
 <style>
   .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; }
-  .dlg { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); }
+  .dlg { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; box-shadow: var(--shadow-pop); }
   form { display: grid; gap: 14px; }
   h2 { font-size: 20px; margin: 0; }
   .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; }

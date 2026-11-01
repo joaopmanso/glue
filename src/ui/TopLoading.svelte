@@ -8,13 +8,13 @@
 </script>
 
 {#if w}
-  <div class="toploading" id="top-loading" aria-hidden="true"><span class:indet={pct == null} style:width={pct == null ? '30%' : pct + '%'}></span></div>
+  <div class="toploading" id="top-loading" aria-hidden="true"><span class:indet={pct == null} style:transform={pct == null ? undefined : 'scaleX(' + pct / 100 + ')'}></span></div>
 {/if}
 
 <style>
   .toploading { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 1000; pointer-events: none; overflow: hidden; }
-  .toploading span { display: block; height: 100%; background: var(--accent); box-shadow: 0 0 6px var(--accent); transition: width .2s ease-out; }
-  .toploading span.indet { animation: slide 1.2s ease-in-out infinite; }
+  .toploading span { display: block; height: 100%; background: var(--accent); box-shadow: 0 0 6px var(--accent); transform-origin: left; transition: transform .2s ease-out; }
+  .toploading span.indet { width: 30%; animation: slide 1.2s ease-in-out infinite; }
   @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
-  @media (prefers-reduced-motion: reduce) { .toploading span.indet { animation: none; } .toploading span { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .toploading span.indet { width: 30%; animation: none; } .toploading span { transition: none; } }
 </style>

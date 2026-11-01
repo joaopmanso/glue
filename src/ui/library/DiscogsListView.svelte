@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
+  import Icon from '../Icon.svelte';
   /* A Discogs playlist (ADR 0189): the library's songs and vinyl tracks of the user's Discogs records together. A song
      plays; a vinyl track says which record to pull (cover, position, label and catalogue number). An auto one shows its
      rules at the top and its tracks follow them; "Save as a playlist" freezes it. Only the rows on screen are drawn. */
@@ -142,12 +144,12 @@
               <span class="nm"><b>{r.t.title || r.t.fileName}</b><small>{r.t.artist}</small></span>
               <span class="from"><span>{r.t.album}</span></span>
               <span class="len">{r.t.duration ? fmtTime(r.t.duration) : ''}</span>
-              <span class="kind">{#if nowPlaying.canPlay(r.t.id)}<button type="button" class="play" title="Play" aria-label="Play" onclick={() => void nowPlaying.play(r.t.id, songs.slice(songs.indexOf(r.t.id)), 0, list.name)}>▶</button>{/if}<span class="dig">Digital</span></span>
+              <span class="kind">{#if nowPlaying.canPlay(r.t.id)}<button type="button" class="play" title="Play" aria-label="Play" onclick={() => void nowPlaying.play(r.t.id, songs.slice(songs.indexOf(r.t.id)), 0, list.name)}><Icon name="play" /></button>{/if}<span class="dig">Digital</span></span>
             {:else if r.vinyl === true}
               {@const src = (void discogs.version, discogs.art(r.v.record.art))}
               <span class="cov">{#if src}<img src={src} alt="">{/if}</span>
               <span class="nm"><b>{r.v.track.title}</b><small>{(r.v.track.artists.length ? r.v.track.artists : r.v.record.artists).map(plainName).join(', ')}</small></span>
-              <span class="from"><span>{r.v.whole ? 'Whole record' + (r.v.record.tracks ? '' : ' (its tracklist comes with GLUE Home’s next read)') : (r.v.track.p ? r.v.track.p + ' · ' : '') + r.v.record.title}</span><small>{r.v.record.labels[0] ? r.v.record.labels[0].name + (r.v.record.labels[0].catno ? ' · ' + r.v.record.labels[0].catno : '') : ''}</small></span>
+              <span class="from">{#if r.v.whole}<span>{'Whole record' + (r.v.record.tracks ? '' : ' (its tracklist comes with GLUE Home’s next read)')}</span>{:else}<Parts items={[r.v.track.p, r.v.record.title]} />{/if}<small><Parts items={[r.v.record.labels[0]?.name, r.v.record.labels[0]?.catno]} /></small></span>
               <span class="len">{r.v.track.d ? fmtTime(r.v.track.d) : ''}</span>
               <span class="kind"><span class="vin" title="On vinyl: this record">On vinyl</span></span>
             {:else}
@@ -167,10 +169,10 @@
   .sum { color: var(--ink-2); font-size: 13px; margin-right: auto; }
   .mini { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); font-size: 12px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
   .mini:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-  .mini:disabled { opacity: .45; cursor: default; }
+  .mini:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .rules { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); position: relative; }
   .rule { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12.5px; }
-  .rule b { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-right: 2px; }
+  .rule b { color: var(--muted); font-weight: 600; font-size: 11px; margin-right: 2px; }
   .chip { background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 12px; color: var(--ink); font-size: 12px; padding: 1px 8px; cursor: pointer; }
   .add { background: none; border: 1px dashed var(--line-2); border-radius: 12px; color: var(--ink-2); font-size: 12px; padding: 0 8px; cursor: pointer; }
   .yr { width: 70px; background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); font-size: 12px; padding: 2px 6px; }
@@ -200,7 +202,7 @@
   .kind { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
   .play { background: none; border: 1px solid var(--line-2); border-radius: 50%; width: 24px; height: 24px; color: var(--accent); cursor: pointer; font-size: 10px; line-height: 1; }
   .dig { color: var(--muted); font-size: 11.5px; }
-  .vin { color: var(--warn, #e0a030); border: 1px solid currentColor; border-radius: 10px; font-size: 11px; padding: 1px 7px; }
+  .vin { color: var(--warn, var(--warn)); border: 1px solid currentColor; border-radius: 10px; font-size: 11px; padding: 1px 7px; }
   .none { color: var(--muted); padding: 20px; text-align: center; }
   .tick { margin: 0; accent-color: var(--accent); }
   @media (max-width: 760px) { .it { grid-template-columns: 18px 40px minmax(0, 1fr) auto; } .from, .len { display: none; } }

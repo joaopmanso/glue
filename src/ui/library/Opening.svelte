@@ -13,7 +13,7 @@
   <h2>{l.title}</h2>
   <p id="loading-step">{l.text}</p>
   <div class="track" role="progressbar" aria-label={l.text} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}>
-    <span class:indet={pct == null} style:width={pct == null ? '35%' : pct + '%'}></span>
+    <span class:indet={pct == null} style:transform={pct == null ? undefined : 'scaleX(' + pct / 100 + ')'}></span>
   </div>
   <small class="count" id="loading-count">{l.total ? l.done.toLocaleString() + ' of ' + l.total.toLocaleString() + ' files' : ' '}</small>
 </div>
@@ -25,10 +25,10 @@
   h2 { margin: 4px 0 0; font-size: 18px; }
   p { margin: 0; color: var(--muted); font-size: 14px; min-height: 1.4em; }
   .track { width: 100%; height: 6px; margin-top: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
-  .track span { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .2s ease-out; }
-  .track span.indet { animation: slide 1.2s ease-in-out infinite; }
+  .track span { display: block; height: 100%; border-radius: 3px; background: var(--accent); transform-origin: left; transition: transform .2s ease-out; }
+  .track span.indet { width: 35%; animation: slide 1.2s ease-in-out infinite; }
   .count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-height: 1.2em; }
   @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
   @keyframes bob { 50% { transform: translateY(-3px); } }
-  @media (prefers-reduced-motion: reduce) { .logo, .track span.indet { animation: none; } .track span { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .logo, .track span.indet { width: 35%; animation: none; } .track span { transition: none; } }
 </style>

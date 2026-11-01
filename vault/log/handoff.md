@@ -62,6 +62,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Hallmark's Console treatment (2026-11-01, ADR 0191, the website):**
+  - **What changed:** GLUE's colours and layout kept; new reading face (Host Grotesk), the measured mono for figures,
+    sentence-case labels, hairline meta lines, line icons.
+  - **To check by hand on both computers:** light mode, the Studio, Riso and Moss themes, the phone layout.
+  - **Before/after** (local only): `.hallmark/compare.html`.
 - **The Discogs playlist builder (2026-11-01, ADR 0190, the website):** tick records in Discogs › **Build a playlist
   from these** (or + Auto with none): tracks, per record, vinyl/digital, compilations, styles/artists Prefer or Only,
   labels, formats, years; ↻ × per track; Save makes a Discogs playlist to drag and arrange. To check: from one or two of

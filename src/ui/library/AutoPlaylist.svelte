@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   import { bpmShown, fmtBpm } from '../../lib/bpm';
   import { auto } from '../../lib/auto.svelte';
   import { lib } from '../../lib/library.svelte';
@@ -139,7 +140,7 @@
                   <option value="">+ tag</option>
                   {#each tagList.filter(t => !f.avoidTags.includes(t.name) && !wanted.includes(t.name)) as t (t.name)}<option value={t.name}>{t.name} ({t.tracks})</option>{/each}
                 </select>
-              {:else}<span class="hint">—</span>{/if}
+              {:else}<span class="hint">No tags yet</span>{/if}
             </div>
           {/if}
         </fieldset>
@@ -175,7 +176,7 @@
             <button type="button" class="btn-ghost" id="auto-again" onclick={() => auto.again()} title="Same settings, different choices">↻ Another</button>
             <button type="button" class="btn" id="auto-save" onclick={() => auto.save()}>Save playlist</button>
           </div>
-          <p class="meta">{auto.slots.length} tracks · {fmtTime(total)}{#if auto.relaxed.length} · <span class="warnt">relaxed: {auto.relaxed.join(', ')}</span>{/if}
+          <p class="meta"><Parts items={[auto.slots.length + ' tracks', fmtTime(total), auto.relaxed.length > 0 && { text: 'relaxed: ' + auto.relaxed.join(', '), cls: 'warnt' }]} />
             <button type="button" class="linkish" id="auto-insights-toggle" aria-expanded={insightsOpen} onclick={() => (insightsOpen = !insightsOpen)}>{insightsOpen ? 'Hide insights' : 'Show insights'}</button></p>
           {#if insightsOpen}<PlaylistInsights ids={slotIds} compact />{/if}
           <ol class="list" id="auto-list">
@@ -216,7 +217,7 @@
   /* The scrim scrolls when the dialog is taller than the window; auto margins centre it when it fits
      (a plain centred grid would push the top out of view). */
   .scrim { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); display: grid; justify-items: center; align-items: start; overflow-y: auto; padding: 16px; }
-  .dlg { margin-block: auto; width: min(1180px, 100%); height: min(860px, calc(100dvh - 32px)); display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .5); overflow: clip; }
+  .dlg { margin-block: auto; width: min(1180px, 100%); height: min(860px, calc(100dvh - 32px)); display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-pop); overflow: clip; }
   header { position: relative; padding: 18px 56px 12px 22px; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
   header h2 { font-size: 22px; }
   header p { color: var(--ink-2); font-size: 13.5px; }
@@ -226,7 +227,7 @@
   .ap-cols { display: flex; min-height: 0; overflow: hidden; }
   .opts { flex: 0 0 400px; min-height: 0; overflow-y: auto; padding: 14px 18px 18px 22px; display: grid; gap: 12px; align-content: start; border-right: 1px solid var(--line); }
   fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
-  legend { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 4px; font-family: var(--font-sans); }
+  legend { font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px; font-family: var(--font-sans); }
   .grid2 { grid-template-columns: 1fr 1fr; gap: 8px 12px; align-items: start; }
   .grid2 legend { grid-column: 1 / -1; }
   label { display: grid; gap: 3px; font-size: 12.5px; color: var(--ink-2); }
@@ -243,7 +244,7 @@
   .tchip.seed { border-left: 3px solid var(--accent); }
   .search { position: relative; display: grid; gap: 4px; }
   .linkish { justify-self: start; background: none; border: 0; padding: 0; color: var(--accent); font-size: 12px; cursor: pointer; text-decoration: underline; }
-  .results { position: absolute; top: 34px; left: 0; right: 0; z-index: 2; list-style: none; margin: 0; padding: 4px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; box-shadow: 0 10px 24px rgb(0 0 0 / .35); }
+  .results { position: absolute; top: 34px; left: 0; right: 0; z-index: 2; list-style: none; margin: 0; padding: 4px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 6px; box-shadow: var(--shadow-pop); }
   .results button { width: 100%; text-align: left; background: none; border: 0; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; }
   .results button:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
   .results span { color: var(--muted); }
@@ -262,7 +263,7 @@
   .res-head { display: flex; gap: 8px; align-items: center; }
   .res-head input { flex: 1; font-size: 15px; font-weight: 600; padding: 7px 10px; }
   .meta { color: var(--muted); font-size: 12.5px; }
-  .warnt { color: var(--warn); }
+  .warnt, .meta :global(.warnt) { color: var(--warn); }
   .list { flex: 1; list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 0; display: grid; align-content: start; }
   .list li { display: grid; grid-template-columns: 26px 26px minmax(0, 1fr) minmax(90px, 170px) 42px 64px 64px 56px; gap: 8px; align-items: center; padding: 4px 6px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
   .list li.fixed { background: color-mix(in srgb, var(--accent) 7%, transparent); }
@@ -275,11 +276,11 @@
   .key { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
   .fit { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   .fit.good { background: var(--ok); } .fit.ok { background: var(--warn); } .fit.clash { background: var(--bad); } .fit.unk { background: var(--line-2); }
-  .stars { color: var(--warn); font-size: 11px; letter-spacing: 1px; white-space: nowrap; overflow: hidden; }
+  .stars { color: var(--warn); font-size: 11px; letter-spacing: 0; white-space: nowrap; overflow: hidden; }
   .acts { display: flex; gap: 4px; justify-content: flex-end; }
   .acts button { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); width: 24px; height: 22px; cursor: pointer; padding: 0; }
   .acts button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-  .acts button:disabled { opacity: .3; cursor: default; }
+  .acts button:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .pbtn { width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--raised); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; padding: 0; }
   .pbtn:hover { background: var(--accent); color: var(--accent-ink); }
   .pbtn svg { width: 9px; height: 9px; }

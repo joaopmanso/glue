@@ -43,12 +43,12 @@
   .fbtn:hover, .fbtn.on { border-color: var(--accent); color: var(--accent); }
   .fbtn svg { width: 14px; height: 14px; }
   .fbtn b { background: var(--accent); color: var(--accent-ink); border-radius: 9px; padding: 0 6px; font-size: 11px; }
-  .pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 520px; max-height: min(620px, 75vh); overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 12px; box-shadow: 0 12px 32px rgb(0 0 0 / .45); }
+  .pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 520px; max-height: min(620px, 75vh); overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px; padding: 12px; box-shadow: var(--shadow-pop); }
   .foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); font-size: 11.5px; border-top: 1px solid var(--line); padding-top: 8px; }
   .foot button { background: none; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-2); padding: 3px 10px; cursor: pointer; font-size: 12px; }
-  .foot button:disabled { opacity: .4; cursor: default; }
+  .foot button:disabled { color: var(--muted); background-color: var(--raised); border-color: var(--line); cursor: not-allowed; }
   .hidden { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; margin-top: -6px; }
   .none { grid-column: 1 / -1; color: var(--muted); font-size: 12.5px; margin: 0; }
   .linkish { background: none; border: 0; padding: 0; margin-left: 6px; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
-  @media (max-width: 600px) { .pop { width: min(520px, calc(100vw - 32px)); grid-template-columns: 1fr; } }
+  @media (max-width: 600px) { .pop { width: 520px; max-width: calc(100vw - 32px); grid-template-columns: 1fr; } }
 </style>

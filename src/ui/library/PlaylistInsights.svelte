@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Parts from '../Parts.svelte';
   /* A playlist at a glance: length, tempo flow, keys and mixes, quality, and a Venn diagram of how
      its tags overlap (pick up to three). Used under a playlist's header and in the playlist builder. */
   import { asShown } from '../../core/library/summary';
@@ -70,7 +71,7 @@
     <span class="label">Length</span>
     <b class="big">{fmtTime(ins.total)}</b>
     <small>{ins.count} track{ins.count === 1 ? '' : 's'}{#if ins.count && ins.total} · avg {fmtTime(ins.total / Math.max(1, ins.count - ins.unknownLength))}{/if}</small>
-    {#if ins.shortest != null && ins.longest != null && ins.count > 1}<small>{fmtTime(ins.shortest)} – {fmtTime(ins.longest)}</small>{/if}
+    {#if ins.shortest != null && ins.longest != null && ins.count > 1}<small>{fmtTime(ins.shortest)} to {fmtTime(ins.longest)}</small>{/if}
     {#if list}
       <div class="ltags">
         {#each list.tags ?? [] as t (t)}<span class="tg" style:--c={tagColorOf(t)}>{t}</span>{/each}
@@ -80,7 +81,7 @@
   </div>
 
   <div class="blk">
-    <span class="label">Tempo {#if ins.bpm}<small>{Math.round(ins.bpm.min)}–{Math.round(ins.bpm.max)} BPM · avg {Math.round(ins.bpm.avg)}</small>{/if}</span>
+    <span class="label">Tempo {#if ins.bpm}<small><Parts items={[Math.round(ins.bpm.min) + ' to ' + Math.round(ins.bpm.max) + ' BPM', 'avg ' + Math.round(ins.bpm.avg)]} /></small>{/if}</span>
     {#if flow}
       <svg class="flow" viewBox={'0 0 ' + FW + ' ' + FH} preserveAspectRatio="none" role="img" aria-label="BPM through the playlist">
         {#each flow.segs as p, i (i)}<polyline points={p} />{/each}
@@ -107,7 +108,7 @@
       <div class="bar tall">
         {#each gradeBar as [g, name] (g)}{#if ins.grades[g]}<span class={'g-' + g} style:flex={ins.grades[g]} title={name + ': ' + ins.grades[g]}></span>{/if}{/each}
       </div>
-      <small>{ins.grades.ok} genuine{#if ins.grades.warn} · {ins.grades.warn} caution{/if}{#if ins.grades.bad} · {ins.grades.bad} lossy or fake{/if}{#if ins.grades.none} · {ins.grades.none} not analysed{/if}</small>
+      <small><Parts items={[ins.grades.ok + ' genuine', ins.grades.warn && ins.grades.warn + ' caution', ins.grades.bad && ins.grades.bad + ' lossy or fake', ins.grades.none && ins.grades.none + ' not analysed']} /></small>
     </div>
   {/if}
 
@@ -164,7 +165,7 @@
   .vlegend { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; min-width: 0; }
   .vt { font-size: 11.5px; border-radius: 9px; padding: 1px 7px; background: none; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); color: var(--ink-2); cursor: pointer; }
   .vt.on { background: color-mix(in srgb, var(--c) 28%, transparent); color: var(--ink); border-color: var(--c); }
-  .vt i { font-style: normal; color: var(--muted); margin-left: 4px; font-family: var(--font-mono); font-size: 10.5px; }
+  .vt i { font-style: normal; color: var(--muted); margin-left: 4px; font-family: var(--font-mono); font-size: 11px; }
   .ltags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; align-items: center; }
   .tg { font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--c) 20%, transparent); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); }
   .tedit { background: none; border: 1px dashed var(--line-2); border-radius: 8px; color: var(--ink-2); font-size: 11px; padding: 0 7px; line-height: 16px; cursor: pointer; }
