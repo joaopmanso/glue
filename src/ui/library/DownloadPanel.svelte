@@ -2,10 +2,14 @@
   /* A download on its way (ADR 0193): how far it is, the song it's on, and what had to be left out. */
   import { downloads } from '../../lib/downloads.svelte';
   import { fmtBytes } from '../../core/format';
+  import { fmtLeft } from '../../core/transferRate';
   import Parts from '../Parts.svelte';
 
   const d = $derived(downloads.now);
   const left = $derived(d ? d.skipped.length : 0);
+  // Nothing to measure yet (or the browser finishing the file): the bar says it's working, not how far.
+  const unknown = $derived(!!d && (d.phase === 'finishing' || !d.got || !d.total));
+  const pct = $derived(d && d.total ? Math.min(100, Math.floor(d.got / d.total * 100)) : 0);
 </script>
 
 {#if d}
@@ -15,11 +19,14 @@
       {#if d.phase === 'running'}<button type="button" class="mini" id="download-cancel" onclick={() => downloads.cancel()}>Cancel</button>
       {:else if d.phase !== 'finishing'}<button type="button" class="x" id="download-dismiss" aria-label="Dismiss" onclick={() => downloads.dismiss()}>×</button>{/if}
     </div>
-    {#if d.phase === 'running' || d.phase === 'finishing'}<div class="bar"><span style:transform={'scaleX(' + (d.total ? Math.min(1, d.got / d.total) : 0) + ')'}></span></div>{/if}
+    {#if d.phase === 'running' || d.phase === 'finishing'}<div class="bar" class:unknown>{#if !unknown}<span style:transform={'scaleX(' + d.got / d.total + ')'}></span>{:else}<i></i>{/if}</div>{/if}
     {#if d.phase === 'running'}
-      <p class="now" title={d.current}>{d.current}</p>
-      <p class="fine"><Parts items={[d.zip && d.saved + ' of ' + d.count + ' songs', fmtBytes(d.got) + (d.total ? ' of ' + fmtBytes(d.total) : '')]} /></p>
+      <p class="now" id="download-song" title={d.current}>{d.zip ? 'Song ' + d.at + ' of ' + d.count + ': ' : ''}{d.current}</p>
+      {#if d.note}<p class="note" class:trouble={d.trouble} id="download-note">{d.note}</p>{/if}
+      <p class="fine" id="download-progress"><Parts items={[pct + '%', fmtBytes(d.got) + (d.total ? ' of ' + fmtBytes(d.total) : ''), d.rate ? fmtBytes(d.rate) + '/s' : null, d.left != null && d.left > 0 ? fmtLeft(d.left) : 'working out the time left']} /></p>
       <p class="fine">Keep this tab open until it’s done.</p>
+    {:else if d.phase === 'finishing'}
+      <p class="fine">The browser checks the file before it appears. A big one takes a moment.</p>
     {:else if d.phase === 'done'}
       <p class="fine" id="download-sum"><Parts items={[d.zip && d.saved + ' song' + (d.saved === 1 ? '' : 's'), fmtBytes(d.got)]} /></p>
     {/if}
@@ -42,9 +49,13 @@
   [data-phase="failed"] .head b { color: var(--bad); }
   .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
   .bar span { display: block; height: 100%; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform .2s; }
+  .bar i { display: block; width: 30%; height: 100%; background: var(--accent); animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
   p { margin: 0; }
   .now { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fine { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .note { color: var(--ink-2); font-size: 12.5px; }
+  .note.trouble { color: var(--warn); }
   .err { color: var(--bad); font-size: 12.5px; }
   .warn { color: var(--warn); font-weight: 600; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; max-height: 160px; overflow-y: auto; }
@@ -53,5 +64,5 @@
   .st { flex: none; max-width: 55%; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* A phone (ADR 0078): above the player and the tabs. */
   @media (max-width: 760px) { .dl { left: 8px; right: 8px; width: auto; bottom: calc(60px + 70px + env(safe-area-inset-bottom, 0px)); z-index: 35; } }
-  @media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .bar span { transition: none; } .bar i { animation: none; width: 100%; opacity: .4; } }
 </style>

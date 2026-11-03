@@ -5,6 +5,17 @@ updated: 2026-11-01
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-03 · Downloads say what they're doing: the song, the speed, the time left
+- **Why:** the user: "It's stuck saying downloading 0 of 2 … the download box should be showing this information instead
+  of just an empty loading bar. also some expected time to complete would be good."
+- **Cause:** the song count moves only when a song is whole, bytes were counted only when a 4 MB piece was whole (about a
+  pixel of a large set's bar), and waiting and retries weren't shown, so they looked the same as working.
+- **Now:**
+  - "Song 3 of 22", a percentage, bytes counted as they arrive;
+  - the speed and "about 9 min left" (`core/transferRate.ts`);
+  - what it's waiting for, a retry and why, 8 s with nothing arriving;
+  - a moving bar until there's something to measure, and while the browser finishes the file.
+
 ## 2026-11-03 · Downloads: a song, a selection or a playlist, from any of the user's computers (ADR 0193)
 - **Why:** the user: "I want to remotely be able to create a USB drive to play a dj set … download an individual track or
   zip the selected tracks / playlists".

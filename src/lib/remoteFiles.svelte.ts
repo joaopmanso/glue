@@ -255,8 +255,10 @@ class RemoteFiles {
   }
 
   /** A song's bytes to save (ADR 0193): a piece at a time, nothing kept, each piece asked for again when the connection
-      drops (and made again), so a long download carries on from where it was. `size` comes before the first bytes. */
-  async pull(t: Track, on: { size: (total: number) => Promise<void>; bytes: (b: Uint8Array) => Promise<void> }, signal: AbortSignal) {
+      drops (and made again), so a long download carries on from where it was. `size` comes before the first bytes;
+      `arriving` counts them as they come, before a piece is whole; `retry` says a piece is asked for again, and how many
+      bytes of it were lost. */
+  async pull(t: Track, on: { size: (total: number) => Promise<void>; bytes: (b: Uint8Array) => Promise<void>; arriving: (n: number) => void; retry: (why: string, attempt: number, of: number, lost: number) => void }, signal: AbortSignal) {
     const r = t.remote, src = this.source(t), home = src?.home;
     if (!r || !src || !home) throw new Error(this.whyNot(t) ?? 'Its file is on ' + (r?.name ?? 'another computer') + '.');
     // This computer's GLUE Home: straight from its disk, over the local link.
@@ -266,7 +268,7 @@ class RemoteFiles {
       if (!res.ok || !res.body || !size) throw new Error('GLUE Home: ' + res.status);
       await on.size(size);
       const rd = res.body.getReader();
-      for (let c = await rd.read(); !c.done; c = await rd.read()) await on.bytes(c.value);
+      for (let c = await rd.read(); !c.done; c = await rd.read()) { on.arriving(c.value.length); await on.bytes(c.value); }
       return;
     }
     const req: RangeReq = src.incoming ? { incoming: src.incoming } : { profile: r.profile!, collection: r.collection!, track: r.id! };
@@ -275,10 +277,12 @@ class RemoteFiles {
       if (signal.aborted) throw signal.reason;
       const parts: Uint8Array[] = [];
       let answer: Answer;
-      try { answer = await this.ask(home, { t: 'range', ...req, start: at, len: PULL_PIECE }, { firstWait: 25_000, onChunk: b => { parts.push(b.slice()); } }); }
+      try { answer = await this.ask(home, { t: 'range', ...req, start: at, len: PULL_PIECE }, { firstWait: 25_000, onChunk: b => { parts.push(b.slice()); on.arriving(b.length); } }); }
       catch (e) {
         if (signal.aborted) throw signal.reason;
-        if (++tries >= PULL_TRIES) throw e;
+        const lost = parts.reduce((n, p) => n + p.length, 0);
+        if (++tries >= PULL_TRIES) { on.retry((e as Error).message, tries, PULL_TRIES, lost); throw e; }
+        on.retry((e as Error).message, tries, PULL_TRIES, lost);
         if (/in time|closed|connect|dropped|incomplete/i.test((e as Error).message)) this.closeLink(home);
         await new Promise(go => setTimeout(go, 1000 * 2 ** (tries - 1)));
         continue;

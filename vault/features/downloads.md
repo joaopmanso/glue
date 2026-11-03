@@ -27,8 +27,13 @@ aim: "remotely create a USB drive to play a DJ set".
 - **Writing:**
   - a save dialog (Chrome, Edge): straight to disk, any size (`zipStream.ts`: stored, ZIP64 past 4 GB);
   - no save dialog (Firefox, Safari, phones): gathered as Blobs in the browser, an ordinary download at the end.
-- **The panel** (`DownloadPanel.svelte`): the progress, the song it's on, Cancel. Afterwards, what was left out and why. A
-  song that fails doesn't stop the rest; a full disk does. Closing the tab while it runs asks first.
+- **The panel** (`DownloadPanel.svelte`):
+  - which song of how many; the percentage and bytes, counted as they arrive, not when a 4 MB piece is whole;
+  - the speed and time left, over the last 20 s (`core/transferRate.ts`), none until there are 2 s to go on;
+  - what it's waiting for: the other computer, a retry and why, or 8 s with nothing arriving; a moving bar until there's
+    something to measure, and while the browser finishes the file;
+  - Cancel; afterwards, what was left out and why.
+  - A song that fails doesn't stop the rest; a full disk does. Closing the tab while it runs asks first.
 
 ## Open
 - **A USB drive directly:** saving into a chosen folder instead of a zip, with nothing to unzip (not asked for yet).

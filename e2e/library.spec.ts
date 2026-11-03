@@ -192,6 +192,29 @@ test('downloads: a song as itself, a playlist and a folder of them as zips in th
   await expect(page.locator('#download-sum')).toContainText('2 songs');
   await page.click('#download-dismiss');
 
+  // On its way, held at its first write: which song, how far, and the time left being worked out.
+  await page.evaluate(() => {
+    const w = window as unknown as { __go?: () => void; showSaveFilePicker: (o: { suggestedName: string }) => Promise<unknown> };
+    const real = w.showSaveFilePicker;
+    w.showSaveFilePicker = async o => {
+      const h = await real(o) as FileSystemFileHandle, gate = new Promise<void>(go => { w.__go = go; });
+      return { createWritable: async () => {
+        const s = await h.createWritable();
+        return { write: async (p: FileSystemWriteChunkType) => { await gate; return s.write(p); }, truncate: (n: number) => s.truncate(n), close: () => s.close(), abort: () => s.abort() };
+      } };
+    };
+  });
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await row('Fixture MP3').locator('.c-title').click();
+  await row('Fixture FLAC').locator('.c-title').click({ modifiers: ['Control'] });
+  await row('Fixture FLAC').locator('.c-title').click({ button: 'right' });
+  await page.click('.cmenu [data-m="download"]');
+  await expect(page.locator('#download-song')).toHaveText(/^Song 1 of 2: /);
+  await expect(page.locator('#download-progress')).toContainText('working out the time left');
+  await page.evaluate(() => (window as unknown as { __go: () => void }).__go());
+  await done();
+  await page.click('#download-dismiss');
+
   // The save dialog closed: nothing starts.
   await page.locator('.lside .name', { hasText: 'All tracks' }).click();
   await page.evaluate(() => { (window as unknown as { showSaveFilePicker: unknown }).showSaveFilePicker = async () => { throw new DOMException('closed', 'AbortError'); }; });

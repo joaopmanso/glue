@@ -6,19 +6,25 @@ import { remoteFiles } from './remoteFiles.svelte';
 import { downloadBlob } from './download';
 import { ZipWriter, type ZipSink } from '../core/zipStream';
 import { planLists, planSongs, safeName, type PlanItem, type PlanList } from '../core/library/downloadPlan';
+import { RateMeter, secondsLeft } from '../core/transferRate';
 import type { List, Track } from '../store/types';
 
 export interface Download {
   name: string; zip: boolean; phase: 'running' | 'finishing' | 'done' | 'failed' | 'cancelled';
   /** Bytes so far and expected (a song of unknown size counts when it starts). */
   got: number; total: number;
-  /** Songs saved, of how many, and the one on its way. */
-  saved: number; count: number; current: string;
+  /** Songs saved, of how many; the one on its way, and which that is. */
+  saved: number; count: number; current: string; at: number;
+  /** What it's waiting for, when no bytes are coming ("Waiting for Desktop…", a retry); `trouble`: something went wrong. */
+  note: string; trouble: boolean;
+  /** Bytes a second and seconds left, once there's something to go on. */
+  rate: number | null; left: number | null;
   skipped: { name: string; why: string }[];
   error: string;
 }
 
 const PIECE = 4 * 1024 * 1024;
+const STALLED_MS = 8_000;   // no bytes for this long: said
 const notice = (s: string) => { lib.notice = s; };
 
 /** Where the bytes go. */
@@ -52,17 +58,29 @@ class Downloads {
   /** The download on screen (one at a time). */
   now = $state<Download | null>(null);
   private stop: AbortController | null = null;
+  /** When bytes last arrived. */
+  private moved = 0;
 
   get running() { return this.now?.phase === 'running' || this.now?.phase === 'finishing'; }
 
-  /** The song's bytes in pieces, wherever it is. */
-  private async read(t: Track, on: { size: (n: number) => Promise<void>; bytes: (b: Uint8Array) => Promise<void> }, signal: AbortSignal) {
-    if (t.remote) return remoteFiles.pull(t, on, signal);
+  /** The song's bytes in pieces, wherever it is: counted as they arrive, and what it's waiting for said. */
+  private async read(t: Track, st: Download, show: () => void, on: { size: (n: number) => Promise<void>; bytes: (b: Uint8Array) => Promise<void> }, signal: AbortSignal) {
+    const from = t.remote?.name;
+    const waiting = from ? 'Waiting for ' + from + '…' : 'Reading the file…';
+    st.note = waiting; st.trouble = false; show();
+    const arriving = (n: number) => { st.got += n; this.moved = Date.now(); if (st.note) { st.note = ''; st.trouble = false; } show(); };
+    if (t.remote) return remoteFiles.pull(t, { ...on, arriving, retry: (why, attempt, of, lost) => {
+      st.got -= lost; st.trouble = true;
+      st.note = attempt < of ? 'Lost the connection to ' + from + ' (' + why + '). Trying again, ' + attempt + ' of ' + (of - 1) + '…' : 'Couldn’t get this song from ' + from + '.';
+      show();
+    } }, signal);
     const f = await lib.fileFor(t);
     await on.size(f.size);
     for (let at = 0; at < f.size; at += PIECE) {
       if (signal.aborted) throw signal.reason;
-      await on.bytes(new Uint8Array(await f.slice(at, Math.min(f.size, at + PIECE)).arrayBuffer()));
+      const b = new Uint8Array(await f.slice(at, Math.min(f.size, at + PIECE)).arrayBuffer());
+      arriving(b.length);
+      await on.bytes(b);
     }
   }
 
@@ -87,34 +105,45 @@ class Downloads {
 
     const stop = new AbortController();
     this.stop = stop;
-    const st: Download = { name, zip, phase: 'running', got: 0, total: items.reduce((n, i) => n + (i.t.size ?? 0), 0), saved: 0, count: items.length, current: '', skipped: noFile.map(t => ({ name: t.title || t.fileName, why: 'no file linked' })), error: '' };
+    const st: Download = { name, zip, phase: 'running', got: 0, total: items.reduce((n, i) => n + (i.t.size ?? 0), 0), saved: 0, count: items.length, current: '', at: 0, note: '', trouble: false, rate: null, left: null, skipped: noFile.map(t => ({ name: t.title || t.fileName, why: 'no file linked' })), error: '' };
     const show = () => { this.now = { ...st }; };
     show();
     const guard = (e: BeforeUnloadEvent) => { e.preventDefault(); };
     window.addEventListener('beforeunload', guard);
+    // Once a second: the speed and the time left, and a stall said, whether or not bytes are coming.
+    const meter = new RateMeter();
+    this.moved = Date.now();
+    const clock = window.setInterval(() => {
+      const now = Date.now();
+      meter.add(now, st.got);
+      st.rate = meter.rate(now); st.left = secondsLeft(st.total - st.got, st.rate);
+      if (!st.note && now - this.moved > STALLED_MS && st.phase === 'running') st.note = 'Nothing’s arrived for ' + Math.round((now - this.moved) / 1000) + ' s. Still waiting…';
+      show();
+    }, 1000);
     try {
       if (zip) await this.zipTo(target, items, st, show, stop.signal);
       else await this.fileTo(target, items[0].t, st, show, stop.signal);
-      st.phase = 'finishing'; st.current = ''; show();
+      st.phase = 'finishing'; st.current = ''; st.note = ''; show();
       await target.close();
       st.phase = 'done'; show();
     } catch (e) {
       await target.abort().catch(() => {});
       if (stop.signal.aborted) st.phase = 'cancelled';
       else { st.phase = 'failed'; st.error = (e as Error).message; }
-      st.current = ''; show();
+      st.current = ''; st.note = ''; show();
     } finally {
+      clearInterval(clock);
       window.removeEventListener('beforeunload', guard);
       this.stop = null;
     }
   }
 
   private async fileTo(target: Target, t: Track, st: Download, show: () => void, signal: AbortSignal) {
-    st.current = t.title || t.fileName; show();
+    st.current = t.title || t.fileName; st.at = 1; show();
     let pos = 0;
-    await this.read(t, {
+    await this.read(t, st, show, {
       size: async n => { st.total = n; show(); },
-      bytes: async b => { await target.write(pos, b); pos += b.length; st.got = pos; show(); },
+      bytes: async b => { await target.write(pos, b); pos += b.length; },
     }, signal);
     st.saved = 1;
   }
@@ -122,15 +151,15 @@ class Downloads {
   /** Song after song; one that can't be had is left out and said at the end, the rest still come. */
   private async zipTo(target: Target, items: { t: Track; path: string }[], st: Download, show: () => void, signal: AbortSignal) {
     const zip = new ZipWriter(target);
-    for (const { t, path } of items) {
+    for (const [i, { t, path }] of items.entries()) {
       if (signal.aborted) throw signal.reason;
-      st.current = t.title || t.fileName; show();
+      st.current = t.title || t.fileName; st.at = i + 1; show();
       const before = st.got;
       let counted = t.size ?? 0, open = false;
       try {
-        await this.read(t, {
+        await this.read(t, st, show, {
           size: async n => { st.total += n - counted; counted = n; await zip.add(path, n, t.mtime ? new Date(t.mtime) : undefined); open = true; show(); },
-          bytes: async b => { await zip.write(b); st.got += b.length; show(); },
+          bytes: async b => { await zip.write(b); },
         }, signal);
         await zip.end();
         st.saved++;

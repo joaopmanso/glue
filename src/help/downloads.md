@@ -18,7 +18,8 @@ Download works for the songs on this computer, and for the ones on your other co
 2. Unzip it, and copy the folder onto the drive.
 
 ## While it downloads
-- **Keep the tab open.** The panel shows how far it is, and **Cancel** stops it.
+- **Keep the tab open.** The panel shows which song it's on, how far it is, the speed and about how long is left. **Cancel** stops it.
+- **The songs are written into the zip as they arrive,** so nothing happens behind the scenes: when the panel says it's waiting for your other computer, or trying again, that's what's going on.
 - **If the connection drops,** GLUE tries again and carries on from where it was.
 - **A song that can't be fetched** is left out, and the rest still come. The panel lists what's missing and why, so check it before a gig. Songs with no file linked are listed too.
 - **Chrome and Edge** save straight to disk, so any size fits. **Other browsers and phones** gather the songs first, which needs room in the browser: download smaller sets there.

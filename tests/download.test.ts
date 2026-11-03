@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { crc32 } from '../src/core/zip';
 import { ZipWriter, type ZipSink } from '../src/core/zipStream';
 import { planLists, planSongs, safeName } from '../src/core/library/downloadPlan';
+import { RateMeter, fmtLeft, secondsLeft } from '../src/core/transferRate';
 
 /** A sink over one growing buffer. */
 function memory() {
@@ -117,5 +118,38 @@ describe('what a download calls its files', () => {
       { path: [gigs, { id: 'b', name: 'set' }], songs: [s] },
     ]);
     expect(p.map(x => x.path)).toEqual(['Gigs/Set/01 s.mp3', 'Gigs/set (2)/01 s.mp3']);
+  });
+});
+
+describe('the speed and the time left', () => {
+  it('no guess until there are a couple of seconds to go on', () => {
+    const m = new RateMeter();
+    m.add(0, 0); m.add(1000, 5_000_000);
+    expect(m.rate(1000)).toBeNull();
+    expect(secondsLeft(100, m.rate(1000))).toBeNull();
+    m.add(2000, 10_000_000);
+    expect(m.rate(2000)).toBe(5_000_000);
+    expect(secondsLeft(50_000_000, m.rate(2000))).toBe(10);
+  });
+  it('goes by the last seconds: a connection that slows down is seen', () => {
+    const m = new RateMeter();
+    for (let s = 0; s <= 30; s++) m.add(s * 1000, s * 10_000_000);       // 10 MB/s
+    for (let s = 31; s <= 60; s++) m.add(s * 1000, 300_000_000 + (s - 30) * 1_000_000);   // then 1 MB/s
+    const r = m.rate(60_000)!;
+    expect(r).toBeGreaterThan(900_000);
+    expect(r).toBeLessThan(1_100_000);
+  });
+  it('a stall: the speed falls to nothing, and there’s no time left to promise', () => {
+    const m = new RateMeter();
+    for (let s = 0; s <= 40; s++) m.add(s * 1000, 1000);
+    expect(m.rate(40_000)).toBe(0);
+    expect(secondsLeft(5000, m.rate(40_000))).toBeNull();
+  });
+  it('says it no more exactly than an estimate is', () => {
+    expect(fmtLeft(2)).toBe('about 5 s left');
+    expect(fmtLeft(41)).toBe('about 45 s left');
+    expect(fmtLeft(61)).toBe('about 2 min left');
+    expect(fmtLeft(3600)).toBe('about 1 h left');
+    expect(fmtLeft(3900)).toBe('about 1 h 5 min left');
   });
 });
