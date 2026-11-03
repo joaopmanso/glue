@@ -454,6 +454,8 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - `shared.svelte.ts`, `profiles.svelte.ts`, `account.svelte.ts`, `anywhere.svelte.ts` (the account);
   - `engine.svelte.ts`, `localHome.svelte.ts` (GLUE Home);
   - `player.svelte.ts`, `thumbs.svelte.ts`, `dupes.svelte.ts`;
+  - `downloads.svelte.ts`: saving songs as files, a zip written as it goes (`core/zipStream.ts`), another computer's songs
+    in ranges (`remoteFiles.pull`) (ADR 0193);
   - `scratch.svelte.ts` + `platter.ts`: the Prepare deck's vinyl scrubbing, a second audio path while the deck is held
     (ADR 0192).
 - **Opening** (ADR 0177): `lib.loading` (the step, files read of how many, the collection being opened) from the page's

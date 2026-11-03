@@ -6,6 +6,7 @@ import { view, tracksFor } from './view.svelte';
 import { phone } from './phone.svelte';
 import { nowPlaying } from './nowPlaying.svelte';
 import { addTo, listPicker } from './trackMenu';
+import { downloadList } from './downloads.svelte';
 import { SEP, tidy, type MenuEntry } from './menu.svelte';
 import { LIST_COLORS, type List } from '../store/types';
 
@@ -53,6 +54,7 @@ export function listMenu(l: List): MenuEntry[] {
     ids.length > 0 && { label: 'Shuffle', attrs: { 'data-m': 'shuffle' }, run: () => { nowPlaying.setShuffle(true); void nowPlaying.play(ids[Math.floor(Math.random() * ids.length)], ids, 0, l.name); } },
     ids.length > 0 && { label: 'Play next', attrs: { 'data-m': 'play-next' }, run: () => nowPlaying.enqueue(ids, 'next') },
     ids.length > 0 && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(ids, 'end') },
+    ids.length > 0 && { label: 'Download as a zip', hint: String(ids.length), attrs: { 'data-m': 'download' }, run: () => void downloadList(l) },
     { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: l.name, sel: { kind: 'list', id: l.id } }) },
     SEP,
     edit && l.kind === 'playlist' && l.items.length > 0 && { label: 'Edit (reorder, remove)', attrs: { 'data-m': 'edit' }, run: () => editList(l) },

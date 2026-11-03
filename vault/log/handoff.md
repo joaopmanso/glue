@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-01
+updated: 2026-11-03
 ---
 # Handoff: where things stand
 
@@ -62,6 +62,9 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **The name MCO** is retired from the docs; lowercase `mco` identifiers stay (data depends on them).
 
 ## Waiting on the user
+- **Downloads (2026-11-03, ADR 0193, the website):** a song, a selection or a playlist as files, from any of the user's
+  computers. To check by hand: a real playlist from the other computer, unzipped onto a USB drive, and a set over 4 GB
+  (ZIP64 was tested with its limit brought down, not with 4 GB of songs).
 - **Vinyl scrubbing on the Prepare deck (2026-11-01, ADR 0192):** dragging the deck plays it like a record; let go playing
   it spins up and the player takes over. To check by ear on both computers: no clicks; the handover is seamless; the
   sound follows the hand closely enough (the platter's mass is 14 ms, the hand's pull 25 ms, in `platter.ts`).

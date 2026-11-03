@@ -5,6 +5,23 @@ updated: 2026-11-01
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-03 · Downloads: a song, a selection or a playlist, from any of the user's computers (ADR 0193)
+- **Why:** the user: "I want to remotely be able to create a USB drive to play a dj set … download an individual track or
+  zip the selected tracks / playlists".
+- **Now:**
+  - **Download** on a song's and a selection's menu; **Download as a zip** on a playlist's, a folder's, a DJ app
+    playlist's and a Discogs playlist's menu (the phone's too);
+  - a playlist is a folder of numbered songs, so a set keeps its order on a USB drive;
+  - a panel with the progress and Cancel; what couldn't be fetched, or has no file, is left out and listed.
+- **How:** see the ADR. Bytes go straight to disk through the save dialog (Chrome, Edge), gathered in the browser
+  elsewhere. Another computer's songs come in 4 MB ranges, so a dropped connection carries on where it was.
+- **Tests:**
+  - `tests/download.test.ts`: the zip (pieces, CRC, ZIP64 with the limit brought down, a failed song dropped) and the names;
+  - `library.spec.ts`: a song, a folder of playlists, a closed dialog, no save dialog;
+  - `phone.spec.ts`: a song and a selection from another computer, byte for byte;
+  - `homemode.spec.ts`: over the local link;
+  - by hand, once: normal and ZIP64 zips opened by Python's `zipfile`, .NET's `ZipFile` and Windows Explorer.
+
 ## 2026-11-01 · Vinyl scrubbing on the Prepare deck (ADR 0192)
 - **Why:** the user: "I would like to have a vinyl feel when I scrub with the music playing, so that it doesn't
   produce clicking sounds."

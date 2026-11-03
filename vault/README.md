@@ -267,6 +267,7 @@ Planned (GLUE):
 | [0190](adr/0190-the-discogs-playlist-builder.md) | The Discogs playlist builder: from ticked records or tracks, refined (count, per record, compilations, artists, styles, labels, formats, years, vinyl/digital), into a playlist to arrange (supersedes 0189's "+ Auto") | accepted |
 | [0191](adr/0191-hallmark-console-treatment.md) | Hallmark's Console treatment on every theme: the colours kept; Host Grotesk and a measured mono, sentence-case labels, shared surface tokens, Icon and Parts | accepted |
 | [0192](adr/0192-vinyl-scrubbing.md) | Vinyl scrubbing on the Prepare deck: the open track decoded into an AudioWorklet platter that chases the hand; the player stays silent and takes over on release | accepted |
+| [0193](adr/0193-downloads.md) | Download songs as files: ranges from GLUE Home (a dropped connection resumes), a zip written as it goes (stored, ZIP64), a playlist as a numbered folder | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

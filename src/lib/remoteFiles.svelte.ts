@@ -32,6 +32,7 @@ const FIRST_WAIT = 40_000, IDLE_WAIT = 20_000;
 const MAX_AT_ONCE = 6, MAX_FILES = 2, MAX_BACKGROUND = MAX_AT_ONCE - 2;
 /** A stream's pieces (ADR 0174): a small first one, so the player starts at once, then bigger ones. */
 const FIRST_PIECE = 256 * 1024, PIECE = 2 * 1024 * 1024;
+const PULL_PIECE = 4 * 1024 * 1024, PULL_TRIES = 5;   // a download's pieces (GLUE Home answers at most 8 MB), and tries at each
 let seq = 1;
 
 /** One channel to a GLUE Home, shared by requests that run at once: answers come back by number. A GLUE Home
@@ -251,6 +252,43 @@ class RemoteFiles {
       })
       .catch(e => { throw new Error(from + ': ' + (e as Error).message); })
       .finally(() => { if (this.loading?.trackId === t.id) this.loading = null; });
+  }
+
+  /** A song's bytes to save (ADR 0193): a piece at a time, nothing kept, each piece asked for again when the connection
+      drops (and made again), so a long download carries on from where it was. `size` comes before the first bytes. */
+  async pull(t: Track, on: { size: (total: number) => Promise<void>; bytes: (b: Uint8Array) => Promise<void> }, signal: AbortSignal) {
+    const r = t.remote, src = this.source(t), home = src?.home;
+    if (!r || !src || !home) throw new Error(this.whyNot(t) ?? 'Its file is on ' + (r?.name ?? 'another computer') + '.');
+    // This computer's GLUE Home: straight from its disk, over the local link.
+    if (src.incoming && localHome.for(home)) {
+      const res = await fetch(localHome.url('/incoming/file?name=' + encodeURIComponent(src.incoming)), { signal });
+      const size = Number(res.headers.get('content-length'));
+      if (!res.ok || !res.body || !size) throw new Error('GLUE Home: ' + res.status);
+      await on.size(size);
+      const rd = res.body.getReader();
+      for (let c = await rd.read(); !c.done; c = await rd.read()) await on.bytes(c.value);
+      return;
+    }
+    const req: RangeReq = src.incoming ? { incoming: src.incoming } : { profile: r.profile!, collection: r.collection!, track: r.id! };
+    let at = 0, total = -1, tries = 0;
+    while (total < 0 || at < total) {
+      if (signal.aborted) throw signal.reason;
+      const parts: Uint8Array[] = [];
+      let answer: Answer;
+      try { answer = await this.ask(home, { t: 'range', ...req, start: at, len: PULL_PIECE }, { firstWait: 25_000, onChunk: b => { parts.push(b.slice()); } }); }
+      catch (e) {
+        if (signal.aborted) throw signal.reason;
+        if (++tries >= PULL_TRIES) throw e;
+        if (/in time|closed|connect|dropped|incomplete/i.test((e as Error).message)) this.closeLink(home);
+        await new Promise(go => setTimeout(go, 1000 * 2 ** (tries - 1)));
+        continue;
+      }
+      tries = 0;
+      const d = answer.data as { total: number } | null;
+      if (!d?.total || !parts.length) throw new Error('GLUE Home sent nothing for it.');
+      if (total < 0) { total = d.total; await on.size(total); }
+      for (const p of parts) { await on.bytes(p); at += p.length; }
+    }
   }
 
   // ─── Streaming (ADR 0076) ───────────────────────────────────────────────────────────────────────

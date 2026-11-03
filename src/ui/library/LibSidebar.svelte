@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
+  import { downloadList, downloadSet } from '../../lib/downloads.svelte';
   import { readPref, writePref } from '../../lib/prefs';
   import { FACETS, facetItems } from '../../core/library/browse';
   import { asShown } from '../../core/library/summary';
@@ -13,7 +14,7 @@
   import { router } from '../../lib/route.svelte';
   import { downloadBlob } from '../../lib/download';
   import { hasTag, tagsOf } from '../../core/library/tagging';
-  import { view, type ViewSel } from '../../lib/view.svelte';
+  import { view, tracksFor, type ViewSel } from '../../lib/view.svelte';
   import { importDetected, importFiles, importWithHome, pickSeratoFolder, refreshWithFile } from '../../lib/importActions';
   import { djWatch } from '../../lib/djWatch.svelte';
   import { localHome } from '../../lib/localHome.svelte';
@@ -21,7 +22,7 @@
   import { IMPORT_ACCEPT } from '../../lib/imports';
   import { canKeepFiles, canPickFolders, pickAudioFiles } from '../../platform';
   import { LOOSE } from '../../store/merge';
-  import { LIST_COLORS, type List, type Source, type SourceList } from '../../store/types';
+  import { LIST_COLORS, type List, type Source, type SourceList, type Track } from '../../store/types';
   import { drag } from '../../lib/drag.svelte';
   import { dupes } from '../../lib/dupes.svelte';
   import { auto } from '../../lib/auto.svelte';
@@ -272,6 +273,7 @@
       songs > 0 && { label: 'Play next', attrs: { 'data-m': 'play-next' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'next') },
       songs > 0 && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'end') },
       { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: l.name, sel: { kind: 'list', id: l.id } }) },
+      songs > 0 && { label: 'Download as a zip', hint: String(songs), attrs: { 'data-m': 'download' }, title: 'A folder of its songs, numbered in order: ready for a USB drive', run: () => void downloadList(l) },
       SEP,
       { label: 'Rename', attrs: { 'data-m': 'rename' }, run: () => (view.editing = l.id) },
       { colors: LIST_COLORS, value: l.color ?? null, pick: (c: string | null) => lib.setListColor(l.id, c) },
@@ -393,6 +395,7 @@
     return tidy([
       { label: 'Show its songs', run: () => view.select({ kind: 'dj', sourceId: src.id, id: l.externalId }) },
       { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: l.name, sel: { kind: 'dj', sourceId: src.id, id: l.externalId } }) },
+      { label: 'Download as a zip', attrs: { 'data-m': 'download' }, title: 'A folder of its songs, numbered in order: ready for a USB drive', run: () => void downloadSet(l.name, tracksFor({ kind: 'dj', sourceId: src.id, id: l.externalId })) },
       { label: whole ? 'Import again (brings back what’s missing)' : 'Import to GLUE', attrs: { 'data-dj-import': l.externalId }, run: () => importDj(src, l.externalId, l.name) },
       !!copy && { label: 'Open GLUE’s copy', run: () => view.select({ kind: 'list', id: copy!.id }) },
       // Edited in its own library (ADR 0179): written by GLUE Home while it's closed.
@@ -651,6 +654,7 @@
           <li><button type="button" class="item name sub2 dglist" data-discogs-list={dl.id} class:sel={isSel({ kind: 'discogsList', id: dl.id })} class:menued={menued('dl:' + dl.id)} onclick={() => view.select({ kind: 'discogsList', id: dl.id })}
             oncontextmenu={e => onMenu(e, 'dl:' + dl.id, () => [
               { label: 'Show it', run: () => view.select({ kind: 'discogsList', id: dl.id }) },
+              { label: 'Download its digital songs as a zip', attrs: { 'data-m': 'download' }, run: () => void downloadSet(dl.name, discogs.itemsOf(dl).map(id => lib.store?.tracks.get(id)).filter((t): t is Track => !!t)) },
               { label: 'Rename…', disabled: lib.readOnly, run: () => { const n = prompt('Rename the playlist', dl.name); if (n?.trim()) lib.updateList(dl.id, { name: n.trim() }); } },
               { label: 'Delete', disabled: lib.readOnly, attrs: { 'data-m': 'delete' }, run: () => { if (confirm('Delete “' + dl.name + '”? (It goes to Recently deleted.)')) { lib.store?.deleteList(dl.id); if (isSel({ kind: 'discogsList', id: dl.id })) view.select({ kind: 'discogs' }); } } },
             ], dl.name)}><Icon name={dl.discogs?.rules ? 'gear' : 'note'} /> <span class="nm">{dl.name}</span><span class="n">{(void discogs.state, discogs.itemsOf(dl).length)}</span></button></li>

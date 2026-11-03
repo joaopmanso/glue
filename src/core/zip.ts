@@ -9,8 +9,9 @@ const CRC_TABLE = (() => {
   for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
   return t;
 })();
-export function crc32(d: Uint8Array): number {
-  let c = 0xffffffff;
+/** `prev`: the CRC so far, for data that comes in pieces. */
+export function crc32(d: Uint8Array, prev = 0): number {
+  let c = (prev ^ 0xffffffff) >>> 0;
   for (let i = 0; i < d.length; i++) c = CRC_TABLE[(c ^ d[i]) & 0xff] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
@@ -19,7 +20,7 @@ async function pipe(data: Uint8Array, t: CompressionStream | DecompressionStream
   return new Uint8Array(await new Response(new Blob([data.slice().buffer]).stream().pipeThrough(t)).arrayBuffer());
 }
 const enc = new TextEncoder(), dec = new TextDecoder();
-function dosTime(d: Date) {
+export function dosTime(d: Date) {
   return { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() };
 }
 

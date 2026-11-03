@@ -2,6 +2,7 @@
    opens by itself in the phone layout (ADR 0078), kept in the browser's storage; its songs stream from the
    desktop's GLUE Home (ADR 0076), and a rating or a title edit goes up to the account's copy. Against a stand-in GLUE Cloud; GLUE
    Home's real service page runs with its Rust side stood in (e2e/tauri-mock.ts). */
+import { readZip } from '../src/core/zip';
 import { test as base, expect, type Page } from '@playwright/test';
 import { launch } from './launch';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
@@ -174,6 +175,32 @@ test('a phone signs in and the account’s collection opens by itself: songs str
   expect(fetched.src).toContain('/__stream/');
   expect(fetched.whole).toEqual({ status: 206, range: 'bytes 0-' + (flac.length - 1) + '/' + flac.length, size: flac.length, sha: sha(flac) });
   expect(fetched.rest).toEqual({ status: 206, range: 'bytes 300000-' + (flac.length - 1) + '/' + flac.length, size: flac.length - 300000, sha: sha(flac.subarray(300000)) });
+  // Downloads from the other computer (ADR 0193): a song as itself, byte for byte, in pieces; some songs as a zip of
+  // the same bytes.
+  await page.evaluate(() => {
+    (window as unknown as { showSaveFilePicker: (o: { suggestedName: string }) => Promise<FileSystemFileHandle> }).showSaveFilePicker = async o =>
+      (await navigator.storage.getDirectory()).getFileHandle('dl-' + o.suggestedName, { create: true });
+  });
+  const saved = (name: string) => page.evaluate(async n => {
+    const f = await (await (await navigator.storage.getDirectory()).getFileHandle(n)).getFile();
+    return Array.from(new Uint8Array(await f.arrayBuffer()), x => String.fromCharCode(x)).join('');
+  }, name).then(b => Buffer.from(b, 'latin1'));
+  await flacRow.locator('.dots').click();
+  await page.locator('#phone-sheet [data-m="download"]').click();
+  await expect(page.locator('#download-panel')).toHaveAttribute('data-phase', 'done', { timeout: 60_000 });
+  expect(sha(await saved('dl-Genorale.flac'))).toBe(sha(flac));
+  await page.click('#download-dismiss');
+  await page.click('#phone-select');
+  await flacRow.click();
+  await row.click();
+  await page.click('#phone-sel-more');
+  await page.locator('#phone-sheet [data-m="download"]').click();
+  await expect(page.locator('#download-panel')).toHaveAttribute('data-phase', 'done', { timeout: 60_000 });
+  const zipped = await readZip(new Uint8Array(await saved('dl-GLUE 2 songs.zip')));
+  expect(zipped.map(e => e.path).sort()).toEqual(['Genorale.flac', 'Manyaro.mp3']);
+  expect(sha(Buffer.from(zipped.find(e => e.path === 'Genorale.flac')!.data))).toBe(sha(flac));
+  await page.click('#download-dismiss');
+  await page.click('#phone-select-done');
   // Back from the background (ADR 0175, as a phone's page comes back from its page cache): the room and the sessions
   // are made again at once, and the next song plays through them.
   const roomBefore = socks.ph;

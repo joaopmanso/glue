@@ -36,6 +36,7 @@
   import GenreEditor from './ui/library/GenreEditor.svelte';
   import NoteEditor from './ui/library/NoteEditor.svelte';
   import SendPanel from './ui/library/SendPanel.svelte';
+  import DownloadPanel from './ui/library/DownloadPanel.svelte';
   import StatsDialog from './ui/library/StatsDialog.svelte';
   import CalendarView from './ui/events/CalendarView.svelte';
   import EventPage from './ui/events/EventPage.svelte';
@@ -238,7 +239,7 @@
 {#if perf.on}<PerfHud />{/if}
 {#if auto.open && inLibrary}<AutoPlaylist />{/if}
 {#if discogsBuild.open && inLibrary}<DiscogsBuilder />{/if}
-{#if inLibrary}<TagEditor /><GenreEditor /><NoteEditor /><SendPanel />{/if}
+{#if inLibrary}<TagEditor /><GenreEditor /><NoteEditor /><SendPanel /><DownloadPanel />{/if}
 {#if inLibrary && view.infoFor}{#key view.infoFor}<EditInfo />{/key}{/if}
 {#if inLibrary && view.binOpen && lib.store}<BinDialog />{/if}
 {#if inLibrary && lib.store?.shared}<ConflictBox />{/if}

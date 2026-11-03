@@ -97,6 +97,17 @@ test('Home mode: GLUE Home is the disk; the library carries on when it stops and
     await expect(page.locator('.tr', { hasText: 'Fixture MP3' })).toBeVisible({ timeout: 20_000 });
     expect(home.calls).toContain('/fs/roots');
     await expect(page.locator('.lside [data-root]', { hasText: 'TO BE SORTED' })).toHaveCount(0);   // not a music folder
+    // Downloaded (ADR 0193): GLUE Home's file, over the local link, byte for byte.
+    await page.evaluate(() => {
+      (window as unknown as { showSaveFilePicker: (o: { suggestedName: string }) => Promise<FileSystemFileHandle> }).showSaveFilePicker = async o =>
+        (await navigator.storage.getDirectory()).getFileHandle('dl-' + o.suggestedName, { create: true });
+    });
+    await page.locator('.tr', { hasText: 'Fixture MP3' }).locator('.c-title').click({ button: 'right' });
+    await page.click('.cmenu [data-m="download"]');
+    await expect(page.locator('#download-panel')).toHaveAttribute('data-phase', 'done', { timeout: 20_000 });
+    const dlSize = await page.evaluate(async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('dl-Sent song.mp3')).getFile()).size);
+    expect(dlSize).toBe(readFileSync(fixture('mp3-128k.mp3')).length);
+    await page.click('#download-dismiss');
     // "Move to music folder": this collection's music folders only, not every one GLUE Home was ever told of.
     await page.locator('.tr', { hasText: 'Fixture MP3' }).click({ button: 'right' });
     await page.locator('.cmenu [data-m="move"]').hover();

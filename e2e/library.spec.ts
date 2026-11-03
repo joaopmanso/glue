@@ -1,3 +1,4 @@
+import { readZip } from '../src/core/zip';
 import { test as base, expect, type Page } from '@playwright/test';
 import { launch } from './launch';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -143,6 +144,74 @@ test('profile, collection, import, link folder, background analysis, playlists, 
   await expect(page.locator('.detail')).toContainText('Friday');
   await expect(page.locator('#m-bpm')).toBeVisible();   // the fixtures are too short for a tempo
   await expect(page.locator('#play-btn')).toBeEnabled();
+});
+
+test('downloads: a song as itself, a playlist and a folder of them as zips in the set’s order, and without a save dialog (ADR 0193)', async ({ page }) => {
+  await seed(page);
+  await page.goto('./');
+  await page.click('#choose-home');
+  await page.fill('#profile-name', 'DJ Test');
+  await page.getByRole('button', { name: 'Create profile' }).click();
+  await page.click('#onb-skip');
+  await page.click('#add-folder');
+  await expect(page.locator('.tr')).toHaveCount(4, { timeout: 30_000 });
+  await page.evaluate(() => {
+    (window as unknown as { showSaveFilePicker: (o: { suggestedName: string }) => Promise<FileSystemFileHandle> }).showSaveFilePicker = async o =>
+      (await navigator.storage.getDirectory()).getFileHandle('dl-' + o.suggestedName, { create: true });
+  });
+  const saved = (name: string) => page.evaluate(async n => {
+    const f = await (await (await navigator.storage.getDirectory()).getFileHandle(n)).getFile();
+    return Array.from(new Uint8Array(await f.arrayBuffer()), x => String.fromCharCode(x)).join('');
+  }, name).then(b => Buffer.from(b, 'latin1'));
+  const panel = page.locator('#download-panel'), row = (t: string) => page.locator('.tr', { hasText: t });
+  const done = async () => { await expect(panel).toHaveAttribute('data-phase', 'done', { timeout: 30_000 }); };
+
+  // One song: its own file.
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await page.click('.cmenu [data-m="download"]');
+  await done();
+  expect(Buffer.compare(await saved('dl-mp3-128k.mp3'), readFileSync(fixture('mp3-128k.mp3')))).toBe(0);
+  await page.click('#download-dismiss');
+
+  // A folder with a playlist in it: its folders kept, the songs numbered in the playlist's order.
+  await page.click('#new-folder'); await page.keyboard.type('Gigs'); await page.keyboard.press('Enter');
+  await page.click('#new-playlist'); await page.keyboard.type('Fri: late'); await page.keyboard.press('Enter');
+  const node = (n: string) => page.locator('.lside .tree .name', { hasText: n }).first();
+  await node('Fri: late').click({ button: 'right' });
+  await page.locator('.cmenu [data-m="move-to"]').click();
+  await page.locator('.cmenu .citem', { hasText: 'Gigs' }).click();
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await row('Fixture MP3').dragTo(page.locator('.lside .item', { hasText: 'Fri: late' }));
+  await row('aiff-44k-24').dragTo(page.locator('.lside .item', { hasText: 'Fri: late' }));
+  await node('Gigs').click({ button: 'right' });
+  await page.click('.cmenu [data-m="download"]');
+  await done();
+  const zip = await readZip(new Uint8Array(await saved('dl-Gigs.zip')));
+  expect(zip.map(e => e.path)).toEqual(['Gigs/Fri_ late/01 mp3-128k.mp3', 'Gigs/Fri_ late/02 aiff-44k-24.aiff']);
+  expect(Buffer.compare(Buffer.from(zip[1].data), readFileSync(fixture('aiff-44k-24.aiff')))).toBe(0);
+  await expect(page.locator('#download-sum')).toContainText('2 songs');
+  await page.click('#download-dismiss');
+
+  // The save dialog closed: nothing starts.
+  await page.locator('.lside .name', { hasText: 'All tracks' }).click();
+  await page.evaluate(() => { (window as unknown as { showSaveFilePicker: unknown }).showSaveFilePicker = async () => { throw new DOMException('closed', 'AbortError'); }; });
+  await row('Fixture MP3').locator('.c-title').click({ button: 'right' });
+  await page.click('.cmenu [data-m="download"]');
+  await expect(panel).toHaveCount(0);
+
+  // No save dialog in this browser (Firefox, Safari, a phone): the zip comes as an ordinary download.
+  await page.evaluate(() => { delete (window as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker; });
+  await row('Fixture MP3').locator('.c-title').click();
+  await row('Fixture FLAC').locator('.c-title').click({ modifiers: ['Control'] });
+  await row('Fixture FLAC').locator('.c-title').click({ button: 'right' });
+  const dl = page.waitForEvent('download');
+  await page.click('.cmenu [data-m="download"]');
+  const file = await dl;
+  expect(file.suggestedFilename()).toBe('GLUE 2 songs.zip');
+  const got = await readZip(new Uint8Array(readFileSync(await file.path())));
+  expect(got.map(e => e.path).sort()).toEqual(['flac-96k-24.flac', 'mp3-128k.mp3']);
+  expect(Buffer.compare(Buffer.from(got.find(e => e.path === 'flac-96k-24.flac')!.data), readFileSync(fixture('flac-96k-24.flac')))).toBe(0);
+  await done();
 });
 
 test('a DJ library found in the GLUE folder: browsed, imported on demand, and read again on Refresh (ADR 0063, 0065)', async ({ page }) => {

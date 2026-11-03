@@ -9,6 +9,7 @@ import { nowPlaying } from './nowPlaying.svelte';
 import { player } from './player.svelte';
 import { auto } from './auto.svelte';
 import { dock } from './dock.svelte';
+import { downloadTracks } from './downloads.svelte';
 import { dupes } from './dupes.svelte';
 import { incoming, TO_BE_SORTED } from './incoming.svelte';
 import { sendTargets, sendTracks } from './sendToHome.svelte';
@@ -205,6 +206,7 @@ export function trackMenu(ids: string[], opts: TrackMenuOpts = {}): MenuEntry[] 
     n > 1 && !lib.readOnly && { label: 'Mark as duplicates', hint: String(n), attrs: { 'data-m': 'mark-dupes' }, title: 'They’re the same recording: group them in Duplicates, to keep the best and clean up the rest', run: () => { dupes.markSame(ids); lib.notice = n + ' songs marked as duplicates: see Duplicates.'; } },
     group && { label: 'Show its duplicates', hint: group.ids.length + '×', attrs: { 'data-m': 'dupes' }, run: () => { view.select({ kind: 'dupes' }); view.focusDupe = one!.id; } },
     SEP,
+    { label: one ? 'Download' : 'Download ' + n + ' songs as a zip', attrs: { 'data-m': 'download' }, disabled: !playable.length, title: playable.length ? (one?.remote ? 'Fetch its file from ' + one.remote.name + ' and save it here' : undefined) : 'No file reachable from here', run: () => void downloadTracks(ts) },
     dock.available && { label: 'Add to drag dock', attrs: { 'data-m': 'dock' }, run: () => void dock.add(ts) },
     ...homes.map(h => ({ label: 'Send to ' + h.name, title: 'Copy ' + (one ? 'its file' : 'their files') + ' into ' + h.name + '’s incoming folder', attrs: { 'data-send-home': h.id }, run: () => void sendTracks(h.id, ids) })),
     sortable && {
