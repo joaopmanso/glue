@@ -24,6 +24,19 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
+## Latest (2026-11-03): the "Desktop: no addresses" failure
+- **Fixed in GLUE Cloud** (`signal.ts`, changelog): reproduced locally on workerd and fixed there. **Waiting on the user:** does
+  the laptop or iPhone still fail after an idle tab? If it does, `chrome://webrtc-internals` during the failure shows whether
+  `setRemoteDescription` and `addIceCandidate` happened.
+- **Found while looking, not fixed, not shown to have caused this:**
+  - `crates/glue-engine/src/room.rs`: a room loop ending sets `out` to None even when a newer loop has set its own;
+    `on_signal` closes connections on the room's thread;
+  - `home/src-tauri/src/rtc.rs`: `glue-rtc-events` carries every device's candidates and also closes connections, so a slow
+    close would hold them up;
+  - `homeLink.ts`' timeout doesn't say whether an answer came; downloads say "Lost the connection" for one never made;
+  - `account.svelte.ts`: `replaced` nulls `this.ws` without checking it's that socket, and two `connect()` can overlap while
+    a token renews.
+
 ## State (2026-10-31)
 - **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.79.0** (0.79: Discogs auto playlists filled at once; 0.78: Discogs matched track by track, ADR 0188; 0.77: the Discogs collection, ADR 0187; 0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):

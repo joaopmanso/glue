@@ -1,9 +1,28 @@
 ---
-updated: 2026-11-01
+updated: 2026-11-03
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-11-03 · GLUE Cloud: a dead socket no longer stops a device hearing its answers
+- **Why:** the user, on the laptop and the iPhone: "Couldn't connect to Desktop, even through the relay (this device: local,
+  public, relay; Desktop: no addresses; new)", coming and going by itself; "I refresh it works, I leave the tab open
+  without doing anything, it stops working".
+- **Cause:** the room (`cloud/src/signal.ts`) relayed to a device's sockets in a loop with nothing catching an error. A socket
+  it has closed stays listed until the other end answers or its connection dies, and sending to it throws
+  (`Can't call WebSocket send() after close()`). A socket closed as replaced or silent whose other end never answered (a
+  frozen tab, a computer asleep, a network gone) therefore stopped every message to that device's newer sockets. Offers
+  to GLUE Home still arrived, so it looked online and built its side, and its answers and addresses went nowhere until
+  the dead connection finally died.
+- **Reproduced** on Cloudflare's runtime locally (workerd, wrangler 4.140.0, the real `signal.ts`): 0 of 3 answers reached the
+  live tab, 3 of 3 once the silent connection died, the same message in the log. **After the fix:** 3 of 3 throughout, no
+  errors. The stand-in in `tests/signal.test.ts` hid this (it left closed sockets out and never threw): it now does as
+  the runtime does.
+- **Now:** a socket told to close counts for nothing (`live`): not relayed to, not shown online, not closed twice, and its late
+  messages ignored. Each relay is tried on its own; nobody hearing it says "device offline".
+- **Not shown:** production's logs weren't read (the symptoms and the local run match), nor exactly how an idle tab leaves
+  such a socket behind, so whether this is the whole of the user's failure waits on their hand test.
 
 ## 2026-11-03 · Downloads say what they're doing: the song, the speed, the time left
 - **Why:** the user: "It's stuck saying downloading 0 of 2 … the download box should be showing this information instead

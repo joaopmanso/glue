@@ -6,9 +6,12 @@ import { Signal, STALE } from '../cloud/src/signal';
 class Sock {
   sent: Record<string, unknown>[] = [];
   closed: number | null = null;
+  /** The other end answered the close, or its connection died. Until then a closed socket stays in the room's list. */
+  gone = false;
   private att: unknown = null;
   constructor(readonly tag: string) {}
-  send(m: string) { this.sent.push(JSON.parse(m)); }
+  /** As the runtime has it (workerd, checked 2026-11-03): after `close()`, sending throws. */
+  send(m: string) { if (this.closed !== null) throw new TypeError("Can't call WebSocket send() after close()."); this.sent.push(JSON.parse(m)); }
   close(code?: number) { this.closed = code ?? 1000; }
   serializeAttachment(v: unknown) { this.att = structuredClone(v); }
   deserializeAttachment() { return this.att; }
@@ -16,11 +19,11 @@ class Sock {
 
 function room() {
   const socks: Sock[] = [];
-  const state = { acceptWebSocket: (ws: Sock, tags?: string[]) => void socks.push(Object.assign(ws, { tag: tags?.[0] ?? '' })), getWebSockets: (tag?: string) => socks.filter(s => s.closed === null && (tag === undefined || s.tag === tag)) };
+  const state = { acceptWebSocket: (ws: Sock, tags?: string[]) => void socks.push(Object.assign(ws, { tag: tags?.[0] ?? '' })), getWebSockets: (tag?: string) => socks.filter(s => !s.gone && (tag === undefined || s.tag === tag)) };
   const env = { DB: { prepare: () => ({ bind: () => ({ run: async () => ({}) }) }) } };
   const sig = new Signal(state as never, env as never);
   // Joined as the room's own fetch would: accepted, tagged with its device.
-  const join = (device: string) => { const s = new Sock(device); state.acceptWebSocket(s, [device]); s.serializeAttachment({ device, conn: '', heard: Date.now() }); return s; };
+  const join = (device: string, conn = '') => { const s = new Sock(device); state.acceptWebSocket(s, [device]); s.serializeAttachment({ device, conn, heard: Date.now() }); return s; };
   return { sig, join };
 }
 
@@ -44,5 +47,56 @@ describe('the signaling room', () => {
     // The laptop, silent 120 s (a background tab's slowed timers): still there.
     expect(laptop.closed).toBeNull();
     expect(phone.closed).toBeNull();
+  });
+
+  it('a socket told to close that never answers doesn’t stop a device’s other sockets hearing (the user, 2026-11-03)', () => {
+    vi.useFakeTimers();
+    const { sig, join } = room();
+    const home = join('hdesk'), asleep = join('laptop', 'tab'), tab = join('laptop', 'other');
+    // Silent long enough to be let go, while the others ping; the laptop never answers the close.
+    vi.advanceTimersByTime(STALE - 1);
+    sig.webSocketMessage(tab as never, '{"type":"ping"}');
+    sig.webSocketMessage(home as never, '{"type":"ping"}');
+    vi.advanceTimersByTime(2);
+    sig.webSocketMessage(home as never, '{"type":"ping"}');
+    expect(asleep.closed).toBe(1011);
+    expect(tab.closed).toBeNull();
+    sig.webSocketMessage(home as never, JSON.stringify({ type: 'signal', to: 'laptop', data: { t: 'answer' } }));
+    expect(tab.sent.filter(m => m.type === 'signal')).toEqual([{ type: 'signal', from: 'hdesk', data: { t: 'answer' } }]);
+  });
+
+  it('a device whose only socket is closing is offline: not listed, and whoever calls it is told', () => {
+    vi.useFakeTimers();
+    const { sig, join } = room();
+    const phone = join('phone'), home = join('hdesk');
+    vi.advanceTimersByTime(STALE + 1);
+    sig.webSocketMessage(phone as never, '{"type":"ping"}');
+    expect(home.closed).toBe(1011);
+    expect(phone.sent.filter(m => m.type === 'presence').at(-1)).toEqual({ type: 'presence', online: ['phone'] });
+    sig.webSocketMessage(phone as never, JSON.stringify({ type: 'signal', to: 'hdesk', data: { t: 'offer' } }));
+    expect(phone.sent.at(-1)).toEqual({ type: 'error', error: 'device offline' });
+    // Later news: still not listed, though the socket hasn't gone from the runtime's list.
+    const other = join('other');
+    sig.webSocketClose(other as never);
+    expect(phone.sent.filter(m => m.type === 'presence').at(-1)).toEqual({ type: 'presence', online: ['phone'] });
+  });
+
+  it('one socket that throws on send (closing from the other end) doesn’t cost the rest their message', () => {
+    const { sig, join } = room();
+    const home = join('hdesk'), a = join('laptop', 'a'), b = join('laptop', 'b');
+    a.send = () => { throw new TypeError('closing'); };
+    sig.webSocketMessage(home as never, JSON.stringify({ type: 'signal', to: 'laptop', data: { t: 'ice' } }));
+    expect(b.sent.filter(m => m.type === 'signal')).toHaveLength(1);
+    expect(home.sent.some(m => m.type === 'error')).toBe(false);
+  });
+
+  it('a late message from a socket already let go is ignored', () => {
+    vi.useFakeTimers();
+    const { sig, join } = room();
+    const home = join('hdesk'), asleep = join('laptop');
+    vi.advanceTimersByTime(STALE + 1);
+    sig.webSocketMessage(home as never, '{"type":"ping"}');
+    expect(asleep.closed).toBe(1011);
+    expect(() => sig.webSocketMessage(asleep as never, '{"type":"ping"}')).not.toThrow();
   });
 });

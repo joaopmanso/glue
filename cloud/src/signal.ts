@@ -19,7 +19,10 @@ const MAX_MSG = 64 * 1024;
     died without closing (a computer asleep, a network gone, 2026-10-13: its GLUE Home stayed "online" and every offer
     to it went nowhere): it's let go, and everyone hears it's offline. */
 export const STALE = 150_000;
-type Att = { device: string; conn?: string; heard?: number };
+/** `closing`: told to close. The runtime keeps such a socket in its list until the other end answers or its connection
+    dies, which from a laptop asleep can be a long time, and sending to it throws (2026-11-03: that stopped every answer
+    to the device's new socket, while its offers still arrived). It counts for nothing from then on: see `live`. */
+type Att = { device: string; conn?: string; heard?: number; closing?: boolean };
 
 export class Signal {
   constructor(private state: State, private env: Env) {}
@@ -33,8 +36,8 @@ export class Signal {
       return new Response('ok');
     }
     if (url.pathname === '/kick') {
-      const gone = this.state.getWebSockets(device);
-      for (const ws of gone) { try { ws.send(JSON.stringify({ type: 'removed' } satisfies RoomMsg)); } catch { /* closing */ } ws.close(4001, 'device removed'); }
+      const gone = this.live(device);
+      for (const ws of gone) { try { ws.send(JSON.stringify({ type: 'removed' } satisfies RoomMsg)); } catch { /* closing */ } this.letGo(ws, 4001, 'device removed'); }
       this.presence(...gone);
       return new Response('ok');
     }
@@ -42,8 +45,8 @@ export class Signal {
     // One connection per device and tab: a new one replaces the old (a reload, a reconnect). The browsers of
     // one computer share its device (ADR 0091), so each tab says which it is (`conn`); without, as before.
     const conn = url.searchParams.get('conn') ?? '';
-    const old = this.state.getWebSockets(device).filter(w => ((w.deserializeAttachment() as { conn?: string } | null)?.conn ?? '') === conn);
-    for (const o of old) { try { o.send(JSON.stringify({ type: 'replaced' } satisfies RoomMsg)); } catch { /* closing */ } o.close(4000, 'replaced'); }
+    const old = this.live(device).filter(w => ((w.deserializeAttachment() as { conn?: string } | null)?.conn ?? '') === conn);
+    for (const o of old) { try { o.send(JSON.stringify({ type: 'replaced' } satisfies RoomMsg)); } catch { /* closing */ } this.letGo(o, 4000, 'replaced'); }
     const pair = new WebSocketPair(), client = pair[0], server = pair[1];
     this.state.acceptWebSocket(server, [device]);
     server.serializeAttachment({ device, conn, heard: Date.now() } satisfies Att);
@@ -54,6 +57,7 @@ export class Signal {
 
   webSocketMessage(ws: WS, raw: string | ArrayBuffer) {
     const att = ws.deserializeAttachment() as Att, from = att.device;
+    if (att.closing) return;   // said before it heard it was let go
     ws.serializeAttachment({ ...att, heard: Date.now() } satisfies Att);
     this.prune();
     if (typeof raw !== 'string' || raw.length > MAX_MSG) return ws.send(JSON.stringify({ type: 'error', error: 'message too large' } satisfies RoomMsg));
@@ -61,9 +65,10 @@ export class Signal {
     try { m = JSON.parse(raw) as ClientMsg; } catch { return ws.send(JSON.stringify({ type: 'error', error: 'not JSON' } satisfies RoomMsg)); }
     if (m.type === 'ping') return ws.send(JSON.stringify({ type: 'pong' } satisfies RoomMsg));
     if (m.type === 'signal' && typeof m.to === 'string') {
-      const peers = this.state.getWebSockets(m.to);
-      if (!peers.length) return ws.send(JSON.stringify({ type: 'error', error: 'device offline' } satisfies RoomMsg));
-      for (const p of peers) p.send(JSON.stringify({ type: 'signal', from, data: m.data } satisfies RoomMsg));
+      // Each on its own: one that can't take it (closing from its end) doesn't cost the others theirs.
+      let heard = 0;
+      for (const p of this.live(m.to)) { try { p.send(JSON.stringify({ type: 'signal', from, data: m.data } satisfies RoomMsg)); heard++; } catch { /* closing */ } }
+      if (!heard) return ws.send(JSON.stringify({ type: 'error', error: 'device offline' } satisfies RoomMsg));
     }
   }
   webSocketClose(ws: WS) {
@@ -73,16 +78,22 @@ export class Signal {
   }
   webSocketError(ws: WS) { this.webSocketClose(ws); }
 
+  /** The sockets that count: not those told to close and not answering yet (`Att`). */
+  private live(tag?: string) { return this.state.getWebSockets(tag).filter(w => !(w.deserializeAttachment() as Att | null)?.closing); }
+  private letGo(w: WS, code: number, reason: string) {
+    w.serializeAttachment({ ...(w.deserializeAttachment() as Att), closing: true } satisfies Att);
+    try { w.close(code, reason); } catch { /* closing */ }
+  }
   /** The sockets gone silent (`STALE`) let go; the rest told. */
   private prune() {
-    const now = Date.now(), gone = this.state.getWebSockets().filter(w => now - ((w.deserializeAttachment() as Att | null)?.heard ?? now) > STALE);
+    const now = Date.now(), gone = this.live().filter(w => now - ((w.deserializeAttachment() as Att | null)?.heard ?? now) > STALE);
     if (!gone.length) return;
-    for (const w of gone) { try { w.close(1011, 'silent'); } catch { /* closing */ } }
-    this.presence(...gone);
+    for (const w of gone) this.letGo(w, 1011, 'silent');
+    this.presence();
   }
   /** Everyone in the room learns who's online. */
   private presence(...leaving: WS[]) {
-    const socks = this.state.getWebSockets().filter(w => !leaving.includes(w));
+    const socks = this.live().filter(w => !leaving.includes(w));
     const online = [...new Set(socks.map(w => (w.deserializeAttachment() as { device: string }).device))];
     const msg = JSON.stringify({ type: 'presence', online } satisfies RoomMsg);
     for (const w of socks) { try { w.send(msg); } catch { /* closing */ } }

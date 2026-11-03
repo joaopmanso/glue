@@ -276,6 +276,9 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     (2026-10-13): each side pings every 30 s and GLUE Cloud pongs; once a socket has had a pong, nothing for 75 s means
     it died without closing, and a new one is opened (`account.svelte.ts` `SILENT`, `room.rs` `SILENT`). GLUE Cloud lets
     go of a socket silent for 150 s (`signal.ts` `STALE`, checked on each message), so a computer asleep shows offline.
+    **A socket told to close counts for nothing from then on** (`signal.ts` `live`, 2026-11-03): the runtime keeps it
+    listed until the other end answers or its connection dies, and sending to it throws; it isn't relayed to, or shown
+    online, and each relay is tried on its own, so it can't cost a device's other sockets their messages.
     A GLUE Home back online is tried again at once (`remoteFiles.tend`, not after its failures' wait).
     **GLUE Home's side of the signaling is its engine's** (0.57, ADR 0158, `crates/glue-engine/src/room.rs`): the room's
     socket (`home/src-tauri/src/signal.rs`, tungstenite over TLS), a ping every 30 s, a new token at 50 minutes, again
