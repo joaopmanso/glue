@@ -1,0 +1,1 @@
+{"nodes": [{"id": "vault_readme_document", "label": "GLUE Vault Index", "file_type": "document", "source_file": "vault/README.md"}], "edges": [{"source": "vault_readme_document", "target": "vault_system_document", "relation": "references", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "vault/README.md"}], "hyperedges": []}
