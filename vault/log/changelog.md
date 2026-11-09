@@ -1,9 +1,20 @@
 ---
-updated: 2026-11-03
+updated: 2026-11-09
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-11-09 · The end-to-end tests pass again: Edge's decoder moved WebM Opus by 24 frames
+- **Why:** the user: "take a look at why the github e2e pipeline is failing". It had failed every run since 2026-11-03 (the
+  runner's Edge 156), on one test only: `decode.spec.ts` "the worker decodes like the page", on `opus.webm` (the samples
+  0.1 apart; rate, channels and length agreeing). Failing locally since Edge 156 on 2026-10-28.
+- **Cause, measured** (Edge 157.0.4341.42 against ffmpeg's decode of the same file): the worker's samples are ffmpeg's
+  exactly; the page's `decodeAudioData` gives the same samples 24 frames (0.5 ms) later, trimming the start of WebM Opus
+  more than before. Ogg Opus and the other formats are still the same to the sample. Nothing in GLUE changed: the worker
+  is the one that's right, and it isn't made to follow the browser.
+- **Now:** `decodeCheck` also gives the best start within 1 ms (`lag`) and the difference there (`maxDiffAligned`). For WebM
+  the test asks for the same samples at most 1 ms apart; every other format stays exact.
 
 ## 2026-11-03 · GLUE Cloud: a dead socket no longer stops a device hearing its answers
 - **Why:** the user, on the laptop and the iPhone: "Couldn't connect to Desktop, even through the relay (this device: local,

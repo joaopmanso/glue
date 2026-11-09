@@ -392,10 +392,10 @@ cues, loops and grid shown in Prepare) shipped in 0.65. Next:
   with the Write tool, or use the Edit tool for such lines.
 
 ### Other work
-- **Since Edge 156.0.4314.50 (installed 2026-10-28):** `decode.spec.ts` "the worker decodes like the page" fails every
-  time on `opus.webm` (made by ffmpeg: samples differ by up to 0.105; rate, channels and length agree). Passed on
-  2026-10-20 with Edge 154. Suspect Edge's `decodeAudioData` changed how it trims Opus's start (pre-skip) or resamples;
-  compare the first samples of both decodes.
+- **`decode.spec.ts` and Edge 156+** (fixed 2026-11-09, changelog): Edge's `decodeAudioData` starts WebM Opus 24 frames
+  later than ffmpeg and the worker; the test allows WebM up to 1 ms and asks for the same samples there.
+- **Flaky once on CI, 2026-11-03:** `prepare.spec.ts` "Prepare: waveform and grid…" failed, then passed on its retry; it
+  passed in each of the six runs since. Look again if it comes back.
 - **Flaky on the laptop, 2026-10-09:** `library.spec.ts` "a main music folder…" (ADR 0121) waits 60 s for the Duplicates
   group and misses it about 1 run in 2, on `main` as it is too (alone or two at once); CI passes it. Look at what the
   group waits on (the fingerprints after "All analysed"?) before raising the wait.

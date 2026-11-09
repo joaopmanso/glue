@@ -40,12 +40,17 @@ test('the worker decodes like the page: same rate, channels, length and samples'
   await page.waitForFunction(() => 'decodeCheck' in ((window as unknown as { __gluePerf?: object }).__gluePerf ?? {}));
   const results: Record<string, unknown> = {};
   for (const name of files.keys()) {
-    const r = await page.evaluate(n => (window as unknown as { __gluePerf: { decodeCheck(u: string): Promise<{ worker: string; sr?: number[]; frames?: number[]; channels?: number[]; maxDiff?: number }> } }).__gluePerf.decodeCheck('./__audio/' + n), name);
+    const r = await page.evaluate(n => (window as unknown as { __gluePerf: { decodeCheck(u: string): Promise<{ worker: string; sr?: number[]; frames?: number[]; channels?: number[]; maxDiff?: number; lag?: number; maxDiffAligned?: number }> } }).__gluePerf.decodeCheck('./__audio/' + n), name);
     results[name] = r;
     expect(r.worker, name + ': decoded in the worker').toBe('float');
     expect(r.sr![0], name + ': rate').toBe(r.sr![1]);
     expect(r.channels![0], name + ': channels').toBe(r.channels![1]);
-    expect(r.maxDiff!, name + ': samples').toBeLessThan(1e-6);
+    // WebM Opus: since Edge 156 the page's decoder trims its start 24 frames more than FFmpeg does (the worker matches
+    // FFmpeg exactly, checked 2026-11-09). The same samples, at most 1 ms apart; every other format to the sample.
+    if (name.endsWith('.webm')) {
+      expect(Math.abs(r.lag!), name + ': start').toBeLessThanOrEqual(r.sr![0] / 1000);
+      expect(r.maxDiffAligned!, name + ': samples').toBeLessThan(1e-6);
+    } else expect(r.maxDiff!, name + ': samples').toBeLessThan(1e-6);
     // WebM doesn't say where its end padding stops (a few ms at most are kept).
     if (name.endsWith('.webm')) expect(r.frames![0] - r.frames![1], name + ': length').toBeLessThanOrEqual(r.sr![0] * 0.03);
     else expect(r.frames![0], name + ': length').toBe(r.frames![1]);
