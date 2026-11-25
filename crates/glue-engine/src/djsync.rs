@@ -10,6 +10,11 @@
 //!   next sync takes only what's on one side, and removes nothing.
 //!
 //! It runs when something changed since the last time (GLUE's library, or a database's date).
+//!
+//! **Off unless `engineWrites` is set** (ADR 0194, 2026-11-25): after Engine DJ 5.3 rebuilt the user's Collection, the
+//! sync took the new database for changes against what it remembered, deleted the user's playlists and made copies of
+//! GLUE's again on every run. Nothing here runs while it's off: no database is opened for writing, no backup made, and
+//! nothing of Engine DJ's taken into GLUE this way (its libraries are still read and followed, `dj.rs`).
 use crate::{djinfo, get, key, text, truthy, Engine, Host};
 use glue_interop::perf::{self, Hot, Loop};
 use glue_interop::sync::{self, Side};
@@ -21,6 +26,10 @@ use std::path::{Path, PathBuf};
 
 /// Engine DJ's programs: while either runs, its library isn't written.
 const ENGINE_APPS: [&str; 2] = ["Engine DJ", "OfflineAnalyzer"];
+
+/// May GLUE Home write into Engine DJ's databases? Only with `engineWrites: true` in its settings (ADR 0194): no
+/// setting, no writes.
+pub fn engine_writes(cfg: &Value) -> bool { cfg["engineWrites"] == json!(true) }
 
 /// What a sync did.
 #[derive(Debug, Default, PartialEq)]
@@ -87,6 +96,8 @@ impl<H: Host> Engine<H> {
       (src, songs)
     };
     let sid = text(&src, "id");
+    // Writing into Engine DJ is off (ADR 0194): nothing below runs.
+    if !engine_writes(&self.host.config()) { self.dj.lock().unwrap().syncing.insert(sid, "off"); return Ok(Synced::default()); }
     // The copies of its playlists 0.68–0.70 brought into GLUE's playlists, gone once (ADR 0178).
     if let Err(x) = self.dj_clear_copies(p, c, &sid) { eprintln!("GLUE Home: couldn’t take Engine DJ’s playlists out of GLUE’s: {x}"); }
     // Engine DJ open: GLUE's changes wait for it to close.

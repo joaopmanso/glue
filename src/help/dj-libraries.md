@@ -5,7 +5,7 @@ keywords: dj, rekordbox, engine, serato, traktor, apple music, itunes, m3u, impo
 tour: dj-libraries
 order: 4
 ---
-GLUE reads your DJ apps' libraries. It writes into one only when you ask it to keep your main Engine DJ library in step (below).
+GLUE reads your DJ apps' libraries. **For now it doesn't write into any of them** (see below).
 
 ## Importing
 - **Found for you:** GLUE looks for DJ libraries in your music folders and the places you point it at ("Look in…"). They show under **DJ libraries found**; click **Add**, or **×** to take one off the list.
@@ -20,7 +20,12 @@ With **GLUE Home** running, GLUE Home does this itself: it finds the libraries i
 ## Your main DJ library
 Right-click a DJ library › **Make it the main DJ library** (or **Make it main** on a song's Prepare tab). Its beat grids and cues become every song's by default: the BPM in your lists, the grid and the cue pads in Prepare. What you set in GLUE still comes first. It's marked **main**, and it's the library GLUE will keep in step with both ways.
 
-## Kept in step both ways (Engine DJ)
+## Kept in step both ways (Engine DJ): paused
+**GLUE doesn't write into Engine DJ for now** (since November 2026). After Engine DJ 5.3 rebuilt its library, GLUE took the
+rebuilt library for changes, removed playlists made in Engine DJ and added copies of its own. Until it comes back,
+differently, GLUE only reads Engine DJ: what you change there shows in GLUE, and changes go into Engine DJ from Engine
+DJ itself. The options below aren't offered meanwhile; this is how it worked:
+
 With GLUE Home running, right-click your main Engine DJ library › **Keep in step both ways…**. The hot cues, saved loops and beat grids you set in GLUE are written into Engine DJ, and what you change in Engine DJ comes into GLUE.
 - GLUE Home writes only while **Engine DJ is closed**: a few seconds after you quit it. The ⇄ by the library turns amber while changes wait.
 - It backs Engine DJ's library up before it writes, once each time Engine DJ has been closed (the last three are kept).

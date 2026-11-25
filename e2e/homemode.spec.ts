@@ -588,6 +588,16 @@ test('with GLUE Home running, the main Engine DJ library is kept in step both wa
     await src.click({ button: 'right' });
     await page.locator('[data-m="main-dj"]').click();
     await expect(src.locator('.mainf')).toHaveText('main');
+    // Writing into Engine DJ is off unless GLUE Home's settings switch it on (ADR 0194): not offered.
+    await src.click({ button: 'right' });
+    await expect(page.locator('.cmenu [data-m="unmain-dj"]')).toBeVisible();
+    await expect(page.locator('.cmenu [data-m="sync-dj"]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: true, djPlaylists: true, engineWrites: true } });
+    await expect(async () => {
+      await src.click({ button: 'right' });
+      try { await expect(page.locator('.cmenu [data-m="sync-dj"]')).toBeVisible({ timeout: 1000 }); } finally { await page.keyboard.press('Escape'); }
+    }).toPass({ timeout: 30_000 });
     await src.click({ button: 'right' });
     await page.locator('[data-m="sync-dj"]').click();
     await expect(src.locator('.syncf')).toBeVisible();
@@ -613,7 +623,7 @@ test('with GLUE Home running, the main Engine DJ library is kept in step both wa
     await expect(src.locator('.syncf')).toHaveAttribute('data-dj-sync', 'waiting', { timeout: 40_000 });
     expect(await slotB()).toBe(-1);
     // Engine DJ closed: written within seconds.
-    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false, djPlaylists: true } });
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false, djPlaylists: true, engineWrites: true } });
     await expect.poll(slotB, { timeout: 40_000 }).toBeGreaterThanOrEqual(0);
     await expect(src.locator('.syncf')).toHaveAttribute('data-dj-sync', 'synced', { timeout: 20_000 });
     // Its playlists stay in its DJ collection (ADR 0178): none copied into GLUE's playlists, Engine DJ's left as they are.
@@ -631,14 +641,14 @@ test('with GLUE Home running, the main Engine DJ library is kept in step both wa
 
     // Edited in its DJ collection (ADR 0179): shown at once, waiting while Engine DJ runs, written once it's closed.
     page.removeAllListeners('dialog');
-    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: true, djPlaylists: true } });
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: true, djPlaylists: true, engineWrites: true } });
     const second = page.locator('.lside .djtree [data-dj]', { hasText: 'Second' });
     page.once('dialog', d => void d.accept('Second set'));
     await second.click({ button: 'right' });
     await page.locator('.cmenu [data-m="dj-rename"]').click();
     await expect(page.locator('.lside .djtree [data-dj]', { hasText: 'Second set' }).locator('[data-dj-wait]')).toBeVisible({ timeout: 20_000 });
     expect(await titles()).not.toContain('Second set');
-    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false, djPlaylists: true } });
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue, testAppsRunning: false, djPlaylists: true, engineWrites: true } });
     await expect.poll(titles, { timeout: 40_000 }).toContain('Second set');
     // A new playlist, a song added to it from the song's menu, then taken out in its view.
     page.once('dialog', d => void d.accept('Fresh'));

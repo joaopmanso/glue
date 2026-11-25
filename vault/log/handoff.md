@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-03
+updated: 2026-11-25
 ---
 # Handoff: where things stand
 
@@ -24,7 +24,20 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-03): the "Desktop: no addresses" failure
+## Latest (2026-11-25): Engine DJ, writes off (ADR 0194, GLUE Home 0.80)
+- **Done:** the Collection (`C:/Users/joaop/Music/Engine Library/Database2/m.db`) put back as GLUE Home's 20:31 backup had it
+  (the user's go-ahead); the file before kept beside it (`m - before GLUE undo 2026-11-25.backup`). GLUE Home 0.80 writes
+  nothing into Engine DJ unless `engineWrites: true`.
+- **Waiting on the user:** update GLUE Home to 0.80 before starting it (0.79 writes again within seconds of starting with
+  Engine DJ closed); then in Engine DJ, make a playlist and add songs. If Engine DJ still won't, the lock came in with the
+  5.3 rebuild or before it: look at Engine DJ itself before anything is written.
+- **Not done:** the October GLUE folder and "Teste GLUE 123" lists are still in the Collection; GLUE Home's `dj/…` cache still
+  remembers the pre-5.3 Engine DJ (let it go before any writes come back). Why G:'s `m.db` has the old Collection's id
+  (`76ca4274…`) isn't known (asked the user what happened on 2026-11-20).
+- **Next, with the user:** GLUE's own Engine DJ library, as a drive's is, so GLUE never writes Engine DJ's Collection
+  (the user's idea). Research first how Engine DJ 5.3 finds and shows drives' libraries.
+
+## Earlier (2026-11-03): the "Desktop: no addresses" failure
 - **Fixed in GLUE Cloud** (`signal.ts`, changelog): reproduced locally on workerd and fixed there. **Waiting on the user:** does
   the laptop or iPhone still fail after an idle tab? If it does, `chrome://webrtc-internals` during the failure shows whether
   `setRemoteDescription` and `addIceCandidate` happened.

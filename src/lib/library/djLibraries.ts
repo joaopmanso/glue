@@ -140,7 +140,7 @@ export const djLibraries = {
   /** Engine DJ's own playlists editable in the DJ collection (ADR 0179): its main library kept in step, with GLUE Home
       (it writes them, ADR 0168). */
   djEditable(this: Library, src: Source | undefined): boolean {
-    return !!src && !this.readOnly && src.app === 'engine' && !!src.main && !!src.sync && this.homeRuns() && !!this.djWrite;
+    return !!src && !this.readOnly && src.app === 'engine' && !!src.main && !!src.sync && this.homeRuns() && !!this.djWrite && this.djWrites;
   },
   /** An edit of its playlists: on its tree at once (marked waiting), written into Engine DJ while it's closed. A new
       list's id; null if GLUE Home couldn't take it (said in a notice). */

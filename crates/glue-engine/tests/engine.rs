@@ -450,6 +450,46 @@ fn engine_move(db: &std::path::Path, id: i64, slot: usize, t: f64) {
   c.execute("UPDATE PerformanceData SET quickCues = ?1 WHERE trackId = ?2", rusqlite::params![glue_interop::perf::qcompress(&glue_interop::perf::encode_hot(Some(&raw), &hot, 44100.0)), id]).unwrap();
 }
 
+/// ADR 0194 (2026-11-25): with no `engineWrites` in the settings, GLUE Home writes nothing into Engine DJ: the sync
+/// doesn't run (no backup, the database's bytes as they were), says it's off, and an edit isn't even kept for later.
+#[test]
+fn engine_dj_is_never_written_unless_writes_are_switched_on() {
+  let (glue, libs) = (temp("djoff"), temp("djoff-libs"));
+  library(&glue);
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  let db = libs.join("Engine Library").join("Database2").join("m.db");
+  std::fs::create_dir_all(db.parent().unwrap()).unwrap();
+  std::fs::copy(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/golden/interop/engine-set/in/m.db"), &db).unwrap();
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "djPlaylists": true });
+  let cache = temp("djoff-cache");
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  let place = format!("hl:{}", libs.to_string_lossy());
+  let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": place, "relPath": "Engine Library/Database2/m.db" })).unwrap();
+  let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
+  let song = {
+    let s = e.store("p1", "c1").unwrap();
+    let mut st = s.lock().unwrap();
+    glue_interop::merge::set_main_source(&mut st, Some(&sid));
+    glue_interop::merge::set_source_sync(&mut st, &sid, true);
+    st.flush().unwrap();
+    st.sources[&sid]["tracks"].as_array().unwrap().iter().find(|t| t["externalId"] == "pc-uuid/1").unwrap()["trackId"].as_str().unwrap().to_string()
+  };
+  // GLUE has a cue of its own that the sync would write.
+  { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); let mut t = st.tracks[&song].clone(); t["prep"] = json!({ "bpm": 128.0, "beat0": 0.1, "bar": 0, "cues": [{ "t": 5.0, "kind": "cue", "num": 1, "name": "Mine", "color": "#fb1ab0", "end": null }] }); st.put_track(t); st.flush().unwrap(); }
+  let bytes = std::fs::read(&db).unwrap();
+  let r = e.rpc(&json!({ "op": "djSyncNow", "p": "p1", "c": "c1" })).unwrap();
+  assert_eq!((r["written"].as_u64(), r["taken"].as_u64(), r["lists"].as_u64()), (Some(0), Some(0), Some(0)), "{r}");
+  e.dj_sync();
+  assert_eq!(std::fs::read(&db).unwrap(), bytes, "Engine DJ's database not touched");
+  assert!(!cache.join("dj-backups").exists(), "no backup: nothing was going to be written");
+  let st = e.rpc(&json!({ "op": "dj", "p": "p1", "c": "c1" })).unwrap();
+  assert_eq!((st["writes"].clone(), st["sync"][&sid].clone()), (json!(false), json!("off")));
+  let edit = e.rpc(&json!({ "op": "djEdit", "p": "p1", "c": "c1", "source": sid, "edit": { "t": "new", "name": "Mine", "parent": "", "folder": false } }));
+  assert!(edit.is_err_and(|x| x.contains("doesn’t write into Engine DJ")), "an edit is refused, not kept for later");
+}
+
 #[test]
 fn the_main_dj_library_is_kept_in_step_both_ways() {
   let (glue, libs) = (temp("djsync"), temp("djsync-libs"));
@@ -461,6 +501,7 @@ fn the_main_dj_library_is_kept_in_step_both_ways() {
   std::fs::create_dir_all(db.parent().unwrap()).unwrap();
   std::fs::copy(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/golden/interop/engine-set/in/m.db"), &db).unwrap();
   let h = H::default();
+  h.0.lock().unwrap().config = json!({ "engineWrites": true });
   let cache = temp("djsync-cache");
   let e = Engine::new(glue.clone(), cache.clone(), h.clone());
   let place = format!("hl:{}", libs.to_string_lossy());
@@ -565,7 +606,7 @@ fn engine_djs_playlists_are_taken_out_of_glues_once_and_an_import_stays() {
   let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
   put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3") } }));
   let h = H::default();
-  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true });
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true, "engineWrites": true });
   let e = Engine::new(glue.clone(), temp("djout-cache"), h.clone());
   let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
   let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
@@ -620,7 +661,7 @@ fn engine_djs_playlists_and_songs_info_are_edited_in_the_dj_collection() {
   let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
   put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3"), "s1thr": song("s1thr", "three.mp3") } }));
   let h = H::default();
-  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true });
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true, "engineWrites": true });
   let e = Engine::new(glue.clone(), temp("djedit-cache"), h.clone());
   let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
   let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
@@ -718,7 +759,7 @@ fn glues_own_playlists_are_kept_in_engine_djs_glue_folder_both_ways() {
   let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
   put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3"), "s1thr": song("s1thr", "three.mp3") } }));
   let h = H::default();
-  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true });
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true, "engineWrites": true });
   let e = Engine::new(glue.clone(), temp("djmirror-cache"), h.clone());
   let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
   let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
@@ -829,7 +870,7 @@ fn songs_the_clean_up_took_point_at_the_copy_kept() {
   let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
   put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3"), "s1thr": song("s1thr", "three.mp3") } }));
   let h = H::default();
-  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true });
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true, "engineWrites": true });
   let e = Engine::new(glue.clone(), temp("djrelink-cache"), h.clone());
   let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
   let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
@@ -874,7 +915,7 @@ fn mirrored(name: &str) -> (Arc<Engine<H>>, std::path::PathBuf, String, std::pat
   let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": f, "sources": [] });
   put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3") } }));
   let h = H::default();
-  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true });
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "djPlaylists": true, "engineWrites": true });
   let e = Engine::new(glue.clone(), cache.clone(), h);
   let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
   let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();
@@ -1009,7 +1050,7 @@ fn engine_djs_collection_holds_the_tree_and_each_change_goes_to_its_drive_too() 
   let song = |id: &str, n: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": n, "fileName": n, "size": 4, "mtime": 5, "title": n, "sources": [] });
   put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.mp3"), "s1thr": song("s1thr", "three.mp3") } }));
   let h = H::default();
-  { let mut g = h.0.lock().unwrap(); g.config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() } }); g.music = Some(music.to_string_lossy().into()); }
+  { let mut g = h.0.lock().unwrap(); g.config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": libs.join("Music").to_string_lossy() }, "engineWrites": true }); g.music = Some(music.to_string_lossy().into()); }
   let e = Engine::new(glue.clone(), temp("djcoll-cache"), h.clone());
   let r = e.rpc(&json!({ "op": "djImport", "p": "p1", "c": "c1", "place": format!("hl:{}", libs.to_string_lossy()), "relPath": "Engine Library/Database2/m.db" })).unwrap();
   let sid = r["imports"][0]["report"]["sourceId"].as_str().unwrap().to_string();

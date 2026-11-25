@@ -223,10 +223,12 @@ class EngineClient {
     return w ? this.rpc<{ at: number; matches: Match[]; missing: number; groups?: DupGroup[] }>({ op: 'dupes', ...w, ...(full ? { full } : {}) }, 180_000) : null;
   }
   /** The DJ libraries GLUE Home follows (ADR 0167): how each is ('live', 'lost', 'reading'), by source id. */
-  async djStatus(): Promise<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync: Record<string, 'waiting' | 'synced'> }> {
+  /** `writes`: whether GLUE Home writes into Engine DJ at all (ADR 0194: only when switched on in its settings; an older
+      GLUE Home doesn't say, and isn't offered it). */
+  async djStatus(): Promise<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync: Record<string, 'waiting' | 'synced' | 'off'>; writes: boolean }> {
     const w = this.where();
-    const r = w ? await this.rpc<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync?: Record<string, 'waiting' | 'synced'> }>({ op: 'dj', ...w }, 10_000) : null;
-    return { status: r?.status ?? {}, sync: r?.sync ?? {} };
+    const r = w ? await this.rpc<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync?: Record<string, 'waiting' | 'synced' | 'off'>; writes?: boolean }>({ op: 'dj', ...w }, 10_000) : null;
+    return { status: r?.status ?? {}, sync: r?.sync ?? {}, writes: r?.writes === true };
   }
   /** The main DJ library kept in step both ways (ADR 0170): its clashes by GLUE song. */
   async djClashes(): Promise<Record<string, DjClash[]>> {

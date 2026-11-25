@@ -175,6 +175,9 @@ export class Library {
   homeRuns: () => boolean = () => false;
   /** An edit of Engine DJ's own playlists sent to GLUE Home (ADR 0179, lib/engine): a new list's id. */
   djWrite: ((source: string, edit: DjEdit) => Promise<{ id?: string | null }>) | null = null;
+  /** GLUE Home writes into Engine DJ (ADR 0194: off unless switched on in its settings): what would write isn't offered
+      otherwise. */
+  djWrites = $state(false);
   /** The DJ libraries GLUE Home finds in the music folders and the GLUE folder (ADR 0167; lib/engine). */
   homeDjFind: (() => Promise<(Omit<Detected, 'handle'> & { place: string; placeName: string })[]>) | null = null;
   /** This computer's GLUE Home analyses its songs (ADR 0103, 0104): lib/engine says so, and takes the asks. */

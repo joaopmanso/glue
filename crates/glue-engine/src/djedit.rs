@@ -126,6 +126,8 @@ impl<H: Host> Engine<H> {
   pub fn dj_edit(&self, p: &str, c: &str, sid: &str, op: &Value) -> Result<Value, String> {
     let t = text(op, "t");
     if !OPS.contains(&t.as_str()) { return Err(format!("not an edit GLUE Home knows: {t}")); }
+    // Off (ADR 0194): not even kept for later, so nothing waits to be written when writing comes back.
+    if !crate::djsync::engine_writes(&self.host.config()) { return Err("GLUE doesn’t write into Engine DJ for now: make the change in Engine DJ, and GLUE reads it from there".into()); }
     // Paused (2026-10-10, djsync.rs): Engine DJ didn't show the playlists GLUE wrote.
     if self.host.config()["djPlaylists"] == json!(false) { return Err("changing Engine DJ’s playlists from GLUE is paused while it’s made to work as Engine DJ does (Engine DJ didn’t show what GLUE wrote)".into()); }
     let s = self.store(p, c)?;

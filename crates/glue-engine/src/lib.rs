@@ -558,7 +558,7 @@ impl<H: Host> Engine<H> {
       // The duplicates GLUE Home found (ADR 0164): its last result, or matched now (`full`: every song again).
       "dupes" => self.dupes(&p, &c, b["full"].as_bool().unwrap_or(false)),
       // The DJ libraries GLUE Home follows (ADR 0167): how each is, Refresh, and an import from where a library is.
-      "dj" => Ok(json!({ "status": self.dj_status(&p, &c), "sync": self.dj.lock().unwrap().syncing.iter().map(|(k, v)| (k.clone(), json!(v))).collect::<serde_json::Map<_, _>>() })),
+      "dj" => Ok(json!({ "writes": crate::djsync::engine_writes(&self.host.config()), "status": self.dj_status(&p, &c), "sync": self.dj.lock().unwrap().syncing.iter().map(|(k, v)| (k.clone(), json!(v))).collect::<serde_json::Map<_, _>>() })),
       // The main DJ library kept in step both ways (ADR 0170): its clashes by song, one settled, a sync now.
       "djClashes" => Ok(self.dj_clashes(&p, &c)),
       "djResolve" => self.dj_resolve(&p, &c, &text(b, "track"), text(b, "keep") == "glue"),

@@ -1,9 +1,25 @@
 ---
-updated: 2026-11-09
+updated: 2026-11-25
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-11-25 · GLUE Home 0.80: GLUE doesn't write into Engine DJ; the user's Collection put back (ADR 0194)
+- **Why:** the user: "engine dj bugs by displaying and then removing tracks, I can't add new tracks or create new playlists,
+  and the playlists from glue are no longer getting synced … the priority is to regain control of the features in engine
+  DJ".
+- **Cause:** Engine DJ 5.3.0.7 (installed 2026-11-20) gave the Collection's database a new id and changed its playlists'
+  rows; GLUE Home 0.79's sync took that for changes against what it remembered, and with Engine DJ closed (20:31 and 20:33)
+  deleted the user's "2027" and its "Playlist" and made "2027 (2)", "(3)", "(4)" in its GLUE folder, one more each run.
+  The databases were sound (SQLite's checks, every playlist chain).
+- **Put back** (the user's go-ahead): the Collection's `m.db` as GLUE Home's 20:31 backup had it, before GLUE's first write to
+  the rebuilt database; only GLUE's changes differed (every table compared). Kept beside it: `m - before GLUE undo
+  2026-11-25.backup`. F: had no playlist change from GLUE.
+- **Now:** no writes into Engine DJ unless `engineWrites: true` in GLUE Home's settings (`dj_sync_held` returns first;
+  `djEdit` refused); the page doesn't offer what writes, and the ⇄ goes. Reading and following stay. Help (DJ libraries,
+  Playlists) and the DJ-libraries tour say it's paused. Tests: writes off by default (`engine.rs`, the e2e test), the
+  write code still tested with them on.
 
 ## 2026-11-09 · The end-to-end tests pass again: Edge's decoder moved WebM Opus by 24 frames
 - **Why:** the user: "take a look at why the github e2e pipeline is failing". It had failed every run since 2026-11-03 (the

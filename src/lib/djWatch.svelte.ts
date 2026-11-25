@@ -57,7 +57,7 @@ class DjWatch {
   private lastRead = new Map<string, number>();
   status = $state<Record<string, DjState>>({});
   /** The main library's two-way sync (ADR 0170), by source: waiting for Engine DJ to close, or in step. */
-  sync = $state<Record<string, 'waiting' | 'synced'>>({});
+  sync = $state<Record<string, 'waiting' | 'synced' | 'off'>>({});
   /** Its clashes, by GLUE song. */
   clashes = $state<Record<string, DjClash[]>>({});
   /** Its playlists gone from one side, asked about (ADR 0171). */
@@ -83,7 +83,7 @@ class DjWatch {
       const home = lib.homeRuns();
       if (home) {
         const st = await engineClient.djStatus().catch(() => null);
-        if (st && lib.store === s) { for (const [id, v] of Object.entries(st.status)) this.set(id, v); if (JSON.stringify(st.sync) !== JSON.stringify(this.sync)) this.sync = st.sync; }
+        if (st && lib.store === s) { for (const [id, v] of Object.entries(st.status)) this.set(id, v); if (JSON.stringify(st.sync) !== JSON.stringify(this.sync)) this.sync = st.sync; if (lib.djWrites !== st.writes) lib.djWrites = st.writes; }
         if (lib.store === s && [...s.sources.values()].some(x => x.main && x.sync)) await this.loadClashes();
       }
       for (const src of [...s.sources.values()]) {

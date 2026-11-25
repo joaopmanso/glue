@@ -293,8 +293,8 @@
       l.kind === 'playlist' && { label: 'Save as a playlist file (.m3u8)', run: () => saveM3u8(l) },
       !!src && !!src.tree?.some(x => x.externalId === ext) && { label: 'Show in ' + (APP_NAMES[src.app] ?? src.app) + '’s library', run: () => showInDj(src, ext) },
       // GLUE's own, kept in Engine DJ's "GLUE" folder (ADR 0180).
-      !l.origin && lib.engineKept() && SEP,
-      !l.origin && lib.engineKept() && (() => {
+      !l.origin && lib.engineKept() && lib.djWrites && SEP,
+      !l.origin && lib.engineKept() && lib.djWrites && (() => {
         const by = lib.keptBy(l.id, 'engine');
         if (by && by.id !== l.id) return { label: 'In Engine DJ, with “' + by.name + '”', attrs: { 'data-m': 'dj-keep' }, disabled: true, title: 'Everything in a folder kept in Engine DJ is kept there too' };
         return by
@@ -378,7 +378,7 @@
       // Kept in step both ways (ADR 0170): the main Engine DJ library, through GLUE Home.
       !lib.readOnly && s.main && s.app === 'engine' && lib.homeRuns() && (s.sync
         ? { label: 'Stop writing GLUE’s changes into Engine DJ', attrs: { 'data-m': 'unsync-dj' }, run: () => lib.setDjSync(s.id, false) }
-        : { label: 'Keep in step both ways…', attrs: { 'data-m': 'sync-dj' }, title: 'GLUE’s cues, loops and grids written into Engine DJ, and Engine DJ’s changes taken into GLUE', run: () => {
+        : lib.djWrites && { label: 'Keep in step both ways…', attrs: { 'data-m': 'sync-dj' }, title: 'GLUE’s cues, loops and grids written into Engine DJ, and Engine DJ’s changes taken into GLUE', run: () => {
           if (confirm('Keep Engine DJ in step with GLUE both ways?\n\nGLUE Home writes the cues, loops and beat grids you set in GLUE into Engine DJ’s library, and takes Engine DJ’s changes into GLUE. Its playlists stay in its DJ collection here; import one to have GLUE’s own copy under Playlists. It writes only while Engine DJ is closed (a few seconds after you quit it), backs up the library first, and asks you when a song was changed on both sides.')) lib.setDjSync(s.id, true);
         } }),
       lib.djEditable(s) && SEP,
@@ -689,7 +689,7 @@
           <div class="item" class:sel={isSel({ kind: 'source', id: s.id })} class:menued={menued('s:' + s.id)} data-source={s.id} oncontextmenu={e => onMenu(e, 's:' + s.id, () => sourceMenu(s), APP_NAMES[s.app] ?? s.app)}>
             {#if s.tree?.length}<button type="button" class="twist" data-dj-open={s.id} aria-label={djOpen[s.id] ? 'Hide its playlists' : 'Show its playlists'} onclick={() => (djOpen[s.id] = !djOpen[s.id])}>{djOpen[s.id] ? '▾' : '▸'}</button>{:else}<span class="twist"></span>{/if}
             <AppIcon app={s.app} />
-            <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}{#if s.main}<span class="mainf" title="Your main DJ library: its grids and cues are every song's by default, after GLUE's own">main</span>{/if}{#if s.main && s.sync}<span class="syncf" data-dj-sync={djWatch.sync[s.id] ?? 'on'} title={djWatch.sync[s.id] === 'waiting' ? 'Kept in step both ways: GLUE’s changes go into ' + (APP_NAMES[s.app] ?? s.app) + ' when you close it' : 'Kept in step both ways with GLUE (through GLUE Home)'}>⇄</span>{/if}<small> {s.fileName}</small></button>
+            <button type="button" class="name" onclick={() => view.select({ kind: 'source', id: s.id })} title={'Imported ' + new Date(s.importedAt).toLocaleString() + ' from ' + (s.origin ? s.origin.relPath : s.fileName)}>{APP_NAMES[s.app] ?? s.app}{#if s.main}<span class="mainf" title="Your main DJ library: its grids and cues are every song's by default, after GLUE's own">main</span>{/if}{#if s.main && s.sync && djWatch.sync[s.id] !== 'off'}<span class="syncf" data-dj-sync={djWatch.sync[s.id] ?? 'on'} title={djWatch.sync[s.id] === 'waiting' ? 'Kept in step both ways: GLUE’s changes go into ' + (APP_NAMES[s.app] ?? s.app) + ' when you close it' : 'Kept in step both ways with GLUE (through GLUE Home)'}>⇄</span>{/if}<small> {s.fileName}</small></button>
             <span class="n">{s.tracks.length}</span>
             {#if elsewhere(s)}<span class="onpc" data-dj-where={s.id} title={'On ' + elsewhere(s) + ': GLUE reads it there, and keeps it up to date for every device'}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 13.5h5M8 11v2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>{elsewhere(s)}</span>
             {:else if live}

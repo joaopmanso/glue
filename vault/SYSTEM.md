@@ -211,6 +211,11 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - **The main DJ library** (0.66, ADR 0169): one per computer, `Source.main` (kept through every read). A song's BPM is
     GLUE's correction, then the main library's grid, then the analysis (`bpmInUse`); its grid and cues GLUE's own,
     else the main library's (`lib/cues.ts` `mainOf`, `prepare.grid`). The two-way sync is with it.
+  - **No writes into Engine DJ** (0.80, ADR 0194, 2026-11-25): unless GLUE Home's settings say `engineWrites: true` (no
+    button), the sync below doesn't run (`djsync.rs` `engine_writes`, checked in `dj_sync_held`, the one way in for every
+    write: no database opened, no backup, nothing taken in; its state `off`), `djEdit` is refused, and the page (`writes`
+    in the `dj` status, `lib.djWrites`) offers nothing that writes. Engine DJ's libraries are still read and followed.
+    What follows is how the writes work when switched on (the tests do).
   - **Engine DJ kept in step both ways** (0.67, ADR 0170): with `Source.sync` on the main Engine DJ library, GLUE Home's
     `djsync.rs` (after each look, when GLUE's library or a database changed) merges each song's hot cues, saved loops
     and grid three ways (`glue_interop::sync`; pads are its hot cues, memory loops its saved loops) against what they
