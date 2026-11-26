@@ -1297,3 +1297,111 @@ fn glues_playlists_for_engine_dj_are_a_rekordbox_xml_written_when_they_change() 
   e.dj_xml();
   assert_eq!(e.rpc(&json!({ "op": "dj", "p": "p1", "c": "c1" })).unwrap()["xml"]["path"], Value::Null);
 }
+
+#[test]
+fn glues_playlists_go_into_glues_own_engine_dj_library_while_engine_dj_is_closed() {
+  // ADR 0196: GLUE's own library, which Engine DJ merges with its Collection when it starts; the Collection untouched.
+  use glue_interop::enginedb;
+  let (glue, music, own) = (temp("djdrive"), temp("djdrive-music"), temp("djdrive-own"));
+  std::fs::create_dir_all(music.join("Songs")).unwrap();
+  for f in ["one.mp3", "two.wav"] { std::fs::write(music.join("Songs").join(f), b"song").unwrap(); }
+  // Engine DJ's Collection, which has one.mp3 already (id 7).
+  let coll = music.join("Engine Library").join("Database2").join("m.db");
+  std::fs::create_dir_all(coll.parent().unwrap()).unwrap();
+  {
+    let c = rusqlite::Connection::open(&coll).unwrap();
+    c.execute_batch(&std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/engine-schema.sql")).unwrap()).unwrap();
+    c.execute("INSERT INTO Information (uuid, schemaVersionMajor, schemaVersionMinor, schemaVersionPatch) VALUES ('coll', 3, 0, 2)", []).unwrap();
+    c.execute("INSERT INTO Track (id, path, filename, title, length, isAnalyzed, isAvailable) VALUES (7, '../Songs/one.mp3', 'one.mp3', 'One', 300, 1, 1)", []).unwrap();
+  }
+  let coll_before = std::fs::read(&coll).unwrap();
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Songs" }] }));
+  let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": format!("Title {id}"), "artist": "Art", "duration": 300.4, "addedAt": "2026-11-01T10:00:00.000Z", "sources": [] });
+  put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": song("s1one", "one.mp3"), "s1two": song("s1two", "two.wav"), "s1off": song("s1off", "elsewhere.mp3") } }));
+  let h = H::default();
+  h.0.lock().unwrap().music = Some(music.to_string_lossy().to_string());
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": music.join("Songs").to_string_lossy() }, "djXml": false, "djDrive": own.to_string_lossy() });
+  let cache = temp("djdrive-cache");
+  let e = Engine::new(glue.clone(), cache.clone(), h.clone());
+  let db_path = own.join("Engine Library").join("Database2").join("m.db");
+  // Nothing kept: no library made.
+  e.dj_drive();
+  assert!(!db_path.exists());
+  let list = |id: &str, kind: &str, name: &str, parent: Option<&str>, pos: i64, items: &[&str], apps: bool| {
+    let mut l = json!({ "schemaVersion": 1, "id": id, "kind": kind, "name": name, "parentId": parent, "position": pos, "notes": "", "items": items, "origin": null });
+    if apps { l["apps"] = json!(["engine"]); }
+    l
+  };
+  let edit = |f: &dyn Fn(&mut glue_store::store::Store<glue_store::dir::FsDir>)| { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); f(&mut st); st.flush().unwrap(); };
+  edit(&|st| {
+    st.put_list(list("gigs", "folder", "Gigs", None, 0, &[], true));
+    st.put_list(list("sat", "playlist", "Sat", Some("gigs"), 1, &["s1two"], false));
+    st.put_list(list("fri", "playlist", "Fri", Some("gigs"), 0, &["s1one", "s1off", "s1two"], false));
+    st.put_list(list("loose", "playlist", "Loose", None, 1, &["s1one"], false));
+  });
+  // Engine DJ open: nothing written yet.
+  h.0.lock().unwrap().engine_open = true;
+  e.dj_drive();
+  assert!(!db_path.exists());
+  assert_eq!(e.rpc(&json!({ "op": "dj", "p": "p1", "c": "c1" })).unwrap()["drive"]["waiting"], json!(true));
+  h.0.lock().unwrap().engine_open = false;
+  e.dj_drive();
+  let tree = || {
+    let db = rusqlite::Connection::open(&db_path).unwrap();
+    let own: String = db.query_row("SELECT uuid FROM Information", [], |r| r.get(0)).unwrap();
+    let lists = enginedb::read_lists(&db, &own).unwrap();
+    let path = |id: i64| { let mut p = vec![]; let mut cur = id; while cur != 0 { let l = lists.iter().find(|l| l.id == cur).unwrap(); p.insert(0, l.title.clone()); cur = l.parent; } p.join("/") };
+    let mut out: Vec<(String, Vec<String>)> = lists.iter().map(|l| (path(l.id), l.items.iter().map(|i| i.replace(&own, "own")).collect())).collect();
+    out.sort();
+    let refs: Vec<i64> = db.prepare("SELECT e.membershipReference FROM PlaylistEntity e JOIN Playlist p ON p.id = e.listId WHERE p.title = 'Gigs' ORDER BY e.id").unwrap().query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect();
+    let tracks: Vec<(i64, String)> = db.prepare("SELECT id, path FROM Track").unwrap().query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(Result::unwrap).collect();
+    (out, refs, tracks)
+  };
+  let (lists, refs, tracks) = tree();
+  // one.mp3 is the Collection's (its analysis, no second copy); two.wav goes into GLUE's library by its whole path.
+  assert_eq!(tracks.len(), 1);
+  let real = std::fs::canonicalize(music.join("Songs").join("two.wav")).unwrap().to_string_lossy().trim_start_matches(r"\\?\").replace('\\', "/");
+  assert_eq!(tracks[0].1, real);
+  let two = format!("own/{}", tracks[0].0);
+  let s = |x: &str| x.to_string();
+  assert_eq!(lists, vec![
+    (s("GLUE"), vec![s("coll/7"), two.clone()]),
+    (s("GLUE/Gigs"), vec![s("coll/7"), two.clone()]),
+    (s("GLUE/Gigs/Fri"), vec![s("coll/7"), two.clone()]),
+    (s("GLUE/Gigs/Sat"), vec![two.clone()]),
+  ]);
+  assert_eq!(refs, vec![1, 2], "a folder holds its lists' songs, each counted");
+  assert_eq!(std::fs::read(&coll).unwrap(), coll_before, "Engine DJ's Collection is never written");
+  let st = e.rpc(&json!({ "op": "dj", "p": "p1", "c": "c1" })).unwrap()["drive"].clone();
+  assert_eq!((st["lists"].as_u64(), st["songs"].as_u64(), st["left"].as_u64(), st.get("waiting")), (Some(2), Some(2), Some(1), None));
+  assert!(h.0.lock().unwrap().events.iter().any(|t| t.starts_with("GLUE\u{2019}s playlists written for Engine DJ: 2 playlists, 2 songs")));
+  // Unchanged: not written again.
+  let m0 = std::fs::metadata(&db_path).unwrap().modified().unwrap();
+  std::thread::sleep(std::time::Duration::from_millis(20));
+  e.dj_drive();
+  assert_eq!(std::fs::metadata(&db_path).unwrap().modified().unwrap(), m0);
+  // Engine DJ copies its other lists in (left alone) and the user made one in GLUE's folder (GLUE's: taken out).
+  {
+    let db = rusqlite::Connection::open(&db_path).unwrap();
+    enginedb::create_list(&db, "Mine", 0).unwrap();
+    let g: i64 = db.query_row("SELECT id FROM Playlist WHERE title = 'GLUE' AND parentListId = 0", [], |r| r.get(0)).unwrap();
+    enginedb::create_list(&db, "Stray", g).unwrap();
+  }
+  // A rename in GLUE: another list for Engine DJ (as it knows them, by name).
+  edit(&|st| { let mut x = st.lists["sat"].clone(); x["name"] = json!("Saturday"); st.put_list(x); });
+  e.dj_drive();
+  let names: Vec<String> = tree().0.into_iter().map(|x| x.0).collect();
+  assert_eq!(names, vec!["GLUE", "GLUE/Gigs", "GLUE/Gigs/Fri", "GLUE/Gigs/Saturday", "Mine"]);
+  assert!(cache.join("dj-backups").read_dir().unwrap().next().is_some(), "backed up before it was changed");
+  // Nothing kept any more: GLUE's folder goes (Engine DJ takes it out of the Collection when it next starts).
+  edit(&|st| { let mut g = st.lists["gigs"].clone(); g.as_object_mut().unwrap().remove("apps"); st.put_list(g); });
+  e.dj_drive();
+  let names: Vec<String> = tree().0.into_iter().map(|x| x.0).collect();
+  assert_eq!(names, vec!["Mine"]);
+  // Switched off: left alone.
+  h.0.lock().unwrap().config["djDrive"] = json!(false);
+  e.dj_drive();
+  assert_eq!(e.rpc(&json!({ "op": "dj", "p": "p1", "c": "c1" })).unwrap()["drive"]["path"], Value::Null);
+}

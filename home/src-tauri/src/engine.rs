@@ -16,6 +16,40 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub struct App { app: AppHandle }
 
+/// The letter GLUE's own Engine DJ library has (ADR 0196): not searched as one of the computer's drives.
+#[cfg_attr(not(windows), allow(dead_code))]
+static GLUE_DRIVE: Mutex<Option<char>> = Mutex::new(None);
+#[cfg(windows)]
+fn subst(args: &[&str]) -> Result<String, String> {
+  use std::os::windows::process::CommandExt;
+  let out = std::process::Command::new("subst").args(args).creation_flags(0x0800_0000).output().map_err(|e| format!("subst: {e}"))?;
+  Ok(String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr))
+}
+#[cfg(windows)]
+fn engine_drive(dir: &Path) -> Result<Option<String>, String> {
+  let want = dir.to_string_lossy().trim_end_matches('\\').to_lowercase();
+  let root = |c: char| PathBuf::from(format!("{c}:\\"));
+  // Shown already: one of `subst`'s lines ("Z:\: => C:\Users\…").
+  for line in subst(&[])?.lines() {
+    let Some((l, t)) = line.split_once(": => ") else { continue };
+    if t.trim().trim_end_matches('\\').to_lowercase() == want {
+      let Some(c) = l.chars().next() else { continue };
+      *GLUE_DRIVE.lock().unwrap() = Some(c);
+      return Ok(Some(format!("{c}:")));
+    }
+  }
+  if let Some(c) = *GLUE_DRIVE.lock().unwrap() { if root(c).join("Engine Library").exists() { return Ok(Some(format!("{c}:"))); } }
+  for c in (b'G'..=b'Z').rev().map(char::from) {
+    if root(c).exists() { continue; }
+    let said = subst(&[&format!("{c}:"), &dir.to_string_lossy()])?;
+    if root(c).exists() { *GLUE_DRIVE.lock().unwrap() = Some(c); return Ok(Some(format!("{c}:"))); }
+    return Err(format!("Windows didn’t show GLUE’s Engine DJ library as drive {c}: ({})", said.trim()));
+  }
+  Err("No drive letter is free for GLUE’s Engine DJ library".into())
+}
+#[cfg(not(windows))]
+fn engine_drive(_dir: &Path) -> Result<Option<String>, String> { Err("GLUE’s own Engine DJ library works on Windows for now".into()) }
+
 fn cfg(app: &AppHandle) -> Option<Value> { crate::get_config_impl(app.clone()) }
 
 /// GLUE Cloud: the settings' `api`, or GLUE's.
@@ -74,11 +108,14 @@ impl Host for App {
     #[allow(unused_mut)]
     let mut out = vec![];
     #[cfg(windows)]
-    for d in b'C'..=b'Z' { let r = PathBuf::from(format!("{}:\\", d as char)); if r.exists() { out.push(r); } }
+    for d in b'C'..=b'Z' { if *GLUE_DRIVE.lock().unwrap() == Some(d as char) { continue; } let r = PathBuf::from(format!("{}:\\", d as char)); if r.exists() { out.push(r); } }
     #[cfg(target_os = "macos")]
     if let Ok(v) = std::fs::read_dir("/Volumes") { out.extend(v.flatten().map(|e| e.path())); }
     out
   }
+  /// GLUE's own Engine DJ library shown as a drive (ADR 0196): Windows' `subst`, the letter it has already, else the
+  /// last free one (from Z:). It lasts until the computer restarts; GLUE Home shows it again when it starts.
+  fn engine_drive(&self, dir: &Path) -> Result<Option<String>, String> { engine_drive(dir) }
   fn incoming_dir(&self) -> PathBuf { crate::incoming_dir(&self.app) }
   /// Only files in the folders GLUE Home may use, giving way to songs being played (ADR 0138).
   fn read_song(&self, path: &Path, name: &str) -> Result<Vec<u8>, String> {

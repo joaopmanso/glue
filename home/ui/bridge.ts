@@ -46,6 +46,8 @@ export interface HomeConfig {
   discogsError?: string | null;
   /** GLUE's playlists for Engine DJ and rekordbox (ADR 0195): where GLUE Home writes the rekordbox XML; false: none; unset: <Music>/GLUE/GLUE.xml. */
   djXml?: string | false | null;
+  /** GLUE’s own Engine DJ library’s folder (ADR 0196); false: none. */
+  djDrive?: string | false | null;
   localToken?: string;          // what the website on this computer shows the local link (ADR 0048)
   duplicates?: string | null;   // where duplicates the website puts aside go (ADR 0070)
   reminders?: boolean;          // notify of events that need music (ADR 0074; on unless false)
@@ -63,6 +65,7 @@ export interface Received { name: string; path: string; from: string; at: number
 export interface Status { state: 'unpaired' | 'stopped' | 'connecting' | 'online' | 'offline' | 'removed'; text: string; running: boolean; receiving: { name: string; got: number; size: number } | null; received: Received[];
   /** The rekordbox XML for Engine DJ (ADR 0195): where it is (null: none), what's in it, songs left out, when written. */
   djXml?: { path: string | null; lists?: number; songs?: number; left?: number; at?: string; error?: string };
+  djDrive?: { path: string | null; letter?: string | null; lists?: number; songs?: number; left?: number; at?: string; error?: string; waiting?: boolean };
   /** Finding the music folders of the shared collections (by itself). */
   library?: { searching: boolean; found: number; missing: { id: string; name: string; collection: string }[] };
   /** Making mini spectrograms and analyses of the shared songs (ADR 0046). */

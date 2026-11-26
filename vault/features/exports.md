@@ -10,7 +10,12 @@ adrs: [0010, 0011, 0012, 0195]
 Gets GLUE playlists, shows and sessions into Rekordbox and Engine DJ (and Traktor, and anything that
 reads M3U8) without touching their databases.
 
-## Now (2026-11-26, GLUE Home 0.81, ADR 0195)
+## Now (2026-11-26, GLUE Home 0.82, ADR 0195, 0196)
+- **Engine DJ gets GLUE's playlists by itself** (0.82, ADR 0196): GLUE Home writes the lists marked *Keep in Engine DJ*
+  into an Engine DJ library of its own (`<Music>/GLUE/Engine DJ`, `djDrive`), shown to Engine DJ as a drive (Windows),
+  while Engine DJ is closed. Engine DJ merges it into its Collection's "GLUE" folder each time it starts. Songs Engine DJ
+  has already are its own (its analysis); others go in by their whole path. Tried by hand with the user in Engine DJ 5.3
+  (2026-11-26): made, changed, renamed, deleted and nested lists all arrived. macOS: not yet.
 - **The rekordbox XML is GLUE Home's**, on this computer (not the GLUE folder: its paths are this computer's): by default
   `<Music>/GLUE/GLUE.xml`, set in its settings (Folders › For Engine DJ; `djXml`, `false` for none). It holds the
   playlists marked *Keep in Engine DJ* (right-click under Playlists), under "GLUE", with their songs' details, BPM, key,

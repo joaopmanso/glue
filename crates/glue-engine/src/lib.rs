@@ -26,6 +26,7 @@ pub mod djmirror;
 pub mod djlists;
 pub mod djsync;
 pub mod djxml;
+pub mod djdrive;
 pub mod dupes;
 pub mod ice;
 pub mod identity;
@@ -92,6 +93,9 @@ pub trait Host: Send + Sync + 'static {
   /// Is any of these programs running (by name, without ".exe")? A DJ app's library is written only while it isn't
   /// (ADR 0170). Asked of the system; a test says it itself.
   fn apps_running(&self, names: &[&str]) -> bool { dj::apps_running(names) }
+  /// GLUE's own Engine DJ library's folder shown to Engine DJ as a drive (ADR 0196: Windows, `subst`): its letter
+  /// ("Z:"). None: not shown as one (a test writes the folder only); an error: it can't be here.
+  fn engine_drive(&self, _dir: &std::path::Path) -> Result<Option<String>, String> { Ok(None) }
   /// GLUE Home's incoming folder (ADR 0048).
   fn incoming_dir(&self) -> PathBuf;
   /// A folder called `name` with `sample` in it, searched for on this computer's drives (at most `secs` seconds).
@@ -219,6 +223,8 @@ pub struct Engine<H: Host> {
   pub(crate) dj_ticking: std::sync::atomic::AtomicBool,
   /// GLUE’s playlists for Engine DJ and rekordbox, the file last written (djxml.rs, ADR 0195).
   pub(crate) xml: Mutex<djxml::XmlState>,
+  /// GLUE's own Engine DJ library, last written (djdrive.rs, ADR 0196).
+  pub(crate) drive: Mutex<djdrive::DriveState>,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -241,7 +247,7 @@ pub fn changed_over(cur: Option<&Value>, mine: &Value, was: Option<&Value>) -> V
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default(), dj: Default::default(), dj_one: Mutex::new(()), dj_ticking: Default::default(), xml: Default::default() });
+    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default(), dj: Default::default(), dj_one: Mutex::new(()), dj_ticking: Default::default(), xml: Default::default(), drive: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }
@@ -561,7 +567,7 @@ impl<H: Host> Engine<H> {
       // The duplicates GLUE Home found (ADR 0164): its last result, or matched now (`full`: every song again).
       "dupes" => self.dupes(&p, &c, b["full"].as_bool().unwrap_or(false)),
       // The DJ libraries GLUE Home follows (ADR 0167): how each is, Refresh, and an import from where a library is.
-      "dj" => Ok(json!({ "writes": crate::djsync::engine_writes(&self.host.config()), "xml": self.xml.lock().unwrap().status.clone(), "status": self.dj_status(&p, &c), "sync": self.dj.lock().unwrap().syncing.iter().map(|(k, v)| (k.clone(), json!(v))).collect::<serde_json::Map<_, _>>() })),
+      "dj" => Ok(json!({ "writes": crate::djsync::engine_writes(&self.host.config()), "xml": self.xml.lock().unwrap().status.clone(), "drive": self.drive.lock().unwrap().status.clone(), "status": self.dj_status(&p, &c), "sync": self.dj.lock().unwrap().syncing.iter().map(|(k, v)| (k.clone(), json!(v))).collect::<serde_json::Map<_, _>>() })),
       // The main DJ library kept in step both ways (ADR 0170): its clashes by song, one settled, a sync now.
       "djClashes" => Ok(self.dj_clashes(&p, &c)),
       "djResolve" => self.dj_resolve(&p, &c, &text(b, "track"), text(b, "keep") == "glue"),

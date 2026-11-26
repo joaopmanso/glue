@@ -480,8 +480,19 @@
             {#if dupFolder}<button type="button" class="mini" onclick={() => openFolder(dupFolder).catch(e => (error = (e as Error).message))}>Open</button>{/if}
           </div>
         </div>
+        <div class="frow" id="dj-drive-row">
+          <div><b>Engine DJ</b><small>The playlists you keep in Engine DJ (in GLUE, right-click a playlist › Keep in Engine DJ) go into a library of GLUE’s own while Engine DJ is closed, shown to it as a drive. Engine DJ takes them into its GLUE folder each time it starts: nothing to do there. GLUE never writes Engine DJ’s own files.</small></div>
+          <code id="dj-drive" title={status?.djDrive?.path ?? ''}>{cfg?.djDrive === false ? 'Off' : status?.djDrive?.path ? (status.djDrive.letter ? 'Drive ' + status.djDrive.letter + ' · ' : '') + status.djDrive.path : status?.djDrive ? 'Not on this computer' : '…'}</code>
+          <div class="row">
+            {#if cfg?.djDrive !== false && status?.djDrive?.path}<button type="button" class="mini" onclick={() => openFolder(status!.djDrive!.path!).catch(e => (error = (e as Error).message))}>Open</button>{/if}
+            <button type="button" class="mini" id="dj-drive-toggle" onclick={() => save({ djDrive: cfg?.djDrive === false ? null : false })}>{cfg?.djDrive === false ? 'Turn on' : 'Turn off'}</button>
+          </div>
+        </div>
+        {#if cfg?.djDrive !== false && status?.djDrive?.path}
+          <p class="fine" id="dj-drive-state" class:bad={!!status.djDrive.error}>{status.djDrive.error ? 'Couldn’t write it: ' + status.djDrive.error : !status.djDrive.lists ? 'No playlist kept in Engine DJ yet.' : status.djDrive.lists + ' playlist' + (status.djDrive.lists === 1 ? '' : 's') + ', ' + (status.djDrive.songs ?? 0) + ' song' + (status.djDrive.songs === 1 ? '' : 's') + (status.djDrive.left ? '; ' + status.djDrive.left + ' not on this computer left out' : '') + (status.djDrive.waiting ? '. Changes wait for Engine DJ to close.' : '')}</p>
+        {/if}
         <div class="frow" id="dj-xml-row">
-          <div><b>For Engine DJ</b><small>The playlists you keep in Engine DJ (in GLUE, right-click a playlist › Keep in Engine DJ), as a rekordbox XML. In Engine DJ, once: Preferences › Library › rekordbox, choose this file. Then the rekordbox icon in the Collection pane › Update Rekordbox Library shows GLUE’s latest. GLUE never writes Engine DJ’s own files.</small></div>
+          <div><b>rekordbox XML</b><small>The same playlists as a rekordbox XML, for rekordbox (File › Import) or for Engine DJ’s rekordbox library (Preferences › Library › rekordbox › this file, then Update Rekordbox Library).</small></div>
           <code id="dj-xml" title={status?.djXml?.path ?? ''}>{cfg?.djXml === false ? 'Off' : status?.djXml?.path ?? '…'}</code>
           <div class="row">
             {#if cfg?.djXml !== false && status?.djXml?.path}<button type="button" class="mini" onclick={() => openFolder(status!.djXml!.path!.replace(/[\\/][^\\/]*$/, '')).catch(e => (error = (e as Error).message))}>Open</button>{/if}

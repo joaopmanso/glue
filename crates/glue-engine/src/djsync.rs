@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Engine DJ's programs: while either runs, its library isn't written.
-const ENGINE_APPS: [&str; 2] = ["Engine DJ", "OfflineAnalyzer"];
+pub(crate) const ENGINE_APPS: [&str; 2] = ["Engine DJ", "OfflineAnalyzer"];
 
 /// May GLUE Home write into Engine DJ's databases? Only with `engineWrites: true` in its settings (ADR 0194): no
 /// setting, no writes.

@@ -21,21 +21,27 @@ With **GLUE Home** running, GLUE Home does this itself: it finds the libraries i
 Right-click a DJ library › **Make it the main DJ library** (or **Make it main** on a song's Prepare tab). Its beat grids and cues become every song's by default: the BPM in your lists, the grid and the cue pads in Prepare. What you set in GLUE still comes first. It's marked **main**, and it's the library GLUE will keep in step with both ways.
 
 ## GLUE's playlists in Engine DJ
-With **GLUE Home** running, right-click one of your playlists or folders under **Playlists** › **Keep in Engine DJ**. GLUE
-Home keeps those playlists, with their songs' hot cues, saved loops, beat grids, BPM and key, in a rekordbox XML file on
-this computer (GLUE Home's settings, **Folders › For Engine DJ**, say where: normally `Music\GLUE\GLUE.xml`). GLUE never
-writes Engine DJ's own files.
+With **GLUE Home** running, right-click one of your playlists or folders under **Playlists** › **Keep in Engine DJ**.
+They show up in Engine DJ by themselves, in a **GLUE** folder among its playlists, the next time you start it. There's
+nothing to set up in Engine DJ.
 
-Once, in Engine DJ:
-1. **Preferences › Library › rekordbox**: switch rekordbox library support on and choose GLUE's file as its location.
-2. In the Collection pane, click the **rekordbox** icon › **Update Rekordbox Library**.
+How: GLUE Home keeps an Engine DJ library of its own (normally `Music\GLUE\Engine DJ`), which Engine DJ sees as one more
+drive (a drive letter such as **Z:**). Each time Engine DJ starts, it takes in what's on its drives, GLUE's too. GLUE
+never writes Engine DJ's own files.
+- GLUE Home writes only while **Engine DJ is closed**. Changes you make in GLUE while it's open reach it the next time
+  you close it and start it again.
+- Songs Engine DJ already has are its own, with its analysis. Others are added, and Engine DJ analyses them.
+- Only songs whose file is on this computer go in. GLUE Home's settings (**Folders › Engine DJ**) say how many were left
+  out, and turn it off.
+- The **GLUE** folder is GLUE's: what you change inside it in Engine DJ is put back as GLUE has it. Copy a playlist out
+  of it to make it Engine DJ's own.
+- Windows only for now. On a Mac, use the rekordbox file below.
 
-GLUE's playlists are then in a **GLUE** folder under rekordbox. Play from them, or drag them into Engine DJ's Collection
-to keep them there (Engine DJ takes the cues and grids when it analyses the songs). When you change them in GLUE, click
-**Update Rekordbox Library** again. rekordbox can read the same file (its **rekordbox xml** library).
-
-- Only songs whose file is on this computer go in; GLUE Home's settings say how many were left out.
-- Engine DJ has one rekordbox location: if you use it for rekordbox's own XML, choose which.
+### The rekordbox file
+GLUE Home also keeps the same playlists, with their hot cues, saved loops and beat grids, in a rekordbox XML file
+(normally `Music\GLUE\GLUE.xml`). rekordbox can read it as its **rekordbox xml** library. Engine DJ can too: in
+**Preferences › Library › rekordbox**, choose the file, then click the **rekordbox** icon in the Collection pane ›
+**Update Rekordbox Library** each time you want GLUE's latest.
 
 ## Kept in step both ways (Engine DJ): paused
 **GLUE doesn't write into Engine DJ for now** (since November 2026). After Engine DJ 5.3 rebuilt its library, GLUE took the

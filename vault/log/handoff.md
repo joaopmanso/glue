@@ -24,7 +24,29 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-26): Engine DJ works again; GLUE Home 0.81 reaches it as a rekordbox XML (ADR 0194, 0195)
+## Latest (2026-11-26, evening): GLUE Home 0.82, Engine DJ takes in GLUE's playlists by itself (ADR 0196)
+- **The user found the XML (0.81) works but wanted it automatic.** Engine DJ can't reload an XML by itself, so a library of
+  GLUE's own, shown as a drive, was tried by hand with the user (3 rounds, Engine DJ closed, backups first: research
+  [engine-dj-write-back.md](../research/engine-dj-write-back.md), "A library of GLUE's own"): made, changed, renamed,
+  deleted and nested lists all reached the Collection when Engine DJ started. Built as **GLUE Home 0.82**
+  (`djdrive.rs`): `<Music>/GLUE/Engine DJ`, shown with `subst` (Windows), written under its top "GLUE" folder while
+  Engine DJ is closed.
+- **The user's machine now:** the test library (id `62ecd9d4…`, which Engine DJ knows) was cleaned of its test lists and
+  songs and moved to `C:\Users\joaop\Music\GLUE\Engine DJ`; Z: unmapped. Backups beside each database: "m - before GLUE
+  drive test / test 2 / test 3 / cleanup 2026-11-26.backup" (Collection, F:, and the library itself). The Collection and
+  F: still have the test lists until Engine DJ next starts with GLUE's drive (it then empties them, as in round 3). The
+  Collection's and F:'s playlist ids agree again (Engine DJ made them so).
+- **Waiting on the user:** once GLUE Home has updated to 0.82 (it shows the drive, e.g. Z:, in Folders › Engine DJ):
+  keep a playlist in Engine DJ from GLUE, close and open Engine DJ: is it in the "GLUE" folder (the old one replaced, as
+  the user asked), does it play, and are the test lists gone?
+- **Not done:** macOS (no `subst`); cues and grids for songs GLUE adds to its own library (Engine DJ analyses them; the XML
+  carries them); GLUE's import of the Collection shows Engine DJ's "GLUE" folder too.
+- **Still waiting from before:** three Engine drives GLUE wrote to before 0.80 (`0bc9c838…`, `8820cdbb…`, `a5640087…`)
+  aren't connected; check them (Engine closed) when plugged in. G:'s library stays hidden
+  (`G:\Engine Library (hidden from Engine 2026-11-26)`). GLUE Home's `dj/…` cache still remembers the old Engine DJ state
+  (let it go before two-way writes ever come back).
+
+## Earlier (2026-11-26): Engine DJ works again; GLUE Home 0.81 reaches it as a rekordbox XML (ADR 0194, 0195)
 - **Done, with the user's go-ahead, Engine DJ and GLUE Home closed, each file backed up beside itself first** (research
   [engine-dj-write-back.md](../research/engine-dj-write-back.md), section "Engine DJ 5.3"):
   - the Collection put back as GLUE Home's 20:31 backup had it (`m - before GLUE undo 2026-11-25.backup`);

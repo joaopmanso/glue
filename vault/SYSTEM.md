@@ -221,6 +221,16 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     the `dj` RPC, `djXml` in the service's status): the page offers *Keep in Engine DJ* when GLUE Home has one
     (`lib.djXml`); the settings window shows it under Folders › For Engine DJ. Engine DJ reads it as its rekordbox
     library (Preferences › Library › rekordbox; *Update Rekordbox Library*). GLUE writes none of Engine DJ's files.
+  - **GLUE's own Engine DJ library** (0.82, ADR 0196, `djdrive.rs`): the same tree (`dj_glued`) written into a library of
+    GLUE Home's (`djDrive`: a folder, `false` none; else `<Music>/GLUE/Engine DJ`, Windows only), made as the Collection is
+    (`create_like`) and shown to Engine DJ as a drive (`Host::engine_drive`: `subst`, the last free letter from Z:; left
+    out of `drives()`). Engine DJ 5.3 merges each drive's library with its Collection when it starts, so the lists arrive
+    by themselves. Only the top "GLUE" folder is GLUE's: each list by name among its siblings (made, re-filled,
+    re-ordered, taken out), a folder holding its lists' songs counted (`membershipReference`); the lists Engine DJ copies
+    in are left alone. A song Engine DJ has already (the Collection's or a drive's library, the same file) is that one;
+    another is added by its whole path. On the DJ timer, while Engine DJ is closed, when GLUE's lists or the file changed;
+    worked out in a transaction thrown away, then backed up (`dj_backup`) and written. Status: `drive` in the `dj` RPC,
+    `djDrive` in the service's status (Folders › Engine DJ in the settings window; `lib.djDrive` on the page).
   - **No writes into Engine DJ** (0.80, ADR 0194, 2026-11-25): unless GLUE Home's settings say `engineWrites: true` (no
     button), the sync below doesn't run (`djsync.rs` `engine_writes`, checked in `dj_sync_held`, the one way in for every
     write: no database opened, no backup, nothing taken in; its state `off`), `djEdit` is refused, and the page (`writes`

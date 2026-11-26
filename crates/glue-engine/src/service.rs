@@ -89,6 +89,7 @@ impl<H: Host> Engine<H> {
     // The engine's parts first, then the service's own (never one lock held while asking for another).
     let (background, analysing, engine, verify) = (self.background_json(), self.analysis_json(), self.status(), self.svc.check.json());
     let dj_xml = self.xml.lock().unwrap().status.clone();
+    let dj_drive = self.drive.lock().unwrap().status.clone();
     let st = self.svc.st.lock().unwrap();
     let served: Map<String, Value> = st.served.iter().map(|(k, (c, m, b))| (k.clone(), json!({ "calls": c, "ms": m, "bytes": b }))).collect();
     json!({
@@ -97,7 +98,7 @@ impl<H: Host> Engine<H> {
       "receiving": st.receiving, "received": cfg["received"].as_array().cloned().unwrap_or_default(),
       "library": st.library, "analysis": background, "analysing": analysing, "engine": engine,
       "verify": verify, "events": st.events.iter().cloned().collect::<Vec<_>>(), "reminders": st.reminders,
-      "served": served, "sessions": room["sessions"], "computer": { "id": cfg["computer"], "why": cfg["computerWhy"].as_str().unwrap_or("") }, "djXml": dj_xml,
+      "served": served, "sessions": room["sessions"], "computer": { "id": cfg["computer"], "why": cfg["computerWhy"].as_str().unwrap_or("") }, "djXml": dj_xml, "djDrive": dj_drive,
     })
   }
   /// Said now.
@@ -239,7 +240,7 @@ impl<H: Host> Engine<H> {
         struct Done<'a>(&'a AtomicBool);
         impl Drop for Done<'_> { fn drop(&mut self) { self.0.store(false, Ordering::SeqCst); } }
         let _done = Done(&self.dj_ticking);
-        self.dj_look(); self.dj_sync(); self.dj_xml();
+        self.dj_look(); self.dj_sync(); self.dj_xml(); self.dj_drive();
       }
       "update" if cfg["autoUpdate"] != false && !self.busy() => self.host.auto_update(&|t| self.say(t)),
       _ => {}

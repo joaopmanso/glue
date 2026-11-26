@@ -5,6 +5,26 @@ updated: 2026-11-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-26 · GLUE Home 0.82: Engine DJ takes in GLUE's playlists by itself (ADR 0196; M4, M8)
+- **Why:** the user, on the XML: "it works, but forces me to always manually update the rekordbox collection and import to
+  EngineDJ. it would be better if it was automatic"; then, after three rounds tried by hand with a library shown as drive
+  Z: (made, changed, renamed, deleted and nested lists all reached the Collection when Engine DJ started), "go on with
+  the changes", the old top "GLUE" folder to become GLUE's.
+- **What:** GLUE Home keeps an Engine DJ library of its own (`<Music>/GLUE/Engine DJ`, `djDrive`; `false` none), made as the
+  Collection is and shown to Engine DJ as a drive (`subst`, Windows), and writes into its top "GLUE" folder the lists
+  marked *Keep in Engine DJ* while Engine DJ is closed, only when they or the file changed, after a backup
+  (`crates/glue-engine/src/djdrive.rs`; the tree shared with the XML, `dj_glued`). Songs Engine DJ has already are its own
+  (pointed at in their library); others go in by their whole path. Engine DJ merges it with its Collection when it starts.
+- **The user's libraries:** the test library (with the user's go-ahead; each database backed up beside itself first, "m -
+  before GLUE drive test…/cleanup 2026-11-26.backup") had its test lists and songs taken out and moved to
+  `Music\GLUE\Engine DJ`, where 0.82 picks it up (Engine DJ knows it by its id).
+- **Page:** the menu and the kept icon say the lists arrive when Engine DJ starts; *How it gets to Engine DJ…*. **Settings
+  window:** Folders › Engine DJ (folder, drive letter, Open, Turn off, what's in it, waiting for Engine DJ to close); the
+  XML's row is now "rekordbox XML". Help (DJ libraries, Playlists) and the tours.
+- **Tests:** the engine writes the library (a song the Collection has pointed at, another added by path, folders' songs
+  counted, the Collection's file unchanged, nothing while Engine DJ is open, unchanged not rewritten, a list Engine DJ
+  copied in left alone, a stray one in GLUE's folder taken out, a rename, a backup, everything un-kept, off).
+
 ## 2026-11-26 · GLUE Home 0.81: GLUE's playlists reach Engine DJ as a rekordbox XML (ADR 0195; M4 step 3, M8)
 - **Why:** the user: "go for the redesign" (after "maybe have glue create a new collection as if it's a new disk
   partition"); asked how, they chose GLUE's XML over a drive-like library, which Engine DJ 5.3 would merge into the

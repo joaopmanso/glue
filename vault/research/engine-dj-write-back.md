@@ -129,6 +129,26 @@ backed up beside itself first.
 makes the databases' playlist ids differ sets off 5.3's parent-id bug. GLUE's own library should be a separate one, as a
 drive's is (ADR 0194, the redesign to come), and Engine's logs are checked after any write.
 
+## A library of GLUE's own, shown as a drive (2026-11-26, tried by hand with the user, Engine DJ 5.3)
+A library made as F:'s is (its schema, a new id), in a folder shown as drive Z: (`subst Z: <folder>`), Engine DJ closed
+and every database backed up before each round. Engine DJ's log showed only its usual warnings and its `trackNumber` bug.
+1. **Seen at start:** Z: listed with the drives; its playlist ("GLUE test", 3 songs) in the Collection's playlists. Songs
+   played by a path through Z: (`../F/Music Collection/…`, a junction in the folder) and by their whole path
+   (`F:/Music Collection/…`). Engine DJ gave the list a new id (1 → 9851, the sequence past every database's lists),
+   the same in all three, and copied all the Collection's 772 lists into Z: (their entries pointing at the other
+   databases' songs). The Collection's and F:'s ids, apart since the repair of 2026-11-25, agreed after.
+2. **Changed while closed** (a song out, one in, a new list "GLUE test 2", its id the next of Z:'s sequence, by
+   Engine DJ's insert triggers): in the Collection and F: at the next start, as written.
+3. **Deleted, renamed, nested:** the deleted list left empty in each database and not shown; the renamed one a new list
+   (id 10629, the sequence + 777) with the old one left empty and not shown, so Engine DJ knows a list by its name among
+   its siblings; a folder with a list in it shown so. The user moved the nested list out and added a song: fine.
+- A song whose file is gone ("Yoof": F:'s own library lists `03 Yoof.mp3`, not on the disk) is listed and won't play
+  ("Failed to create reader").
+- `isPersisted` isn't whether a list is shown: in the Collection every one of these was 0.
+
+**What follows for GLUE:** ADR 0196 (GLUE Home keeps this library and writes only its "GLUE" folder, while Engine DJ is
+closed). Not tried: macOS (no `subst`), Engine DJ started without the drive, a drive letter that changes.
+
 ## What follows for GLUE
 - Cues, loops and the grid: one database per song, read-modify-write of its blobs (unknown bytes kept), with Engine DJ
   closed. The lower risk part.

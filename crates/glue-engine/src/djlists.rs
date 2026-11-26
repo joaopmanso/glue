@@ -97,7 +97,7 @@ pub(crate) fn kbps(f: &Value) -> Option<i64> {
   n("bitrate").map(|b| if b > 10_000.0 { (b / 1000.0).round() as i64 } else { b.round() as i64 })
 }
 /// A file's real place (links and junctions followed), without Windows' `\\?\` in front.
-fn real_path(p: &Path) -> PathBuf {
+pub(crate) fn real_path(p: &Path) -> PathBuf {
   let Ok(r) = std::fs::canonicalize(p) else { return p.to_path_buf() };
   let s = r.to_string_lossy().to_string();
   match s.strip_prefix(r"\\?\") { Some(x) if !x.starts_with("UNC\\") => PathBuf::from(x), _ => r }

@@ -19,7 +19,7 @@ use std::path::PathBuf;
 #[derive(Default)]
 pub struct XmlState { written: Option<(PathBuf, u64)>, pub status: Value }
 
-fn hash(s: &str) -> u64 { use std::hash::{Hash, Hasher}; let mut h = std::collections::hash_map::DefaultHasher::new(); s.hash(&mut h); h.finish() }
+pub(crate) fn hash(s: &str) -> u64 { use std::hash::{Hash, Hasher}; let mut h = std::collections::hash_map::DefaultHasher::new(); s.hash(&mut h); h.finish() }
 fn num(v: &Value, k: &str) -> Option<f64> { v.get(k).and_then(Value::as_f64).filter(|x| x.is_finite()) }
 fn parent_id(l: &Value) -> Option<&str> { l.get("parentId").and_then(Value::as_str).filter(|x| !x.is_empty()) }
 
@@ -75,6 +75,15 @@ impl<H: Host> Engine<H> {
   /// The file's text, with how many lists and songs it has and the songs left out (not on this computer). None: no
   /// list is kept in Engine DJ.
   pub fn dj_xml_build(&self) -> Option<(String, Value)> {
+    let (top, tracks, counts) = self.dj_glued()?;
+    let tree = vec![XmlNode::Folder { name: crate::djmirror::GLUE_FOLDER.into(), children: top }];
+    Some((write_rekordbox_xml(&tracks, &tree, &self.host.version()), counts))
+  }
+
+  /// What goes under "GLUE" in a DJ app (the XML, GLUE's own Engine DJ library: ADR 0195, 0196): the kept lists' tree
+  /// (a folder per collection when more than one has some), their songs on this computer (a playlist's items index
+  /// into them, from 1), and how many lists and songs, and the songs left out. None: no list is kept in Engine DJ.
+  pub(crate) fn dj_glued(&self) -> Option<(Vec<XmlNode>, Vec<XmlTrack>, Value)> {
     let cfg = self.host.config();
     let lib = self.describe()?;
     let mut groups: Vec<(String, Vec<XmlNode>)> = vec![];
@@ -131,9 +140,8 @@ impl<H: Host> Engine<H> {
     }
     if groups.is_empty() { return None; }
     let top = if groups.len() == 1 { groups.pop().unwrap().1 } else { groups.into_iter().map(|(name, children)| XmlNode::Folder { name, children }).collect() };
-    let tree = vec![XmlNode::Folder { name: crate::djmirror::GLUE_FOLDER.into(), children: top }];
-    let xml = write_rekordbox_xml(&tracks, &tree, &self.host.version());
-    Some((xml, json!({ "lists": lists, "songs": tracks.len(), "left": left })))
+    let songs = tracks.len();
+    Some((top, tracks, json!({ "lists": lists, "songs": songs, "left": left })))
   }
 
   /// Writes the file when it changed (the DJ timer). Written too when nothing is kept any more but the file is there, so
