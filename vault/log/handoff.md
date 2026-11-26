@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # Handoff: where things stand
 
@@ -24,18 +24,25 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-25): Engine DJ, writes off (ADR 0194, GLUE Home 0.80)
-- **Done:** the Collection (`C:/Users/joaop/Music/Engine Library/Database2/m.db`) put back as GLUE Home's 20:31 backup had it
-  (the user's go-ahead); the file before kept beside it (`m - before GLUE undo 2026-11-25.backup`). GLUE Home 0.80 writes
-  nothing into Engine DJ unless `engineWrites: true`.
-- **Waiting on the user:** update GLUE Home to 0.80 before starting it (0.79 writes again within seconds of starting with
-  Engine DJ closed); then in Engine DJ, make a playlist and add songs. If Engine DJ still won't, the lock came in with the
-  5.3 rebuild or before it: look at Engine DJ itself before anything is written.
-- **Not done:** the October GLUE folder and "Teste GLUE 123" lists are still in the Collection; GLUE Home's `dj/…` cache still
-  remembers the pre-5.3 Engine DJ (let it go before any writes come back). Why G:'s `m.db` has the old Collection's id
-  (`76ca4274…`) isn't known (asked the user what happened on 2026-11-20).
-- **Next, with the user:** GLUE's own Engine DJ library, as a drive's is, so GLUE never writes Engine DJ's Collection
-  (the user's idea). Research first how Engine DJ 5.3 finds and shows drives' libraries.
+## Latest (2026-11-26): Engine DJ works again (ADR 0194, GLUE Home 0.80)
+- **Done, with the user's go-ahead, Engine DJ and GLUE Home closed, each file backed up beside itself first** (research
+  [engine-dj-write-back.md](../research/engine-dj-write-back.md), section "Engine DJ 5.3"):
+  - the Collection put back as GLUE Home's 20:31 backup had it (`m - before GLUE undo 2026-11-25.backup`);
+  - GLUE's folder and mirror lists and "Mais Baixo Comp 2027" removed from the Collection, F: and G:, with Engine 5.3's
+    broken copies (F:'s self-parented "Playlist", G:'s orphan) (`m - before GLUE cleanup 2026-11-25.backup`);
+  - F:'s 120 half-renumbered entries put back (+7,564) (`m - before negative fix 2026-11-25.backup`);
+  - G:'s library hidden from Engine DJ: `G:\Engine Library (hidden from Engine 2026-11-26)`. The user confirmed
+    everything works (2026-11-26).
+- **GLUE Home 0.80** writes nothing into Engine DJ unless `engineWrites: true`.
+- **G:'s library** was an older Windows install's (`G:\Users\jmanso`): of its 21 songs 7 are still in `G:\Users\jmanso`, 1
+  moved to `G:\Preparation2`, 13 are gone. Advised keeping it hidden and adding wanted songs to the Collection from the
+  files. **Waiting on the user:** three other Engine drives GLUE wrote to (`0bc9c838…`, `8820cdbb…`,
+  `a5640087…`) aren't connected: they may carry the GLUE folder; check them (Engine closed) when plugged in.
+- **Not done:** GLUE Home's `dj/…` cache remembers the old Engine DJ state (let it go before any writes come back). CI's
+  end-to-end run fails since 2026-11-21 on `decode.spec` `edit.m4a` length (960512 vs 960000, the runner's newer Edge),
+  not looked at yet.
+- **Next, with the user:** GLUE's own Engine DJ library, as a drive's is, so GLUE never writes the Collection. Never make
+  the databases' playlist ids differ (Engine 5.3 copies new lists to the drives keeping the Collection's parent id).
 
 ## Earlier (2026-11-03): the "Desktop: no addresses" failure
 - **Fixed in GLUE Cloud** (`signal.ts`, changelog): reproduced locally on workerd and fixed there. **Waiting on the user:** does

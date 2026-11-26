@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-10
+updated: 2026-11-26
 ---
 # Engine DJ: what writing back to it involves
 
@@ -97,6 +97,37 @@ From the bytes of the user's songs, matching libdjinterop's encoders (`src/djint
   next LE, int32 unknown LE); extra bytes (9 on the user's songs).
 - `trackData` (compressed): starts with the sample rate (double BE); the rest **[UNVERIFIED]**.
 - Positions are samples: seconds = offset / sample rate. Writing changes `Track.lastEditTime` by trigger.
+
+## Engine DJ 5.3: "Aggregating drives" (2026-11-25/26, from its logs and the user's databases)
+Engine DJ 5.3 (installed 2026-11-20) broke on the user's desktop: songs shown then gone, playlists that wouldn't save,
+move or delete. Found in Engine DJ's own logs (`%LOCALAPPDATA%\AIR Music Technology\EnginePrime\Logs`, one file per
+session; the first place to look next time) and in copies of the databases; fixed with the user's go-ahead, each file
+backed up beside itself first.
+- **On every start, 5.3 merges each connected drive's library into the Collection** (the job "Aggregating drives"). It
+  attaches the drives' `m.db` (`db1`, `db2`…) and works in one long write transaction; while it runs, the Collection shows
+  no songs, and edits wait for its lock ("Deleting playlist"/"Moving playlist" fail after about 30 s, `SQLITE_BUSY`, error
+  144). It had never finished since the update.
+- **It renumbers a drive's entries:** `UPDATE dbN.PlaylistEntity SET trackId = trackId - 1 - (SELECT MAX(trackId) …)`, so
+  negative `trackId` is Engine's own in-between state (its `trigger_before_delete_PlaylistEntity` skips `trackId <= 0`). F:
+  held 120 such entries left from a run that stopped (all shifted by exactly 7,564, checked against the same lists in the
+  Collection); they made the renumber fail on `C_NAME_UNIQUE_FOR_LIST`. Put back by adding 7,564.
+- **It copies the Collection's new playlists into the drives with new ids but keeps the Collection's `parentListId`.** The
+  ids only line up while every database has the same playlists. GLUE's folder and mirror lists (ids 9046–9077, Collection
+  only after a time) put the Collection's ids ahead of the drives', so the user's new "2027 › Playlist" (Collection 9074 ›
+  9075) arrived on G: with a parent that doesn't exist and on F: as id 9074 *with parent 9074*: a loop. Engine's recursive
+  views (`PlaylistAllParent`, `PlaylistAllChildren`, `PlaylistPath`) never end on a parent loop, so the merge grew to
+  13 GB. Fixed by removing GLUE's folder (Collection, F:, G:) and the broken copies.
+- **With three near-identical libraries (Collection, F:, G:: 630–789 playlists each) the merge still grew without end**
+  (1.5 → 6 GB in 100 s, the lock held throughout). With G:'s library hidden (renamed to `G:\Engine Library (hidden from
+  Engine 2026-11-26)`: an old copy of a whole collection, 778 lists, 21 songs, paths of a "jmanso" computer) it finishes in
+  seconds and everything works (the user, 2026-11-26). Whether the size or something in G:'s data was to blame is
+  **[UNVERIFIED]**.
+- 5.3 also logs `no such column: trackNumber` ("Updating track list"): no database has that column, not even one Engine
+  made itself, so it's Engine's bug, not the data's.
+
+**What follows for GLUE:** never add playlists to Engine DJ's Collection that the drives don't get too: anything that
+makes the databases' playlist ids differ sets off 5.3's parent-id bug. GLUE's own library should be a separate one, as a
+drive's is (ADR 0194, the redesign to come), and Engine's logs are checked after any write.
 
 ## What follows for GLUE
 - Cues, loops and the grid: one database per song, read-modify-write of its blobs (unknown bytes kept), with Engine DJ
