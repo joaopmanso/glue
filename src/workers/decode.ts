@@ -5,7 +5,7 @@
    decodes it the old way. Imported by workers only. */
 import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
 import { mp3Gapless } from '../core/formats/parse';
-import { keepRange } from '../core/audio/trim';
+import { keepRange, mp4Edit } from '../core/audio/trim';
 import type { FileInfo } from '../core/types';
 import { decodeFlac } from '../core/formats/flac';
 
@@ -45,7 +45,9 @@ export async function decodeHere(file: Blob, info: FileInfo, head: Uint8Array): 
     // The page decoder decodes at the file's own rate (or the HE-AAC rate): anything else would differ.
     const want = info.decodeRate || info.sampleRate;
     if (want && want !== sr) return null;
-    const [a, b] = keepRange({ total, sr, firstTs: firstTs ?? 0, duration, mp3: mp3Gapless(head), exact: info.container === 'Ogg' ? info.duration : null });
+    // An MP4 plays its edit list's length (mediabunny's duration ignores it).
+    const edit = info.container.startsWith('MPEG-4') ? mp4Edit(head) : null;
+    const [a, b] = keepRange({ total, sr, firstTs: firstTs ?? 0, duration: edit?.duration ?? duration, mp3: mp3Gapless(head), exact: info.container === 'Ogg' ? info.duration : null });
     return { channels: chans.map(c => c.subarray(a, b)), sr };
   } catch (e) {
     console.warn('Decoding in the worker failed; the page decodes it', e);

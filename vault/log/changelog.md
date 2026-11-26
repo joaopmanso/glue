@@ -1,9 +1,18 @@
 ---
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-11-26 · The worker trims an MP4 to its edit list's length (the end-to-end tests pass again)
+- **Why:** the user: "fix the end to end files". Every run since 2026-11-21 failed on `decode.spec`'s `edit.m4a`: the worker
+  gave 960,512 frames, the page 960,000.
+- **Cause:** the runner's ffmpeg became 9.1.0 (choco), whose AAC pads the end more than it primes. The file's edit list
+  says 960,000 samples after 1,024 of priming, and the page's decoder plays exactly that; mediabunny reads only the edit's
+  start, so its duration ran to the last packet's end. The ffmpeg 9.0.2 here pads as much as it primes, so both agreed.
+- **Fix:** `mp4Edit` (`src/core/audio/trim.ts`), a port of glue-audio's `mp4_edit` (which already used the segment
+  duration): the worker keeps the edit's length. Tests: `trim.test.ts` (a built MP4 padded more than primed, the fixture).
 
 ## 2026-11-25 · GLUE Home 0.80: GLUE doesn't write into Engine DJ; the user's Collection put back (ADR 0194)
 - **Why:** the user: "engine dj bugs by displaying and then removing tracks, I can't add new tracks or create new playlists,
