@@ -8,6 +8,7 @@ pub mod m3u;
 pub mod merge;
 pub mod perf;
 pub mod rekordbox;
+pub mod rekordbox_out;
 pub mod serato;
 pub mod sync;
 pub mod traktor;

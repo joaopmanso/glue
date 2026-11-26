@@ -22,8 +22,15 @@ To filter by tags, use the Tags column's header (or Filter): each tag you tick n
 ## Taking playlists out
 Drag a playlist out of GLUE as an M3U8 file, or drag songs into your DJ app. With GLUE Home, the drag dock carries songs and playlists into Engine DJ or rekordbox.
 
-## In Engine DJ, kept in step (paused)
-**Paused for now:** GLUE doesn't write into Engine DJ (see [DJ libraries](#/help/dj-libraries)), so **Keep in Engine DJ** isn't offered. This is how it worked:
+## In Engine DJ
+With GLUE Home running, right-click one of your playlists or folders › **Keep in Engine DJ**: it goes into GLUE's playlists
+for Engine DJ, a rekordbox XML file GLUE Home keeps, which Engine DJ shows under **rekordbox** (setting it up, once:
+[DJ libraries](#/help/dj-libraries)). The Engine DJ icon shows by it (fainter for what's kept with its folder);
+**Stop keeping it in Engine DJ** takes it out; it stays here. Changes reach Engine DJ when you click **Update Rekordbox
+Library** there.
+
+### Before November 2026: kept in step both ways (paused)
+GLUE doesn't write into Engine DJ any more (see [DJ libraries](#/help/dj-libraries)). This is how it worked:
 
 With your main Engine DJ library kept in step (see [DJ libraries](#/help/dj-libraries)), right-click one of your playlists or folders › **Keep in Engine DJ**. It goes into a **GLUE** folder in Engine DJ, inside the same folders as here, and the Engine DJ icon shows by it (fainter for what's kept with its folder).
 - Both ways: rename it, move it, add, remove or reorder songs here or in Engine DJ, and the other follows. A playlist you make in Engine DJ's GLUE folder comes into GLUE.

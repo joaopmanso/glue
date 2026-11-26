@@ -24,7 +24,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-26): Engine DJ works again (ADR 0194, GLUE Home 0.80)
+## Latest (2026-11-26): Engine DJ works again; GLUE Home 0.81 reaches it as a rekordbox XML (ADR 0194, 0195)
 - **Done, with the user's go-ahead, Engine DJ and GLUE Home closed, each file backed up beside itself first** (research
   [engine-dj-write-back.md](../research/engine-dj-write-back.md), section "Engine DJ 5.3"):
   - the Collection put back as GLUE Home's 20:31 backup had it (`m - before GLUE undo 2026-11-25.backup`);
@@ -41,8 +41,15 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **Not done:** GLUE Home's `dj/…` cache remembers the old Engine DJ state (let it go before any writes come back). CI's
   end-to-end run fails since 2026-11-21 on `decode.spec` `edit.m4a` length (960512 vs 960000, the runner's newer Edge),
   not looked at yet.
-- **Next, with the user:** GLUE's own Engine DJ library, as a drive's is, so GLUE never writes the Collection. Never make
-  the databases' playlist ids differ (Engine 5.3 copies new lists to the drives keeping the Collection's parent id).
+- **Done after (2026-11-26):** the end-to-end tests pass again (the worker trims an MP4 to its edit list's length; CI's ffmpeg
+  9.1). **GLUE Home 0.81** (ADR 0195): GLUE's playlists for Engine DJ are a rekordbox XML GLUE Home keeps
+  (`<Music>/GLUE/GLUE.xml`), the user's choice over a drive-like library.
+- **Waiting on the user:** in Engine DJ, Preferences › Library › rekordbox › choose `C:\Users\joaop\Music\GLUE\GLUE.xml`,
+  then the rekordbox icon › Update Rekordbox Library; right-click a playlist in GLUE › Keep in Engine DJ. Does it show
+  under rekordbox, play, and bring its cues and grid when dragged into the Collection? (Never checked in 5.3 by hand.)
+- **Never make the databases' playlist ids differ** (Engine 5.3 copies new lists to the drives keeping the Collection's
+  parent id): they still differ by a few after the clean-up (Collection's next id 9078, F:'s 9075); a nested list made in
+  Engine DJ could again land under the wrong parent on F:. Watch Engine DJ's logs if it misbehaves.
 
 ## Earlier (2026-11-03): the "Desktop: no addresses" failure
 - **Fixed in GLUE Cloud** (`signal.ts`, changelog): reproduced locally on workerd and fixed there. **Waiting on the user:** does
@@ -58,7 +65,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     a token renews.
 
 ## State (2026-10-31)
-- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.79.0** (0.79: Discogs auto playlists filled at once; 0.78: Discogs matched track by track, ADR 0188; 0.77: the Discogs collection, ADR 0187; 0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
+- **Live:** the site, GLUE Cloud (migrations up to 0012), **GLUE Home 0.81.0** (0.81: GLUE’s playlists for Engine DJ as a rekordbox XML, ADR 0195; 0.80: no writes into Engine DJ, ADR 0194; 0.79: Discogs auto playlists filled at once; 0.78: Discogs matched track by track, ADR 0188; 0.77: the Discogs collection, ADR 0187; 0.76: covers from Discogs, ADR 0186; 0.75: its cache tidied, ADR 0185; 0.71: Engine DJ's playlists back in its DJ collection, ADR 0178; 0.72: Engine DJ edited from GLUE, its GLUE folder, ADR 0179, 0180).
 - **The plan** (approved 2026-10-03, file `C:\Users\joao.manso\.claude\plans\i-have-activated-plan-composed-turing.md`):
   the GLUE window, then GLUE Home's engine in Rust in batches, ending with the hidden service page removed.
   - **W1, the GLUE window** (0.50, ADR 0151): done.

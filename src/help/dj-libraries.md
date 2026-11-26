@@ -5,7 +5,7 @@ keywords: dj, rekordbox, engine, serato, traktor, apple music, itunes, m3u, impo
 tour: dj-libraries
 order: 4
 ---
-GLUE reads your DJ apps' libraries. **For now it doesn't write into any of them** (see below).
+GLUE reads your DJ apps' libraries. It doesn't write into them: GLUE's own playlists reach Engine DJ and rekordbox through a file of GLUE's (below).
 
 ## Importing
 - **Found for you:** GLUE looks for DJ libraries in your music folders and the places you point it at ("Look in…"). They show under **DJ libraries found**; click **Add**, or **×** to take one off the list.
@@ -19,6 +19,23 @@ With **GLUE Home** running, GLUE Home does this itself: it finds the libraries i
 
 ## Your main DJ library
 Right-click a DJ library › **Make it the main DJ library** (or **Make it main** on a song's Prepare tab). Its beat grids and cues become every song's by default: the BPM in your lists, the grid and the cue pads in Prepare. What you set in GLUE still comes first. It's marked **main**, and it's the library GLUE will keep in step with both ways.
+
+## GLUE's playlists in Engine DJ
+With **GLUE Home** running, right-click one of your playlists or folders under **Playlists** › **Keep in Engine DJ**. GLUE
+Home keeps those playlists, with their songs' hot cues, saved loops, beat grids, BPM and key, in a rekordbox XML file on
+this computer (GLUE Home's settings, **Folders › For Engine DJ**, say where: normally `Music\GLUE\GLUE.xml`). GLUE never
+writes Engine DJ's own files.
+
+Once, in Engine DJ:
+1. **Preferences › Library › rekordbox**: switch rekordbox library support on and choose GLUE's file as its location.
+2. In the Collection pane, click the **rekordbox** icon › **Update Rekordbox Library**.
+
+GLUE's playlists are then in a **GLUE** folder under rekordbox. Play from them, or drag them into Engine DJ's Collection
+to keep them there (Engine DJ takes the cues and grids when it analyses the songs). When you change them in GLUE, click
+**Update Rekordbox Library** again. rekordbox can read the same file (its **rekordbox xml** library).
+
+- Only songs whose file is on this computer go in; GLUE Home's settings say how many were left out.
+- Engine DJ has one rekordbox location: if you use it for rekordbox's own XML, choose which.
 
 ## Kept in step both ways (Engine DJ): paused
 **GLUE doesn't write into Engine DJ for now** (since November 2026). After Engine DJ 5.3 rebuilt its library, GLUE took the

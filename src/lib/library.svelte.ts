@@ -178,6 +178,8 @@ export class Library {
   /** GLUE Home writes into Engine DJ (ADR 0194: off unless switched on in its settings): what would write isn't offered
       otherwise. */
   djWrites = $state(false);
+  /** GLUE Home's rekordbox XML of the lists kept in Engine DJ (ADR 0195); null: GLUE Home doesn't write one. */
+  djXml = $state<import('./engine.svelte').DjXml | null>(null);
   /** The DJ libraries GLUE Home finds in the music folders and the GLUE folder (ADR 0167; lib/engine). */
   homeDjFind: (() => Promise<(Omit<Detected, 'handle'> & { place: string; placeName: string })[]>) | null = null;
   /** This computer's GLUE Home analyses its songs (ADR 0103, 0104): lib/engine says so, and takes the asks. */

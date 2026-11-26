@@ -38,6 +38,8 @@
   const dragOut = canDragOut();
 
   const APP_NAMES: Record<string, string> = { rekordbox: 'rekordbox', engine: 'Engine DJ', serato: 'Serato', traktor: 'Traktor', apple: 'Apple Music', m3u: 'M3U' };
+  /** GLUE's lists can be kept in Engine DJ: through GLUE Home's rekordbox XML (ADR 0195), or its GLUE folder when writes are on. */
+  const keepsForEngine = () => !lib.readOnly && lib.homeRuns() && (!!lib.djXml || (lib.engineKept() && lib.djWrites));
   const FOUND_NAMES: Record<string, string> = { engine: 'Engine DJ library', serato: 'Serato library', apple: 'iTunes / Apple Music library', rekordbox: 'rekordbox XML', traktor: 'Traktor collection' };
 
   const counts = $derived.by(() => {
@@ -292,15 +294,16 @@
       dock.available && { label: 'Add to drag dock', attrs: { 'data-dock-list': l.id }, run: () => void dock.add(dock.tracksOf(l.id), l.name) },
       l.kind === 'playlist' && { label: 'Save as a playlist file (.m3u8)', run: () => saveM3u8(l) },
       !!src && !!src.tree?.some(x => x.externalId === ext) && { label: 'Show in ' + (APP_NAMES[src.app] ?? src.app) + '’s library', run: () => showInDj(src, ext) },
-      // GLUE's own, kept in Engine DJ's "GLUE" folder (ADR 0180).
-      !l.origin && lib.engineKept() && lib.djWrites && SEP,
-      !l.origin && lib.engineKept() && lib.djWrites && (() => {
+      // GLUE's own, in GLUE Home's rekordbox XML for Engine DJ (ADR 0195; its "GLUE" folder, ADR 0180, when writes are on).
+      !l.origin && keepsForEngine() && SEP,
+      !l.origin && keepsForEngine() && (() => {
         const by = lib.keptBy(l.id, 'engine');
         if (by && by.id !== l.id) return { label: 'In Engine DJ, with “' + by.name + '”', attrs: { 'data-m': 'dj-keep' }, disabled: true, title: 'Everything in a folder kept in Engine DJ is kept there too' };
         return by
-          ? { label: 'Stop keeping it in Engine DJ', attrs: { 'data-m': 'dj-unkeep' }, run: () => { if (confirm('Take “' + l.name + '”' + (l.kind === 'folder' ? ' and what’s in it' : '') + ' out of Engine DJ’s GLUE folder?\n\nIt stays in GLUE. GLUE Home takes it out when Engine DJ is closed.')) lib.setListApp(l.id, 'engine', false); } }
-          : { label: 'Keep in Engine DJ', title: 'In Engine DJ’s “GLUE” folder, with GLUE’s folders: kept in step both ways (written when Engine DJ is closed)', attrs: { 'data-m': 'dj-keep' }, run: () => lib.setListApp(l.id, 'engine', true) };
+          ? { label: 'Stop keeping it in Engine DJ', attrs: { 'data-m': 'dj-unkeep' }, run: () => { if (confirm('Take “' + l.name + '”' + (l.kind === 'folder' ? ' and what’s in it' : '') + ' out of GLUE’s playlists for Engine DJ?\n\nIt stays in GLUE. Engine DJ drops it the next time you update its rekordbox library.')) lib.setListApp(l.id, 'engine', false); } }
+          : { label: 'Keep in Engine DJ', title: 'In GLUE’s playlists for Engine DJ (a rekordbox XML GLUE Home keeps): Engine DJ shows them under rekordbox. GLUE never writes Engine DJ’s own files.', attrs: { 'data-m': 'dj-keep' }, run: () => lib.setListApp(l.id, 'engine', true) };
       })(),
+      !l.origin && !!lib.djXml && !!lib.keptBy(l.id, 'engine') && { label: 'How to see it in Engine DJ…', attrs: { 'data-m': 'dj-how' }, run: () => { location.hash = '#/help/dj-libraries'; } },
       SEP,
       { label: 'Delete…', danger: true, attrs: { 'data-m': 'delete' }, run: () => remove(l) },
       ...whatsThis(l.event ? 'calendar' : 'playlists'),
@@ -509,7 +512,7 @@
           onkeydown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') view.editing = null; }}>
       {:else}
         <button type="button" class="name" title={l.name} onclick={e => nameClick(e, l)} ondblclick={() => { clearTimeout(slow); view.editing = l.id; }}>
-          <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', following it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}{#if !l.origin && lib.engineKept()}{@const by = lib.keptBy(l.id, 'engine')}{#if by}{@const out = djWatch.unsent[l.id]}<span class="kept" class:own={by.id === l.id} class:out={!!out} data-kept="engine" data-unsent={out ? out.songs.length : undefined} title={(by.id === l.id ? 'Kept in Engine DJ, in its GLUE folder (both ways)' : 'Kept in Engine DJ with “' + by.name + '”') + (out ? '. ' + out.songs.length + ' song' + (out.songs.length === 1 ? '' : 's') + ' couldn’t go there: ' + out.why.join('; ') : '')}><AppIcon app="engine" size={13} />{#if out}<b>!</b>{/if}</span>{/if}{/if}
+          <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', following it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}{#if !l.origin && (!!lib.djXml || lib.engineKept())}{@const by = lib.keptBy(l.id, 'engine')}{#if by}{@const out = djWatch.unsent[l.id]}<span class="kept" class:own={by.id === l.id} class:out={!!out} data-kept="engine" data-unsent={out ? out.songs.length : undefined} title={(by.id === l.id ? (lib.djWrites ? 'Kept in Engine DJ, in its GLUE folder (both ways)' : 'In GLUE’s playlists for Engine DJ (its rekordbox library)') : 'Kept in Engine DJ with “' + by.name + '”') + (out ? '. ' + out.songs.length + ' song' + (out.songs.length === 1 ? '' : 's') + ' couldn’t go there: ' + out.why.join('; ') : '')}><AppIcon app="engine" size={13} />{#if out}<b>!</b>{/if}</span>{/if}{/if}
         </button>
         {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>{/if}
         <span class="tools" class:open={menued('l:' + l.id)}>

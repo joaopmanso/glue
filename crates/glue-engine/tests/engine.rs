@@ -1227,3 +1227,73 @@ fn the_cache_of_songs_that_left_is_tidied() {
   for k in ["d/p1/c1/go/gone.bin", "c/p1/c1/go/gone.txt", "t/p1/c0/s1/s1here.bin", "d/p1/c0/aa/x.bin"] { assert!(!there(k), "{k} removed"); }
   assert_eq!(e.tidy_cache(), (0, 0), "nothing more");
 }
+
+#[test]
+fn glues_playlists_for_engine_dj_are_a_rekordbox_xml_written_when_they_change() {
+  // ADR 0195: the lists kept in Engine DJ, as a rekordbox XML on this computer; Engine DJ's own files never touched.
+  let (glue, music) = (temp("djxml"), temp("djxml-music"));
+  std::fs::create_dir_all(music.join("Songs")).unwrap();
+  for f in ["one.mp3", "two.wav"] { std::fs::write(music.join("Songs").join(f), b"song").unwrap(); }
+  put(&glue, "mco.json", json!({ "schemaVersion": 1, "profiles": [{ "id": "p1", "name": "DJ" }] }));
+  put(&glue, "profiles/p1/profile.json", json!({ "schemaVersion": 1, "id": "p1", "name": "DJ", "color": "#fff", "collections": [{ "id": "c1", "name": "Main" }] }));
+  put(&glue, &format!("{C}/collection.json"), json!({ "schemaVersion": 1, "id": "c1", "name": "Main", "roots": [{ "id": "r1", "name": "Songs" }] }));
+  let song = |id: &str, f: &str| json!({ "id": id, "status": "linked", "rootId": "r1", "relPath": f, "fileName": f, "size": 4, "mtime": 5, "title": format!("Title {id}"), "artist": "Art", "duration": 300.4, "rating": 4, "addedAt": "2026-11-01T10:00:00.000Z", "sources": [] });
+  let mut one = song("s1one", "one.mp3");
+  one["prep"] = json!({ "bpm": 140, "beat0": 0.2, "bar": 1, "cues": [{ "t": 30, "kind": "cue", "num": 0, "name": "Drop", "color": "#00ff00" }, { "t": 60, "kind": "loop", "end": 61.714, "name": "Roll" }] });
+  put(&glue, &format!("{C}/tracks/s1.json"), json!({ "schemaVersion": 1, "items": { "s1one": one, "s1two": song("s1two", "two.wav"), "s1off": song("s1off", "elsewhere.mp3") } }));
+  put(&glue, &format!("{C}/analysis/s1.json"), json!({ "schemaVersion": 1, "items": { "s1two": { "v": 1, "at": "x", "bpm": 174.0, "key": { "tonic": 9, "mode": "minor", "margin": 0.2, "tuning": 0 } } } }));
+  let xml = music.join("Out").join("GLUE.xml");
+  let h = H::default();
+  h.0.lock().unwrap().config = json!({ "glue": glue.to_string_lossy(), "folders": { "r1": music.join("Songs").to_string_lossy() }, "djXml": xml.to_string_lossy() });
+  let e = Engine::new(glue.clone(), temp("djxml-cache"), h.clone());
+  // Nothing kept in Engine DJ: no file.
+  e.dj_xml();
+  assert!(!xml.exists());
+  let list = |id: &str, kind: &str, name: &str, parent: Option<&str>, pos: i64, items: &[&str], apps: bool| {
+    let mut l = json!({ "schemaVersion": 1, "id": id, "kind": kind, "name": name, "parentId": parent, "position": pos, "notes": "", "items": items, "origin": null });
+    if apps { l["apps"] = json!(["engine"]); }
+    l
+  };
+  let edit = |f: &dyn Fn(&mut glue_store::store::Store<glue_store::dir::FsDir>)| { let s = e.store("p1", "c1").unwrap(); let mut st = s.lock().unwrap(); f(&mut st); st.flush().unwrap(); };
+  edit(&|st| {
+    st.put_list(list("gigs", "folder", "Gigs", None, 0, &[], true));
+    st.put_list(list("sat", "playlist", "Sat", Some("gigs"), 1, &["s1two"], false));
+    st.put_list(list("fri", "playlist", "Fri", Some("gigs"), 0, &["s1one", "s1off", "s1two"], false));
+    st.put_list(list("loose", "playlist", "Loose", None, 1, &["s1one"], false));
+  });
+  e.dj_xml();
+  let text = std::fs::read_to_string(&xml).unwrap();
+  let lib = glue_interop::rekordbox::parse_rekordbox_xml(&text, "GLUE.xml").unwrap();
+  let tree: Vec<(&str, &str, Option<&str>)> = lib.lists.iter().map(|l| (l.kind, l.name.as_str(), l.parent.as_deref())).collect();
+  assert_eq!(tree, vec![("folder", "GLUE", None), ("folder", "Gigs", Some("/GLUE")), ("playlist", "Fri", Some("/GLUE/Gigs")), ("playlist", "Sat", Some("/GLUE/Gigs"))]);
+  assert_eq!(lib.tracks.len(), 2, "the song not on this computer is left out");
+  let by_id = |id: &str| lib.tracks.iter().find(|t| t.external_id == id).unwrap();
+  let fri: Vec<&str> = lib.lists[2].items.iter().map(|i| by_id(i).title.as_str()).collect();
+  assert_eq!(fri, vec!["Title s1one", "Title s1two"]);
+  let a = by_id(&lib.lists[2].items[0]);
+  assert_eq!(std::path::PathBuf::from(&a.path), music.join("Songs").join("one.mp3"));
+  assert_eq!((a.bpm, a.rating, a.duration, a.date_added.as_deref()), (Some(140.0), Some(4.0), Some(300.0), Some("2026-11-01")));
+  let g = a.grid.unwrap();
+  assert_eq!((g.bpm, g.bar), (140.0, 1.0));
+  assert!((g.beat0 - 0.2).abs() < 1e-9);
+  assert_eq!(a.cue_list.iter().map(|c| (c.kind.as_str(), c.num, c.end)).collect::<Vec<_>>(), vec![("cue", Some(0.0), None), ("loop", None, Some(61.714))]);
+  let b = by_id(&lib.lists[2].items[1]);
+  assert_eq!((b.bpm, b.key.as_deref()), (Some(174.0), Some("Am")));
+  let status = e.rpc(&json!({ "op": "dj", "p": "p1", "c": "c1" })).unwrap();
+  assert_eq!((status["xml"]["lists"].as_u64(), status["xml"]["songs"].as_u64(), status["xml"]["left"].as_u64()), (Some(2), Some(2), Some(1)));
+  assert!(h.0.lock().unwrap().events.iter().any(|t| t.starts_with("GLUE’s playlists for Engine DJ written: 2 playlists, 2 songs")));
+  // Unchanged: not written again.
+  let m0 = std::fs::metadata(&xml).unwrap().modified().unwrap();
+  std::thread::sleep(std::time::Duration::from_millis(20));
+  e.dj_xml();
+  assert_eq!(std::fs::metadata(&xml).unwrap().modified().unwrap(), m0);
+  // Nothing kept any more: written empty, so Engine DJ doesn't keep GLUE's old lists.
+  edit(&|st| { let mut g = st.lists["gigs"].clone(); g.as_object_mut().unwrap().remove("apps"); st.put_list(g); });
+  e.dj_xml();
+  let lib = glue_interop::rekordbox::parse_rekordbox_xml(&std::fs::read_to_string(&xml).unwrap(), "GLUE.xml").unwrap();
+  assert!(lib.lists.is_empty() && lib.tracks.is_empty());
+  // Switched off: left alone.
+  h.0.lock().unwrap().config["djXml"] = json!(false);
+  e.dj_xml();
+  assert_eq!(e.rpc(&json!({ "op": "dj", "p": "p1", "c": "c1" })).unwrap()["xml"]["path"], Value::Null);
+}

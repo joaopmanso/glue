@@ -83,7 +83,7 @@ class DjWatch {
       const home = lib.homeRuns();
       if (home) {
         const st = await engineClient.djStatus().catch(() => null);
-        if (st && lib.store === s) { for (const [id, v] of Object.entries(st.status)) this.set(id, v); if (JSON.stringify(st.sync) !== JSON.stringify(this.sync)) this.sync = st.sync; if (lib.djWrites !== st.writes) lib.djWrites = st.writes; }
+        if (st && lib.store === s) { for (const [id, v] of Object.entries(st.status)) this.set(id, v); if (JSON.stringify(st.sync) !== JSON.stringify(this.sync)) this.sync = st.sync; if (lib.djWrites !== st.writes) lib.djWrites = st.writes; if (JSON.stringify(st.xml) !== JSON.stringify(lib.djXml)) lib.djXml = st.xml; }
         if (lib.store === s && [...s.sources.values()].some(x => x.main && x.sync)) await this.loadClashes();
       }
       for (const src of [...s.sources.values()]) {

@@ -37,6 +37,9 @@ export interface DjClash { what: string; glue: { t?: number; a?: number; b?: num
 interface EngineState { rev: number; jobs: { kind: string; left: number; total: number }[]; analysis: { paused: boolean; running: number; current: string[]; left: number; done: number; failed: number; waiting: number } }
 type Change = { rev: number; p: string; c: string; paths: string[]; analysed?: string[] };
 
+/** GLUE's playlists for Engine DJ and rekordbox, the rekordbox XML GLUE Home keeps (ADR 0195): where, and what's in it. */
+export interface DjXml { path: string; lists?: number; songs?: number; left?: number; at?: string; error?: string }
+
 class EngineClient {
   /** GLUE Home's engine is this library's writer: attached to the open collection's store. */
   active = $state(false);
@@ -225,10 +228,10 @@ class EngineClient {
   /** The DJ libraries GLUE Home follows (ADR 0167): how each is ('live', 'lost', 'reading'), by source id. */
   /** `writes`: whether GLUE Home writes into Engine DJ at all (ADR 0194: only when switched on in its settings; an older
       GLUE Home doesn't say, and isn't offered it). */
-  async djStatus(): Promise<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync: Record<string, 'waiting' | 'synced' | 'off'>; writes: boolean }> {
+  async djStatus(): Promise<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync: Record<string, 'waiting' | 'synced' | 'off'>; writes: boolean; xml: DjXml | null }> {
     const w = this.where();
-    const r = w ? await this.rpc<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync?: Record<string, 'waiting' | 'synced' | 'off'>; writes?: boolean }>({ op: 'dj', ...w }, 10_000) : null;
-    return { status: r?.status ?? {}, sync: r?.sync ?? {}, writes: r?.writes === true };
+    const r = w ? await this.rpc<{ status: Record<string, 'live' | 'lost' | 'reading'>; sync?: Record<string, 'waiting' | 'synced' | 'off'>; writes?: boolean; xml?: DjXml }>({ op: 'dj', ...w }, 10_000) : null;
+    return { status: r?.status ?? {}, sync: r?.sync ?? {}, writes: r?.writes === true, xml: r?.xml?.path ? r.xml : null };
   }
   /** The main DJ library kept in step both ways (ADR 0170): its clashes by GLUE song. */
   async djClashes(): Promise<Record<string, DjClash[]>> {

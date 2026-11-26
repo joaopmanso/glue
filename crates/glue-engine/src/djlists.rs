@@ -89,7 +89,7 @@ impl<'a> Songs<'a> {
 }
 /// A song's bitrate as Engine DJ keeps it (kbps): a lossless file's from its rate, bits and channels (1,411 a CD's),
 /// a lossy one's as read.
-fn kbps(f: &Value) -> Option<i64> {
+pub(crate) fn kbps(f: &Value) -> Option<i64> {
   let n = |k: &str| f.get(k).and_then(Value::as_f64).filter(|x| *x > 0.0);
   if f.get("lossless").and_then(Value::as_bool) == Some(true) || matches!(f.get("codec").and_then(Value::as_str), Some("pcm")) {
     if let (Some(sr), Some(b), Some(c)) = (n("sampleRate"), n("bits"), n("channels")) { return Some((sr * b * c / 1000.0).round() as i64); }

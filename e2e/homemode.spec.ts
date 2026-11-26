@@ -1599,3 +1599,65 @@ test('with GLUE Home and a Discogs token, the Discogs collection and wantlist sh
     await page.keyboard.press('Escape');
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });
+
+test('with GLUE Home running, a playlist kept in Engine DJ goes into its rekordbox XML on this computer, with its songs and cues; Engine DJ’s own files are never written (ADR 0195)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-djxml-'));
+  const music = join(tmp, 'UserMusic');
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: { r1: join(tmp, 'Songs') } }, { engine: true, known: { music } });
+  try {
+    mkdirSync(fake.dirs.incoming, { recursive: true });
+    mkdirSync(join(tmp, 'Songs'), { recursive: true });
+    copyFileSync(fileURLToPath(new URL('../tests/fixtures/mp3-128k.mp3', import.meta.url)), join(tmp, 'Songs', 'one.mp3'));
+    const col = 'profiles/p1/collections/c1';
+    const song = { id: 's1one', status: 'linked', rootId: 'r1', relPath: 'one.mp3', fileName: 'one.mp3', size: 1, mtime: 1, title: 'Song One', artist: 'Art', album: '', genre: '', label: '', comment: '', year: '', duration: 4, format: null, addedAt: '2026-11-01T00:00:00.000Z', sources: [],
+      prep: { bpm: 140, beat0: 0.2, bar: 0, cues: [{ t: 1.5, kind: 'cue', num: 0, name: 'Drop', color: null, end: null }] } };
+    const list = (id: string, name: string, items: string[]) => ({ schemaVersion: 1, id, kind: 'playlist', name, parentId: null, position: id === 'fri' ? 0 : 1, notes: '', items, origin: null, createdAt: '2026-11-01' });
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
+      [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Songs', absPath: null, handleKey: 'r1', addedAt: '' }] }),
+      [col + '/tracks/s1.json']: JSON.stringify({ schemaVersion: 1, items: { s1one: song } }),
+      [col + '/lists/fri.json']: JSON.stringify(list('fri', 'Fri gig', ['s1one'])),
+      [col + '/lists/sat.json']: JSON.stringify(list('sat', 'Sat gig', ['s1one'])),
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    await fake.start();
+    fake.tell({ config: { computer: 'desk', glue: fake.dirs.glue } });
+    await page.context().route(/^http:\/\/127\.0\.0\.1:4740\d\//, async r => {
+      const u = new URL(r.request().url());
+      if (u.port !== '47400') return r.abort('connectionrefused');
+      u.port = String(fake.port);
+      return r.fulfill({ response: await r.fetch({ url: u.toString() }) });
+    });
+    page.on('dialog', d => void d.accept());
+    await page.goto('./#/analyze');
+    await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), fake.pref);
+    await page.goto('./');
+    const fri = page.locator('.lside .tree [data-drop="list"][data-id="fri"]');
+    await expect(fri).toHaveCount(1, { timeout: 30_000 });
+    const xml = join(music, 'GLUE', 'GLUE.xml');
+    // Offered without any writes into Engine DJ.
+    await expect(async () => {
+      await fri.click({ button: 'right' });
+      try { await expect(page.locator('.cmenu [data-m="dj-keep"]')).toBeVisible({ timeout: 1000 }); } finally { await page.keyboard.press('Escape'); }
+    }).toPass({ timeout: 30_000 });
+    await fri.click({ button: 'right' });
+    await page.locator('.cmenu [data-m="dj-keep"]').click();
+    await expect(fri.locator('[data-kept="engine"]')).toHaveCount(1);
+    await expect.poll(() => existsSync(xml) ? readFileSync(xml, 'utf8') : '', { timeout: 30_000 }).toContain('Name="Fri gig"');
+    const text = readFileSync(xml, 'utf8');
+    expect(text).not.toContain('Sat gig');
+    expect(text).toContain('Name="Song One"');
+    expect(text).toContain('one.mp3"');
+    expect(text).toMatch(/<TEMPO Inizio="0.200" Bpm="140.00"/);
+    expect(text).toMatch(/<POSITION_MARK Name="Drop" Type="0" Start="1.500" Num="0"/);
+    await fri.click({ button: 'right' });
+    await expect(page.locator('.cmenu [data-m="dj-how"]')).toBeVisible();
+    await page.locator('.cmenu [data-m="dj-unkeep"]').click();
+    await expect.poll(() => readFileSync(xml, 'utf8'), { timeout: 30_000 }).not.toContain('Fri gig');
+    // No Engine DJ library was made or written anywhere.
+    expect(existsSync(join(music, 'Engine Library'))).toBe(false);
+    expect(existsSync(join(tmp, 'Songs', 'Engine Library'))).toBe(false);
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});

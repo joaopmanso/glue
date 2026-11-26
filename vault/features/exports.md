@@ -1,14 +1,25 @@
 ---
-status: planned
+status: in-progress
 milestone: M6
-updated: 2026-09-24
-adrs: [0010, 0011, 0012]
+updated: 2026-11-26
+adrs: [0010, 0011, 0012, 0195]
 ---
 # Exports to DJ software
 
 ## What it does
 Gets GLUE playlists, shows and sessions into Rekordbox and Engine DJ (and Traktor, and anything that
 reads M3U8) without touching their databases.
+
+## Now (2026-11-26, GLUE Home 0.81, ADR 0195)
+- **The rekordbox XML is GLUE Home's**, on this computer (not the GLUE folder: its paths are this computer's): by default
+  `<Music>/GLUE/GLUE.xml`, set in its settings (Folders › For Engine DJ; `djXml`, `false` for none). It holds the
+  playlists marked *Keep in Engine DJ* (right-click under Playlists), under "GLUE", with their songs' details, BPM, key,
+  Prepare's grid (`TEMPO`) and cues and loops (`POSITION_MARK`); songs not on this computer left out and counted. Written
+  a few seconds after a change, only when it changed.
+- **Engine DJ** reads it as its rekordbox library (Preferences › Library › rekordbox, then *Update Rekordbox Library*);
+  rekordbox as its "rekordbox xml" library. GLUE writes none of the DJ apps' files.
+- **Not yet:** shows and sessions as their own tree (they're GLUE lists, so marking them works), the quality policy, M3U8
+  and Traktor NML files. Checked by hand in Engine DJ 5.3 on the user's computer: waiting.
 
 ## Behaviour
 - **Live rekordbox XML** at `GLUE/exports/rekordbox.xml`, regenerated a few seconds after any list

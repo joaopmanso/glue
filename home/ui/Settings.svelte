@@ -480,6 +480,17 @@
             {#if dupFolder}<button type="button" class="mini" onclick={() => openFolder(dupFolder).catch(e => (error = (e as Error).message))}>Open</button>{/if}
           </div>
         </div>
+        <div class="frow" id="dj-xml-row">
+          <div><b>For Engine DJ</b><small>The playlists you keep in Engine DJ (in GLUE, right-click a playlist › Keep in Engine DJ), as a rekordbox XML. In Engine DJ, once: Preferences › Library › rekordbox, choose this file. Then the rekordbox icon in the Collection pane › Update Rekordbox Library shows GLUE’s latest. GLUE never writes Engine DJ’s own files.</small></div>
+          <code id="dj-xml" title={status?.djXml?.path ?? ''}>{cfg?.djXml === false ? 'Off' : status?.djXml?.path ?? '…'}</code>
+          <div class="row">
+            {#if cfg?.djXml !== false && status?.djXml?.path}<button type="button" class="mini" onclick={() => openFolder(status!.djXml!.path!.replace(/[\\/][^\\/]*$/, '')).catch(e => (error = (e as Error).message))}>Open</button>{/if}
+            <button type="button" class="mini" id="dj-xml-toggle" onclick={() => save({ djXml: cfg?.djXml === false ? null : false })}>{cfg?.djXml === false ? 'Turn on' : 'Turn off'}</button>
+          </div>
+        </div>
+        {#if cfg?.djXml !== false && status?.djXml?.path}
+          <p class="fine" id="dj-xml-state" class:bad={!!status.djXml.error}>{status.djXml.error ? 'Couldn’t write it: ' + status.djXml.error : status.djXml.lists ? status.djXml.lists + ' playlist' + (status.djXml.lists === 1 ? '' : 's') + ', ' + (status.djXml.songs ?? 0) + ' song' + (status.djXml.songs === 1 ? '' : 's') + (status.djXml.left ? '; ' + status.djXml.left + ' not on this computer left out' : '') : 'No playlist kept in Engine DJ yet.'}</p>
+        {/if}
         {#if dupInside}<p class="err" id="dup-inside">The duplicates folder is inside a music folder, so GLUE would find those songs again. Choose another one.</p>{/if}
       </section>
 
@@ -603,7 +614,7 @@
   .discogs label { display: grid; gap: 2px; font-size: 13px; }
   .discogs label small { color: var(--muted); font-size: 12px; }
   .discogs input { background: var(--ground); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); padding: 5px 8px; font: 12.5px var(--font-mono); }
-  .discogs .bad { color: var(--warn); }
+  .discogs .bad, #dj-xml-state.bad { color: var(--warn); }
   .link.inline { padding: 0; font-size: inherit; }
   .remind { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--line); }
   .frow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 8px 0; border-top: 1px solid var(--line); }

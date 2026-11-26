@@ -211,6 +211,16 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
   - **The main DJ library** (0.66, ADR 0169): one per computer, `Source.main` (kept through every read). A song's BPM is
     GLUE's correction, then the main library's grid, then the analysis (`bpmInUse`); its grid and cues GLUE's own,
     else the main library's (`lib/cues.ts` `mainOf`, `prepare.grid`). The two-way sync is with it.
+  - **GLUE's playlists for Engine DJ and rekordbox** (0.81, ADR 0195, `djxml.rs`, `glue_interop::rekordbox_out`): the lists
+    marked *Keep in Engine DJ* (`List.apps` "engine", a marked folder's too: `kept_lists`), of every collection, as a
+    rekordbox XML on this computer (`djXml` in the settings: a path, `false` none; else `<Music>/GLUE/GLUE.xml`; never the
+    GLUE folder: its paths are this computer's), under "GLUE" (a folder per collection when several have some): their
+    songs whose file is here (music folder's place + `relPath`, or `filePath`) with Prepare's grid and cues, BPM (Prepare's,
+    else the analysis'), key ("Am"), rating; others left out and counted. Built on the DJ timer (5 s), written (a `.tmp`
+    renamed over it) only when it changed; empty when nothing is kept any more but the file is there. Its status (`xml` in
+    the `dj` RPC, `djXml` in the service's status): the page offers *Keep in Engine DJ* when GLUE Home has one
+    (`lib.djXml`); the settings window shows it under Folders › For Engine DJ. Engine DJ reads it as its rekordbox
+    library (Preferences › Library › rekordbox; *Update Rekordbox Library*). GLUE writes none of Engine DJ's files.
   - **No writes into Engine DJ** (0.80, ADR 0194, 2026-11-25): unless GLUE Home's settings say `engineWrites: true` (no
     button), the sync below doesn't run (`djsync.rs` `engine_writes`, checked in `dj_sync_held`, the one way in for every
     write: no database opened, no backup, nothing taken in; its state `off`), `djEdit` is refused, and the page (`writes`

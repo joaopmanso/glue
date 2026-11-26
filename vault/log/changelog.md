@@ -5,6 +5,23 @@ updated: 2026-11-26
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-26 · GLUE Home 0.81: GLUE's playlists reach Engine DJ as a rekordbox XML (ADR 0195; M4 step 3, M8)
+- **Why:** the user: "go for the redesign" (after "maybe have glue create a new collection as if it's a new disk
+  partition"); asked how, they chose GLUE's XML over a drive-like library, which Engine DJ 5.3 would merge into the
+  Collection and write into ([research](research/engine-dj-write-back.md), "Engine DJ 5.3").
+- **What:** GLUE Home writes the playlists marked *Keep in Engine DJ* (every collection's, under "GLUE") as a rekordbox XML on
+  this computer (`<Music>/GLUE/GLUE.xml`, or `djXml` in its settings; `false`: none), with their songs here, BPM, key,
+  Prepare's grid, hot cues, memory cues and loops; written a few seconds after a change, only when it changed
+  (`crates/glue-engine/src/djxml.rs`, `glue_interop::rekordbox_out`, the inverse of the rekordbox parser). Engine DJ reads it
+  as its rekordbox library (Preferences › Library › rekordbox › the file; *Update Rekordbox Library*). GLUE writes none
+  of Engine DJ's files (ADR 0194 stays).
+- **Page:** *Keep in Engine DJ* offered whenever GLUE Home has the file (no writes needed), the Engine DJ icon by kept
+  lists, *How to see it in Engine DJ…*. **Settings window:** Folders › For Engine DJ (the path, Open, Turn off, what's in
+  it). Help (DJ libraries, Playlists) and the tours say how to set Engine DJ up.
+- **Tests:** the writer read back by the parser (every field, the grid at each bar, cues, loops, colours, escaping); the
+  engine's file from a collection (order, a song not here left out, unchanged not rewritten, emptied, off); e2e: kept from
+  the page, in the file with its cue and grid, taken out, no Engine DJ library made.
+
 ## 2026-11-26 · The worker trims an MP4 to its edit list's length (the end-to-end tests pass again)
 - **Why:** the user: "fix the end to end files". Every run since 2026-11-21 failed on `decode.spec`'s `edit.m4a`: the worker
   gave 960,512 frames, the page 960,000.

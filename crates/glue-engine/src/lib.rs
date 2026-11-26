@@ -25,6 +25,7 @@ pub mod djinfo;
 pub mod djmirror;
 pub mod djlists;
 pub mod djsync;
+pub mod djxml;
 pub mod dupes;
 pub mod ice;
 pub mod identity;
@@ -216,6 +217,8 @@ pub struct Engine<H: Host> {
   pub(crate) dj_one: Mutex<()>,
   /// The DJ timer's turn running (a turn longer than the timer's 5 s isn't run twice).
   pub(crate) dj_ticking: std::sync::atomic::AtomicBool,
+  /// GLUE’s playlists for Engine DJ and rekordbox, the file last written (djxml.rs, ADR 0195).
+  pub(crate) xml: Mutex<djxml::XmlState>,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -238,7 +241,7 @@ pub fn changed_over(cur: Option<&Value>, mine: &Value, was: Option<&Value>) -> V
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default(), dj: Default::default(), dj_one: Mutex::new(()), dj_ticking: Default::default() });
+    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default(), dj: Default::default(), dj_one: Mutex::new(()), dj_ticking: Default::default(), xml: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }
@@ -558,7 +561,7 @@ impl<H: Host> Engine<H> {
       // The duplicates GLUE Home found (ADR 0164): its last result, or matched now (`full`: every song again).
       "dupes" => self.dupes(&p, &c, b["full"].as_bool().unwrap_or(false)),
       // The DJ libraries GLUE Home follows (ADR 0167): how each is, Refresh, and an import from where a library is.
-      "dj" => Ok(json!({ "writes": crate::djsync::engine_writes(&self.host.config()), "status": self.dj_status(&p, &c), "sync": self.dj.lock().unwrap().syncing.iter().map(|(k, v)| (k.clone(), json!(v))).collect::<serde_json::Map<_, _>>() })),
+      "dj" => Ok(json!({ "writes": crate::djsync::engine_writes(&self.host.config()), "xml": self.xml.lock().unwrap().status.clone(), "status": self.dj_status(&p, &c), "sync": self.dj.lock().unwrap().syncing.iter().map(|(k, v)| (k.clone(), json!(v))).collect::<serde_json::Map<_, _>>() })),
       // The main DJ library kept in step both ways (ADR 0170): its clashes by song, one settled, a sync now.
       "djClashes" => Ok(self.dj_clashes(&p, &c)),
       "djResolve" => self.dj_resolve(&p, &c, &text(b, "track"), text(b, "keep") == "glue"),

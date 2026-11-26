@@ -1,7 +1,7 @@
 ---
-status: in-progress (steps 1 and 2 shipped 2026-09-26; step 3, the rekordbox XML export, next)
+status: in-progress (steps 1 and 2 shipped 2026-09-26; step 3, the rekordbox XML, shipped in GLUE Home 0.81, 2026-11-26: see exports)
 milestone: M4
-updated: 2026-11-25
+updated: 2026-11-26
 adrs: [0052, 0006, 0011, 0168, 0169, 0170, 0192, 0194]
 ---
 # Prepare (track page tab)
