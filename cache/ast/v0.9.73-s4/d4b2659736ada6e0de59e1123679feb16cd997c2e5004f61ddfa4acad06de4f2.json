@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_cloud_migrations_0011_guide_sql", "label": "0011_guide.sql", "file_type": "code", "source_file": "cloud/migrations/0011_guide.sql", "source_location": null}, {"id": "users", "label": "users", "file_type": "code", "source_file": "", "source_location": "", "origin_file": "$graphify-root$/cloud/migrations/0011_guide.sql"}], "edges": []}
