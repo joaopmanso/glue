@@ -71,6 +71,8 @@
   let sel = $state<number | null>(null), song = $state<number | null>(null);
   /** The timeline follows the playhead (off once the user looks elsewhere; the toggle by Play). */
   let follow = $state(true);
+  /** Where a song was clicked in the running order: its menu opens there. */
+  let menuAt = $state<{ x: number; y: number } | null>(null);
   const fromSong = (i: number) => { if (tm && plan) void preview.play(Math.max(0, tm.time(plan.items[i].start)) * MIX_RATE); };
 
   // The running order: dragged into another order.
@@ -136,7 +138,7 @@
     {#if preview.error}<p class="warnt small">{preview.error}</p>{/if}
     {#if preview.why}<p class="hint small">{preview.why}</p>{/if}
 
-    <SetLanes {plan} waves={sets.waves} frame={preview.frame} playing={preview.playing} bind:sel bind:song bind:follow onseek={f => preview.seek(f)} {mark} />
+    <SetLanes {plan} waves={sets.waves} frame={preview.frame} playing={preview.playing} bind:sel bind:song bind:follow bind:menuAt onseek={f => preview.seek(f)} {mark} />
     </div>
 
     <div class="cols">
@@ -152,7 +154,7 @@
               <span class="grip" aria-hidden="true">⋮⋮</span>
               <span class="n mono">{#if i === playingIdx && preview.playing}<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>{:else}{i + 1}{/if}</span>
               <button type="button" class="t mono" title="Play from here" onclick={() => fromSong(i)}>{clock(times[i] ?? 0)}</button>
-              <button type="button" class="who" class:on={song === i} title="Show it on the timeline" onclick={() => { song = song === i ? null : i; sel = null; }}><b>{nameOf(it.id).title}</b>{#if nameOf(it.id).artist}<i>{nameOf(it.id).artist}</i>{/if}</button>
+              <button type="button" class="who" class:on={song === i} title="Its menu (and the song on the timeline)" onclick={e => { if (song === i) { song = null; } else { menuAt = { x: e.clientX, y: e.clientY }; song = i; } sel = null; }}><b>{nameOf(it.id).title}</b>{#if nameOf(it.id).artist}<i>{nameOf(it.id).artist}</i>{/if}</button>
               <span class="mono meta2">{Math.round(it.bpm * 10) / 10}{#if keyOf(it.id)} · {keyOf(it.id)}{/if}</span>
               <span class="deck mono">{['A', 'B', 'C'][it.deck]}</span>
             </li>

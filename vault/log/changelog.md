@@ -5,6 +5,17 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · The set's menu: only buttons round the pointer, wherever it's clicked (ADR 0208; website only)
+- **Why:** the user didn't want information and a menu mixed in one round box, and the running order's clicks opened the
+  menu up on the timeline.
+- **Changed:**
+  - the menu's centre is a dot;
+  - the level is two buttons (−1 dB, +1 dB);
+  - the menu and the hand-over box beside it are `position: fixed` at the pointer, from the timeline or a song's name in
+    the running order (`menuAt`);
+  - a page scroll closes the menu.
+- **Tests:** `e2e/sets.spec.ts`: the menu opens at a running-order row; the level read from the song's block.
+
 ## 2026-11-27 · The set's menu trimmed and always there; following the playhead by choice (ADR 0207; website only)
 - **Why:** the user: the menu didn't always show, was cluttered, and "Cut" fell outside the hand-over box; the view
   pulled back to the playhead after every zoom or scroll.

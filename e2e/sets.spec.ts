@@ -111,9 +111,9 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   // A click selects the second song and opens its box: its level; then dragged earlier (whole bars), undo, redo.
   await blk.click();
   await expect(page.locator('#set-pop-song')).toBeVisible();
-  const level = await page.locator('#set-song-level').textContent();
+  const level = await blk.locator('.sub').textContent();
   await page.click('#set-song-louder');
-  await expect(page.locator('#set-song-level')).not.toHaveText(level!);
+  await expect(blk.locator('.sub')).not.toHaveText(level!);
   const at0 = await left(), bb = (await blk.boundingBox())!;
   await page.mouse.move(bb.x + bb.width / 2, bb.y + 30);
   await page.mouse.down();
@@ -195,6 +195,12 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   if (process.env.SHOTS) { await page.waitForTimeout(400); await page.screenshot({ path: process.env.SHOTS + '/set-ring.png' }); }
   await page.keyboard.press('Escape');
   await expect(page.locator('#set-pop-song')).toHaveCount(0);
+  // A song's name in the running order opens its menu where it's clicked.
+  const who = page.locator('#set-order .song').nth(2).locator('.who'), rb = (await who.boundingBox())!;
+  await who.click({ position: { x: 20, y: rb.height / 2 } });
+  const dot = (await page.locator('#set-pop-song .rdot').boundingBox())!;
+  expect(Math.abs(dot.y + dot.height / 2 - (rb.y + rb.height / 2))).toBeLessThan(90);
+  await page.keyboard.press('Escape');
   // Zooming out stops at the whole set.
   await page.getByRole('button', { name: 'Fit' }).click();
   const fitW = await width();

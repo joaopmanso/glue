@@ -16,12 +16,10 @@
   import { tick, untrack } from 'svelte';
   import { overview } from '../../lib/columns.svelte';
   import { lib } from '../../lib/library.svelte';
-  import { app } from '../../lib/app.svelte';
   import { sets } from '../../lib/sets/set.svelte';
   import { preview } from '../../lib/sets/preview.svelte';
   import { column, paintColumn } from '../render/wave';
   import { theme } from '../render/canvas';
-  import { keyLabel } from '../../core/audio/keys';
   import { tempoOf } from '../../core/sets/tempo';
   import { bassSwapAt, controlsAt } from '../../core/sets/automation';
   import { clock } from '../../core/sets/tracklist';
@@ -29,10 +27,12 @@
   import { MIX_RATE, type BassChoice, type FxStyle, type SetItem, type SetPlan } from '../../core/sets/types';
   import type { Waveform } from '../../core/audio/waveform';
 
-  let { plan, waves, frame, playing = false, sel = $bindable(null), song = $bindable(null), follow = $bindable(true), onseek, mark = null }: {
+  let { plan, waves, frame, playing = false, sel = $bindable(null), song = $bindable(null), follow = $bindable(true), menuAt = $bindable(null), onseek, mark = null }: {
     plan: SetPlan; waves: Map<string, Waveform>; frame: number; playing?: boolean;
     /** The view follows the playhead while it plays; looking elsewhere (zoom, scroll, a song chosen) turns it off. */
     follow?: boolean;
+    /** Where a song chosen elsewhere (the running order) was clicked, in the window: its menu opens there. */
+    menuAt?: { x: number; y: number } | null;
     /** A part of the set marked for export (s), shown on the time bar. */
     mark?: { a: number; b: number } | null;
     /** The hand-over open (after song `sel`), and the song selected. */
@@ -77,7 +77,6 @@
   const tr = (id: string) => lib.store?.tracks.get(id);
   const name = (id: string) => { const t = tr(id); return t ? (t.title || t.fileName) : id; };
   const len = (id: string) => tr(id)?.duration ?? undefined;
-  const keyOf = (id: string) => { const k = lib.store?.analysis.get(id)?.key; return k ? keyLabel(k, app.keyNotation) : ''; };
   const FX: [FxStyle, string, string, string][] = [
     ['blend', 'Blend', 'Bl', 'Volumes crossed'], ['bassSwap', 'Bass swap', 'BS', 'The lows swapped where the incoming song drops (the bass marker)'],
     ['layer', 'Layer', 'Lay', 'Both along, the bass changing hands 16 bars before the end'], ['filter', 'Filter sweep', 'Flt', 'The outgoing song filtered away'],
@@ -242,7 +241,7 @@
     picks = []; ring = { i: d.i, ...(e ? at(e) : { x: null, y: null }), open: true }; song = d.i;
   }
   /** A pointer's place in the timeline's box (for the menu). */
-  const at = (e: PointerEvent): { x: number | null; y: number | null } => { const b = lw?.getBoundingClientRect(); return b ? { x: e.clientX - b.left, y: e.clientY - b.top } : { x: null, y: null }; };
+  const at = (e: PointerEvent): { x: number | null; y: number | null } => ({ x: e.clientX, y: e.clientY });
 
   // The selected song's bass strip: dragged across, its bass cut (or opened where it was off) over those bars.
   let lowDrag = $state<{ i: number; a: number; b: number; on: boolean; moved: boolean; x: number } | null>(null);
@@ -317,29 +316,42 @@
     const s = song, n = chosen.length;
     untrack(() => {
       if (s == null || n > 1) { ring = null; if (fxBy === 'ring') { fxBy = 'chip'; sel = null; } return; }
-      if (ring?.i !== s) ring = { i: s, x: null, y: null, open: true };
+      if (ring?.i !== s) ring = { i: s, x: menuAt?.x ?? null, y: menuAt?.y ?? null, open: true };
+      menuAt = null;
     });
   });
-  const RR = 84;
+  const RR = 60;
+  // The menu sits in the window: the page scrolling (not the timeline) closes it, as it no longer points at what it was
+  // opened on.
+  $effect(() => {
+    if (!ringPos) return;
+    const close = (e: Event) => { if (e.target !== box && ring?.open) ring = { ...ring, open: false }; };
+    window.addEventListener('scroll', close, { capture: true, passive: true });
+    return () => window.removeEventListener('scroll', close, { capture: true });
+  });
   const ringPos = $derived.by(() => {
     if (!ring?.open || dragging || lowDrag || !plan.items[ring.i] || !blocks[ring.i]) return null;
     const b = blocks[ring.i], it = plan.items[ring.i];
     let x = ring.x, y = ring.y;
     if (x == null || y == null) {
-      const a = Math.max(b.x, scroll), e = Math.min(b.x + b.w, scroll + vw);
-      x = (a + e) / 2 - scroll; y = RULER + it.deck * LANE + LANE / 2;
+      // At the song, in the window.
+      const r = lw?.getBoundingClientRect(), a = Math.max(b.x, scroll), e = Math.min(b.x + b.w, scroll + vw);
+      x = (r?.left ?? 0) + (a + e) / 2 - scroll; y = (r?.top ?? 0) + RULER + it.deck * LANE + LANE / 2;
     }
-    return { i: ring.i, it, x: Math.max(RR + 26, Math.min(vw - RR - 26, x)), y: Math.max(RR + 22, y) };
+    const W = window.innerWidth, Hh = window.innerHeight;
+    return { i: ring.i, it, x: Math.max(RR + 30, Math.min(W - RR - 30, x)), y: Math.max(RR + 30, Math.min(Hh - RR - 30, y)) };
   });
-  /** The menu's items, each in its own place (degrees, clockwise from the top): play on top, the hand-over in on the
-      left and out on the right, key lock below; its page and its bass edits let go on the upper diagonals. Level is in
-      the middle; moving and trimming are the song's own drags. */
+  /** The menu's items round the pointer, each in its own place (degrees, clockwise from the top): play on top, the
+      hand-over in on the left and out on the right, key lock below, louder and quieter on the lower diagonals, its page
+      and its bass edits let go on the upper ones. Moving and trimming are the song's own drags. */
   const ringItems = $derived.by(() => {
     if (!ringPos) return [];
     const i = ringPos.i, it = ringPos.it, last = i === plan.items.length - 1;
     const items: { id: string; label: string; short: string; icon: string; deg: number; on?: boolean; act: () => void }[] = [
       { id: 'set-song-play', label: 'Play the set from this song', short: 'Play', icon: 'play', deg: 0, act: () => fromSong(i) },
       ...(last ? [] : [{ id: 'set-song-mixout', label: 'Mix out: how it hands over to the next song', short: 'Mix out', icon: 'out', deg: 90, on: sel === i && fxBy === 'ring', act: () => openFx(i) }]),
+      { id: 'set-song-louder', label: 'Louder: +1 dB (now ' + lvl(it) + ')', short: '+1 dB', icon: 'louder', deg: 135, act: () => level(i, 1) },
+      { id: 'set-song-quieter', label: 'Quieter: −1 dB (now ' + lvl(it) + ')', short: '−1 dB', icon: 'quieter', deg: 225, act: () => level(i, -1) },
       { id: 'set-song-keylock', label: it.keyLock ? 'Key lock is on: click so its key follows the tempo' : 'Key lock is off: click to keep its key', short: 'Key lock', icon: 'lock', deg: 180, on: it.keyLock, act: () => setItem(i, { keyLock: !it.keyLock }) },
       ...(i ? [{ id: 'set-song-mixin', label: 'Mix in: how the song before hands over to it', short: 'Mix in', icon: 'in', deg: 270, on: sel === i - 1 && fxBy === 'ring', act: () => openFx(i - 1) }] : []),
       { id: 'set-song-page', label: 'Open its page', short: 'Page', icon: 'page', deg: 315, act: () => { location.hash = '#/track/' + it.id; } },
@@ -347,12 +359,12 @@
     ];
     return items.map(x => { const a = (x.deg - 90) * Math.PI / 180; return { ...x, dx: Math.cos(a) * RR, dy: Math.sin(a) * RR }; });
   });
+  const lvl = (it: SetItem) => ((it.trim ?? 0) > 0 ? '+' : '') + (it.trim ?? 0) + ' dB';
   /** Its level, a dB at a time. */
   function level(i: number, by: number) { const t = plan.items[i]?.trim ?? 0; setItem(i, { trim: Math.max(-12, Math.min(12, Math.round((t + by) * 10) / 10)) }); }
-  let ringTip = $state('');
   function openFx(k: number) { if (sel === k && fxBy === 'ring') { sel = null; return; } fxBy = 'ring'; sel = k; }
   const ICON: Record<string, string> = {
-    play: 'M8 5.5v13l11-6.5z', later: 'M5 12h12m-5-5 5 5-5 5', earlier: 'M19 12H7m5-5-5 5 5 5',
+    play: 'M8 5.5v13l11-6.5z', louder: 'M4 10v4h3l4 4V6L7 10zM16 9v6M13 12h6', quieter: 'M4 10v4h3l4 4V6L7 10zM13 12h6', later: 'M5 12h12m-5-5 5 5-5 5', earlier: 'M19 12H7m5-5-5 5 5 5',
     out: 'M4 12h10m-4-4 4 4-4 4M19 5v14', in: 'M5 5v14m15-7H10m4-4-4 4 4 4', page: 'M14 5h5v5m0-5-8 8M18 14v5H5V6h5',
     lock: 'M8 11V8a4 4 0 0 1 8 0v3M6 11h12v9H6z', bass: 'M4 15c3-6 5-6 8 0s5 6 8 0M6 5l12 12',
   };
@@ -434,7 +446,7 @@
         title={name(b.it.id) + (b.it.guessed ? ' (beat grid guessed)' : '') + (chosen.includes(b.i) ? (b.i ? (chosen.length > 1 ? ' · drag to move the songs selected' : ' · drag to move it and the songs after it') : '') : ' · click to select (Shift or Ctrl: add it) · press and hold to grab it')}
         onpointerdown={e => down(e, b.i, 'move')} onpointermove={move} onpointerup={up} onpointercancel={() => up()} role="button" tabindex="-1" aria-label={name(b.it.id)} aria-pressed={chosen.includes(b.i)}>
         <span class="nm" style:max-width={Math.max(0, b.w - 14) + 'px'}><b>{b.i + 1}</b> {name(b.it.id)}{#if b.it.guessed} <em>grid guessed</em>{/if}</span>
-        {#if b.w > 90}<span class="sub mono">{Math.round(b.it.bpm * 10) / 10}{#if b.it.trim} · {b.it.trim > 0 ? '+' : ''}{b.it.trim} dB{/if}{#if !b.it.keyLock} · no key lock{/if}</span>{/if}
+        {#if b.w > 90 || (b.it.trim && song === b.i)}<span class="sub mono">{Math.round(b.it.bpm * 10) / 10}{#if b.it.trim} · {b.it.trim > 0 ? '+' : ''}{b.it.trim} dB{/if}{#if !b.it.keyLock} · no key lock{/if}</span>{/if}
         {#if dragging?.i === b.i}<span class="dd mono">{dragging.d > 0 ? '+' : ''}{dragging.d / 4} bars</span>{/if}
         {#if chosen.length < 2}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -481,8 +493,8 @@
 
   {#if hand}
     {@const i = hand.i}
-    {@const beside = fxBy === 'ring' && ringPos ? (ringPos.x + RR + 34 + POP <= vw - 8 ? ringPos.x + RR + 34 : Math.max(8, ringPos.x - RR - 34 - POP)) : null}
-    <div class="pop" id="set-pop-fx" class:beside={beside != null} role="dialog" aria-label="Hand-over" style:left={(beside ?? popLeft(hand.x)) + 'px'} style:top={(beside != null && ringPos ? Math.max(4, ringPos.y - 110) : RULER + plan.decks * LANE + FXROW + 6) + 'px'}>
+    {@const beside = fxBy === 'ring' && ringPos ? (ringPos.x + RR + 40 + POP <= window.innerWidth - 8 ? ringPos.x + RR + 40 : Math.max(8, ringPos.x - RR - 40 - POP)) : null}
+    <div class="pop" id="set-pop-fx" class:beside={beside != null} role="dialog" aria-label="Hand-over" style:left={(beside ?? popLeft(hand.x)) + 'px'} style:top={(beside != null && ringPos ? Math.max(8, Math.min(window.innerHeight - 290, ringPos.y - 110)) : RULER + plan.decks * LANE + FXROW + 6) + 'px'}>
       <div class="p-top">
         <span class="mono t">{clock(hand.at)}</span>
         <span class="who"><b>{name(hand.a.id)}</b> <span class="arrow">→</span> <b>{name(hand.b.id)}</b></span>
@@ -509,23 +521,12 @@
   {/if}
   {#if ringPos}
     {@const i = ringPos.i}
-    {@const t = tr(ringPos.it.id)}
     <div class="ring" id="set-pop-song" role="dialog" aria-label={'Song ' + (i + 1)} style:left={ringPos.x + 'px'} style:top={ringPos.y + 'px'} style:--h={hue(i)}>
-      <div class="rc">
-        <span class="num mono">{i + 1}</span>
-        <b class="rt" title={t?.title || t?.fileName || ''}>{t?.title || t?.fileName || ''}</b>
-        <span class="lv">
-          <button type="button" id="set-song-quieter" aria-label="Quieter (−1 dB)" title="Quieter (−1 dB)" onclick={() => level(i, -1)}>−</button>
-          <span class="mono rl" id="set-song-level">{(ringPos.it.trim ?? 0) > 0 ? '+' : ''}{ringPos.it.trim ?? 0} dB</span>
-          <button type="button" id="set-song-louder" aria-label="Louder (+1 dB)" title="Louder (+1 dB)" onclick={() => level(i, 1)}>+</button>
-        </span>
-        <span class="tip2">{ringTip || (Math.round(ringPos.it.bpm * 10) / 10 + ' BPM' + (keyOf(ringPos.it.id) ? ' · ' + keyOf(ringPos.it.id) : ''))}</span>
-        <button type="button" class="rx" aria-label="Close" title="Close (Esc)" onclick={() => { song = null; sel = null; }}>×</button>
-      </div>
+      <span class="rdot" aria-hidden="true"></span>
       {#each ringItems as x, k (x.id)}
         <button type="button" class="rb" class:on={x.on} id={x.id} aria-label={x.label} aria-pressed={x.on ?? undefined} title={x.label}
           style:--dx={x.dx + 'px'} style:--dy={x.dy + 'px'} style:--k={k}
-          onpointerenter={() => (ringTip = x.label)} onpointerleave={() => (ringTip = '')} onclick={x.act}>
+          onclick={x.act}>
           <svg viewBox="0 0 24 24" aria-hidden="true" class:fill={x.icon === 'play'}><path d={ICON[x.icon]} /></svg>
           <small>{x.short}</small>
         </button>
@@ -598,19 +599,8 @@
   .lows:hover i, .lows.active i { color: #ff8a1f; font-size: 10.5px; bottom: 4px; }
 
   /* The song's round menu. */
-  .ring { position: absolute; z-index: 21; width: 1px; height: 1px; pointer-events: none; }
-  .rc { position: absolute; left: -62px; top: -62px; width: 124px; height: 124px; border-radius: 50%; display: grid; place-content: center; justify-items: center; gap: 2px; text-align: center; padding: 12px; box-sizing: border-box;
-    background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--surface) 80%, hsl(var(--h) 60% 40%)), var(--surface) 70%); border: 2px solid hsl(var(--h) 75% 60%); box-shadow: 0 14px 40px #000c, 0 0 0 10px #00000059; animation: ringin .14s ease-out; }
-  .rc .num { color: hsl(var(--h) 85% 68%); font-weight: 700; font-size: 11px; line-height: 1; }
-  .rc .rt { font-size: 11.5px; line-height: 1.2; max-width: 92px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
-  .lv { display: flex; align-items: center; gap: 3px; }
-  .lv button { pointer-events: auto; }
-  .lv button { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid var(--line-2); background: var(--raised); color: var(--ink-2); font-size: 13px; line-height: 1; cursor: pointer; }
-  .lv button:hover { border-color: var(--accent); color: var(--accent); }
-  .rc .rl { font-size: 12px; color: var(--accent); font-weight: 600; white-space: nowrap; }
-  .rc .tip2 { font-size: 9.5px; color: var(--muted); line-height: 1.15; max-width: 96px; min-height: 22px; }
-  .rx { position: absolute; top: -2px; right: -2px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--raised); color: var(--muted); cursor: pointer; pointer-events: auto; line-height: 1; padding: 0; }
-  .rx:hover { color: var(--ink); border-color: var(--accent); }
+  .ring { position: fixed; z-index: 40; width: 1px; height: 1px; pointer-events: none; }
+  .rdot { position: absolute; left: -5px; top: -5px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px #000a, 0 0 12px var(--accent); animation: ringin .12s ease-out; }
   .rb { position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; border-radius: 50%; padding: 0; display: grid; place-items: center; align-content: center; gap: 1px; pointer-events: auto; cursor: pointer;
     border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-2)); background: var(--raised); color: var(--ink); box-shadow: 0 6px 16px #0009;
     transform: translate(var(--dx), var(--dy)); animation: rbin .16s ease-out both; animation-delay: calc(var(--k) * 12ms); transition: background .12s, color .12s, transform .12s; }
@@ -622,7 +612,7 @@
   .rb small { font-size: 8.5px; font-weight: 700; letter-spacing: .02em; line-height: 1; white-space: nowrap; }
   @keyframes ringin { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
   @keyframes rbin { from { transform: translate(0, 0) scale(.3); opacity: 0; } to { transform: translate(var(--dx), var(--dy)); opacity: 1; } }
-  .pop.beside { z-index: 22; }
+  .pop.beside { position: fixed; z-index: 41; }
   .nm { position: absolute; left: 6px; top: 4px; padding: 1px 5px; border-radius: 4px; background: #000000a6; font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
   .nm b { color: hsl(var(--h) 85% 70%); margin-right: 2px; }
   .nm em { color: var(--warn); font-style: normal; font-weight: 500; font-size: 11px; }

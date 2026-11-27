@@ -26,7 +26,7 @@ While it plays, the timeline **follows the playhead**. Zoom, scroll or drag to l
 
 - **Mouse wheel:** zoom in and out (around the pointer), out as far as the whole set; **Fit** shows the whole set.
 - **Drag** empty space, or a song that isn't selected, to move along the set.
-- **Click a song** to select it: its round menu opens where you clicked. **Play** is on top, **Mix in** on the left and **Mix out** on the right (the hand-over from the song before, or into the next, opens beside the menu), **Key lock** below, its **Page** at the upper left, and **Bass ×** (let go of its bass edits) at the upper right when it has some. Its level is in the middle: **−** and **+** a dB at a time. Hover a button to read what it does. Then **drag the song** to bring it in earlier or later (the songs after it move with it, and the one before plays on as it was), or **drag its edges** to start or end it later or earlier. Click it again, or Escape, to close the menu.
+- **Click a song** to select it: a ring of buttons opens round the pointer. **Play** is on top, **Mix in** on the left and **Mix out** on the right (the hand-over from the song before, or into the next, opens beside it), **Key lock** below, **−1 dB** and **+1 dB** on the lower corners, its **Page** at the upper left, and **Bass ×** (let go of its bass edits) at the upper right when it has some. Hover a button to read what it does. A song's name in the running order opens the same ring there. Then **drag the song** to bring it in earlier or later (the songs after it move with it, and the one before plays on as it was), or **drag its edges** to start or end it later or earlier. Click it again, or Escape, to close the menu.
 - **Press and hold** on any song (without moving) to grab it, then drag it.
 - **Shift or Ctrl + click** adds songs to the selection (or takes one out). Dragging any of them moves them all together, and the songs not selected stay where they are; their box sets their level and key lock, or brings them in earlier or later.
 - **The bass over part of a song:** hover a song and a **bass** strip shows along its foot, growing as the pointer reaches it. Drag along it to cut the song's bass over those bars, or to open it where it was cut (in a hand-over, say). Stretches cut are hatched red, stretches opened orange; each has a small **×** to let it go.
@@ -42,7 +42,7 @@ Each hand-over has a chip under the lanes (and a line in the running order). Cli
 With **GLUE Home** running on this computer (0.84 or later), it does the mixing: it reads the songs from your disk, mixes them, and streams the mix to the page ("Mixed by GLUE Home"), for listening and for the exported file. Nothing is copied into the browser. If a song isn't on that computer, the page says so and mixes in the browser instead.
 
 ## The running order
-Drag a song up or down in **Running order** to change the playlist's order: the set is planned again in that order (Undo brings back the one before). The song playing fills its line as it goes, and the hand-over playing lights up. A song's name there opens its menu on the timeline, which stays in view above.
+Drag a song up or down in **Running order** to change the playlist's order: the set is planned again in that order (Undo brings back the one before). The song playing fills its line as it goes, and the hand-over playing lights up. A song's name there opens its menu right where you click it.
 
 A playlist mixed as a set shows a crossfader mark beside its name in the sidebar: click it to open the set.
 
