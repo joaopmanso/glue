@@ -5,6 +5,29 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · The set's page: one round menu, a pinned timeline, a part exported; the site's ground (ADR 0206; website only)
+- **Why:** the user: a faint grid to line up by, one round menu on a song instead of separate song and hand-over boxes,
+  a bass strip that's easier to find with a × per stretch, zoom no further out than the set, less clutter (the
+  tracklist in a modal), a running order that fills as it plays and whose boxes can be reached when scrolled, a part of
+  the set exported, and a less plain black ground.
+- **The timeline** (`SetLanes.svelte`):
+  - each lane washed and gridded (bars, 4 bars, phrases in the accent);
+  - zoom floored at Fit;
+  - the song's round menu (`#set-pop-song`, ids `set-song-*`, Mix in/out open `#set-pop-fx` beside it);
+  - the bass strip on any song on hover, grown under the pointer, a × on each stretch;
+  - the export part marked on the time bar.
+- **The page** (`SetView.svelte`):
+  - the transport and timeline sticky;
+  - the running order fills the song playing (an equaliser for its number), the hand-over playing lit;
+  - export: the whole set or a part (`edit.ts` `part`);
+  - the tracklist in a `<dialog>`.
+- **The site** (`app.css`): the ground gets a faint accent glow (top right, foot left) and fine 60° lines fading from
+  the corners, from the theme's own colours.
+- **Tests:**
+  - `tests/sets.test.ts`: `part`;
+  - `e2e/sets.spec.ts`: the menu and Mix out beside it, the zoom floor, the strip and its ×, a part exported, the
+    tracklist modal.
+
 ## 2026-11-27 · GLUE Home 0.85: hand-overs on the drop, the bass by hand, several songs selected (ADR 0205; M10 B)
 - **Why:** the user, after 0.84: drops that don't line up ("looking to the initial part of the song sometimes doesn't
   match on the drop"); never the outgoing song without its bass for long under the incoming one's intro; several clips

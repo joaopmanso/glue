@@ -6,7 +6,7 @@ import { Mixer, type Pcm } from '../src/core/sets/mixer';
 import { bassSwapAt, controlsAt } from '../src/core/sets/automation';
 import { clock, timesOf, tracklist } from '../src/core/sets/tracklist';
 import { MIX_RATE, type SetPlan } from '../src/core/sets/types';
-import { clearLows, moveEnd, moveSong, moveSongs, setLows, trimIn, valid } from '../src/core/sets/edit';
+import { clearLows, moveEnd, moveSong, moveSongs, part, setLows, trimIn, valid } from '../src/core/sets/edit';
 
 const SR = MIX_RATE;
 const tone = (hz: number, secs: number, sr = SR, amp = 0.5) => Float32Array.from({ length: Math.round(secs * sr) }, (_, i) => amp * Math.sin(2 * Math.PI * hz * i / sr));
@@ -406,5 +406,22 @@ describe('the bass by hand over parts of a song (ADR 0205)', () => {
     const one = moveSongs(base.items, [1], -16, len);
     expect(one.items[2].start).toBe(base.items[2].start);
     expect(valid(one.items, len)).toBe(true);
+  });
+});
+
+describe('a part of the set (for export)', () => {
+  const songs = [song('a', 124), song('b', 125), song('c', 126), song('d', 124)];
+  const p = planSet(songs, opts('blend'));
+  it('is songs a … b from beat 0, the first alone, the rest as they are', () => {
+    const q = part(p, 1, 2);
+    expect(q.items.map(i => i.id)).toEqual(['b', 'c']);
+    expect(q.items[0].start).toBe(0);
+    expect(q.items[1].start).toBe(p.items[2].start - p.items[1].start);
+    expect(q.items[0].in).toBe(p.items[1].in);
+    // The first plays as itself from its start (no incoming hand-over), the second's hand-over as before.
+    expect(controlsAt(q.items, 0, 1).gain).toBe(1);
+    expect(controlsAt(q.items, 1, q.items[1].start + 3)).toEqual(controlsAt(p.items, 2, p.items[2].start + 3));
+    expect(part(p, 0, 3)).toBe(p);
+    expect(part(p, 2, 1).items.map(i => i.id)).toEqual(['b', 'c']);
   });
 });

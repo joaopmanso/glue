@@ -24,7 +24,21 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-27, late night): GLUE Home 0.85, hand-overs on the drop, the bass by hand (ADR 0205)
+## Latest (2026-11-27, later still): the set's page reworked (ADR 0206; website only)
+- **Shipped:**
+  - a song's round menu where it's clicked: play, level, key lock, earlier or later, Mix in and Mix out (the hand-over's
+    box opens beside it), bass edits let go, its page;
+  - the timeline pinned while the running order scrolls;
+  - a bar grid behind the lanes;
+  - zoom out stops at Fit;
+  - the bass strip on hover, with a × per stretch;
+  - the running order fills as it plays;
+  - export a part (songs a … b);
+  - the tracklist in a modal;
+  - the site's ground: a faint accent glow and lines.
+- **Waiting on the user:** how it looks and feels (the menu's layout, the ground's strength).
+
+## Earlier (2026-11-27, late night): GLUE Home 0.85, hand-overs on the drop, the bass by hand (ADR 0205)
 - **The user's asks:**
   - several clips selected;
   - the bass cut or opened over part of a song;
@@ -42,7 +56,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **Plan again** on a set (a kept plan isn't re-planned) and listen: do the drops land? The drop thresholds are
     from synthetic tests (**[UNVERIFIED]** on real songs);
   - the laptop's playlists (below).
-- **Next, R4 (approved plan, now ADR 0206 and GLUE Home 0.86):** remote, a device without the songs.
+- **Next, R4 (approved plan, now ADR 0207 and GLUE Home 0.86):** remote, a device without the songs.
   - The sessions over the session channel (`glue-rtc` `Server::stream`, credit-based).
   - Opus via the pure-Rust `opus-rs`. A spike measured it at 156× real time, exactly 192 kbps, an SNR of 34 dB, and a
     delay of 312 samples. Checking that WebCodecs decodes its packets comes first.

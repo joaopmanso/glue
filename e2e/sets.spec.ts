@@ -145,17 +145,18 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await page.mouse.up();
   await expect.poll(sx).toBeGreaterThan(x0 + 10);
 
-  // ADR 0205. The selected song's bass strip: dragged across, its bass cut (or opened) over those bars; let go again.
+  // ADR 0205, 0206. Any song's bass strip (along its foot): dragged across, its bass cut (or opened) over those bars, the
+  // song selected without its menu; the stretch's × lets it go.
   await page.keyboard.press('Escape');
-  await blk.click();
-  const strip = page.locator('#set-lows'), tb = (await strip.boundingBox())!;
+  const strip = blk.locator('.lows'), tb = (await strip.boundingBox())!;
   await page.mouse.move(tb.x + tb.width * 0.45, tb.y + tb.height / 2);
   await page.mouse.down();
   await page.mouse.move(tb.x + tb.width * 0.65, tb.y + tb.height / 2, { steps: 6 });
   await page.mouse.up();
   await expect(blk.locator('.low')).toHaveCount(1);
-  await expect(page.locator('#set-song-lows button')).toHaveText(/(cut|open) bars \d+–\d+/);
-  await page.locator('#set-song-lows button').click();
+  await expect(blk).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#set-pop-song')).toHaveCount(0);
+  await blk.locator('.low .lx').click();
   await expect(blk.locator('.low')).toHaveCount(0);
   // Shift + click adds the third song: the two move together, the first stays.
   const blk2 = page.locator('#set-lanes .blk').nth(2), left2 = async () => parseFloat(await blk2.evaluate(b => (b as HTMLElement).style.left));
@@ -181,6 +182,22 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await expect.poll(left2).toBeLessThan(h0 - 20);
   await expect(page.locator('#set-pop-song')).toBeVisible();
   await page.keyboard.press('Escape');
+  // ADR 0206. A click opens the song's round menu; its Mix out opens the hand-over's box beside it.
+  await blk.click();
+  await expect(page.locator('#set-pop-song .rb').first()).toBeVisible();
+  await page.click('#set-song-mixout');
+  await expect(page.locator('#set-pop-fx')).toHaveClass(/beside/);
+  await expect(page.locator('#set-song-mixout')).toHaveAttribute('aria-pressed', 'true');
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/set-ring.png' });
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#set-pop-song')).toHaveCount(0);
+  // Zooming out stops at the whole set.
+  await page.getByRole('button', { name: 'Fit' }).click();
+  const fitW = await width();
+  await page.mouse.move(lb.x + 200, lb.y + 80);
+  for (let k = 0; k < 4; k++) await page.mouse.wheel(0, 1200);
+  await page.waitForTimeout(200);
+  expect(await width()).toBe(fitW);
   await page.locator('#set-ho-0 button').click();
 
   // The preview: it plays (the playhead moves), pauses, and plays a hand-over.
@@ -234,6 +251,23 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   });
   expect(mp3.sync).toBe(true);
   expect(mp3.size / (info.size / (44100 * 6))).toBeGreaterThan(30_000);
+
+  // A part of the set: songs 2 to 3, marked on the time bar, the first of them coming in alone.
+  await page.click('#set-ex-part');
+  await page.selectOption('#set-ex-from', '1');
+  await page.selectOption('#set-ex-to', '2');
+  await expect(page.locator('#set-mark')).toBeVisible();
+  await expect(page.locator('#set-ex-len')).toContainText('2 songs');
+  await page.click('#set-export-wav');
+  await expect(page.locator('#set-done')).toContainText('Friday set (songs 2–3).wav', { timeout: 120_000 });
+  const partSize = await page.evaluate(async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('mix-Friday set (songs 2–3).wav')).getFile()).size);
+  expect(partSize).toBeLessThan(info.size);
+  expect(partSize).toBeGreaterThan(44100 * 6 * 20);
+  // The tracklist, in its own window.
+  await page.click('#set-tl-open');
+  await expect(page.locator('#set-tracklist')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#set-tracklist')).toBeHidden();
 
   // Back in the library, the playlist shows it has a set; its mark opens it.
   await page.locator('#set-view .back').click();

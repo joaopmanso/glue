@@ -98,3 +98,15 @@ export function clearLows(items: SetItem[], i: number, k?: number): SetItem[] {
 
 /** The plan with these items, marked edited. */
 export const edited = (plan: SetPlan, items: SetItem[]): SetPlan => ({ ...plan, items, edited: true });
+
+/** Songs a … b of the set as a set of their own (for exporting a part of it): the first comes in alone, from its
+    in-point, at beat 0, and the last plays to its end; everything between is as it is. */
+export function part(plan: SetPlan, a: number, b: number): SetPlan {
+  const lo = Math.max(0, Math.min(a, b)), hi = Math.min(plan.items.length - 1, Math.max(a, b));
+  if (lo === 0 && hi === plan.items.length - 1) return plan;
+  const s0 = plan.items[lo]?.start ?? 0;
+  const items = plan.items.slice(lo, hi + 1).map(it => ({ ...it, start: it.start - s0 }));
+  const { length: _, ...rest } = plan;
+  void _;
+  return { ...rest, items };
+}

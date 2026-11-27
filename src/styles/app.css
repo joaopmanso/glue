@@ -36,7 +36,29 @@
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  html, body { background: var(--ground); color: var(--ink); overflow-x: clip; }
+  html, body { color: var(--ink); overflow-x: clip; }
+  /* The ground has a little depth (ADR 0206): a faint glow of the theme's accent at the top and at the foot, and fine
+     geometric lines in it, fading out from a corner. Fixed behind everything; the theme's own colours, so every theme
+     and mode gets its own version. */
+  html {
+    background:
+      radial-gradient(1100px 520px at 88% -12%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 72%),
+      radial-gradient(900px 480px at -8% 112%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%),
+      linear-gradient(180deg, color-mix(in srgb, var(--ground) 96%, var(--ink)) 0%, var(--ground) 38%);
+    background-color: var(--ground);
+    background-attachment: fixed;
+  }
+  body { background: transparent; }
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image:
+      repeating-linear-gradient(60deg, color-mix(in srgb, var(--accent) 7%, transparent) 0 1px, transparent 1px 72px),
+      repeating-linear-gradient(-60deg, color-mix(in srgb, var(--accent) 7%, transparent) 0 1px, transparent 1px 72px),
+      repeating-linear-gradient(0deg, color-mix(in srgb, var(--accent) 4%, transparent) 0 1px, transparent 1px 62.35px);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 100% 0%, #000 0%, transparent 70%), radial-gradient(ellipse 50% 45% at 0% 100%, #0008 0%, transparent 70%);
+    mask-image: radial-gradient(ellipse 70% 60% at 100% 0%, #000 0%, transparent 70%), radial-gradient(ellipse 50% 45% at 0% 100%, #0008 0%, transparent 70%);
+  }
+  @media print { html { background: none; } body::before { display: none; } }
   body { font-family: var(--font-sans); font-size: 15px; line-height: 1.5; margin: 0; }
   .wrap { max-width: 2560px; margin: 0 auto; padding-inline: clamp(16px, 2.5vw, 56px); padding-block: 18px 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
   /* A working screen (the library, a song, the calendar) uses the whole window: a slim edge, no cap. Reading pages

@@ -2,11 +2,11 @@
 status: in-progress
 milestone: M10
 updated: 2026-11-27
-adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205]
+adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205, 0206]
 ---
 # Sets: a playlist mixed, exported as one file
 
-## Now (2026-11-27, S1–S3 shipped, then ADR 0202–0205)
+## Now (2026-11-27, S1–S3 shipped, then ADR 0202–0206)
 - **Open:** right-click a playlist › **Mix it as a set…** (route `#/set/<id>`). The set is kept on the playlist
   (`List.set`).
 - **Planned on the beat** (ADR 0200):
@@ -44,7 +44,12 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205]
   - an orange bass marker on the timeline where the bass changes hands (as planned, on the incoming song's drop),
     dragged a bar at a time; a bass swap turns on it;
   - **Hear it**.
-- **The running order:** dragged to reorder (the set is planned again); a song's name shows it on the timeline.
+- **The running order:** dragged to reorder (the set is planned again); a song's name opens its menu on the timeline;
+  the song playing fills its line, the hand-over playing lights up (ADR 0206).
+- **The look** (ADR 0206): the transport and timeline pinned at the top (windows 760 px tall or more); a faint bar grid
+  behind the lanes (phrases in the accent); zoom stops at the whole set; a song's **round menu** where it's clicked (play,
+  level, key lock, earlier/later, Mix in/out opening the hand-over box beside it, bass edits let go, its page); the bass
+  strip on any song hovered, grown under the pointer, a × on each stretch.
 - **The sidebar:** a playlist with a set shows a crossfader mark that opens it.
 - **Who mixes** (ADR 0204): this computer's GLUE Home (0.84) whenever it runs and has every song: the same mixer in Rust
   (`glue-sets`), streamed to the tab for the preview and the file ("Mixed by GLUE Home"); else the browser.
@@ -53,7 +58,8 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205]
 - **Tempo:** each song's own (held through a hand-over, eased between) or one tempo. Key lock is on by default.
 - **Export** as WAV 24-bit or MP3 320, through the save dialog, in a worker. It shows progress and time left, and can be
   cancelled.
-- **The tracklist**, with times, can be copied or saved as text.
+- **Export a part** (ADR 0206): songs a … b, marked on the time bar, the first coming in alone (`edit.ts` `part`).
+- **The tracklist**, with times, in a modal: copied or saved as text.
 - **The engine** (`src/core/sets/`, ADR 0199, 0201) is one for the file and the preview: a beat clock, a tempo map,
   WSOLA key lock, isolator, filter, echo, equal-power headroom, and a gliding look-ahead limiter.
 
