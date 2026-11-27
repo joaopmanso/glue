@@ -5,7 +5,8 @@ import { lib } from './library.svelte';
 import { dupes } from './dupes.svelte';
 import { waveformOf } from './analysis';
 import { jobOf } from './audioJob';
-import { beatGrid, type Waveform } from '../core/audio/waveform';
+import { type Waveform } from '../core/audio/waveform';
+import { gridFor } from '../core/sets/grid';
 import { bpmInUse } from '../core/library/bpm';
 import { mainOf } from './cues';
 import { anchorAt, nudge, retempo, tapBpm, type Grid } from '../core/library/grid';
@@ -48,15 +49,13 @@ class Prepare {
     const main = mainOf(t.id)?.grid ?? null;
     const bpm = bpmInUse(t, lib.store?.analysis.get(t.id), null, main?.bpm);
     if (!bpm) return null;
-    const p = t.prep;
-    if (p?.beat0 != null) return { bpm, beat0: p.beat0, bar: p.bar ?? 0 };
-    // The main DJ library's grid (ADR 0169), unless GLUE's BPM differs from it.
-    if (main && p?.bpm == null) return main;
-    const w = this.wave;
-    if (!w || this.trackId !== t.id) return { bpm, beat0: 0, bar: 0 };
+    // The user's grid, the main DJ library's (ADR 0169) unless GLUE's BPM differs from it, else placed on the waveform
+    // (gridFor, the set builder's too); placing is cached per BPM.
+    const p = t.prep, w = this.wave && this.trackId === t.id ? this.wave : null;
+    if (p?.beat0 != null || (main && p?.bpm == null) || !w) { const g = gridFor(p, bpm, main, null); return g ? { bpm: g.bpm, beat0: g.beat0, bar: g.bar } : null; }
     const key = Math.round(bpm * 1000);
     let g = this.placed.get(key);
-    if (!g) { g = beatGrid(w.env, w.envRate, w.envT0, bpm, { data: w.peak, rate: w.rate }); this.placed.set(key, g); }
+    if (!g) { const x = gridFor(p, bpm, null, w)!; g = { beat0: x.beat0, bar: x.bar }; this.placed.set(key, g); }
     return { bpm, ...g };
   }
 

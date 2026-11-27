@@ -1,5 +1,6 @@
 /* The library's data model. Everything here is plain JSON (ADR 0009, 0018). */
 import type { Severity, SoundProfile } from '../core/types';
+import type { SetPlan } from '../core/sets/types';
 
 export const SCHEMA = 1;             // bump + add a migration when a file format changes
 /** Bump to analyse every song again (4: the sound profile, ADR 0197, 2026-11-27). */
@@ -127,6 +128,7 @@ export interface List {
   origin: { sourceId: string; externalId: string; chain?: boolean } | null;
   color?: string | null;                                   // one of LIST_COLORS, or none
   auto?: Record<string, unknown>;                          // how an automatic playlist was made (options, seed, date)
+  set?: SetPlan;                                           // the playlist laid out as a mix (ADR 0199)
   tags?: string[];                                         // the playlist's own tags
   /** An event's folder (its id), or the Events folder that holds them ('*') (ADR 0074). */
   event?: string;

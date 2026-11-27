@@ -5,6 +5,25 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · Sets: a playlist mixed and exported as one file (ADR 0199, 0200; M10 B, S1–S2; website only)
+- **Why:** the user wants a set builder: "the export is the end product, in this case the mixed set". They chose WAV
+  and MP3, presets plus dragging, rendering in the browser, and key lock.
+- **The engine** (`src/core/sets/`):
+  - every song on one beat clock, with a tempo map;
+  - a resampler, WSOLA key lock, a 3-band isolator, a filter, an echo and a limiter;
+  - a mixer in fixed hops (any block size gives the same samples).
+- **The plan:** hand-overs on 16-bar phrases before each outro; One at a time, Continuous (bass swap) or Double drops
+  (drops landing together); cuts between far tempos; songs levelled.
+- **The view** `#/set/<id>` ("Mix it as a set…" on a playlist):
+  - lanes per deck (2/3), each hand-over's style, one tempo or each song's, key lock;
+  - the tracklist;
+  - export as WAV 24-bit or MP3 320 in a worker (`mixdown.worker.ts`), written into the save dialog's file as it goes.
+- **New dependency:** `@mediabunny/mp3-encoder` 1.60.0 (MPL-2.0).
+- **Prepare's grid** now goes through `gridFor` (`src/core/sets/grid.ts`), shared with sets.
+- **Help:** "Mixing a set" (`src/help/sets.md`), plus a step in the playlists tour.
+- **Tests:** `tests/sets.test.ts` (DSP, the tempo map, planning, the mixer, the tracklist) and `e2e/sets.spec.ts` (a
+  playlist mixed, styles, decks, exported as WAV and MP3).
+
 ## 2026-11-27 · GLUE Home 0.83: playlists that follow a flow, and a sound profile for every song (ADR 0197, 0198; M2, M10)
 - **Why:** the user: the builder is "very basic … the chosen song always is chosen as the first song … the sonic
   semblances of the songs chosen are not really similar. a set should follow a flow". They chose presets plus a curve to

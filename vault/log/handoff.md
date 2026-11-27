@@ -24,7 +24,23 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-27, later): GLUE Home 0.83, playlists that follow a flow (ADR 0197, 0198; M10 step A)
+## Latest (2026-11-27, night): sets, mixed and exported (ADR 0199, 0200; M10 B, S1–S2; website only)
+- **Shipped:** right-click a playlist › "Mix it as a set…":
+  - planned on the beat in a style, on 2 or 3 deck lanes, each hand-over's style chosen;
+  - exported as WAV 24-bit or MP3 320 through the save dialog;
+  - the tracklist.
+  See [features/sets.md](../features/sets.md).
+- **Waiting on the user:** a set of 20 minutes or so from one of their playlists, exported and listened through: the
+  hand-overs, key lock (WSOLA) quality, levels.
+- **Next, S3:**
+  - drag songs, in/out points and hand-over lengths on the lanes (snapped to bars);
+  - reorder;
+  - a live preview in an AudioWorklet running the same `Mixer` (built as a worklet module, fed PCM from the decode
+    worker), "Hear this transition";
+  - undo.
+  If WSOLA's quality isn't enough, try Signalsmith Stretch (MIT).
+
+## Earlier (2026-11-27, later): GLUE Home 0.83, playlists that follow a flow (ADR 0197, 0198; M10 step A)
 - **The user's ask:**
   - better auto playlists: a flow, songs that sound alike, the seed not always first;
   - then a set builder.

@@ -16,6 +16,7 @@
   import Welcome from './ui/library/Welcome.svelte';
   import LibraryView from './ui/library/LibraryView.svelte';
   import TrackDetail from './ui/library/TrackDetail.svelte';
+  import SetView from './ui/sets/SetView.svelte';
   import TrackSheet from './ui/library/TrackSheet.svelte';
   import LibPlayer from './ui/library/LibPlayer.svelte';
   import DragTag from './ui/library/DragTag.svelte';
@@ -76,7 +77,7 @@
   const inLibrary = $derived(lib.phase === 'library');
   // The phone layout (ADR 0078): the library as a phone app, with its own header, tabs and player; a
   // song's page, the calendar and an event open inside it.
-  const phoneLib = $derived(phone.active && inLibrary && ['library', 'track', 'events', 'event'].includes(route.name) && lib.onboarding !== 'music' && tabs.state === 'active');
+  const phoneLib = $derived(phone.active && inLibrary && ['library', 'track', 'events', 'event', 'set'].includes(route.name) && lib.onboarding !== 'music' && tabs.state === 'active');
   const needing = $derived(inLibrary ? events.needing().length : 0);
   let dragDepth = 0;
   const hasFiles = (e: DragEvent) => [...(e.dataTransfer?.types || [])].includes('Files');
@@ -152,10 +153,11 @@
 {#snippet page()}
   {#if route.name === 'track'}{#key route.id}<TrackDetail id={route.id} tab={route.tab} />{/key}
   {:else if route.name === 'events'}<CalendarView />
-  {:else if route.name === 'event'}{#key route.id}<EventPage id={route.id} />{/key}{/if}
+  {:else if route.name === 'event'}{#key route.id}<EventPage id={route.id} />{/key}
+  {:else if route.name === 'set'}{#key route.id}<SetView id={route.id} />{/key}{/if}
 {/snippet}
 
-<div class="wrap" class:app={inLibrary && ['library', 'track', 'events', 'event'].includes(route.name)}>
+<div class="wrap" class:app={inLibrary && ['library', 'track', 'events', 'event', 'set'].includes(route.name)}>
   {#if !phoneLib}
   <header class="top">
     <div class="brand">
@@ -227,6 +229,8 @@
     <CalendarView />
   {:else if route.name === 'event'}
     {#key route.id}<EventPage id={route.id} />{/key}
+  {:else if route.name === 'set'}
+    {#key route.id}<SetView id={route.id} />{/key}
   {:else}
     <!-- A song's page is a sheet over the library, which stays as it was underneath (2026-10-08). -->
     <LibraryView />

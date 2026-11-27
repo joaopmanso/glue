@@ -275,6 +275,7 @@
       songs > 0 && { label: 'Play', hint: String(songs), attrs: { 'data-m': 'play' }, run: () => playList(l) },
       songs > 0 && { label: 'Play next', attrs: { 'data-m': 'play-next' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'next') },
       songs > 0 && { label: 'Add to queue', attrs: { 'data-m': 'queue' }, run: () => nowPlaying.enqueue(dock.tracksOf(l.id).map(t => t.id), 'end') },
+      l.kind === 'playlist' && songs > 1 && { label: 'Mix it as a set…', attrs: { 'data-m': 'set' }, title: 'Lay it out as a mix: transitions on the beat, then export the mixed set as one file', run: () => router.go('#/set/' + l.id) },
       { label: 'Stats…', attrs: { 'data-m': 'stats' }, run: () => (view.statsFor = { title: l.name, sel: { kind: 'list', id: l.id } }) },
       songs > 0 && { label: 'Download as a zip', hint: String(songs), attrs: { 'data-m': 'download' }, title: 'A folder of its songs, numbered in order: ready for a USB drive', run: () => void downloadList(l) },
       SEP,

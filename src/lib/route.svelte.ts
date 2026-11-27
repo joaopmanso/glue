@@ -1,14 +1,16 @@
 /* Hash routes: #/ library (#/<view>: the view shown, view.svelte `viewHash`; #/ alone: as it was) · #/track/<id> track detail (…/prepare: its Prepare tab) · #/events the calendar
-   (#/events/<id> an event, ADR 0074) · #/analyze analyse a single file · #/admin admin panel. */
+   (#/events/<id> an event, ADR 0074) · #/set/<id> a playlist as a mix (ADR 0199) · #/analyze analyse a single file · #/admin admin panel. */
 import { readPref, writePref } from './prefs';
 export type TrackTab = 'details' | 'prepare';
-export type Route = { name: 'library'; path: string } | { name: 'track'; id: string; tab: TrackTab } | { name: 'events' } | { name: 'event'; id: string } | { name: 'analyze' } | { name: 'admin' } | { name: 'help'; id: string | null };
+export type Route = { name: 'library'; path: string } | { name: 'track'; id: string; tab: TrackTab } | { name: 'events' } | { name: 'event'; id: string } | { name: 'analyze' } | { name: 'admin' } | { name: 'help'; id: string | null } | { name: 'set'; id: string };
 
 function parse(h: string): Route {
   const m = /^#\/track\/([\w-]+)(\/prepare)?/.exec(h);
   if (m) return { name: 'track', id: m[1], tab: m[2] ? 'prepare' : 'details' };
   const ev = /^#\/events(?:\/([\w-]+))?/.exec(h);
   if (ev) return ev[1] ? { name: 'event', id: ev[1] } : { name: 'events' };
+  const set = /^#\/set\/([\w-]+)/.exec(h);
+  if (set) return { name: 'set', id: set[1] };
   if (h.startsWith('#/analyze')) return { name: 'analyze' };
   if (h.startsWith('#/admin')) return { name: 'admin' };
   const help = /^#\/help(?:\/([\w-]+))?/.exec(h);

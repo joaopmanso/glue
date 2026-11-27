@@ -36,3 +36,25 @@ export function encodeWav(chs: Float32Array[], sr: number, bits: 16 | 24): Blob 
   }
   return new Blob([buf], { type: 'audio/wav' });
 }
+
+/** A 44-byte PCM WAV header for `dataBytes` of audio (written last, when a streamed file's length is known). */
+export function wavHeader(dataBytes: number, sr: number, nc: number, bits: 16 | 24): Uint8Array {
+  const u8 = new Uint8Array(44), dv = new DataView(u8.buffer), B = bits / 8;
+  const put = (o: number, s: string) => { for (let i = 0; i < 4; i++) u8[o + i] = s.charCodeAt(i); };
+  put(0, 'RIFF'); dv.setUint32(4, 36 + dataBytes, true); put(8, 'WAVE'); put(12, 'fmt ');
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, nc, true); dv.setUint32(24, sr, true);
+  dv.setUint32(28, sr * nc * B, true); dv.setUint16(32, nc * B, true); dv.setUint16(34, bits, true);
+  put(36, 'data'); dv.setUint32(40, dataBytes, true);
+  return u8;
+}
+
+/** `n` stereo frames as interleaved 24-bit little-endian PCM (a streamed WAV's block). */
+export function pcm24(L: Float32Array, R: Float32Array, n: number): Uint8Array {
+  const out = new Uint8Array(n * 6);
+  for (let i = 0, o = 0; i < n; i++, o += 6) {
+    const a = Math.round(Math.max(-1, Math.min(1, L[i])) * 8388607), b = Math.round(Math.max(-1, Math.min(1, R[i])) * 8388607);
+    out[o] = a & 255; out[o + 1] = (a >> 8) & 255; out[o + 2] = (a >> 16) & 255;
+    out[o + 3] = b & 255; out[o + 4] = (b >> 8) & 255; out[o + 5] = (b >> 16) & 255;
+  }
+  return out;
+}
