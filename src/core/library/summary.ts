@@ -15,6 +15,7 @@ export function summarize(info: FileInfo, res: AnalysisResult, v: Verdict, file:
     key: k ? { tonic: k.tonic, mode: k.mode, margin: Math.round(k.margin * 1000) / 1000, tuning: Math.round(k.tuning) } : null,
     findings: v.findings.map(f => ({ sev: f.sev, title: f.title })),
     fileSize: file.size, fileMtime: file.mtime, vv: VERDICT_VERSION,
+    ...(res.sound ? { sound: res.sound } : {}),
   };
 }
 

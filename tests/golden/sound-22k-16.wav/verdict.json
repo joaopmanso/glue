@@ -1,0 +1,35 @@
+{
+ "grade": "warn",
+ "label": "Caution",
+ "headline": "Band-limited to about 0.0 kHz",
+ "sub": "The top end fades out gradually rather than stopping at a wall. That is typical of older recordings or dark masters, and is not a clear lossy fingerprint.",
+ "findings": [
+  {
+   "sev": "warn",
+   "title": "Band-limited to about 0.0 kHz",
+   "detail": "The top end fades out gradually rather than stopping at a wall. That is typical of older recordings or dark masters, and is not a clear lossy fingerprint."
+  }
+ ],
+ "cut": {
+  "fc": 0,
+  "wall": false,
+  "drop": 0,
+  "full": false,
+  "fade": 0,
+  "globalFloor": -52.52106475830078,
+  "ref": -52.1696891784668,
+  "rising": false,
+  "imaging": null,
+  "reach": 11025
+ },
+ "depth": {
+  "eff": 16,
+  "declared": 16
+ },
+ "bwTone": "warn",
+ "origin": "Band-limited source",
+ "expected": {
+  "hz": 11025,
+  "why": "Nyquist limit"
+ }
+}

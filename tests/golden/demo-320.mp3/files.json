@@ -38,6 +38,34 @@
     ]
    },
    "res": {
+    "sound": {
+     "lufs": -23.75,
+     "onsets": 2.84,
+     "timbre": [
+      -9.51,
+      -3.11,
+      6.99,
+      7.39,
+      7.32,
+      4.69,
+      4.37,
+      2.78,
+      1.55,
+      0.54,
+      -0.78,
+      -2,
+      -3.21,
+      -4.51,
+      -5.64,
+      -6.87,
+      7.968,
+      0.099,
+      0.358,
+      0.024
+     ],
+     "curve": "lZKFkJeL",
+     "step": 1.997
+    },
     "music": {
      "bpm": 119.9428249858925,
      "bpmConf": 0.7202252878575266,
@@ -87,8 +115,8 @@
  "fingerprint": "+gAAAGLm3Elj5apmKiWoJqotraa2qrWO1JrTSVWZU1llWSdpKWtN6aujUK6OllbWxtKuFupcrhJS7L4SUqnV8TmpUeEhHVWtLFUtLU5YKy3bQktJ0abJyrCmvYpRq6yU1dhq1d1VUse8lTNfqqU1UyapTXElK61SJSOplrUU8476UlMpW9JKKnufSqoqbSgqom1UKaZq1M3SGrXFUxqp1XkbqRQpG22sNpd1w5aaNNO22rITMWaqKil3imopMVvnIrlV7HKZdMzallXcTUeT1W1vm9PGaqsz2qpqOpu2arqZltSypNiVlGwJlU1sCW1JSSltbi1yamal9lq2sfdasxblSrFKqYqpyqoTqZIac/GWVnvVV5WoTVWFpEwtaaXCqWilqsyyTCrUkkwb0qpUVypvdUNpZamqaUWIqqiUTK2qkhSVrqZUVdRmXFPUZmpTlWZr05naylIa3ppKSsa4SFfBvK62YZSmtjnUtGq8VrFJLUORXS0rsdVBK6q1U+ZqopLVTSO+3dVlvp2WfDarsuhiozLqaTNlqukT7YvRQ+ub1Wnqmp2tyhSlrFZUprQWV3pTFfJa3aUyXd2mM10kz1vRYk3IsmJZzaIjO5VuKau1TT2rNy3cySKi3EzGoqTUzFGj1MtdW9VLWlNTKipTqjoh0+s7sZIpt7GyKGaRsipmk7QnVquMLRariO2vqKqWrWiykmVo0ppWXcraUl9V1VAfNVUVJ7ZdLaem6CyXCqqMklmq3hBVG9JoVlii6tbKIueWpnJtkaVVTak1XVupV1kai2KbrtEiu63UKi/t9mptqWrKbflqycRSTpXGll4VOqd5hz6rccbUSPPMsVCmXKPSjCdOpgyjVKZUuVWnVZkx24laqhirxqpYWtSKTFbUhUlWUYXpTlNU6UwLVjU5zlUUOcbVpDVSmaa1aYslNanLRTS3RlVSXjZb0l40attO1WrZqVRaSbkklUQxq5VEdKuVsnbb17IWxKq0GqSq1hk0KsoxMmDPoFpFru1KpS7tyy0zbU0teVVVHWlVRd1IlUXdTDfE0skrvFIzKbxad9mKHHbxyrk0s3qrvKkzq6mst5mLTqXWQlqtRlUKrWLV5VpqWGVbPcptRZmmKHOatUgzmrXZMxqt1XNXy8V1RUtETWlTUk21lBpOtJQa1raHVZKWxtWw1kykqdZsrKlUbSqtUCvi7+gK42vustFgqiKVVK5qKxanTiuWlZwqkZiYWplaiVqZZvfcTFVTrVlJU6Vx6bKlZOk0syTnRFOtFk1bqRpty1lZq6lUjbIk3LQyJKz2EiyjVhO6k2aNs9MmrbJitqvXKrGqR6rZckvx8/X29vX08/P09vf4+fn5+fn6+vj39vf4+fn6+/z7+Pb19ff6+/v6+Pf4+fj39/n6+/r6+fj4+Pf29PPz8/T08/Pz8vHw8O/t6+vr6+np6Ojo5+fm5eTk4+Li4+Pk4+Hf3+Dh4N7e3t7f4N/e3+Df39/e3t3e3+Dg3+Dh4eDf3uDi4+Pj4+Tk5ujp6uvs7e7u7Ozs7e/x8vHw8PLz8vHz9fb29fT09vn8/f37+vn8/v/+/f39+/n4+Pn5+fn4+Pn6+vv9/Pr39vb29vb29vf4+Pf08/P09PTy8O/v7u3t7e3s7Oro5+fn5+bl5ubm5+np5uLg4OHk5ebk",
  "analysed": {
   "summary": {
-   "v": 3,
-   "at": "2026-10-02T18:16:49.474Z",
+   "v": 4,
+   "at": "2026-11-27T01:32:06.795Z",
    "grade": "bad",
    "label": "Fake bitrate",
    "headline": "Upconverted from a lower-quality file",
@@ -118,6 +146,34 @@
    "fileSize": 482786,
    "fileMtime": 1700000000000,
    "vv": 8,
+   "sound": {
+    "lufs": -23.75,
+    "onsets": 2.84,
+    "timbre": [
+     -9.51,
+     -3.11,
+     6.99,
+     7.39,
+     7.32,
+     4.69,
+     4.37,
+     2.78,
+     1.55,
+     0.54,
+     -0.78,
+     -2,
+     -3.21,
+     -4.51,
+     -5.64,
+     -6.87,
+     7.968,
+     0.099,
+     0.358,
+     0.024
+    ],
+    "curve": "lZKFkJeL",
+    "step": 1.997
+   },
    "fp": true
   },
   "size": 482786,

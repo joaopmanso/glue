@@ -98,7 +98,7 @@ fn check_files(name: &str, a: &Analysis, size: f64) {
 
 #[test]
 fn lossless_fixtures_match_javascript() {
-  for name in ["wav-44k-24.wav", "aiff-44k-24.aiff", "flac-96k-24.flac", "flac-192k-24.flac", "flac-cover.flac", "flac-id3.flac"] {
+  for name in ["wav-44k-24.wav", "aiff-44k-24.aiff", "flac-96k-24.flac", "flac-192k-24.flac", "flac-cover.flac", "flac-id3.flac", "sound-22k-16.wav"] {
     let bytes = std::fs::read(root().join("tests/fixtures").join(name)).unwrap();
     let a = analyse(&bytes, name, bytes.len() as f64, 1_700_000_000_000.0, String::new()).unwrap_or_else(|e| panic!("{name}: {e}"));
     // Each FLAC through GLUE's own decoder: a fallback to Symphonia lost a last frame (2026-10-02).

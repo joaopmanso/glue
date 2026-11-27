@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Mutex};
 
 /// src/store/types.ts `ANALYSIS_VERSION`.
-pub const ANALYSIS_VERSION: f64 = 3.0;
+pub const ANALYSIS_VERSION: f64 = 4.0;
 const PENDING: &str = "s/pending.json";
 /// A collection's songs whose tags were read (None: they couldn't be), waiting to go into the library.
 type Tagged = Vec<(String, Option<Value>)>;
@@ -833,10 +833,12 @@ mod tests {
   fn what_needs_an_analysis() {
     let t = json!({ "status": "linked", "size": 10, "mtime": 5 });
     assert!(needs_analysis(&t, None));
-    assert!(!needs_analysis(&t, Some(&json!({ "v": 3, "fileSize": 10, "fileMtime": 5 }))));
-    assert!(needs_analysis(&t, Some(&json!({ "v": 3, "fileSize": 11, "fileMtime": 5 }))));
-    assert!(needs_analysis(&t, Some(&json!({ "v": 3, "fileSize": 10, "fileMtime": 5, "error": "It took too long" }))));
-    assert!(!needs_analysis(&t, Some(&json!({ "v": 3, "fileSize": 10, "fileMtime": 5, "error": "It couldn’t be decoded." }))));
+    assert!(!needs_analysis(&t, Some(&json!({ "v": 4, "fileSize": 10, "fileMtime": 5 }))));
+    // Version 3 has no sound profile (ADR 0197): analysed again.
+    assert!(needs_analysis(&t, Some(&json!({ "v": 3, "fileSize": 10, "fileMtime": 5 }))));
+    assert!(needs_analysis(&t, Some(&json!({ "v": 4, "fileSize": 11, "fileMtime": 5 }))));
+    assert!(needs_analysis(&t, Some(&json!({ "v": 4, "fileSize": 10, "fileMtime": 5, "error": "It took too long" }))));
+    assert!(!needs_analysis(&t, Some(&json!({ "v": 4, "fileSize": 10, "fileMtime": 5, "error": "It couldn’t be decoded." }))));
     assert!(!needs_analysis(&json!({ "status": "linked", "remote": true }), None));
     let after = after_analysis(&json!({ "id": "a", "title": "", "artist": "Kept", "edited": ["album"], "duration": 3 }), &json!({ "size": 9, "mtime": 8, "format": null, "duration": 0, "fields": { "title": "T", "artist": "X", "album": "No" } }));
     assert_eq!(stringify(&after), r#"{"id":"a","title":"T","artist":"Kept","edited":["album"],"duration":3,"size":9,"mtime":8,"format":null}"#);

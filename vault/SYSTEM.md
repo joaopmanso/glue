@@ -402,8 +402,17 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
 - **Where it runs:** in GLUE Home where it runs, natively (ADR 0148: its queue hands each song to `analyse_song`, which
   reads, analyses and writes the cache in Rust); otherwise in the tab, in a worker pool (`src/lib/pool.ts`,
   `src/workers/`). It makes the summary (verdict and tier, bandwidth, bit depth, BPM, key), the full details, a
-  fingerprint, a mini spectrogram and a waveform. Versions: `ANALYSIS_VERSION` 3, `VERDICT_VERSION` 8
-  (`src/store/types.ts`).
+  fingerprint, a mini spectrogram, a waveform and the sound profile. Versions: `ANALYSIS_VERSION` 4 (4: the sound
+  profile, 2026-11-27, so every song is analysed once more), `VERDICT_VERSION` 8 (`src/store/types.ts`).
+- **The sound profile** (ADR 0197, `src/core/audio/sound.ts`, `crates/glue-audio/src/audio/sound.rs`): from the mono
+  mix in 2048-sample frames at 44–48 kHz, kept on the summary as `sound`:
+  - `lufs` (integrated loudness, gated);
+  - `onsets` per second;
+  - `timbre` (20 numbers: 16 bands' shape, centroid, flatness, low end, highs);
+  - `curve` (the loudness about every `step` ≈ 2 s, base64 bytes).
+  It's null for a song under 6 s. The stored details keep it, so a verdict re-check keeps it too.
+  `src/core/library/energy.ts` turns it into an energy 1–10 relative to the collection (Mixed In Key's "Energy N" in a
+  comment or grouping wins) and a z-scored timbre for likeness.
 - **The native engine** (`crates/glue-audio`, ADR 0147): the same analysis in Rust, a line-for-line port with
   JavaScript's numbers, for GLUE Home (0.44 linked it, 0.45 made every stored file and decoded lossy files, with a check
   against the stored results in GLUE Home's window, 0.46 analyses with it, 0.47 has no audio JavaScript left, 0.48
@@ -448,6 +457,13 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     bulk removal leaves out groups with concerns unless included.
 - **Other analysis:** duplicates (fingerprints, three tiers, ADR 0013); stems in the browser (HT-Demucs,
   `src/core/stems`).
+- **The playlist builder** (ADR 0029, 0198, `src/core/library/autoplaylist.ts`, dialog `src/lib/auto.svelte.ts`):
+  - a flow: preset points or the user's, an energy target per slot, with BPM along the ramp or the flow's shape;
+  - the songs to start from placed by role (where they fit, opener, peak, closer);
+  - the score: BPM, energy, key, rating, tags, sound likeness to the seeds and to the song before, the same artist
+    kept apart, and a penalty for energy jumps;
+  - a beam search (8 partial sets, deterministic from the seed; "Surprise me" draws among each set's best few);
+  - the form is kept on `List.auto`.
 
 ## 7. GLUE Cloud (`cloud/`)
 - **Accounts:** Google, or email and password.

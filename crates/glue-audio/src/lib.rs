@@ -2,7 +2,7 @@
 //! GLUE Home's results match what the website makes. Each module mirrors one TypeScript file:
 //! - `formats::{parse, clues, flac}`: src/core/formats/{parse,clues,flac}.ts
 //! - `decode`: src/workers/decode.ts + src/core/audio/trim.ts (Symphonia for what isn't PCM or FLAC)
-//! - `audio::{analyze, verdict, fingerprint}`: src/core/audio/{analyze,verdict,fingerprint}.ts
+//! - `audio::{analyze, verdict, fingerprint, sound}`: src/core/audio/{analyze,verdict,fingerprint,sound}.ts
 //! - `out::summary`: src/core/library/summary.ts; `out::files`: the stored forms (details, thumbnails, fingerprint
 //!   file, tag fields, `Analysed`); `out::cover`: src/workers/cover.ts
 //! - `js`: JavaScript's numbers; `fft`: src/core/audio/fft.ts
@@ -21,6 +21,7 @@ pub mod types;
 pub mod audio {
   pub mod analyze;
   pub mod fingerprint;
+  pub mod sound;
   pub mod verdict;
 }
 pub mod formats {
@@ -178,7 +179,7 @@ pub fn recheck(header: &Value, raw: &[u8], at: String) -> Option<AnalysisSummary
     n: r["N"].as_u64()? as usize, bin_hz: r["binHz"].as_f64()?,
     music: serde_json::from_value(r.get("music")?.clone()).ok()?, stats: serde_json::from_value(r.get("stats")?.clone()).ok()?,
     sr: r["sr"].as_f64()?, duration: r["duration"].as_f64()?, channels: r["channels"].as_u64()? as usize, container_bits: r["containerBits"].as_f64()?,
-    fp: None,
+    fp: None, sound: r.get("sound").filter(|v| !v.is_null()).and_then(|v| serde_json::from_value(v.clone()).ok()),
   };
   let verdict = classify(&info, &VerdictInput { sr: res.sr, stats: &res.stats, ltas: &res.ltas, bin_hz: res.bin_hz, container_bits: res.container_bits, spec: Some((&res.spec, res.cols, res.rows)) });
   Some(out::summary::summarize(&info, &res, &verdict, header["fileSize"].as_f64().unwrap_or(f64::NAN), header["fileMtime"].as_f64().unwrap_or(f64::NAN), at))

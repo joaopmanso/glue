@@ -1,9 +1,30 @@
 ---
-updated: 2026-11-26
+updated: 2026-11-27
 ---
 # Changelog
 
 Newest first. Each entry: date, milestone, what changed, links.
+
+## 2026-11-27 · GLUE Home 0.83: playlists that follow a flow, and a sound profile for every song (ADR 0197, 0198; M2, M10)
+- **Why:** the user: the builder is "very basic … the chosen song always is chosen as the first song … the sonic
+  semblances of the songs chosen are not really similar. a set should follow a flow". They chose presets plus a curve to
+  draw.
+- **The sound profile:** every analysis now measures, in the tab and in GLUE Home's engine:
+  - integrated loudness;
+  - onsets per second;
+  - a 20-number timbre;
+  - the loudness about every 2 s.
+  It's ported line for line and held by the goldens, with a new 20 s fixture, `tests/fixtures/sound-22k-16.wav`.
+  `ANALYSIS_VERSION` 3 → 4, so every song is analysed once more; `glue-audio` 0.3.0.
+- **Energy 1–10, relative to the collection** (`src/core/library/energy.ts`); Mixed In Key's "Energy N" counts.
+- **The builder** (`autoplaylist.ts`, the dialog):
+  - flows (presets, a curve to drag), and the BPM can follow the flow;
+  - the songs to start from placed by role (where it fits, Opener, At the peak, Closer) instead of first;
+  - Sound: varied ↔ close, and the same artist kept 3 songs apart;
+  - a beam search;
+  - energy shown per song, and the curve with the songs on it.
+  Help (Playlists) and the tour step say so.
+- **Also:** the builder's BPM is the one in use (the main DJ library's grid too).
 
 ## 2026-11-26 · GLUE Home 0.82: Engine DJ takes in GLUE's playlists by itself (ADR 0196; M4, M8)
 - **Why:** the user, on the XML: "it works, but forces me to always manually update the rekordbox collection and import to

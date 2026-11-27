@@ -2,7 +2,9 @@
 import { lib } from './library.svelte';
 import { view } from './view.svelte';
 import { dupes } from './dupes.svelte';
-import { generate, replaceSlot, type AutoOptions, type Candidate, type Harmonic, type Slot } from '../core/library/autoplaylist';
+import { FLOWS, generate, replaceSlot, type AutoOptions, type Candidate, type Harmonic, type SeedRole, type Slot } from '../core/library/autoplaylist';
+import { mikEnergy, soundSpace, type SoundSpace } from '../core/library/energy';
+import { bpmOf } from './bpm';
 import type { Track } from '../store/types';
 import { tagsOf, uniqTags } from '../core/library/tagging';
 import { time } from '../core/perf';
@@ -13,6 +15,9 @@ export interface AutoForm {
   harmonic: Harmonic; useRatings: boolean; minRating: number; sameGenre: boolean; randomness: number; unanalysed: boolean;
   /** Tags (ADR 0032): tags null = the starting and included tracks' own; 'only' keeps just tracks with one of them. */
   useTags: boolean; tags: string[] | null; tagMode: 'prefer' | 'only'; avoidTags: string[];
+  /** The flow (ADR 0198): a preset's id, 'custom' (points dragged) or 'none'; its points (1–10); the tempo following
+      its shape; how alike the songs sound (0 varied … 1 close); each song to start from's place; artists kept apart. */
+  flow?: string; points?: number[]; bpmFollowsFlow?: boolean; likeness?: number; roles?: Record<string, SeedRole>; artistGap?: number;
 }
 
 class Auto {
@@ -27,21 +32,47 @@ class Auto {
   private seed = Math.floor(Math.random() * 1e9);
 
   private ratingOf(t: Track): number | null { return t.rating ?? lib.djOf(t.id)?.rating ?? null; }
-  private bpmOf(t: Track): number | null {
-    const a = lib.store?.analysis.get(t.id);
-    if (t.prep?.bpm) return t.prep.bpm;   // the user's correction (Prepare)
-    if (a?.bpm) return a.bpm;
-    return lib.djOf(t.id)?.bpm ?? null;
+  /** The BPM in use: the user's correction, the main DJ library's grid, the analysis, a DJ app's. */
+  private bpmOf(t: Track): number | null { return bpmOf(t, lib.store?.analysis.get(t.id), lib.djOf(t.id)?.bpm ?? null); }
+  /** Energy and timbre over the whole collection (ADR 0197), made again when the library changes. */
+  private space: { v: number; s: SoundSpace } | null = null;
+  sound(): SoundSpace {
+    const s = lib.store, v = lib.version;
+    if (this.space?.v === v) return this.space.s;
+    const items = [...(s?.tracks.values() ?? [])].map(t => ({ id: t.id, sound: s?.analysis.get(t.id)?.sound, bpm: this.bpmOf(t), mik: mikEnergy(t.comment, t.grouping) }));
+    this.space = { v, s: soundSpace(items) };
+    return this.space.s;
   }
+  /** A song's energy, 1–10 (rounded to show), or null before its sound profile. */
+  energyOf(id: string): number | null { return this.sound().energy.get(id) ?? null; }
   defaults(seedId: string | null): AutoForm {
-    const t = seedId ? lib.store?.tracks.get(seedId) : null, bpm = t ? this.bpmOf(t) : null;
+    const t = seedId ? lib.store?.tracks.get(seedId) : null, bpm = t ? this.bpmOf(t) : null, e = seedId ? this.energyOf(seedId) : null;
+    // Steady by default, at the song's own energy when it has one.
+    const steady = e != null ? Array(5).fill(Math.round(e)) : FLOWS[0].points;
     return {
       seedId, include: [], avoidLists: [], count: 20,
       startBpm: bpm ? Math.round(bpm) : null, endBpm: bpm ? Math.round(bpm) : null, tolerancePct: 4, halfDouble: true,
       harmonic: 'prefer', useRatings: true, minRating: 0, sameGenre: false, randomness: 0.35, unanalysed: false,
       useTags: true, tags: null, tagMode: 'prefer', avoidTags: [],
+      flow: 'steady', points: steady, bpmFollowsFlow: false, likeness: 0.6, roles: {}, artistGap: 3,
     };
   }
+  /** Use a preset flow (its points; Steady at the seed's energy). */
+  setFlow(id: string) {
+    const f = FLOWS.find(x => x.id === id), e = this.form.seedId ? this.energyOf(this.form.seedId) : null;
+    if (id === 'none') { this.form.flow = 'none'; return; }
+    if (!f) return;
+    this.form.flow = id;
+    this.form.points = id === 'steady' && e != null ? Array(5).fill(Math.round(e)) : [...f.points];
+  }
+  /** A point of the curve dragged: the flow becomes the user's own. */
+  setPoint(i: number, v: number) {
+    const p = [...(this.form.points ?? FLOWS[0].points)];
+    p[i] = Math.max(1, Math.min(10, Math.round(v * 2) / 2));
+    this.form.points = p; this.form.flow = 'custom';
+  }
+  /** Songs still waiting for their sound profile, of those that could be picked. */
+  unprofiled(): number { const s = lib.store; return this.candidates().filter(c => !s?.analysis.get(c.id)?.sound).length; }
 
   /** Open the dialog; `include`: more selected tracks, which must all be in the playlist. */
   show(seedId: string | null, include: string[] = []) {
@@ -72,7 +103,7 @@ class Auto {
     const keep = new Set([f.seedId, ...f.include].filter((x): x is string => !!x));
     const want = this.wantedTags().map(t => t.toLowerCase()), avoidTags = f.useTags ? f.avoidTags.map(t => t.toLowerCase()) : [];
     const only = f.useTags && f.tagMode === 'only' && want.length > 0;
-    const out: Candidate[] = [];
+    const out: Candidate[] = [], sp = this.sound();
     for (const t of s.tracks.values()) {
       if (!keep.has(t.id)) {
         if (t.status !== 'linked' || avoid.has(t.id)) continue;
@@ -83,7 +114,7 @@ class Auto {
       if (!f.unanalysed && !keep.has(t.id) && (!a || a.error)) continue;
       const tags = tagsOf(t).map(x => x.toLowerCase());
       if (!keep.has(t.id) && (avoidTags.some(x => tags.includes(x)) || (only && !want.some(x => tags.includes(x))))) continue;
-      out.push({ id: t.id, bpm: this.bpmOf(t), key: a?.key ? { tonic: a.key.tonic, mode: a.key.mode } : null, rating: this.ratingOf(t), genre: t.genre, duration: t.duration, tags });
+      out.push({ id: t.id, bpm: this.bpmOf(t), key: a?.key ? { tonic: a.key.tonic, mode: a.key.mode } : null, rating: this.ratingOf(t), genre: t.genre, duration: t.duration, tags, artist: t.artist, energy: sp.energy.get(t.id) ?? null, timbre: sp.timbre.get(t.id) ?? null });
     }
     return out;
   }
@@ -94,6 +125,8 @@ class Auto {
       bpmTolerance: f.tolerancePct / 100, halfDouble: f.halfDouble, harmonic: f.harmonic, useRatings: f.useRatings,
       minRating: f.minRating, sameGenre: f.sameGenre && seedGenre ? seedGenre : null, randomness: f.randomness, seed: this.seed,
       tags: this.wantedTags().map(t => t.toLowerCase()),
+      flow: f.flow === 'none' ? null : f.points ?? null, bpmFollowsFlow: !!f.bpmFollowsFlow, likeness: f.likeness ?? 0.6,
+      roles: f.roles ?? {}, artistGap: f.artistGap ?? 3,
     };
   }
   run() {
@@ -106,10 +139,10 @@ class Auto {
   reroll(i: number) {
     const pool = this.candidates(), ids = this.slots.map(s => s.id);
     this.seed = (this.seed + 7) >>> 0;
-    const alt = replaceSlot(pool, ids, i, this.options(), this.slots[i].bpmTarget);
+    const alt = replaceSlot(pool, ids, i, this.options(), this.slots[i].bpmTarget, this.slots[i].energyTarget ?? null);
     if (!alt) { lib.notice = 'No other track fits this spot.'; return; }
     const copy = [...this.slots];
-    copy[i] = { ...copy[i], id: alt, fixed: false };
+    copy[i] = { ...copy[i], id: alt, fixed: false, energy: this.energyOf(alt) };
     this.slots = copy;
   }
   remove(i: number) { this.slots = this.slots.filter((_, j) => j !== i); }

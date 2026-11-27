@@ -1034,7 +1034,7 @@ test('with no GLUE tab open, GLUE Home analyses this computer’s songs into the
     await expect.poll(() => Object.keys(analysis()).sort(), { timeout: 120_000 }).toEqual(['t1a', 't1b', 't1c', 't1d', 't1f']);
     // (One save writes the analyses, then the songs: both are there.)
     await expect.poll(() => { try { return !!JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items.t1b.format; } catch { return false; } }, { timeout: 20_000 }).toBe(true);
-    expect(analysis().t1a).toMatchObject({ v: 3, fileSize: 65267, fileMtime: 1000 });
+    expect(analysis().t1a).toMatchObject({ v: 4, fileSize: 65267, fileMtime: 1000 });
     const tracks = JSON.parse(readFileSync(join(fake.dirs.glue, col, 'tracks', 't1.json'), 'utf8')).items;
     expect(tracks.t1b.format).toMatchObject({ lossless: true, sampleRate: 96000 });
     expect(tracks.t1a.duration).toBeGreaterThan(3);
@@ -1171,7 +1171,7 @@ test('the screen takes GLUE Home’s analyses when it needs them: Overviews and 
     const col = 'profiles/p1/collections/c1';
     const song = (id: string, file: string, size: number) => ({ id, status: 'linked', rootId: 'r1', relPath: file, importPath: null, fileName: file, size, mtime: 1000, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: null, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] });
     // b.flac "took too long" under an older GLUE Home (the timer bug of 0.3.1–0.32): stored, at today's version.
-    const timedOut = { v: 3, at: '2026-09-29T00:00:00Z', grade: 'info', label: '', headline: '', fc: 0, wall: false, full: false, effBits: null, declaredBits: 0, origin: '', bpm: null, key: null, findings: [], fileSize: 968141, fileMtime: 1000, error: 'The analysis took too long' };
+    const timedOut = { v: 4, at: '2026-09-29T00:00:00Z', grade: 'info', label: '', headline: '', fc: 0, wall: false, full: false, effBits: null, declaredBits: 0, origin: '', bpm: null, key: null, findings: [], fileSize: 968141, fileMtime: 1000, error: 'The analysis took too long' };
     const files: Record<string, string> = {
       'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
       'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),

@@ -3,7 +3,7 @@ use crate::js;
 use crate::types::{AnalysisResult, AnalysisSummary, FileInfo, Severity, SummaryFinding, SummaryKey, Verdict};
 
 /// `ANALYSIS_VERSION` and `VERDICT_VERSION` (src/store/types.ts): a native result is the same analysis.
-pub const ANALYSIS_VERSION: f64 = 3.0;
+pub const ANALYSIS_VERSION: f64 = 4.0;
 pub const VERDICT_VERSION: f64 = 8.0;
 /// What a native result says made it (`AnalysisSummary.engine`).
 pub const ENGINE: &str = concat!("glue-audio ", env!("CARGO_PKG_VERSION"));
@@ -20,6 +20,7 @@ pub fn summarize(info: &FileInfo, res: &AnalysisResult, v: &Verdict, size: f64, 
     key: k.map(|k| SummaryKey { tonic: k.tonic, mode: k.mode, margin: js::round(k.margin * 1000.0) / 1000.0, tuning: js::round(k.tuning) }),
     findings: v.findings.iter().map(|f| SummaryFinding { sev: f.sev, title: f.title.clone() }).collect(),
     file_size: size, file_mtime: mtime, error: None, fp: None, vv: Some(VERDICT_VERSION), engine: Some(ENGINE.into()),
+    sound: res.sound.clone(),
   }
 }
 
@@ -28,7 +29,7 @@ pub fn failed(message: &str, size: f64, mtime: f64, at: String) -> AnalysisSumma
   AnalysisSummary {
     v: ANALYSIS_VERSION, at, grade: Severity::Info, label: "Not analysed".into(), headline: message.into(),
     fc: 0.0, wall: false, full: false, eff_bits: None, declared_bits: 0.0, origin: String::new(), bpm: None, key: None, findings: vec![],
-    file_size: size, file_mtime: mtime, error: Some(message.into()), fp: None, vv: None, engine: Some(ENGINE.into()),
+    file_size: size, file_mtime: mtime, error: Some(message.into()), fp: None, vv: None, engine: Some(ENGINE.into()), sound: None,
   }
 }
 

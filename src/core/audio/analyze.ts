@@ -1,5 +1,6 @@
 import { fingerprint } from './fingerprint';
 import { makeFFT } from './fft';
+import { soundProfile } from './sound';
 import type { AnalysisJob, AnalysisResult, MusicResult, KeyResult, PcmLayout, ProgressFn, SampleStats, Spectrum } from '../types';
 
 type FrameReader = (i: number, f: Float64Array, iv: Int32Array) => void;
@@ -362,8 +363,9 @@ export function runJob(input: AnalysisJob, progress: ProgressFn, opts: { fingerp
   const s = computeSpectrum(a.mono, sr, { cols: 1600, rows: 1024 }, progress);
   const music = analyzeMusic(a.mono, sr, progress);
   const fp = opts.fingerprint ? fingerprint(a.mono, sr) : undefined;
+  const sound = soundProfile(a.mono, sr);
   return {
-    fp,
+    fp, sound,
     music,
     spec: s.spec, cols: s.cols, rows: s.rows, ltas: s.ltas, N: s.N, binHz: s.binHz,
     stats: a.stats, sr, duration: len / sr, channels: nch, containerBits: bits, demoPcm,

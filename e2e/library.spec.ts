@@ -1373,7 +1373,7 @@ test('themes: pick a theme and dark / light on the profile screen; it sticks', a
   expect(font).toContain('Geist');
 });
 
-test('builds a playlist from a track: seed first, included tracks kept, saved as a playlist', async ({ page }) => {
+test('builds a playlist from a track: a flow drawn, the seed opening when asked, included tracks kept, saved as a playlist', async ({ page }) => {
   await seed(page);
   await page.goto('./');
   await page.click('#choose-home');
@@ -1391,10 +1391,20 @@ test('builds a playlist from a track: seed first, included tracks kept, saved as
   await page.fill('#auto-search', 'aiff');
   await page.locator('#auto-dialog .results button', { hasText: 'aiff-44k-24' }).click();
   await page.fill('#auto-count', '3');
+  // The flow (ADR 0198): presets, a curve to drag (keys too), and where the starting song goes.
+  await expect(page.locator('#flow-steady')).toHaveAttribute('aria-checked', 'true');
+  await page.click('#flow-build');
+  await expect(page.locator('#flow-build')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#auto-curve circle.h')).toHaveCount(5);
+  await page.locator('#auto-curve circle.h').first().press('ArrowUp');
+  await expect(page.locator('#flow-build')).toHaveAttribute('aria-checked', 'false');
+  await expect(page.locator('#auto-curve circle.h').first()).toHaveAttribute('aria-valuenow', '4.5');
+  await page.selectOption('#auto-role-seed', 'open');
   await page.click('#auto-go');
   const rows = page.locator('#auto-list li');
   await expect(rows).toHaveCount(3);
   await expect(rows.first()).toContainText('Fixture FLAC');
+  await expect(page.locator('#auto-result-curve')).toBeVisible();
   await expect(page.locator('#auto-list')).toContainText('aiff-44k-24');
   await page.click('#auto-again');
   await expect(rows).toHaveCount(3);
@@ -1567,6 +1577,7 @@ test('the playlist builder fits smaller windows: nothing cut off, everything rea
     expect(head.y, `title visible at ${w}x${h}`).toBeGreaterThanOrEqual(0);
     await wheelTo('#auto-go', '#auto-dialog form');
     await page.click('#auto-go');
+    await expect(page.locator('#auto-list li').first()).toBeVisible();   // the result first: under load it can lag the click
     await wheelTo('#auto-save', '#auto-dialog .res');
     // Nothing wider than the dialog, and the track names get room.
     expect(await page.locator('#auto-dialog').evaluate(el => el.scrollWidth - el.clientWidth), `no sideways overflow at ${w}x${h}`).toBeLessThanOrEqual(1);

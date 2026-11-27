@@ -14,7 +14,14 @@ Tag songs from the Tags column, or drag songs onto a tag in the sidebar. A tag i
 To filter by tags, use the Tags column's header (or Filter): each tag you tick narrows the songs (the songs with all of them). Right-click tags in the sidebar › **Show only it here** to add tags instead (the songs with any of them).
 
 ## Building a playlist
-**Build playlist from this** (with a song selected) makes a playlist that flows from it: tempo, key and energy. **+ Auto** builds one from rules.
+**Build playlist from this** (with one or more songs selected) or **+ Auto** opens the builder. GLUE picks songs from your collection and puts them in an order that flows.
+- **Flow:** choose a shape (Steady, Warm-up, Build to a peak, Peak and down, Peaks and breathers, Cool-down) and drag the curve's points to bend it. GLUE follows it with each song's **energy**, 1–10: how loud, busy and bright a song is next to the rest of your collection (Mixed In Key's "Energy N" in a comment counts as it is). Tick **Tempo follows the flow** to have the BPM rise and fall with it.
+- **The songs you start from** aren't always first: each goes where it fits the flow, or where you say (**Opener**, **At the peak**, **Closer**).
+- **Sound:** from varied to close to the songs you start from, and to each other. GLUE compares each song's sound (its spectrum's shape, brightness and low end), measured when it's analysed.
+- Tempo, harmonic mixing, tags, ratings and songs to avoid work as before; the same artist is kept 3 songs apart unless you untick it.
+- Each song in the result shows its energy (E1–E10) and how alike it sounds to the one before; the curve above shows the songs' energy against the flow. ↻ replaces one song, × removes it, **↻ Another** makes a new set.
+
+Songs analysed before November 2026 are analysed once more for their sound profile; until then they count as average energy.
 
 ## Insights
 **Insights** on an open playlist shows its length, tempos, keys and tags.

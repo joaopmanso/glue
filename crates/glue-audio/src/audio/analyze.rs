@@ -434,8 +434,9 @@ pub fn run_job(job: Job, fingerprint: bool) -> Result<AnalysisResult, String> {
   let music = analyze_music(&mono, sr);
   crate::control::check()?;
   let fp = if fingerprint { Some(crate::audio::fingerprint::fingerprint(&mono, sr)) } else { None };
+  let sound = crate::audio::sound::sound_profile(&mono, sr);
   Ok(AnalysisResult {
-    fp, music, spec: s.spec, cols: s.cols, rows: s.rows, ltas: s.ltas, n: s.n, bin_hz: s.bin_hz, stats, sr, duration: len as f64 / sr,
+    fp, sound, music, spec: s.spec, cols: s.cols, rows: s.rows, ltas: s.ltas, n: s.n, bin_hz: s.bin_hz, stats, sr, duration: len as f64 / sr,
     channels: nch, container_bits: bits,
   })
 }

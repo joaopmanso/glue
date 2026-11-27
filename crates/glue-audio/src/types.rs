@@ -100,6 +100,10 @@ pub struct KeyResult { pub tonic: f64, pub mode: Mode, pub r: f64, pub margin: f
 #[serde(rename_all = "camelCase")]
 pub struct MusicResult { pub bpm: Option<f64>, pub bpm_conf: f64, pub key: Option<KeyResult> }
 
+/// `SoundProfile` (src/core/types.ts, ADR 0197): loudness, onsets per second, the timbre and the loudness over time.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SoundProfile { pub lufs: f64, pub onsets: f64, pub timbre: Vec<f64>, pub curve: String, pub step: f64 }
+
 /// An acoustic fingerprint (src/core/audio/fingerprint.ts).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Fingerprint { pub words: Vec<u32>, pub loud: Vec<u8> }
@@ -120,6 +124,8 @@ pub struct AnalysisResult {
   pub channels: usize,
   pub container_bits: f64,
   pub fp: Option<Fingerprint>,
+  /// ADR 0197; None for one made from stored details.
+  pub sound: Option<SoundProfile>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -203,4 +209,6 @@ pub struct AnalysisSummary {
   #[serde(skip_serializing_if = "Option::is_none")] pub vv: Option<f64>,
   /// Which engine made it (ADR 0147); absent for the website's JavaScript.
   #[serde(skip_serializing_if = "Option::is_none")] pub engine: Option<String>,
+  /// The sound profile (ADR 0197).
+  #[serde(skip_serializing_if = "Option::is_none", default)] pub sound: Option<SoundProfile>,
 }

@@ -24,7 +24,27 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-27): the user's Engine DJ cues repaired by hand (no code changed)
+## Latest (2026-11-27, later): GLUE Home 0.83, playlists that follow a flow (ADR 0197, 0198; M10 step A)
+- **The user's ask:**
+  - better auto playlists: a flow, songs that sound alike, the seed not always first;
+  - then a set builder.
+  They chose presets + a drawn curve, all four outputs (play, mix file, Engine DJ, tracklist), stems later, and key
+  lock on and switchable.
+- **Shipped (step A):**
+  - the sound profile in both engines, with `ANALYSIS_VERSION` 4, so GLUE Home re-analyses the collection after the
+    update;
+  - energy 1–10 and likeness (`energy.ts`);
+  - the builder's flow, roles, Sound, artist spacing and beam search, with the dialog's Flow section.
+- **Waiting on the user:**
+  - let GLUE Home update and re-analyse (it takes a while for ~7,000 songs);
+  - then try a "Build to a peak" from a few of their songs and listen.
+- **Next: M10 step B, the set builder.** The plan is in the roadmap row:
+  - B1: auto-plan (mix points on 16/32-bar phrases from the grid, intro, drops and outro from `sound.curve`) and a
+    timeline per deck at `#/set/<id>` (`List.set`);
+  - B2: the mixer (AudioWorklet decks, Signalsmith Stretch for key lock, its licence and size to check);
+  - B3: exports. Cues written into Engine DJ's own songs would need a new decision: ADR 0194 rules it out.
+
+## Earlier (2026-11-27): the user's Engine DJ cues repaired by hand (no code changed)
 - **The problem:** after a pen drive sync, the user's songs had no cuepoints.
 - **What was done:** by hand, on F:'s database (Engine DJ closed, backups first):
   - the CUE-button cues brought back from the history;

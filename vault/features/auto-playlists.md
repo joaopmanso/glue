@@ -1,10 +1,29 @@
 ---
 status: shipped
 milestone: M2
-updated: 2026-09-26
-adrs: [0029, 0032, 0025, 0006]
+updated: 2026-11-27
+adrs: [0029, 0032, 0025, 0006, 0197, 0198]
 ---
 # Automatic playlists
+
+## Now (2026-11-27, ADR 0197, 0198)
+- **Flow:**
+  - presets: Steady at the seed's energy, Warm-up, Build to a peak, Peak and down, Peaks and breathers, Cool-down;
+  - or "No energy target";
+  - a curve whose points are dragged (or moved with the arrow keys);
+  - "Tempo follows the flow" bends the BPM ramp to its shape.
+- **Energy 1–10** comes from each song's sound profile, relative to the collection. Mixed In Key's "Energy N" in a
+  comment or grouping wins.
+- **The songs to start from aren't put first.** Each has a role: where it fits (default), Opener, At the peak, Closer.
+- **Sound:** varied ↔ close (likeness of timbre to the seeds and to the song before).
+- **The same artist** is kept 3 songs apart (it can be turned off).
+- **A beam search** replaces the greedy fill.
+- **The result:**
+  - each song's energy (E1–E10), with how alike it sounds to the one before in its tooltip;
+  - the songs' energies drawn over the curve.
+- **Every song is analysed once more** (`ANALYSIS_VERSION` 4) for its sound profile. Until then it counts as average,
+  and the dialog says how many are waiting.
+- **Next:** the set builder (M10), turning such a playlist into a mix.
 
 ## What it does
 Pick a track (or none) and GLUE builds a playlist from the collection: along a tempo ramp, mixing

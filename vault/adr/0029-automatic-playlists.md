@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded in part by 0198 (the order: a flow and a beam search; the seed placed by role)
 date: 2026-09-24
 ---
 # 0029. Automatic playlists: a greedy walk along a BPM ramp with weighted randomness

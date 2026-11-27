@@ -32,6 +32,7 @@
     ]
    },
    "res": {
+    "sound": null,
     "music": {
      "bpm": null,
      "bpmConf": 0,
@@ -72,7 +73,7 @@
  "fingerprint": "TgAAAFotjaVGtYGlFrU0VrIidXq1Ksl6JarKakmZuuJJ3DK1ylYXlZh2nR0WJ60dhmUtS6XpJEulmqbq8ZiSufMYWzXTWlomS8patFtHlpQ01YbDtNXNp661TSXNph1tZaoZS3UqOVuxKuuy0XXrtt5VUrJOyVbBTs0kxKzWJdWpGiHFMzsxTXMiG2l5ZpsqSW6JKkXOibbWmjimtpIyprObdlapkWJWjZWrlYyEqqG0bJRtNE7UKy1aVYqtymebk6lmmRKtznBUtd1ETFW9RMxEKdmrZivbs1Jbs6v6XCVKu9QuSkyJqn5Nq5F5CWmV8ac2XaGkFk2F1GZpi3UqMopzGpZMi5mVRKmV2WXopcrFaiXPlVotjbVeras2ZJi6MiRbcnpZT1Zr21ZUzpvytsqstbbZJLWomWQ5ifr6+/v8/fz6+vn5+vv7+/v8/f7+/v39/P3+//////78+/r6/P39/f3+/v79/f39/Pz8/P39/fz8/Pz7+/r6+/3+/v79/fz8/Pz8/Pv7/A==",
  "analysed": {
   "summary": {
-   "v": 3,
+   "v": 4,
    "grade": "ok",
    "label": "Genuine hi-res",
    "headline": "Real hi-res: content to 46.6 kHz",

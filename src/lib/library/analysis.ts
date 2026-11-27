@@ -33,7 +33,7 @@ export const analysis = {
         if (this.store !== s) return;
         if (!d) continue;   // no stored analysis: the next full analysis brings the new rules
         const next = summarize(d.info, d.res, classify(d.info, d.res), { size: prev.fileSize, mtime: prev.fileMtime });
-        s.putAnalysis(id, { ...next, at: prev.at, fp: prev.fp });
+        s.putAnalysis(id, { ...next, at: prev.at, fp: prev.fp, ...(prev.sound ? { sound: prev.sound } : {}) });
         if (next.grade === 'ok' && prev.grade !== 'ok') cleared++;
         else if (next.grade !== 'ok' && prev.grade === 'ok') flagged++;
       } catch (e) { console.warn('Couldn’t re-check the verdict of', id, e); }

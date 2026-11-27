@@ -11,6 +11,8 @@
   import type { Track } from '../../store/types';
   import WaveCell from './WaveCell.svelte';
   import PlaylistInsights from './PlaylistInsights.svelte';
+  import FlowCurve from './FlowCurve.svelte';
+  import { FLOWS, type SeedRole } from '../../core/library/autoplaylist';
   import { allTags, tagColorOf } from '../../lib/tags.svelte';
 
   const f = $derived(auto.form);
@@ -33,7 +35,7 @@
     return out;
   });
   function pick(t: Track) {
-    if (pickFor === 'seed') { const keep = { include: f.include, avoidLists: f.avoidLists, count: f.count, useTags: f.useTags, tags: f.tags, tagMode: f.tagMode, avoidTags: f.avoidTags }; auto.form = { ...auto.defaults(t.id), ...keep }; }
+    if (pickFor === 'seed') { const keep = { include: f.include, avoidLists: f.avoidLists, count: f.count, useTags: f.useTags, tags: f.tags, tagMode: f.tagMode, avoidTags: f.avoidTags, likeness: f.likeness, artistGap: f.artistGap, roles: f.roles, ...(f.flow !== 'steady' ? { flow: f.flow, points: f.points, bpmFollowsFlow: f.bpmFollowsFlow } : {}) }; auto.form = { ...auto.defaults(t.id), ...keep }; }
     else if (!f.include.includes(t.id) && t.id !== f.seedId) auto.form.include = [...f.include, t.id];
     q = '';
   }
@@ -50,6 +52,13 @@
   const fitCls = (k: number | null) => k == null ? 'unk' : k >= 0.85 ? 'good' : k >= 0.5 ? 'ok' : 'clash';
   const fitTitle = (k: number | null) => k == null ? 'Key unknown' : k === 1 ? 'Same key' : k >= 0.85 ? 'Harmonic: next to it on the wheel' : k >= 0.5 ? 'Energy boost (+2)' : 'Key clash';
   const total = $derived(auto.slots.reduce((n, s) => n + (tr(s.id)?.duration ?? 0), 0));
+  // The flow: each song to start from's place, the songs still waiting for their sound profile.
+  const ROLES: [SeedRole, string][] = [['any', 'Where it fits'], ['open', 'Opener'], ['peak', 'At the peak'], ['close', 'Closer']];
+  const roleOf = (id: string) => f.roles?.[id] ?? 'any';
+  function setRole(id: string, r: SeedRole) { auto.form.roles = { ...(f.roles ?? {}), [id]: r }; }
+  const waiting = $derived.by(() => { void lib.version; void f.avoidLists.length; void f.unanalysed; return auto.unprofiled(); });
+  const points = $derived(f.points ?? FLOWS[0].points);
+  const energies = $derived(auto.slots.map(s => s.energy ?? null));
   // Focus without scrolling: a focus scrolls even overflow-hidden boxes and would hide the dialog's top.
   const focus = (el: HTMLElement) => el.focus({ preventScroll: true });
 </script>
@@ -60,7 +69,7 @@
   <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="auto-h" id="auto-dialog">
     <header>
       <h2 id="auto-h">Build a playlist</h2>
-      <p>GLUE picks tracks from your collection that fit the tempo, mix harmonically and are rated highest, with a little chance so every run is different.</p>
+      <p>GLUE picks songs from your collection that follow the flow you draw, sound like the songs you start from, fit the tempo and mix harmonically, with a little chance so every run is different.</p>
       <button type="button" class="x" aria-label="Close" onclick={() => auto.close()}>×</button>
     </header>
 
@@ -70,7 +79,8 @@
           <legend>Start from</legend>
           {#if seed}
             <div class="tchip seed"><b>{seed.title || seed.fileName}</b><span>{seed.artist}</span>
-              <span class="mono">{bpmShown(seed, an(seed.id)) ? fmtBpm(bpmShown(seed, an(seed.id))!) + ' BPM' : ''} {an(seed.id)?.key ? keyLabel(an(seed.id)!.key!, app.keyNotation) : ''}</span>
+              <span class="mono">{bpmShown(seed, an(seed.id)) ? fmtBpm(bpmShown(seed, an(seed.id))!) + ' BPM' : ''} {an(seed.id)?.key ? keyLabel(an(seed.id)!.key!, app.keyNotation) : ''}{auto.energyOf(seed.id) != null ? ' · energy ' + Math.round(auto.energyOf(seed.id)!) : ''}</span>
+              <select class="role" id="auto-role-seed" aria-label="Where it goes" value={roleOf(seed.id)} onchange={e => setRole(seed.id, e.currentTarget.value as SeedRole)}>{#each ROLES as [v, l] (v)}<option value={v}>{l}</option>{/each}</select>
               <button type="button" aria-label="No starting track" onclick={() => (auto.form.seedId = null)}>×</button></div>
           {:else}<p class="hint">No starting track: GLUE chooses the first one too.</p>{/if}
         </fieldset>
@@ -79,6 +89,7 @@
           <legend>Tracks to include</legend>
           {#each f.include as id (id)}
             <div class="tchip"><b>{tr(id)?.title || tr(id)?.fileName}</b><span>{tr(id)?.artist}</span>
+              <select class="role" aria-label="Where it goes" value={roleOf(id)} onchange={e => setRole(id, e.currentTarget.value as SeedRole)}>{#each ROLES as [v, l] (v)}<option value={v}>{l}</option>{/each}</select>
               <button type="button" aria-label="Don’t force this track" onclick={() => (auto.form.include = f.include.filter(x => x !== id))}>×</button></div>
           {/each}
           <div class="search">
@@ -90,6 +101,21 @@
               </ul>
             {/if}
           </div>
+        </fieldset>
+
+        <fieldset class="flowset" data-guide="auto-flow">
+          <legend>Flow</legend>
+          <div class="chips" role="radiogroup" aria-label="Flow">
+            {#each FLOWS as fl (fl.id)}<button type="button" role="radio" id={'flow-' + fl.id} aria-checked={f.flow === fl.id} onclick={() => auto.setFlow(fl.id)}>{fl.label}</button>{/each}
+            <button type="button" role="radio" id="flow-none" aria-checked={f.flow === 'none'} onclick={() => auto.setFlow('none')}>No energy target</button>
+          </div>
+          {#if f.flow !== 'none'}
+            <FlowCurve id="auto-curve" {points} onpoint={(i, v) => auto.setPoint(i, v)} label="Energy from the first song to the last: drag the points" />
+            <p class="hint">{f.flow === 'custom' ? 'Your own curve.' : 'Drag the points to bend it.'} Energy 1–10 is relative to your collection: how loud, busy and bright a song is next to the others.{#if waiting} {waiting} songs are still waiting for their sound profile (they count as average).{/if}</p>
+            <label class="check"><input type="checkbox" id="auto-bpm-flow" bind:checked={auto.form.bpmFollowsFlow}> Tempo follows the flow (between the start and end BPM)</label>
+          {/if}
+          <label class="wide">Sound <input type="range" id="auto-likeness" min="0" max="1" step="0.05" bind:value={auto.form.likeness}><small>{(f.likeness ?? 0.6) < 0.25 ? 'varied' : (f.likeness ?? 0.6) < 0.7 ? 'like the songs you start from' : 'close to them, and to each other'}</small></label>
+          <label class="check"><input type="checkbox" id="auto-artists" checked={(f.artistGap ?? 3) > 0} onchange={e => (auto.form.artistGap = e.currentTarget.checked ? 3 : 0)}> Keep the same artist 3 songs apart</label>
         </fieldset>
 
         <fieldset class="grid2">
@@ -178,7 +204,10 @@
           </div>
           <p class="meta"><Parts items={[auto.slots.length + ' tracks', fmtTime(total), auto.relaxed.length > 0 && { text: 'relaxed: ' + auto.relaxed.join(', '), cls: 'warnt' }]} />
             <button type="button" class="linkish" id="auto-insights-toggle" aria-expanded={insightsOpen} onclick={() => (insightsOpen = !insightsOpen)}>{insightsOpen ? 'Hide insights' : 'Show insights'}</button></p>
-          {#if insightsOpen}<PlaylistInsights ids={slotIds} compact />{/if}
+          {#if insightsOpen}
+            {#if f.flow !== 'none'}<FlowCurve id="auto-result-curve" {points} dots={energies} label="The songs’ energy against the flow" />{/if}
+            <PlaylistInsights ids={slotIds} compact />
+          {/if}
           <ol class="list" id="auto-list">
             {#each auto.slots as s, i (s.id)}
               {@const t = tr(s.id)}
@@ -191,6 +220,7 @@
                   </button>
                   <span class="who"><b>{t.title || t.fileName}</b><small>{t.artist}{#if s.fixed} · <i>{s.id === f.seedId ? 'start' : 'included'}</i>{/if}</small></span>
                   <span class="wv"><WaveCell {t} order={slotIds} /></span>
+                  <span class="mono en" title={s.energy != null ? 'Energy ' + Math.round(s.energy) + (s.energyTarget != null ? ' (the flow asks ' + Math.round(s.energyTarget) + ')' : '') + (s.like != null ? ' · sounds ' + Math.round(s.like * 100) + '% like the one before' : '') : 'No sound profile yet'}>{s.energy != null ? 'E' + Math.round(s.energy) : '—'}</span>
                   <span class="mono bpm" title={s.bpmTarget ? 'Target ' + Math.round(s.bpmTarget) + ' BPM' : ''}>{bpmShown(t, a) ? fmtBpm(bpmShown(t, a)!) : '—'}</span>
                   <span class="mono key">{#if i > 0}<i class={'fit ' + fitCls(s.keyFit)} title={fitTitle(s.keyFit)}></i>{/if}{a?.key ? keyLabel(a.key, app.keyNotation) : '—'}</span>
                   <span class="stars" aria-label={(t.rating ?? 0) + ' stars'}>{'★'.repeat(Math.round(t.rating ?? 0))}</span>
@@ -205,7 +235,7 @@
         {:else}
           <div class="ap-empty" id="auto-empty">
             {#if auto.empty}<p class="warnt">{auto.empty}</p>{:else}<p>Set the shape on the left and press <b>Generate</b>.</p>{/if}
-            <p class="hint">Tracks need BPM and key from the analysis to follow a tempo ramp and mix harmonically. Ratings: your stars first, then your DJ app’s.</p>
+            <p class="hint">Songs need their analysis (BPM, key and sound profile) to follow the flow and the tempo, sound alike and mix harmonically. Ratings: your stars first, then your DJ app’s.</p>
           </div>
         {/if}
       </section>
@@ -241,6 +271,10 @@
   .tchip b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tchip span { grid-column: 1; color: var(--muted); font-size: 12px; }
   .tchip button { grid-row: 1 / span 3; grid-column: 2; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; align-self: center; }
+  .tchip .role { grid-column: 1; justify-self: start; margin-top: 3px; font-size: 12px !important; padding: 2px 6px !important; }
+  .flowset .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .flowset .chips button { font-size: 12px; padding: 3px 9px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--ground); color: var(--ink-2); cursor: pointer; }
+  .flowset .chips button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .tchip.seed { border-left: 3px solid var(--accent); }
   .search { position: relative; display: grid; gap: 4px; }
   .linkish { justify-self: start; background: none; border: 0; padding: 0; color: var(--accent); font-size: 12px; cursor: pointer; text-decoration: underline; }
@@ -265,9 +299,9 @@
   .meta { color: var(--muted); font-size: 12.5px; }
   .warnt, .meta :global(.warnt) { color: var(--warn); }
   .list { flex: 1; list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 0; display: grid; align-content: start; }
-  .list li { display: grid; grid-template-columns: 26px 26px minmax(0, 1fr) minmax(90px, 170px) 42px 64px 64px 56px; gap: 8px; align-items: center; padding: 4px 6px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
+  .list li { display: grid; grid-template-columns: 26px 26px minmax(0, 1fr) minmax(90px, 170px) 30px 42px 64px 64px 56px; gap: 8px; align-items: center; padding: 4px 6px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); font-size: 13px; }
   .list li.fixed { background: color-mix(in srgb, var(--accent) 7%, transparent); }
-  .n, .bpm { color: var(--muted); font-size: 12px; }
+  .n, .bpm, .en { color: var(--muted); font-size: 12px; }
   .mono { font-family: var(--font-mono); }
   .who { display: grid; min-width: 0; line-height: 1.3; }
   .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -298,6 +332,6 @@
     .res-head input { flex: 1 1 100%; }
     .res { padding: 12px; }
     .list li { grid-template-columns: 20px 24px minmax(0, 1fr) 56px 46px 52px; gap: 6px; padding: 4px 2px; }
-    .list li .bpm, .list li .stars { display: none; }
+    .list li .bpm, .list li .stars, .list li .en { display: none; }
   }
 </style>

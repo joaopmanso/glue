@@ -1,8 +1,9 @@
 /* The library's data model. Everything here is plain JSON (ADR 0009, 0018). */
-import type { Severity } from '../core/types';
+import type { Severity, SoundProfile } from '../core/types';
 
 export const SCHEMA = 1;             // bump + add a migration when a file format changes
-export const ANALYSIS_VERSION = 3;
+/** Bump to analyse every song again (4: the sound profile, ADR 0197, 2026-11-27). */
+export const ANALYSIS_VERSION = 4;
 /** Bump when the verdict rules change: stored verdicts are re-checked from stored analyses, no decoding (2: gentle roll-offs, 3: quiet content above the fade, ADR 0033). */
 export const VERDICT_VERSION = 8;   // bump to re-analyse every track after an algorithm change (2: full analysis stored, 3: fingerprints, 4: content beyond a wall, 2026-09-27, 5: holes under a wall, 2026-09-28, 6: a quiet top end is still hi-res, upsamples found by what reaches past 24 kHz, 7: a mastering lowpass from 17 kHz, 8: content beyond a wall without frequent drop-outs is lossless, 2026-09-30)
 
@@ -113,6 +114,7 @@ export interface AnalysisSummary {
   fp?: boolean;                           // an acoustic fingerprint is stored for this analysis
   vv?: number;                            // the VERDICT_VERSION the verdict came from (absent = 1)
   engine?: string;                        // what made it: "glue-audio <version>" for GLUE Home's native engine (ADR 0147), absent for JavaScript
+  sound?: SoundProfile;                   // loudness, busyness, timbre and loudness over time (ADR 0197)
 }
 
 export interface List {

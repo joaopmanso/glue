@@ -24,7 +24,8 @@ import { inflateSync } from 'node:zlib';
 
 const FIX = join(__dirname, 'fixtures'), OUT = join(__dirname, 'golden');
 // flac-id3.flac: flac-cover.flac with an ID3v2 tag before the stream and an ID3v1 tag after it (some taggers do both).
-const FILES = ['wav-44k-24.wav', 'aiff-44k-24.aiff', 'flac-96k-24.flac', 'flac-192k-24.flac', 'flac-cover.flac', 'flac-id3.flac'];
+// sound-22k-16.wav: 20 s made for the sound profile (ADR 0197): a quiet intro, then kicks, hats and a chord.
+const FILES = ['wav-44k-24.wav', 'aiff-44k-24.aiff', 'flac-96k-24.flac', 'flac-192k-24.flac', 'flac-cover.flac', 'flac-id3.flac', 'sound-22k-16.wav'];
 const MTIME = 1_700_000_000_000;
 
 /** The worker's job for a file (analysis.worker.ts materialize), lossless formats only. */

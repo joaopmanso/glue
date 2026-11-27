@@ -34,7 +34,7 @@ pub fn details(info: &FileInfo, res: &AnalysisResult, size: f64, mtime: f64) -> 
   }
   let header = json!({
     "v": DETAILS_VERSION, "fileSize": size, "fileMtime": mtime, "info": info,
-    "res": { "music": res.music, "cols": res.cols, "rows": rows, "N": res.n, "binHz": res.bin_hz, "stats": res.stats, "sr": res.sr,
+    "res": { "sound": res.sound, "music": res.music, "cols": res.cols, "rows": rows, "N": res.n, "binHz": res.bin_hz, "stats": res.stats, "sr": res.sr,
       "duration": res.duration, "channels": res.channels, "containerBits": res.container_bits },
     "ltasLen": res.ltas.len(), "specLen": cols * rows,
   });

@@ -1,0 +1,56 @@
+{
+ "v": 4,
+ "grade": "warn",
+ "label": "Caution",
+ "headline": "Band-limited to about 0.0 kHz",
+ "fc": 0,
+ "wall": false,
+ "full": false,
+ "effBits": 16,
+ "declaredBits": 16,
+ "origin": "Band-limited source",
+ "bpm": 127.99,
+ "key": {
+  "tonic": 9,
+  "mode": "major",
+  "margin": 0.289,
+  "tuning": 0
+ },
+ "findings": [
+  {
+   "sev": "warn",
+   "title": "Band-limited to about 0.0 kHz"
+  }
+ ],
+ "fileSize": 882044,
+ "fileMtime": 1700000000000,
+ "vv": 8,
+ "sound": {
+  "lufs": -17.65,
+  "onsets": 3,
+  "timbre": [
+   -1.76,
+   0.24,
+   -6.57,
+   -3.09,
+   36.39,
+   40.61,
+   38.93,
+   -7.13,
+   -12.84,
+   -13.49,
+   -13.07,
+   -12.53,
+   -12.05,
+   -11.69,
+   -11.16,
+   -10.78,
+   8.59,
+   0.064,
+   0.004,
+   0.065
+  ],
+  "curve": "WW2vo6KtsK2kow==",
+  "step": 2.043
+ }
+}

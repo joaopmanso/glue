@@ -45,6 +45,7 @@
     ]
    },
    "res": {
+    "sound": null,
     "music": {
      "bpm": null,
      "bpmConf": 0,
@@ -84,8 +85,8 @@
  "fingerprint": "OAAAAN7RTaxKlE28yDbrscwzs7FRMhf5M6cVS6rFFE5KzLRWxsncNkVpyjK1uitJvbs5zTi8sc1MlOaJzrbmEVYj9jLXatYyN2xWcqBNbVspUiltq1Kp5NpTl6RW1papsg1LqSokSp3LMVxVRaqVU9661VJe04NqVFWqatV1am5Nqk1uzI1Fo1OUtrNTM77bv2q61C5JyRSjSlEUoI5VXUR1dUvJdCVjS3MqcqrGqnI2JoubsiSTmVIxUZm1mFmNpbHsxDEtpqapaqYmSk6EacbFimlO1qpV25LyV1mTUlLbXXIb//////////////////////////////////////////////////////////////////////////8=",
  "analysed": {
   "summary": {
-   "v": 3,
-   "at": "2026-10-02T18:16:51.417Z",
+   "v": 4,
+   "at": "2026-11-27T01:32:08.245Z",
    "grade": "warn",
    "label": "Lossy · not hi-res",
    "headline": "Lossy MP3, not hi-res",

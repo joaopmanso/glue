@@ -1,0 +1,186 @@
+{
+ "details": {
+  "header": {
+   "v": 2,
+   "fileSize": 882044,
+   "fileMtime": 1700000000000,
+   "info": {
+    "container": "WAV",
+    "codec": "PCM",
+    "lossless": true,
+    "sampleRate": 22050,
+    "bits": 16,
+    "channels": 1,
+    "duration": 20,
+    "bitrate": 352.8,
+    "bitrateMode": "",
+    "encoder": "",
+    "vendor": "",
+    "tags": {},
+    "notes": [],
+    "fileName": "sound-22k-16.wav",
+    "fileSize": 882044,
+    "clues": []
+   },
+   "res": {
+    "sound": {
+     "lufs": -17.65,
+     "onsets": 3,
+     "timbre": [
+      -1.76,
+      0.24,
+      -6.57,
+      -3.09,
+      36.39,
+      40.61,
+      38.93,
+      -7.13,
+      -12.84,
+      -13.49,
+      -13.07,
+      -12.53,
+      -12.05,
+      -11.69,
+      -11.16,
+      -10.78,
+      8.59,
+      0.064,
+      0.004,
+      0.065
+     ],
+     "curve": "WW2vo6KtsK2kow==",
+     "step": 2.043
+    },
+    "music": {
+     "bpm": 127.98609134650104,
+     "bpmConf": 1,
+     "key": {
+      "tonic": 9,
+      "mode": "major",
+      "r": 0.8031347488377651,
+      "margin": 0.28871804044828764,
+      "runnerUp": {
+       "tonic": 1,
+       "mode": "minor"
+      },
+      "tuning": 0.009311804017368322
+     }
+    },
+    "cols": 854,
+    "rows": 512,
+    "N": 4096,
+    "binHz": 5.38330078125,
+    "stats": {
+     "peak": 0.741729736328125,
+     "rms": 0.10898704934390231,
+     "clipRuns": 0,
+     "wasted": 0,
+     "assessed": true,
+     "nonInt": 0,
+     "floatFmt": false,
+     "on16": 0,
+     "on24": 0,
+     "lrIdentical": false,
+     "lrCorr": null,
+     "silent": false
+    },
+    "sr": 22050,
+    "duration": 20,
+    "channels": 1,
+    "containerBits": 16
+   },
+   "ltasLen": 2049,
+   "specLen": 437248
+  },
+  "rawSha256": "dc984536de079655a05823945decc97f4ff06059b0d1676383f84ec645c450ef",
+  "rawLength": 445444
+ },
+ "thumb": "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",
+ "wave": "BDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAKwQ3ACsENwArBDcAK0NqA1M+0QOjHNlfsbfy4vK12BCqKtgYqAzXA6js8s3o8uCBwGPXFqgR1xKoS9lCrOX53vS92B+qMtcYqAzXBain58nf5OebzW/XEqgY1xOoONgyquf74/fB3jKwOdgZqAzXCKiy48Tb6e2023nYEakW1xWoLtlQrqL29P3A30iyQ9cYqA7XCqh34rnVzvXL6ILZEakW1xioHtg/q4rz9vy+3l61SdcXqA7XDahO36LJsOrX54rWEqgj1xmoPtgqqf/y7/nG5nbBUtgVqBXYD6h14IzC3v/i+ZXbGqwi1xuoDdcbqGbz5/S24YLASNgWqBjXEahR3Xq6vPnu+6LYJ6on2BuoDNcQqIPp4u3A4pjIUdcVqBfXE6hm2mSy8PXy/KveNrAq1xuoDNcJqL/k0uLQ5qjRXtcTqBPXFags2Fauk+///6vZSq4x1xmoDtcJqFLlxNuo67vbatcRqBbXFqgv2T6rs/b4/6vdXbQ61xinEdcLqIbnsNO478nkdtcOqBzXFagb2DCpevXy+6LecblA1xeoEtcNqI3imcjR9NLrfNkNqh7XF6gk1x+o0+3p86jjhcJH2BaoE9gQqG3dhb208NztgNcQqCLYF6gO1xKoyO3i77jnmctM2BaoE9cSqF7bcbe17+byitgZqSfYF6gM1weo1PPk87nfgr9b1xOoINcTqELbWbGd9ej2mNolqy3XGKgM1wSov/HT6bXnl8to2BGpGNcVqDjZQqys9Ob0ndk0qzPXGagM1waoyO7M5brtrNZx2A6pG9cVqB/YMqqU7evznN5FsTzYGKgO1wiooea72Lnrvdxx2BOo",
+ "waveFromDetails": "ATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALwE5AC8BOQAvATkALzZpA1cy2gOzGuJbv7b13fLE4Q+6NOAXuQfgA7jk9Mrq/OZ9ynjgFLkS4BG4SOA/u+P62vTN4R27PeAXuQjgBbij6sbi6OqZ04DgEbkZ4BK4NeExu+L94vnM6S/CR+AXuQngCLir6MTg7PKz4oniELsZ4BS5K+JOvZ/48v3J6EbCUeAWuQzgCrhy67jdz/nK7pDiELsY4Be5HOA9uoj19v3E5F3CWeAWuQzgDLhP5p/Rse3V6pPfELgo4Be5PuAouf/z7fnI73XOXuIUuhXgDrhw6IrN3P/h+pzlGL0l4Bm5CuAZuWP25va16ILMVeAVuRngELhR5XjHvPvu/Z/hJbsv4Bq5COAPuIHt4e+56JjRWuATuRbgErhm4mLA8/Xz/KbpNcE04Bq5CeAIuMPq0ObP66nZYuASuRXgFLkr4VO9lfH//6jgSbw84Bi5DOAJuE/pw+Cj8bzjcOEQuhrgFbkv4jy7t/f3/6flXcJE4Be4EOALuI7urdu68snoeOANuR3gFLka4C65d/ny/Z3kccVN4Ba5EeANuJDrltLR+NLwheQMvCDgFrkj4B650O7p86vphs1U4BW5E+APuG7kgsi08t3wjOAPuSjiFroL4BG4yfLh8rrtmtZY4hS6FOARuF3jbsO18+b1juEXujDgFrkH4Ae43/ji97fng8tf4BG5IOASuD/kVsCY+Oj5kuUkvTXgF7kH4AO4vvbR7rPvmNZq4BC5G+AUuTXhQLuu9Ob1meEyuzzgF7kJ4AW4zPPK6rf0rOB14w67H+AUuR/gMLqZ7+z1lupEw0TgF7kM4Ai4m+y637LxvuRz4BK5",
+ "fingerprint": "pgEAAK2qqmpqVVWV1Koqaqqqqmo1VVWV0qqqailVVZWXqqpqUlVVle2qqmoSVVWVraqqakhVVZXWqqpqLVVVlcqqqmpVVdWVK1VVldWqqmpSVVWVraqqahVVVZXKqqpqbVVVlZKqqmovVVWVyqqqahJVVZWtqqpqUlVVldSqqmoqaqpqFVXVldKqqmorVVWVlaqqakpVVZXtqqpqElVVle2qqmpIVVWVlqqqai1VVZXSqqpqVVVVlavRVZXVqqpqVlVVlauqqmoVVVWVyqqqam1VVZWSqqpqb1VVldqqqmoSVVWVraqqalJVVZXUqqpqKq6qalVVVZXIqqpqKlVVlZWqqmpqVVWV7aqqahJVVZXtqqpqVFVVlZKqqmotVVWV0qqqahRVVZWrU1WV1aqqak5VVZWrqqpqFVVVlf7nNmb+5zZm/uc2Zv7nNnYCGMiZAhAAwIJICMCSSArAlgAKyNKE/j9tt/U/bf/1Nyl7dRctSRCRJR/NZlW+gWdR/oPnUfeD51W3gudVAX44qgh8GK5IfRiuePUIbiulIjrceBl6X/Bx1g/gc1YHwHNSA8JzUsAfjK38P4yt/D2MrXtljKlTTAV14NGjdQjxMVEP8HFRB/BxUQH6cVXADs6q/A+Oqv4ljq76ZY6ue0UEugp0q14nQOPRf4BjqX6AY608gGOqhDScUoN/nFXDf5xVe3+cKXsVHC1pwHJtfMBj0X4AY1H/AGNV8wJjUYEakqqA/5yuTP2crn79nC57RQkqoUQSsg55hhIAP5yNADqcqUA6nKlECt11/8VjVr/FY1K7xWNuO3UibgkhBCJlzRXiBuAxVgTgMVYB4jFSAcoxmvwfzq3+Hc6t+xXOqXt1DqkklJBlmExsRoA+nIKAPpyqhDqYqcQ6mN1/wWNRe8VnVjvFZ2Y79ScqYRUAOmPCVCpJtTAGCbUwBQm1MFEBtTDV9krP+vZKz6r2Ss8u/0pPbhsKCXnadKSZXdVgmV3VYJld1WOSXdBjZqIqn26iKpxpoi+cqSslja0bzSA9sjddZVJKdmVSSmZqUkpm7lJKZpqttZmSrbWZFa21mXUpvZgpNaUg7cZUS01SVRxBUhWcQVIVnFVTNZyWrapjuq3qY6qsymOurspjKitlAymZ2GxlUlUORVJVjkVSVY5FUhWOla2q8bqtqnG6repxrqzqYy53RQlCxVA3ZY5KN2GiSjNlokozZaJKM5lSlfSaXbXMnl21zKpttc4ue21OJWCDu0nag7Fm2qJhZpqCYWaagmGyrcALmWV9npllfZ6ZVX+eKVNVFS0VHLUlIwvxZbKqcWWyonFloqBxIq3gY5pNXY6aXV+emVVfnilTVRZtVQUA5WmLIZmBSjqZgUo6WYBKMloASjHSfLXFp3+1zyX/tc8t/6VOQiQWBO2x05uZraoamq2qGJqtKhiRpWqYZVJV52pS1eduWtXnblpVa6JSCwJ2eNQsRVNZpkVSVaZFUlWORVJVjrqtqlm6rapxuq2qca6tylXWUiVCAiuRPGZaVaZlWlWmZVpVpkVSVY6ZpapZmqWqWbqtqnGurcpxLlIREYo9x27mSlL64Upa++VKWrumSlq5mrWlBFq1pURZtaVGWbelRi1TFQaVM+RZUpWkUVKVpFFSlbRRUpWUUaZqWq6takuurWprrq1qb6ypKmUElXooqQ1z01ENc9PQDVPT0E1T09DyjCyr8qwsL/KsLC/5rSxnKXulICURRY9xjKzXUoysFVKMrBRSragUBnNTqK1TU+utUlfrrVJXS6l7pwlFEhhWjb0cVJmtJUCZraVCmS2lQokkkidmUlq9ZtJavWbTWp1mW00YIkiQxGJlWp/Salo70mpaO9IqWjsdFuQ0LZWlxC3dpcwm3aXNLnuNCyoySQhtjGylZojso2aY7KNmmuwjZbLqY51lE9yZZRfcmnUV3K57FZwmJSUAMhNTdaoqWxuuKlo7ripaOaEqWjhV1aXEWdWlxlrVpcZu36VPNklNBNk9ixGac3dUnnN3UIpzdVCKc9FRZYyIr3WMqq91jC6vJt9sjixaQQBqog6mrCNaS6kqWputKlqbrihamVLVpWRW1aVmUdelZlnX5WYtW20BGn/GHLmsIqm5rCqpuaxqqbCs6qhGU9VeRlOVVk1TFVcpWxdXLTlNATZztGxtUsrWadJK1m1SStZtUkrUsik3KZKttSmVrbUrWa/1Z2lrZRBlwpUvUcOMbFLHhGRSx4R1UseEdS44c5OtOHuKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcLLS5O7y9Pj9/vr18/Ly8vX6/v359PLy8vL0+f7/+/bz8vLy9Pf7/Pn18vLy8vP3+/379/Py8vLz9vr8+vbz8vLy8/b7/fv28/Ly8vP1+v38+PTy8vLz9fr9+/fz8vLy8vX5/Pr38/Ly8vL1+fz8+PTz8vLy9fr9/fn18/Ly8vT5/Pz59PPy8vL0+f39+fTy8vLy8/f7+/n18/Ly8vP3/P379vPy8vLz9fn7+vbz8vLy8/X5+/r28/Ly8vP2+vz69vPy8vLz9fr8+vbz8vLy8/b7/fz39PLy8vL1+f38+PTz8vLy9fr9/fn18/Ly8vT4/Pz59fPy8vL0+f3++vXz8vLy8/f7/Pn18/Ly8vP3+/z59fPy8vLz9/v9+vXz8vLy8/b7/Pr28/Ly8vP2+/779/Py8vLz9fr9+/f08vLy8vX5/Pz49PPy8vL0+Pz7+PXz8vLy9fr+/fk=",
+ "analysed": {
+  "summary": {
+   "v": 4,
+   "grade": "warn",
+   "label": "Caution",
+   "headline": "Band-limited to about 0.0 kHz",
+   "fc": 0,
+   "wall": false,
+   "full": false,
+   "effBits": 16,
+   "declaredBits": 16,
+   "origin": "Band-limited source",
+   "bpm": 127.99,
+   "key": {
+    "tonic": 9,
+    "mode": "major",
+    "margin": 0.289,
+    "tuning": 0
+   },
+   "findings": [
+    {
+     "sev": "warn",
+     "title": "Band-limited to about 0.0 kHz"
+    }
+   ],
+   "fileSize": 882044,
+   "fileMtime": 1700000000000,
+   "vv": 8,
+   "sound": {
+    "lufs": -17.65,
+    "onsets": 3,
+    "timbre": [
+     -1.76,
+     0.24,
+     -6.57,
+     -3.09,
+     36.39,
+     40.61,
+     38.93,
+     -7.13,
+     -12.84,
+     -13.49,
+     -13.07,
+     -12.53,
+     -12.05,
+     -11.69,
+     -11.16,
+     -10.78,
+     8.59,
+     0.064,
+     0.004,
+     0.065
+    ],
+    "curve": "WW2vo6KtsK2kow==",
+    "step": 2.043
+   },
+   "fp": true
+  },
+  "size": 882044,
+  "mtime": 1700000000000,
+  "format": {
+   "container": "WAV",
+   "codec": "PCM",
+   "lossless": true,
+   "sampleRate": 22050,
+   "bits": 16,
+   "bitrate": 353,
+   "channels": 1
+  },
+  "duration": 20,
+  "fields": {
+   "title": "",
+   "artist": "",
+   "album": "",
+   "genre": "",
+   "label": "",
+   "comment": "",
+   "grouping": "",
+   "year": "",
+   "bpm": "",
+   "key": ""
+  },
+  "art": ""
+ }
+}

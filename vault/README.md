@@ -108,7 +108,7 @@ Planned (GLUE):
 | [0024](adr/0024-background-stores-full-analysis.md) | Background analysis stores the full analysis, in the browser's storage | accepted |
 | [0031](adr/0031-row-thumbnails.md) | Mini spectrograms in the track table: tiny, per track, loaded on demand | accepted |
 | [0030](adr/0030-detect-dj-libraries.md) | DJ libraries are detected in folders the user has allowed | accepted |
-| [0029](adr/0029-automatic-playlists.md) | Automatic playlists: a greedy walk along a BPM ramp with weighted randomness | accepted |
+| [0029](adr/0029-automatic-playlists.md) | Automatic playlists: a greedy walk along a BPM ramp with weighted randomness | superseded in part by 0198 (the order, the seed first) |
 | [0028](adr/0028-themes.md) | Themes: one token table, dark and light for each | accepted |
 | [0027](adr/0027-drag-out-with-downloadurl.md) | Dragging out to other apps uses Chromium's DownloadURL | accepted |
 | [0026](adr/0026-profile-backups-and-wipe.md) | Profile backups are zips; "delete all" removes only what GLUE made | accepted |
@@ -271,6 +271,8 @@ Planned (GLUE):
 | [0194](adr/0194-glue-doesnt-write-into-engine-dj.md) | GLUE doesn't write into Engine DJ: off unless `engineWrites` is set (after Engine DJ 5.3 rebuilt the Collection and the sync deleted the user's playlists); reading stays; the Collection put back | accepted |
 | [0195](adr/0195-glues-playlists-reach-engine-dj-as-a-rekordbox-xml.md) | GLUE's playlists reach Engine DJ as a rekordbox XML GLUE Home keeps on this computer (the lists kept in Engine DJ, with cues and grids); Engine DJ reads it as its rekordbox library; GLUE writes none of its files | accepted |
 | [0196](adr/0196-glues-own-engine-dj-library-on-a-drive-of-its-own.md) | GLUE's playlists reach Engine DJ through a library of GLUE's own, shown as a drive (Windows `subst`): Engine DJ merges it with its Collection each time it starts; written only while Engine DJ is closed, only under "GLUE" | accepted |
+| [0197](adr/0197-a-sound-profile-for-every-song.md) | Every song gets a sound profile (loudness, onsets, timbre, loudness over time), in the browser and GLUE Home; energy 1–10 relative to the collection, likeness by timbre; `ANALYSIS_VERSION` 4 | accepted |
+| [0198](adr/0198-playlists-that-follow-a-flow.md) | Playlists built along a flow (presets or a drawn curve), the songs to start from placed by role, sound likeness and artist spacing in the score, a beam search | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

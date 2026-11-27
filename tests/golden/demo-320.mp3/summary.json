@@ -1,5 +1,5 @@
 {
- "v": 3,
+ "v": 4,
  "grade": "bad",
  "label": "Fake bitrate",
  "headline": "Upconverted from a lower-quality file",
@@ -29,5 +29,33 @@
  "fileSize": 482786,
  "fileMtime": 1700000000000,
  "vv": 8,
+ "sound": {
+  "lufs": -23.75,
+  "onsets": 2.84,
+  "timbre": [
+   -9.51,
+   -3.11,
+   6.99,
+   7.39,
+   7.32,
+   4.69,
+   4.37,
+   2.78,
+   1.55,
+   0.54,
+   -0.78,
+   -2,
+   -3.21,
+   -4.51,
+   -5.64,
+   -6.87,
+   7.968,
+   0.099,
+   0.358,
+   0.024
+  ],
+  "curve": "lZKFkJeL",
+  "step": 1.997
+ },
  "fp": true
 }

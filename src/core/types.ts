@@ -72,6 +72,9 @@ export interface KeyResult extends Key {
   tuning: number;          // cents from A440
 }
 export interface MusicResult { bpm: number | null; bpmConf: number; key: KeyResult | null }
+/** The sound profile (ADR 0197, src/core/audio/sound.ts): integrated loudness (LUFS), onsets per second, the timbre
+    (TIMBRE_LEN numbers) and the loudness about every `step` seconds (base64 bytes, quarter dB from −60 LUFS). */
+export interface SoundProfile { lufs: number; onsets: number; timbre: number[]; curve: string; step: number }
 
 export interface Spectrum {
   spec: Float32Array;      // cols × rows, dB, column-major
@@ -91,6 +94,7 @@ export interface AnalysisResult extends Spectrum {
   containerBits: number;
   demoPcm: Int16Array | null;
   fp?: { words: Uint32Array; loud: Uint8Array };   // acoustic fingerprint (background analysis only)
+  sound?: SoundProfile | null;                       // ADR 0197; null for a song too short or silent
 }
 
 export type AnalysisJob =

@@ -31,6 +31,7 @@
     ]
    },
    "res": {
+    "sound": null,
     "music": {
      "bpm": null,
      "bpmConf": 0,
@@ -71,7 +72,7 @@
  "fingerprint": "AgAAAExopovNOc65//8=",
  "analysed": {
   "summary": {
-   "v": 3,
+   "v": 4,
    "grade": "ok",
    "label": "Genuine hi-res",
    "headline": "Real hi-res: content to 93.1 kHz",

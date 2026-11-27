@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bpmFit, generate, keyFit, replaceSlot, type AutoOptions, type Candidate } from '../src/core/library/autoplaylist';
+import { bpmFit, generate, keyFit, replaceSlot, targetsOf, type AutoOptions, type Candidate } from '../src/core/library/autoplaylist';
 import type { Key } from '../src/core/types';
 
 const K = (tonic: number, mode: 'major' | 'minor'): Key => ({ tonic, mode });
@@ -26,11 +26,11 @@ describe('automatic playlists (ADR 0029)', () => {
     expect(bpmFit(62, 124, 0.04, false)!).toBeLessThan(0);
     expect(bpmFit(62, 124, 0.04, true)).toBe(1);
   });
-  it('follows the BPM ramp, starts with the seed, includes the must-haves, never repeats', () => {
+  it('follows the BPM ramp, opens with the seed when asked, includes the must-haves, never repeats', () => {
     const pool = collection();
     pool[0] = { ...pool[0], bpm: 120, key: Am, rating: 3 };
     pool[1] = { ...pool[1], bpm: 127, key: Em, rating: 1 };
-    const res = generate(pool, 't0', ['t1'], opts());
+    const res = generate(pool, 't0', ['t1'], opts({ roles: { t0: 'open' } }));
     const ids = res.slots.map(s => s.id);
     expect(ids).toHaveLength(20);
     expect(ids[0]).toBe('t0');
@@ -72,5 +72,67 @@ describe('automatic playlists (ADR 0029)', () => {
     const alt = replaceSlot(pool, ids, 4, opts({ count: 10 }), res.slots[4].bpmTarget);
     expect(alt).not.toBeNull();
     expect(ids).not.toContain(alt);
+  });
+
+  it('puts a seed where its tempo fits, not first (ADR 0198)', () => {
+    const pool = collection();
+    pool[0] = { ...pool[0], bpm: 128 };
+    const ids = generate(pool, 't0', [], opts()).slots.map(s => s.id);
+    expect(ids.indexOf('t0')).toBeGreaterThan(14);   // 128 BPM is the end of 120 → 128
+  });
+});
+
+/** 300 songs with an energy and a timbre: three sounds (a, b, c), energies 1–10 spread over each. */
+function sounding(): Candidate[] {
+  let s = 7; const r = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  const centre: Record<string, number[]> = { a: [2, 0, 0, 0], b: [0, 2, 0, 0], c: [0, 0, 2, 0] };
+  return Array.from({ length: 300 }, (_, i) => {
+    const kind = 'abc'[i % 3], t = Float64Array.from(centre[kind], v => v + (r() - 0.5));
+    return { id: kind + i, bpm: 124 + Math.round(r() * 4), key: K(Math.floor(r() * 12), 'minor'), rating: 3, genre: '', duration: 300, energy: 1 + r() * 9, timbre: t, artist: 'artist ' + (i % 40) };
+  });
+}
+
+describe('playlists that flow (ADR 0198)', () => {
+  const o = (x: Partial<AutoOptions> = {}) => opts({ startBpm: null, endBpm: null, harmonic: 'off', useRatings: false, randomness: 0.2, count: 16, ...x });
+  it('follows the energy curve', () => {
+    const pool = sounding(), byId = new Map(pool.map(c => [c.id, c]));
+    const res = generate(pool, null, [], o({ flow: [2, 4, 6, 8, 10] }));
+    const e = res.slots.map(s => byId.get(s.id)!.energy!);
+    expect(e[0]).toBeLessThan(3.5);
+    expect(e[e.length - 1]).toBeGreaterThan(8.5);
+    for (const s of res.slots) expect(Math.abs(s.energy! - s.energyTarget!)).toBeLessThan(1.5);
+  });
+  it('places seeds by role: Anywhere where the flow fits, Opener first, Closer last, Peak at the top', () => {
+    const pool = sounding(), low = pool.find(c => c.energy! < 2.5)!, high = pool.find(c => c.energy! > 9.5)!;
+    const ids = (seed: string, roles: Record<string, 'any' | 'open' | 'peak' | 'close'>, flow = [2, 4, 6, 8, 10]) => generate(pool, seed, [], o({ flow, roles })).slots.map(s => s.id);
+    expect(ids(high.id, {}).indexOf(high.id)).toBeGreaterThan(12);          // a 10 belongs at the end of a warm-up
+    expect(ids(low.id, {}).indexOf(low.id)).toBeLessThan(3);
+    expect(ids(high.id, { [high.id]: 'open' })[0]).toBe(high.id);
+    expect(ids(low.id, { [low.id]: 'close' }).at(-1)).toBe(low.id);
+    const peak = ids(low.id, { [low.id]: 'peak' }, [3, 5, 9, 5, 3]);
+    expect(Math.abs(peak.indexOf(low.id) - 7.5)).toBeLessThan(2);
+  });
+  it('sounds like the songs it starts from when asked, varied when not', () => {
+    const pool = sounding(), seed = pool.find(c => c.id.startsWith('a'))!;
+    const share = (likeness: number) => generate(pool, seed.id, [], o({ likeness })).slots.filter(s => s.id.startsWith('a')).length / 16;
+    expect(share(1)).toBeGreaterThan(0.8);
+    expect(share(0)).toBeLessThan(share(1));
+  });
+  it('keeps the same artist apart', () => {
+    const pool = sounding().map((c, i) => ({ ...c, artist: 'artist ' + (i % 6) }));
+    const res = generate(pool, null, [], o({ artistGap: 3 })), by = new Map(pool.map(c => [c.id, c.artist]));
+    const a = res.slots.map(s => by.get(s.id));
+    for (let i = 1; i < a.length; i++) for (let j = Math.max(0, i - 3); j < i; j++) expect(a[i]).not.toBe(a[j]);
+  });
+  it('is repeatable with a flow too', () => {
+    const pool = sounding(), x = o({ flow: [5, 8, 5, 9, 6] });
+    expect(generate(pool, null, [], x).slots.map(s => s.id)).toEqual(generate(pool, null, [], x).slots.map(s => s.id));
+    expect(generate(pool, null, [], { ...x, seed: 9 }).slots.map(s => s.id)).not.toEqual(generate(pool, null, [], x).slots.map(s => s.id));
+  });
+  it('has the tempo follow the flow when asked', () => {
+    const t = targetsOf(5, o({ startBpm: 120, endBpm: 130, flow: [1, 10, 1], bpmFollowsFlow: true }));
+    expect(t.bpm[0]).toBe(120);
+    expect(t.bpm[2]).toBe(130);
+    expect(t.bpm[4]).toBe(120);
   });
 });

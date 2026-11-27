@@ -43,6 +43,7 @@
     ]
    },
    "res": {
+    "sound": null,
     "music": {
      "bpm": null,
      "bpmConf": 0,
@@ -82,8 +83,8 @@
  "fingerprint": "TgAAAN1rLylUq0odUqlUFXKNVbYihTWmMqU6y1ajulHtcrLUqXr2tLkqRba6Kc3yJ1WJ04VXk+mVUJKtlShWLV2sbG1ppiVNa6QkTeuUmGbS1dgmVlRbqlZqQ5stS0fbromUay7qtGpL4rDKSTe5xNK1LbTWjHW1tQx3Ulkbs1JYU6qqktIqr7bWWKml1lHJpdqnWaWKr1Baas1UWmXElBJ1Zpd6tSiqKrVtyq2pTZWNa52VnWu31RRrskx00rIa5ZJaWuyYbVraYDXV2mY5KYpOKiuiG8osYhvWxGsz1USJllUbmZprqtjKIqrYiaS1zKmlVaQ1DdYlU5lGEXqTclOukjFMpG45TIVuqaZFRaqya9XqsrrSSuPaylTluFpV1y1qhVAlJUVYK2VaOJuxWjpRoaqXVK2pzeQtpf38+/v7/P38+/z9/f39/f7+/v79/Pz8/P39/f7+/v7+/v3+/v79/Pv8/f79/fz8/f39/f///v39/f3+/v7+/fz8/P39/v39/f7+/////g==",
  "analysed": {
   "summary": {
-   "v": 3,
-   "at": "2026-10-02T18:16:51.789Z",
+   "v": 4,
+   "at": "2026-11-27T01:32:08.440Z",
    "grade": "warn",
    "label": "Lossy · not hi-res",
    "headline": "Lossy AAC-LC, not hi-res",

@@ -121,7 +121,7 @@ export const TOURS: Tour[] = [
     id: 'playlists', title: 'Playlists and the builder', summary: 'Playlists, folders, tags and building one from a song.',
     steps: [
       { target: 'playlists', go: { route: '#/' }, title: 'Playlists and folders', place: 'right', body: 'Drag songs onto a playlist, playlists into folders; right-click for colours and more, and, with GLUE Home, “Keep in Engine DJ” to see it in Engine DJ’s GLUE folder. Deleted ones go to Recently deleted first.' },
-      { target: 'builder', title: 'Building one', place: 'right', body: '+ Auto builds a playlist from your collection. With a song selected, “Build playlist from this” makes one that flows from it.' },
+      { target: 'builder', title: 'Building one', place: 'right', body: '+ Auto builds a playlist that follows a flow you draw (energy rising, steady, peaks) and sounds like the songs you start from. With songs selected: “Build playlist from this”.' },
       { target: 'tags', title: 'Tags', place: 'right', body: 'Tag songs from the Tags column or by dragging them here: a quick list of their own.' },
     ],
   },

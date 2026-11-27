@@ -39,6 +39,7 @@
     ]
    },
    "res": {
+    "sound": null,
     "music": {
      "bpm": null,
      "bpmConf": 0,
@@ -78,8 +79,8 @@
  "fingerprint": "TgAAANWIQrbUKUJLdGZTTSoWtU0rtT1VKaUlrW6tJKtGSKO7llKpqrxaq+o5mVrOWdVaXMFHqVWlLilVNapRSyXqVFPl4qp2y7WKplWVxq4VndaquZHXmMtjs9XCazNFRk82Yy6eTjI6mswqO5rMKKXKFPnFZjDT1WQ701Vti5BYqYmMOtlpbapRZk2q0iZFNuuK13RuidZxNnWSa5ZVq4qMXCqaTdbCtVVW1mXRNjdlUzYtQ2tnLdEq6S3RuGlUzby40uyOstIuRtaUMktXMRZpSzFWOSuTNDmq1p0qqkzJRpdoyVa0OEqVRLEqtUmlqdFJr7VYc6pVWFJqVLRSZmantnZDqqexUyqnsXVJlrU32ZSTptmTyhlJS+pZTEnuySbNlJmkrVCytapT4tYqR8RSpoeEWpWFnKuXmf/+/fv6+vr7+/r6+vr6+vr7+vr7+/z7+vr6+/v7/Pz8/Pz8+/r6+vv7/Pz8+/v6+vr7+/z8/f38/Pz8+/r5+Pj4+Pr7+/v6+vv7+/z8+w==",
  "analysed": {
   "summary": {
-   "v": 3,
-   "at": "2026-10-02T18:16:51.087Z",
+   "v": 4,
+   "at": "2026-11-27T01:32:08.093Z",
    "grade": "warn",
    "label": "Caution",
    "headline": "Left and right are identical",

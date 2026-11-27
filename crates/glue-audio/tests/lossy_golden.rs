@@ -56,6 +56,16 @@ fn lossy_files_match_the_browser() {
     if (fc - gfc).abs() > 30.0 { p(format!("fc {fc} vs {gfc}")); }
     match (s["bpm"].as_f64(), sum["bpm"].as_f64()) { (Some(x), Some(y)) if (x - y).abs() <= 0.05 => {}, (None, None) => {}, (x, y) => p(format!("bpm {x:?} vs {y:?}")) }
     if !same(&s["key"]["tonic"], &sum["key"]["tonic"]) || s["key"]["mode"] != sum["key"]["mode"] { p(format!("key {} vs {}", s["key"], sum["key"])); }
+    // The sound profile (ADR 0197): the loudness within 0.15 LU, the timbre within 1 (dB, or a share), onsets within 0.5.
+    let (ms, gs) = (&s["sound"], &sum["sound"]);
+    if ms.is_null() != gs.is_null() { p(format!("sound {ms} vs {gs}")); }
+    else if !gs.is_null() {
+      let f = |v: &Value, k: &str| v[k].as_f64().unwrap_or(f64::NAN);
+      if (f(ms, "lufs") - f(gs, "lufs")).abs() > 0.15 { p(format!("lufs {} vs {}", ms["lufs"], gs["lufs"])); }
+      if (f(ms, "onsets") - f(gs, "onsets")).abs() > 0.5 { p(format!("onsets {} vs {}", ms["onsets"], gs["onsets"])); }
+      let (mt, gt) = (ms["timbre"].as_array().unwrap(), gs["timbre"].as_array().unwrap());
+      if mt.len() != gt.len() || mt.iter().zip(gt).any(|(x, y)| (x.as_f64().unwrap() - y.as_f64().unwrap()).abs() > 1.0) { p(format!("timbre {} vs {}", ms["timbre"], gs["timbre"])); }
+    }
     // The thumbnails: within ±1 a byte, nearly all equal.
     for (k, mine) in [("thumb", &a.thumb), ("wave", &a.wave)] {
       let g = bytes_b64(files[k].as_str().unwrap());

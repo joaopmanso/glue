@@ -119,7 +119,7 @@ fn edited_info_goes_into_the_files_and_the_cache_follows() {
   let (glue, cache) = (temp("unwritten"), temp("unwritten-cache"));
   library(&glue);
   put(&glue, &format!("{C}/tracks/ab.json"), json!({ "schemaVersion": 1, "items": { "ab1": { "id": "ab1", "status": "linked", "rootId": "r1", "relPath": "a.mp3", "size": 1000, "mtime": 5, "title": "New title", "unwritten": ["title"], "sources": [] } } }));
-  put(&glue, &format!("{C}/analysis/ab.json"), json!({ "schemaVersion": 1, "items": { "ab1": { "v": 3, "fileSize": 1000, "fileMtime": 5 } } }));
+  put(&glue, &format!("{C}/analysis/ab.json"), json!({ "schemaVersion": 1, "items": { "ab1": { "v": 4, "fileSize": 1000, "fileMtime": 5 } } }));
   put(&cache, "s/p1/c1/ab/ab1.json", json!({ "summary": { "fileSize": 1000, "fileMtime": 5 }, "size": 1000, "mtime": 5 }));
   let h = H::default();
   let e = Engine::new(glue.clone(), cache.clone(), h.clone());
@@ -149,8 +149,8 @@ fn the_queue_analyses_a_song_and_puts_it_into_the_library() {
   e.run_analysis();
   for _ in 0..300 { if h.0.lock().unwrap().events.iter().any(|x| x.starts_with("Put ")) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
   let mut a = Value::Null;
-  for _ in 0..300 { a = std::fs::read_to_string(glue.join(format!("{C}/analysis/ab.json"))).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null); if a["items"]["ab1"]["v"] == json!(3) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
-  assert_eq!(a["items"]["ab1"]["v"], json!(3), "analysed into the library");
+  for _ in 0..300 { a = std::fs::read_to_string(glue.join(format!("{C}/analysis/ab.json"))).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null); if a["items"]["ab1"]["v"] == json!(4) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
+  assert_eq!(a["items"]["ab1"]["v"], json!(4), "analysed into the library");
   let t = read(&glue, &format!("{C}/tracks/ab.json"))["items"]["ab1"].clone();
   assert_eq!(t["size"], json!(std::fs::metadata(music.join("a.mp3")).unwrap().len()));
   assert_eq!(t["title"], "A", "a title set in GLUE stays");
@@ -312,7 +312,7 @@ fn verdicts_made_by_older_rules_are_made_again_from_the_details() {
   let e = Engine::new(glue.clone(), cache.clone(), h.clone());
   e.run_analysis();
   let mut a = Value::Null;
-  for _ in 0..300 { a = std::fs::read_to_string(glue.join(format!("{C}/analysis/ab.json"))).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null); if a["items"]["ab1"]["v"] == json!(3) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
+  for _ in 0..300 { a = std::fs::read_to_string(glue.join(format!("{C}/analysis/ab.json"))).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null); if a["items"]["ab1"]["v"] == json!(4) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
   let now = a["items"]["ab1"].clone();
   assert_eq!(now["label"], "Genuine hi-res", "{now}");
   for _ in 0..50 { if h.0.lock().unwrap().events.iter().any(|x| x.starts_with("Analysis done")) { break; } std::thread::sleep(std::time::Duration::from_millis(100)); }
