@@ -464,10 +464,12 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     kept apart, and a penalty for energy jumps;
   - a beam search (8 partial sets, deterministic from the seed; "Surprise me" draws among each set's best few);
   - the form is kept on `List.auto`.
-- **Sets** (ADR 0199–0202, `src/core/sets/`, `#/set/<id>`):
+- **Sets** (ADR 0199–0203, `src/core/sets/`, `#/set/<id>`):
   - a playlist laid out as a mix on one beat clock, kept as `List.set` (the sidebar marks such a playlist);
   - `planSet` places hand-overs on phrases in the set's style, fits a length asked for (songs shorter, then off the
     end), and on 3 decks layers songs that sound alike (style `layer`: three at once, one bass);
+  - each hand-over's bass is the style's, the outgoing song's, the incoming one's or both, its swap point movable
+    (`fx.bass`, `fx.swap`, `automation.ts` `handOver`);
   - hand edits (`edit.ts`: move, trim in, move end, in whole bars, clamped to a set that holds together), the order
     dragged (planned again), undo and redo (`lib/sets/set.svelte.ts`);
   - one engine (`Mixer`: tempo map, WSOLA key lock, isolator, filter, echo, equal-power headroom, gliding limiter,

@@ -19,10 +19,10 @@
   import { theme } from '../render/canvas';
   import { keyLabel } from '../../core/audio/keys';
   import { tempoOf } from '../../core/sets/tempo';
-  import { controlsAt } from '../../core/sets/automation';
+  import { bassSwapAt, controlsAt } from '../../core/sets/automation';
   import { clock } from '../../core/sets/tracklist';
   import { edited, moveEnd, moveSong, trimIn } from '../../core/sets/edit';
-  import { MIX_RATE, type FxStyle, type SetItem, type SetPlan } from '../../core/sets/types';
+  import { MIX_RATE, type BassChoice, type FxStyle, type SetItem, type SetPlan } from '../../core/sets/types';
   import type { Waveform } from '../../core/audio/waveform';
 
   let { plan, waves, frame, playing = false, sel = $bindable(null), song = $bindable(null), onseek }: {
@@ -218,6 +218,38 @@
   const picked = $derived(song != null && plan.items[song] ? { i: song, it: plan.items[song], at: tm.time(plan.items[song].start), x: blocks[song]?.x ?? 0 } : null);
   function apply(items: SetItem[]) { sets.apply(edited(plan, items)); }
   function setFx(i: number, style: FxStyle) { apply(plan.items.map((it, j) => j === i ? { ...it, fx: { ...(it.fx ?? {}), style } } : it)); }
+  const BASS: [BassChoice, string, string][] = [['auto', 'Auto', 'As the style has it (drag the bass marker to move where it changes hands)'], ['out', 'Outgoing', 'The outgoing song keeps its bass all through'], ['in', 'Incoming', 'The incoming song has its bass from the start'], ['both', 'Both', 'Both basses at once: double bass']];
+  /** Whose bass plays; Auto forgets a moved swap point too. */
+  function setBass(i: number, bass: BassChoice) {
+    apply(plan.items.map((it, j) => {
+      if (j !== i) return it;
+      const { swap, bass: _, ...rest } = it.fx ?? { style: 'blend' as FxStyle };
+      void swap; void _;
+      return { ...it, fx: bass === 'auto' ? rest : { ...rest, bass } };
+    }));
+  }
+  // The open hand-over's bass marker: where the bass changes hands, dragged a bar at a time.
+  const swapMark = $derived.by(() => {
+    if (sel == null || !plan.items[sel + 1]) return null;
+    const a = plan.items[sel], s = plan.items[sel + 1].start, len = a.start + a.beats - s, at = bassSwapAt(a.fx, len);
+    return at == null ? null : { i: sel, s, len, at, x: tm.time(s + at) * z };
+  });
+  let swapDrag: { x: number; at: number; i: number; s: number; len: number; bpm: number } | null = null;
+  function swapDown(e: PointerEvent) {
+    if (!swapMark || e.button !== 0) return;
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    swapDrag = { x: e.clientX, at: swapMark.at, i: swapMark.i, s: swapMark.s, len: swapMark.len, bpm: tm.bpmAt(swapMark.s) };
+    sets.grab();
+  }
+  function swapMove(e: PointerEvent) {
+    const d = swapDrag;
+    if (!d) return;
+    const at = Math.max(0, Math.min(Math.floor(d.len / 4) * 4, Math.round((d.at + (e.clientX - d.x) / z * d.bpm / 60) / 4) * 4));
+    const it = plan.items[d.i];
+    if (at !== it.fx?.swap) sets.drag(edited(plan, plan.items.map((x, j) => j === d.i ? { ...x, fx: { ...(x.fx ?? { style: 'blend' as FxStyle }), swap: at, bass: 'auto' } } : x)));
+  }
+  function swapUp() { if (swapDrag) { swapDrag = null; sets.drop(); } }
   function nudge(f: typeof moveEnd, i: number, beats: number) { const r = f(plan.items, i, beats, len); if (r.d) apply(r.items); }
   function setItem(i: number, patch: Partial<SetItem>) { apply(plan.items.map((it, j) => j === i ? { ...it, ...patch } : it)); }
   const hear = (i: number) => void preview.play(Math.max(0, tm.time(plan.items[i + 1].start - 32)) * MIX_RATE);
@@ -265,6 +297,12 @@
         </button>
       {/each}
     </div>
+    {#if swapMark}
+      <div class="swapline" style:left={swapMark.x + 'px'} style:top={RULER + 'px'} style:height={plan.decks * LANE + 'px'}></div>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <span class="swap" id="set-swap" style:left={swapMark.x + 'px'} style:top={RULER + plan.decks * LANE + 4 + 'px'} title="Where the bass changes hands: drag it (a bar at a time)"
+        onpointerdown={swapDown} onpointermove={swapMove} onpointerup={swapUp}>bass</span>
+    {/if}
     <div class="head" style:left={head + 'px'} style:height={RULER + plan.decks * LANE + 'px'}></div>
   </div>
 </div>
@@ -281,6 +319,10 @@
       <span class="fxs" role="radiogroup" aria-label="How it hands over">
         {#each FX as [v, l, , d] (v)}<button type="button" role="radio" id={'set-hfx-' + v} aria-checked={(hand.a.fx?.style ?? 'blend') === v} title={d} onclick={() => setFx(i, v)}>{l}</button>{/each}
       </span>
+      <div class="rows" role="radiogroup" aria-label="Whose bass plays">
+        <span class="lbl">Bass</span>
+        {#each BASS as [v, l, d] (v)}<button type="button" role="radio" class="bs" id={'set-bass-' + v} aria-checked={(hand.a.fx?.bass ?? 'auto') === v} title={d} onclick={() => setBass(i, v)}>{l}</button>{/each}
+      </div>
       <div class="rows">
         <span class="lbl">Length</span>
         <button type="button" id="set-shorter" title="4 bars shorter" onclick={() => nudge(moveEnd, i, -16)}>−4 bars</button>
@@ -360,6 +402,9 @@
   .hchip:hover { background: #f5c51830; }
   .hchip.on { background: #f5c518; color: #111; border-color: #f5c518; }
   .hchip.cut { border-style: dashed; }
+  .swapline { position: absolute; width: 0; border-left: 2px dashed #ff8a1f; margin-left: -1px; pointer-events: none; z-index: 2; }
+  .swap { position: absolute; z-index: 4; transform: translateX(-50%); height: 20px; padding: 0 7px; border-radius: 10px; background: #ff8a1f; color: #111; font-size: 10.5px; font-weight: 700; line-height: 20px; cursor: ew-resize; touch-action: none; box-shadow: 0 0 0 2px #0e0e14; }
+  .rows .bs[aria-checked="true"] { background: #ff8a1f; border-color: #ff8a1f; color: #111; font-weight: 600; }
   .head { position: absolute; top: 0; width: 2px; margin-left: -1px; background: #ff4d4d; box-shadow: 0 0 6px #ff4d4d; pointer-events: none; z-index: 3; }
   .head::before { content: ''; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top-color: #ff4d4d; }
 

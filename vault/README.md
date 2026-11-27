@@ -277,6 +277,7 @@ Planned (GLUE):
 | [0200](adr/0200-planning-a-set-on-phrases.md) | Plan a set's hand-overs on 16-bar phrases before each outro, in its style (one at a time, continuous, double drops), cuts between far tempos | accepted |
 | [0201](adr/0201-a-set-shaped-by-hand-and-heard-live.md) | A set shaped by hand on its timeline (whole bars, kept whole, undo), heard live from a worker feeding a worklet; headroom where songs play together, a gliding limiter, WSOLA by normalised correlation | accepted |
 | [0202](adr/0202-a-sets-length-layering-and-timeline-gestures.md) | A set's length asked for (songs shorter, then off the end), songs that sound alike layered on 3 decks (three at once, one bass), the timeline's gestures (wheel zoom, drag to scroll, select before moving, boxes in place) | accepted |
+| [0203](adr/0203-whose-bass-plays-in-a-hand-over.md) | Whose bass plays in a hand-over (the style's, outgoing, incoming, both) and where it changes hands, dragged on the timeline | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

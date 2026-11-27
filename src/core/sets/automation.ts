@@ -1,6 +1,6 @@
 /* What each deck's controls do over a hand-over (ADR 0199): volume, the isolator's low / mid / high, the one-knob filter
    and the echo send, at any mix beat. Outside a hand-over a song plays as it is. Pure. */
-import type { FxStyle, SetItem } from './types';
+import type { BassChoice, FxStyle, SetItem } from './types';
 
 export interface Ctl { gain: number; low: number; mid: number; high: number; filter: number; echo: number }
 const FLAT: Ctl = { gain: 1, low: 1, mid: 1, high: 1, filter: 0, echo: 0 };
@@ -8,8 +8,20 @@ const SILENT: Ctl = { ...FLAT, gain: 0 };
 const clamp = (x: number) => Math.max(0, Math.min(1, x));
 const up = (u: number) => Math.sin(clamp(u) * Math.PI / 2), down = (u: number) => Math.cos(clamp(u) * Math.PI / 2);
 
-/** The outgoing (side 'out') or incoming ('in') song's controls at beat `b` of a hand-over [s, e) in that style. */
-export function handOver(style: FxStyle, side: 'out' | 'in', b: number, s: number, e: number, drop?: number): Ctl {
+/** The outgoing (side 'out') or incoming ('in') song's controls at beat `b` of a hand-over [s, e) in that style; then
+    whose bass plays, as chosen (ADR 0203): the outgoing song's, the incoming one's, both, or the style's (changing hands
+    at `swap` beats in, when it was moved). */
+export function handOver(style: FxStyle, side: 'out' | 'in', b: number, s: number, e: number, drop?: number, bass: BassChoice = 'auto', swap?: number): Ctl {
+  const c = styled(style, side, b, s, e, drop);
+  if (bass === 'both') c.low = 1;
+  else if (bass === 'out') c.low = side === 'out' ? 1 : 0;
+  else if (bass === 'in') c.low = side === 'in' ? 1 : 0;
+  else if (swap != null) c.low = (b < s + swap) === (side === 'out') ? 1 : 0;
+  return c;
+}
+
+/** The style's own controls. */
+function styled(style: FxStyle, side: 'out' | 'in', b: number, s: number, e: number, drop?: number): Ctl {
   const len = e - s, u = len > 0 ? (b - s) / len : 1, c: Ctl = { ...FLAT };
   // The middle bar, for a bass swap: the bar line nearest half way.
   const mid = s + Math.round(len / 8) * 4;
@@ -60,12 +72,27 @@ export function controlsAt(items: SetItem[], i: number, b: number): Ctl {
   let c: Ctl = FLAT;
   const prev = items[i - 1], next = items[i + 1];
   if (prev && b < prev.start + prev.beats) {
-    const k = handOver(prev.fx?.style ?? 'blend', 'in', b, it.start, prev.start + prev.beats, prev.fx?.drop);
+    const k = handOver(prev.fx?.style ?? 'blend', 'in', b, it.start, prev.start + prev.beats, prev.fx?.drop, prev.fx?.bass, prev.fx?.swap);
     c = k;
   }
   if (next && b >= next.start) {
-    const k = handOver(it.fx?.style ?? 'blend', 'out', b, next.start, end, it.fx?.drop);
+    const k = handOver(it.fx?.style ?? 'blend', 'out', b, next.start, end, it.fx?.drop, it.fx?.bass, it.fx?.swap);
     c = c === FLAT ? k : { gain: c.gain * k.gain, low: Math.min(c.low, k.low), mid: Math.min(c.mid, k.mid), high: Math.min(c.high, k.high), filter: Math.abs(k.filter) > Math.abs(c.filter) ? k.filter : c.filter, echo: Math.max(c.echo, k.echo) };
   }
   return c;
+}
+
+/** Where the bass changes hands in a hand-over of `len` beats, in beats from its start: as moved by hand, else the
+    style's own point (null: the style keeps both, or the choice isn't the style's). For the timeline's marker. */
+export function bassSwapAt(fx: SetItem['fx'], len: number): number | null {
+  if (fx?.bass && fx.bass !== 'auto') return null;
+  if (fx?.swap != null) return Math.max(0, Math.min(len, fx.swap));
+  const mid = Math.round(len / 8) * 4;
+  switch (fx?.style ?? 'blend') {
+    case 'bassSwap': return mid;
+    case 'layer': return len >= 128 ? len - 64 : mid;
+    case 'double': return Math.min(len, fx?.drop ?? Math.min(len, 16));
+    case 'cut': return len;
+    default: return null;
+  }
 }

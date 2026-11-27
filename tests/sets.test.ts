@@ -3,7 +3,7 @@ import { cubicAt, Isolator, Limiter, resample, Wsola } from '../src/core/sets/ds
 import { TempoMap, knotsOf, tempoOf } from '../src/core/sets/tempo';
 import { dropsOf, firstDown, planSet, type PlanSong } from '../src/core/sets/plan';
 import { Mixer, type Pcm } from '../src/core/sets/mixer';
-import { controlsAt } from '../src/core/sets/automation';
+import { bassSwapAt, controlsAt } from '../src/core/sets/automation';
 import { clock, timesOf, tracklist } from '../src/core/sets/tracklist';
 import { MIX_RATE, type SetPlan } from '../src/core/sets/types';
 import { moveEnd, moveSong, trimIn, valid } from '../src/core/sets/edit';
@@ -295,5 +295,35 @@ describe('a set’s length and 3-deck layering (ADR 0202)', () => {
     }
     // Not alike: not layered.
     expect(planSet(songs, { ...opts('blend', 3), like: () => 0.3 }).items.some(i => i.fx?.style === 'layer')).toBe(false);
+  });
+});
+
+describe('whose bass plays (ADR 0203)', () => {
+  const songs = [song('a', 124), song('b', 125)];
+  const base = planSet(songs, opts('blend'));
+  const at = (fx: Partial<NonNullable<SetPlan['items'][0]['fx']>>) => {
+    const items = base.items.map((it, i) => i === 0 ? { ...it, fx: { ...it.fx!, ...fx } } : it);
+    const s = items[1].start, e = items[0].start + items[0].beats;
+    return (b: number) => [controlsAt(items, 0, s + b).low, controlsAt(items, 1, s + b).low, e - s] as const;
+  };
+  it('the style’s by default: the outgoing song’s, then the incoming one’s on the middle bar', () => {
+    const f = at({}), len = f(0)[2];
+    expect(f(1).slice(0, 2)).toEqual([1, 0]);
+    expect(f(len - 1).slice(0, 2)).toEqual([0, 1]);
+    expect(bassSwapAt(base.items[0].fx, len)).toBe(Math.round(len / 8) * 4);
+  });
+  it('the outgoing song’s, the incoming one’s, or both all through', () => {
+    for (const [bass, want] of [['out', [1, 0]], ['in', [0, 1]], ['both', [1, 1]]] as const) {
+      const f = at({ bass }), len = f(0)[2];
+      for (const b of [1, len / 2, len - 1]) expect(f(b).slice(0, 2), bass + ' at ' + b).toEqual(want);
+      expect(bassSwapAt({ style: 'bassSwap', bass }, len)).toBeNull();
+    }
+  });
+  it('changes hands where it was moved, in any style', () => {
+    const f = at({ style: 'blend', swap: 8 });
+    expect(f(4).slice(0, 2)).toEqual([1, 0]);
+    expect(f(12).slice(0, 2)).toEqual([0, 1]);
+    expect(bassSwapAt({ style: 'blend', swap: 8 }, 64)).toBe(8);
+    expect(bassSwapAt({ style: 'blend' }, 64)).toBeNull();
   });
 });

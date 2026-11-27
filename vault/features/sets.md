@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M10
 updated: 2026-11-27
-adrs: [0197, 0198, 0199, 0200, 0201, 0202]
+adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203]
 ---
 # Sets: a playlist mixed, exported as one file
 
@@ -28,9 +28,11 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202]
   - undo and redo (Ctrl+Z, Ctrl+Shift+Z).
 - **A hand-over's box** at its chip (or from its line in the running order):
   - its style: Blend, Bass swap, Layer, Filter sweep, Echo out, Cut, Double drop;
+  - whose bass plays (ADR 0203): Auto, Outgoing, Incoming, Both;
   - its length ±4 bars;
   - the next song in earlier or later;
   - how alike the two sound;
+  - an orange bass marker on the timeline where the bass changes hands, dragged a bar at a time;
   - **Hear it**.
 - **The running order:** dragged to reorder (the set is planned again); a song's name shows it on the timeline.
 - **The sidebar:** a playlist with a set shows a crossfader mark that opens it.

@@ -25,7 +25,7 @@ Each song is drawn where it plays, as you'll hear it: its waveform gets smaller 
 - **Undo** and **Redo** (Ctrl+Z, Ctrl+Shift+Z) step back through every change. Escape closes a box.
 
 ## Hand-overs
-Each hand-over has a chip under the lanes (and a line in the running order). Click it and its box opens right there: how it hands over (**Blend, Bass swap, Layer, Filter sweep, Echo out, Cut, Double drop**), 4 bars longer or shorter, the next song in earlier or later, how alike the two songs sound, and **Hear it** (it plays from 8 bars before).
+Each hand-over has a chip under the lanes (and a line in the running order). Click it and its box opens right there: how it hands over (**Blend, Bass swap, Layer, Filter sweep, Echo out, Cut, Double drop**), whose **bass** plays (**Auto** as the style has it, **Outgoing**, **Incoming**, or **Both** for a double bass), 4 bars longer or shorter, the next song in earlier or later, how alike the two songs sound, and **Hear it** (it plays from 8 bars before). Where the bass changes hands, an orange **bass** marker shows on the timeline: drag it to move the swap, a bar at a time.
 
 ## Listening
 **Play** (or Space) plays the mix from the playhead, through your chosen output. Click or drag in the **time bar** on top to move the playhead, or click a song's time in the running order to play from there. The preview is the same mixer as the exported file, so what you hear is what you get. Songs are loaded as the mix reaches them ("Loading songs…").

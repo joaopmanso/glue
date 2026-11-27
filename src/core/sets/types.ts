@@ -7,6 +7,8 @@
 export type FxStyle = 'blend' | 'bassSwap' | 'filter' | 'echo' | 'cut' | 'double' | 'layer';
 /** How the whole set is mixed: one song at a time, continuous blends, double drops. */
 export type SetStyle = 'single' | 'blend' | 'double';
+/** Whose bass plays through a hand-over: as the style has it, the outgoing song's, the incoming one's, or both. */
+export type BassChoice = 'auto' | 'out' | 'in' | 'both';
 
 export interface SetItem {
   id: string;
@@ -24,8 +26,10 @@ export interface SetItem {
   keyLock: boolean;
   /** Gain (dB) to bring it to the set's loudness, from its sound profile. */
   trim?: number;
-  /** The hand-over into the next song (over the overlap); `drop`: beats into the overlap where both drops land. */
-  fx?: { style: FxStyle; drop?: number };
+  /** The hand-over into the next song (over the overlap); `drop`: beats into the overlap where both drops land;
+      `bass`: whose bass plays (ADR 0203: the style's, the outgoing song's, the incoming one's, or both); `swap`: beats
+      into the overlap where the bass changes hands (a bar line), moved by hand. */
+  fx?: { style: FxStyle; drop?: number; bass?: BassChoice; swap?: number };
   /** Planned without a grid from a DJ app or Prepare: the first beat guessed. */
   guessed?: boolean;
 }

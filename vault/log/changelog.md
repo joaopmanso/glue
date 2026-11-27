@@ -5,6 +5,14 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · Sets: whose bass plays in a hand-over (ADR 0203; M10 B; website only)
+- **Why:** the user: "choose which song has full bass going on, perhaps even choosing more than one to be on at the same
+  time for maximum double bass effect"; chosen per hand-over, plus a swap point dragged.
+- **The automation** (`automation.ts`): `fx.bass` (auto, out, in, both) overrides the lows of the style; `fx.swap` moves
+  where the bass changes hands; `bassSwapAt` places the marker.
+- **The hand-over's box:** a Bass row. **The timeline:** an orange bass marker, dragged a bar at a time.
+- **Tests:** `tests/sets.test.ts` (each choice, a moved swap); `e2e/sets.spec.ts` (Both, the marker dragged).
+
 ## 2026-11-27 · Sets: a length to fit, layering on 3 decks, the timeline's gestures (ADR 0202; M10 B; website only)
 - **Why:** the user, on the set builder: wheel zoom; "clicking on the track should select it and show its options, not
   default to move it"; drag to navigate; seeking only on the time bar; "how long you want the set to be"; "the 3 deck

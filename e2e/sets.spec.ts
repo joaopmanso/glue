@@ -146,6 +146,20 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await expect(page.locator('#set-pop-fx')).toBeVisible();
   await page.click('#set-longer');
   await expect(page.locator('#set-bars')).toHaveText(/\d+ bars/);
+  // Whose bass: both at once, then the style's again; a bass swap's marker dragged a bar or more later.
+  await page.click('#set-bass-both');
+  await expect(page.locator('#set-bass-both')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#set-swap')).toHaveCount(0);
+  await page.click('#set-bass-auto');
+  await page.click('#set-hfx-bassSwap');
+  const swap = page.locator('#set-swap');
+  await expect(swap).toBeVisible();
+  const sx = () => swap.evaluate(e => parseFloat((e as HTMLElement).style.left)), x0 = await sx(), sb = (await swap.boundingBox())!;
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sb.x + sb.width / 2 + 80, sb.y + sb.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(sx).toBeGreaterThan(x0 + 10);
 
   // The preview: it plays (the playhead moves), pauses, and plays a hand-over.
   await expect(page.locator('#set-time')).toContainText('0:00');

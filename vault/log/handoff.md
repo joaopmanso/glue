@@ -43,11 +43,13 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     probably isn't syncing that collection. Asked the user for the laptop's sync chip tooltip and whether GLUE Home
     runs there. A read of GLUE Cloud with the desktop GLUE Home's credentials was blocked by the permission check;
     the user can allow it.
-- **Next:**
-  - from the user's listening;
-  - a song dragged to another deck;
-  - reordering that keeps hand edits;
-  - stems (B4).
+- **Also shipped:** whose bass plays in a hand-over, and its swap marker (ADR 0203).
+- **Next (approved plan, 2026-11-27):** GLUE Home mixes and streams the set.
+  - R2: the mixer in Rust, as a new `glue-sets` crate, held to the TypeScript by goldens.
+  - R3: GLUE Home mixes on its own computer over the local link: PCM preview, and a FLAC export the browser turns into
+    WAV or MP3.
+  - R4: remote, streamed as Opus over the session; the export downloaded to the device in use.
+- **Later:** a song dragged to another deck; reordering that keeps hand edits; stems (B4).
 
 ## Earlier (2026-11-27, later): GLUE Home 0.83, playlists that follow a flow (ADR 0197, 0198; M10 step A)
 - **The user's ask:**
