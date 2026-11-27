@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-26
+updated: 2026-11-27
 ---
 # Handoff: where things stand
 
@@ -24,7 +24,24 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-26, evening): GLUE Home 0.82, Engine DJ takes in GLUE's playlists by itself (ADR 0196)
+## Latest (2026-11-27): the user's Engine DJ cues repaired by hand (no code changed)
+- **The problem:** after a pen drive sync, the user's songs had no cuepoints.
+- **What was done:** by hand, on F:'s database (Engine DJ closed, backups first):
+  - the CUE-button cues brought back from the history;
+  - Engine DJ's default CUE-button cue set where a song had none;
+  - pad 1 set on every song: yellow "Cue 1" on the first downbeat.
+  The user checked When Will We ("looks great") before the rest were written. See
+  [research](../research/engine-dj-write-back.md), "The user's cues after a pen drive sync".
+- **Waiting on the user:**
+  - check songs in Engine DJ;
+  - sync the pen drive;
+  - try them on the SC6000s.
+- **Next:**
+  - Engine DJ copies all the Collection's playlists into GLUE's drive's library (Z:). Keeping Z: to the "GLUE" folder
+    is to be looked at.
+  - The 60 grids from history (above) are there if the user wants them.
+
+## Earlier (2026-11-26, evening): GLUE Home 0.82, Engine DJ takes in GLUE's playlists by itself (ADR 0196)
 - **The user found the XML (0.81) works but wanted it automatic.** Engine DJ can't reload an XML by itself, so a library of
   GLUE's own, shown as a drive, was tried by hand with the user (3 rounds, Engine DJ closed, backups first: research
   [engine-dj-write-back.md](../research/engine-dj-write-back.md), "A library of GLUE's own"): made, changed, renamed,

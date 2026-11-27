@@ -149,6 +149,34 @@ and every database backed up before each round. Engine DJ's log showed only its 
 **What follows for GLUE:** ADR 0196 (GLUE Home keeps this library and writes only its "GLUE" folder, while Engine DJ is
 closed). Not tried: macOS (no `subst`), Engine DJ started without the drive, a drive letter that changes.
 
+## The user's cues after a pen drive sync (2026-11-27, from the user's databases, repaired by hand)
+- **What the user saw:** after syncing a pen drive for the SC6000s, the songs had no cuepoints on the players or in the
+  Collection. "Cuepoint" means **pad 1** (a hot cue): one set by hand is yellow or orange (`#f4d338`, `#ef8130`).
+- **F:'s database had lacked them since at least 2026-09-26** (every backup the same), before GLUE first wrote to
+  Engine DJ (2026-10-08):
+  - 4,608 songs had only a grey `#d4d4d4` "Cue 1" pad at the start;
+  - 4,686 had no CUE-button cue;
+  - most were added 2017–2021, probably by a rekordbox import: Engine DJ's `RekordboxLoopsCuesOption` is
+    "Hot Cues/Loops", which turns memory cues into hot cues **[UNVERIFIED]**.
+- **The pen drive's copies had more:** `hm.db` (the history, in the Collection's folder) keeps a copy of each song
+  played, with its `PerformanceData` as it was then: CUE-button cues the user set, and grids adjusted on the players.
+  So the sync from the computer most likely overwrote the pen drive's with F:'s **[UNVERIFIED]**: the pen drive
+  wasn't there to read.
+- **Engine DJ's analysis sets only the CUE-button cue**, not drawn as a cuepoint: the default main cue = the grid's
+  first downbeat, not adjusted (seen on When Will We re-analysed, and on songs analysed fresh in 2026-11). It never
+  adds a hot cue. Engine DJ can only analyse a song not loaded on a deck.
+- **What was written into F:** (Engine DJ closed, a backup before each step, each one checked by SQLite's
+  `integrity_check` and a second pass finding nothing left):
+  1. 774 CUE-button cues and 6 hot cues from the latest history copy of the same file (name and size), only where
+     F: had none or one not set by hand;
+  2. Engine DJ's default CUE-button cue on 3,996 songs, on the first downbeat (or the first one after 0:00);
+  3. pad 1 "Cue 1", yellow `#f4d338`, on the first downbeat: on 6,960 songs, replacing the grey pad or filling an
+     empty one. The 15 coloured ones (set by hand) and 11 grey ones more than 2 bars in were kept.
+- **Grids not written:** the user didn't want them. History has 47 grids the user adjusted on the players that F:
+  doesn't (Groovedigger, for one), and 13 more where history's BPM matches GLUE's analysis and F:'s doesn't.
+- **Backups:** in `F:\Engine Library\Database2\`, `m - before GLUE cue restore`, `initial cues`, `pad 1 test` and
+  `pad 1 2026-11-27.backup`.
+
 ## What follows for GLUE
 - Cues, loops and the grid: one database per song, read-modify-write of its blobs (unknown bytes kept), with Engine DJ
   closed. The lower risk part.
