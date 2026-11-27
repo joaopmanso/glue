@@ -2,7 +2,7 @@
 status: in-progress
 milestone: M10
 updated: 2026-11-27
-adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203]
+adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204]
 ---
 # Sets: a playlist mixed, exported as one file
 
@@ -36,6 +36,8 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203]
   - **Hear it**.
 - **The running order:** dragged to reorder (the set is planned again); a song's name shows it on the timeline.
 - **The sidebar:** a playlist with a set shows a crossfader mark that opens it.
+- **Who mixes** (ADR 0204): this computer's GLUE Home (0.84) whenever it runs and has every song: the same mixer in Rust
+  (`glue-sets`), streamed to the tab for the preview and the file ("Mixed by GLUE Home"); else the browser.
 - **The live preview** (ADR 0201): play, pause (Space), click to seek, "play from here" on a song. It runs the file's
   mixer in a worker, fed to an AudioWorklet through the player's output.
 - **Tempo:** each song's own (held through a hand-over, eased between) or one tempo. Key lock is on by default.
@@ -46,12 +48,10 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203]
   WSOLA key lock, isolator, filter, echo, equal-power headroom, and a gliding look-ahead limiter.
 
 ## Next
-- The user's listening:
-  - the double drops after the limiter, headroom and key-lock fixes;
-  - whether WSOLA's stretch is clean enough (else Signalsmith Stretch).
-- A song dragged to another deck; a hand-over's chip edges dragged.
-- How the layering sounds on the user's sets (its threshold, 0.72, and its 48 bars).
-- Reordering that keeps the hand edits around the songs that stay together.
+- **Remote (R4, approved):** a device without the songs: the set mixed by the GLUE Home that has them, streamed over the
+  session as Opus (~192 kbps), the export as FLAC that the device writes into WAV or MP3.
+- The user's listening (double drops, layering).
+- A song dragged to another deck; reordering that keeps hand edits.
 
 ## Later
 - Drawn curves (EQ, volume, filter).

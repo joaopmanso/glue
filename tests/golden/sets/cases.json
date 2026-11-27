@@ -1,0 +1,370 @@
+{
+ "cases": [
+  {
+   "name": "blend-keylock",
+   "songs": [
+    {
+     "id": "a",
+     "seed": 11,
+     "secs": 40,
+     "bpm": 124
+    },
+    {
+     "id": "b",
+     "seed": 23,
+     "secs": 40,
+     "bpm": 126
+    },
+    {
+     "id": "c",
+     "seed": 37,
+     "secs": 40,
+     "bpm": 122
+    }
+   ],
+   "plan": {
+    "tempo": {
+     "mode": "songs"
+    },
+    "items": [
+     {
+      "id": "a",
+      "deck": 0,
+      "bpm": 124,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 0,
+      "beats": 64,
+      "keyLock": true,
+      "trim": -1.5,
+      "fx": {
+       "style": "blend"
+      }
+     },
+     {
+      "id": "b",
+      "deck": 1,
+      "bpm": 126,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 48,
+      "beats": 64,
+      "keyLock": true,
+      "trim": 2,
+      "fx": {
+       "style": "bassSwap"
+      }
+     },
+     {
+      "id": "c",
+      "deck": 0,
+      "bpm": 122,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 96,
+      "beats": 60,
+      "keyLock": true
+     }
+    ]
+   },
+   "every": 256,
+   "frames": 3318053,
+   "length": 3318053,
+   "sumsq": [
+    36639.59625081837,
+    35572.5481120006
+   ],
+   "peak": 0.9660000205039978
+  },
+  {
+   "name": "filter-echo-varispeed",
+   "songs": [
+    {
+     "id": "a",
+     "seed": 5,
+     "secs": 40,
+     "bpm": 128
+    },
+    {
+     "id": "b",
+     "seed": 8,
+     "secs": 40,
+     "bpm": 125
+    },
+    {
+     "id": "c",
+     "seed": 13,
+     "secs": 40,
+     "bpm": 127
+    }
+   ],
+   "plan": {
+    "tempo": {
+     "mode": "songs"
+    },
+    "items": [
+     {
+      "id": "a",
+      "deck": 0,
+      "bpm": 128,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 0,
+      "beats": 64,
+      "keyLock": false,
+      "fx": {
+       "style": "filter"
+      }
+     },
+     {
+      "id": "b",
+      "deck": 1,
+      "bpm": 125,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 48,
+      "beats": 64,
+      "keyLock": false,
+      "fx": {
+       "style": "echo"
+      }
+     },
+     {
+      "id": "c",
+      "deck": 0,
+      "bpm": 127,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 104,
+      "beats": 56,
+      "keyLock": false
+     }
+    ]
+   },
+   "every": 256,
+   "frames": 3337085,
+   "length": 3337085,
+   "sumsq": [
+    34491.50958460538,
+    34298.47523225981
+   ],
+   "peak": 0.7945005893707275
+  },
+  {
+   "name": "cut-fixed",
+   "songs": [
+    {
+     "id": "a",
+     "seed": 3,
+     "secs": 40,
+     "bpm": 120
+    },
+    {
+     "id": "b",
+     "seed": 9,
+     "secs": 40,
+     "bpm": 140
+    }
+   ],
+   "plan": {
+    "tempo": {
+     "mode": "fixed",
+     "bpm": 126
+    },
+    "items": [
+     {
+      "id": "a",
+      "deck": 0,
+      "bpm": 120,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 0,
+      "beats": 64,
+      "keyLock": true,
+      "fx": {
+       "style": "cut"
+      }
+     },
+     {
+      "id": "b",
+      "deck": 1,
+      "bpm": 140,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 64,
+      "beats": 64,
+      "keyLock": true
+     }
+    ]
+   },
+   "every": 256,
+   "frames": 2688000,
+   "length": 2688000,
+   "sumsq": [
+    29321.8021897136,
+    28077.547388352978
+   ],
+   "peak": 0.7273856401443481
+  },
+  {
+   "name": "cut-jump",
+   "songs": [
+    {
+     "id": "a",
+     "seed": 4,
+     "secs": 40,
+     "bpm": 120
+    },
+    {
+     "id": "b",
+     "seed": 6,
+     "secs": 40,
+     "bpm": 140
+    }
+   ],
+   "plan": {
+    "tempo": {
+     "mode": "songs"
+    },
+    "items": [
+     {
+      "id": "a",
+      "deck": 0,
+      "bpm": 120,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 0,
+      "beats": 64,
+      "keyLock": true,
+      "fx": {
+       "style": "cut"
+      }
+     },
+     {
+      "id": "b",
+      "deck": 1,
+      "bpm": 140,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 64,
+      "beats": 64,
+      "keyLock": true
+     }
+    ]
+   },
+   "every": 256,
+   "frames": 2620800,
+   "length": 2620800,
+   "sumsq": [
+    28651.539404454856,
+    27284.837720845913
+   ],
+   "peak": 0.7081546187400818
+  },
+  {
+   "name": "layer-double-bass",
+   "songs": [
+    {
+     "id": "a",
+     "seed": 17,
+     "secs": 60,
+     "bpm": 124
+    },
+    {
+     "id": "b",
+     "seed": 19,
+     "secs": 60,
+     "bpm": 124.5
+    },
+    {
+     "id": "c",
+     "seed": 29,
+     "secs": 60,
+     "bpm": 125
+    },
+    {
+     "id": "d",
+     "seed": 31,
+     "secs": 60,
+     "bpm": 124
+    }
+   ],
+   "plan": {
+    "tempo": {
+     "mode": "songs"
+    },
+    "items": [
+     {
+      "id": "a",
+      "deck": 0,
+      "bpm": 124,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 0,
+      "beats": 112,
+      "keyLock": true,
+      "fx": {
+       "style": "layer"
+      }
+     },
+     {
+      "id": "b",
+      "deck": 1,
+      "bpm": 124.5,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 32,
+      "beats": 112,
+      "keyLock": true,
+      "fx": {
+       "style": "double",
+       "drop": 32,
+       "bass": "both"
+      }
+     },
+     {
+      "id": "c",
+      "deck": 2,
+      "bpm": 125,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 96,
+      "beats": 100,
+      "keyLock": true,
+      "fx": {
+       "style": "bassSwap",
+       "swap": 8
+      }
+     },
+     {
+      "id": "d",
+      "deck": 0,
+      "bpm": 124,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 160,
+      "beats": 80,
+      "keyLock": true,
+      "trim": -3
+     }
+    ]
+   },
+   "every": 256,
+   "frames": 5104522,
+   "length": 5104522,
+   "sumsq": [
+    40298.819488300775,
+    39794.57830157124
+   ],
+   "peak": 0.9660000205039978
+  }
+ ],
+ "resample": {
+  "seed": 41,
+  "secs": 2,
+  "bpm": 126,
+  "from": 48000,
+  "every": 7,
+  "length": 88200
+ }
+}

@@ -30,6 +30,8 @@ Each hand-over has a chip under the lanes (and a line in the running order). Cli
 ## Listening
 **Play** (or Space) plays the mix from the playhead, through your chosen output. Click or drag in the **time bar** on top to move the playhead, or click a song's time in the running order to play from there. The preview is the same mixer as the exported file, so what you hear is what you get. Songs are loaded as the mix reaches them ("Loading songs…").
 
+With **GLUE Home** running on this computer (0.84 or later), it does the mixing: it reads the songs from your disk, mixes them, and streams the mix to the page ("Mixed by GLUE Home"), for listening and for the exported file. Nothing is copied into the browser. If a song isn't on that computer, the page says so and mixes in the browser instead.
+
 ## The running order
 Drag a song up or down in **Running order** to change the playlist's order: the set is planned again in that order (Undo brings back the one before). A song's name there shows it on the timeline.
 

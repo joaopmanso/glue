@@ -73,6 +73,15 @@ class EngineClient {
   async findFolder(id: string, name: string, sample: string): Promise<string | null> { return (await this.rpc<{ path?: string | null }>({ op: 'where', id, name, sample }, 60_000)).path ?? null; }
   /** Where a dropped song is on this computer, and the music folder it's in (ADR 0125). */
   async findFile(name: string, size: number, roots: string[]) { return this.rpc<{ path: string | null; folder?: { id: string; relPath: string } }>({ op: 'whereFile', name, size, roots }, 60_000); }
+  /** A set mixed by GLUE Home (ADR 0204): a session for its plan (its id, the mix's length in frames, and the songs it
+      has no file for), the plan as edited, and let go. The mix is streamed from `/set/<id>/pcm`. */
+  async setOpen(plan: unknown) {
+    const w = this.where();
+    if (!w) throw new Error('No collection open');
+    return this.rpc<{ id: string; length: number; missing: { id: string; why: string }[] }>({ op: 'setOpen', ...w, plan }, 90_000);
+  }
+  async setPlan(id: string, plan: unknown) { return this.rpc<{ length: number }>({ op: 'setPlan', id, plan }); }
+  async setClose(id: string) { await this.rpc({ op: 'setClose', id }, 5000).catch(() => {}); }
   async computer(): Promise<string | null> {
     const h = await this.rpc<{ engine?: number; computer?: string | null }>({ op: 'hello' }, 5000).catch(() => null);
     if (h) this.runs = !!h.engine;

@@ -122,6 +122,11 @@ impl Host for App {
     let file = crate::allowed(&self.app, &path.to_string_lossy())?;
     crate::analysis::read_song(&file, name)
   }
+  /// A set's songs (ADR 0204): read as a player would.
+  fn read_song_playing(&self, path: &Path, name: &str) -> Result<Vec<u8>, String> {
+    let file = crate::allowed(&self.app, &path.to_string_lossy())?;
+    crate::analysis::read_song_playing(&file, name)
+  }
   fn foreground_at(&self) -> f64 { crate::local::FOREGROUND_AT.load(std::sync::atomic::Ordering::Relaxed) as f64 }
   /// GLUE Home's status (service.rs): to its window, and its tray's first line, tooltip and Start / Stop.
   fn status_changed(&self, status: &Value) {

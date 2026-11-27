@@ -260,6 +260,19 @@ fn answer(app: AppHandle, req: Request) {
         "/dock" if req.method() == &Method::Get => reply(req, 200, crate::dock::current().to_string().into_bytes(), "application/json"),
         "/dock/clear" if req.method() == &Method::Post => { crate::dock::clear(&app); reply(req, 200, b"{}".to_vec(), "application/json") }
         // The website's files, through GLUE Home (ADR 0051). A song file read: the analysis lets it go first (ADR 0138).
+        // A set mixed here (ADR 0204): its mix from a frame on, as it's rendered (stereo f32 little-endian at 44.1 kHz),
+        // read as a player reads (the analysis gives way). The page reading no further holds the renderer back.
+        p if p.starts_with("/set/") && p.ends_with("/pcm") => {
+            let id = p.trim_start_matches("/set/").trim_end_matches("/pcm").to_string();
+            match crate::engine::engine(&app).and_then(|e| e.set_stream(&id, arg("from").parse().unwrap_or(0))) {
+                Ok(s) => {
+                    let mut r = Response::new(StatusCode(200), vec![header("Content-Type", "application/octet-stream")], Paced { inner: s, pri: Pri::Play, busy: playing_now }, None, None);
+                    for h in cors.iter().cloned() { r.add_header(h); }
+                    let _ = req.respond(r);
+                }
+                Err(e) => reply(req, 404, serde_json::json!({ "error": e }).to_string().into_bytes(), "application/json"),
+            }
+        }
         p if p.starts_with("/fs/") => { if p == "/fs/file" { FOREGROUND_AT.store(now_ms(), Ordering::Relaxed); } crate::disk::handle(app.clone(), req, p, &arg, cors) }
         "/incoming" => {
             let list: Vec<serde_json::Value> = crate::incoming_list_impl(app.clone()).into_iter().map(|mut f| {

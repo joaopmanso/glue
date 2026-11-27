@@ -93,6 +93,54 @@ pub fn file_info(bytes: &[u8], file_name: &str) -> FileInfo {
 
 fn ext_of(name: &str) -> String { name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default() }
 
+/// A compressed song decoded: its channels at its own rate, which decoder did it, and why GLUE's FLAC decoder didn't.
+struct Compressed { channels: Vec<Vec<f32>>, sr: f64, decoder: &'static str, flac_error: Option<String> }
+
+/// FLAC through GLUE's own decoder (ADR 0144); anything else, or a FLAC it can't read, through Symphonia.
+fn decode_compressed(bytes: &[u8], info: &FileInfo, file_name: &str) -> Result<Compressed, Failure> {
+  let mut flac_error = None;
+  let flac = if info.container == "FLAC" {
+    match formats::flac::decode_flac(bytes.len(), &mut |a, b| Ok(bytes[a.min(bytes.len())..b.min(bytes.len())].to_vec())) {
+      Ok(d) if d.channels.first().is_some_and(|c| !c.is_empty()) => Some(d),
+      Ok(_) => { flac_error = Some("no samples".to_string()); None }
+      Err(e) => { flac_error = Some(e); None }
+    }
+  } else { None };
+  Ok(match flac {
+    Some(d) => Compressed { channels: d.channels, sr: d.sample_rate as f64, decoder: "flac", flac_error },
+    None => {
+      control::check().map_err(Failure::Broken)?;
+      let d = decode::decode(bytes, info, &ext_of(file_name)).map_err(Failure::Broken)?;
+      Compressed { channels: d.channels, sr: d.sr, decoder: "symphonia", flac_error }
+    }
+  })
+}
+
+/// A song's audio for mixing (ADR 0204): its channels (at most two) as floats at its own rate, whatever its format
+/// (WAV and AIFF read as the mixdown worker reads them, FLAC, DSD as its 88.2 kHz PCM, the rest through Symphonia).
+pub fn decode_song(bytes: &[u8], file_name: &str) -> Result<(Vec<Vec<f32>>, f64), Failure> {
+  let info = file_info(bytes, file_name);
+  let (mut channels, sr) = if info.codec == "DSD" {
+    let d = formats::dsd::parse(bytes).map_err(Failure::Unsupported)?;
+    formats::dsd::decode(bytes, &d).map_err(Failure::Broken)?
+  } else if let Some(u) = &info.unsupported {
+    return Err(Failure::Unsupported(u.clone()));
+  } else if let Some(pcm) = info.pcm.clone() {
+    let (nch, n) = (pcm.ch as usize, (pcm.len / pcm.block_align).floor().max(0.0) as usize);
+    let r = audio::analyze::PcmReader::new(bytes, &pcm);
+    let (mut f, mut iv) = (vec![0f64; nch], vec![0i32; nch]);
+    let mut chs = vec![vec![0f32; n]; nch.min(2)];
+    for i in 0..n { r.read(i, &mut f, &mut iv); for (c, ch) in chs.iter_mut().enumerate() { ch[i] = f[c] as f32; } }
+    (chs, info.sample_rate)
+  } else {
+    let c = decode_compressed(bytes, &info, file_name)?;
+    (c.channels, c.sr)
+  };
+  channels.truncate(2);
+  if channels.first().is_none_or(|c| c.is_empty()) { return Err(Failure::Broken("The file contains no audio samples.".into())); }
+  Ok((channels, sr))
+}
+
 /// One song, analysed: the worker's `summary` job (analysis.worker.ts) with every stored output. `at`: the summary's
 /// time (ISO); `size`/`mtime`: the file's, as the collection knows them.
 pub fn analyse(bytes: &[u8], file_name: &str, size: f64, mtime: f64, at: String) -> Result<Analysis, Failure> {
@@ -115,18 +163,9 @@ pub fn analyse(bytes: &[u8], file_name: &str, size: f64, mtime: f64, at: String)
     Job::Pcm { bytes, pcm, sr: info.sample_rate }
   } else {
     let bits = if info.lossless == Some(true) { info.bits } else { 0.0 };
-    // FLAC, GLUE's own decoder (ADR 0144); anything else, or a FLAC it can't read, through Symphonia.
-    let flac = if info.container == "FLAC" {
-      match formats::flac::decode_flac(bytes.len(), &mut |a, b| Ok(bytes[a.min(bytes.len())..b.min(bytes.len())].to_vec())) {
-        Ok(d) if d.channels.first().is_some_and(|c| !c.is_empty()) => Some(d),
-        Ok(_) => { flac_error = Some("no samples".to_string()); None }
-        Err(e) => { flac_error = Some(e); None }
-      }
-    } else { None };
-    let (channels, sr) = match flac {
-      Some(d) => { decoder = "flac"; (d.channels, d.sample_rate as f64) }
-      None => { decoder = "symphonia"; control::check().map_err(Failure::Broken)?; let d = decode::decode(bytes, &info, &ext_of(file_name)).map_err(Failure::Broken)?; (d.channels, d.sr) }
-    };
+    let c = decode_compressed(bytes, &info, file_name)?;
+    let (channels, sr) = (c.channels, c.sr);
+    decoder = c.decoder; flac_error = c.flac_error;
     if info.channels == 0.0 || info.channels.is_nan() { info.channels = channels.len() as f64; }
     Job::Float { channels, sr, bits }
   };

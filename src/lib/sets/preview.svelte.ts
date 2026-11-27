@@ -1,9 +1,11 @@
 /* A set's live preview (ADR 0201): the set worker (setplay.worker.ts) runs the file's mixer a second ahead and sends
    its blocks to a small AudioWorklet here, at the mix rate, through the player's output. Play, pause, seek, the
-   playhead; an edit while playing carries on from where it is with the new plan. */
+   playhead; an edit while playing carries on from where it is with the new plan. With this computer's GLUE Home
+   (ADR 0204), it mixes and the worker reads its stream instead. */
 import { player } from '../player.svelte';
 import { lib } from '../library.svelte';
 import { answerSong } from './songs';
+import { HomeSet } from './home';
 import { MIX_RATE, type SetPlan } from '../../core/sets/types';
 import type { FromSetPlay, ToSetPlay } from '../../workers/setplay.worker';
 
@@ -46,6 +48,11 @@ class Preview {
   /** Songs being decoded before it can play on. */
   loading = $state(false);
   error = $state('');
+  /** Who mixes what's heard: this computer's GLUE Home, or the browser (and why not GLUE Home, when it runs). */
+  by = $state<'home' | 'browser'>('browser');
+  why = $state('');
+  private home = new HomeSet();
+  private synced: Promise<void> = Promise.resolve();
   private ctx: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
   private out: GainNode | null = null;
@@ -57,8 +64,18 @@ class Preview {
   /** The plan to play (sent on to the worker); while playing, it goes on from here with it. */
   setPlan(plan: SetPlan, length: number) {
     this.plan = plan; this.length = length;
-    if (this.w) this.send({ kind: 'plan', plan: $state.snapshot(plan) as SetPlan });
-    if (this.playing) this.go(this.frame);
+    if (!this.w) return;
+    this.synced = this.sync();
+    if (this.playing) void this.synced.then(() => { if (this.playing) this.go(this.frame); });
+  }
+  /** The worker told the plan, and who mixes it (GLUE Home kept to it first). */
+  private async sync() {
+    const plan = this.plan;
+    if (!plan) return;
+    const via = await this.home.ready(plan);
+    if (plan !== this.plan) return;
+    this.by = via ? 'home' : 'browser'; this.why = this.home.why;
+    this.send({ kind: 'plan', plan: $state.snapshot(plan) as SetPlan, home: via?.base ?? null });
   }
 
   private send(m: ToSetPlay, t: Transferable[] = []) { this.w?.postMessage(m, t); }
@@ -91,7 +108,7 @@ class Preview {
       if (e.data.ended) this.pause();
     };
     this.node = node; this.out = out; this.w = w;
-    if (this.plan) this.send({ kind: 'plan', plan: $state.snapshot(this.plan) as SetPlan });
+    this.synced = this.sync();
   }
 
   /** Play from `frame` (where it is, else). From a click: the AudioContext may start. */
@@ -103,7 +120,8 @@ class Preview {
     if (this.out) this.out.gain.value = player.volume;
     void this.ctx?.resume();
     this.playing = true;
-    this.go(frame >= this.length ? 0 : frame);
+    await this.synced;
+    if (this.playing) this.go(frame >= this.length ? 0 : frame);
   }
   private go(frame: number) {
     const f = Math.max(0, Math.min(this.length, Math.round(frame)));
@@ -126,7 +144,8 @@ class Preview {
     this.w?.terminate(); this.w = null;
     this.node?.disconnect(); this.node = null; this.out = null;
     void this.ctx?.close().catch(() => {}); this.ctx = null;
-    this.frame = 0; this.plan = null; this.error = '';
+    this.frame = 0; this.plan = null; this.error = ''; this.by = 'browser'; this.why = '';
+    void this.home.close();
   }
 }
 export const preview = new Preview();

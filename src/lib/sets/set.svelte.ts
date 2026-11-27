@@ -108,7 +108,8 @@ class Sets {
       if (g !== this.gen) return;
       i++;
       if (needed) this.message = 'Placing beat grids: ' + i + ' of ' + make.length; else this.drawing = i + ' of ' + make.length;
-      const w = await waveformOf(jobOf(await lib.fileFor(t))).catch(() => null);
+      // A file the tab can't read (GLUE Home has it): no waveform, the song drawn as a line.
+      const w = await lib.fileFor(t).then(f => waveformOf(jobOf(f))).catch(() => null);
       if (w) { put(t.id, w); if (s && dir) void writeWaveform(dir, s.meta.id, t.id, { size: t.size, mtime: t.mtime }, w).catch(() => {}); }
     }
     if (g === this.gen) { if (needed) this.message = ''; else this.drawing = ''; }

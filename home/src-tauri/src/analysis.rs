@@ -16,6 +16,12 @@ pub(crate) fn read_song(file: &std::path::Path, name: &str) -> Result<Vec<u8>, S
   glue_engine::analyse::read_whole(file, name, crate::local::Paced { inner: std::io::BufReader::with_capacity(1 << 20, f), pri: crate::local::Pri::Analysis, busy: crate::local::playing_now })
 }
 
+/// A song's file read whole for a set mixed here (ADR 0204): as a player reads, so the analysis gives way to it.
+pub(crate) fn read_song_playing(file: &std::path::Path, name: &str) -> Result<Vec<u8>, String> {
+  let f = fs::File::open(file).map_err(|e| format!("{name} could not be read ({e})"))?;
+  glue_engine::analyse::read_whole(file, name, crate::local::Paced { inner: std::io::BufReader::with_capacity(1 << 20, f), pri: crate::local::Pri::Play, busy: crate::local::playing_now })
+}
+
 #[cfg(test)]
 mod tests {
   use std::path::PathBuf;

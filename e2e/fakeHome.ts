@@ -76,6 +76,13 @@ export class FakeHome {
   notes: { n: number; note: string; [k: string]: unknown }[] = [];
   private engine: ChildProcessWithoutNullStreams | null = null;
   private asked = new Map<number, (r: { ok?: unknown; err?: string }) => void>();
+  /** Sets' mixes being streamed (the engine's /set/<id>/pcm, ADR 0204): each piece as it comes, and the end. */
+  private streams = new Map<number, (piece: Buffer | null) => void>();
+  private streamSeq = 1;
+  /** The sets' mixes asked for (the set's id and the frame it starts at). */
+  setStreams: { id: string; from: number }[] = [];
+  /** The bytes of mix sent. */
+  setBytes = 0;
   private nextAsk = 1;
   private leaseTimer: ReturnType<typeof setInterval> | null = null;
   private server: Server | null = null;
@@ -151,6 +158,7 @@ export class FakeHome {
       // The connections, made by the service page (e2e/home-rtc.ts): it answers.
       if (m.call !== undefined && m.page) { this.notes.push({ note: 'call', call: m.call, page: m.page, n: this.notes.length + 1 }); return; }
       if (m.ask !== undefined) { this.asked.get(m.ask)?.(m); this.asked.delete(m.ask); return; }
+      if (typeof m.chunk === 'number') { const f = this.streams.get(m.chunk); if (m.end) { this.streams.delete(m.chunk); f?.(null); } else f?.(Buffer.from(m.b64 as string, 'base64')); return; }
       if (m.note === 'tags') { this.tagWrites.push({ path: m.path as string, tags: m.tags as Record<string, string> }); return; }
       if (m.note && m.note !== 'bye') this.notes.push({ ...m, n: this.notes.length + 1, note: m.note });
     });
@@ -207,6 +215,18 @@ export class FakeHome {
       if (onDisk) { res.writeHead(200, { 'content-type': 'application/octet-stream', 'access-control-allow-origin': String(headers.origin ?? '*') }); return res.end(readFileSync(onDisk)); }
       if (!this.cache) return send(404, { error: 'not there' });
       void this.cache(key).then(b => { if (!b) return send(404, { error: 'not there' }); res.writeHead(200, { 'content-type': 'application/octet-stream', 'access-control-allow-origin': String(headers.origin ?? '*') }); res.end(Buffer.from(b)); });
+      return;
+    }
+    // A set's mix from the engine (local.rs /set/<id>/pcm, ADR 0204): its bytes as they're rendered, until the page goes.
+    const set = /^\/set\/([\w-]+)\/pcm$/.exec(u.pathname);
+    if (set && method === 'GET') {
+      if (!this.engine) return send(503, { error: 'no engine' });
+      const n = this.streamSeq++, from = Number(q.get('from') ?? 0);
+      this.setStreams.push({ id: set[1], from });
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Access-Control-Allow-Origin': origin || '*', 'Access-Control-Allow-Private-Network': 'true' });
+      this.streams.set(n, piece => { if (piece) { this.setBytes += piece.length; res.write(piece); } else res.end(); });
+      res.on('close', () => { if (this.streams.delete(n)) this.engine?.stdin.write(JSON.stringify({ unstream: n }) + '\n'); });
+      this.engine.stdin.write(JSON.stringify({ stream: n, set: set[1], from }) + '\n');
       return;
     }
     if (u.pathname === '/rpc' && method === 'POST') {

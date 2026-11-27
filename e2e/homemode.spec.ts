@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { FakeHome } from './fakeHome';
 import { TAURI_MOCK } from './tauri-mock';
 import { SharedCloudServer } from '../tests/sharedCloud';
+import { setSong } from './setSongs';
 
 const test = base.extend<{ page: Page }>({
   page: async ({ baseURL }, use) => {
@@ -1659,5 +1660,80 @@ test('with GLUE Home running, a playlist kept in Engine DJ goes into its rekordb
     // No Engine DJ library was made or written anywhere.
     expect(existsSync(join(music, 'Engine Library'))).toBe(false);
     expect(existsSync(join(tmp, 'Songs', 'Engine Library'))).toBe(false);
+  } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('with GLUE Home running, it mixes a set: the preview streams from it and the file is written from its mix; the tab copies no songs (ADR 0204)', async ({ page }) => {
+  test.setTimeout(360_000);
+  const tmp = mkdtempSync(join(tmpdir(), 'glue-home-set-'));
+  // The tab can't read the songs itself (no music folder for it): only GLUE Home can.
+  const fake = new FakeHome({ glue: join(tmp, 'MCO'), incoming: join(tmp, 'Incoming'), folders: {} }, { engine: true, known: { music: join(tmp, 'Music') } });
+  try {
+    mkdirSync(fake.dirs.incoming, { recursive: true }); mkdirSync(join(tmp, 'Music'), { recursive: true });
+    const col = 'profiles/p1/collections/c1';
+    const songs = [['t1a', 'set-a.wav', setSong(124, 220)], ['t1b', 'set-b.wav', setSong(126, 196)], ['t1c', 'set-c.wav', setSong(125, 247)]] as const;
+    for (const [, file, b] of songs) writeFileSync(join(tmp, 'Music', file), b);
+    const song = (id: string, file: string, size: number) => ({ id, status: 'linked', rootId: 'r1', relPath: file, importPath: null, fileName: file, size, mtime: 1000, title: '', artist: '', album: '', genre: '', label: '', comment: '', year: '', duration: null, format: null, addedAt: '2026-09-01T00:00:00Z', sources: [] });
+    const files: Record<string, string> = {
+      'mco.json': JSON.stringify({ schemaVersion: 1, profiles: [{ id: 'p1', name: 'DJ', color: '#7cc7ff' }], lastProfile: 'p1' }),
+      'profiles/p1/profile.json': JSON.stringify({ schemaVersion: 1, id: 'p1', name: 'DJ', color: '#7cc7ff', createdAt: '2026-01-01', collections: [{ id: 'c1', name: 'Main' }], lastCollection: 'c1', cloudSync: false }),
+      [col + '/collection.json']: JSON.stringify({ schemaVersion: 1, id: 'c1', name: 'Main', createdAt: '2026-01-01', roots: [{ id: 'r1', name: 'Music', absPath: null, handleKey: 'r1', addedAt: '' }] }),
+      [col + '/tracks/t1.json']: JSON.stringify({ schemaVersion: 1, items: Object.fromEntries(songs.map(([id, file, b]) => [id, song(id, file, b.length)])) }),
+      [col + '/lists/l1.json']: JSON.stringify({ id: 'l1', name: 'Home set', kind: 'playlist', parentId: null, position: 0, items: songs.map(s => s[0]) }),
+    };
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(fake.dirs.glue, rel)), { recursive: true }); writeFileSync(join(fake.dirs.glue, rel), text); }
+    await fake.start();
+
+    // GLUE Home's own page (its service stood in), as in the engine's test above.
+    const home = await page.context().newPage();
+    await home.route('https://glue-api.joaopmanso.workers.dev/v1/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access: 'h' }) }));
+    await home.routeWebSocket(/glue-api\.joaopmanso\.workers\.dev\/v1\/signal/, () => {});
+    await home.addInitScript(TAURI_MOCK);
+    await home.addInitScript(({ glue, port, token, dir }) => {
+      const w = window as unknown as Record<string, unknown>; w.__glue = glue; w.__localPort = port; w.__lease = false;
+      localStorage.setItem('home-config', JSON.stringify({ deviceId: 'hdesk', token: 't', name: 'Desktop', user: { email: 'dj@example.com', name: 'DJ' }, incoming: null, running: true, askedAutostart: true, glue: dir, localToken: token, analysisPaused: true }));
+    }, { glue: files, port: fake.port, token: fake.token, dir: fake.dirs.glue });
+    await home.goto('http://localhost:5176/__e2e/home.html');
+    fake.cache = key => home.evaluate(k => (window as unknown as { __cache: Record<string, number[]> }).__cache[k] ?? null, key);
+    await home.exposeFunction('leaseAt', () => fake.leasedAt);
+    await home.evaluate(() => setInterval(async () => { (window as unknown as { __lease: boolean }).__lease = Date.now() - await (window as unknown as { leaseAt: () => Promise<number> }).leaseAt() < 15_000; }, 500));
+
+    await page.goto('./#/analyze');
+    await page.evaluate(p => localStorage.setItem('mco.localHome', JSON.stringify(p)), fake.pref);
+    await page.goto('./');
+    await expect(page.locator('.tr')).toHaveCount(3, { timeout: 30_000 });
+    await expect(page.locator('#analysis-by')).toBeVisible({ timeout: 30_000 });
+    await fake.ask({ cmd: 'setPaused', on: false });
+    await expect(page.locator('.an')).toContainText('All analysed', { timeout: 120_000 });
+
+    // The playlist as a set: GLUE Home has every song, so it mixes.
+    await page.goto('./#/set/l1');
+    await expect(page.locator('#set-lanes .blk')).toHaveCount(3, { timeout: 60_000 });
+    await page.click('#set-play');
+    await expect(page.locator('#set-by')).toHaveText('Mixed by GLUE Home');
+    await expect(page.locator('#set-time')).not.toContainText(/^0:00 /, { timeout: 30_000 });
+    await page.click('#set-play');
+    expect(fake.setStreams.length).toBeGreaterThan(0);
+
+    // Exported: GLUE Home's mix written into the file here.
+    await page.evaluate(() => {
+      (window as unknown as { showSaveFilePicker: (o: { suggestedName: string }) => Promise<FileSystemFileHandle> }).showSaveFilePicker = async o =>
+        (await navigator.storage.getDirectory()).getFileHandle('mix-' + o.suggestedName, { create: true });
+    });
+    const asked = fake.setStreams.length;
+    await page.click('#set-export-wav');
+    await expect(page.locator('#set-done')).toContainText('mixed by GLUE Home', { timeout: 120_000 });
+    expect(fake.setStreams.slice(asked).some(s => s.from === 0)).toBe(true);
+    const info = await page.evaluate(async () => {
+      const f = await (await (await navigator.storage.getDirectory()).getFileHandle('mix-Home set.wav')).getFile();
+      const b = new Uint8Array(await f.arrayBuffer()), dv = new DataView(b.buffer);
+      let loud = 0;
+      for (let i = 44 + Math.floor((b.length - 44) / 2 / 6) * 6, n = 0; n < 20000; i += 6, n++) { const v = (b[i] | b[i + 1] << 8 | b[i + 2] << 16) << 8 >> 8; loud = Math.max(loud, Math.abs(v)); }
+      return { riff: String.fromCharCode(...b.slice(0, 4)), sr: dv.getUint32(24, true), bits: dv.getUint16(34, true), data: dv.getUint32(40, true), size: b.length, loud };
+    });
+    expect(info).toMatchObject({ riff: 'RIFF', sr: 44100, bits: 24 });
+    expect(info.data).toBe(info.size - 44);
+    expect(info.size / (44100 * 6)).toBeGreaterThan(60);
+    expect(info.loud).toBeGreaterThan(100_000);
   } finally { await fake.stop(); rmSync(tmp, { recursive: true, force: true }); }
 });

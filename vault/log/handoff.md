@@ -44,11 +44,16 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
     runs there. A read of GLUE Cloud with the desktop GLUE Home's credentials was blocked by the permission check;
     the user can allow it.
 - **Also shipped:** whose bass plays in a hand-over, and its swap marker (ADR 0203).
-- **Next (approved plan, 2026-11-27):** GLUE Home mixes and streams the set.
-  - R2: the mixer in Rust, as a new `glue-sets` crate, held to the TypeScript by goldens.
-  - R3: GLUE Home mixes on its own computer over the local link: PCM preview, and a FLAC export the browser turns into
-    WAV or MP3.
-  - R4: remote, streamed as Opus over the session; the export downloaded to the device in use.
+- **Also shipped:** GLUE Home 0.84 mixes the set and streams it to the tab (ADR 0204; R2–R3 of the approved plan).
+  - The mixer is in Rust (`crates/glue-sets`), held to the TypeScript by `tests/golden/sets`.
+  - The local link's `/set/<id>/pcm`.
+  - The preview and the export come from GLUE Home ("Mixed by GLUE Home").
+- **Next, R4 (approved plan):** remote, a device without the songs.
+  - The same sessions over the session channel (`glue-rtc` `Server::stream`, credit-based).
+  - The preview as Opus (libopus via the `opus` crate, a build spike first on Windows, macOS and the laptop's
+    toolchain), decoded by WebCodecs in an AudioContext at 48 kHz.
+  - The export as FLAC (`flacenc`), written into WAV or MP3 on the device.
+  - ADR 0205, GLUE Home 0.85.
 - **Later:** a song dragged to another deck; reordering that keeps hand edits; stems (B4).
 
 ## Earlier (2026-11-27, later): GLUE Home 0.83, playlists that follow a flow (ADR 0197, 0198; M10 step A)

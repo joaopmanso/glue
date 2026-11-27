@@ -98,6 +98,10 @@ After working:
 - `crates/glue-store`: the library store in Rust (ADR 0152), held byte for byte to `src/store/collection.ts` by
   `tests/golden/store` (regenerate with `GOLDEN=1 npx vitest run tests/store.golden.test.ts` after changing the store,
   then port the change). `cargo test --manifest-path crates/glue-store/Cargo.toml`.
+- `crates/glue-sets`: the set mixer in Rust (ADR 0204): `src/core/sets/{tempo,dsp,automation,mixer}.ts` line for line,
+  held to them by `tests/golden/sets` (regenerate with `GOLDEN=1 npx vitest run tests/sets.golden.test.ts` after changing
+  the set's mixing, then port the change). `cargo test --manifest-path crates/glue-sets/Cargo.toml`. GLUE Home mixes a
+  set with it (`crates/glue-engine/src/sets.rs`, the local link's `/set/<id>/pcm`).
 - `crates/glue-interop`: the DJ libraries in Rust (ADR 0167): `src/core/interop`'s parsers and `store/merge.ts`
   `applyImport` / `store/linked.ts`, held to them by `tests/golden/interop` and `tests/golden/import` (regenerate with
   `GOLDEN=1 npx vitest run tests/interop.golden.test.ts tests/store.golden.test.ts`, then port the change). The engine's

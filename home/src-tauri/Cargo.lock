@@ -1873,6 +1873,7 @@ dependencies = [
  "flate2",
  "glue-audio",
  "glue-interop",
+ "glue-sets",
  "glue-store",
  "indexmap 2.14.2",
  "lofty",
@@ -1885,7 +1886,7 @@ dependencies = [
 
 [[package]]
 name = "glue-home"
-version = "0.83.0"
+version = "0.84.0"
 dependencies = [
  "getrandom 0.3.4",
  "glue-audio",
@@ -1935,6 +1936,15 @@ dependencies = [
  "serde_json",
  "tokio",
  "webrtc",
+]
+
+[[package]]
+name = "glue-sets"
+version = "0.1.0"
+dependencies = [
+ "glue-audio",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

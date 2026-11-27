@@ -1,14 +1,18 @@
 /* A set's live preview (ADR 0201): the same mixer as the file (src/core/sets/mixer.ts), run here a second or so ahead
    of what's heard, its blocks sent straight to the preview's AudioWorklet through a MessagePort. The worklet says how
    much it has played, and this renders on while it's less than AHEAD in front. Songs are decoded as the mix reaches
-   them (asked of the page, like the mixdown), a few kept for seeking back. */
+   them (asked of the page, like the mixdown), a few kept for seeking back.
+   With this computer's GLUE Home mixing (ADR 0204, `home`), its stream is read instead, as far ahead as the mix would
+   be. */
+import { framer } from '../core/sets/stream';
 import { Mixer, type Pcm } from '../core/sets/mixer';
 import { MIX_RATE, type SetPlan } from '../core/sets/types';
 import { Asker, decodeSong, type SongAnswer, type SongQuestion } from './setDecode';
 
 export type ToSetPlay =
   | { kind: 'port'; port: MessagePort }
-  | { kind: 'plan'; plan: SetPlan }
+  /** `home`: GLUE Home's stream of this plan's mix (`&from=<frame>` added), or null: mixed here. */
+  | { kind: 'plan'; plan: SetPlan; home?: string | null }
   /** Play from `frame`; its blocks carry `gen` (the worklet plays only the newest). */
   | { kind: 'play'; frame: number; gen: number }
   | { kind: 'stop' }
@@ -27,7 +31,7 @@ const asker = new Asker(post);
 
 const BLOCK = 2048, AHEAD = MIX_RATE * 1.2, SOON = MIX_RATE * 20, KEEP = 4;
 let port: MessagePort | null = null;
-let plan: SetPlan | null = null, mixer: Mixer | null = null;
+let plan: SetPlan | null = null, mixer: Mixer | null = null, home: string | null = null, reading: AbortController | null = null;
 let gen = 0, running = false, sent = 0, played = 0;
 let wake: (() => void) | null = null;
 const pcm = new Map<string, Pcm>(), loading = new Map<string, Promise<Pcm>>(), used = new Map<string, number>();
@@ -50,7 +54,35 @@ function prune(keep: string[]) {
   for (const id of old.slice(KEEP)) { pcm.delete(id); loading.delete(id); used.delete(id); }
 }
 
+/** GLUE Home's mix from `from`, read only as far ahead as the worklet needs. */
+async function runHome(g: number, from: number) {
+  if (!home || !port) return;
+  reading?.abort();
+  const ac = new AbortController(), frames = framer();
+  reading = ac; sent = 0; played = 0;
+  const slow = setTimeout(() => { if (g === gen && !sent) post({ kind: 'loading', ids: ['home'] }); }, 300);
+  try {
+    const r = await fetch(home + '&from=' + Math.floor(from), { signal: ac.signal });
+    if (!r.ok || !r.body) throw new Error('GLUE Home didn’t mix it (' + r.status + ')');
+    const rd = r.body.getReader();
+    let f = Math.floor(from);
+    while (running && g === gen) {
+      if (sent - played >= AHEAD) { await new Promise<void>(res => { wake = res; }); continue; }
+      const { value, done } = await rd.read();
+      if (done) { port.postMessage({ gen: g, frame: f, l: new Float32Array(0), r: new Float32Array(0), end: true } satisfies SetBlock); break; }
+      const { l, r: rr } = frames(value);
+      if (!l.length) continue;
+      if (!sent) post({ kind: 'loading', ids: [] });
+      const n = l.length;   // (sending hands the buffers over: their length reads 0 after)
+      port.postMessage({ gen: g, frame: f, l, r: rr } satisfies SetBlock, [l.buffer, rr.buffer]);
+      sent += n; f += n;
+    }
+  } catch (e) { if (g === gen && (e as Error).name !== 'AbortError') post({ kind: 'error', message: (e as Error).message }); }
+  finally { clearTimeout(slow); ac.abort(); if (reading === ac) reading = null; }
+}
+
 async function run(g: number, from: number) {
+  if (home) return runHome(g, from);
   if (!plan || !port) return;
   const m = new Mixer(plan, { get: id => pcm.get(id) ?? null });
   mixer = m; m.seek(from); sent = 0; played = 0;
@@ -81,8 +113,8 @@ scope.onmessage = (e: MessageEvent<ToSetPlay>) => {
   if (d.kind === 'port') {
     port = d.port;
     port.onmessage = (x: MessageEvent<{ gen: number; played: number }>) => { if (x.data.gen === gen) { played = x.data.played; wake?.(); wake = null; } };
-  } else if (d.kind === 'plan') { plan = d.plan; failed.clear(); }
+  } else if (d.kind === 'plan') { plan = d.plan; home = d.home ?? null; failed.clear(); }
   else if (d.kind === 'play') { gen = d.gen; running = true; wake?.(); wake = null; void run(d.gen, d.frame); }
-  else if (d.kind === 'stop') { running = false; gen++; wake?.(); wake = null; }
+  else if (d.kind === 'stop') { running = false; gen++; wake?.(); wake = null; reading?.abort(); }
   else asker.answer(d);
 };

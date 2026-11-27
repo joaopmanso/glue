@@ -2,6 +2,7 @@
    for each song's file as the mix reaches it. Progress, time left, cancel; the tracklist to save beside it. */
 import { lib } from '../library.svelte';
 import { answerSong } from './songs';
+import { HomeSet } from './home';
 import { downloadBlob } from '../download';
 import { MIX_RATE, type SetPlan } from '../../core/sets/types';
 import type { FromMixdown, MixFormat, ToMixdown } from '../../workers/mixdown.worker';
@@ -18,6 +19,9 @@ class SetExport {
   /** The file made: its name. */
   result = $state('');
   private w: Worker | null = null;
+  private home: HomeSet | null = null;
+  /** Who mixed the file: this computer's GLUE Home (ADR 0204), or the browser. */
+  by = $state<'home' | 'browser'>('browser');
   private began = 0;
 
   /** From a click (the save dialog has to open first). */
@@ -51,10 +55,16 @@ class SetExport {
       }
     };
     w.onerror = e => { this.error = 'The mixdown stopped: ' + (e.message || 'an error'); this.finish(); };
-    send({ kind: 'start', plan: $state.snapshot(plan) as SetPlan, format, handle });
+    // This computer's GLUE Home mixes it when it can (the file is written here all the same).
+    const hs = new HomeSet();
+    this.home = hs;
+    const via = await hs.ready(plan);
+    if (this.w !== w) { void hs.close(); return; }
+    this.by = via ? 'home' : 'browser';
+    send({ kind: 'start', plan: $state.snapshot(plan) as SetPlan, format, handle, ...(via ? { home: { url: via.base + '&from=0', length: via.length } } : {}) });
   }
   cancel() { this.w?.postMessage({ kind: 'cancel' } satisfies ToMixdown); }
-  private finish() { this.busy = false; this.w?.terminate(); this.w = null; }
+  private finish() { this.busy = false; this.w?.terminate(); this.w = null; void this.home?.close(); this.home = null; }
 
   /** The tracklist as a text file. */
   saveTracklist(text: string, name: string) { downloadBlob(new Blob([text + '\n'], { type: 'text/plain' }), name.replace(/[\\/:*?"<>|]+/g, ' ').trim() + ' – tracklist.txt'); }

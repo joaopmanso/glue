@@ -18,6 +18,9 @@
 //!        {"note": "background", "progress": {...}}           the background thumbnails' progress (ADR 0156)
 //!        {"note": "status", "status": {...}}  GLUE Home's status (service.rs, ADR 0160: its window and tray show it)
 //!        {"note": "notify", "title", "body"}  a desktop notification (shown)
+//!   in:  {"stream": n, "set": id, "from": frame}   a set's mix (sets.rs, the local link's /set/<id>/pcm)
+//!   out: {"chunk": n, "b64": "..."} … {"chunk": n, "end": true}   its bytes, as they're rendered
+//!   in:  {"unstream": n}                    the page went: stop
 //! GLUE Home's service starts with the first settings (as GLUE Home does at start); later settings are handed to it.
 //! The account's signaling room and the connections (room.rs, ADR 0158), stood in for by the test's GLUE Home window, which
 //! opens the room's WebSocket (the test's `routeWebSocket` stands in for GLUE Cloud's) and makes the connections with the
@@ -179,6 +182,7 @@ fn main() {
   let (st, out) = (Arc::new(Mutex::new(State::default())), Arc::new(Mutex::new(std::io::stdout())));
   let replies: Replies = Default::default();
   let socks: Socks = Default::default();
+  let streams: Arc<Mutex<std::collections::HashMap<u64, Arc<std::sync::atomic::AtomicBool>>>> = Default::default();
   let engine = Engine::new(args[0].clone().into(), args[1].clone().into(), H { st: st.clone(), out: out.clone(), glue: args[0].clone(), replies: replies.clone(), socks: socks.clone() });
   let (e2, st2) = (engine.clone(), st.clone());
   std::thread::spawn(move || loop {
@@ -212,6 +216,36 @@ fn main() {
         "rtc-received" => { let name = t("name"); let path = st.lock().unwrap().incoming.clone().unwrap_or_default().join(&name); engine.received(&name, &path.to_string_lossy(), v["size"].as_u64().unwrap_or(0)); }
         _ => {}
       }
+      continue;
+    }
+    // A set's mix, streamed (the local link's /set/<id>/pcm): its bytes in pieces, until it ends or the page goes.
+    if let Some(n) = m["stream"].as_u64() {
+      let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+      streams.lock().unwrap().insert(n, stop.clone());
+      let (engine, out, streams) = (engine.clone(), out.clone(), streams.clone());
+      let (id, from) = (m["set"].as_str().unwrap_or("").to_string(), m["from"].as_u64().unwrap_or(0) as usize);
+      std::thread::spawn(move || {
+        use base64::Engine as _;
+        use std::io::Read;
+        let say = |v: Value| { let mut o = out.lock().unwrap(); let _ = writeln!(o, "{v}"); let _ = o.flush(); };
+        match engine.set_stream(&id, from) {
+          Ok(mut r) => {
+            let mut buf = vec![0u8; 1 << 16];
+            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+              let k = r.read(&mut buf).unwrap_or(0);
+              if k == 0 { break; }
+              say(json!({ "chunk": n, "b64": base64::engine::general_purpose::STANDARD.encode(&buf[..k]) }));
+            }
+            say(json!({ "chunk": n, "end": true }));
+          }
+          Err(e) => say(json!({ "chunk": n, "end": true, "err": e })),
+        }
+        streams.lock().unwrap().remove(&n);
+      });
+      continue;
+    }
+    if let Some(n) = m["unstream"].as_u64() {
+      if let Some(s) = streams.lock().unwrap().get(&n) { s.store(true, std::sync::atomic::Ordering::Relaxed); }
       continue;
     }
     if let Some(s) = m.get("set") {

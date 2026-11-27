@@ -89,7 +89,8 @@
           {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>{/if}
         </button>
         <span class="time mono" id="set-time">{clock(now)} <i>/ {clock(length)}</i></span>
-        {#if preview.loading}<span class="loading">Loading songs…</span>{/if}
+        {#if preview.loading}<span class="loading">{preview.by === 'home' ? 'GLUE Home is loading the songs…' : 'Loading songs…'}</span>{/if}
+        {#if preview.by === 'home'}<span class="by" id="set-by" title="This computer's GLUE Home mixes the set and streams it here: no songs are copied into the browser">Mixed by GLUE Home</span>{/if}
         {#if playingIdx >= 0 && preview.playing}<span class="np">▶ {playingIdx + 1}. {nameOf(plan.items[playingIdx]?.id ?? '').title}</span>{/if}
       </div>
       <span class="seg three" role="radiogroup" aria-label="Style">
@@ -108,6 +109,7 @@
       </span>
     </div>
     {#if preview.error}<p class="warnt small">{preview.error}</p>{/if}
+    {#if preview.why}<p class="hint small">{preview.why}</p>{/if}
 
     <SetLanes {plan} waves={sets.waves} frame={preview.frame} playing={preview.playing} bind:sel bind:song onseek={f => preview.seek(f)} />
 
@@ -144,7 +146,7 @@
               <button type="button" class="btn" id="set-export-wav" onclick={() => list && void setExport.start(plan, list.name, 'wav')}>WAV <small>24-bit</small></button>
               <button type="button" class="btn-ghost" id="set-export-mp3" onclick={() => list && void setExport.start(plan, list.name, 'mp3')}>MP3 <small>320</small></button>
             </div>
-            {#if setExport.result}<p class="ok small" id="set-done">Saved “{setExport.result}”.</p>{/if}
+            {#if setExport.result}<p class="ok small" id="set-done">Saved “{setExport.result}”{setExport.by === 'home' ? ', mixed by GLUE Home' : ''}.</p>{/if}
             {#if setExport.error}<p class="warnt small" id="set-error">{setExport.error}</p>{/if}
           {/if}
         </section>
@@ -184,6 +186,7 @@
   .time i { font-style: normal; color: var(--muted); font-weight: 400; font-size: 12.5px; }
   .loading { font-size: 12px; color: var(--accent); animation: pulse 1s ease-in-out infinite alternate; }
   @keyframes pulse { from { opacity: .45; } to { opacity: 1; } }
+  .by { font-size: 11px; font-weight: 600; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); border-radius: 10px; padding: 1px 8px; }
   .np { font-size: 12px; color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .seg.three { grid-template-columns: repeat(3, auto); }
   .seg.two { grid-template-columns: repeat(2, auto); }

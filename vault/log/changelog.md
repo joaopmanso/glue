@@ -5,6 +5,29 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · GLUE Home 0.84: it mixes the set and streams it to the tab (ADR 0204; M10 B, R2–R3)
+- **Why:** the user: "rethink all audio being handled in the browser … a streamed version while all the processing is
+  handled on the glue home instance". They chose GLUE Home mixing whenever it runs.
+- **`crates/glue-sets`:** the set mixer (tempo map, resampler, WSOLA, isolator, filter, echo, limiter, automation,
+  mixer), ported line for line. It's held to the TypeScript by `tests/golden/sets` (synthetic songs from exact
+  arithmetic, every style), within 1e-6, at about 200× real time.
+- **`glue_audio::decode_song`:** any format for mixing (`analyse` shares `decode_compressed` with it).
+- **The engine:** set sessions (`sets.rs`: `setOpen`, `setPlan`, `setClose`); songs read at a player's priority
+  (`Host::read_song_playing`), decoded ahead, a few kept.
+- **The local link:** `/set/<id>/pcm?from=`, the mix streamed as it's rendered, held back by its reader.
+- **The website:**
+  - `HomeSet` (`src/lib/sets/home.ts`);
+  - the preview worker reads GLUE Home's stream (`runHome`), and the mixdown worker writes the file from it
+    (`fromHome`);
+  - "Mixed by GLUE Home";
+  - a song the tab can't read is drawn as a line, not an error.
+- **CI:** `glue-sets`' goldens and Clippy (`home.yml`).
+- **Tests:**
+  - `tests/sets.golden.test.ts`, `crates/glue-sets/tests/golden.rs`;
+  - `crates/glue-audio/tests/decode_song.rs`;
+  - `e2e/homemode.spec.ts`: a set mixed by GLUE Home, previewed and exported, the tab copying no songs;
+  - the test engine and `e2e/fakeHome.ts` stream `/set/<id>/pcm`.
+
 ## 2026-11-27 · Sets: whose bass plays in a hand-over (ADR 0203; M10 B; website only)
 - **Why:** the user: "choose which song has full bass going on, perhaps even choosing more than one to be on at the same
   time for maximum double bass effect"; chosen per hand-over, plus a swap point dragged.

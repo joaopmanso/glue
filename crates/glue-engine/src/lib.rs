@@ -36,6 +36,7 @@ pub mod names;
 pub mod queue;
 pub mod room;
 pub mod sessions;
+pub mod sets;
 pub mod shared;
 pub mod service;
 pub mod reminders;
@@ -115,6 +116,9 @@ pub trait Host: Send + Sync + 'static {
     let f = std::fs::File::open(path).map_err(|e| format!("{name} could not be read ({e})"))?;
     analyse::read_whole(path, name, std::io::BufReader::with_capacity(1 << 20, f))
   }
+  /// A song's file read whole for playing (a set mixed here, ADR 0204): as `read_song`, but as a player would (GLUE Home
+  /// marks it playing, and the analysis gives way).
+  fn read_song_playing(&self, path: &Path, name: &str) -> Result<Vec<u8>, String> { self.read_song(path, name) }
   /// When this computer last played a song (ms; the analysis eases off, ADR 0138).
   fn foreground_at(&self) -> f64 { 0.0 }
   /// The analysis queue's state changed (GLUE Home's window, a tab's status).
@@ -225,6 +229,8 @@ pub struct Engine<H: Host> {
   pub(crate) xml: Mutex<djxml::XmlState>,
   /// GLUE's own Engine DJ library, last written (djdrive.rs, ADR 0196).
   pub(crate) drive: Mutex<djdrive::DriveState>,
+  /// The sets mixed here (sets.rs, ADR 0204).
+  pub(crate) sets: sets::Sets,
 }
 
 fn key(p: &str, c: &str) -> Key { (p.to_string(), c.to_string()) }
@@ -247,7 +253,7 @@ pub fn changed_over(cur: Option<&Value>, mine: &Value, was: Option<&Value>) -> V
 
 impl<H: Host> Engine<H> {
   pub fn new(glue: PathBuf, cache: PathBuf, host: H) -> Arc<Self> {
-    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default(), dj: Default::default(), dj_one: Mutex::new(()), dj_ticking: Default::default(), xml: Default::default(), drive: Default::default() });
+    let e = Arc::new(Engine { glue: std::sync::RwLock::new(glue), cache, host, stores: Mutex::new(HashMap::new()), feed: Mutex::new(Feed::default()), woke: Condvar::new(), jobs: Mutex::new(None), running_jobs: Mutex::new(false), written: Mutex::new(HashMap::new()), looked_at: Mutex::new(HashMap::new()), queue: Default::default(), searches: Default::default(), me: Mutex::new(Weak::new()), syncing: Mutex::new(()), counted: Default::default(), devices: Default::default(), room: Default::default(), svc: Default::default(), dupes: Default::default(), rechecked: Default::default(), tidied: Default::default(), dj: Default::default(), dj_one: Mutex::new(()), dj_ticking: Default::default(), xml: Default::default(), drive: Default::default(), sets: Default::default() });
     *e.me.lock().unwrap() = Arc::downgrade(&e);
     e
   }
@@ -605,6 +611,11 @@ impl<H: Host> Engine<H> {
         let sample = b["sample"].as_str().filter(|s| !s.is_empty());
         Ok(json!({ "path": self.locate(&root, sample.map(|s| (s, None)), &cfg, true, 5) }))
       }
+      // A set mixed here (ADR 0204): a session for its plan, the plan as edited, and let go. Its mix is streamed by the
+      // local link's /set/<id>/pcm.
+      "setOpen" => self.set_open(&p, &c, &b["plan"]),
+      "setPlan" => self.set_plan(&text(b, "id"), &b["plan"]),
+      "setClose" => Ok(self.set_close(&text(b, "id"))),
       _ => Err("GLUE Home doesn’t know that request".into()),
     }
   }

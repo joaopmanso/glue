@@ -1,0 +1,18 @@
+[package]
+name = "glue-sets"
+version = "0.1.0"
+edition = "2021"
+description = "GLUE's set mixer, native (ADR 0204): a line-for-line port of src/core/sets, held to it by tests/golden/sets"
+license = "UNLICENSED"
+publish = false
+
+[dependencies]
+glue-audio = { path = "../glue-audio" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Tests run optimised: a debug mixer is very slow.
+[profile.test]
+opt-level = 2
+[profile.dev.package."*"]
+opt-level = 3

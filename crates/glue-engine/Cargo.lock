@@ -330,6 +330,7 @@ dependencies = [
  "flate2",
  "glue-audio",
  "glue-interop",
+ "glue-sets",
  "glue-store",
  "indexmap",
  "lofty",
@@ -351,6 +352,15 @@ dependencies = [
  "rusqlite",
  "serde_json",
  "unicode-normalization",
+]
+
+[[package]]
+name = "glue-sets"
+version = "0.1.0"
+dependencies = [
+ "glue-audio",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -91,6 +91,11 @@ jobs:
         run: |
           cargo test --manifest-path crates/glue-interop/Cargo.toml
           cargo clippy --manifest-path crates/glue-interop/Cargo.toml --all-targets -- -D warnings
+      # The set mixer (ADR 0204): held to the website's (tests/golden/sets), and clippy.
+      - name: Set mixer tests
+        run: |
+          cargo test --manifest-path crates/glue-sets/Cargo.toml
+          cargo clippy --manifest-path crates/glue-sets/Cargo.toml --all-targets -- -D warnings
       # The library engine (ADR 0153): a GLUE tab's requests answered natively, and clippy.
       - name: Library engine tests
         run: |
