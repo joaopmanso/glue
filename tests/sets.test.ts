@@ -6,6 +6,7 @@ import { Mixer, type Pcm } from '../src/core/sets/mixer';
 import { controlsAt } from '../src/core/sets/automation';
 import { clock, timesOf, tracklist } from '../src/core/sets/tracklist';
 import { MIX_RATE, type SetPlan } from '../src/core/sets/types';
+import { moveEnd, moveSong, trimIn, valid } from '../src/core/sets/edit';
 
 const SR = MIX_RATE;
 const tone = (hz: number, secs: number, sr = SR, amp = 0.5) => Float32Array.from({ length: Math.round(secs * sr) }, (_, i) => amp * Math.sin(2 * Math.PI * hz * i / sr));
@@ -57,6 +58,30 @@ describe('the set’s signal processing (ADR 0199)', () => {
     for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i]));
     expect(pk).toBeLessThanOrEqual(0.966 + 1e-6);   // (0.966 as a float32)
     expect(pk).toBeGreaterThan(0.9);
+  });
+  it('the limiter turns a steady loud tone down without distorting it (no steps in its gain)', () => {
+    const x = tone(100, 1, SR, 2), L = x.slice(), R = x.slice(), lim = new Limiter(SR);
+    lim.run(L, R, 0, L.length);
+    // Once it has settled, the tone comes out whole: the input scaled, LOOK samples late.
+    let err = 0;
+    for (let i = SR / 2; i < L.length; i++) err = Math.max(err, Math.abs(L[i] - x[i - Limiter.LOOK] * 0.966 / 2));
+    expect(err).toBeLessThan(2e-3);
+    // And a sudden loud burst is turned down ahead of it, gliding: no jump between two samples beyond the signal's own.
+    const y = new Float32Array(SR / 2), z = new Float32Array(SR / 2);
+    for (let i = 0; i < y.length; i++) y[i] = z[i] = (i < SR / 4 ? 0.3 : 3) * Math.sin(2 * Math.PI * 50 * i / SR);
+    const ly = y.slice(), lz = z.slice();
+    new Limiter(SR).run(ly, lz, 0, ly.length);
+    let jump = 0;
+    for (let i = 1; i < ly.length; i++) jump = Math.max(jump, Math.abs(ly[i] - ly[i - 1]));
+    expect(jump).toBeLessThan(0.966 * 2 * Math.PI * 50 / SR * 2);   // a step in gain here would jump by ~0.2
+  });
+  it('key lock at the song’s own tempo gives the song back unchanged', () => {
+    const src = Float32Array.from({ length: SR * 3 }, (_, i) => Math.sin(i * 0.031) * 0.4 + Math.sin(i * 0.0173) * 0.3 + (((i * 7919) % 1000) / 1000 - 0.5) * 0.1);
+    const w = new Wsola(), H = Wsola.H, hops = 100, L = new Float32Array(hops * H), R = new Float32Array(hops * H);
+    for (let k = 0; k < hops; k++) w.hop(src, src, 5000.3 + k * H, L, R, k * H);
+    let err = 0;
+    for (let i = H; i < hops * H; i++) err = Math.max(err, Math.abs(L[i] - src[5000 + i]));
+    expect(err).toBeLessThan(1e-5);
   });
 });
 
@@ -200,5 +225,40 @@ describe('the tracklist', () => {
     const text = tracklist(p, id => ({ artist: 'Artist ' + id, title: 'Song ' + id }));
     expect(text.split('\n')[0]).toBe('0:00 Artist a – Song a');
     expect(text.split('\n')).toHaveLength(3);
+  });
+});
+
+describe('shaping a set by hand (ADR 0201)', () => {
+  const songs = [song('a', 124), song('b', 125), song('c', 126), song('d', 124)];
+  const len = (id: string) => songs.find(s => s.id === id)?.duration;
+  for (const [style, decks] of [['single', 2], ['blend', 2], ['double', 2], ['blend', 3]] as const) {
+    it(`a ${style} plan on ${decks} decks holds together`, () => expect(valid(planSet(songs, opts(style, decks)).items, len)).toBe(true));
+  }
+  it('moves a song and the ones after it by whole bars; the one before plays on', () => {
+    const p = planSet(songs, opts('blend')), r = moveSong(p.items, 1, -17, len);
+    expect(r.d).toBe(-16);
+    expect(r.items[0]).toEqual(p.items[0]);
+    for (let j = 1; j < 4; j++) expect(r.items[j].start).toBe(p.items[j].start - 16);
+    expect(r.items[1].in).toBe(p.items[1].in);
+    expect(valid(r.items, len)).toBe(true);
+  });
+  it('clamps a move to what fits: no silence between songs, nothing on one deck twice', () => {
+    const p = planSet(songs, opts('blend')), r = moveSong(p.items, 1, 4000, len);
+    expect(r.items[1].start).toBeLessThanOrEqual(p.items[0].start + p.items[0].beats);   // still in while the first plays
+    expect(valid(r.items, len)).toBe(true);
+    const back = moveSong(p.items, 2, -4000, len);
+    expect(back.items[2].start).toBeGreaterThanOrEqual(p.items[0].start + p.items[0].beats);   // deck 1 free again
+    expect(moveSong(p.items, 0, 8, len).d).toBe(0);
+  });
+  it('trims a song’s in-point (later in the mix and in its file, its end kept) and moves its end', () => {
+    const p = planSet(songs, opts('blend')), a = p.items[1], r = trimIn(p.items, 1, 8, len), b = r.items[1];
+    expect(r.d).toBe(8);
+    expect([b.start, b.beats, b.start + b.beats]).toEqual([a.start + 8, a.beats - 8, a.start + a.beats]);
+    expect(b.in).toBeCloseTo(a.in + 8 * 60 / a.bpm, 9);
+    expect(trimIn(p.items, 1, -4000, len).items[1].in).toBeGreaterThanOrEqual(0);
+    const e = moveEnd(p.items, 0, 16, len);
+    expect(e.items[0].beats).toBe(p.items[0].beats + 16);
+    const last = moveEnd(p.items, 3, 4000, len).items[3];
+    expect(last.in + last.beats * 60 / last.bpm).toBeLessThanOrEqual(300.05);
   });
 });

@@ -28,13 +28,35 @@ export interface WaveOpts {
 }
 
 /** The loudest of each band over the points under one pixel column. */
-function column(w: Waveform, a: number, b: number) {
+export function column(w: Waveform, a: number, b: number) {
   let l = 0, m = 0, h = 0, p = 0;
   const i0 = Math.max(0, Math.floor(a)), i1 = Math.min(w.low.length, Math.max(i0 + 1, Math.ceil(b)));
   for (let i = i0; i < i1; i++) {
     if (w.low[i] > l) l = w.low[i]; if (w.mid[i] > m) m = w.mid[i]; if (w.high[i] > h) h = w.high[i]; if (w.peak[i] > p) p = w.peak[i];
   }
   return { l, m, h, p };
+}
+
+/** One column of the wave (device pixels), from the middle `midd` up and down to `room` at full, in the scheme. */
+export function paintColumn(ctx: CanvasRenderingContext2D, scheme: Scheme, c: { l: number; m: number; h: number; p: number }, px: number, bw: number, midd: number, room: number, highs: string, accent: string) {
+  const hp = Math.round(c.p / 255 * room);
+  if (scheme === 'rgb') {
+    const s = 255 / Math.max(1, c.l, c.m, c.h);
+    ctx.fillStyle = `rgb(${Math.round(c.l * s)},${Math.round(c.m * s)},${Math.round(c.h * s)})`;
+    ctx.fillRect(px, midd - hp, bw, hp * 2);
+  } else if (scheme === 'blue') {
+    const f = c.h / Math.max(1, c.l + c.m + c.h) * 1.8, v = Math.min(1, f);
+    ctx.fillStyle = `rgb(${Math.round(20 + 200 * v)},${Math.round(90 + 150 * v)},255)`;
+    ctx.fillRect(px, midd - hp, bw, hp * 2);
+  } else if (scheme === 'bands') {
+    const hl = Math.round(c.l / 255 * room), hm = Math.round(c.m / 255 * room * 0.8), hh = Math.round(c.h / 255 * room * 0.6);
+    ctx.fillStyle = '#ff8a1f'; ctx.fillRect(px, midd - hl, bw, hl * 2);
+    ctx.fillStyle = '#ffd35c'; ctx.fillRect(px, midd - hm, bw, hm * 2);
+    ctx.fillStyle = highs; ctx.fillRect(px, midd - hh, bw, hh * 2);
+  } else {
+    ctx.fillStyle = accent;
+    ctx.fillRect(px, midd - hp, bw, hp * 2);
+  }
 }
 
 export function drawWave(ctx: CanvasRenderingContext2D, W: number, H: number, w: Waveform | null, o: WaveOpts) {
@@ -74,25 +96,7 @@ export function drawWave(ctx: CanvasRenderingContext2D, W: number, H: number, w:
   for (let k = k0; k < k1; k++) {
     const a = k * pts, px = Math.round(xd(a / w.rate)), bw = Math.max(1, Math.round(xd((a + pts) / w.rate)) - px);
     if (px + bw <= 0 || px >= Wd) continue;
-    const c = column(w, a, a + pts);
-    const hp = Math.round(c.p / 255 * room);
-    if (o.scheme === 'rgb') {
-      const s = 255 / Math.max(1, c.l, c.m, c.h);
-      ctx.fillStyle = `rgb(${Math.round(c.l * s)},${Math.round(c.m * s)},${Math.round(c.h * s)})`;
-      ctx.fillRect(px, midd - hp, bw, hp * 2);
-    } else if (o.scheme === 'blue') {
-      const f = c.h / Math.max(1, c.l + c.m + c.h) * 1.8, v = Math.min(1, f);
-      ctx.fillStyle = `rgb(${Math.round(20 + 200 * v)},${Math.round(90 + 150 * v)},255)`;
-      ctx.fillRect(px, midd - hp, bw, hp * 2);
-    } else if (o.scheme === 'bands') {
-      const hl = Math.round(c.l / 255 * room), hm = Math.round(c.m / 255 * room * 0.8), hh = Math.round(c.h / 255 * room * 0.6);
-      ctx.fillStyle = '#ff8a1f'; ctx.fillRect(px, midd - hl, bw, hl * 2);
-      ctx.fillStyle = '#ffd35c'; ctx.fillRect(px, midd - hm, bw, hm * 2);
-      ctx.fillStyle = o.clear ? T.ink2 || '#f4f4f6' : '#f4f4f6'; ctx.fillRect(px, midd - hh, bw, hh * 2);
-    } else {
-      ctx.fillStyle = T.accent || '#f5c518';
-      ctx.fillRect(px, midd - hp, bw, hp * 2);
-    }
+    paintColumn(ctx, o.scheme, column(w, a, a + pts), px, bw, midd, room, o.clear ? T.ink2 || '#f4f4f6' : '#f4f4f6', T.accent || '#f5c518');
   }
   ctx.restore();
   // The bar numbers stay on top (the deck view).

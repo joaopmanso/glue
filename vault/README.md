@@ -275,6 +275,7 @@ Planned (GLUE):
 | [0198](adr/0198-playlists-that-follow-a-flow.md) | Playlists built along a flow (presets or a drawn curve), the songs to start from placed by role, sound likeness and artist spacing in the score, a beam search | accepted |
 | [0199](adr/0199-a-set-is-a-playlist-mixed-by-one-engine.md) | A set is a playlist laid out on one beat clock (`List.set`), mixed by one pure engine (tempo map, WSOLA key lock, isolator, filter, echo, limiter) for the preview and the exported WAV / MP3 | accepted |
 | [0200](adr/0200-planning-a-set-on-phrases.md) | Plan a set's hand-overs on 16-bar phrases before each outro, in its style (one at a time, continuous, double drops), cuts between far tempos | accepted |
+| [0201](adr/0201-a-set-shaped-by-hand-and-heard-live.md) | A set shaped by hand on its timeline (whole bars, kept whole, undo), heard live from a worker feeding a worklet; headroom where songs play together, a gliding limiter, WSOLA by normalised correlation | accepted |
 | [0164](adr/0164-glue-home-matches-the-duplicates.md) | GLUE Home matches the duplicates' fingerprints (Rust, to the byte the website's); the page asks it | accepted |
 | [0163](adr/0163-one-computer-never-clashes-with-itself.md) | One computer never clashes with itself; GLUE Home's clashes show in the tab; a tab sends only what it changed | accepted |
 | [0162](adr/0162-with-glue-home-the-page-is-only-its-screen.md) | With GLUE Home running, the page is only its screen: it starts none of the library's work (sync, analysis, backups, repairs, looking for libraries) | accepted |

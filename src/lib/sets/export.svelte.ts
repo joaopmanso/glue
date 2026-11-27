@@ -1,7 +1,7 @@
 /* Exporting a set as one file (ADR 0199): the save dialog first (from the click), then the mixdown worker, which asks
    for each song's file as the mix reaches it. Progress, time left, cancel; the tracklist to save beside it. */
 import { lib } from '../library.svelte';
-import { decodeAudio } from '../analysis';
+import { answerSong } from './songs';
 import { downloadBlob } from '../download';
 import { MIX_RATE, type SetPlan } from '../../core/sets/types';
 import type { FromMixdown, MixFormat, ToMixdown } from '../../workers/mixdown.worker';
@@ -34,19 +34,10 @@ class SetExport {
     const w = new Worker(new URL('../../workers/mixdown.worker.ts', import.meta.url), { type: 'module' });
     this.w = w;
     const send = (m: ToMixdown, t: Transferable[] = []) => w.postMessage(m, t);
-    w.onmessage = async (e: MessageEvent<FromMixdown>) => {
+    w.onmessage = (e: MessageEvent<FromMixdown>) => {
       const m = e.data;
-      if (m.kind === 'want') {
-        const t = lib.store?.tracks.get(m.id);
-        const f = t ? await lib.fileFor(t).catch(() => null) : null;
-        send({ kind: 'file', id: m.id, file: f });
-      } else if (m.kind === 'pagedecode') {
-        try {
-          const ab = await decodeAudio(await m.file.arrayBuffer(), MIX_RATE);
-          const chs = Array.from({ length: Math.min(2, ab.numberOfChannels) }, (_, c) => new Float32Array(ab.getChannelData(c)));
-          send({ kind: 'pcm', id: m.id, channels: chs, sr: ab.sampleRate }, chs.map(c => c.buffer));
-        } catch { send({ kind: 'pcm', id: m.id, channels: null, sr: 0 }); }
-      } else if (m.kind === 'progress') {
+      if (m.kind === 'want' || m.kind === 'pagedecode') void answerSong(m, send);
+      else if (m.kind === 'progress') {
         this.done = m.done; this.total = m.total;
         const secs = (performance.now() - this.began) / 1000;
         if (m.done > MIX_RATE * 20 && secs > 2) this.left = Math.round(secs * (m.total - m.done) / m.done);

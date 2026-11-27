@@ -2,7 +2,7 @@
    from the set's start, so blocks of any size give the same samples; seeking starts the hops again from there.
    Each song: its PCM at the mix rate, read at the position its beats ask (varispeed, or WSOLA with key lock), its trim,
    the isolator, the filter, the echo and the volume of its hand-overs; then the decks summed into a limiter. */
-import { controlsAt } from './automation';
+import { controlsAt, type Ctl } from './automation';
 import { cubicAt, Echo, Isolator, Limiter, OneKnob, Wsola } from './dsp';
 import { tempoOf, type TempoMap } from './tempo';
 import { MIX_RATE, type SetItem, type SetPlan } from './types';
@@ -79,17 +79,27 @@ export class Mixer {
     const sr = this.sr, f0 = this.hop * H, ta = f0 / sr, tb = (f0 + H) / sr;
     const b0 = this.tempo.beat(ta), b1 = this.tempo.beat(tb);
     this.mixL.fill(0); this.mixR.fill(0);
+    // The songs sounding, and their controls at either end of the hop.
+    const on: { i: number; d: Deck; c0: Ctl; c1: Ctl }[] = [];
+    let p0 = 0, p1 = 0;
     for (let i = 0; i < this.items.length; i++) {
-      const it = this.items[i];
       if (!(this.t0[i] < tb + 0.05 && this.t1[i] + this.tail[i] > ta)) { this.decks.delete(i); continue; }
       let d = this.decks.get(i);
       if (!d) { d = deck(sr); this.decks.set(i, d); }
-      this.dry(it, d, b0, b1);
       const c0 = controlsAt(this.items, i, b0), c1 = controlsAt(this.items, i, b1);
+      on.push({ i, d, c0, c1 }); p0 += c0.gain * c0.gain; p1 += c1.gain * c1.gain;
+    }
+    // Headroom: songs together at more than one song's power (a double drop, the middle of a bass swap) come down so
+    // their power adds up to one song's, as a DJ rides the faders, rather than the limiter squashing them.
+    const n0 = 1 / Math.sqrt(Math.max(1, p0)), n1 = 1 / Math.sqrt(Math.max(1, p1));
+    for (const { i, d, c0, c1 } of on) {
+      const it = this.items[i];
+      this.dry(it, d, b0, b1);
       const trim = Math.pow(10, (it.trim ?? 0) / 20), delay = 0.75 * 60 / this.tempo.bpmAt(b0) * sr;
+      const g0 = c0.gain * n0, g1 = c1.gain * n1;
       d.fL.set(c0.filter, sr); d.fR.set(c0.filter, sr);
       for (let j = 0; j < H; j++) {
-        const u = j / H, g = c0.gain + (c1.gain - c0.gain) * u, lo = c0.low + (c1.low - c0.low) * u;
+        const u = j / H, g = g0 + (g1 - g0) * u, lo = c0.low + (c1.low - c0.low) * u;
         const mi = c0.mid + (c1.mid - c0.mid) * u, hi = c0.high + (c1.high - c0.high) * u, ec = c0.echo + (c1.echo - c0.echo) * u;
         const xl = d.fL.run(d.isoL.run(this.dryL[j] * trim, lo, mi, hi)), xr = d.fR.run(d.isoR.run(this.dryR[j] * trim, lo, mi, hi));
         this.mixL[j] += xl * g + d.eL.run(xl * g, ec, delay);

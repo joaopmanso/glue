@@ -84,7 +84,8 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await expect(page.locator('#set-view')).toBeVisible();
   await expect(page.locator('#set-lanes .blk')).toHaveCount(3, { timeout: 30_000 });
   await expect(page.locator('#set-meta')).toContainText('3 songs');
-  await expect(page.locator('#set-fx li')).toHaveCount(2);
+  await expect(page.locator('#set-lanes .hchip')).toHaveCount(2);
+  await expect(page.locator('#set-order .song')).toHaveCount(3);
   await expect(page.locator('#set-tracklist')).toHaveText(/^0:00 set-[abc]\n\d:\d\d set-[abc]\n\d:\d\d set-[abc]$/);   // the playlist's order, from 0:00
   await expect(page.locator('#set-style-blend')).toHaveAttribute('aria-checked', 'true');
   const tops = await page.locator('#set-lanes .blk').evaluateAll(bs => bs.map(b => (b as HTMLElement).style.top));
@@ -97,8 +98,45 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await page.click('#set-decks-3');
   const tops3 = await page.locator('#set-lanes .blk').evaluateAll(bs => bs.map(b => (b as HTMLElement).style.top));
   expect(new Set(tops3).size).toBe(3);
-  await page.locator('#set-fx select').first().selectOption('echo');
-  await expect(page.locator('#set-lanes .ov').first()).toContainText('Echo out');
+  // A hand-over opened from its chip, its style chosen.
+  await page.locator('#set-lanes .hchip').first().click();
+  await expect(page.locator('#set-handover')).toBeVisible();
+  await page.click('#set-hfx-echo');
+  await expect(page.locator('#set-lanes .hchip').first()).toContainText('Echo');
+  await expect(page.locator('#set-ho-0')).toContainText('Echo out');
+
+  // The second song dragged earlier (whole bars): it and the third move, marked as shaped by hand; undo, redo.
+  const blk = page.locator('#set-lanes .blk').nth(1), left = async () => parseFloat(await blk.evaluate(b => (b as HTMLElement).style.left));
+  const before = await left(), bb = (await blk.boundingBox())!;
+  await page.mouse.move(bb.x + bb.width / 2, bb.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(bb.x + bb.width / 2 - 60, bb.y + 30, { steps: 6 });
+  await page.mouse.move(bb.x + bb.width / 2 - 120, bb.y + 30, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(left).toBeLessThan(before - 20);
+  await expect(page.locator('#set-meta')).toContainText('shaped by hand');
+  await page.click('#set-undo');
+  await expect.poll(left).toBeCloseTo(before, 1);
+  await page.click('#set-redo');
+  await expect.poll(left).toBeLessThan(before - 20);
+  await page.click('#set-longer');
+  await expect(page.locator('#set-bars')).toHaveText(/\d+ bars/);
+
+  // The preview: it plays (the playhead moves), pauses, and plays a hand-over.
+  await expect(page.locator('#set-time')).toContainText('0:00');
+  await page.click('#set-play');
+  await expect(page.locator('#set-time')).not.toContainText(/^0:00 /, { timeout: 20_000 });
+  await page.click('#set-play');
+  await page.click('#set-hear');
+  await expect(page.locator('#set-play')).toHaveAttribute('aria-label', 'Pause');
+  const at = await page.locator('#set-time').textContent();
+  await expect(page.locator('#set-time')).not.toHaveText(at!, { timeout: 20_000 });
+  await page.click('#set-play');
+
+  // The running order dragged: the third song first, the set planned again in that order.
+  const first = (await page.locator('#set-tracklist').textContent())!.split('\n')[2].replace(/^\S+ /, '');
+  await page.locator('#set-order .song').nth(2).dragTo(page.locator('#set-order .song').nth(0));
+  await expect(page.locator('#set-tracklist')).toHaveText(new RegExp('^0:00 ' + first));
   if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/set.png' });
 
   // Export the mix as WAV into the "chosen" file.

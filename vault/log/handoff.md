@@ -24,21 +24,25 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-27, night): sets, mixed and exported (ADR 0199, 0200; M10 B, S1–S2; website only)
-- **Shipped:** right-click a playlist › "Mix it as a set…":
-  - planned on the beat in a style, on 2 or 3 deck lanes, each hand-over's style chosen;
-  - exported as WAV 24-bit or MP3 320 through the save dialog;
-  - the tracklist.
+## Latest (2026-11-27, night): sets shaped by hand and heard live (ADR 0201; M10 B, S3; website only)
+- **Before it:** S1–S2 (ADR 0199, 0200): a playlist mixed as a set and exported as WAV or MP3. The user: "mix sounds
+  good … songs are leveled, mixed in the correct time", but "most previews don't work and overall looks terrible", and
+  the export had "a lot of artefacts and noise … specially the double drop ones".
+- **Shipped:**
+  - **the sound:** equal-power headroom where songs play together, a limiter that glides (no 64-sample steps), WSOLA by
+    normalised correlation (sample-exact at a song's own tempo);
+  - **the timeline:** songs drawn as heard, every waveform loaded, drag a song, its start or end (whole bars), hand-over
+    chips and a panel, zoom, undo and redo;
+  - **the running order:** dragged, and the set planned again;
+  - **the live preview:** a worker running the mixer, fed to an AudioWorklet; play, seek, Hear it.
   See [features/sets.md](../features/sets.md).
-- **Waiting on the user:** a set of 20 minutes or so from one of their playlists, exported and listened through: the
-  hand-overs, key lock (WSOLA) quality, levels.
-- **Next, S3:**
-  - drag songs, in/out points and hand-over lengths on the lanes (snapped to bars);
-  - reorder;
-  - a live preview in an AudioWorklet running the same `Mixer` (built as a worklet module, fed PCM from the decode
-    worker), "Hear this transition";
-  - undo.
-  If WSOLA's quality isn't enough, try Signalsmith Stretch (MIT).
+- **Waiting on the user:** listening again, above all the double drops, in the preview or an export. If the stretch
+  itself (WSOLA) still sounds rough, the next step is Signalsmith Stretch (ADR 0199, 0201).
+- **Next:**
+  - from the user's listening;
+  - a song dragged to another deck;
+  - reordering that keeps the hand edits around the songs that stay together;
+  - stems (B4).
 
 ## Earlier (2026-11-27, later): GLUE Home 0.83, playlists that follow a flow (ADR 0197, 0198; M10 step A)
 - **The user's ask:**

@@ -5,6 +5,36 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · Sets shaped by hand and heard live; cleaner double drops (ADR 0201; M10 B, S3; website only)
+- **Why:** the user, on the first release: "most previews don't work and overall looks terrible, it should feel
+  interactive and dynamic … mix sounds good". Then, on an exported set: "a lot of artefacts and noise on some mixes,
+  specially the double drop ones".
+- **The sound** (`dsp.ts`, `mixer.ts`):
+  - **headroom:** songs together over one song's power come down (equal power); two songs at full come down 3 dB each;
+  - **the limiter** glides down over its look-ahead, with no steps (the old one stepped every 64 samples, a buzz);
+  - **WSOLA** uses normalised correlation and keeps a song's own continuation, so key lock at a song's own tempo is
+    sample-exact.
+- **The timeline** (`SetLanes.svelte`, rewritten):
+  - per-lane canvases for the view, drawn through the tempo map;
+  - songs drawn as heard (volume, bass cut) over a ghost;
+  - every song's waveform loaded in the background (only cached ones showed before);
+  - drag a song, its start or its end, in whole bars (`core/sets/edit.ts`, clamped to a set that holds together);
+  - hand-over chips, a ruler with a playhead, zoom.
+- **The page** (`SetView.svelte`, rewritten):
+  - a transport (play, time, Space);
+  - undo and redo;
+  - a hand-over panel (style, ±4 bars, next song earlier or later, Hear it);
+  - a running order dragged to reorder (planned again);
+  - the export and the tracklist side by side.
+- **The preview:** `workers/setplay.worker.ts` runs the mixer about 1.2 s ahead and sends blocks to an AudioWorklet
+  (`lib/sets/preview.svelte.ts`). Songs are decoded by `workers/setDecode.ts`, shared with the mixdown.
+- **A plan kept on a playlist is no longer planned again** when some of its songs can't be planned (no tempo).
+- **Help:** "Mixing a set", rewritten (the timeline, hand-overs, listening, the running order); the tour step too.
+- **Tests:**
+  - `tests/sets.test.ts`: the limiter without steps, key lock unchanged at a song's own tempo, the hand edits and
+    `valid`;
+  - `e2e/sets.spec.ts`: a chip's panel, a drag, undo and redo, the preview playing, Hear it, reorder.
+
 ## 2026-11-27 · Sets: a playlist mixed and exported as one file (ADR 0199, 0200; M10 B, S1–S2; website only)
 - **Why:** the user wants a set builder: "the export is the end product, in this case the mixed set". They chose WAV
   and MP3, presets plus dragging, rendering in the browser, and key lock.

@@ -464,12 +464,19 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     kept apart, and a penalty for energy jumps;
   - a beam search (8 partial sets, deterministic from the seed; "Surprise me" draws among each set's best few);
   - the form is kept on `List.auto`.
-- **Sets** (ADR 0199, 0200, `src/core/sets/`, `#/set/<id>`):
+- **Sets** (ADR 0199, 0200, 0201, `src/core/sets/`, `#/set/<id>`):
   - a playlist laid out as a mix on one beat clock, kept as `List.set`;
   - `planSet` places hand-overs on phrases in the set's style;
-  - one engine (`Mixer`: tempo map, WSOLA key lock, isolator, filter, echo, limiter, fixed hops) renders the file in
-    `src/workers/mixdown.worker.ts`: WAV 24-bit (own writer) or MP3 320 (mediabunny + `@mediabunny/mp3-encoder`);
-  - each song is asked of the page as the mix reaches it, and written into the save dialog's file as it goes.
+  - hand edits (`edit.ts`: move, trim in, move end, in whole bars, clamped to a set that holds together), the order
+    dragged (planned again), undo and redo (`lib/sets/set.svelte.ts`);
+  - one engine (`Mixer`: tempo map, WSOLA key lock, isolator, filter, echo, equal-power headroom, gliding limiter,
+    fixed hops) for:
+    - the file, in `src/workers/mixdown.worker.ts`: WAV 24-bit (own writer) or MP3 320 (mediabunny +
+      `@mediabunny/mp3-encoder`);
+    - the live preview, in `src/workers/setplay.worker.ts` about 1.2 s ahead, its blocks sent through a `MessagePort`
+      to an AudioWorklet (`lib/sets/preview.svelte.ts`);
+  - each song is asked of the page as the mix reaches it (`workers/setDecode.ts`, `lib/sets/songs.ts`); a file is
+    written into the save dialog's file as it goes.
 
 ## 7. GLUE Cloud (`cloud/`)
 - **Accounts:** Google, or email and password.

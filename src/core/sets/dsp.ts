@@ -54,20 +54,21 @@ export class Wsola {
     const { N, H } = Wsola, n = L.length, at = (x: Float32Array, i: number) => i >= 0 && i < n ? x[i] : 0;
     let q = Math.round(p);
     if (this.prev >= 0) {
-      // The natural continuation of the last grain, compared with candidates around q (coarse, then fine).
-      const nat = this.prev + H, S = 512, ov = 512, step = 4;
-      let best = 0, bestC = -Infinity;
-      for (let d = -S; d <= S; d += 8) {
-        let c = 0;
-        for (let i = 0; i < ov; i += step) c += (at(L, nat + i) + at(R, nat + i)) * (at(L, q + d + i) + at(R, q + d + i));
-        if (c > bestC) { bestC = c; best = d; }
-      }
+      // The natural continuation of the last grain (what its second half overlaps), compared with candidates around q
+      // by normalised correlation (raw correlation favours whatever is loudest, not what lines up), coarse then fine.
+      const nat = this.prev + H, S = 512, ov = H;
+      const score = (d: number, step: number) => {
+        let c = 0, e = 1e-12;
+        for (let i = 0; i < ov; i += step) {
+          const a = at(L, nat + i) + at(R, nat + i), b = at(L, q + d + i) + at(R, q + d + i);
+          c += a * b; e += b * b;
+        }
+        return c / Math.sqrt(e) * Math.sqrt(step);   // the same scale at any step
+      };
+      let best = nat - q, bestC = Math.abs(best) <= S ? score(best, 2) : -Infinity;   // the continuation itself, when it's in reach
+      for (let d = -S; d <= S; d += 8) { const c = score(d, 4); if (c > bestC) { bestC = c; best = d; } }
       const coarse = best;
-      for (let d = coarse - 7; d <= coarse + 7; d++) {
-        let c = 0;
-        for (let i = 0; i < ov; i += 2) c += (at(L, nat + i) + at(R, nat + i)) * (at(L, q + d + i) + at(R, q + d + i));
-        if (c > bestC) { bestC = c; best = d; }
-      }
+      for (let d = coarse - 7; d <= coarse + 7; d++) { const c = score(d, 2); if (c > bestC) { bestC = c; best = d; } }
       q += best;
     }
     for (let i = 0; i < H; i++) {
@@ -145,30 +146,36 @@ export class Echo {
   }
 }
 
-/** A lookahead limiter: never over `ceiling`, its gain falling at once (on the delayed signal) and recovering in ~0.2 s.
-    Stereo, processed in 64-sample steps from its own start. */
+/** A lookahead limiter: never over `ceiling`, its gain gliding down ahead of a peak and recovering in ~0.25 s. Stereo,
+    sample by sample (so any block size gives the same output). */
 export class Limiter {
   static readonly LOOK = 256;
-  private dl: Float32Array; private dr: Float32Array; private w = 0; private g = 1;
+  private dl: Float32Array; private dr: Float32Array; private gl: Float32Array; private w = 0;
+  /** The gain each sample asks for, held LOOK samples then released; its running sum over the last LOOK. */
+  private env = 1; private hold = 0; private sum: number;
   private rel: number;
-  constructor(sr: number, private ceiling = 0.966) { this.dl = new Float32Array(Limiter.LOOK); this.dr = new Float32Array(Limiter.LOOK); this.rel = 1 - Math.exp(-1 / (0.2 * sr)); }
-  /** In place, `n` a multiple of 64. Adds LOOK samples of latency. */
-  run(L: Float32Array, R: Float32Array, off: number, n: number) {
+  constructor(sr: number, private ceiling = 0.966) {
     const look = Limiter.LOOK;
-    for (let c = 0; c < n; c += 64) {
-      // The loudest of this step and what's in the delay line ahead of it.
-      let pk = 0;
-      for (let i = 0; i < 64; i++) pk = Math.max(pk, Math.abs(L[off + c + i]), Math.abs(R[off + c + i]));
-      for (let i = 0; i < look; i++) pk = Math.max(pk, Math.abs(this.dl[i]), Math.abs(this.dr[i]));
-      const need = pk > this.ceiling ? this.ceiling / pk : 1;
-      for (let i = 0; i < 64; i++) {
-        if (need < this.g) this.g = need; else this.g += (need - this.g) * this.rel;
-        const j = off + c + i, xl = L[j], xr = R[j];
-        const yl = this.dl[this.w] * this.g, yr = this.dr[this.w] * this.g;
-        this.dl[this.w] = xl; this.dr[this.w] = xr; this.w = (this.w + 1) % look;
-        L[j] = Math.max(-this.ceiling, Math.min(this.ceiling, yl));
-        R[j] = Math.max(-this.ceiling, Math.min(this.ceiling, yr));
-      }
+    this.dl = new Float32Array(look); this.dr = new Float32Array(look); this.gl = new Float32Array(look).fill(1); this.sum = look;
+    this.rel = 1 - Math.exp(-1 / (0.25 * sr));
+  }
+  /** In place. Adds LOOK samples of latency. The gain a peak needs is held for LOOK samples and averaged over the
+      last LOOK: it glides down over the look-ahead and is all the way down when the peak comes out, with no steps
+      (a step in gain is a click; many are a buzz). Then it releases over ~250 ms. */
+  run(L: Float32Array, R: Float32Array, off: number, n: number) {
+    const look = Limiter.LOOK, inv = 1 / look;
+    for (let i = off; i < off + n; i++) {
+      const xl = L[i], xr = R[i], pk = Math.max(Math.abs(xl), Math.abs(xr)), need = pk > this.ceiling ? this.ceiling / pk : 1;
+      if (need <= this.env) { this.env = need; this.hold = look; }
+      else if (this.hold > 0) this.hold--;
+      else this.env = Math.min(need, this.env + (1 - this.env) * this.rel);
+      const w = this.w;
+      this.sum += this.env - this.gl[w]; this.gl[w] = this.env;
+      const g = Math.min(1, this.sum * inv), yl = this.dl[w] * g, yr = this.dr[w] * g;
+      this.dl[w] = xl; this.dr[w] = xr; this.w = (w + 1) % look;
+      if (this.w === 0) { let t = 0; for (let k = 0; k < look; k++) t += this.gl[k]; this.sum = t; }   // no drift over hours
+      L[i] = Math.max(-this.ceiling, Math.min(this.ceiling, yl));
+      R[i] = Math.max(-this.ceiling, Math.min(this.ceiling, yr));
     }
   }
 }
