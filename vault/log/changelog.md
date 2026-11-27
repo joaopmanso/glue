@@ -5,6 +5,14 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · The set's menu as labelled tiles; no jump to a song's start (ADR 0209; website only)
+- **Why:** the user: selecting a song zoomed in past its start, then moving it, jumped to its start; the menu's round
+  icons should look more professional.
+- **Fixed:** a song or hand-over chosen is scrolled into view only when none of it shows, never during a drag, and only
+  when the choice changes.
+- **The menu:** tiles (icon and word, 28 px, 7 px corners, glass, the accent on icons) in fixed spots round a dot.
+- **Tests:** `e2e/sets.spec.ts`: a song selected zoomed in past its start doesn't scroll the timeline.
+
 ## 2026-11-27 · The set's menu: only buttons round the pointer, wherever it's clicked (ADR 0208; website only)
 - **Why:** the user didn't want information and a menu mixed in one round box, and the running order's clicks opened the
   menu up on the timeline.

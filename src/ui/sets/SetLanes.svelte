@@ -298,10 +298,14 @@
   }
   // A hand-over or song chosen elsewhere (the running order) is brought into view.
   $effect(() => {
-    const i = sel ?? song;
-    if (i == null || !box || untrack(() => fxBy === 'ring')) return;
-    const x = sel != null ? overs[sel]?.x : blocks[song!]?.x;
-    untrack(() => { if (x != null && (x < scroll || x > scroll + vw - 120)) box!.scrollLeft = Math.max(0, x - vw * 0.3); });
+    const s = sel, g = song;
+    if ((s ?? g) == null || !box) return;
+    untrack(() => {
+      if (fxBy === 'ring' || drag) return;
+      const b = s != null ? overs[s] : blocks[g!];
+      // Any of it on screen is in view: a song zoomed in on stays where it is.
+      if (b && (b.x + b.w < scroll + 16 || b.x > scroll + vw - 16)) box!.scrollLeft = Math.max(0, b.x - vw * 0.3);
+    });
   });
   $effect(() => { if (song != null && song >= plan.items.length) song = null; if (sel != null && sel >= plan.items.length - 1) sel = null; });
 
@@ -320,7 +324,8 @@
       menuAt = null;
     });
   });
-  const RR = 60;
+  /** How far the menu reaches from the pointer: across, and up or down. */
+  const RX = 150, RY = 96;
   // The menu sits in the window: the page scrolling (not the timeline) closes it, as it no longer points at what it was
   // opened on.
   $effect(() => {
@@ -339,7 +344,7 @@
       x = (r?.left ?? 0) + (a + e) / 2 - scroll; y = (r?.top ?? 0) + RULER + it.deck * LANE + LANE / 2;
     }
     const W = window.innerWidth, Hh = window.innerHeight;
-    return { i: ring.i, it, x: Math.max(RR + 30, Math.min(W - RR - 30, x)), y: Math.max(RR + 30, Math.min(Hh - RR - 30, y)) };
+    return { i: ring.i, it, x: Math.max(RX, Math.min(W - RX, x)), y: Math.max(RY, Math.min(Hh - RY, y)) };
   });
   /** The menu's items round the pointer, each in its own place (degrees, clockwise from the top): play on top, the
       hand-over in on the left and out on the right, key lock below, louder and quieter on the lower diagonals, its page
@@ -347,26 +352,32 @@
   const ringItems = $derived.by(() => {
     if (!ringPos) return [];
     const i = ringPos.i, it = ringPos.it, last = i === plan.items.length - 1;
-    const items: { id: string; label: string; short: string; icon: string; deg: number; on?: boolean; act: () => void }[] = [
-      { id: 'set-song-play', label: 'Play the set from this song', short: 'Play', icon: 'play', deg: 0, act: () => fromSong(i) },
-      ...(last ? [] : [{ id: 'set-song-mixout', label: 'Mix out: how it hands over to the next song', short: 'Mix out', icon: 'out', deg: 90, on: sel === i && fxBy === 'ring', act: () => openFx(i) }]),
-      { id: 'set-song-louder', label: 'Louder: +1 dB (now ' + lvl(it) + ')', short: '+1 dB', icon: 'louder', deg: 135, act: () => level(i, 1) },
-      { id: 'set-song-quieter', label: 'Quieter: −1 dB (now ' + lvl(it) + ')', short: '−1 dB', icon: 'quieter', deg: 225, act: () => level(i, -1) },
-      { id: 'set-song-keylock', label: it.keyLock ? 'Key lock is on: click so its key follows the tempo' : 'Key lock is off: click to keep its key', short: 'Key lock', icon: 'lock', deg: 180, on: it.keyLock, act: () => setItem(i, { keyLock: !it.keyLock }) },
-      ...(i ? [{ id: 'set-song-mixin', label: 'Mix in: how the song before hands over to it', short: 'Mix in', icon: 'in', deg: 270, on: sel === i - 1 && fxBy === 'ring', act: () => openFx(i - 1) }] : []),
-      { id: 'set-song-page', label: 'Open its page', short: 'Page', icon: 'page', deg: 315, act: () => { location.hash = '#/track/' + it.id; } },
-      ...(it.lows?.length ? [{ id: 'set-song-lows-clear', label: 'Let go of the bass cut or opened by hand', short: 'Bass ×', icon: 'bass', deg: 45, act: () => apply(clearLows(plan.items, i)) }] : []),
+    type Spot = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+    const items: { id: string; label: string; short: string; icon: string; at: Spot; on?: boolean; act: () => void }[] = [
+      { id: 'set-song-play', label: 'Play the set from this song', short: 'Play', icon: 'play', at: 'n', act: () => fromSong(i) },
+      ...(last ? [] : [{ id: 'set-song-mixout', label: 'Mix out: how it hands over to the next song', short: 'Mix out', icon: 'out', at: 'e' as Spot, on: sel === i && fxBy === 'ring', act: () => openFx(i) }]),
+      { id: 'set-song-louder', label: 'Louder: +1 dB (now ' + lvl(it) + ')', short: '+1 dB', icon: 'louder', at: 'se', act: () => level(i, 1) },
+      { id: 'set-song-keylock', label: it.keyLock ? 'Key lock is on: click so its key follows the tempo' : 'Key lock is off: click to keep its key', short: it.keyLock ? 'Key lock on' : 'Key lock off', icon: 'lock', at: 's', on: it.keyLock, act: () => setItem(i, { keyLock: !it.keyLock }) },
+      { id: 'set-song-quieter', label: 'Quieter: −1 dB (now ' + lvl(it) + ')', short: '−1 dB', icon: 'quieter', at: 'sw', act: () => level(i, -1) },
+      ...(i ? [{ id: 'set-song-mixin', label: 'Mix in: how the song before hands over to it', short: 'Mix in', icon: 'in', at: 'w' as Spot, on: sel === i - 1 && fxBy === 'ring', act: () => openFx(i - 1) }] : []),
+      { id: 'set-song-page', label: 'Open its page', short: 'Its page', icon: 'page', at: 'nw', act: () => { location.hash = '#/track/' + it.id; } },
+      ...(it.lows?.length ? [{ id: 'set-song-lows-clear', label: 'Let go of the bass cut or opened by hand', short: 'Clear bass', icon: 'bass', at: 'ne' as Spot, act: () => apply(clearLows(plan.items, i)) }] : []),
     ];
-    return items.map(x => { const a = (x.deg - 90) * Math.PI / 180; return { ...x, dx: Math.cos(a) * RR, dy: Math.sin(a) * RR }; });
+    // Each tile's anchor (px from the pointer) and which of its edges sits there: rows that never overlap.
+    const SPOT: Record<Spot, [number, number, string]> = {
+      n: [0, -76, '-50%'], ne: [16, -39, '0%'], e: [28, 0, '0%'], se: [16, 39, '0%'],
+      s: [0, 76, '-50%'], sw: [-16, 39, '-100%'], w: [-28, 0, '-100%'], nw: [-16, -39, '-100%'],
+    };
+    return items.map(x => { const [dx, dy, ax] = SPOT[x.at]; return { ...x, dx, dy, ax }; });
   });
   const lvl = (it: SetItem) => ((it.trim ?? 0) > 0 ? '+' : '') + (it.trim ?? 0) + ' dB';
   /** Its level, a dB at a time. */
   function level(i: number, by: number) { const t = plan.items[i]?.trim ?? 0; setItem(i, { trim: Math.max(-12, Math.min(12, Math.round((t + by) * 10) / 10)) }); }
   function openFx(k: number) { if (sel === k && fxBy === 'ring') { sel = null; return; } fxBy = 'ring'; sel = k; }
   const ICON: Record<string, string> = {
-    play: 'M8 5.5v13l11-6.5z', louder: 'M4 10v4h3l4 4V6L7 10zM16 9v6M13 12h6', quieter: 'M4 10v4h3l4 4V6L7 10zM13 12h6', later: 'M5 12h12m-5-5 5 5-5 5', earlier: 'M19 12H7m5-5-5 5 5 5',
+    play: 'M7 5.5v13l11-6.5z', louder: 'M4 10v4h3l4 4V6L7 10zM16 9v6M13 12h6', quieter: 'M4 10v4h3l4 4V6L7 10zM13 12h6', later: 'M5 12h12m-5-5 5 5-5 5', earlier: 'M19 12H7m5-5-5 5 5 5',
     out: 'M4 12h10m-4-4 4 4-4 4M19 5v14', in: 'M5 5v14m15-7H10m4-4-4 4 4 4', page: 'M14 5h5v5m0-5-8 8M18 14v5H5V6h5',
-    lock: 'M8 11V8a4 4 0 0 1 8 0v3M6 11h12v9H6z', bass: 'M4 15c3-6 5-6 8 0s5 6 8 0M6 5l12 12',
+    lock: 'M8 11V8a4 4 0 0 1 8 0v3M6 11h12v9H6z', bass: 'M3 14c2.5-5 4.5-5 7 0s4.5 5 7 0M17 5l4 4m0-4-4 4',
   };
 
   // ---- the boxes ----
@@ -493,7 +504,7 @@
 
   {#if hand}
     {@const i = hand.i}
-    {@const beside = fxBy === 'ring' && ringPos ? (ringPos.x + RR + 40 + POP <= window.innerWidth - 8 ? ringPos.x + RR + 40 : Math.max(8, ringPos.x - RR - 40 - POP)) : null}
+    {@const beside = fxBy === 'ring' && ringPos ? (ringPos.x + RX + 10 + POP <= window.innerWidth - 8 ? ringPos.x + RX + 10 : Math.max(8, ringPos.x - RX - 10 - POP)) : null}
     <div class="pop" id="set-pop-fx" class:beside={beside != null} role="dialog" aria-label="Hand-over" style:left={(beside ?? popLeft(hand.x)) + 'px'} style:top={(beside != null && ringPos ? Math.max(8, Math.min(window.innerHeight - 290, ringPos.y - 110)) : RULER + plan.decks * LANE + FXROW + 6) + 'px'}>
       <div class="p-top">
         <span class="mono t">{clock(hand.at)}</span>
@@ -525,10 +536,10 @@
       <span class="rdot" aria-hidden="true"></span>
       {#each ringItems as x, k (x.id)}
         <button type="button" class="rb" class:on={x.on} id={x.id} aria-label={x.label} aria-pressed={x.on ?? undefined} title={x.label}
-          style:--dx={x.dx + 'px'} style:--dy={x.dy + 'px'} style:--k={k}
+          style:--dx={x.dx + 'px'} style:--dy={x.dy + 'px'} style:--ax={x.ax} style:--k={k}
           onclick={x.act}>
           <svg viewBox="0 0 24 24" aria-hidden="true" class:fill={x.icon === 'play'}><path d={ICON[x.icon]} /></svg>
-          <small>{x.short}</small>
+          <span>{x.short}</span>
         </button>
       {/each}
     </div>
@@ -600,18 +611,19 @@
 
   /* The song's round menu. */
   .ring { position: fixed; z-index: 40; width: 1px; height: 1px; pointer-events: none; }
-  .rdot { position: absolute; left: -5px; top: -5px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px #000a, 0 0 12px var(--accent); animation: ringin .12s ease-out; }
-  .rb { position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; border-radius: 50%; padding: 0; display: grid; place-items: center; align-content: center; gap: 1px; pointer-events: auto; cursor: pointer;
-    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-2)); background: var(--raised); color: var(--ink); box-shadow: 0 6px 16px #0009;
-    transform: translate(var(--dx), var(--dy)); animation: rbin .16s ease-out both; animation-delay: calc(var(--k) * 12ms); transition: background .12s, color .12s, transform .12s; }
-  .rb:hover { background: var(--accent); color: var(--accent-ink, #111); transform: translate(var(--dx), var(--dy)) scale(1.08); }
-  .rb.on { background: color-mix(in srgb, var(--accent) 28%, var(--raised)); border-color: var(--accent); color: var(--accent); }
-  .rb.on:hover { color: var(--accent-ink, #111); }
-  .rb svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .rb svg.fill { fill: currentColor; stroke: none; }
-  .rb small { font-size: 8.5px; font-weight: 700; letter-spacing: .02em; line-height: 1; white-space: nowrap; }
-  @keyframes ringin { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
-  @keyframes rbin { from { transform: translate(0, 0) scale(.3); opacity: 0; } to { transform: translate(var(--dx), var(--dy)); opacity: 1; } }
+  .rdot { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px #000c, 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent); animation: ringin .12s ease-out; }
+  /* The menu's tiles: icon and word, quiet glass, the accent only on what's on or under the pointer. */
+  .rb { position: absolute; left: 0; top: 0; height: 28px; padding: 0 11px 0 9px; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; pointer-events: auto; cursor: pointer;
+    border-radius: 7px; border: 1px solid color-mix(in srgb, var(--ink) 13%, transparent); background: color-mix(in srgb, var(--surface) 86%, transparent); backdrop-filter: blur(10px) saturate(1.2);
+    color: var(--ink); font: 600 12px/1 var(--font-sans); letter-spacing: .01em; box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 6%, transparent) inset, 0 8px 20px -6px #000c;
+    transform: translate(var(--dx), var(--dy)) translate(var(--ax), -50%); animation: rbin .16s cubic-bezier(.2, .9, .3, 1.2) both; animation-delay: calc(var(--k) * 10ms); transition: background .12s, border-color .12s, color .12s; }
+  .rb:hover { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+  .rb:active { background: color-mix(in srgb, var(--accent) 26%, var(--surface)); }
+  .rb.on { border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent); }
+  .rb svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .rb svg.fill { fill: var(--accent); stroke: none; }
+  @keyframes ringin { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes rbin { from { transform: translate(calc(var(--dx) * .4), calc(var(--dy) * .4)) translate(var(--ax), -50%) scale(.85); opacity: 0; } to { transform: translate(var(--dx), var(--dy)) translate(var(--ax), -50%); opacity: 1; } }
   .pop.beside { position: fixed; z-index: 41; }
   .nm { position: absolute; left: 6px; top: 4px; padding: 1px 5px; border-radius: 4px; background: #000000a6; font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
   .nm b { color: hsl(var(--h) 85% 70%); margin-right: 2px; }

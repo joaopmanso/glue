@@ -2,11 +2,11 @@
 status: in-progress
 milestone: M10
 updated: 2026-11-27
-adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205, 0206, 0207, 0208]
+adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205, 0206, 0207, 0208, 0209]
 ---
 # Sets: a playlist mixed, exported as one file
 
-## Now (2026-11-27, S1–S3 shipped, then ADR 0202–0208)
+## Now (2026-11-27, S1–S3 shipped, then ADR 0202–0209)
 - **Open:** right-click a playlist › **Mix it as a set…** (route `#/set/<id>`). The set is kept on the playlist
   (`List.set`).
 - **Planned on the beat** (ADR 0200):
@@ -48,9 +48,9 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205, 0206, 0207, 0208]
   the song playing fills its line, the hand-over playing lights up (ADR 0206).
 - **The look** (ADR 0206): the transport and timeline pinned at the top (windows 760 px tall or more); a faint bar grid
   behind the lanes (phrases in the accent); zoom stops at the whole set; a song's **round menu** where it's clicked, its
-  only buttons round the pointer, in the window, from the timeline or the running order (ADR 0208), in fixed, labelled
-  places (ADR 0207: Play on top, Mix in left, Mix out right, Key lock below, −1 / +1 dB, Page, Bass ×; Mix in/out open
-  the hand-over box beside it); the bass strip on any song hovered, grown
+  labelled tiles round the pointer (ADR 0209), in the window, from the timeline or the running order (ADR 0208), each in
+  its own place (Play above, Mix in left, Mix out right, Key lock below, −1 / +1 dB, Its page, Clear bass; Mix in/out
+  open the hand-over box beside it); a song chosen is scrolled into view only when none of it shows (ADR 0209); the bass strip on any song hovered, grown
   under the pointer (a click on it opens the menu, a drag edits the bass), a × on each stretch.
 - **Following the playhead** (ADR 0207): on while playing until the user zooms, scrolls or drags; the crosshair by Play
   turns it on again.

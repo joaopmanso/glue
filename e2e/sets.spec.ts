@@ -208,6 +208,20 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   for (let k = 0; k < 4; k++) await page.mouse.wheel(0, 1200);
   await page.waitForTimeout(200);
   expect(await width()).toBe(fitW);
+  // Zoomed in on a song whose start is off screen: selecting it doesn't scroll back to its start.
+  await page.mouse.move(lb.x + lb.width / 2, lb.y + 80);
+  for (let k = 0; k < 3; k++) await page.mouse.wheel(0, -800);
+  await lanes.evaluate(e => { e.scrollLeft = e.scrollWidth; });
+  await page.waitForTimeout(150);
+  const spot = await lanes.evaluate(e => { const v = e.getBoundingClientRect(); for (const b of e.querySelectorAll('.blk')) { const r = b.getBoundingClientRect(); if (r.left < v.left - 20 && r.right > v.left + 200) return { x: v.left + 100, y: r.top + 30 }; } return null; });
+  expect(spot).not.toBeNull();
+  const before2 = await scrolled();
+  await page.mouse.click(spot!.x, spot!.y);
+  await expect(page.locator('#set-pop-song')).toBeVisible();
+  await page.waitForTimeout(150);
+  expect(await scrolled()).toBe(before2);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Fit' }).click();
   await page.locator('#set-ho-0 button').click();
 
   // The preview: it plays (the playhead moves), pauses, and plays a hand-over.
