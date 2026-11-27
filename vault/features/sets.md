@@ -2,11 +2,11 @@
 status: in-progress
 milestone: M10
 updated: 2026-11-27
-adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204]
+adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205]
 ---
 # Sets: a playlist mixed, exported as one file
 
-## Now (2026-11-27, S1–S3 shipped, then ADR 0202)
+## Now (2026-11-27, S1–S3 shipped, then ADR 0202–0205)
 - **Open:** right-click a playlist › **Mix it as a set…** (route `#/set/<id>`). The set is kept on the playlist
   (`List.set`).
 - **Planned on the beat** (ADR 0200):
@@ -15,6 +15,10 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204]
   - a length asked for (30 min … 3 h, or no limit, ADR 0202): songs play shorter, then the last are left out;
   - 3 decks (ADR 0202): songs that sound alike are layered (48 bars along, three at once for 16, one bass);
   - cuts where tempos are more than 8 % apart;
+  - **on the drop** (ADR 0205): each song's drop found where its bassline comes in (the waveform's lows; else its
+    loudness); the incoming song comes in so its drop lands where the bass changes hands (a short intro: from its
+    first downbeat, the swap on its drop). The outgoing song never loses its bass under the incoming one's intro. A
+    new plan makes the missing waveforms first ("Finding the drops");
   - each song levelled to the set's loudness.
 - **The timeline** (ADR 0201): 2 or 3 deck lanes.
   - Each song is drawn as heard: its waveform shrinks with its volume and loses its lows while its bass is cut.
@@ -25,6 +29,11 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204]
   - the time bar seeks;
   - a click selects a song and opens its box (play from it, key lock, level ±1 dB, in earlier or later);
   - a selected song is dragged (it and the ones after it), its edges trim its start or end, in whole bars, kept whole;
+  - (ADR 0205) Shift or Ctrl + click selects several: dragged together, the others staying; their box sets level, key
+    lock, earlier or later;
+  - (ADR 0205) press and hold on a song grabs it to drag;
+  - (ADR 0205) a selected song's **bass** strip: dragged across, its bass cut over those bars (or opened where cut),
+    drawn hatched red or orange, listed in its box;
   - undo and redo (Ctrl+Z, Ctrl+Shift+Z).
 - **A hand-over's box** at its chip (or from its line in the running order):
   - its style: Blend, Bass swap, Layer, Filter sweep, Echo out, Cut, Double drop;
@@ -32,7 +41,8 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204]
   - its length ±4 bars;
   - the next song in earlier or later;
   - how alike the two sound;
-  - an orange bass marker on the timeline where the bass changes hands, dragged a bar at a time;
+  - an orange bass marker on the timeline where the bass changes hands (as planned, on the incoming song's drop),
+    dragged a bar at a time; a bass swap turns on it;
   - **Hear it**.
 - **The running order:** dragged to reorder (the set is planned again); a song's name shows it on the timeline.
 - **The sidebar:** a playlist with a set shows a crossfader mark that opens it.
@@ -50,7 +60,7 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204]
 ## Next
 - **Remote (R4, approved):** a device without the songs: the set mixed by the GLUE Home that has them, streamed over the
   session as Opus (~192 kbps), the export as FLAC that the device writes into WAV or MP3.
-- The user's listening (double drops, layering).
+- The user's listening (double drops, layering, the drops found on their songs).
 - A song dragged to another deck; reordering that keeps hand edits.
 
 ## Later

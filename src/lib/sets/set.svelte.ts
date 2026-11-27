@@ -45,17 +45,22 @@ class Sets {
     const l = this.list();
     if (!l) { this.status = 'error'; this.message = 'This playlist isn’t here.'; return; }
     try {
-      await this.loadWaves(l.items, true);
+      await this.loadWaves(l.items, 'grids');
       if (this.listId !== listId || g !== this.gen) return;
       // The plan kept on the playlist, while its songs are the ones it has, in its order (songs that can't be planned,
       // without a tempo or a length, are left out of either).
       const plannable = l.items.filter(id => { const t = lib.store?.tracks.get(id); return !!t && !!this.songOf(t); });
       // A length asked for leaves the last songs out: then its songs are the first ones.
       const ids = l.set?.items.map(i => i.id).join(), kept = l.set && ids === (l.set.length ? plannable.slice(0, l.set.items.length) : plannable).join() ? l.set : null;
+      if (!kept) {
+        // A new plan reads every song's drops from its waveform: made now where there's none yet.
+        await this.loadWaves(l.items, 'drops', g);
+        if (this.listId !== listId || g !== this.gen) return;
+      }
       this.plan = kept ?? this.make(l, { style: 'blend', decks: 2, tempo: { mode: 'songs' }, keyLock: true });
       if (!kept) this.save();
       this.status = 'ready';
-      void this.loadWaves(l.items, false, g);
+      void this.loadWaves(l.items, 'background', g);
     } catch (e) { if (this.listId === listId) { this.status = 'error'; this.message = (e as Error).message; } }
   }
   close() { this.gen++; this.listId = null; this.plan = null; this.status = 'idle'; this.waves = new Map(); this.drawing = ''; this.past = []; this.future = []; }
@@ -78,23 +83,25 @@ class Sets {
   /** How alike two songs sound, 0 … 1 (null: not known). */
   like(a: string, b: string): number | null { const sp = auto.sound(); return likeness(sp.timbre.get(a), sp.timbre.get(b)); }
 
-  /** What planning needs of a song: its tempo and grid, length, loudness over time, key. */
+  /** What planning needs of a song: its tempo and grid, length, loudness over time, key, its waveform's lows (drops). */
   songOf(t: Track): PlanSong | null {
     const a = lib.store?.analysis.get(t.id), main = mainOf(t.id)?.grid ?? null;
     const bpm = bpmOf(t, a, lib.djOf(t.id)?.bpm ?? null), g = gridFor(t.prep, bpm, main, this.waves.get(t.id) ?? null);
     if (!g || !t.duration) return null;
     return {
       id: t.id, bpm: g.bpm, beat0: g.beat0, bar: g.bar, duration: t.duration, guessed: g.guessed,
+      low: (w => w ? { data: w.low, rate: w.rate } : null)(this.waves.get(t.id)),
       curve: a?.sound ? curveOf(a.sound) : null, step: a?.sound?.step, lufs: a?.sound?.lufs ?? null, key: a?.key ? { tonic: a.key.tonic, mode: a.key.mode } : null,
     };
   }
 
-  /** The songs' waveforms. `needed`: only those whose grid must be placed on one (made now, planning waits for
-      them); else every song's, from the cache or made, in the background, each shown as it comes. */
-  private async loadWaves(ids: string[], needed: boolean, g = this.gen) {
+  /** The songs' waveforms, from the cache, else made: 'grids' only those whose grid must be placed on one, 'drops'
+      every song's (planning waits for either), 'background' every song's, each shown as it comes. */
+  private async loadWaves(ids: string[], mode: 'grids' | 'drops' | 'background', g = this.gen) {
+    const needed = mode !== 'background';
     const s = lib.store, dir = await platform.cacheDir();
     const tracks = ids.map(id => s?.tracks.get(id)).filter((t): t is Track => !!t && t.status === 'linked' && !this.waves.has(t.id));
-    const want = needed ? tracks.filter(t => t.prep?.beat0 == null && !mainOf(t.id)?.grid) : tracks;
+    const want = mode === 'grids' ? tracks.filter(t => t.prep?.beat0 == null && !mainOf(t.id)?.grid) : tracks;
     const put = (id: string, w: Waveform) => { if (g === this.gen) { const m = new Map(this.waves); m.set(id, w); this.waves = m; } };
     // The cached ones first (quick), then the rest made one by one.
     const make: Track[] = [];
@@ -107,7 +114,7 @@ class Sets {
     for (const t of make) {
       if (g !== this.gen) return;
       i++;
-      if (needed) this.message = 'Placing beat grids: ' + i + ' of ' + make.length; else this.drawing = i + ' of ' + make.length;
+      if (needed) this.message = (mode === 'grids' ? 'Placing beat grids: ' : 'Finding the drops: ') + i + ' of ' + make.length; else this.drawing = i + ' of ' + make.length;
       // A file the tab can't read (GLUE Home has it): no waveform, the song drawn as a line.
       const w = await lib.fileFor(t).then(f => waveformOf(jobOf(f))).catch(() => null);
       if (w) { put(t.id, w); if (s && dir) void writeWaveform(dir, s.meta.id, t.id, { size: t.size, mtime: t.mtime }, w).catch(() => {}); }

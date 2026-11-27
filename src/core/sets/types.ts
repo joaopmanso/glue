@@ -10,6 +10,10 @@ export type SetStyle = 'single' | 'blend' | 'double';
 /** Whose bass plays through a hand-over: as the style has it, the outgoing song's, the incoming one's, or both. */
 export type BassChoice = 'auto' | 'out' | 'in' | 'both';
 
+/** The song's bass cut (`on` false) or opened (true) by hand over beats [from, to) of its span (counted from its
+    start), over whatever its hand-overs do there (ADR 0205). */
+export interface LowSpan { from: number; to: number; on: boolean }
+
 export interface SetItem {
   id: string;
   /** Its lane, 0-based. */
@@ -28,8 +32,11 @@ export interface SetItem {
   trim?: number;
   /** The hand-over into the next song (over the overlap); `drop`: beats into the overlap where both drops land;
       `bass`: whose bass plays (ADR 0203: the style's, the outgoing song's, the incoming one's, or both); `swap`: beats
-      into the overlap where the bass changes hands (a bar line), moved by hand. */
+      into the overlap where the bass changes hands (a bar line): where the incoming song's bass comes in, as planned
+      (ADR 0205), or moved by hand; a bass swap or a layer turns on it. */
   fx?: { style: FxStyle; drop?: number; bass?: BassChoice; swap?: number };
+  /** Its bass cut or opened by hand over parts of it (ADR 0205), in order, not overlapping. */
+  lows?: LowSpan[];
   /** Planned without a grid from a DJ app or Prepare: the first beat guessed. */
   guessed?: boolean;
 }

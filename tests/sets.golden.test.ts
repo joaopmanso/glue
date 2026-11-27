@@ -45,7 +45,10 @@ const CASES: Case[] = [
   { name: 'layer-double-bass', songs: [{ id: 'a', seed: 17, secs: 60, bpm: 124 }, { id: 'b', seed: 19, secs: 60, bpm: 124.5 }, { id: 'c', seed: 29, secs: 60, bpm: 125 }, { id: 'd', seed: 31, secs: 60, bpm: 124 }],
     plan: { tempo: { mode: 'songs' }, items: [
       item('a', 0, 124, 0, 112, { fx: { style: 'layer' } }), item('b', 1, 124.5, 32, 112, { fx: { style: 'double', drop: 32, bass: 'both' } }),
-      item('c', 2, 125, 96, 100, { fx: { style: 'bassSwap', swap: 8 } }), item('d', 0, 124, 160, 80, { trim: -3 })] } },
+      item('c', 2, 125, 96, 100, { fx: { style: 'bassSwap', swap: 8 }, lows: [{ from: 32, to: 48, on: false }] }), item('d', 0, 124, 160, 80, { trim: -3, lows: [{ from: 0, to: 8, on: true }] })] } },
+  { name: 'layer-swap-lows', songs: [{ id: 'a', seed: 43, secs: 60, bpm: 124 }, { id: 'b', seed: 47, secs: 60, bpm: 124 }],
+    plan: { tempo: { mode: 'songs' }, items: [
+      item('a', 0, 124, 0, 112, { fx: { style: 'layer', swap: 36 }, lows: [{ from: 8, to: 16, on: false }] }), item('b', 1, 124, 48, 96, { lows: [{ from: 4, to: 12, on: true }] })] } },
 ];
 
 function render(c: Case) {

@@ -1,7 +1,7 @@
 /* Shaping a set by hand (ADR 0201): a song moved along the mix, its in-point trimmed, its end moved; always by whole
    bars, and only into a set that still holds together (`valid`). Each edit asked for more than fits is clamped to
    the nearest bar that does. Pure. */
-import type { SetItem, SetPlan } from './types';
+import type { LowSpan, SetItem, SetPlan } from './types';
 
 /** Songs' lengths (s), for the checks. */
 export type Lengths = (id: string) => number | undefined;
@@ -39,14 +39,61 @@ export function moveSong(items: SetItem[], i: number, beats: number, len: Length
   return clamped(items, beats, d => items.map((it, j) => j >= i ? { ...it, start: it.start + d } : it), len);
 }
 
-/** Song i's in-point moved by `beats`: it comes in that much later, from that much later in its file (its end stays). */
+/** Songs `which` (more than one chosen) moved together by `beats`, the others where they are. */
+export function moveSongs(items: SetItem[], which: number[], beats: number, len: Lengths) {
+  const on = new Set(which.filter(i => i > 0 && i < items.length));
+  if (!on.size) return { items, d: 0 };
+  return clamped(items, beats, d => items.map((it, j) => on.has(j) ? { ...it, start: it.start + d } : it), len);
+}
+
+/** Song i's in-point moved by `beats`: it comes in that much later, from that much later in its file (its end stays).
+    What's counted from its start stays where it plays: its bass cut or opened by hand, and where the bass changes
+    hands and the drops land in its incoming hand-over. */
 export function trimIn(items: SetItem[], i: number, beats: number, len: Lengths) {
-  return clamped(items, beats, d => items.map((it, j) => j === i ? { ...it, start: it.start + d, in: it.in + d * 60 / it.bpm, beats: it.beats - d } : it), len);
+  return clamped(items, beats, d => items.map((it, j) => {
+    if (j === i) return withLows({ ...it, start: it.start + d, in: it.in + d * 60 / it.bpm, beats: it.beats - d }, shift(it.lows, -d, it.beats - d));
+    if (j === i - 1 && it.fx && (it.fx.swap != null || it.fx.drop != null)) {
+      const fx = { ...it.fx };
+      if (fx.swap != null) fx.swap = Math.max(0, fx.swap - d);
+      if (fx.drop != null) fx.drop = Math.max(0, fx.drop - d);
+      return { ...it, fx };
+    }
+    return it;
+  }), len);
 }
 
 /** Song i's end moved by `beats`: it plays longer or shorter (its hand-over into the next one with it). */
 export function moveEnd(items: SetItem[], i: number, beats: number, len: Lengths) {
-  return clamped(items, beats, d => items.map((it, j) => j === i ? { ...it, beats: it.beats + d } : it), len);
+  return clamped(items, beats, d => items.map((it, j) => j === i ? withLows({ ...it, beats: it.beats + d }, shift(it.lows, 0, it.beats + d)) : it), len);
+}
+
+/** Spans moved by `d` beats and kept inside [0, span). */
+function shift(lows: LowSpan[] | undefined, d: number, span: number): LowSpan[] | undefined {
+  return lows?.map(r => ({ ...r, from: Math.max(0, r.from + d), to: Math.min(span, r.to + d) })).filter(r => r.to > r.from);
+}
+function withLows(it: SetItem, lows: LowSpan[] | undefined): SetItem {
+  const { lows: _, ...rest } = it;
+  void _;
+  return lows?.length ? { ...rest, lows } : rest;
+}
+
+/** Song i's bass cut (`on` false) or opened over beats [from, to) of its span, in whole bars, over any span there. */
+export function setLows(items: SetItem[], i: number, from: number, to: number, on: boolean): SetItem[] {
+  const it = items[i];
+  if (!it) return items;
+  const a = Math.max(0, Math.round(Math.min(from, to) / 4) * 4), b = Math.min(it.beats, Math.round(Math.max(from, to) / 4) * 4);
+  if (b <= a) return items;
+  const rest = (it.lows ?? []).flatMap(r => [{ ...r, to: Math.min(r.to, a) }, { ...r, from: Math.max(r.from, b) }]).filter(r => r.to > r.from);
+  const all = [...rest, { from: a, to: b, on }].sort((x, y) => x.from - y.from);
+  // Neighbours that touch and agree, as one.
+  const out: LowSpan[] = [];
+  for (const r of all) { const l = out[out.length - 1]; if (l && l.to === r.from && l.on === r.on) l.to = r.to; else out.push({ ...r }); }
+  return items.map((x, j) => j === i ? withLows(x, out) : x);
+}
+
+/** Song i's spans by hand let go (one, or all). */
+export function clearLows(items: SetItem[], i: number, k?: number): SetItem[] {
+  return items.map((x, j) => j === i ? withLows(x, k == null ? undefined : x.lows?.filter((_, n) => n !== k)) : x);
 }
 
 /** The plan with these items, marked edited. */

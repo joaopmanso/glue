@@ -5,6 +5,31 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · GLUE Home 0.85: hand-overs on the drop, the bass by hand, several songs selected (ADR 0205; M10 B)
+- **Why:** the user, after 0.84: drops that don't line up ("looking to the initial part of the song sometimes doesn't
+  match on the drop"); never the outgoing song without its bass for long under the incoming one's intro; several clips
+  selected; the bass cut or opened over part of a song; press and hold to grab a song.
+- **The planner** (`plan.ts`):
+  - `bassBars`, `introOf`, `dropsOf` read drops from the waveform's lows (a bassline holds the lows between the
+    kicks), or from the loudness without a waveform;
+  - the incoming song comes in so its drop lands where the bass changes hands (`fx.swap`); a layer's swap moves onto a
+    later drop;
+  - a new plan first makes the waveforms the cache lacks ("Finding the drops").
+- **The automation:** a bass swap and a layer turn on the swap point; `SetItem.lows` (the bass by hand over spans)
+  applied last.
+- **Edits** (`edit.ts`):
+  - `moveSongs`, `setLows`, `clearLows`;
+  - `trimIn` keeps spans, swap and drop where they play.
+- **The timeline:**
+  - Shift or Ctrl + click selects several (their box: level, key lock, earlier or later), dragged together;
+  - press and hold grabs a song;
+  - a selected song's bass strip.
+- **`glue-sets`:** `LowSpan`, the swap as pivot, the spans; goldens regenerated (`layer-swap-lows` new).
+- **Tests:**
+  - `tests/sets.test.ts`: drops from the lows, the in-point on the drop, the bass never cut under an intro, spans,
+    trims, group moves;
+  - `e2e/sets.spec.ts`: the bass strip, Shift + click and a group moved, press and hold.
+
 ## 2026-11-27 · GLUE Home 0.84: it mixes the set and streams it to the tab (ADR 0204; M10 B, R2–R3)
 - **Why:** the user: "rethink all audio being handled in the browser … a streamed version while all the processing is
   handled on the glue home instance". They chose GLUE Home mixing whenever it runs.

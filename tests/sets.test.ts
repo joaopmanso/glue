@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { cubicAt, Isolator, Limiter, resample, Wsola } from '../src/core/sets/dsp';
 import { TempoMap, knotsOf, tempoOf } from '../src/core/sets/tempo';
-import { dropsOf, firstDown, planSet, type PlanSong } from '../src/core/sets/plan';
+import { bassBars, dropsOf, firstDown, introOf, planSet, type PlanSong } from '../src/core/sets/plan';
 import { Mixer, type Pcm } from '../src/core/sets/mixer';
 import { bassSwapAt, controlsAt } from '../src/core/sets/automation';
 import { clock, timesOf, tracklist } from '../src/core/sets/tracklist';
 import { MIX_RATE, type SetPlan } from '../src/core/sets/types';
-import { moveEnd, moveSong, trimIn, valid } from '../src/core/sets/edit';
+import { clearLows, moveEnd, moveSong, moveSongs, setLows, trimIn, valid } from '../src/core/sets/edit';
 
 const SR = MIX_RATE;
 const tone = (hz: number, secs: number, sr = SR, amp = 0.5) => Float32Array.from({ length: Math.round(secs * sr) }, (_, i) => amp * Math.sin(2 * Math.PI * hz * i / sr));
@@ -307,10 +307,10 @@ describe('whose bass plays (ADR 0203)', () => {
     return (b: number) => [controlsAt(items, 0, s + b).low, controlsAt(items, 1, s + b).low, e - s] as const;
   };
   it('the style’s by default: the outgoing song’s, then the incoming one’s on the middle bar', () => {
-    const f = at({}), len = f(0)[2];
+    const f = at({ swap: undefined }), len = f(0)[2];
     expect(f(1).slice(0, 2)).toEqual([1, 0]);
     expect(f(len - 1).slice(0, 2)).toEqual([0, 1]);
-    expect(bassSwapAt(base.items[0].fx, len)).toBe(Math.round(len / 8) * 4);
+    expect(bassSwapAt({ style: 'bassSwap' }, len)).toBe(Math.round(len / 8) * 4);
   });
   it('the outgoing song’s, the incoming one’s, or both all through', () => {
     for (const [bass, want] of [['out', [1, 0]], ['in', [0, 1]], ['both', [1, 1]]] as const) {
@@ -325,5 +325,86 @@ describe('whose bass plays (ADR 0203)', () => {
     expect(f(12).slice(0, 2)).toEqual([0, 1]);
     expect(bassSwapAt({ style: 'blend', swap: 8 }, 64)).toBe(8);
     expect(bassSwapAt({ style: 'blend' }, 64)).toBeNull();
+  });
+});
+
+/** A song whose lows are a kick alone (falling away between the beats) for `intro` bars, then a bassline that holds,
+    with a breakdown (no lows at all) of 8 bars at bar `brk`; the Prepare waveform's lows at 150 points a second. */
+function bassy(id: string, bpm: number, intro: number, brk = 64, duration = 300): PlanSong {
+  const rate = 150, beat = 60 / bpm, data = new Uint8Array(Math.floor(duration * rate)), beat0 = 0.1;
+  for (let i = 0; i < data.length; i++) {
+    const t = i / rate - beat0, bar = Math.floor(t / (4 * beat)), ph = (t / beat) % 1;
+    if (t < 0 || (bar >= brk && bar < brk + 8)) continue;
+    const kick = ph < 0.2 ? 1 : 0.02, line = bar >= intro ? 0.7 : 0;
+    data[i] = Math.round(255 * Math.pow(Math.max(kick, line), 0.75));
+  }
+  const step = 2, curve = Array.from({ length: Math.ceil(duration / step) }, (_, i) => i * step >= duration - 30 ? -30 : -9);
+  return { id, bpm, beat0, bar: 0, duration, curve, step, lufs: -9, low: { data, rate } };
+}
+
+describe('drops from the lows (ADR 0205)', () => {
+  it('finds where the bassline comes in, and where it comes back after a breakdown', () => {
+    const s = bassy('a', 124, 32);
+    expect(bassBars(s)!.slice(30, 34).map(x => x > 0.45)).toEqual([false, false, true, true]);
+    expect(introOf(s)).toBe(32);
+    expect(introOf(bassy('b', 124, 0))).toBe(0);
+    const bar = 240 / 124;
+    expect(dropsOf(s).map(t => Math.round((t - firstDown(s)) / bar))).toEqual([32, 72]);
+  });
+  it('brings the incoming song in so its drop lands where the bass changes hands', () => {
+    for (const intro of [32, 8]) {
+      const songs = [bassy('a', 124, 16), bassy('b', 124, intro), bassy('c', 125, 16)];
+      const p = planSet(songs, opts('blend'));
+      for (let k = 0; k + 1 < p.items.length; k++) {
+        const a = p.items[k], b = p.items[k + 1], B = songs.find(x => x.id === b.id)!;
+        const swap = a.fx!.swap!, dropBeat = b.start + (barOfTest(B, introOf(B)!) - b.in) * b.bpm / 60;
+        expect(b.start + swap, intro + ': the bass changes hands on the drop').toBeCloseTo(dropBeat, 6);
+        // The outgoing song's bass is never cut while the incoming one is in its intro.
+        for (let x = b.start; x < a.start + a.beats; x += 4) {
+          const out = controlsAt(p.items, k, x).low, inn = controlsAt(p.items, k + 1, x).low;
+          if (out < 0.5) expect(inn, 'someone has the bass at ' + x).toBe(1);
+          if (x < dropBeat) expect(inn).toBe(0);
+        }
+      }
+      // A long intro: it comes in 16 bars before its drop, the middle of a 32-bar swap; a short one from its start.
+      expect(p.items[1].in).toBeCloseTo(intro === 32 ? barOfTest(songs[1], 16) : firstDown(songs[1]), 6);
+    }
+  });
+});
+const barOfTest = (s: PlanSong, n: number) => firstDown(s) + n * 240 / s.bpm;
+
+describe('the bass by hand over parts of a song (ADR 0205)', () => {
+  const songs = [song('a', 124), song('b', 125), song('c', 126)], len = (id: string) => songs.find(s => s.id === id)?.duration;
+  const base = planSet(songs, opts('blend'));
+  it('cuts and opens it over whole bars, over what the hand-overs do', () => {
+    let items = setLows(base.items, 1, 30, 63, false);
+    expect(items[1].lows).toEqual([{ from: 32, to: 64, on: false }]);
+    const b1 = items[1].start;
+    expect(controlsAt(items, 1, b1 + 40).low).toBe(0);
+    expect(controlsAt(items, 1, b1 + 70).low).toBe(1);
+    // Opened inside it: split in three; then the same again joins up.
+    items = setLows(items, 1, 40, 48, true);
+    expect(items[1].lows).toEqual([{ from: 32, to: 40, on: false }, { from: 40, to: 48, on: true }, { from: 48, to: 64, on: false }]);
+    expect(setLows(items, 1, 40, 48, false)[1].lows).toEqual([{ from: 32, to: 64, on: false }]);
+    // Opened in the incoming hand-over, where the style holds it back.
+    const s = base.items[1].start, opened = setLows(base.items, 1, 0, 8, true);
+    expect(controlsAt(base.items, 1, s + 2).low).toBe(0);
+    expect(controlsAt(opened, 1, s + 2).low).toBe(1);
+    expect(clearLows(items, 1, 1)[1].lows).toHaveLength(2);
+    expect(clearLows(items, 1)[1].lows).toBeUndefined();
+  });
+  it('stays where it plays when the song is trimmed, and so does where the bass changes hands', () => {
+    const items = setLows(base.items, 1, 64, 96, false), r = trimIn(items, 1, 16, len);
+    expect(r.d).toBe(16);
+    expect(r.items[1].lows).toEqual([{ from: 48, to: 80, on: false }]);
+    expect(r.items[0].start + 0 + r.items[1].start - r.items[0].start + r.items[0].fx!.swap!).toBe(items[1].start + items[0].fx!.swap!);
+  });
+  it('moves several songs together, the others where they are', () => {
+    const r = moveSongs(base.items, [1, 2], 16, len);
+    expect(r.d).toBe(16);
+    expect(r.items.map(i => i.start)).toEqual([base.items[0].start, base.items[1].start + 16, base.items[2].start + 16]);
+    const one = moveSongs(base.items, [1], -16, len);
+    expect(one.items[2].start).toBe(base.items[2].start);
+    expect(valid(one.items, len)).toBe(true);
   });
 });

@@ -334,7 +334,14 @@
       "fx": {
        "style": "bassSwap",
        "swap": 8
-      }
+      },
+      "lows": [
+       {
+        "from": 32,
+        "to": 48,
+        "on": false
+       }
+      ]
      },
      {
       "id": "d",
@@ -345,7 +352,14 @@
       "start": 160,
       "beats": 80,
       "keyLock": true,
-      "trim": -3
+      "trim": -3,
+      "lows": [
+       {
+        "from": 0,
+        "to": 8,
+        "on": true
+       }
+      ]
      }
     ]
    },
@@ -353,10 +367,80 @@
    "frames": 5104522,
    "length": 5104522,
    "sumsq": [
-    40298.819488300775,
-    39794.57830157124
+    38710.342000587676,
+    38239.77624461021
    ],
    "peak": 0.9660000205039978
+  },
+  {
+   "name": "layer-swap-lows",
+   "songs": [
+    {
+     "id": "a",
+     "seed": 43,
+     "secs": 60,
+     "bpm": 124
+    },
+    {
+     "id": "b",
+     "seed": 47,
+     "secs": 60,
+     "bpm": 124
+    }
+   ],
+   "plan": {
+    "tempo": {
+     "mode": "songs"
+    },
+    "items": [
+     {
+      "id": "a",
+      "deck": 0,
+      "bpm": 124,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 0,
+      "beats": 112,
+      "keyLock": true,
+      "fx": {
+       "style": "layer",
+       "swap": 36
+      },
+      "lows": [
+       {
+        "from": 8,
+        "to": 16,
+        "on": false
+       }
+      ]
+     },
+     {
+      "id": "b",
+      "deck": 1,
+      "bpm": 124,
+      "beat0": 0,
+      "in": 0.5,
+      "start": 48,
+      "beats": 96,
+      "keyLock": true,
+      "lows": [
+       {
+        "from": 4,
+        "to": 12,
+        "on": true
+       }
+      ]
+     }
+    ]
+   },
+   "every": 256,
+   "frames": 3072775,
+   "length": 3072775,
+   "sumsq": [
+    27298.80935697152,
+    27098.078808878803
+   ],
+   "peak": 0.9285069704055786
   }
  ],
  "resample": {

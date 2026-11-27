@@ -145,6 +145,44 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await page.mouse.up();
   await expect.poll(sx).toBeGreaterThan(x0 + 10);
 
+  // ADR 0205. The selected song's bass strip: dragged across, its bass cut (or opened) over those bars; let go again.
+  await page.keyboard.press('Escape');
+  await blk.click();
+  const strip = page.locator('#set-lows'), tb = (await strip.boundingBox())!;
+  await page.mouse.move(tb.x + tb.width * 0.45, tb.y + tb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(tb.x + tb.width * 0.65, tb.y + tb.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect(blk.locator('.low')).toHaveCount(1);
+  await expect(page.locator('#set-song-lows button')).toHaveText(/(cut|open) bars \d+–\d+/);
+  await page.locator('#set-song-lows button').click();
+  await expect(blk.locator('.low')).toHaveCount(0);
+  // Shift + click adds the third song: the two move together, the first stays.
+  const blk2 = page.locator('#set-lanes .blk').nth(2), left2 = async () => parseFloat(await blk2.evaluate(b => (b as HTMLElement).style.left));
+  // (In bars: the hand-over into the first of them 4 bars shorter, the one between them as it was.)
+  const bars = (k: number) => page.locator('#set-lanes .hchip').nth(k).getAttribute('title').then(t => Number(/(\d+) bars/.exec(t ?? '')?.[1] ?? 'x'));
+  await blk2.click({ modifiers: ['Shift'] });
+  await expect(page.locator('#set-pop-songs')).toContainText('2 songs selected');
+  const [o0, o1] = [await bars(0), await bars(1)];
+  await page.click('#set-group-later');
+  await expect.poll(() => bars(0)).toBe(o0 - 4);
+  expect(await bars(1)).toBe(o1);
+  // Pressing on a song not selected and holding still grabs it: then it's dragged.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#set-pop-songs')).toHaveCount(0);
+  const h0 = await left2(), hb = (await blk2.boundingBox())!;
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + 30);
+  await page.mouse.down();
+  await page.waitForTimeout(600);
+  await expect(blk2).toHaveClass(/lift/);
+  await page.mouse.move(hb.x + hb.width / 2 - 60, hb.y + 30, { steps: 6 });
+  await page.mouse.move(hb.x + hb.width / 2 - 120, hb.y + 30, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(left2).toBeLessThan(h0 - 20);
+  await expect(page.locator('#set-pop-song')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.locator('#set-ho-0 button').click();
+
   // The preview: it plays (the playhead moves), pauses, and plays a hand-over.
   await expect(page.locator('#set-time')).toContainText('0:00');
   await page.click('#set-play');

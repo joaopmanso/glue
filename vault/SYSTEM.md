@@ -465,13 +465,18 @@ cloud/shared/<cid>.json       sync cursor and waiting clashes; cloud/shared/<cid
     kept apart, and a penalty for energy jumps;
   - a beam search (8 partial sets, deterministic from the seed; "Surprise me" draws among each set's best few);
   - the form is kept on `List.auto`.
-- **Sets** (ADR 0199–0204, `src/core/sets/`, `#/set/<id>`):
+- **Sets** (ADR 0199–0205, `src/core/sets/`, `#/set/<id>`):
   - a playlist laid out as a mix on one beat clock, kept as `List.set` (the sidebar marks such a playlist);
   - `planSet` places hand-overs on phrases in the set's style, fits a length asked for (songs shorter, then off the
     end), and on 3 decks layers songs that sound alike (style `layer`: three at once, one bass);
-  - each hand-over's bass is the style's, the outgoing song's, the incoming one's or both, its swap point movable
-    (`fx.bass`, `fx.swap`, `automation.ts` `handOver`);
-  - hand edits (`edit.ts`: move, trim in, move end, in whole bars, clamped to a set that holds together), the order
+  - drops (ADR 0205): where a song's bassline comes in, from its waveform's lows (`bassBars`, `introOf`, `dropsOf`; the
+    loudness curve without a waveform). The incoming song comes in so its drop lands where the bass changes hands
+    (`fx.swap`, set by the planner); a new plan first makes the waveforms the cache lacks;
+  - each hand-over's bass is the style's, the outgoing song's, the incoming one's or both, its swap point movable; a bass
+    swap and a layer turn on it (`fx.bass`, `fx.swap`, `automation.ts` `handOver`);
+  - a song's bass cut or opened by hand over parts of it (`SetItem.lows`, applied last in `controlsAt`; ADR 0205);
+  - hand edits (`edit.ts`: move, several moved together, trim in, move end, bass spans, in whole bars, clamped to a set
+    that holds together), the order
     dragged (planned again), undo and redo (`lib/sets/set.svelte.ts`);
   - **who mixes:** this computer's GLUE Home whenever it runs and has every song (ADR 0204: `src/lib/sets/home.ts`
     `HomeSet`, the engine's `setOpen` / `setPlan` / `setClose`, its stream `/set/<id>/pcm`), else the browser;

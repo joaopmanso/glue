@@ -1,4 +1,4 @@
-//! What each deck's controls do over a hand-over (ADR 0199, 0203): `src/core/sets/automation.ts`.
+//! What each deck's controls do over a hand-over (ADR 0199, 0203, 0205): `src/core/sets/automation.ts`.
 use crate::types::{BassChoice, FxStyle, SetItem};
 use glue_audio::js;
 use std::f64::consts::PI;
@@ -18,7 +18,7 @@ pub enum Side { Out, In }
 /// The outgoing or incoming song's controls at beat `b` of a hand-over [s, e) (`handOver`).
 #[allow(clippy::too_many_arguments)]
 pub fn hand_over(style: FxStyle, side: Side, b: f64, s: f64, e: f64, drop: Option<f64>, bass: BassChoice, swap: Option<f64>) -> Ctl {
-  let mut c = styled(style, side, b, s, e, drop);
+  let mut c = styled(style, side, b, s, e, drop, swap);
   match bass {
     BassChoice::Both => c.low = 1.0,
     BassChoice::Out => c.low = if side == Side::Out { 1.0 } else { 0.0 },
@@ -28,11 +28,13 @@ pub fn hand_over(style: FxStyle, side: Side, b: f64, s: f64, e: f64, drop: Optio
   c
 }
 
-fn styled(style: FxStyle, side: Side, b: f64, s: f64, e: f64, drop: Option<f64>) -> Ctl {
+#[allow(clippy::too_many_arguments)]
+fn styled(style: FxStyle, side: Side, b: f64, s: f64, e: f64, drop: Option<f64>, swap: Option<f64>) -> Ctl {
   let len = e - s;
   let u = if len > 0.0 { (b - s) / len } else { 1.0 };
   let mut c = FLAT;
-  let mid = s + js::round(len / 8.0) * 4.0;
+  // Where a bass swap turns: the swap point when it's set, else the bar line nearest half way.
+  let mid = match swap { Some(sw) => s + js::max(0.0, js::min(len, sw)), None => s + js::round(len / 8.0) * 4.0 };
   let out = side == Side::Out;
   match style {
     FxStyle::Cut => { c.gain = if out { if b < e { 1.0 } else { 0.0 } } else if b < e { 0.0 } else { 1.0 }; }
@@ -50,9 +52,9 @@ fn styled(style: FxStyle, side: Side, b: f64, s: f64, e: f64, drop: Option<f64>)
       else { c.echo = clamp((b - (e - 4.0)) / 4.0); c.gain = if b < e - 1.0 { 1.0 } else { clamp(e - b) }; }
     }
     FxStyle::Layer => {
-      let swap = if len >= 128.0 { e - 64.0 } else { mid };
-      if !out { c.gain = up((b - s) / 32.0); c.low = if b < swap { 0.0 } else { 1.0 }; }
-      else { c.low = if b < swap { 1.0 } else { 0.0 }; c.gain = if b < swap { 1.0 } else { down((b - swap) / js::max(1.0, e - swap)) }; }
+      let sw = if swap.is_some() || len < 128.0 { mid } else { e - 64.0 };
+      if !out { c.gain = up((b - s) / 32.0); c.low = if b < sw { 0.0 } else { 1.0 }; }
+      else { c.low = if b < sw { 1.0 } else { 0.0 }; c.gain = if b < sw { 1.0 } else { down((b - sw) / js::max(1.0, e - sw)) }; }
     }
     FxStyle::Double => {
       let d = s + drop.unwrap_or_else(|| js::min(len, 16.0));
@@ -67,7 +69,7 @@ fn fx_of(it: &SetItem) -> (FxStyle, Option<f64>, BassChoice, Option<f64>) {
   match &it.fx { Some(f) => (f.style, f.drop, f.bass.unwrap_or_default(), f.swap), None => (FxStyle::Blend, None, BassChoice::Auto, None) }
 }
 
-/// Song `i`'s controls at mix beat `b` (`controlsAt`).
+/// Song `i`'s controls at mix beat `b` (`controlsAt`), then its bass as cut or opened by hand there.
 pub fn controls_at(items: &[SetItem], i: usize, b: f64) -> Ctl {
   let it = &items[i];
   let end = it.start + it.beats;
@@ -91,6 +93,9 @@ pub fn controls_at(items: &[SetItem], i: usize, b: f64) -> Ctl {
           filter: if k.filter.abs() > c.filter.abs() { k.filter } else { c.filter }, echo: js::max(c.echo, k.echo) }
       };
     }
+  }
+  if let Some(r) = it.lows.as_ref().and_then(|l| l.iter().find(|r| b >= it.start + r.from && b < it.start + r.to)) {
+    c.low = if r.on { 1.0 } else { 0.0 };
   }
   c
 }

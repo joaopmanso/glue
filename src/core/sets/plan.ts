@@ -1,5 +1,10 @@
 /* Planning a set (ADR 0200): each hand-over on the beat, on a phrase, in the set's style. Pure.
-   - Phrases are 16 bars from a song's first downbeat; a song comes in on its first downbeat.
+   - Phrases are 16 bars from a song's first downbeat.
+   - Drops (ADR 0205): where a song's bassline comes in, read from its waveform's lows (a kick alone falls away between
+     the beats, a bassline holds), else where its loudness comes up. The incoming song comes in so that its first drop
+     lands where the bass changes hands (a bass swap's middle; a cut goes straight to it); when its intro is shorter,
+     from its first downbeat, the bass changing hands on its drop. So the outgoing song never plays on without its bass
+     while the incoming one is still in its intro.
    - The outgoing song's mix-out is the last phrase that leaves room for the hand-over before its outro (where its
      loudness falls for good, from the sound profile) or its end.
    - One at a time: an 8-bar blend. Continuous: a 32-bar bass swap (16 when the songs are short). Double drops: the
@@ -20,6 +25,8 @@ export interface PlanSong {
   id: string; bpm: number; beat0: number; bar: number; duration: number;
   /** Loudness every `step` s (sound profile), for outros and drops. */
   curve?: number[] | null; step?: number; lufs?: number | null; key?: Key | null; guessed?: boolean;
+  /** Its waveform's lows (0–255, the Prepare waveform's curve) at `rate` points a second, for its drops. */
+  low?: { data: ArrayLike<number>; rate: number } | null;
 }
 export interface PlanOptions {
   style: SetStyle; decks: 2 | 3; tempo: SetPlan['tempo']; keyLock: boolean;
@@ -51,8 +58,56 @@ export function outroOf(s: PlanSong): number {
   for (let i = c.length - 1; i >= 0; i--) if (c[i] >= loud - 6) return Math.min(s.duration, (i + 1) * st);
   return s.duration;
 }
-/** Drops: loudness rising 6 dB within ~6 s to near the song's loud level, on the nearest bar line (s). */
+/** Each bar's bassline, from the first downbeat, 0 … 1 of the song's: the bar's 30th percentile of the lows' level. A
+    kick alone falls away between the beats; a bassline holds the lows up. null: no waveform. */
+export function bassBars(s: PlanSong): number[] | null {
+  const w = s.low;
+  if (!w?.data.length) return null;
+  const f0 = firstDown(s), bar = barOf(s), n = Math.floor((s.duration - f0) / bar), out: number[] = [];
+  for (let k = 0; k < n; k++) {
+    const a = Math.max(0, Math.floor((f0 + k * bar) * w.rate)), b = Math.min(w.data.length, Math.floor((f0 + (k + 1) * bar) * w.rate));
+    const v: number[] = [];
+    // Back from the waveform's curve (255 · x^0.75) to a level.
+    for (let i = a; i < b; i++) v.push(Math.pow(w.data[i] / 255, 4 / 3));
+    v.sort((x, y) => x - y);
+    out.push(v.length ? v[Math.floor(v.length * 0.3)] : 0);
+  }
+  const top = [...out].sort((x, y) => x - y)[Math.floor(out.length * 0.85)] ?? 0;
+  return top > 0 ? out.map(x => x / top) : null;
+}
+/** A bar with its bassline: at least this share of the song's. */
+const BASS_ON = 0.45;
+/** Bars (from the first downbeat) where the bassline comes in and holds (3 of the next 4 bars), after at least 4 bars
+    mostly without it (or the song's start: bar 0). */
+function bassIns(on: boolean[]): number[] {
+  const out: number[] = [], has = (k: number) => k >= 0 && k < on.length && on[k];
+  for (let k = 0; k + 3 < on.length; k++) {
+    if (!on[k] || [k, k + 1, k + 2, k + 3].filter(has).length < 3) continue;
+    const before = [k - 4, k - 3, k - 2, k - 1].filter(has).length;
+    if (k === 0 || (before <= 1 && !has(k - 1))) out.push(k);
+  }
+  return out;
+}
+/** Where the song's bass comes in for good, in bars from its first downbeat (0: from the start; null: not known):
+    from its lows, else the first bar its loudness holds within 3 dB of its loud level for 8 s. */
+export function introOf(s: PlanSong): number | null {
+  const bb = bassBars(s);
+  if (bb) return bassIns(bb.map(x => x >= BASS_ON))[0] ?? null;
+  const c = s.curve, st = s.step ?? 2;
+  if (!c?.length) return null;
+  const loud = loudLevel(c), hold = Math.max(1, Math.round(8 / st));
+  for (let i = 0; i + hold <= c.length; i++) {
+    let all = true;
+    for (let j = i; j < i + hold; j++) if (c[j] < loud - 3) { all = false; break; }
+    if (all) return Math.max(0, Math.round((i * st - firstDown(s)) / barOf(s)));
+  }
+  return null;
+}
+/** Drops (s, on bar lines): where the bassline comes back after a breakdown (from the lows); else loudness rising
+    6 dB within ~6 s to near the song's loud level. */
 export function dropsOf(s: PlanSong): number[] {
+  const bb = bassBars(s);
+  if (bb) return bassIns(bb.map(x => x >= BASS_ON)).filter(k => k > 0).map(k => barAt(s, k));
   const c = s.curve, st = s.step ?? 2, out: number[] = [];
   if (!c?.length) return out;
   const loud = loudLevel(c), back = Math.max(1, Math.round(6 / st));
@@ -105,6 +160,8 @@ function planOnce(songs: PlanSong[], o: PlanOptions, share: number, at: string):
         }
       }
     }
+    // Where B comes in: so its first drop lands where the bass changes hands (see the top).
+    let inB = 0, swap: number | undefined;
     if (x < 0) {
       // The last phrase leaving room for the hand-over before the outro (or the end); shorter blends for short songs.
       for (const len of bars ? [bars, 16, 8, 4] : [0]) {
@@ -118,12 +175,19 @@ function planOnce(songs: PlanSong[], o: PlanOptions, share: number, at: string):
           bars = len; break;
         }
       }
+      const k = introOf(B);
+      if (k != null && k > 0 && k <= 64) {
+        // How far into the hand-over the bass changes hands: a bass swap's middle, a blend's end, straight in on a cut.
+        const pre = fx === 'bassSwap' ? Math.round(bars / 2) : fx === 'blend' ? bars : 0;
+        inB = Math.max(0, k - pre);
+        if (fx === 'bassSwap') swap = (k - inB) * 4;
+      }
     }
     item.beats = (x - inBar) * 4 + bars * 4;
-    item.fx = { style: fx, ...(drop != null ? { drop } : {}) };
+    item.fx = { style: fx, ...(drop != null ? { drop } : {}), ...(swap != null ? { swap } : {}) };
     items.push(item);
     start += (x - inBar) * 4;
-    inAt = bIn; inBars = bars;
+    inAt = barAt(B, inB); inBars = bars;
   }
   const plan: SetPlan = { v: 1, decks: o.decks, style: o.style, tempo: o.tempo, items, at, ...(o.length ? { length: o.length } : {}) };
   return o.decks === 3 ? layered(plan, songs, o) : plan;
@@ -144,7 +208,12 @@ function layered(plan: SetPlan, songs: PlanSong[], o: PlanOptions): SetPlan {
     // The one after it in before this one goes: three at once for 16 bars.
     const c = items[k + 2], end = items[k].start + items[k].beats;
     if (c && c.start > end - 64) items = moveSong(items, k + 2, end - 64 - c.start, len).items;
-    items = items.map((it, j) => j === k ? { ...it, fx: { style: 'layer' as FxStyle } } : it);
+    // The bass changes hands 16 bars before the end, or later, on the incoming song's drop when that's later: never the
+    // outgoing song without its bass under the incoming one's intro.
+    const nb = items[k + 1], over2 = items[k].start + items[k].beats - nb.start, kB = introOf(B);
+    const dropAt = kB != null ? (kB - Math.round((nb.in - firstDown(B)) / barOf(B))) * 4 : null;
+    const swap = dropAt != null && dropAt > over2 - 64 && dropAt <= over2 - 4 ? dropAt : undefined;
+    items = items.map((it, j) => j === k ? { ...it, fx: { style: 'layer' as FxStyle, ...(swap != null ? { swap } : {}) } } : it);
   }
   return { ...plan, items };
 }

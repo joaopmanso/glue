@@ -24,7 +24,31 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-27, night): sets with a length, layering on 3 decks, the timeline's gestures (ADR 0201, 0202; website only)
+## Latest (2026-11-27, late night): GLUE Home 0.85, hand-overs on the drop, the bass by hand (ADR 0205)
+- **The user's asks:**
+  - several clips selected;
+  - the bass cut or opened over part of a song;
+  - press and hold to grab;
+  - hand-overs that take the drop into account;
+  - never the outgoing song without its bass for long while the incoming one's intro plays.
+- **Shipped:**
+  - drops from the waveform's lows;
+  - the incoming song comes in on its drop, the bass changing hands there;
+  - `SetItem.lows` and the bass strip;
+  - Shift/Ctrl + click and group moves;
+  - press and hold;
+  - the Rust mixer follows (GLUE Home 0.85).
+- **Waiting on the user:**
+  - **Plan again** on a set (a kept plan isn't re-planned) and listen: do the drops land? The drop thresholds are
+    from synthetic tests (**[UNVERIFIED]** on real songs);
+  - the laptop's playlists (below).
+- **Next, R4 (approved plan, now ADR 0206 and GLUE Home 0.86):** remote, a device without the songs.
+  - The sessions over the session channel (`glue-rtc` `Server::stream`, credit-based).
+  - Opus via the pure-Rust `opus-rs`. A spike measured it at 156× real time, exactly 192 kbps, an SNR of 34 dB, and a
+    delay of 312 samples. Checking that WebCodecs decodes its packets comes first.
+  - The export as FLAC (`flacenc`), written into WAV or MP3 on the device.
+
+## Earlier (2026-11-27, night): sets with a length, layering on 3 decks, the timeline's gestures (ADR 0201, 0202; website only)
 - **Shipped earlier tonight (ADR 0201):**
   - cleaner double drops (headroom, a gliding limiter, WSOLA by normalised correlation);
   - the timeline drawn as heard, hand edits with undo, the running order, the live preview.
@@ -48,12 +72,6 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - The mixer is in Rust (`crates/glue-sets`), held to the TypeScript by `tests/golden/sets`.
   - The local link's `/set/<id>/pcm`.
   - The preview and the export come from GLUE Home ("Mixed by GLUE Home").
-- **Next, R4 (approved plan):** remote, a device without the songs.
-  - The same sessions over the session channel (`glue-rtc` `Server::stream`, credit-based).
-  - The preview as Opus (libopus via the `opus` crate, a build spike first on Windows, macOS and the laptop's
-    toolchain), decoded by WebCodecs in an AudioContext at 48 kHz.
-  - The export as FLAC (`flacenc`), written into WAV or MP3 on the device.
-  - ADR 0205, GLUE Home 0.85.
 - **Later:** a song dragged to another deck; reordering that keeps hand edits; stems (B4).
 
 ## Earlier (2026-11-27, later): GLUE Home 0.83, playlists that follow a flow (ADR 0197, 0198; M10 step A)

@@ -10,9 +10,10 @@ const up = (u: number) => Math.sin(clamp(u) * Math.PI / 2), down = (u: number) =
 
 /** The outgoing (side 'out') or incoming ('in') song's controls at beat `b` of a hand-over [s, e) in that style; then
     whose bass plays, as chosen (ADR 0203): the outgoing song's, the incoming one's, both, or the style's (changing hands
-    at `swap` beats in, when it was moved). */
+    at `swap` beats in, when it's set: where the incoming song's bass comes in, or moved by hand; a bass swap or a layer
+    turns on it, ADR 0205). */
 export function handOver(style: FxStyle, side: 'out' | 'in', b: number, s: number, e: number, drop?: number, bass: BassChoice = 'auto', swap?: number): Ctl {
-  const c = styled(style, side, b, s, e, drop);
+  const c = styled(style, side, b, s, e, drop, swap);
   if (bass === 'both') c.low = 1;
   else if (bass === 'out') c.low = side === 'out' ? 1 : 0;
   else if (bass === 'in') c.low = side === 'in' ? 1 : 0;
@@ -21,10 +22,10 @@ export function handOver(style: FxStyle, side: 'out' | 'in', b: number, s: numbe
 }
 
 /** The style's own controls. */
-function styled(style: FxStyle, side: 'out' | 'in', b: number, s: number, e: number, drop?: number): Ctl {
+function styled(style: FxStyle, side: 'out' | 'in', b: number, s: number, e: number, drop?: number, swap?: number): Ctl {
   const len = e - s, u = len > 0 ? (b - s) / len : 1, c: Ctl = { ...FLAT };
-  // The middle bar, for a bass swap: the bar line nearest half way.
-  const mid = s + Math.round(len / 8) * 4;
+  // Where a bass swap turns: the swap point when it's set, else the bar line nearest half way.
+  const mid = swap != null ? s + Math.max(0, Math.min(len, swap)) : s + Math.round(len / 8) * 4;
   switch (style) {
     case 'cut':
       c.gain = side === 'out' ? (b < e ? 1 : 0) : (b < e ? 0 : 1);
@@ -48,10 +49,10 @@ function styled(style: FxStyle, side: 'out' | 'in', b: number, s: number, e: num
       break;
     case 'layer': {
       // Along: the incoming one comes in over 8 bars without its bass; 16 bars before the end the bass changes hands
-      // and the outgoing one fades (half way on a short overlap).
-      const swap = len >= 128 ? e - 64 : mid;
-      if (side === 'in') { c.gain = up((b - s) / 32); c.low = b < swap ? 0 : 1; }
-      else { c.low = b < swap ? 1 : 0; c.gain = b < swap ? 1 : down((b - swap) / Math.max(1, e - swap)); }
+      // and the outgoing one fades (half way on a short overlap); or at the swap point when it's set.
+      const sw = swap != null || len < 128 ? mid : e - 64;
+      if (side === 'in') { c.gain = up((b - s) / 32); c.low = b < sw ? 0 : 1; }
+      else { c.low = b < sw ? 1 : 0; c.gain = b < sw ? 1 : down((b - sw) / Math.max(1, e - sw)); }
       break;
     }
     case 'double': {
@@ -65,7 +66,8 @@ function styled(style: FxStyle, side: 'out' | 'in', b: number, s: number, e: num
   return c;
 }
 
-/** Song `i`'s controls at mix beat `b`: silent outside its span, shaped by its hand-overs in and out. */
+/** Song `i`'s controls at mix beat `b`: silent outside its span, shaped by its hand-overs in and out; then its bass
+    as cut or opened by hand there (ADR 0205). */
 export function controlsAt(items: SetItem[], i: number, b: number): Ctl {
   const it = items[i], end = it.start + it.beats;
   if (b < it.start || b >= end) return SILENT;
@@ -79,7 +81,8 @@ export function controlsAt(items: SetItem[], i: number, b: number): Ctl {
     const k = handOver(it.fx?.style ?? 'blend', 'out', b, next.start, end, it.fx?.drop, it.fx?.bass, it.fx?.swap);
     c = c === FLAT ? k : { gain: c.gain * k.gain, low: Math.min(c.low, k.low), mid: Math.min(c.mid, k.mid), high: Math.min(c.high, k.high), filter: Math.abs(k.filter) > Math.abs(c.filter) ? k.filter : c.filter, echo: Math.max(c.echo, k.echo) };
   }
-  return c;
+  const r = it.lows?.find(r => b >= it.start + r.from && b < it.start + r.to);
+  return r ? { ...c, low: r.on ? 1 : 0 } : c;
 }
 
 /** Where the bass changes hands in a hand-over of `len` beats, in beats from its start: as moved by hand, else the

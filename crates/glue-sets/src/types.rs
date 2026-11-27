@@ -22,6 +22,10 @@ pub struct Fx {
   #[serde(default, skip_serializing_if = "Option::is_none")] pub swap: Option<f64>,
 }
 
+/// The song's bass cut (`on` false) or opened by hand over beats [from, to) of its span (ADR 0205).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct LowSpan { pub from: f64, pub to: f64, pub on: bool }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetItem {
@@ -35,6 +39,7 @@ pub struct SetItem {
   pub key_lock: bool,
   #[serde(default, skip_serializing_if = "Option::is_none")] pub trim: Option<f64>,
   #[serde(default, skip_serializing_if = "Option::is_none")] pub fx: Option<Fx>,
+  #[serde(default, skip_serializing_if = "Option::is_none")] pub lows: Option<Vec<LowSpan>>,
   #[serde(default, skip_serializing_if = "Option::is_none")] pub guessed: Option<bool>,
 }
 

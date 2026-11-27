@@ -5,8 +5,12 @@
        zoom). Each pixel column is a time in the mix, through the tempo map to each song's own time.
      - Navigating: the wheel zooms around the pointer; dragging empty space, or a song not selected, scrolls; the time
        bar on top puts the playhead where it's clicked or dragged.
-     - A click on a song selects it and opens its box (play from it, key lock, level, in earlier or later); only a
-       selected song is dragged (it and the ones after it) or trimmed by its edges, a bar at a time.
+     - A click on a song selects it and opens its box (play from it, key lock, level, in earlier or later); Shift or
+       Ctrl + click adds songs to the selection (ADR 0205). Only a selected song is dragged (it and the ones after it;
+       several selected move together) or trimmed by its edges, a bar at a time; pressing on a song and holding still
+       grabs it, selected, to drag.
+     - A selected song's bass strip, along its foot: dragged across, its bass is cut over those bars (or opened where it
+       was cut); a click on a stretch drawn by hand lets it go (ADR 0205).
      - A hand-over's chip under the lanes opens its box where it is: its style, length, the next song in earlier or
        later, Hear it. */
   import { tick, untrack } from 'svelte';
@@ -21,7 +25,7 @@
   import { tempoOf } from '../../core/sets/tempo';
   import { bassSwapAt, controlsAt } from '../../core/sets/automation';
   import { clock } from '../../core/sets/tracklist';
-  import { edited, moveEnd, moveSong, trimIn } from '../../core/sets/edit';
+  import { clearLows, edited, moveEnd, moveSong, moveSongs, setLows, trimIn } from '../../core/sets/edit';
   import { MIX_RATE, type BassChoice, type FxStyle, type SetItem, type SetPlan } from '../../core/sets/types';
   import type { Waveform } from '../../core/audio/waveform';
 
@@ -67,7 +71,7 @@
   const len = (id: string) => tr(id)?.duration ?? undefined;
   const keyOf = (id: string) => { const k = lib.store?.analysis.get(id)?.key; return k ? keyLabel(k, app.keyNotation) : ''; };
   const FX: [FxStyle, string, string, string][] = [
-    ['blend', 'Blend', 'Bl', 'Volumes crossed'], ['bassSwap', 'Bass swap', 'BS', 'The lows swapped on the middle bar'],
+    ['blend', 'Blend', 'Bl', 'Volumes crossed'], ['bassSwap', 'Bass swap', 'BS', 'The lows swapped where the incoming song drops (the bass marker)'],
     ['layer', 'Layer', 'Lay', 'Both along, the bass changing hands 16 bars before the end'], ['filter', 'Filter sweep', 'Flt', 'The outgoing song filtered away'],
     ['echo', 'Echo out', 'Echo', 'The outgoing song stops into its echo'], ['cut', 'Cut', 'Cut', 'Straight in on the bar'], ['double', 'Double drop', 'DD', 'Both at full from the drop'],
   ];
@@ -150,40 +154,93 @@
     }
   }
 
-  // ---- pointer: scroll, select, move, trim ----
+  // ---- pointer: scroll, select, move, trim, the bass by hand ----
   type Mode = 'pan' | 'move' | 'in' | 'end';
-  let drag: { mode: Mode; i: number; x: number; scroll0: number; items: SetItem[]; moved: boolean; bpm: number } | null = null;
+  /** The songs selected together with `song` (ADR 0205): more than one, they move together. */
+  let picks = $state<number[]>([]);
+  const chosen = $derived(song == null ? [] : picks.includes(song) ? picks : [song]);
+  let drag: { mode: Mode; i: number; x: number; y: number; scroll0: number; items: SetItem[]; moved: boolean; bpm: number; add: boolean; group: number[]; hold?: ReturnType<typeof setTimeout> } | null = null;
   let dragging = $state<{ i: number; mode: Mode; d: number } | null>(null);
   let panning = $state(false);
+  /** A song grabbed by holding still on it. */
+  let lifted = $state<number | null>(null);
+  const HOLD = 350;
   function down(e: PointerEvent, i: number, mode: Mode) {
     if (e.button !== 0) return;
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    // Only a selected song is moved: any other is scrolled past.
-    const m: Mode = mode === 'move' && song !== i ? 'pan' : mode;
-    drag = { mode: m, i, x: e.clientX, scroll0: scroll, items: plan.items, moved: false, bpm: i >= 0 ? tm.bpmAt(plan.items[i].start) : 120 };
+    const add = e.shiftKey || e.ctrlKey || e.metaKey;
+    // Only a selected song is moved: any other is scrolled past, unless the pointer holds still on it a moment.
+    const m: Mode = mode === 'move' && (add || !chosen.includes(i)) ? 'pan' : mode;
+    const d: NonNullable<typeof drag> = drag = { mode: m, i, x: e.clientX, y: e.clientY, scroll0: scroll, items: plan.items, moved: false, bpm: i >= 0 ? tm.bpmAt(plan.items[i].start) : 120, add,
+      group: chosen.length > 1 && chosen.includes(i) ? chosen : [i] };
     if (m !== 'pan') sets.grab();
+    else if (mode === 'move' && i >= 0 && !add) d.hold = setTimeout(() => {
+      if (drag !== d || d.moved) return;
+      song = i; picks = []; sel = null; lifted = i;
+      d.mode = 'move'; d.group = [i]; d.items = plan.items;
+      sets.grab();
+    }, HOLD);
   }
   function move(e: PointerEvent) {
     if (!drag) return;
     const dx = e.clientX - drag.x;
-    if (!drag.moved && Math.abs(dx) < 4) return;
+    if (!drag.moved && Math.abs(dx) < 4 && Math.abs(e.clientY - drag.y) < 4) return;
     drag.moved = true;
+    clearTimeout(drag.hold);
     if (drag.mode === 'pan') { panning = true; if (box) box.scrollLeft = drag.scroll0 - dx; return; }
     const beats = dx / z * drag.bpm / 60;
-    const f = drag.mode === 'move' ? moveSong : drag.mode === 'in' ? trimIn : moveEnd;
-    const r = f(drag.items, drag.i, beats, len);
+    const r = drag.mode === 'move' && drag.group.length > 1 ? moveSongs(drag.items, drag.group, beats, len)
+      : (drag.mode === 'move' ? moveSong : drag.mode === 'in' ? trimIn : moveEnd)(drag.items, drag.i, beats, len);
     dragging = { i: drag.i, mode: drag.mode, d: r.d };
     if (r.items !== plan.items) sets.drag(edited(plan, r.items));
   }
   function up() {
     const d = drag;
-    drag = null; dragging = null; panning = false;
+    drag = null; dragging = null; panning = false; lifted = null;
     if (!d) return;
+    clearTimeout(d.hold);
     if (d.mode !== 'pan') { sets.drop(); return; }
-    // A click (no drag): a song selected (or let go), empty space lets both boxes go.
-    if (!d.moved) { if (d.i >= 0) { song = song === d.i ? null : d.i; sel = null; } else { song = null; sel = null; } }
+    if (d.moved) return;
+    // A click (no drag): a song selected (or let go; with Shift or Ctrl, added to the selection or taken out of it),
+    // empty space lets the boxes go.
+    sel = null;
+    if (d.i < 0) { song = null; picks = []; return; }
+    if (d.add && song != null) {
+      const now = chosen.includes(d.i) ? chosen.filter(j => j !== d.i) : [...chosen, d.i].sort((a, b) => a - b);
+      picks = now; song = now.length ? (now.includes(song) ? song : now[now.length - 1]) : null;
+      return;
+    }
+    picks = []; song = song === d.i ? null : d.i;
   }
+
+  // The selected song's bass strip: dragged across, its bass cut (or opened where it was off) over those bars.
+  let lowDrag = $state<{ i: number; a: number; b: number; on: boolean; moved: boolean; x: number } | null>(null);
+  const beatAtX = (clientX: number) => box ? tm.beat(Math.max(0, (clientX - box.getBoundingClientRect().left + scroll) / z)) : 0;
+  function lowDown(e: PointerEvent, i: number) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const it = plan.items[i], b = beatAtX(e.clientX) - it.start;
+    lowDrag = { i, a: b, b, on: controlsAt(plan.items, i, it.start + b).low < 0.5, moved: false, x: e.clientX };
+  }
+  function lowMove(e: PointerEvent) {
+    if (!lowDrag) return;
+    if (!lowDrag.moved && Math.abs(e.clientX - lowDrag.x) < 4) return;
+    lowDrag = { ...lowDrag, moved: true, b: beatAtX(e.clientX) - plan.items[lowDrag.i].start };
+  }
+  /** The bars a bass drag covers: from the bar it started in to the one it ended in. */
+  const lowBars = (d: { a: number; b: number }) => [Math.floor(Math.min(d.a, d.b) / 4) * 4, Math.ceil(Math.max(d.a, d.b) / 4) * 4] as const;
+  function lowUp() {
+    const d = lowDrag;
+    lowDrag = null;
+    if (!d) return;
+    if (d.moved) { const [a, b] = lowBars(d); apply(setLows(plan.items, d.i, a, b, d.on)); return; }
+    const k = plan.items[d.i].lows?.findIndex(r => d.a >= r.from && d.a < r.to) ?? -1;
+    if (k >= 0) apply(clearLows(plan.items, d.i, k));
+  }
+  /** A stretch of a song (beats from its start) on screen: left and width (px) inside its block. */
+  const spanPx = (it: SetItem, from: number, to: number) => { const x0 = tm.time(it.start) * z; return { l: tm.time(it.start + from) * z - x0, w: Math.max(2, (tm.time(it.start + to) - tm.time(it.start + from)) * z) }; };
   function seekAt(clientX: number) {
     if (!box) return;
     const x = clientX - box.getBoundingClientRect().left + scroll;
@@ -215,16 +272,16 @@
     const a = plan.items[sel], b = plan.items[sel + 1];
     return { i: sel, a, b, at: tm.time(b.start), bars: Math.max(0, (a.start + a.beats - b.start) / 4), like: sets.like(a.id, b.id), x: overs[sel]?.x ?? 0 };
   });
-  const picked = $derived(song != null && plan.items[song] ? { i: song, it: plan.items[song], at: tm.time(plan.items[song].start), x: blocks[song]?.x ?? 0 } : null);
+  const picked = $derived(song != null && chosen.length < 2 && plan.items[song] ? { i: song, it: plan.items[song], at: tm.time(plan.items[song].start), x: blocks[song]?.x ?? 0 } : null);
   function apply(items: SetItem[]) { sets.apply(edited(plan, items)); }
   function setFx(i: number, style: FxStyle) { apply(plan.items.map((it, j) => j === i ? { ...it, fx: { ...(it.fx ?? {}), style } } : it)); }
   const BASS: [BassChoice, string, string][] = [['auto', 'Auto', 'As the style has it (drag the bass marker to move where it changes hands)'], ['out', 'Outgoing', 'The outgoing song keeps its bass all through'], ['in', 'Incoming', 'The incoming song has its bass from the start'], ['both', 'Both', 'Both basses at once: double bass']];
-  /** Whose bass plays; Auto forgets a moved swap point too. */
+  /** Whose bass plays (the swap point is kept: where the incoming song's bass comes in, or where it was moved). */
   function setBass(i: number, bass: BassChoice) {
     apply(plan.items.map((it, j) => {
       if (j !== i) return it;
-      const { swap, bass: _, ...rest } = it.fx ?? { style: 'blend' as FxStyle };
-      void swap; void _;
+      const { bass: _, ...rest } = it.fx ?? { style: 'blend' as FxStyle };
+      void _;
       return { ...it, fx: bass === 'auto' ? rest : { ...rest, bass } };
     }));
   }
@@ -254,7 +311,11 @@
   function setItem(i: number, patch: Partial<SetItem>) { apply(plan.items.map((it, j) => j === i ? { ...it, ...patch } : it)); }
   const hear = (i: number) => void preview.play(Math.max(0, tm.time(plan.items[i + 1].start - 32)) * MIX_RATE);
   const fromSong = (i: number) => void preview.play(Math.max(0, tm.time(plan.items[i].start)) * MIX_RATE);
-  function keys(e: KeyboardEvent) { if (e.key === 'Escape' && (sel != null || song != null)) { sel = null; song = null; } }
+  function keys(e: KeyboardEvent) { if (e.key === 'Escape' && (sel != null || song != null)) { sel = null; song = null; picks = []; } }
+  /** Each song selected changed alike (the box for several). */
+  function setEach(f: (it: SetItem) => Partial<SetItem>) { const on = new Set(chosen); apply(plan.items.map((it, j) => on.has(j) ? { ...it, ...f(it) } : it)); }
+  function nudgeGroup(beats: number) { const r = moveSongs(plan.items, chosen, beats, len); if (r.d) apply(r.items); }
+  const group = $derived(chosen.length > 1 ? { n: chosen.length, x: blocks[chosen[0]]?.x ?? 0, lock: chosen.every(i => plan.items[i]?.keyLock) } : null);
 </script>
 
 <svelte:window onkeydown={keys} />
@@ -275,13 +336,27 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="hit" style:top={RULER + 'px'} style:height={plan.decks * LANE + 'px'} onpointerdown={e => down(e, -1, 'pan')} onpointermove={move} onpointerup={up}></div>
     {#each blocks as b (b.i)}
-      <div class="blk" class:on={song === b.i} class:active={dragging?.i === b.i} data-song={b.it.id} style:left={b.x + 'px'} style:width={b.w + 'px'} style:top={RULER + b.it.deck * LANE + 3 + 'px'} style:height={LANE - 7 + 'px'} style:--h={hue(b.i)}
-        title={name(b.it.id) + (b.it.guessed ? ' (beat grid guessed)' : '') + (song === b.i ? (b.i ? ' · drag to move it and the songs after it' : '') : ' · click to select')}
-        onpointerdown={e => down(e, b.i, 'move')} onpointermove={move} onpointerup={up} role="button" tabindex="-1" aria-label={name(b.it.id)} aria-pressed={song === b.i}>
+      <div class="blk" class:on={chosen.includes(b.i)} class:lift={lifted === b.i} class:active={dragging?.i === b.i} data-song={b.it.id} style:left={b.x + 'px'} style:width={b.w + 'px'} style:top={RULER + b.it.deck * LANE + 3 + 'px'} style:height={LANE - 7 + 'px'} style:--h={hue(b.i)}
+        title={name(b.it.id) + (b.it.guessed ? ' (beat grid guessed)' : '') + (chosen.includes(b.i) ? (b.i ? (chosen.length > 1 ? ' · drag to move the songs selected' : ' · drag to move it and the songs after it') : '') : ' · click to select (Shift or Ctrl: add it) · press and hold to grab it')}
+        onpointerdown={e => down(e, b.i, 'move')} onpointermove={move} onpointerup={up} role="button" tabindex="-1" aria-label={name(b.it.id)} aria-pressed={chosen.includes(b.i)}>
         <span class="nm" style:max-width={Math.max(0, b.w - 14) + 'px'}><b>{b.i + 1}</b> {name(b.it.id)}{#if b.it.guessed} <em>grid guessed</em>{/if}</span>
         {#if b.w > 90}<span class="sub mono">{Math.round(b.it.bpm * 10) / 10}{#if b.it.trim} · {b.it.trim > 0 ? '+' : ''}{b.it.trim} dB{/if}{#if !b.it.keyLock} · no key lock{/if}</span>{/if}
         {#if dragging?.i === b.i}<span class="dd mono">{dragging.d > 0 ? '+' : ''}{dragging.d / 4} bars</span>{/if}
-        {#if song === b.i}
+        {#each b.it.lows ?? [] as r, k (k)}
+          {@const q = spanPx(b.it, r.from, r.to)}
+          <span class="low" class:cut={!r.on} style:left={q.l + 'px'} style:width={q.w + 'px'} title={(r.on ? 'Bass opened' : 'Bass cut') + ', bars ' + (r.from / 4 + 1) + '–' + r.to / 4}></span>
+        {/each}
+        {#if lowDrag?.i === b.i && lowDrag.moved}
+          {@const [la, lb] = lowBars(lowDrag)}
+          {@const q = spanPx(b.it, la, lb)}
+          <span class="low ghost" class:cut={!lowDrag.on} style:left={q.l + 'px'} style:width={q.w + 'px'}></span>
+        {/if}
+        {#if song === b.i && chosen.length < 2}
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <span class="lows" id="set-lows" title="The bass: drag along here to cut it over those bars (or open it where it's cut); click a stretch to let it go"
+            onpointerdown={e => lowDown(e, b.i)} onpointermove={lowMove} onpointerup={lowUp}><i>bass</i></span>
+        {/if}
+        {#if song === b.i && chosen.length < 2}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <span class="hd l" title="Drag: start it later or earlier in the song" onpointerdown={e => down(e, b.i, 'in')} onpointermove={move} onpointerup={up}></span>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -359,12 +434,40 @@
           <button type="button" id="set-song-later" onclick={() => nudge(moveSong, i, 16)}>Later</button>
         {/if}
       </div>
-      <p class="hint">{i ? 'Drag it to move it and the songs after it; ' : ''}drag its edges to trim its start or end. <a href={'#/track/' + picked.it.id}>Its page</a></p>
+      {#if picked.it.lows?.length}
+        <div class="rows" id="set-song-lows">
+          <span class="lbl">Bass</span>
+          {#each picked.it.lows as r, k (k)}
+            <button type="button" class="lowchip" class:cut={!r.on} title="Let it go" onclick={() => apply(clearLows(plan.items, i, k))}>{r.on ? 'open' : 'cut'} bars {r.from / 4 + 1}–{r.to / 4} ×</button>
+          {/each}
+        </div>
+      {/if}
+      <p class="hint">{i ? 'Drag it to move it and the songs after it; ' : ''}drag its edges to trim its start or end; drag along its bass strip to cut or open the bass over some bars. <a href={'#/track/' + picked.it.id}>Its page</a></p>
+    </div>
+  {/if}
+  {#if group}
+    <div class="pop" id="set-pop-songs" role="dialog" aria-label="Songs selected" style:left={popLeft(group.x) + 'px'} style:top={RULER + plan.decks * LANE + FXROW + 6 + 'px'}>
+      <div class="p-top">
+        <span class="who"><b>{group.n} songs selected</b></span>
+        <button type="button" class="x" aria-label="Close" onclick={() => { song = null; picks = []; }}>×</button>
+      </div>
+      <div class="rows">
+        <span class="lbl">Level</span>
+        <button type="button" id="set-group-quieter" onclick={() => setEach(it => ({ trim: Math.max(-12, Math.round(((it.trim ?? 0) - 1) * 10) / 10) }))}>−1 dB</button>
+        <button type="button" id="set-group-louder" onclick={() => setEach(it => ({ trim: Math.min(12, Math.round(((it.trim ?? 0) + 1) * 10) / 10) }))}>+1 dB</button>
+        <label class="ck"><input type="checkbox" id="set-group-keylock" checked={group.lock} onchange={e => { const on = e.currentTarget.checked; setEach(() => ({ keyLock: on })); }}> Key lock</label>
+      </div>
+      <div class="rows">
+        <span class="lbl">Come in</span>
+        <button type="button" id="set-group-earlier" onclick={() => nudgeGroup(-16)}>Earlier</button>
+        <button type="button" id="set-group-later" onclick={() => nudgeGroup(16)}>Later</button>
+      </div>
+      <p class="hint">Drag any of them to move them together; the others stay where they are. Shift or Ctrl + click adds a song or takes it out.</p>
     </div>
   {/if}
 
   <div class="foot">
-    <p class="tip">Wheel: zoom · drag: scroll · click a song to select it, then drag it or its edges · the time bar plays from where you click.</p>
+    <p class="tip">Wheel: zoom · drag: scroll · click a song to select it (Shift or Ctrl: several), then drag it or its edges, or press and hold to grab it · its bass strip cuts or opens the bass · the time bar plays from where you click.</p>
     <div class="zoom">
       <button type="button" title="Zoom out" aria-label="Zoom out" onclick={() => zoomTo(z / 1.6)}>−</button>
       <button type="button" title="The whole set" onclick={fit}>Fit</button>
@@ -389,6 +492,15 @@
   .blk:hover { outline-color: hsl(var(--h) 70% 65% / .6); }
   .blk.on { outline: 2px solid hsl(var(--h) 85% 65%); cursor: grab; box-shadow: 0 0 18px hsl(var(--h) 80% 55% / .35); }
   .blk.active { cursor: grabbing; }
+  .blk.lift { cursor: grabbing; transform: translateY(-2px); box-shadow: 0 8px 22px #000c, 0 0 0 2px hsl(var(--h) 85% 65%); transition: transform .1s, box-shadow .1s; }
+  /* Stretches of bass by hand, along the song's foot: cut (hatched red) or opened (orange). */
+  .low { position: absolute; bottom: 2px; height: 6px; border-radius: 3px; background: #ff8a1f; pointer-events: none; opacity: .9; }
+  .low.cut { background: repeating-linear-gradient(135deg, #ff4d4d 0 4px, #ff4d4d55 4px 8px); }
+  .low.ghost { opacity: .55; outline: 1px dashed #fff8; }
+  .lows { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; cursor: crosshair; border-top: 1px dashed hsl(var(--h) 70% 65% / .5); background: #0000004d; touch-action: none; }
+  .lows i { position: absolute; right: 12px; bottom: 1px; font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: .04em; color: #ffffff80; pointer-events: none; }
+  .lowchip { color: #ff8a1f !important; }
+  .lowchip.cut { color: #ff6b6b !important; }
   .nm { position: absolute; left: 6px; top: 4px; padding: 1px 5px; border-radius: 4px; background: #000000a6; font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
   .nm b { color: hsl(var(--h) 85% 70%); margin-right: 2px; }
   .nm em { color: var(--warn); font-style: normal; font-weight: 500; font-size: 11px; }
