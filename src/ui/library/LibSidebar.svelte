@@ -516,6 +516,7 @@
         <button type="button" class="name" title={l.name} onclick={e => nameClick(e, l)} ondblclick={() => { clearTimeout(slow); view.editing = l.id; }}>
           <span class="nm">{l.name}</span>{#if l.origin}{@const app = lib.store?.sources.get(l.origin.sourceId)?.app}<span class="imp" title={app ? 'From ' + (APP_NAMES[app] ?? app) + ', following it' : 'Imported; its library isn’t in GLUE any more'}>{#if app}<AppIcon {app} size={13} />{:else}↓{/if}</span>{/if}{#if !l.origin && (glued() || lib.engineKept())}{@const by = lib.keptBy(l.id, 'engine')}{#if by}{@const out = djWatch.unsent[l.id]}<span class="kept" class:own={by.id === l.id} class:out={!!out} data-kept="engine" data-unsent={out ? out.songs.length : undefined} title={(by.id === l.id ? (lib.djWrites ? 'Kept in Engine DJ, in its GLUE folder (both ways)' : lib.djDrive ? 'In Engine DJ’s GLUE folder' + (lib.djDrive.waiting ? ' when Engine DJ is closed' : '') + ' (it shows changes when it starts)' : 'In GLUE’s playlists for Engine DJ (its rekordbox library)') : 'Kept in Engine DJ with “' + by.name + '”') + (out ? '. ' + out.songs.length + ' song' + (out.songs.length === 1 ? '' : 's') + ' couldn’t go there: ' + out.why.join('; ') : '')}><AppIcon app="engine" size={13} />{#if out}<b>!</b>{/if}</span>{/if}{/if}
         </button>
+        {#if l.set && l.kind === 'playlist'}<button type="button" class="setmark" data-set={l.id} title={'Mixed as a set (' + l.set.items.length + ' songs): open it'} aria-label={'Open “' + l.name + '” as a set'} onclick={() => router.go('#/set/' + l.id)}><Icon name="mix" size="13px" /></button>{/if}
         {#if dropCls(l.id) === 'drop-add'}<span class="plus" aria-hidden="true">+</span>{:else}<span class="n">{l.kind === 'playlist' || l.items.length ? l.items.length : ''}</span>{/if}
         <span class="tools" class:open={menued('l:' + l.id)}>
           <button type="button" class="more" title="More (or right-click)" aria-haspopup="menu" aria-expanded={menued('l:' + l.id)} onclick={e => onMore(e.currentTarget, 'l:' + l.id, () => listMenu(l), l.name)}>⋯</button>
@@ -821,6 +822,8 @@
   section > ul > li > div.item { padding-left: 8px; }
   .name small, .found small { color: var(--muted); }
   .imp { color: var(--muted); font-size: 11px; margin-left: 4px; display: inline-flex; align-items: center; flex: none; }
+  .setmark { flex: none; display: inline-flex; align-items: center; background: none; border: 0; padding: 0 2px; margin-left: 2px; color: var(--accent); opacity: .8; cursor: pointer; }
+  .setmark:hover { opacity: 1; }
   .kept { margin-left: 4px; display: inline-flex; align-items: center; flex: none; opacity: .45; }
   .kept.own { opacity: 1; }
   .kept.out { opacity: 1; }

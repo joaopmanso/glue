@@ -3,7 +3,8 @@
    tempo map (tempo.ts) turns mix beats into seconds. Plain JSON, kept on the playlist (`List.set`). */
 
 /** How one song hands over to the next. */
-export type FxStyle = 'blend' | 'bassSwap' | 'filter' | 'echo' | 'cut' | 'double';
+/** `layer`: the two play along (the incoming one's bass held back), then the outgoing one's bass and volume go. */
+export type FxStyle = 'blend' | 'bassSwap' | 'filter' | 'echo' | 'cut' | 'double' | 'layer';
 /** How the whole set is mixed: one song at a time, continuous blends, double drops. */
 export type SetStyle = 'single' | 'blend' | 'double';
 
@@ -36,6 +37,8 @@ export interface SetPlan {
   /** 'songs': each song's own tempo (held through its hand-over, eased between); 'fixed': one BPM all through. */
   tempo: { mode: 'songs' | 'fixed'; bpm?: number };
   items: SetItem[];
+  /** The length asked for (s): songs play shorter, and the last ones are left out, to fit (ADR 0202). */
+  length?: number;
   /** When it was planned; `edited`: the user changed it since. */
   at: string;
   edited?: boolean;

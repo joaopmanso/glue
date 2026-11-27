@@ -98,27 +98,52 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await page.click('#set-decks-3');
   const tops3 = await page.locator('#set-lanes .blk').evaluateAll(bs => bs.map(b => (b as HTMLElement).style.top));
   expect(new Set(tops3).size).toBe(3);
-  // A hand-over opened from its chip, its style chosen.
+  // A hand-over's chip opens its box where it is; its style chosen there.
   await page.locator('#set-lanes .hchip').first().click();
-  await expect(page.locator('#set-handover')).toBeVisible();
+  await expect(page.locator('#set-pop-fx')).toBeVisible();
   await page.click('#set-hfx-echo');
   await expect(page.locator('#set-lanes .hchip').first()).toContainText('Echo');
   await expect(page.locator('#set-ho-0')).toContainText('Echo out');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#set-pop-fx')).toHaveCount(0);
 
-  // The second song dragged earlier (whole bars): it and the third move, marked as shaped by hand; undo, redo.
+  // The wheel zooms; dragging a song that isn't selected scrolls the timeline (and moves nothing).
+  const lanes = page.locator('#set-lanes'), lb = (await lanes.boundingBox())!;
+  const width = () => lanes.evaluate(e => e.scrollWidth), scrolled = () => lanes.evaluate(e => e.scrollLeft);
+  const w0 = await width();
+  await page.mouse.move(lb.x + 100, lb.y + 80);
+  await page.mouse.wheel(0, -600);
+  await expect.poll(width).toBeGreaterThan(w0 * 1.5);
   const blk = page.locator('#set-lanes .blk').nth(1), left = async () => parseFloat(await blk.evaluate(b => (b as HTMLElement).style.left));
-  const before = await left(), bb = (await blk.boundingBox())!;
+  const before = await left(), s0 = await scrolled();
+  await page.mouse.move(lb.x + lb.width - 40, lb.y + 60);
+  await page.mouse.down();
+  await page.mouse.move(lb.x + lb.width - 240, lb.y + 60, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(scrolled).toBeGreaterThan(s0 + 100);
+  expect(await left()).toBe(before);
+  await page.getByRole('button', { name: 'Fit' }).click();
+
+  // A click selects the second song and opens its box: its level; then dragged earlier (whole bars), undo, redo.
+  await blk.click();
+  await expect(page.locator('#set-pop-song')).toBeVisible();
+  const level = await page.locator('#set-song-level').textContent();
+  await page.click('#set-song-louder');
+  await expect(page.locator('#set-song-level')).not.toHaveText(level!);
+  const at0 = await left(), bb = (await blk.boundingBox())!;
   await page.mouse.move(bb.x + bb.width / 2, bb.y + 30);
   await page.mouse.down();
   await page.mouse.move(bb.x + bb.width / 2 - 60, bb.y + 30, { steps: 6 });
   await page.mouse.move(bb.x + bb.width / 2 - 120, bb.y + 30, { steps: 6 });
   await page.mouse.up();
-  await expect.poll(left).toBeLessThan(before - 20);
+  await expect.poll(left).toBeLessThan(at0 - 20);
   await expect(page.locator('#set-meta')).toContainText('shaped by hand');
   await page.click('#set-undo');
-  await expect.poll(left).toBeCloseTo(before, 1);
+  await expect.poll(left).toBeCloseTo(at0, 1);
   await page.click('#set-redo');
-  await expect.poll(left).toBeLessThan(before - 20);
+  await expect.poll(left).toBeLessThan(at0 - 20);
+  await page.locator('#set-ho-0 button').click();
+  await expect(page.locator('#set-pop-fx')).toBeVisible();
   await page.click('#set-longer');
   await expect(page.locator('#set-bars')).toHaveText(/\d+ bars/);
 
@@ -133,10 +158,14 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await expect(page.locator('#set-time')).not.toHaveText(at!, { timeout: 20_000 });
   await page.click('#set-play');
 
+  await page.keyboard.press('Escape');
   // The running order dragged: the third song first, the set planned again in that order.
   const first = (await page.locator('#set-tracklist').textContent())!.split('\n')[2].replace(/^\S+ /, '');
   await page.locator('#set-order .song').nth(2).dragTo(page.locator('#set-order .song').nth(0));
   await expect(page.locator('#set-tracklist')).toHaveText(new RegExp('^0:00 ' + first));
+  // A length asked for is shown (these songs make less than any).
+  await page.selectOption('#set-length', '1800');
+  await expect(page.locator('#set-meta')).toContainText('asked for 30:00');
   if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/set.png' });
 
   // Export the mix as WAV into the "chosen" file.
@@ -169,4 +198,12 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   });
   expect(mp3.sync).toBe(true);
   expect(mp3.size / (info.size / (44100 * 6))).toBeGreaterThan(30_000);
+
+  // Back in the library, the playlist shows it has a set; its mark opens it.
+  await page.locator('#set-view .back').click();
+  const mark = page.locator('.lside .tree .item', { hasText: 'Friday set' }).locator('.setmark');
+  await expect(mark).toHaveCount(1);
+  await mark.click();
+  await expect(page).toHaveURL(/#\/set\//);
+  await expect(page.locator('#set-lanes .blk')).toHaveCount(3);
 });

@@ -2,32 +2,38 @@
 status: in-progress
 milestone: M10
 updated: 2026-11-27
-adrs: [0197, 0198, 0199, 0200, 0201]
+adrs: [0197, 0198, 0199, 0200, 0201, 0202]
 ---
 # Sets: a playlist mixed, exported as one file
 
-## Now (2026-11-27, S1–S3 shipped)
+## Now (2026-11-27, S1–S3 shipped, then ADR 0202)
 - **Open:** right-click a playlist › **Mix it as a set…** (route `#/set/<id>`). The set is kept on the playlist
   (`List.set`).
 - **Planned on the beat** (ADR 0200):
   - in the playlist's order, hand-overs on 16-bar phrases before each outro;
   - styles: One at a time, Continuous, Double drops;
+  - a length asked for (30 min … 3 h, or no limit, ADR 0202): songs play shorter, then the last are left out;
+  - 3 decks (ADR 0202): songs that sound alike are layered (48 bars along, three at once for 16, one bass);
   - cuts where tempos are more than 8 % apart;
   - each song levelled to the set's loudness.
 - **The timeline** (ADR 0201): 2 or 3 deck lanes.
   - Each song is drawn as heard: its waveform shrinks with its volume and loses its lows while its bass is cut.
   - Every song's waveform loads in the background.
   - A ruler and a playhead; Fit, zoom, Ctrl + wheel.
-- **Shaped by hand** (ADR 0201), always in whole bars, kept whole:
-  - drag a song (it and the ones after it move);
-  - drag its left edge (trim its start) or its right edge (its end);
-  - drag the running order (the set is planned again);
+- **The timeline's gestures** (ADR 0202):
+  - the wheel zooms; dragging empty space or a song not selected scrolls;
+  - the time bar seeks;
+  - a click selects a song and opens its box (play from it, key lock, level ±1 dB, in earlier or later);
+  - a selected song is dragged (it and the ones after it), its edges trim its start or end, in whole bars, kept whole;
   - undo and redo (Ctrl+Z, Ctrl+Shift+Z).
-- **A hand-over's panel** (its chip, or its line in the running order):
-  - its style: Blend, Bass swap, Filter sweep, Echo out, Cut, Double drop;
+- **A hand-over's box** at its chip (or from its line in the running order):
+  - its style: Blend, Bass swap, Layer, Filter sweep, Echo out, Cut, Double drop;
   - its length ±4 bars;
   - the next song in earlier or later;
+  - how alike the two sound;
   - **Hear it**.
+- **The running order:** dragged to reorder (the set is planned again); a song's name shows it on the timeline.
+- **The sidebar:** a playlist with a set shows a crossfader mark that opens it.
 - **The live preview** (ADR 0201): play, pause (Space), click to seek, "play from here" on a song. It runs the file's
   mixer in a worker, fed to an AudioWorklet through the player's output.
 - **Tempo:** each song's own (held through a hand-over, eased between) or one tempo. Key lock is on by default.
@@ -42,6 +48,7 @@ adrs: [0197, 0198, 0199, 0200, 0201]
   - the double drops after the limiter, headroom and key-lock fixes;
   - whether WSOLA's stretch is clean enough (else Signalsmith Stretch).
 - A song dragged to another deck; a hand-over's chip edges dragged.
+- How the layering sounds on the user's sets (its threshold, 0.72, and its 48 bars).
 - Reordering that keeps the hand edits around the songs that stay together.
 
 ## Later

@@ -1,6 +1,6 @@
 <script lang="ts">
   /* The small line icons that replaced emoji glyphs (ADR 0191): one stroke, currentColor, sized to the text. */
-  type Name = 'folder' | 'folder-open' | 'note' | 'disc' | 'gear' | 'play' | 'pause' | 'prev' | 'next' | 'chev-left' | 'chev-right' | 'chev-double';
+  type Name = 'folder' | 'folder-open' | 'note' | 'disc' | 'gear' | 'play' | 'pause' | 'prev' | 'next' | 'chev-left' | 'chev-right' | 'chev-double' | 'mix';
   let { name, size = '1em' }: { name: Name; size?: string } = $props();
 </script>
 
@@ -16,6 +16,7 @@
   {:else if name === 'next'}<path d="M4.5 2.5v11l8-5.5z" fill="currentColor"/>
   {:else if name === 'chev-left'}<path d="M10 3 5 8l5 5"/>
   {:else if name === 'chev-right'}<path d="m6 3 5 5-5 5"/>
+  {:else if name === 'mix'}<path d="M1.5 4h4l5 8h4M1.5 12h4l5-8h4"/>
   {:else if name === 'chev-double'}<path d="m3.5 3 5 5-5 5M8.5 3l5 5-5 5"/>
   {/if}
 </svg>

@@ -24,24 +24,29 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
 - **"Go on until all batches are done"** (the user, 2026-10-03, again 2026-10-05): done on 2026-10-07 (E5, 0.59.0). Each
   batch was released when its checks passed; new work is the user's to choose.
 
-## Latest (2026-11-27, night): sets shaped by hand and heard live (ADR 0201; M10 B, S3; website only)
-- **Before it:** S1–S2 (ADR 0199, 0200): a playlist mixed as a set and exported as WAV or MP3. The user: "mix sounds
-  good … songs are leveled, mixed in the correct time", but "most previews don't work and overall looks terrible", and
-  the export had "a lot of artefacts and noise … specially the double drop ones".
-- **Shipped:**
-  - **the sound:** equal-power headroom where songs play together, a limiter that glides (no 64-sample steps), WSOLA by
-    normalised correlation (sample-exact at a song's own tempo);
-  - **the timeline:** songs drawn as heard, every waveform loaded, drag a song, its start or end (whole bars), hand-over
-    chips and a panel, zoom, undo and redo;
-  - **the running order:** dragged, and the set planned again;
-  - **the live preview:** a worker running the mixer, fed to an AudioWorklet; play, seek, Hear it.
+## Latest (2026-11-27, night): sets with a length, layering on 3 decks, the timeline's gestures (ADR 0201, 0202; website only)
+- **Shipped earlier tonight (ADR 0201):**
+  - cleaner double drops (headroom, a gliding limiter, WSOLA by normalised correlation);
+  - the timeline drawn as heard, hand edits with undo, the running order, the live preview.
+  The user: "fantastic, this is working great for now".
+- **Then (ADR 0202):**
+  - wheel zoom, drag to scroll, select before moving, the time bar seeks;
+  - boxes in place for a song and a hand-over;
+  - a Length choice (songs shorter, then off the end);
+  - 3 decks layer songs that sound alike (style Layer: three at once, one bass);
+  - a crossfader mark on playlists with a set.
   See [features/sets.md](../features/sets.md).
-- **Waiting on the user:** listening again, above all the double drops, in the preview or an export. If the stretch
-  itself (WSOLA) still sounds rough, the next step is Signalsmith Stretch (ADR 0199, 0201).
+- **Waiting on the user:**
+  - listening to the layering on 3 decks, and to the double drops;
+  - **the laptop's playlists not syncing:** the desktop's Electronic collection and its agreed copy hold the same
+    12 playlists, so its deletions went up, and a pulled deletion removes a playlist (`merge3`). So the laptop
+    probably isn't syncing that collection. Asked the user for the laptop's sync chip tooltip and whether GLUE Home
+    runs there. A read of GLUE Cloud with the desktop GLUE Home's credentials was blocked by the permission check;
+    the user can allow it.
 - **Next:**
   - from the user's listening;
   - a song dragged to another deck;
-  - reordering that keeps the hand edits around the songs that stay together;
+  - reordering that keeps hand edits;
   - stems (B4).
 
 ## Earlier (2026-11-27, later): GLUE Home 0.83, playlists that follow a flow (ADR 0197, 0198; M10 step A)

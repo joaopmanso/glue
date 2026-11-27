@@ -34,6 +34,14 @@ export function handOver(style: FxStyle, side: 'out' | 'in', b: number, s: numbe
       if (side === 'in') c.gain = up(u / 0.25);
       else { c.echo = clamp((b - (e - 4)) / 4); c.gain = b < e - 1 ? 1 : clamp(e - b); }
       break;
+    case 'layer': {
+      // Along: the incoming one comes in over 8 bars without its bass; 16 bars before the end the bass changes hands
+      // and the outgoing one fades (half way on a short overlap).
+      const swap = len >= 128 ? e - 64 : mid;
+      if (side === 'in') { c.gain = up((b - s) / 32); c.low = b < swap ? 0 : 1; }
+      else { c.low = b < swap ? 1 : 0; c.gain = b < swap ? 1 : down((b - swap) / Math.max(1, e - swap)); }
+      break;
+    }
     case 'double': {
       // Both at full once the drops land at `drop`; the outgoing song's bass goes then, and it fades over its last 8 beats.
       const d = s + (drop ?? Math.min(len, 16));

@@ -262,3 +262,38 @@ describe('shaping a set by hand (ADR 0201)', () => {
     expect(last.in + last.beats * 60 / last.bpm).toBeLessThanOrEqual(300.05);
   });
 });
+
+describe('a set’s length and 3-deck layering (ADR 0202)', () => {
+  const songs = [song('a', 124), song('b', 125), song('c', 126), song('d', 124), song('e', 125)];
+  const len = (id: string) => songs.find(s => s.id === id)?.duration;
+  const lengthOf = (p: SetPlan) => { const l = p.items[p.items.length - 1]; return tempoOf(p).time(l.start + l.beats); };
+  it('fits a length asked for: every song shorter first, then songs off the end', () => {
+    const full = planSet(songs, opts('blend')), whole = lengthOf(full);
+    const shorter = planSet(songs, { ...opts('blend'), length: whole * 0.8 });
+    expect(shorter.items).toHaveLength(5);
+    expect(lengthOf(shorter)).toBeLessThanOrEqual(whole * 0.8);
+    expect(lengthOf(shorter)).toBeGreaterThan(whole * 0.6);
+    expect(shorter.length).toBe(whole * 0.8);
+    expect(valid(shorter.items, len)).toBe(true);
+    const few = planSet(songs, { ...opts('blend'), length: whole * 0.35 });
+    expect(few.items.length).toBeLessThan(5);
+    expect(few.items.map(i => i.id)).toEqual(songs.slice(0, few.items.length).map(s => s.id));   // off the end
+    expect(lengthOf(few)).toBeLessThanOrEqual(whole * 0.35);
+    expect(planSet(songs, { ...opts('blend'), length: whole * 2 })).toMatchObject({ items: full.items });
+  });
+  it('layers songs that sound alike on 3 decks: two along, then a third in before the first goes', () => {
+    const p = planSet(songs, { ...opts('blend', 3), like: () => 0.9 }), it = p.items;
+    expect(valid(it, len)).toBe(true);
+    expect(it[0].fx?.style).toBe('layer');
+    expect(it[0].start + it[0].beats - it[1].start).toBeGreaterThanOrEqual(192);          // along for 48 bars
+    expect(it[2].start).toBeLessThanOrEqual(it[0].start + it[0].beats - 64);              // three at once
+    // One song's bass at a time, all through.
+    const last = it[it.length - 1];
+    for (let b = 0; b < last.start + last.beats; b += 1) {
+      const bass = it.map((_, i) => controlsAt(it, i, b)).filter(c => c.gain > 0.01 && c.low > 0.5).length;
+      expect(bass, 'beat ' + b).toBeLessThanOrEqual(1);
+    }
+    // Not alike: not layered.
+    expect(planSet(songs, { ...opts('blend', 3), like: () => 0.3 }).items.some(i => i.fx?.style === 'layer')).toBe(false);
+  });
+});

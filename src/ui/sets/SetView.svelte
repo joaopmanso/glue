@@ -12,8 +12,7 @@
   import { keyLabel } from '../../core/audio/keys';
   import { tempoOf } from '../../core/sets/tempo';
   import { clock, timesOf, tracklist } from '../../core/sets/tracklist';
-  import { edited, moveEnd, moveSong } from '../../core/sets/edit';
-  import { MIX_RATE, type FxStyle, type SetStyle } from '../../core/sets/types';
+    import { MIX_RATE, type FxStyle, type SetStyle } from '../../core/sets/types';
   import SetLanes from './SetLanes.svelte';
 
   let { id }: { id: string } = $props();
@@ -28,8 +27,10 @@
   const tr = (x: string) => lib.store?.tracks.get(x);
   const nameOf = (x: string) => ({ artist: tr(x)?.artist ?? '', title: tr(x)?.title || tr(x)?.fileName || '' });
   const text = $derived(plan ? tracklist(plan, nameOf) : '');
-  const missing = $derived(list && plan ? list.items.filter(x => !plan.items.some(i => i.id === x)).length : 0);
-  const len = (x: string) => tr(x)?.duration ?? undefined;
+  /** The playlist's songs that can't be planned (no tempo or length yet), and those left out to fit the length. */
+  const plannable = $derived(list ? list.items.filter(x => { const t = tr(x); return !!t && !!sets.songOf(t); }) : []);
+  const missing = $derived(list ? list.items.filter(x => tr(x)).length - plannable.length : 0);
+  const leftOut = $derived(plan ? plannable.filter(x => !plan.items.some(i => i.id === x)).length : 0);
 
   // The preview follows the plan (a moment after the last change, so a drag isn't heard at every step).
   $effect(() => {
@@ -43,32 +44,12 @@
   const playingIdx = $derived.by(() => { let k = -1; times.forEach((t, i) => { if (t <= now + 0.01) k = i; }); return k; });
 
   const STYLES: [SetStyle, string, string][] = [['single', 'One at a time', 'An 8-bar blend between songs'], ['blend', 'Continuous', 'Long blends with a bass swap'], ['double', 'Double drops', 'Drops landing together where they fit']];
-  const FX: [FxStyle, string, string][] = [['blend', 'Blend', 'Volumes crossed'], ['bassSwap', 'Bass swap', 'The lows swapped on the middle bar'], ['filter', 'Filter sweep', 'The outgoing song filtered away'], ['echo', 'Echo out', 'The outgoing song stops into its echo'], ['cut', 'Cut', 'Straight in on the bar'], ['double', 'Double drop', 'Both at full from the drop']];
-  const fxName = (s: FxStyle | undefined) => FX.find(f => f[0] === (s ?? 'blend'))?.[1] ?? 'Blend';
+  const FXN: Record<FxStyle, string> = { blend: 'Blend', bassSwap: 'Bass swap', layer: 'Layer', filter: 'Filter sweep', echo: 'Echo out', cut: 'Cut', double: 'Double drop' };
+  const fxName = (s: FxStyle | undefined) => FXN[s ?? 'blend'] ?? 'Blend';
+  const LENGTHS: [number | null, string][] = [[null, 'No limit'], [1800, '30 min'], [2700, '45 min'], [3600, '1 hour'], [5400, '1 h 30'], [7200, '2 hours'], [10800, '3 hours']];
 
-  let sel = $state<number | null>(null);
-  $effect(() => { if (plan && sel != null && sel >= plan.items.length - 1) sel = null; });
-  const hand = $derived.by(() => {
-    if (!plan || sel == null || !plan.items[sel + 1] || !tm) return null;
-    const a = plan.items[sel], b = plan.items[sel + 1];
-    return { a, b, at: tm.time(b.start), bars: Math.max(0, (a.start + a.beats - b.start) / 4) };
-  });
-  function setFx(i: number, style: FxStyle) {
-    const p = sets.plan;
-    if (!p) return;
-    sets.apply(edited(p, p.items.map((it, j) => j === i ? { ...it, fx: { ...(it.fx ?? {}), style } } : it)));
-  }
-  function nudge(f: typeof moveEnd, i: number, beats: number) {
-    const p = sets.plan;
-    if (!p) return;
-    const r = f(p.items, i, beats, len);
-    if (r.d) sets.apply(edited(p, r.items));
-  }
-  function hear(i: number) {
-    const p = sets.plan;
-    if (!p || !tm) return;
-    void preview.play(Math.max(0, tm.time(p.items[i + 1].start - 32)) * MIX_RATE);
-  }
+  /** The hand-over open on the timeline (after song `sel`), and the song selected there. */
+  let sel = $state<number | null>(null), song = $state<number | null>(null);
   const fromSong = (i: number) => { if (tm && plan) void preview.play(Math.max(0, tm.time(plan.items[i].start)) * MIX_RATE); };
 
   // The running order: dragged into another order.
@@ -95,7 +76,7 @@
   <header>
     <a class="back" href={viewHash({ kind: 'list', id })}>← {list?.name ?? 'Playlist'}</a>
     <h2 id="set-h">{list?.name ?? 'Set'} <small>as a mix</small></h2>
-    {#if plan}<p class="meta mono" id="set-meta">{plan.items.length} songs · {clock(length)}{#if plan.edited} · shaped by hand{/if}{#if missing} · <span class="warnt">{missing} without a tempo or a length yet, left out</span>{/if}{#if sets.drawing} · drawing waveforms {sets.drawing}{/if}</p>{/if}
+    {#if plan}<p class="meta mono" id="set-meta">{plan.items.length} songs · {clock(length)}{#if plan.length} (asked for {clock(plan.length)}){/if}{#if leftOut} · <span class="warnt" id="set-leftout">{leftOut} left out to fit</span>{/if}{#if plan.edited} · shaped by hand{/if}{#if missing} · <span class="warnt">{missing} without a tempo or a length yet, left out</span>{/if}{#if sets.drawing} · drawing waveforms {sets.drawing}{/if}</p>{/if}
   </header>
 
   {#if sets.status === 'planning'}<p class="hint" id="set-status">Planning the set… {sets.message}</p>
@@ -117,6 +98,7 @@
       <span class="seg two" role="radiogroup" aria-label="Decks">
         {#each [2, 3] as n (n)}<button type="button" role="radio" id={'set-decks-' + n} aria-checked={plan.decks === n} onclick={() => sets.replan({ decks: n as 2 | 3 })}>{n} decks</button>{/each}
       </span>
+      <label class="len">Length <select id="set-length" value={plan.length ?? ''} onchange={e => sets.replan({ length: e.currentTarget.value ? Number(e.currentTarget.value) : null })}>{#each LENGTHS as [v, l] (l)}<option value={v ?? ''}>{l}</option>{/each}</select></label>
       <label class="check"><input type="checkbox" id="set-fixed" checked={plan.tempo.mode === 'fixed'} onchange={e => sets.replan({ tempo: e.currentTarget.checked ? { mode: 'fixed', bpm: Math.round(plan.items[0]?.bpm ?? 124) } : { mode: 'songs' } })}> One tempo</label>
       {#if plan.tempo.mode === 'fixed'}<label>BPM <input type="number" id="set-bpm" min="60" max="200" value={plan.tempo.bpm} onchange={e => sets.replan({ tempo: { mode: 'fixed', bpm: Number(e.currentTarget.value) || 124 } })}></label>{/if}
       <label class="check"><input type="checkbox" id="set-keylock" checked={plan.items[0]?.keyLock ?? true} onchange={e => sets.replan({ keyLock: e.currentTarget.checked })}> Key lock</label>
@@ -127,35 +109,7 @@
     </div>
     {#if preview.error}<p class="warnt small">{preview.error}</p>{/if}
 
-    <SetLanes {plan} waves={sets.waves} frame={preview.frame} playing={preview.playing} bind:sel onseek={f => preview.seek(f)} />
-
-    {#if hand && sel != null}
-      {@const i = sel}
-      <div class="hand" id="set-handover" aria-label="Hand-over">
-        <div class="h-top">
-          <span class="mono t">{clock(hand.at)}</span>
-          <b>{nameOf(hand.a.id).title}</b> <span class="arrow">→</span> <b>{nameOf(hand.b.id).title}</b>
-          <span class="mono bars" id="set-bars">{hand.bars} bars</span>
-          <button type="button" class="btn-ghost sm" id="set-hear" onclick={() => hear(i)}>▶ Hear it</button>
-          <button type="button" class="x" aria-label="Close" onclick={() => (sel = null)}>×</button>
-        </div>
-        <div class="h-row">
-          <span class="fxs" role="radiogroup" aria-label="How it hands over">
-            {#each FX as [v, l, d] (v)}<button type="button" role="radio" id={'set-hfx-' + v} aria-checked={(hand.a.fx?.style ?? 'blend') === v} title={d} onclick={() => setFx(i, v)}>{l}</button>{/each}
-          </span>
-          <span class="nudge">
-            <span class="lbl">Length</span>
-            <button type="button" id="set-shorter" title="4 bars shorter" onclick={() => nudge(moveEnd, i, -16)}>−4</button>
-            <button type="button" id="set-longer" title="4 bars longer" onclick={() => nudge(moveEnd, i, 16)}>+4</button>
-          </span>
-          <span class="nudge">
-            <span class="lbl">Next song in</span>
-            <button type="button" id="set-earlier" title="4 bars earlier" onclick={() => nudge(moveSong, i + 1, -16)}>Earlier</button>
-            <button type="button" id="set-later" title="4 bars later" onclick={() => nudge(moveSong, i + 1, 16)}>Later</button>
-          </span>
-        </div>
-      </div>
-    {/if}
+    <SetLanes {plan} waves={sets.waves} frame={preview.frame} playing={preview.playing} bind:sel bind:song onseek={f => preview.seek(f)} />
 
     <div class="cols">
       <section class="order" aria-label="Running order">
@@ -169,12 +123,12 @@
               <span class="grip" aria-hidden="true">⋮⋮</span>
               <span class="n mono">{i + 1}</span>
               <button type="button" class="t mono" title="Play from here" onclick={() => fromSong(i)}>{clock(times[i] ?? 0)}</button>
-              <span class="who"><b>{nameOf(it.id).title}</b>{#if nameOf(it.id).artist}<i>{nameOf(it.id).artist}</i>{/if}</span>
+              <button type="button" class="who" class:on={song === i} title="Show it on the timeline" onclick={() => { song = song === i ? null : i; sel = null; }}><b>{nameOf(it.id).title}</b>{#if nameOf(it.id).artist}<i>{nameOf(it.id).artist}</i>{/if}</button>
               <span class="mono meta2">{Math.round(it.bpm * 10) / 10}{#if keyOf(it.id)} · {keyOf(it.id)}{/if}</span>
               <span class="deck mono">{['A', 'B', 'C'][it.deck]}</span>
             </li>
             {#if i < plan.items.length - 1}
-              <li class="ho" id={'set-ho-' + i}><button type="button" class:on={sel === i} onclick={() => (sel = sel === i ? null : i)}>{fxName(it.fx?.style)} · {Math.max(0, (it.start + it.beats - plan.items[i + 1].start) / 4)} bars</button></li>
+              <li class="ho" id={'set-ho-' + i}><button type="button" class:on={sel === i} onclick={() => { sel = sel === i ? null : i; song = null; }}>{fxName(it.fx?.style)} · {Math.max(0, (it.start + it.beats - plan.items[i + 1].start) / 4)} bars</button></li>
             {/if}
           {/each}
         </ol>
@@ -239,23 +193,6 @@
   .ic:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
   .ic svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-  .hand { border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--line)); border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--accent) 5%, var(--surface)); display: grid; gap: 10px; animation: rise .15s ease-out; }
-  @keyframes rise { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-  .h-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; }
-  .h-top .t { color: var(--muted); font-size: 12px; }
-  .h-top .arrow { color: var(--accent); }
-  .h-top .bars { color: var(--ink-2); font-size: 12px; padding: 1px 6px; border: 1px solid var(--line-2); border-radius: 4px; }
-  .h-top .x { margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; }
-  .sm { padding: 3px 10px; font-size: 12.5px; }
-  .h-row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
-  .fxs { display: flex; flex-wrap: wrap; gap: 4px; }
-  .fxs button { padding: 4px 10px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--ground); color: var(--ink-2); font-size: 12.5px; cursor: pointer; }
-  .fxs button:hover { border-color: var(--accent); }
-  .fxs button[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #111); font-weight: 600; }
-  .nudge { display: flex; align-items: center; gap: 4px; font-size: 12px; }
-  .nudge .lbl { color: var(--muted); margin-right: 2px; }
-  .nudge button { padding: 3px 8px; border-radius: 5px; border: 1px solid var(--line-2); background: var(--ground); color: var(--ink-2); font-size: 12px; cursor: pointer; }
-  .nudge button:hover { border-color: var(--accent); color: var(--accent); }
 
   .cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; align-items: start; }
   .order ol { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -268,7 +205,9 @@
   .song .n { color: var(--muted); font-size: 12px; text-align: right; }
   .song .t { background: none; border: 0; padding: 0; color: var(--ink-2); font-size: 12px; cursor: pointer; text-align: left; }
   .song .t:hover { color: var(--accent); }
-  .who { display: flex; gap: 8px; align-items: baseline; overflow: hidden; white-space: nowrap; }
+  .who { display: flex; gap: 8px; align-items: baseline; overflow: hidden; white-space: nowrap; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+  .who:hover b, .who.on b { color: var(--accent); }
+  .len select { background: var(--ground); border: 1px solid var(--line-2); border-radius: 5px; padding: 3px 6px; color: var(--ink); font-size: 12.5px; }
   .who b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
   .who i { font-style: normal; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
   .meta2 { color: var(--muted); font-size: 11.5px; }

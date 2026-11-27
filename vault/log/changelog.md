@@ -5,6 +5,27 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · Sets: a length to fit, layering on 3 decks, the timeline's gestures (ADR 0202; M10 B; website only)
+- **Why:** the user, on the set builder: wheel zoom; "clicking on the track should select it and show its options, not
+  default to move it"; drag to navigate; seeking only on the time bar; "how long you want the set to be"; "the 3 deck
+  option is basically just the same as 2 decks"; an icon on the playlist; "a box on the icon's position instead" of the
+  panel.
+- **The plan** (`plan.ts`):
+  - `length`: every song's share shrinks (never under 40 %), then songs come off the end;
+  - on 3 decks, songs that sound alike (likeness ≥ 0.72, tempos within 4 %, keys fit) are layered with the new style
+    `layer` (`automation.ts`): 48 bars along, three at once for 16, one bass at a time.
+- **The timeline** (`SetLanes.svelte`):
+  - wheel zoom; drag to scroll;
+  - a click selects a song (only a selected song moves, its edges shown);
+  - the time bar seeks;
+  - a song's box and a hand-over's box open in place (the panel is gone).
+- **The page:** a Length choice; the running order's names and hand-overs open the boxes on the timeline.
+- **The sidebar:** a crossfader mark on a playlist with a set (`Icon` `mix`).
+- **Help:** "Mixing a set" (the timeline's gestures, the length, 3 decks).
+- **Tests:**
+  - `tests/sets.test.ts`: the length fitted, the layering, one bass at a time;
+  - `e2e/sets.spec.ts`: boxes, wheel zoom, drag to scroll, select then drag, length, the sidebar mark.
+
 ## 2026-11-27 · Sets shaped by hand and heard live; cleaner double drops (ADR 0201; M10 B, S3; website only)
 - **Why:** the user, on the first release: "most previews don't work and overall looks terrible, it should feel
   interactive and dynamic … mix sounds good". Then, on an exported set: "a lot of artefacts and noise on some mixes,

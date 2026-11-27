@@ -10,6 +10,8 @@ import * as platform from '../../platform';
 import { gridFor } from '../../core/sets/grid';
 import { planSet, type PlanSong } from '../../core/sets/plan';
 import { curveOf } from '../../core/audio/sound';
+import { likeness } from '../../core/library/energy';
+import { auto } from '../auto.svelte';
 import type { Waveform } from '../../core/audio/waveform';
 import type { SetPlan, SetStyle } from '../../core/sets/types';
 import type { List, Track } from '../../store/types';
@@ -48,7 +50,8 @@ class Sets {
       // The plan kept on the playlist, while its songs are the ones it has, in its order (songs that can't be planned,
       // without a tempo or a length, are left out of either).
       const plannable = l.items.filter(id => { const t = lib.store?.tracks.get(id); return !!t && !!this.songOf(t); });
-      const kept = l.set && l.set.items.map(i => i.id).join() === plannable.join() ? l.set : null;
+      // A length asked for leaves the last songs out: then its songs are the first ones.
+      const ids = l.set?.items.map(i => i.id).join(), kept = l.set && ids === (l.set.length ? plannable.slice(0, l.set.items.length) : plannable).join() ? l.set : null;
       this.plan = kept ?? this.make(l, { style: 'blend', decks: 2, tempo: { mode: 'songs' }, keyLock: true });
       if (!kept) this.save();
       this.status = 'ready';
@@ -58,19 +61,22 @@ class Sets {
   close() { this.gen++; this.listId = null; this.plan = null; this.status = 'idle'; this.waves = new Map(); this.drawing = ''; this.past = []; this.future = []; }
 
   /** Plan it again in another way (style, decks, tempo, key lock); the playlist's order as it is now. */
-  replan(o: Partial<{ style: SetStyle; decks: 2 | 3; tempo: SetPlan['tempo']; keyLock: boolean }>) {
+  replan(o: Partial<{ style: SetStyle; decks: 2 | 3; tempo: SetPlan['tempo']; keyLock: boolean; length: number | null }>) {
     const l = this.list(), p = this.plan;
     if (!l || !p) return;
     this.record();
-    this.plan = this.make(l, { style: o.style ?? p.style, decks: o.decks ?? p.decks, tempo: o.tempo ?? p.tempo, keyLock: o.keyLock ?? (p.items[0]?.keyLock ?? true) });
+    this.plan = this.make(l, { style: o.style ?? p.style, decks: o.decks ?? p.decks, tempo: o.tempo ?? p.tempo, keyLock: o.keyLock ?? (p.items[0]?.keyLock ?? true), length: o.length !== undefined ? o.length : p.length ?? null });
     this.save();
   }
 
   private make(l: List, o: Parameters<typeof planSet>[1]): SetPlan {
     const songs = l.items.map(id => lib.store?.tracks.get(id)).filter((t): t is Track => !!t).map(t => this.songOf(t)).filter((s): s is PlanSong => !!s);
     if (!songs.length) throw new Error('None of these songs has a tempo yet: they need their analysis first.');
-    return planSet(songs, o);
+    const sp = auto.sound();
+    return planSet(songs, { ...o, like: (a, b) => likeness(sp.timbre.get(a), sp.timbre.get(b)) });
   }
+  /** How alike two songs sound, 0 … 1 (null: not known). */
+  like(a: string, b: string): number | null { const sp = auto.sound(); return likeness(sp.timbre.get(a), sp.timbre.get(b)); }
 
   /** What planning needs of a song: its tempo and grid, length, loudness over time, key. */
   songOf(t: Track): PlanSong | null {
@@ -145,7 +151,7 @@ class Sets {
     const rest = l.items.filter(id => !ids.includes(id)), order = [...ids, ...rest];
     this.record();
     const next = { ...l, items: order };
-    this.plan = this.make(next, { style: p.style, decks: p.decks, tempo: p.tempo, keyLock: p.items[0]?.keyLock ?? true });
+    this.plan = this.make(next, { style: p.style, decks: p.decks, tempo: p.tempo, keyLock: p.items[0]?.keyLock ?? true, length: p.length ?? null });
     lib.store?.putList({ ...next, set: this.plan });
   }
 
