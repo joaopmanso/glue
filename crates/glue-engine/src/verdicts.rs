@@ -47,7 +47,13 @@ impl<H: Host> Engine<H> {
       let mut a = serde_json::to_value(&next).map_err(|e| e.to_string())?;
       // `{ ...next, at: prev.at, fp: prev.fp, sound: prev.sound }`: when it was analysed, whether it has a fingerprint,
       // and its sound profile (ADR 0197: not in the stored details), as they were.
-      { let o = a.as_object_mut().unwrap(); o.remove("engine"); o.remove("fp"); o.remove("sound"); o.insert("at".into(), prev["at"].clone()); if let Some(fp) = prev.get("fp") { o.insert("fp".into(), fp.clone()); } if let Some(sd) = prev.get("sound").filter(|v| !v.is_null()) { o.insert("sound".into(), sd.clone()); } }
+      {
+        let o = a.as_object_mut().unwrap();
+        o.remove("engine"); o.remove("fp"); o.remove("sound");
+        o.insert("at".into(), prev["at"].clone());
+        if let Some(fp) = prev.get("fp") { o.insert("fp".into(), fp.clone()); }
+        if let Some(sd) = prev.get("sound").filter(|v| !v.is_null()) { o.insert("sound".into(), sd.clone()); }
+      }
       let (was, now) = (text(&prev, "grade"), text(&a, "grade"));
       if now == "ok" && was != "ok" { cleared += 1; } else if now != "ok" && was == "ok" { flagged += 1; }
       ops.push(json!({ "m": "analysis", "id": id, "a": a }));
