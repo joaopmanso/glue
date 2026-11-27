@@ -22,9 +22,11 @@ Each song is drawn where it plays, as you'll hear it: its waveform gets smaller 
 
 The play button and the timeline stay at the top of the window while you scroll down the running order.
 
+While it plays, the timeline **follows the playhead**. Zoom, scroll or drag to look elsewhere and it stops following; the crosshair button by **Play** turns following on again (and jumps back to the playhead).
+
 - **Mouse wheel:** zoom in and out (around the pointer), out as far as the whole set; **Fit** shows the whole set.
 - **Drag** empty space, or a song that isn't selected, to move along the set.
-- **Click a song** to select it: its round menu opens where you clicked, with everything about it in one place: **play** from it, its level **+1 / −1 dB**, **key lock**, come in **earlier** or **later**, **Mix in** and **Mix out** (the hand-over from the song before, or into the next, opens beside the menu), let go of its bass edits, and its page. Hover a button to read what it does. Then **drag the song** to bring it in earlier or later (the songs after it move with it, and the one before plays on as it was), or **drag its edges** to start or end it later or earlier. Click it again, or Escape, to close the menu.
+- **Click a song** to select it: its round menu opens where you clicked. **Play** is on top, **Mix in** on the left and **Mix out** on the right (the hand-over from the song before, or into the next, opens beside the menu), **Key lock** below, its **Page** at the upper left, and **Bass ×** (let go of its bass edits) at the upper right when it has some. Its level is in the middle: **−** and **+** a dB at a time. Hover a button to read what it does. Then **drag the song** to bring it in earlier or later (the songs after it move with it, and the one before plays on as it was), or **drag its edges** to start or end it later or earlier. Click it again, or Escape, to close the menu.
 - **Press and hold** on any song (without moving) to grab it, then drag it.
 - **Shift or Ctrl + click** adds songs to the selection (or takes one out). Dragging any of them moves them all together, and the songs not selected stay where they are; their box sets their level and key lock, or brings them in earlier or later.
 - **The bass over part of a song:** hover a song and a **bass** strip shows along its foot, growing as the pointer reaches it. Drag along it to cut the song's bass over those bars, or to open it where it was cut (in a hand-over, say). Stretches cut are hatched red, stretches opened orange; each has a small **×** to let it go.

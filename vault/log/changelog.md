@@ -5,6 +5,22 @@ updated: 2026-11-27
 
 Newest first. Each entry: date, milestone, what changed, links.
 
+## 2026-11-27 · The set's menu trimmed and always there; following the playhead by choice (ADR 0207; website only)
+- **Why:** the user: the menu didn't always show, was cluttered, and "Cut" fell outside the hand-over box; the view
+  pulled back to the playhead after every zoom or scroll.
+- **Fixed:**
+  - a click on the (invisible) bass strip opens the menu; only a drag there edits the bass;
+  - the strip grows to 22 px, not 34;
+  - a click on the selected song opens or moves the menu there;
+  - a grab after 450 ms;
+  - a cancelled pointer lets go;
+  - the hand-over box's grid is `minmax(0, 1fr)`.
+- **The menu:** fixed, labelled places (Play, Mix in, Mix out, Key lock, Page, Bass ×), the level − / + in the middle,
+  earlier/later left to the drag; only its buttons take the pointer.
+- **Follow** (`#set-follow` by Play): off after a wheel, the zoom buttons, Fit or any scroll it didn't make; on again
+  with the toggle.
+- **Tests:** `e2e/sets.spec.ts`: a click on the strip opens the menu; follow turned off by a zoom and on by the toggle.
+
 ## 2026-11-27 · The set's page: one round menu, a pinned timeline, a part exported; the site's ground (ADR 0206; website only)
 - **Why:** the user: a faint grid to line up by, one round menu on a song instead of separate song and hand-over boxes,
   a bass strip that's easier to find with a × per stretch, zoom no further out than the set, less clutter (the

@@ -36,6 +36,11 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - export a part (songs a … b);
   - the tracklist in a modal;
   - the site's ground: a faint accent glow and lines.
+- **Then (ADR 0207):**
+  - the menu always opens (the invisible bass strip was eating clicks), with fixed, labelled items and the level in the
+    middle;
+  - the hand-over box's rows stay inside its frame;
+  - following the playhead stops when the user looks elsewhere, with a toggle by Play.
 - **Waiting on the user:** how it looks and feels (the menu's layout, the ground's strength).
 
 ## Earlier (2026-11-27, late night): GLUE Home 0.85, hand-overs on the drop, the bass by hand (ADR 0205)
@@ -56,7 +61,7 @@ what's next. How GLUE works is in [SYSTEM.md](../SYSTEM.md); older notes are in 
   - **Plan again** on a set (a kept plan isn't re-planned) and listen: do the drops land? The drop thresholds are
     from synthetic tests (**[UNVERIFIED]** on real songs);
   - the laptop's playlists (below).
-- **Next, R4 (approved plan, now ADR 0207 and GLUE Home 0.86):** remote, a device without the songs.
+- **Next, R4 (approved plan, now ADR 0208 and GLUE Home 0.86):** remote, a device without the songs.
   - The sessions over the session channel (`glue-rtc` `Server::stream`, credit-based).
   - Opus via the pure-Rust `opus-rs`. A spike measured it at 156× real time, exactly 192 kbps, an SNR of 34 dB, and a
     delay of 312 samples. Checking that WebCodecs decodes its packets comes first.

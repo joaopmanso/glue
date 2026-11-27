@@ -158,6 +158,10 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await expect(page.locator('#set-pop-song')).toHaveCount(0);
   await blk.locator('.low .lx').click();
   await expect(blk.locator('.low')).toHaveCount(0);
+  // A click (no drag) on the strip is a click on the song: its menu opens.
+  await page.keyboard.press('Escape');
+  await blk.locator('.lows').click();
+  await expect(page.locator('#set-pop-song')).toBeVisible();
   // Shift + click adds the third song: the two move together, the first stays.
   const blk2 = page.locator('#set-lanes .blk').nth(2), left2 = async () => parseFloat(await blk2.evaluate(b => (b as HTMLElement).style.left));
   // (In bars: the hand-over into the first of them 4 bars shorter, the one between them as it was.)
@@ -188,7 +192,7 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await page.click('#set-song-mixout');
   await expect(page.locator('#set-pop-fx')).toHaveClass(/beside/);
   await expect(page.locator('#set-song-mixout')).toHaveAttribute('aria-pressed', 'true');
-  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/set-ring.png' });
+  if (process.env.SHOTS) { await page.waitForTimeout(400); await page.screenshot({ path: process.env.SHOTS + '/set-ring.png' }); }
   await page.keyboard.press('Escape');
   await expect(page.locator('#set-pop-song')).toHaveCount(0);
   // Zooming out stops at the whole set.
@@ -209,6 +213,12 @@ test('a playlist mixed as a set: planned on the beat, styles and decks, exported
   await expect(page.locator('#set-play')).toHaveAttribute('aria-label', 'Pause');
   const at = await page.locator('#set-time').textContent();
   await expect(page.locator('#set-time')).not.toHaveText(at!, { timeout: 20_000 });
+  // Following the playhead: a zoom turns it off, the toggle by Play turns it on again.
+  await page.mouse.move(lb.x + 200, lb.y + 80);
+  await page.mouse.wheel(0, -400);
+  await expect(page.locator('#set-follow')).toHaveAttribute('aria-pressed', 'false');
+  await page.click('#set-follow');
+  await expect(page.locator('#set-follow')).toHaveAttribute('aria-pressed', 'true');
   await page.click('#set-play');
 
   await page.keyboard.press('Escape');

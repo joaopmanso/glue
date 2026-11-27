@@ -2,11 +2,11 @@
 status: in-progress
 milestone: M10
 updated: 2026-11-27
-adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205, 0206]
+adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205, 0206, 0207]
 ---
 # Sets: a playlist mixed, exported as one file
 
-## Now (2026-11-27, S1–S3 shipped, then ADR 0202–0206)
+## Now (2026-11-27, S1–S3 shipped, then ADR 0202–0207)
 - **Open:** right-click a playlist › **Mix it as a set…** (route `#/set/<id>`). The set is kept on the playlist
   (`List.set`).
 - **Planned on the beat** (ADR 0200):
@@ -47,9 +47,12 @@ adrs: [0197, 0198, 0199, 0200, 0201, 0202, 0203, 0204, 0205, 0206]
 - **The running order:** dragged to reorder (the set is planned again); a song's name opens its menu on the timeline;
   the song playing fills its line, the hand-over playing lights up (ADR 0206).
 - **The look** (ADR 0206): the transport and timeline pinned at the top (windows 760 px tall or more); a faint bar grid
-  behind the lanes (phrases in the accent); zoom stops at the whole set; a song's **round menu** where it's clicked (play,
-  level, key lock, earlier/later, Mix in/out opening the hand-over box beside it, bass edits let go, its page); the bass
-  strip on any song hovered, grown under the pointer, a × on each stretch.
+  behind the lanes (phrases in the accent); zoom stops at the whole set; a song's **round menu** where it's clicked, its
+  items in fixed, labelled places (ADR 0207: Play on top, Mix in left, Mix out right, Key lock below, Page, Bass ×; the
+  level − / + in the middle; Mix in/out open the hand-over box beside it); the bass strip on any song hovered, grown
+  under the pointer (a click on it opens the menu, a drag edits the bass), a × on each stretch.
+- **Following the playhead** (ADR 0207): on while playing until the user zooms, scrolls or drags; the crosshair by Play
+  turns it on again.
 - **The sidebar:** a playlist with a set shows a crossfader mark that opens it.
 - **Who mixes** (ADR 0204): this computer's GLUE Home (0.84) whenever it runs and has every song: the same mixer in Rust
   (`glue-sets`), streamed to the tab for the preview and the file ("Mixed by GLUE Home"); else the browser.

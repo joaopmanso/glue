@@ -29,8 +29,10 @@
   import { MIX_RATE, type BassChoice, type FxStyle, type SetItem, type SetPlan } from '../../core/sets/types';
   import type { Waveform } from '../../core/audio/waveform';
 
-  let { plan, waves, frame, playing = false, sel = $bindable(null), song = $bindable(null), onseek, mark = null }: {
+  let { plan, waves, frame, playing = false, sel = $bindable(null), song = $bindable(null), follow = $bindable(true), onseek, mark = null }: {
     plan: SetPlan; waves: Map<string, Waveform>; frame: number; playing?: boolean;
+    /** The view follows the playhead while it plays; looking elsewhere (zoom, scroll, a song chosen) turns it off. */
+    follow?: boolean;
     /** A part of the set marked for export (s), shown on the time bar. */
     mark?: { a: number; b: number } | null;
     /** The hand-over open (after song `sel`), and the song selected. */
@@ -64,6 +66,7 @@
     const wheel = (e: WheelEvent) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       e.preventDefault();
+      follow = false;
       void zoomTo(z * Math.exp(-e.deltaY * 0.0015), e.clientX - el.getBoundingClientRect().left);
     };
     el.addEventListener('wheel', wheel, { passive: false });
@@ -182,7 +185,7 @@
   let panning = $state(false);
   /** A song grabbed by holding still on it. */
   let lifted = $state<number | null>(null);
-  const HOLD = 350;
+  const HOLD = 450;
   function down(e: PointerEvent, i: number, mode: Mode) {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -222,6 +225,7 @@
       sets.drop();
       // The menu follows the song moved (or, grabbed by holding, opens where it was let go).
       if (wasLifted != null && e) ring = { i: wasLifted, ...at(e), open: true };
+      else if (!d.moved && d.mode === 'move' && e) ring = { i: d.i, ...at(e), open: true };
       else if (ring) ring = { ...ring, x: null, y: null };
       return;
     }
@@ -235,7 +239,6 @@
       picks = now; song = now.length ? (now.includes(song) ? song : now[now.length - 1]) : null;
       return;
     }
-    if (song === d.i && ring?.open) { song = null; return; }
     picks = []; ring = { i: d.i, ...(e ? at(e) : { x: null, y: null }), open: true }; song = d.i;
   }
   /** A pointer's place in the timeline's box (for the menu). */
@@ -248,24 +251,29 @@
     if (e.button !== 0) return;
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    // Any song's strip: it's selected, without its menu over the strip.
-    ring = { i, x: null, y: null, open: false };
-    if (song !== i) { picks = []; sel = null; song = i; }
     const it = plan.items[i], b = beatAtX(e.clientX) - it.start;
     lowDrag = { i, a: b, b, on: controlsAt(plan.items, i, it.start + b).low < 0.5, moved: false, x: e.clientX };
   }
   function lowMove(e: PointerEvent) {
     if (!lowDrag) return;
     if (!lowDrag.moved && Math.abs(e.clientX - lowDrag.x) < 4) return;
+    if (!lowDrag.moved) {
+      // A drag: the song selected, without its menu over the strip.
+      const i = lowDrag.i;
+      ring = { i, x: null, y: null, open: false };
+      if (song !== i) { picks = []; sel = null; song = i; }
+    }
     lowDrag = { ...lowDrag, moved: true, b: beatAtX(e.clientX) - plan.items[lowDrag.i].start };
   }
   /** The bars a bass drag covers: from the bar it started in to the one it ended in. */
   const lowBars = (d: { a: number; b: number }) => [Math.floor(Math.min(d.a, d.b) / 4) * 4, Math.ceil(Math.max(d.a, d.b) / 4) * 4] as const;
-  function lowUp() {
+  function lowUp(e?: PointerEvent) {
     const d = lowDrag;
     lowDrag = null;
     if (!d) return;
-    if (d.moved) { const [a, b] = lowBars(d); apply(setLows(plan.items, d.i, a, b, d.on)); }
+    if (d.moved) { const [a, b] = lowBars(d); apply(setLows(plan.items, d.i, a, b, d.on)); return; }
+    // A click: as on the song, its menu where it was clicked.
+    if (e) { picks = []; sel = null; ring = { i: d.i, ...at(e), open: true }; song = d.i; }
   }
   /** A stretch of a song (beats from its start) on screen: left and width (px) inside its block. */
   const spanPx = (it: SetItem, from: number, to: number) => { const x0 = tm.time(it.start) * z; return { l: tm.time(it.start + from) * z - x0, w: Math.max(2, (tm.time(it.start + to) - tm.time(it.start + from)) * z) }; };
@@ -277,12 +285,18 @@
   let seeking = false;
   function rulerDown(e: PointerEvent) { if (e.button !== 0) return; seeking = true; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); seekAt(e.clientX); }
 
-  // While playing, the view follows the playhead.
+  // While playing (and following), the view follows the playhead. Any other scroll is the user looking elsewhere: it
+  // turns following off (the toggle by the play button turns it on again).
+  let followedAt = 0;
   $effect(() => {
     const x = head;
-    if (!box || !playing) return;
-    untrack(() => { if (!drag && (x > scroll + vw * 0.9 || x < scroll)) box!.scrollLeft = Math.max(0, x - vw * 0.15); });
+    if (!box || !playing || !follow) return;
+    untrack(() => { if (!drag && (x > scroll + vw * 0.9 || x < scroll)) { followedAt = performance.now(); box!.scrollLeft = Math.max(0, x - vw * 0.15); } });
   });
+  function scrolled() {
+    scroll = box!.scrollLeft;
+    if (performance.now() - followedAt > 250) follow = false;
+  }
   // A hand-over or song chosen elsewhere (the running order) is brought into view.
   $effect(() => {
     const i = sel ?? song;
@@ -292,7 +306,7 @@
   });
   $effect(() => { if (song != null && song >= plan.items.length) song = null; if (sel != null && sel >= plan.items.length - 1) sel = null; });
 
-  // ---- the song's round menu (ADR 0206): everything about it in one place, where it was clicked ----
+  // ---- the song's round menu (ADR 0206, 0207): everything about it in one place, where it was clicked ----
   let lw = $state<HTMLDivElement>();
   /** The menu's song and where it opened (null: at the song); `open` false: the song selected without it. */
   let ring = $state<{ i: number; x: number | null; y: number | null; open: boolean } | null>(null);
@@ -306,7 +320,7 @@
       if (ring?.i !== s) ring = { i: s, x: null, y: null, open: true };
     });
   });
-  const RR = 80;
+  const RR = 84;
   const ringPos = $derived.by(() => {
     if (!ring?.open || dragging || lowDrag || !plan.items[ring.i] || !blocks[ring.i]) return null;
     const b = blocks[ring.i], it = plan.items[ring.i];
@@ -317,24 +331,24 @@
     }
     return { i: ring.i, it, x: Math.max(RR + 26, Math.min(vw - RR - 26, x)), y: Math.max(RR + 22, y) };
   });
-  /** The menu's items, round it from the top. */
+  /** The menu's items, each in its own place (degrees, clockwise from the top): play on top, the hand-over in on the
+      left and out on the right, key lock below; its page and its bass edits let go on the upper diagonals. Level is in
+      the middle; moving and trimming are the song's own drags. */
   const ringItems = $derived.by(() => {
     if (!ringPos) return [];
-    const i = ringPos.i, it = ringPos.it, last = i === plan.items.length - 1, trim = it.trim ?? 0;
-    const items: { id: string; label: string; icon: string; on?: boolean; act: () => void }[] = [
-      { id: 'set-song-play', label: 'Play from here', icon: 'play', act: () => fromSong(i) },
-      { id: 'set-song-louder', label: 'Louder (+1 dB)', icon: 'up', act: () => setItem(i, { trim: Math.min(12, Math.round((trim + 1) * 10) / 10) }) },
-      ...(last ? [] : [{ id: 'set-song-mixout', label: 'Mix out: the hand-over into the next song', icon: 'out', on: sel === i && fxBy === 'ring', act: () => openFx(i) }]),
-      ...(i ? [{ id: 'set-song-later', label: 'Comes in 4 bars later', icon: 'later', act: () => nudge(moveSong, i, 16) }] : []),
-      { id: 'set-song-keylock', label: it.keyLock ? 'Key lock on (click: the key follows the tempo)' : 'Key lock off (click: keep its key)', icon: 'lock', on: it.keyLock, act: () => setItem(i, { keyLock: !it.keyLock }) },
-      ...(it.lows?.length ? [{ id: 'set-song-lows-clear', label: 'Let go of its bass cuts and opens', icon: 'bass', act: () => apply(clearLows(plan.items, i)) }] : []),
-      ...(i ? [{ id: 'set-song-earlier', label: 'Comes in 4 bars earlier', icon: 'earlier', act: () => nudge(moveSong, i, -16) }] : []),
-      ...(i ? [{ id: 'set-song-mixin', label: 'Mix in: the hand-over from the song before', icon: 'in', on: sel === i - 1 && fxBy === 'ring', act: () => openFx(i - 1) }] : []),
-      { id: 'set-song-quieter', label: 'Quieter (−1 dB)', icon: 'down', act: () => setItem(i, { trim: Math.max(-12, Math.round((trim - 1) * 10) / 10) }) },
-      { id: 'set-song-page', label: 'Its page', icon: 'page', act: () => { location.hash = '#/track/' + it.id; } },
+    const i = ringPos.i, it = ringPos.it, last = i === plan.items.length - 1;
+    const items: { id: string; label: string; short: string; icon: string; deg: number; on?: boolean; act: () => void }[] = [
+      { id: 'set-song-play', label: 'Play the set from this song', short: 'Play', icon: 'play', deg: 0, act: () => fromSong(i) },
+      ...(last ? [] : [{ id: 'set-song-mixout', label: 'Mix out: how it hands over to the next song', short: 'Mix out', icon: 'out', deg: 90, on: sel === i && fxBy === 'ring', act: () => openFx(i) }]),
+      { id: 'set-song-keylock', label: it.keyLock ? 'Key lock is on: click so its key follows the tempo' : 'Key lock is off: click to keep its key', short: 'Key lock', icon: 'lock', deg: 180, on: it.keyLock, act: () => setItem(i, { keyLock: !it.keyLock }) },
+      ...(i ? [{ id: 'set-song-mixin', label: 'Mix in: how the song before hands over to it', short: 'Mix in', icon: 'in', deg: 270, on: sel === i - 1 && fxBy === 'ring', act: () => openFx(i - 1) }] : []),
+      { id: 'set-song-page', label: 'Open its page', short: 'Page', icon: 'page', deg: 315, act: () => { location.hash = '#/track/' + it.id; } },
+      ...(it.lows?.length ? [{ id: 'set-song-lows-clear', label: 'Let go of the bass cut or opened by hand', short: 'Bass ×', icon: 'bass', deg: 45, act: () => apply(clearLows(plan.items, i)) }] : []),
     ];
-    return items.map((x, k) => { const a = -Math.PI / 2 + k * 2 * Math.PI / items.length; return { ...x, dx: Math.cos(a) * RR, dy: Math.sin(a) * RR }; });
+    return items.map(x => { const a = (x.deg - 90) * Math.PI / 180; return { ...x, dx: Math.cos(a) * RR, dy: Math.sin(a) * RR }; });
   });
+  /** Its level, a dB at a time. */
+  function level(i: number, by: number) { const t = plan.items[i]?.trim ?? 0; setItem(i, { trim: Math.max(-12, Math.min(12, Math.round((t + by) * 10) / 10)) }); }
   let ringTip = $state('');
   function openFx(k: number) { if (sel === k && fxBy === 'ring') { sel = null; return; } fxBy = 'ring'; sel = k; }
   const ICON: Record<string, string> = {
@@ -400,7 +414,7 @@
 <svelte:window onkeydown={keys} />
 
 <div class="lw" bind:this={lw}>
-<div class="lanes" class:panning id="set-lanes" data-guide="set-lanes" bind:this={box} bind:clientWidth={vw} onscroll={() => (scroll = box!.scrollLeft)}>
+<div class="lanes" class:panning id="set-lanes" data-guide="set-lanes" bind:this={box} bind:clientWidth={vw} onscroll={scrolled}>
   <div class="inner" style:width={Math.max(total, vw) + 'px'} style:height={RULER + plan.decks * LANE + FXROW + 'px'}>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="ruler" id="set-ruler" title="Click or drag: play from here" onpointerdown={rulerDown} onpointermove={e => seeking && seekAt(e.clientX)} onpointerup={() => (seeking = false)}>
@@ -418,14 +432,14 @@
     {#each blocks as b (b.i)}
       <div class="blk" class:on={chosen.includes(b.i)} class:lift={lifted === b.i} class:active={dragging?.i === b.i} data-song={b.it.id} style:left={b.x + 'px'} style:width={b.w + 'px'} style:top={RULER + b.it.deck * LANE + 3 + 'px'} style:height={LANE - 7 + 'px'} style:--h={hue(b.i)}
         title={name(b.it.id) + (b.it.guessed ? ' (beat grid guessed)' : '') + (chosen.includes(b.i) ? (b.i ? (chosen.length > 1 ? ' · drag to move the songs selected' : ' · drag to move it and the songs after it') : '') : ' · click to select (Shift or Ctrl: add it) · press and hold to grab it')}
-        onpointerdown={e => down(e, b.i, 'move')} onpointermove={move} onpointerup={up} role="button" tabindex="-1" aria-label={name(b.it.id)} aria-pressed={chosen.includes(b.i)}>
+        onpointerdown={e => down(e, b.i, 'move')} onpointermove={move} onpointerup={up} onpointercancel={() => up()} role="button" tabindex="-1" aria-label={name(b.it.id)} aria-pressed={chosen.includes(b.i)}>
         <span class="nm" style:max-width={Math.max(0, b.w - 14) + 'px'}><b>{b.i + 1}</b> {name(b.it.id)}{#if b.it.guessed} <em>grid guessed</em>{/if}</span>
         {#if b.w > 90}<span class="sub mono">{Math.round(b.it.bpm * 10) / 10}{#if b.it.trim} · {b.it.trim > 0 ? '+' : ''}{b.it.trim} dB{/if}{#if !b.it.keyLock} · no key lock{/if}</span>{/if}
         {#if dragging?.i === b.i}<span class="dd mono">{dragging.d > 0 ? '+' : ''}{dragging.d / 4} bars</span>{/if}
         {#if chosen.length < 2}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <span class="lows" class:active={lowDrag?.i === b.i} id={song === b.i ? 'set-lows' : undefined} title="The bass: drag along here to cut it over those bars (or open it where it's cut)"
-            onpointerdown={e => lowDown(e, b.i)} onpointermove={lowMove} onpointerup={lowUp}><i>{lowDrag?.i === b.i ? (lowDrag.on ? 'open the bass' : 'cut the bass') : 'bass · drag to cut or open'}</i></span>
+            onpointerdown={e => lowDown(e, b.i)} onpointermove={lowMove} onpointerup={lowUp} onpointercancel={() => (lowDrag = null)}><i>{lowDrag?.i === b.i ? (lowDrag.on ? 'open the bass' : 'cut the bass') : 'bass · drag to cut or open'}</i></span>
         {/if}
         {#each b.it.lows ?? [] as r, k (k)}
           {@const q = spanPx(b.it, r.from, r.to)}
@@ -499,16 +513,21 @@
     <div class="ring" id="set-pop-song" role="dialog" aria-label={'Song ' + (i + 1)} style:left={ringPos.x + 'px'} style:top={ringPos.y + 'px'} style:--h={hue(i)}>
       <div class="rc">
         <span class="num mono">{i + 1}</span>
-        <b class="rt">{t?.title || t?.fileName || ''}</b>
-        <span class="mono rl" id="set-song-level">{(ringPos.it.trim ?? 0) > 0 ? '+' : ''}{ringPos.it.trim ?? 0} dB</span>
+        <b class="rt" title={t?.title || t?.fileName || ''}>{t?.title || t?.fileName || ''}</b>
+        <span class="lv">
+          <button type="button" id="set-song-quieter" aria-label="Quieter (−1 dB)" title="Quieter (−1 dB)" onclick={() => level(i, -1)}>−</button>
+          <span class="mono rl" id="set-song-level">{(ringPos.it.trim ?? 0) > 0 ? '+' : ''}{ringPos.it.trim ?? 0} dB</span>
+          <button type="button" id="set-song-louder" aria-label="Louder (+1 dB)" title="Louder (+1 dB)" onclick={() => level(i, 1)}>+</button>
+        </span>
         <span class="tip2">{ringTip || (Math.round(ringPos.it.bpm * 10) / 10 + ' BPM' + (keyOf(ringPos.it.id) ? ' · ' + keyOf(ringPos.it.id) : ''))}</span>
-        <button type="button" class="rx" aria-label="Close" onclick={() => { song = null; sel = null; }}>×</button>
+        <button type="button" class="rx" aria-label="Close" title="Close (Esc)" onclick={() => { song = null; sel = null; }}>×</button>
       </div>
       {#each ringItems as x, k (x.id)}
         <button type="button" class="rb" class:on={x.on} id={x.id} aria-label={x.label} aria-pressed={x.on ?? undefined} title={x.label}
           style:--dx={x.dx + 'px'} style:--dy={x.dy + 'px'} style:--k={k}
           onpointerenter={() => (ringTip = x.label)} onpointerleave={() => (ringTip = '')} onclick={x.act}>
-          {#if x.icon === 'up'}<b>+1</b>{:else if x.icon === 'down'}<b>−1</b>{:else}<svg viewBox="0 0 24 24" aria-hidden="true" class:fill={x.icon === 'play'}><path d={ICON[x.icon]} /></svg>{/if}
+          <svg viewBox="0 0 24 24" aria-hidden="true" class:fill={x.icon === 'play'}><path d={ICON[x.icon]} /></svg>
+          <small>{x.short}</small>
         </button>
       {/each}
     </div>
@@ -537,9 +556,9 @@
   <div class="foot">
     <p class="tip">Wheel: zoom · drag: scroll · click a song: its menu (Shift or Ctrl: several) · hold: grab it · its foot: the bass · the time bar: play from there</p>
     <div class="zoom">
-      <button type="button" title="Zoom out" aria-label="Zoom out" onclick={() => zoomTo(z / 1.6)}>−</button>
-      <button type="button" title="The whole set" onclick={fit}>Fit</button>
-      <button type="button" title="Zoom in (or the wheel)" aria-label="Zoom in" onclick={() => zoomTo(z * 1.6)}>+</button>
+      <button type="button" title="Zoom out" aria-label="Zoom out" onclick={() => { follow = false; void zoomTo(z / 1.6); }}>−</button>
+      <button type="button" title="The whole set" onclick={() => { follow = false; fit(); }}>Fit</button>
+      <button type="button" title="Zoom in (or the wheel)" aria-label="Zoom in" onclick={() => { follow = false; void zoomTo(z * 1.6); }}>+</button>
     </div>
   </div>
 </div>
@@ -574,29 +593,33 @@
   /* The bass strip: a thin band along any song's foot, grown under the pointer. */
   .lows { position: absolute; left: 0; right: 0; bottom: 0; height: 12px; cursor: crosshair; border-top: 1px dashed hsl(var(--h) 70% 65% / .5); background: #0000004d; touch-action: none; opacity: 0; border-radius: 0 0 6px 6px; transition: height .14s ease-out, opacity .14s, background .14s; z-index: 1; }
   .blk:hover .lows, .blk.on .lows { opacity: 1; }
-  .lows:hover, .lows.active { height: 34px; background: #000000a8; border-top-style: solid; }
+  .lows:hover, .lows.active { height: 22px; background: #000000a8; border-top-style: solid; }
   .lows i { position: absolute; right: 12px; bottom: 2px; font-style: normal; font-size: 9.5px; font-weight: 700; letter-spacing: .04em; color: #ffffff8c; pointer-events: none; white-space: nowrap; }
-  .lows:hover i, .lows.active i { color: #ff8a1f; font-size: 11px; bottom: 9px; }
+  .lows:hover i, .lows.active i { color: #ff8a1f; font-size: 10.5px; bottom: 4px; }
 
   /* The song's round menu. */
   .ring { position: absolute; z-index: 21; width: 1px; height: 1px; pointer-events: none; }
-  .rc { position: absolute; left: -58px; top: -58px; width: 116px; height: 116px; border-radius: 50%; display: grid; place-content: center; justify-items: center; gap: 1px; text-align: center; padding: 14px; box-sizing: border-box;
-    background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--surface) 85%, hsl(var(--h) 60% 40%)), var(--surface)); border: 2px solid hsl(var(--h) 75% 60%); box-shadow: 0 12px 36px #000b, 0 0 0 8px #0000004d; animation: ringin .16s ease-out; }
-  .rc .num { color: hsl(var(--h) 85% 68%); font-weight: 700; font-size: 12px; }
-  .rc .rt { font-size: 11.5px; line-height: 1.2; max-width: 88px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
-  .rc .rl { font-size: 12px; color: var(--accent); font-weight: 600; }
-  .rc .tip2 { font-size: 9.5px; color: var(--muted); line-height: 1.15; max-width: 92px; }
-  .rx { position: absolute; top: -4px; right: -4px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--raised); color: var(--muted); cursor: pointer; pointer-events: auto; line-height: 1; padding: 0; }
+  .rc { position: absolute; left: -62px; top: -62px; width: 124px; height: 124px; border-radius: 50%; display: grid; place-content: center; justify-items: center; gap: 2px; text-align: center; padding: 12px; box-sizing: border-box;
+    background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--surface) 80%, hsl(var(--h) 60% 40%)), var(--surface) 70%); border: 2px solid hsl(var(--h) 75% 60%); box-shadow: 0 14px 40px #000c, 0 0 0 10px #00000059; animation: ringin .14s ease-out; }
+  .rc .num { color: hsl(var(--h) 85% 68%); font-weight: 700; font-size: 11px; line-height: 1; }
+  .rc .rt { font-size: 11.5px; line-height: 1.2; max-width: 92px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+  .lv { display: flex; align-items: center; gap: 3px; }
+  .lv button { pointer-events: auto; }
+  .lv button { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid var(--line-2); background: var(--raised); color: var(--ink-2); font-size: 13px; line-height: 1; cursor: pointer; }
+  .lv button:hover { border-color: var(--accent); color: var(--accent); }
+  .rc .rl { font-size: 12px; color: var(--accent); font-weight: 600; white-space: nowrap; }
+  .rc .tip2 { font-size: 9.5px; color: var(--muted); line-height: 1.15; max-width: 96px; min-height: 22px; }
+  .rx { position: absolute; top: -2px; right: -2px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--raised); color: var(--muted); cursor: pointer; pointer-events: auto; line-height: 1; padding: 0; }
   .rx:hover { color: var(--ink); border-color: var(--accent); }
-  .rb { position: absolute; left: -20px; top: -20px; width: 40px; height: 40px; border-radius: 50%; padding: 0; display: grid; place-items: center; pointer-events: auto; cursor: pointer;
-    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line-2)); background: var(--raised); color: var(--ink); box-shadow: 0 6px 16px #0009;
-    transform: translate(var(--dx), var(--dy)); animation: rbin .2s ease-out both; animation-delay: calc(var(--k) * 14ms); transition: background .12s, color .12s, transform .12s; }
-  .rb:hover { background: var(--accent); color: var(--accent-ink, #111); transform: translate(var(--dx), var(--dy)) scale(1.1); }
-  .rb.on { background: color-mix(in srgb, var(--accent) 30%, var(--raised)); border-color: var(--accent); color: var(--accent); }
+  .rb { position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; border-radius: 50%; padding: 0; display: grid; place-items: center; align-content: center; gap: 1px; pointer-events: auto; cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-2)); background: var(--raised); color: var(--ink); box-shadow: 0 6px 16px #0009;
+    transform: translate(var(--dx), var(--dy)); animation: rbin .16s ease-out both; animation-delay: calc(var(--k) * 12ms); transition: background .12s, color .12s, transform .12s; }
+  .rb:hover { background: var(--accent); color: var(--accent-ink, #111); transform: translate(var(--dx), var(--dy)) scale(1.08); }
+  .rb.on { background: color-mix(in srgb, var(--accent) 28%, var(--raised)); border-color: var(--accent); color: var(--accent); }
   .rb.on:hover { color: var(--accent-ink, #111); }
-  .rb svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .rb svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .rb svg.fill { fill: currentColor; stroke: none; }
-  .rb b { font-size: 12px; font-family: var(--font-mono); }
+  .rb small { font-size: 8.5px; font-weight: 700; letter-spacing: .02em; line-height: 1; white-space: nowrap; }
   @keyframes ringin { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
   @keyframes rbin { from { transform: translate(0, 0) scale(.3); opacity: 0; } to { transform: translate(var(--dx), var(--dy)); opacity: 1; } }
   .pop.beside { z-index: 22; }
@@ -619,7 +642,7 @@
   .head { position: absolute; top: 0; width: 2px; margin-left: -1px; background: #ff4d4d; box-shadow: 0 0 6px #ff4d4d; pointer-events: none; z-index: 3; }
   .head::before { content: ''; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top-color: #ff4d4d; }
 
-  .pop { position: absolute; z-index: 20; width: 360px; max-width: calc(100% - 16px); box-sizing: border-box; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow: 0 12px 32px #000a; display: grid; gap: 8px; font-size: 12.5px; animation: pop .12s ease-out; }
+  .pop { position: absolute; z-index: 20; width: 360px; max-width: calc(100% - 16px); box-sizing: border-box; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow: 0 12px 32px #000a; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; font-size: 12.5px; animation: pop .12s ease-out; }
   #set-pop-song { border-color: hsl(var(--h) 70% 55%); }
   @keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
   .p-top { display: flex; align-items: center; gap: 8px; }

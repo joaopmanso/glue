@@ -69,6 +69,8 @@
 
   /** The hand-over open on the timeline (after song `sel`), and the song selected there. */
   let sel = $state<number | null>(null), song = $state<number | null>(null);
+  /** The timeline follows the playhead (off once the user looks elsewhere; the toggle by Play). */
+  let follow = $state(true);
   const fromSong = (i: number) => { if (tm && plan) void preview.play(Math.max(0, tm.time(plan.items[i].start)) * MIX_RATE); };
 
   // The running order: dragged into another order.
@@ -108,6 +110,9 @@
           {#if preview.playing}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
           {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>{/if}
         </button>
+        <button type="button" class="ic follow" id="set-follow" aria-pressed={follow} title={follow ? 'Following the playhead (zoom or scroll to look elsewhere)' : 'Follow the playhead again'} aria-label="Follow the playhead" onclick={() => (follow = !follow)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+        </button>
         <span class="time mono" id="set-time">{clock(now)} <i>/ {clock(length)}</i></span>
         {#if preview.loading}<span class="loading">{preview.by === 'home' ? 'GLUE Home is loading the songs…' : 'Loading songs…'}</span>{/if}
         {#if preview.by === 'home'}<span class="by" id="set-by" title="This computer's GLUE Home mixes the set and streams it here: no songs are copied into the browser">Mixed by GLUE Home</span>{/if}
@@ -131,7 +136,7 @@
     {#if preview.error}<p class="warnt small">{preview.error}</p>{/if}
     {#if preview.why}<p class="hint small">{preview.why}</p>{/if}
 
-    <SetLanes {plan} waves={sets.waves} frame={preview.frame} playing={preview.playing} bind:sel bind:song onseek={f => preview.seek(f)} {mark} />
+    <SetLanes {plan} waves={sets.waves} frame={preview.frame} playing={preview.playing} bind:sel bind:song bind:follow onseek={f => preview.seek(f)} {mark} />
     </div>
 
     <div class="cols">
@@ -241,6 +246,8 @@
   .undo { display: flex; gap: 4px; margin-left: auto; }
   .ic { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--ground); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; }
   .ic:disabled { opacity: .35; cursor: default; }
+  .follow[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--ground)); }
+  .follow[aria-pressed="false"] { opacity: .7; }
   .ic:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
   .ic svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
