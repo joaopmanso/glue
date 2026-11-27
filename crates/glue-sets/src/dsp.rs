@@ -212,7 +212,7 @@ impl Limiter {
       let yl = self.dl[w] as f64 * g;
       let yr = self.dr[w] as f64 * g;
       self.dl[w] = xl; self.dr[w] = xr; self.w = (w + 1) % LOOK;
-      if self.w == 0 { let mut t = 0.0; for k in 0..LOOK { t += self.gl[k] as f64; } self.sum = t; }
+      if self.w == 0 { self.sum = self.gl.iter().fold(0.0, |t, g| t + *g as f64); }   // no drift over hours
       l[i] = js::max(-self.ceiling, js::min(self.ceiling, yl)) as f32;
       r[i] = js::max(-self.ceiling, js::min(self.ceiling, yr)) as f32;
     }
